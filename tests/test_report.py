@@ -43,9 +43,9 @@ class ReportTests(unittest.TestCase):
     def test_format(self):
         deck = Deck([THRASIOS], [FOREST] * 3 + [BOLT, SWORDS, MIND_STONE], [])
         text = format_report(deck_report(deck))
-        self.assertIn("Fully playable: 5/7 cards", text)
+        self.assertIn("Fully playable: 6/7 cards", text)  # Swords to Plowshares is playable now
         self.assertIn("activated abilities (1): Thrasios, Triton Hero", text)
-        self.assertIn("Swords to Plowshares: Exile target creature.", text)
+        self.assertIn("Thrasios, Triton Hero: {4}: Scry 1.", text)
 
 
 if __name__ == "__main__":

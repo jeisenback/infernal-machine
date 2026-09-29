@@ -17,8 +17,8 @@ from typing import Any
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword
 from .combat import Combat
-from .effects import (ActivatedAbility, TriggeredAbility, activated_abilities, mana_ability, spell_effects,
-                      target_kind, triggered_abilities)
+from .effects import (ActivatedAbility, TriggeredAbility, activated_abilities, follows_target, mana_ability,
+                      spell_effects, target_kind, triggered_abilities)
 from .mana import Cost, parse_cost, pay
 from .player import Player
 
@@ -51,8 +51,8 @@ BOTTOM_PROMPT = "Put a card on the bottom of your library"
 DISCARD_PROMPT = "Discard down to hand size"
 TARGET_PROMPT = "Choose a target for "  # followed by the spell's name
 SEARCH_PROMPT = "Choose a basic land to put onto the battlefield"
-COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"
-COMMAND_ZONE_OPTIONS = ["Command zone", "Graveyard"]
+SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
+COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 YES_NO = ["Yes", "No"]
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
@@ -68,6 +68,7 @@ class Permanent:
     loyalty: int | None = None
     loyalty_turn: int | None = None  # turn a loyalty ability was last activated (CR 606.3)
     activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
+    last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
 
 
 @dataclass(eq=False)
@@ -95,6 +96,7 @@ class Seat:
     hand: list[Card] = field(default_factory=list)
     battlefield: list[Permanent] = field(default_factory=list)
     graveyard: list[Card] = field(default_factory=list)
+    exile: list[Card] = field(default_factory=list)
     command_zone: list[Card] = field(default_factory=list)
     commander_names: set[str] = field(default_factory=set)
     color_identity: frozenset[str] = frozenset()
@@ -441,10 +443,10 @@ class Game:
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
-            self._to_graveyard(seat, card)
+            self._move_card(seat, card, "graveyard")
             return
         self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard
-        self._to_graveyard(seat, card)
+        self._move_card(seat, card, "graveyard")
 
     def _resolve_ability(self, item: StackItem) -> None:
         seat, ability = item.controller, item.ability
@@ -467,11 +469,14 @@ class Game:
             return False
         self.broadcast({"event": "resolve", **about})
         checks = iter(zip(item.targets, legal))
+        previous = None  # the last targeting effect's target, for "Its controller ..." follow-ups
         for effect in item.effects:
             target = None
             if target_kind(effect):
                 candidate, ok = next(checks)
-                target = candidate if ok else None
+                target = previous = candidate if ok else None
+            elif follows_target(effect):
+                target = previous
             effect.resolve(self, seat, target)
         return True
 
@@ -514,7 +519,10 @@ class Game:
         if kind == "spell":
             options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack if not i.ability]
             return options
+        kind, controller = _split_controller(kind)
         for seat in self.live_seats():
+            if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
+                continue
             for n, permanent in enumerate(seat.battlefield):
                 card = permanent.card
                 if not _permanent_matches(kind, card) or has_keyword(card, "shroud"):
@@ -589,12 +597,23 @@ class Game:
             return
         self._leave_battlefield(permanent, "destroyed")
 
+    def exile(self, permanent: Permanent) -> None:
+        self._leave_battlefield(permanent, "exiled", destination="exile")
+
+    def exile_graveyard(self, seat: Seat) -> None:
+        cards, seat.graveyard = seat.graveyard, []
+        self.broadcast({"event": "graveyard_exiled", "seat": seat.index, "cards": [c.name for c in cards]})
+        for card in cards:
+            self._move_card(seat, card, "exile")
+
     def counter(self, item: StackItem) -> None:
         self.stack.remove(item)
         self.broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name})
-        self._to_graveyard(item.controller, item.card)
+        self._move_card(item.controller, item.card, "graveyard")
 
-    def fetch_basic_land(self, seat: Seat) -> None:
+    def fetch_basic_land(self, seat: Seat, optional: bool = False) -> None:
+        if optional and seat.player.choose(SEARCH_OPTIONAL_PROMPT, YES_NO) != 0:
+            return
         basics = _unique([c for c in seat.library if "Basic" in c.type_line and "Land" in c.type_line])
         if basics:
             choice = basics[seat.player.choose(SEARCH_PROMPT, [c.name for c in basics])]
@@ -609,21 +628,24 @@ class Game:
         seat.battlefield.append(permanent)
         self.trigger("enters", permanent.card, seat)
 
-    def _leave_battlefield(self, permanent: Permanent, reason: str) -> None:
+    def _leave_battlefield(self, permanent: Permanent, reason: str, destination: str = "graveyard") -> None:
         owner = next(s for s in self.seats if any(p is permanent for p in s.battlefield))
         owner.battlefield = [p for p in owner.battlefield if p is not permanent]
+        permanent.last_controller = owner
         self.broadcast({"event": reason, "seat": owner.index, "card": permanent.card.name})
-        if "Creature" in permanent.card.type_line:
+        if destination == "graveyard" and "Creature" in permanent.card.type_line:
             self.trigger("dies", permanent.card, owner)
-        self._to_graveyard(owner, permanent.card)
+        self._move_card(owner, permanent.card, destination)
 
-    def _to_graveyard(self, seat: Seat, card: Card) -> None:
-        """Put a card into its owner's graveyard; a commander may go to the command zone (CR 903.9a)."""
-        if card.name in seat.commander_names and seat.player.choose(COMMAND_ZONE_PROMPT, COMMAND_ZONE_OPTIONS) == 0:
-            seat.command_zone.append(card)
-            self.broadcast({"event": "to_command_zone", "seat": seat.index, "card": card.name})
-            return
-        seat.graveyard.append(card)
+    def _move_card(self, seat: Seat, card: Card, zone: str) -> None:
+        """Put a card into its owner's graveyard or exile; a commander may go to the
+        command zone instead (CR 903.9a)."""
+        if card.name in seat.commander_names:
+            if seat.player.choose(COMMAND_ZONE_PROMPT, ["Command zone", zone.capitalize()]) == 0:
+                seat.command_zone.append(card)
+                self.broadcast({"event": "to_command_zone", "seat": seat.index, "card": card.name})
+                return
+        (seat.exile if zone == "exile" else seat.graveyard).append(card)
 
     def _check_state(self) -> None:
         """State-based actions (CR 704.5): losing the game, lethal damage, zero toughness or loyalty."""
@@ -682,6 +704,15 @@ def _effects(card: Card) -> list | None:
 
 def _instant_speed(card: Card) -> bool:
     return "Instant" in card.type_line or has_keyword(card, "flash")
+
+
+def _split_controller(kind: str) -> tuple[str, str | None]:
+    """ "creature an opponent controls" -> ("creature", "opponent"); "creature" -> ("creature", None)."""
+    for suffix, who in ((" an opponent controls", "opponent"), (" you don't control", "opponent"),
+                        (" you control", "you")):
+        if kind.endswith(suffix):
+            return kind.removesuffix(suffix), who
+    return kind, None
 
 
 def _permanent_matches(kind: str, card: Card) -> bool:

@@ -106,8 +106,16 @@ winner = game.play()
 | (This spell) deals N damage to any target / target creature / target player / ... | Lightning Bolt |
 | Destroy target creature / artifact / enchantment / nonland permanent / ... | Murder |
 | Counter target spell. | Counterspell |
+| Exile target creature / artifact / nonland permanent / ... | |
+| Exile target creature. Its controller gains life equal to its power. | Swords to Plowshares |
+| Exile target creature. Its controller may search their library for a basic land card, ... | Path to Exile |
+| Exile target player's graveyard. | Tormod's Crypt |
 | Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. | Rampant Growth |
 
+- **Target restrictions:** destroy and exile targets can say "an opponent controls",
+  "you don't control" or "you control".
+- **Exile:** each player has an exile zone. Exiled creatures don't "die", so dies triggers don't fire.
+  A commander heading to exile or the graveyard can go to the command zone instead.
 - **Targets:** chosen when the spell is cast. If every target is gone when it resolves, the spell
   does nothing ("fizzles"). Hexproof and shroud are respected, and a spell with no legal target can't be cast.
 - **Partial text:** if any sentence isn't understood, the spell still resolves but does nothing,

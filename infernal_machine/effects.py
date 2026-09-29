@@ -39,7 +39,7 @@ def _rules_text(card: Card) -> str:
     text = _REMINDER.sub("", card.oracle_text)
     front = card.name.split(" // ")[0]
     for name in dict.fromkeys((card.name, front, front.split(",")[0])):
-        text = text.replace(name, "CARDNAME")
+        text = re.sub(rf"(?<!\w){re.escape(name)}(?!\w)", "CARDNAME", text)
     return text
 
 
@@ -55,6 +55,11 @@ def _split_sentences(text: str) -> list[str]:
 def target_kind(effect: Any) -> str | None:
     """What an effect targets ("any", "creature", "spell", ...), or None."""
     return getattr(effect, "target", None)
+
+
+def follows_target(effect: Any) -> bool:
+    """Whether an effect acts on the previous effect's target ("Its controller gains life ...")."""
+    return getattr(effect, "follows_target", False)
 
 
 @dataclass(frozen=True)
@@ -111,12 +116,55 @@ class Counter:
 
 
 @dataclass(frozen=True)
+class Exile:
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile(target)
+
+
+@dataclass(frozen=True)
+class ExileGraveyard:
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_graveyard(target)
+
+
+@dataclass(frozen=True)
+class TargetControllerGainsLifeEqualToPower:
+    """Swords to Plowshares: "Its controller gains life equal to its power." """
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target.last_controller is not None:
+            game.change_life(target.last_controller, _power(target.card))
+
+
+@dataclass(frozen=True)
+class TargetControllerMayFetchBasicLand:
+    """Path to Exile: "Its controller may search their library for a basic land card, ..." """
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target.last_controller is not None:
+            game.fetch_basic_land(target.last_controller, optional=True)
+
+
+def _power(card: Card) -> int:
+    return max(0, int(card.power)) if card.power and card.power.lstrip("-").isdigit() else 0
+
+
+@dataclass(frozen=True)
 class FetchBasicLand:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.fetch_basic_land(controller)
 
 
-_PERMANENT_KIND = r"(creature|artifact|enchantment|planeswalker|nonland permanent|permanent|artifact or enchantment|creature or planeswalker)"
+_PERMANENT_KIND = (r"((?:creature|artifact|enchantment|planeswalker|nonland permanent|permanent|artifact or enchantment"
+                   r"|creature or planeswalker)(?: an opponent controls| you don't control| you control)?)")
 _DAMAGE_KIND = r"(any target|target creature|target player|target creature or planeswalker|target player or planeswalker)"
 
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
@@ -127,6 +175,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
     (re.compile(rf"destroy target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[1].lower())),
     (re.compile(r"counter target spell\.", re.I), lambda m: Counter()),
+    (re.compile(rf"exile target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower())),
+    (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
+    (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
+    (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
+                r"battlefield tapped, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand()),
     (re.compile(r"search your library for a basic land card, put it onto the battlefield tapped, then shuffle\.", re.I),
      lambda m: FetchBasicLand()),
 ]
