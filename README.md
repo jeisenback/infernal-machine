@@ -129,8 +129,21 @@ winner = game.play()
   - A card can call itself by its full name, its short legendary name ("Omnath"),
     "this creature", or "it".
   - A trigger whose effect isn't understood is ignored.
-- **Other rules text on permanents:** besides triggers and mana abilities, rules text on permanents
-  (static abilities, activated abilities) isn't implemented yet.
+- **Activated abilities on permanents:** these also use the same effect list.
+
+  | Cost | Example |
+  |---|---|
+  | Mana, {T}, sacrifice this, pay N life | Mind Stone: "{1}, {T}, Sacrifice this artifact: Draw a card." |
+  | Planeswalker loyalty (+1, −3, 0) | "−3: Destroy target creature." |
+
+  - They can be activated whenever you have priority, unless they say "Activate only as a sorcery".
+    "Activate only once each turn" is respected.
+  - Loyalty abilities: one per planeswalker per turn, at sorcery speed, and loyalty can't go below 0.
+  - Creatures can't use {T} abilities the turn they arrive (unless they have haste).
+  - A permanent can't tap itself for mana to pay for its own {T} or sacrifice ability.
+  - Abilities go on the stack, so players can respond, and counterspells can't target them.
+- **Other rules text on permanents:** static abilities, mana abilities with a cost (Signets),
+  and costs like "sacrifice a creature" aren't implemented yet.
 
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
@@ -162,6 +175,7 @@ stats = goldfish(deck, games=5000, turns=5)
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
   It plays a land whenever it can, then casts its commander if it can,
   then its most expensive affordable spell, and otherwise passes.
+  After casting, it activates abilities that tap, sacrifice, or use loyalty.
   It targets opponents' things when it can, never responds to its own spell,
   and always returns its commander to the command zone. In combat it attacks the opponent
   with the lowest life with every creature that has power. It blocks when its blocker survives,

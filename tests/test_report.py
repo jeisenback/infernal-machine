@@ -18,12 +18,11 @@ THRASIOS = Card(name="Thrasios, Triton Hero", mana_cost="{G}{U}", type_line="Leg
 
 class UnsupportedLinesTests(unittest.TestCase):
     def test_fully_playable(self):
-        for card in (FOREST, SOL_RING, BOLT):
+        for card in (FOREST, SOL_RING, BOLT, MIND_STONE):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
     def test_lists_only_what_is_missing(self):
         self.assertEqual(unsupported_lines(MULLDRIFTER), ["Evoke {2}{U}"])
-        self.assertEqual(unsupported_lines(MIND_STONE), ["{1}, {T}, Sacrifice this artifact: Draw a card."])
         self.assertEqual(unsupported_lines(THRASIOS), ["{4}: Scry 1."])  # partner is a deckbuilding line
         self.assertEqual(unsupported_lines(Card(name="x", mana_cost="{S}", type_line="Creature")), ["mana cost {S}"])
 
@@ -44,8 +43,8 @@ class ReportTests(unittest.TestCase):
     def test_format(self):
         deck = Deck([THRASIOS], [FOREST] * 3 + [BOLT, SWORDS, MIND_STONE], [])
         text = format_report(deck_report(deck))
-        self.assertIn("Fully playable: 4/7 cards", text)
-        self.assertIn("activated abilities (2): Mind Stone, Thrasios, Triton Hero", text)
+        self.assertIn("Fully playable: 5/7 cards", text)
+        self.assertIn("activated abilities (1): Thrasios, Triton Hero", text)
         self.assertIn("Swords to Plowshares: Exile target creature.", text)
 
 

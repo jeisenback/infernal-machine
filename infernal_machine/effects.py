@@ -195,6 +195,75 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     return tuple(abilities)
 
 
+@dataclass(frozen=True)
+class ActivatedAbility:
+    text: str
+    effects: tuple
+    mana_cost: str = ""  # e.g. "{2}{W}"; paid like a spell's cost
+    tap: bool = False  # {T}
+    sacrifice: bool = False  # sacrifice the source itself
+    life: int = 0  # pay N life
+    loyalty: int | None = None  # planeswalker loyalty change: +1, -2, 0
+    sorcery_speed: bool = False  # "Activate only as a sorcery." (loyalty abilities always)
+    once_per_turn: bool = False  # "Activate only once each turn."
+
+
+_ACTIVATED = re.compile(r"([^:\"]+): (.+)")
+_MANA_PART = re.compile(r"(\{(?:\d+|[WUBRGC]|[WUBRGC]/[WUBRGCP])\})+")
+_SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
+_PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
+_LOYALTY = re.compile(r"([+\u2212-]?)(\d+)")
+_SORCERY_ONLY = "Activate only as a sorcery."
+_ONCE_EACH_TURN = "Activate only once each turn."
+
+
+@lru_cache(maxsize=None)
+def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
+    """Activated abilities ("{1}, {T}, Sacrifice this artifact: Draw a card.") whose
+    costs and effects are all understood. Mana abilities are handled by mana_ability."""
+    planeswalker = "Planeswalker" in card.type_line
+    abilities = []
+    for line in rules_lines(card):
+        match = _ACTIVATED.fullmatch(line)
+        if not match or is_mana_ability(line):
+            continue
+        ability = _parse_activated(line, match[1], match[2], planeswalker)
+        if ability is not None:
+            abilities.append(ability)
+    return tuple(abilities)
+
+
+def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> ActivatedAbility | None:
+    fields: dict[str, Any] = {}
+    loyalty = _LOYALTY.fullmatch(cost)
+    if planeswalker and loyalty:
+        amount = int(loyalty[2])
+        fields.update(loyalty=-amount if loyalty[1] in ("\u2212", "-") else amount, sorcery_speed=True)
+    else:
+        for part in cost.split(", "):
+            if _MANA_PART.fullmatch(part):
+                fields["mana_cost"] = fields.get("mana_cost", "") + part
+            elif part == "{T}":
+                fields["tap"] = True
+            elif _SACRIFICE_SELF.fullmatch(part):
+                fields["sacrifice"] = True
+            elif m := _PAY_LIFE.fullmatch(part):
+                fields["life"] = _count(m[1])
+            else:
+                return None
+    sentences = _split_sentences(effect)
+    if _SORCERY_ONLY in sentences:
+        fields["sorcery_speed"] = True
+        sentences.remove(_SORCERY_ONLY)
+    if _ONCE_EACH_TURN in sentences:
+        fields["once_per_turn"] = True
+        sentences.remove(_ONCE_EACH_TURN)
+    effects = _parse(sentences)
+    if not effects:
+        return None
+    return ActivatedAbility(line, tuple(effects), **fields)
+
+
 _ADD_SYMBOLS = re.compile(r"\{T\}: Add ((?:\{[WUBRGC]\})+)\.")
 _ADD_EITHER = re.compile(r"\{T\}: Add \{([WUBRGC])\} or \{([WUBRGC])\}\.")
 _ADD_ANY = re.compile(r"\{T\}: Add one mana of any color\.")

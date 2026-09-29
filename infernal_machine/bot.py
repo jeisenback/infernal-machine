@@ -10,7 +10,7 @@ from typing import Sequence
 from .analysis import is_land
 from .cards import Card, Deck
 from .combat import ATTACK_PROMPT, BLOCK_PROMPT
-from .game import (BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
+from .game import (ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
                    PLAY_LAND, TARGET_PROMPT)
 
 MIN_LANDS = 2
@@ -39,6 +39,8 @@ class BotPlayer:
 
     It targets opponents' things when it can, never responds to its own
     spell, and always sends its commander back to the command zone.
+    After casting, it activates abilities whose cost taps or sacrifices the
+    source, or uses loyalty (so it can't loop on a mana-only ability).
     In combat it attacks the opponent with the lowest life with every creature
     that has power, blocks when its blocker survives, and chump-blocks the
     biggest attacker once its life is at CHUMP_LIFE or below.
@@ -66,7 +68,7 @@ class BotPlayer:
                 self._seat = event["seat"]
         elif kind == "life":
             self._life[event["seat"]] = event["life"]
-        elif kind in ("cast", "trigger"):
+        elif kind in ("cast", "trigger", "activate"):
             self._stack.append(event["seat"])
         elif kind in ("resolve", "fizzle") and self._stack:
             self._stack.pop()
@@ -102,6 +104,9 @@ class BotPlayer:
         casts = [i for i, option in enumerate(options) if option.startswith(CAST)]
         if casts:
             return max(casts, key=lambda i: self._cards[options[i].removeprefix(CAST)].cmc)
+        for i, option in enumerate(options):
+            if option.startswith(ACTIVATE) and _limited_cost(option):
+                return i
         return options.index(PASS)
 
 
@@ -114,6 +119,12 @@ class BotPlayer:
         if self._life.get(self._seat, 0) <= self.CHUMP_LIFE:
             return max(powers, key=powers.get)
         return 0
+
+
+def _limited_cost(action: str) -> bool:
+    """Whether an activation's cost can only be paid a limited number of times."""
+    cost = action.split("): ", 1)[1].split(":", 1)[0]
+    return "{T}" in cost or "Sacrifice" in cost or re.fullmatch(r"[+\u2212-]?\d+", cost) is not None
 
 
 def _stats(label: str) -> tuple[int, int]:

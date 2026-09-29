@@ -17,8 +17,9 @@ from typing import Any
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword
 from .combat import Combat
-from .effects import TriggeredAbility, mana_ability, spell_effects, target_kind, triggered_abilities
-from .mana import parse_cost, pay
+from .effects import (ActivatedAbility, TriggeredAbility, activated_abilities, mana_ability, spell_effects,
+                      target_kind, triggered_abilities)
+from .mana import Cost, parse_cost, pay
 from .player import Player
 
 STARTING_LIFE = 40
@@ -42,6 +43,7 @@ PASS = "Pass"
 PLAY_LAND = "Play land: "
 CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
+ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
 COMMANDER_TAX = 2  # CR 903.8
 PERMANENT_TYPES = ("Artifact", "Battle", "Creature", "Enchantment", "Land", "Planeswalker")
 KEEP_PROMPT = "Keep this hand?"
@@ -64,6 +66,8 @@ class Permanent:
     damage: int = 0
     deathtouched: bool = False  # dealt damage by a source with deathtouch (CR 704.5h)
     loyalty: int | None = None
+    loyalty_turn: int | None = None  # turn a loyalty ability was last activated (CR 606.3)
+    activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
 
 
 @dataclass(eq=False)
@@ -72,7 +76,7 @@ class StackItem:
     controller: "Seat"
     effects: list | None = field(default_factory=list)  # None: rules text not understood
     targets: list = field(default_factory=list)  # one per targeting effect, in order
-    ability: TriggeredAbility | None = None  # set for a triggered ability rather than a spell
+    ability: TriggeredAbility | ActivatedAbility | None = None  # set for an ability rather than a spell
 
 
 @dataclass(eq=False)
@@ -286,7 +290,41 @@ class Game:
         for card in seat.command_zone:
             if (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card, from_command_zone=True):
                 actions.append(CAST_COMMANDER + card.name)
+        actions += list(self._activations(seat, sorcery_timing))
         return actions
+
+    def _activations(self, seat: Seat, sorcery_timing: bool) -> dict[str, tuple[Permanent, ActivatedAbility]]:
+        """Activated abilities `seat` can activate now, keyed by their action text."""
+        options = {}
+        for permanent in seat.battlefield:
+            for ability in activated_abilities(permanent.card):
+                if self._can_activate(seat, permanent, ability, sorcery_timing):
+                    text = ability.text.replace("CARDNAME", permanent.card.name)
+                    options[f"{ACTIVATE}{self.label(permanent)}: {text}"] = (permanent, ability)
+        return options
+
+    def _can_activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility, sorcery_timing: bool) -> bool:
+        card = permanent.card
+        if ability.sorcery_speed and not sorcery_timing:
+            return False
+        if ability.tap and (permanent.tapped or (permanent.sick and "Creature" in card.type_line
+                                                  and not has_keyword(card, "haste"))):
+            return False
+        if ability.once_per_turn and permanent.activated_turn.get(ability.text) == self.turn:
+            return False
+        if ability.loyalty is not None and (permanent.loyalty_turn == self.turn
+                                            or (permanent.loyalty or 0) + ability.loyalty < 0):
+            return False
+        if ability.life > seat.life:  # CR 119.4
+            return False
+        if self._ability_payment(seat, permanent, ability) is None:
+            return False
+        return all(self.target_options(kind, seat) for kind in map(target_kind, ability.effects) if kind)
+
+    def _ability_payment(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> list[Permanent] | None:
+        cost = parse_cost(ability.mana_cost) if ability.mana_cost else Cost()
+        # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
+        return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice else None)
 
     def commander_tax(self, seat: Seat, card: Card) -> int:
         return COMMANDER_TAX * seat.commander_casts.get(card.name, 0)
@@ -297,11 +335,11 @@ class Game:
         kinds = [target_kind(e) for e in _effects(card) or []]
         return all(self.target_options(kind, seat) for kind in kinds if kind)
 
-    def _mana_sources(self, seat: Seat) -> list[tuple[Permanent, frozenset[str]]]:
+    def _mana_sources(self, seat: Seat, exclude: Permanent | None = None) -> list[tuple[Permanent, frozenset[str]]]:
         """One entry per mana each untapped permanent can make; nonland sources first."""
         abilities, lands = [], []
         for permanent in seat.battlefield:
-            if permanent.tapped:
+            if permanent.tapped or permanent is exclude:
                 continue
             if is_land(permanent.card):
                 lands.append((permanent, frozenset(permanent.card.produced_mana)))
@@ -317,7 +355,10 @@ class Game:
             return None
         if from_command_zone:
             cost = cost.plus_generic(self.commander_tax(seat, card))
-        sources = self._mana_sources(seat)
+        return self._pay_cost(seat, cost)
+
+    def _pay_cost(self, seat: Seat, cost: Cost, exclude: Permanent | None = None) -> list[Permanent] | None:
+        sources = self._mana_sources(seat, exclude)
         chosen = pay(cost, [mana for _, mana in sources])
         if chosen is None:
             return None
@@ -338,16 +379,47 @@ class Game:
         elif action.startswith(CAST):
             card = next(c for c in seat.hand if c.name == action.removeprefix(CAST))
             self._cast(seat, card, seat.hand)
+        elif action.startswith(ACTIVATE):
+            sorcery_timing = seat.index == self.active and self.step in ("main1", "main2") and not self.stack
+            permanent, ability = self._activations(seat, sorcery_timing)[action]
+            self._activate(seat, permanent, ability)
+
+    def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
+        targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name)
+        tapped = self._ability_payment(seat, permanent, ability)
+        for source in tapped:
+            source.tapped = True
+        if ability.tap:
+            permanent.tapped = True
+        if ability.life:
+            self.change_life(seat, -ability.life)
+        if ability.loyalty is not None:
+            permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
+            permanent.loyalty_turn = self.turn
+        permanent.activated_turn[ability.text] = self.turn
+        self.stack.append(StackItem(permanent.card, seat, list(ability.effects), targets, ability))
+        self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
+                        "ability": ability.text, "targets": labels, "tapped": [p.card.name for p in tapped]})
+        if ability.sacrifice:
+            self._leave_battlefield(permanent, "sacrificed")
+
+    def _choose_targets(self, seat: Seat, effects, source_name: str) -> tuple[list, list[str]] | None:
+        """Ask `seat` for a target per targeting effect: (targets, labels), or None if one has no legal target."""
+        targets, labels = [], []
+        for kind in (target_kind(e) for e in effects or []):
+            if not kind:
+                continue
+            options = self.target_options(kind, seat)
+            if not options:
+                return None
+            label, target = options[seat.player.choose(TARGET_PROMPT + source_name, [o[0] for o in options])]
+            targets.append(target)
+            labels.append(label)
+        return targets, labels
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False) -> None:
         effects = _effects(card)
-        targets, labels = [], []
-        for kind in (target_kind(e) for e in effects or []):
-            if kind:
-                options = self.target_options(kind, seat)
-                label, target = options[seat.player.choose(TARGET_PROMPT + card.name, [o[0] for o in options])]
-                targets.append(target)
-                labels.append(label)
+        targets, labels = self._choose_targets(seat, effects, card.name)
         tapped = self._payment(seat, card, from_command_zone)
         for permanent in tapped:
             permanent.tapped = True
@@ -376,7 +448,7 @@ class Game:
 
     def _resolve_ability(self, item: StackItem) -> None:
         seat, ability = item.controller, item.ability
-        if ability.optional and seat.player.choose(OPTIONAL_PROMPT + item.card.name, YES_NO) != 0:
+        if getattr(ability, "optional", False) and seat.player.choose(OPTIONAL_PROMPT + item.card.name, YES_NO) != 0:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": ability.text, "declined": True})
             return
@@ -424,20 +496,13 @@ class Game:
             seat = trigger.controller
             if seat.lost:
                 continue
-            targets, labels = [], []
-            for kind in (target_kind(e) for e in trigger.ability.effects):
-                if not kind:
-                    continue
-                options = self.target_options(kind, seat)
-                if not options:
-                    break
-                label, target = options[seat.player.choose(TARGET_PROMPT + trigger.source.name, [o[0] for o in options])]
-                targets.append(target)
-                labels.append(label)
-            else:
-                self.stack.append(StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability))
-                self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
-                                "ability": trigger.ability.text, "targets": labels})
+            chosen = self._choose_targets(seat, trigger.ability.effects, trigger.source.name)
+            if chosen is None:
+                continue
+            targets, labels = chosen
+            self.stack.append(StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability))
+            self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
+                            "ability": trigger.ability.text, "targets": labels})
 
     # --- targets -------------------------------------------------------------
 
