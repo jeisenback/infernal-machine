@@ -3,13 +3,15 @@
 Rules text is matched sentence by sentence against known templates. A spell
 gets effects only if every sentence is understood; otherwise it resolves with
 no effect and the game reports it as unsupported, instead of doing part of
-what the card says.
+what the card says. Triggered abilities on permanents ("When this creature
+enters, draw a card.") use the same templates for what they do.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable
 
 from .cards import Card
@@ -21,15 +23,27 @@ _NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 
             "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
 _N = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)"
 _REMINDER = re.compile(r"\s*\([^)]*\)")
-_SELF = r"(?:CARDNAME|this spell)"
+_SELF = r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|planeswalker|permanent))"
 
 
 def _count(word: str) -> int:
     return int(word) if word.isdigit() else _NUMBERS[word.lower()]
 
 
-def _sentences(card: Card) -> list[str]:
-    text = _REMINDER.sub("", card.oracle_text).replace(card.name, "CARDNAME")
+def _rules_text(card: Card) -> str:
+    """Oracle text without reminder text, with the card's own name as CARDNAME.
+
+    Legendary cards often call themselves by their short name ("Omnath" for
+    "Omnath, Locus of Rage"), and double-faced cards by their front face's name.
+    """
+    text = _REMINDER.sub("", card.oracle_text)
+    front = card.name.split(" // ")[0]
+    for name in dict.fromkeys((card.name, front, front.split(",")[0])):
+        text = text.replace(name, "CARDNAME")
+    return text
+
+
+def _split_sentences(text: str) -> list[str]:
     return [s.strip() for line in text.splitlines() for s in re.split(r"(?<=\.)\s+", line) if s.strip()]
 
 
@@ -113,10 +127,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
 ]
 
 
-def spell_effects(card: Card) -> list | None:
-    """Effects of an instant or sorcery, in order; None if any sentence isn't understood."""
+def _parse(sentences: list[str]) -> list | None:
     effects = []
-    for sentence in _sentences(card):
+    for sentence in sentences:
         for pattern, build in _TEMPLATES:
             match = pattern.fullmatch(sentence)
             if match:
@@ -125,6 +138,51 @@ def spell_effects(card: Card) -> list | None:
         else:
             return None
     return effects
+
+
+def spell_effects(card: Card) -> list | None:
+    """Effects of an instant or sorcery, in order; None if any sentence isn't understood."""
+    return _parse(_split_sentences(_rules_text(card)))
+
+
+@dataclass(frozen=True)
+class TriggeredAbility:
+    event: str  # one of TRIGGER_EVENTS
+    effects: tuple
+    optional: bool  # "you may ...": the controller chooses when it resolves
+    text: str
+
+
+_TRIGGERS = {
+    "enters": re.compile(rf"When(?:ever)? {_SELF} enters(?: the battlefield)?, (.+)", re.I),
+    "dies": re.compile(rf"When(?:ever)? {_SELF} dies, (.+)", re.I),
+    "attacks": re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I),
+    "combat_damage_to_player": re.compile(rf"Whenever {_SELF} deals combat damage to a player, (.+)", re.I),
+    "upkeep": re.compile(r"At the beginning of your upkeep, (.+)", re.I),
+    "end_step": re.compile(r"At the beginning of your end step, (.+)", re.I),
+}
+TRIGGER_EVENTS = tuple(_TRIGGERS)
+
+
+@lru_cache(maxsize=None)
+def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
+    """The triggered abilities on a permanent whose effects are all understood."""
+    abilities = []
+    for line in _rules_text(card).splitlines():
+        line = line.strip()
+        for event, pattern in _TRIGGERS.items():
+            match = pattern.fullmatch(line)
+            if not match:
+                continue
+            rest = match[1]
+            optional = rest.lower().startswith("you may ")
+            if optional:
+                rest = rest[len("you may "):]
+            effects = _parse(_split_sentences(rest[:1].upper() + rest[1:]))
+            if effects is not None:
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, line))
+            break
+    return tuple(abilities)
 
 
 _ADD_SYMBOLS = re.compile(r"\{T\}: Add ((?:\{[WUBRGC]\})+)\.")

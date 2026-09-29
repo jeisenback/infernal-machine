@@ -17,7 +17,7 @@ from typing import Any
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword
 from .combat import Combat
-from .effects import mana_ability, spell_effects, target_kind
+from .effects import TriggeredAbility, mana_ability, spell_effects, target_kind, triggered_abilities
 from .mana import parse_cost, pay
 from .player import Player
 
@@ -51,6 +51,8 @@ TARGET_PROMPT = "Choose a target for "  # followed by the spell's name
 SEARCH_PROMPT = "Choose a basic land to put onto the battlefield"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"
 COMMAND_ZONE_OPTIONS = ["Command zone", "Graveyard"]
+OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
+YES_NO = ["Yes", "No"]
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
 
 
@@ -66,10 +68,18 @@ class Permanent:
 
 @dataclass(eq=False)
 class StackItem:
-    card: Card
+    card: Card  # the spell, or the source of a triggered ability
     controller: "Seat"
     effects: list | None = field(default_factory=list)  # None: rules text not understood
     targets: list = field(default_factory=list)  # one per targeting effect, in order
+    ability: TriggeredAbility | None = None  # set for a triggered ability rather than a spell
+
+
+@dataclass(eq=False)
+class PendingTrigger:
+    ability: TriggeredAbility
+    source: Card
+    controller: "Seat"
 
 
 @dataclass(eq=False)
@@ -116,6 +126,7 @@ class Game:
         self.step = STEPS[0]
         self.stack: list[StackItem] = []
         self.combat = Combat(self)
+        self.pending: list[PendingTrigger] = []  # triggered, not yet on the stack
 
     @property
     def multiplayer(self) -> bool:
@@ -207,6 +218,9 @@ class Game:
             # CR 103.8: only a two-player game skips the first player's first draw.
             if not (self.turn == 1 and not self.multiplayer):
                 self.draw(seat, 1)
+        elif self.step in ("upkeep", "end"):
+            for permanent in list(seat.battlefield):
+                self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent.card, seat)
         elif self.step == "declare_attackers":
             self.combat.declare_attackers(seat)
         elif self.step == "declare_blockers":
@@ -236,6 +250,7 @@ class Game:
         """
         passes = 0
         holder = active
+        self._put_triggers_on_stack()
         while True:
             if passes >= len(self.live_seats()):
                 if not self.stack:
@@ -254,6 +269,7 @@ class Game:
             self._check_state()
             if self.winner() is not None or active.lost:
                 return
+            self._put_triggers_on_stack()
             if holder.lost:
                 holder = self.seats[self._next_live_seat(holder.index)]
 
@@ -311,7 +327,7 @@ class Game:
     def _perform(self, seat: Seat, action: str) -> None:
         if action.startswith(PLAY_LAND):
             card = _take(seat.hand, action.removeprefix(PLAY_LAND))
-            seat.battlefield.append(Permanent(card))
+            self._enter(seat, Permanent(card))
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name})
         elif action.startswith(CAST_COMMANDER):
@@ -343,22 +359,41 @@ class Game:
 
     def _resolve(self, item: StackItem) -> None:
         seat, card = item.controller, item.card
+        if item.ability:
+            self._resolve_ability(item)
+            return
         if _is_permanent(card):
             loyalty = int(card.loyalty) if card.loyalty and card.loyalty.isdigit() else None
-            seat.battlefield.append(Permanent(card, sick=True, loyalty=loyalty))
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
+            self._enter(seat, Permanent(card, sick=True, loyalty=loyalty))
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
             self._to_graveyard(seat, card)
             return
+        self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard
+        self._to_graveyard(seat, card)
+
+    def _resolve_ability(self, item: StackItem) -> None:
+        seat, ability = item.controller, item.ability
+        if ability.optional and seat.player.choose(OPTIONAL_PROMPT + item.card.name, YES_NO) != 0:
+            self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
+                            "ability": ability.text, "declined": True})
+            return
+        self._apply_effects(item)
+
+    def _apply_effects(self, item: StackItem) -> bool:
+        """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""
+        seat = item.controller
         legal = [self.is_legal_target(target_kind(e), t, seat)
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
-        if legal and not any(legal):  # CR 608.2b: every target is gone
-            self.broadcast({"event": "fizzle", "seat": seat.index, "card": card.name})
-            self._to_graveyard(seat, card)
-            return
-        self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name})
+        about = {"seat": seat.index, "card": item.card.name}
+        if item.ability:
+            about["ability"] = item.ability.text
+        if legal and not any(legal):
+            self.broadcast({"event": "fizzle", **about})
+            return False
+        self.broadcast({"event": "resolve", **about})
         checks = iter(zip(item.targets, legal))
         for effect in item.effects:
             target = None
@@ -366,7 +401,43 @@ class Game:
                 candidate, ok = next(checks)
                 target = candidate if ok else None
             effect.resolve(self, seat, target)
-        self._to_graveyard(seat, card)
+        return True
+
+    # --- triggered abilities -------------------------------------------------
+
+    def trigger(self, event: str, source: Card, controller: Seat) -> None:
+        """Note that `source`'s abilities for `event` triggered; they go on the stack
+        the next time a player would get priority (CR 603.3)."""
+        for ability in triggered_abilities(source):
+            if ability.event == event:
+                self.pending.append(PendingTrigger(ability, source, controller))
+
+    def _put_triggers_on_stack(self) -> None:
+        """Active player's triggers first, then the others in turn order (CR 603.3b).
+
+        Targets are chosen now; an ability with no legal target is removed (CR 603.3d).
+        """
+        order = {seat.index: n for n, seat in enumerate(self.turn_order_from_active())}
+        pending = sorted(self.pending, key=lambda t: order.get(t.controller.index, len(order)))
+        self.pending = []
+        for trigger in pending:
+            seat = trigger.controller
+            if seat.lost:
+                continue
+            targets, labels = [], []
+            for kind in (target_kind(e) for e in trigger.ability.effects):
+                if not kind:
+                    continue
+                options = self.target_options(kind, seat)
+                if not options:
+                    break
+                label, target = options[seat.player.choose(TARGET_PROMPT + trigger.source.name, [o[0] for o in options])]
+                targets.append(target)
+                labels.append(label)
+            else:
+                self.stack.append(StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability))
+                self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
+                                "ability": trigger.ability.text, "targets": labels})
 
     # --- targets -------------------------------------------------------------
 
@@ -376,7 +447,7 @@ class Game:
         if kind in ("any", "player", "player or planeswalker"):
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
         if kind == "spell":
-            options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack]
+            options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack if not i.ability]
             return options
         for seat in self.live_seats():
             for n, permanent in enumerate(seat.battlefield):
@@ -429,6 +500,8 @@ class Game:
         controller = self.controller_of(source) if source else None
         if isinstance(target, Seat):
             self.change_life(target, -amount)
+            if combat and controller:
+                self.trigger("combat_damage_to_player", source.card, controller)
             if combat and controller and source.card.name in controller.commander_names:
                 key = (controller.index, source.card.name)
                 target.commander_damage[key] = target.commander_damage.get(key, 0) + amount
@@ -461,16 +534,22 @@ class Game:
         if basics:
             choice = basics[seat.player.choose(SEARCH_PROMPT, [c.name for c in basics])]
             seat.library.remove(choice)
-            seat.battlefield.append(Permanent(choice, tapped=True))
             self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": True})
+            self._enter(seat, Permanent(choice, tapped=True))
         self.rng.shuffle(seat.library)
 
     # --- helpers -------------------------------------------------------------
+
+    def _enter(self, seat: Seat, permanent: Permanent) -> None:
+        seat.battlefield.append(permanent)
+        self.trigger("enters", permanent.card, seat)
 
     def _leave_battlefield(self, permanent: Permanent, reason: str) -> None:
         owner = next(s for s in self.seats if any(p is permanent for p in s.battlefield))
         owner.battlefield = [p for p in owner.battlefield if p is not permanent]
         self.broadcast({"event": reason, "seat": owner.index, "card": permanent.card.name})
+        if "Creature" in permanent.card.type_line:
+            self.trigger("dies", permanent.card, owner)
         self._to_graveyard(owner, permanent.card)
 
     def _to_graveyard(self, seat: Seat, card: Card) -> None:

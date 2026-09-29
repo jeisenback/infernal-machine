@@ -66,7 +66,7 @@ class BotPlayer:
                 self._seat = event["seat"]
         elif kind == "life":
             self._life[event["seat"]] = event["life"]
-        elif kind == "cast":
+        elif kind in ("cast", "trigger"):
             self._stack.append(event["seat"])
         elif kind in ("resolve", "fizzle") and self._stack:
             self._stack.pop()

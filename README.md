@@ -112,8 +112,25 @@ winner = game.play()
   does nothing ("fizzles"). Hexproof and shroud are respected, and a spell with no legal target can't be cast.
 - **Partial text:** if any sentence isn't understood, the spell still resolves but does nothing,
   and the `resolve` event is marked `"unsupported": true`. The engine never does half of what a card says.
-- **Permanents:** they enter the battlefield. Their mana abilities work, but their other rules text
-  (enters-the-battlefield triggers, static abilities) isn't implemented yet.
+- **Triggered abilities on permanents:** these use the same effect list as spells.
+
+  | Trigger | Example |
+  |---|---|
+  | When this creature enters, ... | Mulldrifter: "When Mulldrifter enters, draw two cards." |
+  | When this creature dies, ... | |
+  | Whenever this creature attacks, ... | |
+  | Whenever this creature deals combat damage to a player, ... | |
+  | At the beginning of your upkeep / end step, ... | |
+
+  - Triggers go on the stack the next time a player would get priority. The active player's go
+    first, so they resolve last, and players can respond to them.
+  - Targets are chosen when a trigger goes on the stack. A trigger with no legal target is removed.
+  - "You may" abilities ask their controller when they resolve.
+  - A card can call itself by its full name, its short legendary name ("Omnath"),
+    "this creature", or "it".
+  - A trigger whose effect isn't understood is ignored.
+- **Other rules text on permanents:** besides triggers and mana abilities, rules text on permanents
+  (static abilities, activated abilities) isn't implemented yet.
 
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.

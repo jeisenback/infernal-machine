@@ -62,6 +62,7 @@ class Combat:
             if not has_keyword(permanent.card, "vigilance"):
                 permanent.tapped = True
             self.attacks.append(Attack(permanent, seat, defender))
+            self.game.trigger("attacks", permanent.card, seat)
             self.game.broadcast({"event": "attack", "seat": seat.index, "card": permanent.card.name,
                                  "defender": defender.index})
 
