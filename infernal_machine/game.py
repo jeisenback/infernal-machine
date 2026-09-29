@@ -16,6 +16,7 @@ from typing import Any
 
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword
+from .combat import Combat
 from .effects import mana_ability, spell_effects, target_kind
 from .mana import parse_cost, pay
 from .player import Player
@@ -50,6 +51,7 @@ TARGET_PROMPT = "Choose a target for "  # followed by the spell's name
 SEARCH_PROMPT = "Choose a basic land to put onto the battlefield"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"
 COMMAND_ZONE_OPTIONS = ["Command zone", "Graveyard"]
+COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
 
 
 @dataclass(eq=False)
@@ -58,6 +60,7 @@ class Permanent:
     tapped: bool = False
     sick: bool = False  # entered since its controller's last untap step
     damage: int = 0
+    deathtouched: bool = False  # dealt damage by a source with deathtouch (CR 704.5h)
     loyalty: int | None = None
 
 
@@ -82,6 +85,7 @@ class Seat:
     commander_names: set[str] = field(default_factory=set)
     color_identity: frozenset[str] = frozenset()
     commander_casts: dict[str, int] = field(default_factory=dict)
+    commander_damage: dict[tuple[int, str], int] = field(default_factory=dict)  # (seat, commander) -> damage
     lands_played: int = 0
     drew_from_empty: bool = False
     lost: bool = False
@@ -111,6 +115,7 @@ class Game:
         self.active = 0
         self.step = STEPS[0]
         self.stack: list[StackItem] = []
+        self.combat = Combat(self)
 
     @property
     def multiplayer(self) -> bool:
@@ -132,9 +137,9 @@ class Game:
         self.active = self.rng.randrange(len(self.seats))
         for seat in self.seats:
             self.rng.shuffle(seat.library)
-            self._broadcast({"event": "seat", "seat": seat.index, "name": seat.name,
+            self.broadcast({"event": "seat", "seat": seat.index, "name": seat.name,
                              "life": seat.life, "commanders": [c.name for c in seat.command_zone]})
-        self._broadcast({"event": "starting_player", "seat": self.active})
+        self.broadcast({"event": "starting_player", "seat": self.active})
         for seat in self._turn_order(self.active):
             self._mulligan(seat)
 
@@ -154,7 +159,7 @@ class Game:
         for _ in range(min(to_bottom, HAND_SIZE)):
             i = seat.player.choose(BOTTOM_PROMPT, [c.name for c in seat.hand])
             seat.library.append(seat.hand.pop(i))
-        self._broadcast({"event": "kept", "seat": seat.index, "mulligans": taken, "hand_size": len(seat.hand)})
+        self.broadcast({"event": "kept", "seat": seat.index, "mulligans": taken, "hand_size": len(seat.hand)})
 
     # --- turn loop -----------------------------------------------------------
 
@@ -166,22 +171,35 @@ class Game:
             self._take_turn(self.seats[self.active])
             self.active = self._next_live_seat(self.active)
         winner = self.winner()
-        self._broadcast({"event": "game_over", "winner": winner.index if winner else None, "turn": self.turn})
+        self.broadcast({"event": "game_over", "winner": winner.index if winner else None, "turn": self.turn})
         return winner
 
     def _take_turn(self, seat: Seat) -> None:
         seat.lands_played = 0
-        self._broadcast({"event": "turn", "turn": self.turn, "seat": seat.index})
+        self.broadcast({"event": "turn", "turn": self.turn, "seat": seat.index})
+        over = lambda: self.winner() is not None or seat.lost
         for step in STEPS:
+            if step in ("declare_blockers", "combat_damage") and not self.combat.attacks:
+                continue  # CR 508.8: no attackers, no blockers or damage steps
+            if step == "combat_damage" and self.combat.has_first_strike():
+                self.step = "first_strike_damage"  # CR 510.4
+                self.combat.deal_damage(first_strike_step=True)
+                self._check_state()
+                if over():
+                    return
+                self._priority_round(seat)
+                if over():
+                    return
             self.step = step
             self._turn_based_actions(seat)
-            if self.winner() is not None or seat.lost:
+            if over():
                 return
             if step not in NO_PRIORITY_STEPS:
                 self._priority_round(seat)
 
     def _turn_based_actions(self, seat: Seat) -> None:
         if self.step == "untap":
+            self.combat = Combat(self)
             for permanent in seat.battlefield:
                 permanent.tapped = False
                 permanent.sick = False
@@ -189,16 +207,25 @@ class Game:
             # CR 103.8: only a two-player game skips the first player's first draw.
             if not (self.turn == 1 and not self.multiplayer):
                 self.draw(seat, 1)
+        elif self.step == "declare_attackers":
+            self.combat.declare_attackers(seat)
+        elif self.step == "declare_blockers":
+            self.combat.declare_blockers()
+        elif self.step == "combat_damage":
+            self.combat.deal_damage(first_strike_step=False)
+        elif self.step == "main2":
+            self.combat = Combat(self)  # CR 511.3: creatures leave combat
         elif self.step == "cleanup":
             excess = len(seat.hand) - HAND_SIZE
             for _ in range(max(0, excess)):
                 i = seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])
                 card = seat.hand.pop(i)
                 seat.graveyard.append(card)
-                self._broadcast({"event": "discard", "seat": seat.index, "card": card.name})
+                self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
             for other in self.seats:  # CR 514.2
                 for permanent in other.battlefield:
                     permanent.damage = 0
+                    permanent.deathtouched = False
         self._check_state()
 
     def _priority_round(self, active: Seat) -> None:
@@ -286,7 +313,7 @@ class Game:
             card = _take(seat.hand, action.removeprefix(PLAY_LAND))
             seat.battlefield.append(Permanent(card))
             seat.lands_played += 1
-            self._broadcast({"event": "play_land", "seat": seat.index, "card": card.name})
+            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name})
         elif action.startswith(CAST_COMMANDER):
             name = action.removeprefix(CAST_COMMANDER)
             card = next(c for c in seat.command_zone if c.name == name)
@@ -310,7 +337,7 @@ class Game:
             permanent.tapped = True
         zone.remove(card)
         self.stack.append(StackItem(card, seat, effects, targets))
-        self._broadcast({"event": "cast", "seat": seat.index, "card": card.name,
+        self.broadcast({"event": "cast", "seat": seat.index, "card": card.name,
                          "from": "command_zone" if from_command_zone else "hand",
                          "targets": labels, "tapped": [p.card.name for p in tapped]})
 
@@ -319,19 +346,19 @@ class Game:
         if _is_permanent(card):
             loyalty = int(card.loyalty) if card.loyalty and card.loyalty.isdigit() else None
             seat.battlefield.append(Permanent(card, sick=True, loyalty=loyalty))
-            self._broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
+            self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
             return
         if item.effects is None:
-            self._broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
+            self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
             self._to_graveyard(seat, card)
             return
         legal = [self.is_legal_target(target_kind(e), t, seat)
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
         if legal and not any(legal):  # CR 608.2b: every target is gone
-            self._broadcast({"event": "fizzle", "seat": seat.index, "card": card.name})
+            self.broadcast({"event": "fizzle", "seat": seat.index, "card": card.name})
             self._to_graveyard(seat, card)
             return
-        self._broadcast({"event": "resolve", "seat": seat.index, "card": card.name})
+        self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name})
         checks = iter(zip(item.targets, legal))
         for effect in item.effects:
             target = None
@@ -358,8 +385,24 @@ class Game:
                     continue
                 if has_keyword(card, "hexproof") and seat is not caster:
                     continue
-                options.append((f"{card.name} (seat {seat.index}, #{n + 1})", permanent))
+                options.append((self.label(permanent), permanent))
         return options
+
+    def label(self, permanent: Permanent) -> str:
+        """How a permanent is shown in choices: "Grizzly Bears 2/2 (seat 1, #3)"."""
+        seat = self.controller_of(permanent)
+        n = next(i for i, p in enumerate(seat.battlefield) if p is permanent) + 1
+        stats = f" {permanent.card.power}/{permanent.card.toughness}" if "Creature" in permanent.card.type_line else ""
+        return f"{permanent.card.name}{stats} (seat {seat.index}, #{n})"
+
+    def controller_of(self, permanent: Permanent) -> Seat | None:
+        return next((s for s in self.seats if any(p is permanent for p in s.battlefield)), None)
+
+    def on_battlefield(self, permanent: Permanent) -> bool:
+        return self.controller_of(permanent) is not None
+
+    def turn_order_from_active(self) -> list[Seat]:
+        return [s for s in self._turn_order(self.active) if not s.lost]
 
     def is_legal_target(self, kind: str, target: Any, caster: Seat) -> bool:
         return any(option is target for _, option in self.target_options(kind, caster))
@@ -375,21 +418,33 @@ class Game:
             seat.hand.append(card)
             if announce:
                 seat.player.notify({"event": "draw", "card": card.name})
-                self._broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
+                self.broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
 
     def change_life(self, seat: Seat, amount: int) -> None:
         seat.life += amount
-        self._broadcast({"event": "life", "seat": seat.index, "change": amount, "life": seat.life})
+        self.broadcast({"event": "life", "seat": seat.index, "change": amount, "life": seat.life})
 
-    def damage(self, target: Seat | Permanent, amount: int) -> None:
+    def damage(self, target: Seat | Permanent, amount: int, source: Permanent | None = None,
+               combat: bool = False) -> None:
+        controller = self.controller_of(source) if source else None
         if isinstance(target, Seat):
             self.change_life(target, -amount)
-            return
-        if "Creature" in target.card.type_line:
-            target.damage += amount
-        if target.loyalty is not None:
-            target.loyalty -= amount
-        self._broadcast({"event": "damage", "card": target.card.name, "amount": amount})
+            if combat and controller and source.card.name in controller.commander_names:
+                key = (controller.index, source.card.name)
+                target.commander_damage[key] = target.commander_damage.get(key, 0) + amount
+                self.broadcast({"event": "commander_damage", "seat": target.index, "from_seat": controller.index,
+                                "commander": source.card.name, "total": target.commander_damage[key]})
+        else:
+            if "Creature" in target.card.type_line:
+                target.damage += amount
+                if source and has_keyword(source.card, "deathtouch"):
+                    target.deathtouched = True
+            if target.loyalty is not None:
+                target.loyalty -= amount
+            self.broadcast({"event": "damage", "card": target.card.name, "amount": amount,
+                            "source": source.card.name if source else None})
+        if controller and has_keyword(source.card, "lifelink"):
+            self.change_life(controller, amount)
 
     def destroy(self, permanent: Permanent) -> None:
         if has_keyword(permanent.card, "indestructible"):
@@ -398,7 +453,7 @@ class Game:
 
     def counter(self, item: StackItem) -> None:
         self.stack.remove(item)
-        self._broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name})
+        self.broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name})
         self._to_graveyard(item.controller, item.card)
 
     def fetch_basic_land(self, seat: Seat) -> None:
@@ -407,7 +462,7 @@ class Game:
             choice = basics[seat.player.choose(SEARCH_PROMPT, [c.name for c in basics])]
             seat.library.remove(choice)
             seat.battlefield.append(Permanent(choice, tapped=True))
-            self._broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": True})
+            self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": True})
         self.rng.shuffle(seat.library)
 
     # --- helpers -------------------------------------------------------------
@@ -415,14 +470,14 @@ class Game:
     def _leave_battlefield(self, permanent: Permanent, reason: str) -> None:
         owner = next(s for s in self.seats if any(p is permanent for p in s.battlefield))
         owner.battlefield = [p for p in owner.battlefield if p is not permanent]
-        self._broadcast({"event": reason, "seat": owner.index, "card": permanent.card.name})
+        self.broadcast({"event": reason, "seat": owner.index, "card": permanent.card.name})
         self._to_graveyard(owner, permanent.card)
 
     def _to_graveyard(self, seat: Seat, card: Card) -> None:
         """Put a card into its owner's graveyard; a commander may go to the command zone (CR 903.9a)."""
         if card.name in seat.commander_names and seat.player.choose(COMMAND_ZONE_PROMPT, COMMAND_ZONE_OPTIONS) == 0:
             seat.command_zone.append(card)
-            self._broadcast({"event": "to_command_zone", "seat": seat.index, "card": card.name})
+            self.broadcast({"event": "to_command_zone", "seat": seat.index, "card": card.name})
             return
         seat.graveyard.append(card)
 
@@ -431,12 +486,17 @@ class Game:
         while True:
             changed = False
             for seat in self.live_seats():
-                reason = "life" if seat.life <= 0 else "empty_library" if seat.drew_from_empty else None
+                reason = ("life" if seat.life <= 0
+                          else "empty_library" if seat.drew_from_empty
+                          else "commander_damage" if any(d >= COMMANDER_DAMAGE_LIMIT for d in seat.commander_damage.values())
+                          else None)
                 if reason:
                     seat.lost = True
                     seat.battlefield = []  # CR 800.4a: their objects leave the game
                     self.stack = [item for item in self.stack if item.controller is not seat]
-                    self._broadcast({"event": "player_lost", "seat": seat.index, "reason": reason})
+                    self.combat.attacks = [a for a in self.combat.attacks
+                                           if a.defender is not seat and a.controller is not seat]
+                    self.broadcast({"event": "player_lost", "seat": seat.index, "reason": reason})
                     changed = True
             for seat in self.live_seats():
                 for permanent in list(seat.battlefield):
@@ -445,7 +505,8 @@ class Game:
                     if (creature and toughness <= 0) or (permanent.loyalty is not None and permanent.loyalty <= 0):
                         self._leave_battlefield(permanent, "died")
                         changed = True
-                    elif creature and permanent.damage >= toughness and not has_keyword(permanent.card, "indestructible"):
+                    elif (creature and (permanent.damage >= toughness or permanent.deathtouched)
+                          and not has_keyword(permanent.card, "indestructible")):
                         self._leave_battlefield(permanent, "destroyed")
                         changed = True
             if not changed:
@@ -460,7 +521,7 @@ class Game:
                 return seat.index
         return index
 
-    def _broadcast(self, event: dict, skip: Seat | None = None) -> None:
+    def broadcast(self, event: dict, skip: Seat | None = None) -> None:
         for seat in self.seats:
             if seat is not skip:
                 seat.player.notify(event)

@@ -80,7 +80,18 @@ winner = game.play()
 - **Commander tax:** your commander costs {2} more for each earlier cast from the command zone.
   When your commander would go to the graveyard, you choose whether it goes back to the command zone instead.
 - **The stack:** spells go on the stack and resolve last in, first out once everyone passes in a row.
-- **State checks:** players lose at 0 life or when drawing from an empty library.
+- **Combat:** the active player chooses, creature by creature, whether to attack and which opponent.
+  Each defending player then chooses blockers, and damage is dealt all at once. With no attackers,
+  the blockers and damage steps are skipped. If any creature in combat has first strike or double strike,
+  there's an extra first-strike damage step.
+  - Keywords: flying, reach, vigilance, haste, defender, menace, trample, first strike,
+    double strike, deathtouch and lifelink.
+  - A blocked attacker deals lethal damage to each blocker in the order they blocked. Any extra goes
+    to the last blocker, or to the player with trample. It stays blocked even if its blockers leave.
+  - Creatures can't attack planeswalkers yet.
+- **Commander damage:** combat damage from each commander is tracked per player.
+  21 from one commander makes that player lose.
+- **State checks:** players lose at 0 life, when drawing from an empty library, or at 21 commander damage.
   Creatures die from lethal damage (unless indestructible) or 0 toughness,
   and planeswalkers die at 0 loyalty. Damage wears off in the cleanup step.
 
@@ -122,7 +133,9 @@ stats = goldfish(deck, games=5000, turns=5)
   It plays a land whenever it can, then casts its commander if it can,
   then its most expensive affordable spell, and otherwise passes.
   It targets opponents' things when it can, never responds to its own spell,
-  and always returns its commander to the command zone. When bottoming or discarding,
+  and always returns its commander to the command zone. In combat it attacks the opponent
+  with the lowest life with every creature that has power. It blocks when its blocker survives,
+  and chump-blocks the biggest attacker once it's at 10 life or less. When bottoming or discarding,
   it drops a land if over half the hand is lands, otherwise its most expensive spell.
 - **`goldfish`:** plays the deck alone many times with the same mulligan rules and one land a turn.
   It reports how often you mulligan, how many lands the kept hand has, and how often

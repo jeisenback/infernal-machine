@@ -117,7 +117,8 @@ class GameTests(unittest.TestCase):
         Game([(p, deck(lands=0, spells=99)) for p in players], seed=6).play(max_turns=1)
         for p in players:
             priority = [options for prompt, options in p.prompts if prompt.startswith("Priority")]
-            self.assertEqual(len(priority), 10)  # 12 steps minus untap and cleanup
+            # 12 steps minus untap and cleanup, and blockers and damage are skipped with no attackers.
+            self.assertEqual(len(priority), 8)
             self.assertTrue(all(options == [PASS] for options in priority))
 
     def test_game_over_tcp(self):

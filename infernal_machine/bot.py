@@ -9,6 +9,7 @@ from typing import Sequence
 
 from .analysis import is_land
 from .cards import Card, Deck
+from .combat import ATTACK_PROMPT, BLOCK_PROMPT
 from .game import (BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
                    PLAY_LAND, TARGET_PROMPT)
 
@@ -38,7 +39,12 @@ class BotPlayer:
 
     It targets opponents' things when it can, never responds to its own
     spell, and always sends its commander back to the command zone.
+    In combat it attacks the opponent with the lowest life with every creature
+    that has power, blocks when its blocker survives, and chump-blocks the
+    biggest attacker once its life is at CHUMP_LIFE or below.
     """
+
+    CHUMP_LIFE = 10
 
     def __init__(self, name: str, deck: Deck):
         self.name = name
@@ -47,14 +53,19 @@ class BotPlayer:
         self._mulligans = 0
         self._seat: int | None = None
         self._stack: list[int] = []  # seat of each spell on the stack, bottom first
+        self._life: dict[int, int] = {}
 
     def notify(self, event: dict) -> None:
         kind = event.get("event")
         if kind == "opening_hand":
             self._hand = [self._cards[name] for name in event["cards"]]
             self._mulligans = event["mulligans"]
-        elif kind == "seat" and event["name"] == self.name:
-            self._seat = event["seat"]
+        elif kind == "seat":
+            self._life[event["seat"]] = event["life"]
+            if event["name"] == self.name:
+                self._seat = event["seat"]
+        elif kind == "life":
+            self._life[event["seat"]] = event["life"]
         elif kind == "cast":
             self._stack.append(event["seat"])
         elif kind in ("resolve", "fizzle") and self._stack:
@@ -69,6 +80,12 @@ class BotPlayer:
             return 0 if keep_hand(self._hand, self._mulligans) else 1
         if prompt in (BOTTOM_PROMPT, DISCARD_PROMPT):
             return worst_card([self._cards[name] for name in options])
+        if prompt.startswith(ATTACK_PROMPT):
+            if _stats(prompt)[0] <= 0:
+                return 0
+            return min(range(1, len(options)), key=lambda i: self._life.get(_seat_of(options[i]), 0))
+        if prompt.startswith(BLOCK_PROMPT):
+            return self._block(prompt, options)
         if prompt.startswith(TARGET_PROMPT):
             theirs = [i for i, option in enumerate(options) if _seat_of(option) != self._seat]
             return theirs[0] if theirs else 0
@@ -86,6 +103,25 @@ class BotPlayer:
         if casts:
             return max(casts, key=lambda i: self._cards[options[i].removeprefix(CAST)].cmc)
         return options.index(PASS)
+
+
+    def _block(self, prompt: str, options: Sequence[str]) -> int:
+        toughness = _stats(prompt)[1]
+        powers = {i: _stats(options[i])[0] for i in range(1, len(options))}
+        survivable = [i for i, p in powers.items() if p < toughness]
+        if survivable:
+            return max(survivable, key=powers.get)
+        if self._life.get(self._seat, 0) <= self.CHUMP_LIFE:
+            return max(powers, key=powers.get)
+        return 0
+
+
+def _stats(label: str) -> tuple[int, int]:
+    """Power and toughness from a label like "Grizzly Bears 2/2 (seat 1, #3)"; unknowns count as 0."""
+    match = re.search(r" (\S+)/(\S+) \(seat", label)
+    if not match:
+        return 0, 0
+    return tuple(int(v) if v.isdigit() else 0 for v in match.groups())
 
 
 def _seat_of(label: str) -> int | None:
