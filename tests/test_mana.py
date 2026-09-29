@@ -10,7 +10,8 @@ ANY = frozenset("WUBRG")
 class ParseCostTests(unittest.TestCase):
     def test_parses_symbols(self):
         self.assertEqual(parse_cost("{2}{G}{G}"), Cost(2, (G, G)))
-        self.assertEqual(parse_cost("{X}{U}"), Cost(0, (U,)))
+        self.assertEqual(parse_cost("{X}{U}"), Cost(0, (U,), x=1))
+        self.assertEqual(parse_cost("{X}{X}{G}").with_x(3), Cost(6, (G,)))
         self.assertEqual(parse_cost("{G/U}{W/P}{C}"), Cost(0, (GU, W, frozenset("C"))))
         self.assertEqual(parse_cost("{0}"), Cost(0, ()))
 

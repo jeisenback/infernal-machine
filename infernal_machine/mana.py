@@ -14,27 +14,35 @@ class Cost:
     generic: int = 0
     # Each colored symbol is the set of mana types that can pay it: {G} is {"G"}, {G/W} is {"G", "W"}.
     colored: tuple[frozenset[str], ...] = ()
+    x: int = 0  # how many {X} symbols; the caster chooses X, then each adds X generic
 
     def plus_generic(self, amount: int) -> "Cost":
-        return Cost(self.generic + amount, self.colored)
+        return Cost(self.generic + amount, self.colored, self.x)
+
+    def with_x(self, value: int) -> "Cost":
+        """The cost to pay once X is chosen."""
+        return Cost(self.generic + self.x * value, self.colored)
+
+    def __add__(self, other: "Cost") -> "Cost":
+        return Cost(self.generic + other.generic, self.colored + other.colored, self.x + other.x)
 
 
 def parse_cost(mana_cost: str) -> Cost | None:
     """Parse a Scryfall mana cost like "{2}{G}{G/W}".
 
-    X counts as 0 and Phyrexian symbols must be paid with mana. Returns None
+    X symbols are counted in `x` and Phyrexian symbols must be paid with mana. Returns None
     for symbols not supported yet ({S} snow, {2/W} twobrid) and for cards with
     no mana cost, which can't be cast normally.
     """
     if not mana_cost:
         return None
-    generic = 0
+    generic = x = 0
     colored: list[frozenset[str]] = []
     for symbol in _SYMBOL.findall(mana_cost):
         if symbol.isdigit():
             generic += int(symbol)
         elif symbol == "X":
-            continue
+            x += 1
         elif symbol in MANA_TYPES:
             colored.append(frozenset(symbol))
         elif symbol.endswith("/P") and symbol[0] in MANA_TYPES:
@@ -43,7 +51,7 @@ def parse_cost(mana_cost: str) -> Cost | None:
             colored.append(frozenset(symbol.split("/")))
         else:
             return None
-    return Cost(generic, tuple(colored))
+    return Cost(generic, tuple(colored), x)
 
 
 def pay(cost: Cost, sources: list[frozenset[str]]) -> list[int] | None:

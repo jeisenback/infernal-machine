@@ -76,7 +76,12 @@ winner = game.play()
 - **Paying mana:** mana is paid automatically from lands (using Scryfall's `produced_mana`) and from
   permanents with a simple tap ability: `{T}: Add {C}{C}.`, `{T}: Add {G}.`, `{T}: Add {R} or {G}.`,
   and "one mana of any color" (optionally limited to your commander's colors).
-  Creatures can't tap for mana the turn they arrive. X counts as 0, and Phyrexian symbols are paid with mana.
+  Creatures can't tap for mana the turn they arrive. Phyrexian symbols are paid with mana.
+  Signet-style abilities ("{1}, {T}: Add {W}{U}.") are used when plain sources aren't enough.
+  Their own cost is always paid by a plain source. Painlands and Talismans don't deal their damage yet.
+- **X spells:** the caster chooses X when casting, from 0 up to what they can afford.
+  X works in effects ("draw X cards", "deals X damage", "create X tokens", "put X counters")
+  and in "enters with X +1/+1 counters".
 - **Commander tax:** your commander costs {2} more for each earlier cast from the command zone.
   When your commander would go to the graveyard, you choose whether it goes back to the command zone instead.
 - **The stack:** spells go on the stack and resolve last in, first out once everyone passes in a row.
@@ -204,6 +209,7 @@ stats = goldfish(deck, games=5000, turns=5)
 ```
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
+  It chooses the largest X it can afford.
   It plays a land whenever it can, then casts its commander if it can,
   then its most expensive affordable spell, and otherwise passes.
   After casting, it activates abilities that tap, sacrifice, or use loyalty.

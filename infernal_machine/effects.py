@@ -22,12 +22,15 @@ if TYPE_CHECKING:
 
 _NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
             "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
-_N = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)"
+_N = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+|X)"
 _REMINDER = re.compile(r"\s*\([^)]*\)")
 _SELF = r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|planeswalker|permanent))"
 
 
-def _count(word: str) -> int:
+def _count(word: str) -> int | str:
+    """A number from rules text; "X" stays "X" and the game fills it in (Game.amount)."""
+    if word == "X":
+        return "X"
     return int(word) if word.isdigit() else _NUMBERS[word.lower()]
 
 
@@ -73,7 +76,7 @@ class Draw:
     count: int
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.draw(controller, self.count)
+        game.draw(controller, game.amount(self.count))
 
 
 @dataclass(frozen=True)
@@ -81,7 +84,7 @@ class GainLife:
     amount: int
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.change_life(controller, self.amount)
+        game.change_life(controller, game.amount(self.amount))
 
 
 @dataclass(frozen=True)
@@ -90,7 +93,7 @@ class OpponentsLoseLife:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for seat in game.opponents(controller):
-            game.change_life(seat, -self.amount)
+            game.change_life(seat, -game.amount(self.amount))
 
 
 @dataclass(frozen=True)
@@ -100,7 +103,7 @@ class Damage:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.damage(target, self.amount)
+            game.damage(target, game.amount(self.amount))
 
 
 @dataclass(frozen=True)
@@ -167,7 +170,7 @@ class PutCounters:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.put_counters(target, self.counter, self.count)
+            game.put_counters(target, self.counter, game.amount(self.count))
 
 
 @dataclass(frozen=True)
@@ -179,7 +182,7 @@ class PutCountersOnEach:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for permanent in list(controller.battlefield):
             if "Creature" in permanent.card.type_line:
-                game.put_counters(permanent, self.counter, self.count)
+                game.put_counters(permanent, self.counter, game.amount(self.count))
 
 
 @dataclass(frozen=True)
@@ -191,7 +194,7 @@ class PutCountersOnSource:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.put_counters(target, self.counter, self.count)
+            game.put_counters(target, self.counter, game.amount(self.count))
 
 
 _COUNTER = r"([+\-\u2212]1/[+\-\u2212]1) counters?"
@@ -204,13 +207,13 @@ def _counter_name(text: str) -> str:
 _ENTERS_WITH = re.compile(rf"{_SELF} enters with {_N} {_COUNTER} on it\.", re.I)
 
 
-def enters_with_counters(card: Card) -> dict[str, int]:
-    """Counters from "This creature enters with N +1/+1 counters on it." """
-    counters: dict[str, int] = {}
+def enters_with_counters(card: Card) -> dict[str, int | str]:
+    """Counters from "This creature enters with N (or X) +1/+1 counters on it." """
+    counters: dict[str, int | str] = {}
     for line in rules_lines(card):
         if m := _ENTERS_WITH.fullmatch(line):
-            name = _counter_name(m[2])
-            counters[name] = counters.get(name, 0) + _count(m[1])
+            name, count = _counter_name(m[2]), _count(m[1])
+            counters[name] = count if count == "X" else counters.get(name, 0) + count
     return counters
 
 
@@ -301,7 +304,7 @@ class CreateTokens:
     token: Card
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.create_tokens(controller, self.token, self.count)
+        game.create_tokens(controller, self.token, game.amount(self.count))
 
 
 @dataclass(frozen=True)
@@ -313,7 +316,7 @@ class TargetControllerCreatesTokens:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.last_controller is not None:
-            game.create_tokens(target.last_controller, self.token, self.count)
+            game.create_tokens(target.last_controller, self.token, game.amount(self.count))
 
 
 TREASURE = Card(name="Treasure", type_line="Token Artifact — Treasure",
@@ -516,7 +519,7 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
                 fields["tap"] = True
             elif _SACRIFICE_SELF.fullmatch(part):
                 fields["sacrifice"] = True
-            elif m := _PAY_LIFE.fullmatch(part):
+            elif (m := _PAY_LIFE.fullmatch(part)) and m[1] != "X":
                 fields["life"] = _count(m[1])
             else:
                 return None
@@ -559,14 +562,27 @@ def mana_ability_sacrifices(card: Card) -> bool:
 
 
 def _mana_line(card: Card) -> str | None:
-    return next((line for line in rules_lines(card) if is_mana_ability(line)), None)
+    """The card's plain "{T}: Add ..." line (Signet-style lines are filter_mana_ability's)."""
+    return next((line for line in rules_lines(card) if any(p.fullmatch(line) for p in _MANA_PATTERNS)), None)
 
 
 _MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY, _ADD_IDENTITY)
 
 
 def is_mana_ability(line: str) -> bool:
-    return any(p.fullmatch(line) for p in _MANA_PATTERNS)
+    return any(p.fullmatch(line) for p in _MANA_PATTERNS) or _FILTER.fullmatch(line) is not None
+
+
+_FILTER = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add ((?:\{[WUBRGC]\})+)\.")
+
+
+def filter_mana_ability(card: Card) -> tuple[str, list[frozenset[str]]] | None:
+    """A mana ability that costs mana, like a Signet's "{1}, {T}: Add {W}{U}.":
+    (the mana it costs, the mana it makes, one set per mana)."""
+    for line in rules_lines(card):
+        if m := _FILTER.fullmatch(line):
+            return m[1], [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2])]
+    return None
 
 
 def _mana_from_line(line: str, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:

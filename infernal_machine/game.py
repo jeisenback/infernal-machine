@@ -11,6 +11,7 @@ other rules text is not implemented yet.
 from __future__ import annotations
 
 import random
+from itertools import combinations
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -19,8 +20,8 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
-from .effects import (ActivatedAbility, TriggeredAbility, activated_abilities, enters_with_counters, follows_target,
-                      mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
+from .effects import (ActivatedAbility, TriggeredAbility, activated_abilities, enters_with_counters,
+                      filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_source)
 from .mana import Cost, parse_cost, pay
 from .player import Player
@@ -57,6 +58,8 @@ SEARCH_PROMPT = "Choose a basic land to put onto the battlefield"
 SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
+X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
 
@@ -85,6 +88,7 @@ class StackItem:
     targets: list = field(default_factory=list)  # one per targeting effect, in order
     ability: TriggeredAbility | ActivatedAbility | None = None  # set for an ability rather than a spell
     source: "Permanent | None" = None  # the ability's source, for effects on "it"
+    x: int = 0  # the value chosen for X when it was cast
 
 
 @dataclass(eq=False)
@@ -144,6 +148,7 @@ class Game:
         self.stack: list[StackItem] = []
         self.combat = Combat(self)
         self.pending: list[PendingTrigger] = []  # triggered, not yet on the stack
+        self.x_value = 0  # X of the spell resolving right now
 
     @property
     def multiplayer(self) -> bool:
@@ -371,22 +376,60 @@ class Game:
                     bucket.append((permanent, mana))
         return abilities + lands + sacrifices
 
-    def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False) -> list[Permanent] | None:
-        """The permanents to tap for `card`, or None if it can't be paid for now."""
+    def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0) -> list[Permanent] | None:
+        """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now."""
         cost = parse_cost(card.mana_cost)
         if cost is None:
             return None
         if from_command_zone:
             cost = cost.plus_generic(self.commander_tax(seat, card))
-        return self._pay_cost(seat, cost)
+        return self._pay_cost(seat, cost.with_x(x))
+
+    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool) -> int:
+        x = 0
+        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1) is not None:
+            x += 1
+        return x
 
     def _pay_cost(self, seat: Seat, cost: Cost, exclude: Permanent | None = None) -> list[Permanent] | None:
+        """The permanents to tap for `cost`, or None if it can't be paid.
+
+        Signet-style sources ("{1}, {T}: Add {W}{U}.") are tried only when plain
+        sources aren't enough, fewest first; their own costs are paid from plain sources.
+        """
         sources = self._mana_sources(seat, exclude)
-        chosen = pay(cost, [mana for _, mana in sources])
-        if chosen is None:
+        filters = self._filter_sources(seat, exclude)
+        for size in range(len(filters) + 1):
+            for combo in combinations(filters, size):
+                chosen = self._pay_with_filters(cost, sources, combo)
+                if chosen is not None:
+                    return chosen
+        return None
+
+    def _pay_with_filters(self, cost: Cost, sources, combo) -> list[Permanent] | None:
+        activation = sum((c for _, c, _ in combo), Cost())
+        first = pay(activation, [mana for _, mana in sources])
+        if first is None:
             return None
+        rest = [s for i, s in enumerate(sources) if i not in first]
+        made = [(permanent, mana) for permanent, _, units in combo for mana in units]
+        pool = rest + made
+        second = pay(cost, [mana for _, mana in pool])
+        if second is None:
+            return None
+        used = [sources[i][0] for i in first] + [pool[i][0] for i in second] + [p for p, _, _ in combo]
         # A permanent that makes several mana (Sol Ring) is tapped once.
-        return list({id(sources[i][0]): sources[i][0] for i in chosen}.values())
+        return list({id(p): p for p in used}.values())
+
+    def _filter_sources(self, seat: Seat, exclude: Permanent | None) -> list[tuple[Permanent, Cost, list]]:
+        found = []
+        for permanent in seat.battlefield:
+            if permanent.tapped or permanent is exclude or (permanent.sick and "Creature" in permanent.card.type_line):
+                continue
+            ability = filter_mana_ability(permanent.card)
+            if ability:
+                found.append((permanent, parse_cost(ability[0]), ability[1]))
+        return found
 
     def _perform(self, seat: Seat, action: str) -> None:
         if action.startswith(PLAY_LAND):
@@ -442,13 +485,17 @@ class Game:
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False) -> None:
         effects = _effects(card)
         targets, labels = self._choose_targets(seat, effects, card.name)
-        tapped = self._payment(seat, card, from_command_zone)
+        x = 0
+        if parse_cost(card.mana_cost).x:
+            options = [str(n) for n in range(self._max_x(seat, card, from_command_zone) + 1)]
+            x = seat.player.choose(X_PROMPT + card.name, options)
+        tapped = self._payment(seat, card, from_command_zone, x)
         self._spend_mana(tapped)
         zone.remove(card)
-        self.stack.append(StackItem(card, seat, effects, targets))
+        self.stack.append(StackItem(card, seat, effects, targets, x=x))
         self.broadcast({"event": "cast", "seat": seat.index, "card": card.name,
                          "from": "command_zone" if from_command_zone else "hand",
-                         "targets": labels, "tapped": [p.card.name for p in tapped]})
+                         "targets": labels, "x": x, "tapped": [p.card.name for p in tapped]})
 
     def _resolve(self, item: StackItem) -> None:
         seat, card = item.controller, item.card
@@ -458,7 +505,7 @@ class Game:
         if _is_permanent(card):
             loyalty = int(card.loyalty) if card.loyalty and card.loyalty.isdigit() else None
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-            self._enter(seat, Permanent(card, sick=True, loyalty=loyalty))
+            self._enter(seat, Permanent(card, sick=True, loyalty=loyalty), x=item.x)
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
@@ -475,8 +522,19 @@ class Game:
             return
         self._apply_effects(item)
 
+    def amount(self, value: int | str) -> int:
+        """A number from an effect; "X" is the resolving spell's X."""
+        return self.x_value if value == "X" else value
+
     def _apply_effects(self, item: StackItem) -> bool:
         """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""
+        self.x_value = item.x
+        try:
+            return self._apply_effects_now(item)
+        finally:
+            self.x_value = 0
+
+    def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
         legal = [self.is_legal_target(target_kind(e), t, seat)
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
@@ -692,8 +750,9 @@ class Game:
 
     # --- helpers -------------------------------------------------------------
 
-    def _enter(self, seat: Seat, permanent: Permanent) -> None:
-        permanent.counters.update(enters_with_counters(permanent.card))  # CR 614.1c: it arrives with them
+    def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
+        for counter, count in enters_with_counters(permanent.card).items():  # CR 614.1c: it arrives with them
+            permanent.counters[counter] = permanent.counters.get(counter, 0) + (x if count == "X" else count)
         seat.battlefield.append(permanent)
         self.trigger("enters", permanent, seat)
 
