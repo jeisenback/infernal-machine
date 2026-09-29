@@ -74,6 +74,24 @@ winner = game.play()
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
 
+## Bots and goldfishing
+
+```python
+from infernal_machine.bot import BotPlayer, goldfish
+
+game = Game([(BotPlayer("Bot", deck), deck), (tcp_player, other_deck)])
+stats = goldfish(deck, games=5000, turns=5)
+# GoldfishStats(mulligan_rate=0.188, average_opening_lands=3.01,
+#               land_drop_rate={1: 1.0, 2: 0.998, 3: 0.918, 4: 0.772, 5: 0.596})
+```
+
+- **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
+  It plays a land whenever it can and otherwise passes. When bottoming or discarding,
+  it drops a land if over half the hand is lands, otherwise its most expensive spell.
+- **`goldfish`:** plays the deck alone many times with the same mulligan rules and one land a turn.
+  It reports how often you mulligan, how many lands the kept hand has, and how often
+  you've made every land drop through each turn. The example above is a 38-land deck.
+
 ## TCP players
 
 The engine talks to players through the `Player` protocol (`notify`, `choose`).

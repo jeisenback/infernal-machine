@@ -32,6 +32,9 @@ STEPS = [
 ]
 NO_PRIORITY_STEPS = {"untap", "cleanup"}  # CR 502.4, 514.3
 PASS = "Pass"
+KEEP_PROMPT = "Keep this hand?"
+BOTTOM_PROMPT = "Put a card on the bottom of your library"
+DISCARD_PROMPT = "Discard down to hand size"
 
 
 @dataclass
@@ -99,11 +102,11 @@ class Game:
             self._draw(seat, HAND_SIZE, announce=False)
             seat.player.notify({"event": "opening_hand", "cards": [c.name for c in seat.hand], "mulligans": taken})
             to_bottom = max(0, taken - (1 if self.multiplayer else 0))
-            if to_bottom >= HAND_SIZE or seat.player.choose("Keep this hand?", ["Keep", "Mulligan"]) == 0:
+            if to_bottom >= HAND_SIZE or seat.player.choose(KEEP_PROMPT, ["Keep", "Mulligan"]) == 0:
                 break
             taken += 1
         for _ in range(min(to_bottom, HAND_SIZE)):
-            i = seat.player.choose("Put a card on the bottom of your library", [c.name for c in seat.hand])
+            i = seat.player.choose(BOTTOM_PROMPT, [c.name for c in seat.hand])
             seat.library.append(seat.hand.pop(i))
         self._broadcast({"event": "kept", "seat": seat.index, "mulligans": taken, "hand_size": len(seat.hand)})
 
@@ -139,7 +142,7 @@ class Game:
         elif self.step == "cleanup":
             excess = len(seat.hand) - HAND_SIZE
             for _ in range(max(0, excess)):
-                i = seat.player.choose("Discard down to hand size", [c.name for c in seat.hand])
+                i = seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])
                 card = seat.hand.pop(i)
                 seat.graveyard.append(card)
                 self._broadcast({"event": "discard", "seat": seat.index, "card": card.name})
