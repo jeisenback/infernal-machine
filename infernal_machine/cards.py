@@ -28,6 +28,8 @@ class Card:
     power: str | None = None
     toughness: str | None = None
     loyalty: str | None = None
+    color_identity: tuple[str, ...] = ()
+    commander_legal: bool = True
     scryfall_id: str | None = None
 
     @classmethod
@@ -44,12 +46,15 @@ class Card:
             power=face.get("power"),
             toughness=face.get("toughness"),
             loyalty=face.get("loyalty"),
+            color_identity=tuple(data.get("color_identity", [])),
+            commander_legal=data.get("legalities", {}).get("commander") == "legal",
             scryfall_id=data.get("id"),
         )
 
     @classmethod
     def from_dict(cls, data: dict) -> "Card":
-        return cls(**{**data, "colors": tuple(data.get("colors", ()))})
+        tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity")}
+        return cls(**{**data, **tuples})
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -175,41 +180,62 @@ class CachedSource:
         self.path.write_text(json.dumps(data, indent=2, sort_keys=True))
 
 
-_DECK_LINE = re.compile(r"^(\d+)x?\s+(.+?)(?:\s+\([A-Z0-9]+\)\s*\S*)?$")
+_DECK_LINE = re.compile(r"^(\d+)x?\s+(.+?)(?:\s+\([A-Z0-9]+\)\s*[^\s*]*)?$")
+_MARKER = re.compile(r"\s*\*([A-Z]+)\*")  # Moxfield-style tags: *CMDR*, *F* (foil), *E* (etched)
 
 
-def parse_decklist(text: str) -> tuple[dict[str, int], dict[str, int]]:
-    """Parse an Arena/MTGO style decklist into (main, sideboard) name -> count.
+@dataclass
+class Decklist:
+    """Card name -> count for each section of a decklist."""
 
-    Accepts lines like "4 Lightning Bolt", "4x Lightning Bolt" and
-    "4 Lightning Bolt (M11) 146". A "Sideboard" header or a blank line after
-    main-deck cards starts the sideboard; "Deck" headers and "//" comments are ignored.
+    commanders: dict[str, int] = field(default_factory=dict)
+    main: dict[str, int] = field(default_factory=dict)
+    sideboard: dict[str, int] = field(default_factory=dict)
+
+
+def parse_decklist(text: str) -> Decklist:
+    """Parse an Arena/MTGO/Moxfield style decklist.
+
+    Accepts lines like "4 Lightning Bolt", "4x Lightning Bolt",
+    "4 Lightning Bolt (M11) 146" and "1 Atraxa, Praetors' Voice *CMDR*".
+    "Commander", "Deck" and "Sideboard" headers switch sections; a blank line
+    after main-deck cards starts the sideboard. "//" lines are comments.
     """
-    main: dict[str, int] = {}
-    side: dict[str, int] = {}
-    current = main
+    deck = Decklist()
+    sections = {"commander": deck.commanders, "deck": deck.main, "sideboard": deck.sideboard}
+    current = deck.main
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
-            if main:
-                current = side
+            if current is deck.main and deck.main:
+                current = deck.sideboard
             continue
-        if line.startswith("//") or line.lower() == "deck":
+        if line.startswith("//"):
             continue
-        if line.lower().rstrip(":") == "sideboard":
-            current = side
+        header = line.lower().rstrip(":")
+        if header in sections:
+            current = sections[header]
             continue
-        match = _DECK_LINE.match(line)
+        markers = set(_MARKER.findall(line))
+        match = _DECK_LINE.match(_MARKER.sub("", line))
         if not match:
             raise ValueError(f"Unrecognised decklist line: {raw!r}")
         count, name = int(match.group(1)), match.group(2).strip()
-        current[name] = current.get(name, 0) + count
-    return main, side
+        target = deck.commanders if "CMDR" in markers else current
+        target[name] = target.get(name, 0) + count
+    return deck
 
 
-def load_deck(text: str, source: CardSource) -> tuple[list[Card], list[Card]]:
+@dataclass
+class Deck:
+    commanders: list[Card]
+    main: list[Card]
+    sideboard: list[Card]
+
+
+def load_deck(text: str, source: CardSource) -> Deck:
     """Parse a decklist and pull every card from `source`, expanded by count."""
-    main, side = parse_decklist(text)
-    cards = source.get_many([*main, *side])
+    parsed = parse_decklist(text)
+    cards = source.get_many([*parsed.commanders, *parsed.main, *parsed.sideboard])
     expand = lambda counts: [cards[name] for name, n in counts.items() for _ in range(n)]
-    return expand(main), expand(side)
+    return Deck(expand(parsed.commanders), expand(parsed.main), expand(parsed.sideboard))

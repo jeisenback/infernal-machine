@@ -22,6 +22,8 @@ BOLT = {
     "type_line": "Instant",
     "oracle_text": "Lightning Bolt deals 3 damage to any target.",
     "colors": ["R"],
+    "color_identity": ["R"],
+    "legalities": {"commander": "legal", "standard": "not_legal"},
 }
 BEAR = {
     "id": "bear-id",
@@ -75,8 +77,14 @@ class CardTests(unittest.TestCase):
         self.assertEqual(card.mana_cost, "{1}{R}")
         self.assertEqual(card.colors, ("R",))
 
+    def test_from_scryfall_reads_commander_fields(self):
+        card = Card.from_scryfall(BOLT)
+        self.assertEqual(card.color_identity, ("R",))
+        self.assertTrue(card.commander_legal)
+        self.assertFalse(Card.from_scryfall({**BOLT, "legalities": {"commander": "banned"}}).commander_legal)
+
     def test_round_trips_through_dict(self):
-        card = Card.from_scryfall(BEAR)
+        card = Card.from_scryfall(BOLT)
         self.assertEqual(Card.from_dict(json.loads(json.dumps(card.to_dict()))), card)
 
 
@@ -124,11 +132,21 @@ class CachedSourceTests(unittest.TestCase):
 
 class DecklistTests(unittest.TestCase):
     def test_parses_arena_format(self):
-        main, side = parse_decklist(
-            "Deck\n4 Lightning Bolt (M11) 146\n2x Grizzly Bears\n\nSideboard\n1 Fire // Ice\n"
+        deck = parse_decklist(
+            "Commander\n1 Grizzly Bears\n\nDeck\n4 Lightning Bolt (M11) 146\n\nSideboard\n1 Fire // Ice\n"
         )
-        self.assertEqual(main, {"Lightning Bolt": 4, "Grizzly Bears": 2})
-        self.assertEqual(side, {"Fire // Ice": 1})
+        self.assertEqual(deck.commanders, {"Grizzly Bears": 1})
+        self.assertEqual(deck.main, {"Lightning Bolt": 4})
+        self.assertEqual(deck.sideboard, {"Fire // Ice": 1})
+
+    def test_parses_moxfield_markers(self):
+        deck = parse_decklist("1 Grizzly Bears (LEA) 190 *CMDR*\n2x Lightning Bolt (2X2) 117 *F*\n")
+        self.assertEqual(deck.commanders, {"Grizzly Bears": 1})
+        self.assertEqual(deck.main, {"Lightning Bolt": 2})
+
+    def test_blank_line_after_main_starts_sideboard(self):
+        deck = parse_decklist("4 Lightning Bolt\n\n1 Fire // Ice")
+        self.assertEqual(deck.sideboard, {"Fire // Ice": 1})
 
     def test_rejects_garbage(self):
         with self.assertRaises(ValueError):
@@ -136,9 +154,9 @@ class DecklistTests(unittest.TestCase):
 
     def test_load_deck_expands_counts(self):
         source = ScryfallSource(http=FakeScryfall(), min_interval=0)
-        main, side = load_deck("3 Lightning Bolt\n\n1 Grizzly Bears", source)
-        self.assertEqual([c.name for c in main], ["Lightning Bolt"] * 3)
-        self.assertEqual([c.name for c in side], ["Grizzly Bears"])
+        deck = load_deck("Commander\n1 Grizzly Bears\nDeck\n3 Lightning Bolt", source)
+        self.assertEqual([c.name for c in deck.commanders], ["Grizzly Bears"])
+        self.assertEqual([c.name for c in deck.main], ["Lightning Bolt"] * 3)
 
 
 if __name__ == "__main__":
