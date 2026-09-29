@@ -40,6 +40,19 @@ for problem in deck_problems(deck):
 - Every card fits within the commanders' combined color identity.
 - Banned cards are flagged, using Scryfall's Commander legality.
 
+## Deck stats
+
+```python
+from infernal_machine.analysis import analyze
+
+stats = analyze(deck.commanders + deck.main)
+stats.land_count, stats.average_mana_value, stats.curve, stats.color_pips
+```
+
+- `curve` counts nonland cards by mana value, with 7+ in one bucket.
+- `average_mana_value` also leaves out lands.
+- `color_pips` counts colored mana symbols across all costs. Hybrid symbols count toward both colors.
+
 ## TCP players
 
 The engine talks to players through the `Player` protocol (`notify`, `choose`).
