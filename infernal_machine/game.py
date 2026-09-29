@@ -18,7 +18,7 @@ from .analysis import is_land
 from .cards import Card, Deck, has_keyword
 from .combat import Combat
 from .effects import (ActivatedAbility, TriggeredAbility, activated_abilities, follows_target, mana_ability,
-                      spell_effects, target_kind, triggered_abilities)
+                      mana_ability_sacrifices, spell_effects, target_kind, triggered_abilities)
 from .mana import Cost, parse_cost, pay
 from .player import Player
 
@@ -337,18 +337,27 @@ class Game:
         kinds = [target_kind(e) for e in _effects(card) or []]
         return all(self.target_options(kind, seat) for kind in kinds if kind)
 
+    def _spend_mana(self, sources: list[Permanent]) -> None:
+        """Tap the chosen mana sources; ones whose mana ability sacrifices them (Treasure) are sacrificed."""
+        for source in sources:
+            source.tapped = True
+            if not is_land(source.card) and mana_ability_sacrifices(source.card):
+                self._leave_battlefield(source, "sacrificed")
+
     def _mana_sources(self, seat: Seat, exclude: Permanent | None = None) -> list[tuple[Permanent, frozenset[str]]]:
-        """One entry per mana each untapped permanent can make; nonland sources first."""
-        abilities, lands = [], []
+        """One entry per mana each untapped permanent can make: nonland sources first,
+        then lands, and sources that sacrifice themselves (Treasure) last."""
+        abilities, lands, sacrifices = [], [], []
         for permanent in seat.battlefield:
             if permanent.tapped or permanent is exclude:
                 continue
             if is_land(permanent.card):
                 lands.append((permanent, frozenset(permanent.card.produced_mana)))
             elif not (permanent.sick and "Creature" in permanent.card.type_line):
+                bucket = sacrifices if mana_ability_sacrifices(permanent.card) else abilities
                 for mana in mana_ability(permanent.card, seat.color_identity) or []:
-                    abilities.append((permanent, mana))
-        return abilities + lands
+                    bucket.append((permanent, mana))
+        return abilities + lands + sacrifices
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False) -> list[Permanent] | None:
         """The permanents to tap for `card`, or None if it can't be paid for now."""
@@ -389,8 +398,7 @@ class Game:
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
         targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name)
         tapped = self._ability_payment(seat, permanent, ability)
-        for source in tapped:
-            source.tapped = True
+        self._spend_mana(tapped)
         if ability.tap:
             permanent.tapped = True
         if ability.life:
@@ -423,8 +431,7 @@ class Game:
         effects = _effects(card)
         targets, labels = self._choose_targets(seat, effects, card.name)
         tapped = self._payment(seat, card, from_command_zone)
-        for permanent in tapped:
-            permanent.tapped = True
+        self._spend_mana(tapped)
         zone.remove(card)
         self.stack.append(StackItem(card, seat, effects, targets))
         self.broadcast({"event": "cast", "seat": seat.index, "card": card.name,
@@ -597,6 +604,12 @@ class Game:
             return
         self._leave_battlefield(permanent, "destroyed")
 
+    def create_tokens(self, seat: Seat, token: Card, count: int) -> None:
+        for _ in range(count):
+            self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
+                            "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
+            self._enter(seat, Permanent(token, sick=True))
+
     def exile(self, permanent: Permanent) -> None:
         self._leave_battlefield(permanent, "exiled", destination="exile")
 
@@ -635,6 +648,8 @@ class Game:
         self.broadcast({"event": reason, "seat": owner.index, "card": permanent.card.name})
         if destination == "graveyard" and "Creature" in permanent.card.type_line:
             self.trigger("dies", permanent.card, owner)
+        if _is_token(permanent.card):
+            return  # tokens stop existing once they leave the battlefield (CR 111.7)
         self._move_card(owner, permanent.card, destination)
 
     def _move_card(self, seat: Seat, card: Card, zone: str) -> None:
@@ -691,6 +706,10 @@ class Game:
         for seat in self.seats:
             if seat is not skip:
                 seat.player.notify(event)
+
+
+def _is_token(card: Card) -> bool:
+    return card.type_line.startswith("Token")
 
 
 def _is_permanent(card: Card) -> bool:

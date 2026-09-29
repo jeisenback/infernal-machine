@@ -153,6 +153,72 @@ class TargetControllerMayFetchBasicLand:
             game.fetch_basic_land(target.last_controller, optional=True)
 
 
+@dataclass(frozen=True)
+class CreateTokens:
+    count: int
+    token: Card
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.create_tokens(controller, self.token, self.count)
+
+
+@dataclass(frozen=True)
+class TargetControllerCreatesTokens:
+    """Beast Within: "Its controller creates a 3/3 green Beast creature token." """
+    count: int
+    token: Card
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target.last_controller is not None:
+            game.create_tokens(target.last_controller, self.token, self.count)
+
+
+TREASURE = Card(name="Treasure", type_line="Token Artifact — Treasure",
+                oracle_text="{T}, Sacrifice this artifact: Add one mana of any color.")
+CLUE = Card(name="Clue", type_line="Token Artifact — Clue", oracle_text="{2}, Sacrifice this artifact: Draw a card.")
+FOOD = Card(name="Food", type_line="Token Artifact — Food",
+            oracle_text="{2}, {T}, Sacrifice this artifact: You gain 3 life.")
+_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD}
+_COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+_COLOR = r"(?:white|blue|black|red|green)"
+_CREATURE_TOKEN = re.compile(
+    rf"{_N} (\d+)/(\d+) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact )?"
+    r"creature tokens?(?: with ([a-z ,]+))?"
+)
+_NAMED_TOKEN = re.compile(rf"(?i:{_N}) (Treasure|Clue|Food) tokens?")
+
+
+def _token(spec: str) -> tuple[int, Card] | None:
+    """Parse "a 1/1 white Soldier creature token with flying" or "two Treasure tokens"."""
+    if m := _NAMED_TOKEN.fullmatch(spec):
+        return _count(m[1]), _NAMED_TOKENS[m[2].lower()]
+    m = _CREATURE_TOKEN.fullmatch(spec)
+    if not m:
+        return None
+    count, power, toughness, colors, subtypes, artifact, keywords = m.groups()
+    keyword_line = ""
+    if keywords:
+        words = [w.strip() for w in re.split(r",? and |, ", keywords) if w.strip()]
+        keyword_line = ", ".join(words).capitalize()
+    card = Card(
+        name=subtypes.strip(),
+        type_line=f"Token {'Artifact ' if artifact else ''}Creature — {subtypes.strip()}",
+        oracle_text=keyword_line,
+        colors=tuple(_COLOR_WORDS[c] for c in re.findall(_COLOR, colors)),
+        power=power,
+        toughness=toughness,
+    )
+    return _count(count), card
+
+
+def _create(m: re.Match, follows: bool) -> Any:
+    parsed = _token(m[1])
+    if parsed is None:
+        return None
+    return (TargetControllerCreatesTokens if follows else CreateTokens)(*parsed)
+
+
 def _power(card: Card) -> int:
     return max(0, int(card.power)) if card.power and card.power.lstrip("-").isdigit() else 0
 
@@ -177,6 +243,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target spell\.", re.I), lambda m: Counter()),
     (re.compile(rf"exile target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower())),
     (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
+    (re.compile(r"(?i:create) (.+)\."), lambda m: _create(m, follows=False)),
+    (re.compile(r"(?i:its controller creates) (.+)\."), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
     (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
                 r"battlefield tapped, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand()),
@@ -190,8 +258,9 @@ def _parse(sentences: list[str]) -> list | None:
     for sentence in sentences:
         for pattern, build in _TEMPLATES:
             match = pattern.fullmatch(sentence)
-            if match:
-                effects.append(build(match))
+            effect = build(match) if match else None
+            if effect is not None:
+                effects.append(effect)
                 break
         else:
             return None
@@ -317,10 +386,11 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
     return ActivatedAbility(line, tuple(effects), **fields)
 
 
-_ADD_SYMBOLS = re.compile(r"\{T\}: Add ((?:\{[WUBRGC]\})+)\.")
-_ADD_EITHER = re.compile(r"\{T\}: Add \{([WUBRGC])\} or \{([WUBRGC])\}\.")
-_ADD_ANY = re.compile(r"\{T\}: Add one mana of any color\.")
-_ADD_IDENTITY = re.compile(r"\{T\}: Add one mana of any color in your commander's color identity\.")
+_TAP = r"\{T\}(, Sacrifice (?:CARDNAME|this (?:artifact|creature|permanent|land)))?: Add "  # group 1: sacrifice
+_ADD_SYMBOLS = re.compile(_TAP + r"((?:\{[WUBRGC]\})+)\.")
+_ADD_EITHER = re.compile(_TAP + r"\{([WUBRGC])\} or \{([WUBRGC])\}\.")
+_ADD_ANY = re.compile(_TAP + r"one mana of any color\.")
+_ADD_IDENTITY = re.compile(_TAP + r"one mana of any color in your commander's color identity\.")
 
 
 def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
@@ -328,23 +398,35 @@ def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozens
 
     Covers "{T}: Add {C}{C}." (Sol Ring), "{T}: Add {G}." (mana creatures),
     "{T}: Add {R} or {G}.", and "one mana of any color" (optionally limited
-    to your commander's color identity).
+    to your commander's color identity), each optionally with "Sacrifice this
+    artifact" in the cost (Treasure).
     """
-    for line in _REMINDER.sub("", card.oracle_text).splitlines():
-        if is_mana_ability(line.strip()):
-            return _mana_from_line(line.strip(), commander_identity)
-    return None
+    line = _mana_line(card)
+    return _mana_from_line(line, commander_identity) if line else None
+
+
+def mana_ability_sacrifices(card: Card) -> bool:
+    """Whether using the card's mana ability sacrifices it (Treasure)."""
+    line = _mana_line(card)
+    return bool(line and any((m := p.fullmatch(line)) and m[1] for p in _MANA_PATTERNS))
+
+
+def _mana_line(card: Card) -> str | None:
+    return next((line for line in rules_lines(card) if is_mana_ability(line)), None)
+
+
+_MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY, _ADD_IDENTITY)
 
 
 def is_mana_ability(line: str) -> bool:
-    return any(p.fullmatch(line) for p in (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY, _ADD_IDENTITY))
+    return any(p.fullmatch(line) for p in _MANA_PATTERNS)
 
 
 def _mana_from_line(line: str, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
     if m := _ADD_SYMBOLS.fullmatch(line):
-        return [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1])]
+        return [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2])]
     if m := _ADD_EITHER.fullmatch(line):
-        return [frozenset((m[1], m[2]))]
+        return [frozenset((m[2], m[3]))]
     if _ADD_ANY.fullmatch(line):
         return [frozenset("WUBRG")]
     return [commander_identity] if commander_identity else None

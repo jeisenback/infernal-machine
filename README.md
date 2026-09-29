@@ -110,10 +110,18 @@ winner = game.play()
 | Exile target creature. Its controller gains life equal to its power. | Swords to Plowshares |
 | Exile target creature. Its controller may search their library for a basic land card, ... | Path to Exile |
 | Exile target player's graveyard. | Tormod's Crypt |
+| Create N P/T color Subtype (artifact) creature token(s) (with flying, vigilance, ...). | Raise the Alarm |
+| Create N Treasure / Clue / Food token(s). | Smothering Tithe |
+| Destroy target permanent. Its controller creates a 3/3 green Beast creature token. | Beast Within |
 | Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. | Rampant Growth |
 
 - **Target restrictions:** destroy and exile targets can say "an opponent controls",
   "you don't control" or "you control".
+- **Tokens:** they enter with summoning sickness, and "dies" triggers still happen when they leave.
+  After leaving the battlefield they stop existing, so they never reach the graveyard or exile.
+  Treasure is a mana source that's sacrificed when used, and it's spent after lands and other sources.
+  Clue and Food work through their activated abilities. Copy tokens and tokens with quoted abilities
+  aren't supported yet.
 - **Exile:** each player has an exile zone. Exiled creatures don't "die", so dies triggers don't fire.
   A commander heading to exile or the graveyard can go to the command zone instead.
 - **Targets:** chosen when the spell is cast. If every target is gone when it resolves, the spell
