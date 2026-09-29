@@ -1,0 +1,8 @@
+[project]
+name = "infernal-machine"
+version = "0.1.0"
+description = "A Magic: The Gathering engine"
+requires-python = ">=3.11"
+
+[tool.setuptools]
+packages = ["infernal_machine"]
