@@ -115,13 +115,23 @@ winner = game.play()
 | Destroy target permanent. Its controller creates a 3/3 green Beast creature token. | Beast Within |
 | Put N +1/+1 (or -1/-1) counters on target creature / on each creature you control / on it. | |
 | This creature enters with N +1/+1 counters on it. | Hydras |
+| Target creature gets +N/+N (and gains keywords) / gains keywords until end of turn. | Giant Growth |
+| Creatures you control get +N/+N and gain trample until end of turn. | Overrun |
+| This creature gets +1/+0 until end of turn. (as an activated ability) | Shivan Dragon |
 | Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. | Rampant Growth |
 
 - **Target restrictions:** destroy and exile targets can say "an opponent controls",
   "you don't control" or "you control".
-- **Counters:** +1/+1 and -1/-1 counters change power and toughness everywhere: combat, damage,
-  state checks, and the labels players see ("Bear 4/4"). Matching +1/+1 and -1/-1 counters cancel out.
-  `characteristics.py` works out current power and toughness.
+- **Counters:** +1/+1 and -1/-1 counters change power and toughness. Matching +1/+1 and -1/-1
+  counters cancel out.
+- **Static abilities:** "(Other) (Elf) creatures you control get +1/+1 (and have flying)" and
+  "Creatures you control have haste". These apply only while their source is on the battlefield.
+- **Current power, toughness and keywords:** printed values plus counters, static abilities and
+  "until end of turn" effects. They count everywhere: combat, damage, targeting (granted hexproof),
+  destroy (granted indestructible), state checks, and the labels players see ("Bear 4/4").
+  "Until end of turn" effects wear off in the cleanup step. An effect on "creatures you control"
+  affects only the creatures there when it resolves. `Game.power`, `Game.toughness` and
+  `Game.has_keyword` are the way to read them.
 - **Tokens:** they enter with summoning sickness, and "dies" triggers still happen when they leave.
   After leaving the battlefield they stop existing, so they never reach the graveyard or exile.
   Treasure is a mana source that's sacrificed when used, and it's spent after lands and other sources.

@@ -16,11 +16,12 @@ from typing import Any
 
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword
-from .characteristics import MINUS, PLUS, power, toughness
+from . import characteristics
+from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (ActivatedAbility, TriggeredAbility, activated_abilities, enters_with_counters, follows_target,
-                      mana_ability, mana_ability_sacrifices, spell_effects, target_kind, triggered_abilities,
-                      uses_source)
+                      mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
+                      triggered_abilities, uses_source)
 from .mana import Cost, parse_cost, pay
 from .player import Player
 
@@ -70,8 +71,10 @@ class Permanent:
     loyalty: int | None = None
     loyalty_turn: int | None = None  # turn a loyalty ability was last activated (CR 606.3)
     counters: dict[str, int] = field(default_factory=dict)  # "+1/+1" -> 2
+    until_end_of_turn: list[Modifier] = field(default_factory=list)
     activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
     last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
+    last_power: int = 0  # its power just before it left (CR 608.2h: last known information)
 
 
 @dataclass(eq=False)
@@ -254,6 +257,7 @@ class Game:
                 for permanent in other.battlefield:
                     permanent.damage = 0
                     permanent.deathtouched = False
+                    permanent.until_end_of_turn = []  # CR 514.2
         self._check_state()
 
     def _priority_round(self, active: Seat) -> None:
@@ -318,7 +322,7 @@ class Game:
         if ability.sorcery_speed and not sorcery_timing:
             return False
         if ability.tap and (permanent.tapped or (permanent.sick and "Creature" in card.type_line
-                                                  and not has_keyword(card, "haste"))):
+                                                  and not self.has_keyword(permanent, "haste"))):
             return False
         if ability.once_per_turn and permanent.activated_turn.get(ability.text) == self.turn:
             return False
@@ -543,9 +547,9 @@ class Game:
                 continue
             for n, permanent in enumerate(seat.battlefield):
                 card = permanent.card
-                if not _permanent_matches(kind, card) or has_keyword(card, "shroud"):
+                if not _permanent_matches(kind, card) or self.has_keyword(permanent, "shroud"):
                     continue
-                if has_keyword(card, "hexproof") and seat is not caster:
+                if self.has_keyword(permanent, "hexproof") and seat is not caster:
                     continue
                 options.append((self.label(permanent), permanent))
         return options
@@ -556,8 +560,8 @@ class Game:
         n = next(i for i, p in enumerate(seat.battlefield) if p is permanent) + 1
         stats = ""
         if "Creature" in permanent.card.type_line:
-            current = toughness(permanent)
-            stats = f" {power(permanent)}/{permanent.card.toughness if current is None else current}"
+            current = self.toughness(permanent)
+            stats = f" {self.power(permanent)}/{permanent.card.toughness if current is None else current}"
         return f"{permanent.card.name}{stats} (seat {seat.index}, #{n})"
 
     def controller_of(self, permanent: Permanent) -> Seat | None:
@@ -604,19 +608,51 @@ class Game:
         else:
             if "Creature" in target.card.type_line:
                 target.damage += amount
-                if source and has_keyword(source.card, "deathtouch"):
+                if source and self.has_keyword(source, "deathtouch"):
                     target.deathtouched = True
             if target.loyalty is not None:
                 target.loyalty -= amount
             self.broadcast({"event": "damage", "card": target.card.name, "amount": amount,
                             "source": source.card.name if source else None})
-        if controller and has_keyword(source.card, "lifelink"):
+        if controller and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
 
     def destroy(self, permanent: Permanent) -> None:
-        if has_keyword(permanent.card, "indestructible"):
+        if self.has_keyword(permanent, "indestructible"):
             return
         self._leave_battlefield(permanent, "destroyed")
+
+    # --- characteristics -----------------------------------------------------
+
+    def modifiers(self, permanent: Permanent) -> list[Modifier]:
+        """Everything currently changing a permanent: its "until end of turn" effects, plus
+        static abilities of permanents its controller controls ("Creatures you control get +1/+1")."""
+        mods = list(permanent.until_end_of_turn)
+        controller = self.controller_of(permanent)
+        if controller is None or "Creature" not in permanent.card.type_line:
+            return mods
+        subtypes = permanent.card.type_line.partition("—")[2].split()
+        for source in controller.battlefield:
+            for buff in static_abilities(source.card):
+                if (buff.other and source is permanent) or (buff.subtype and buff.subtype not in subtypes):
+                    continue
+                mods.append(buff.modifier)
+        return mods
+
+    def power(self, permanent: Permanent) -> int:
+        return characteristics.power(permanent, self.modifiers(permanent))
+
+    def toughness(self, permanent: Permanent) -> int | None:
+        return characteristics.toughness(permanent, self.modifiers(permanent))
+
+    def has_keyword(self, permanent: Permanent, keyword: str) -> bool:
+        """Printed or granted ("gains flying until end of turn", "Creatures you control have haste")."""
+        return has_keyword(permanent.card, keyword) or any(keyword in m.keywords for m in self.modifiers(permanent))
+
+    def modify_until_end_of_turn(self, permanent: Permanent, modifier: Modifier) -> None:
+        permanent.until_end_of_turn.append(modifier)
+        self.broadcast({"event": "modified", "card": permanent.card.name, "power": modifier.power,
+                        "toughness": modifier.toughness, "keywords": sorted(modifier.keywords)})
 
     def put_counters(self, permanent: Permanent, counter: str, count: int) -> None:
         permanent.counters[counter] = permanent.counters.get(counter, 0) + count
@@ -663,6 +699,7 @@ class Game:
 
     def _leave_battlefield(self, permanent: Permanent, reason: str, destination: str = "graveyard") -> None:
         owner = next(s for s in self.seats if any(p is permanent for p in s.battlefield))
+        permanent.last_power = self.power(permanent)
         owner.battlefield = [p for p in owner.battlefield if p is not permanent]
         permanent.last_controller = owner
         self.broadcast({"event": reason, "seat": owner.index, "card": permanent.card.name})
@@ -706,13 +743,13 @@ class Game:
                     if cancel:  # CR 704.5q
                         counters[PLUS] -= cancel
                         counters[MINUS] -= cancel
-                    current = toughness(permanent)
+                    current = self.toughness(permanent)
                     creature = current is not None
                     if (creature and current <= 0) or (permanent.loyalty is not None and permanent.loyalty <= 0):
                         self._leave_battlefield(permanent, "died")
                         changed = True
                     elif (creature and (permanent.damage >= current or permanent.deathtouched)
-                          and not has_keyword(permanent.card, "indestructible")):
+                          and not self.has_keyword(permanent, "indestructible")):
                         self._leave_battlefield(permanent, "destroyed")
                         changed = True
             if not changed:

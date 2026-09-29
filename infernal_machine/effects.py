@@ -15,7 +15,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable
 
 from .cards import Card
-from .characteristics import power
+from .characteristics import Modifier
 
 if TYPE_CHECKING:
     from .game import Game, Seat
@@ -146,7 +146,7 @@ class TargetControllerGainsLifeEqualToPower:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.last_controller is not None:
-            game.change_life(target.last_controller, max(0, power(target)))
+            game.change_life(target.last_controller, max(0, target.last_power))
 
 
 @dataclass(frozen=True)
@@ -216,6 +216,83 @@ def enters_with_counters(card: Card) -> dict[str, int]:
 
 def is_enters_with_counters(line: str) -> bool:
     return _ENTERS_WITH.fullmatch(line) is not None
+
+
+def _signed(text: str) -> int:
+    return int(text.replace("\u2212", "-"))
+
+
+def _keyword_list(text: str) -> frozenset[str]:
+    """ "flying", "flying and vigilance", "flying, vigilance, and trample" -> {"flying", ...}"""
+    return frozenset(w.strip().lower() for w in re.split(r",? and |, ", text) if w.strip())
+
+
+@dataclass(frozen=True)
+class Pump:
+    """ "Target creature gets +3/+3 (and gains trample) until end of turn." """
+    modifier: Modifier
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.modify_until_end_of_turn(target, self.modifier)
+
+
+@dataclass(frozen=True)
+class PumpSource:
+    """ "This creature gets +1/+0 until end of turn." """
+    modifier: Modifier
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.modify_until_end_of_turn(target, self.modifier)
+
+
+@dataclass(frozen=True)
+class PumpEach:
+    """ "Creatures you control get +3/+3 and gain trample until end of turn." Affects only the
+    creatures there when it resolves (CR 611.2c)."""
+    modifier: Modifier
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in list(controller.battlefield):
+            if "Creature" in permanent.card.type_line:
+                game.modify_until_end_of_turn(permanent, self.modifier)
+
+
+_PT = r"([+\-\u2212]\d+)/([+\-\u2212]\d+)"
+_KEYWORDS = r"([a-z]+(?: [a-z]+)?(?:(?:,? and |, )[a-z]+(?: [a-z]+)?)*)"
+# "gets +3/+3", "gets +2/+0 and gains trample", "gains flying" (one or both parts), then "until end of turn."
+_CHANGE = rf"(?:gets? {_PT}(?: and gains? {_KEYWORDS})?|gains? {_KEYWORDS}) until end of turn\."
+
+
+def _modifier(m: re.Match, first: int) -> Modifier:
+    p, t, keywords_with_pt, keywords_only = m.group(first, first + 1, first + 2, first + 3)
+    keywords = keywords_with_pt or keywords_only
+    return Modifier(_signed(p) if p else 0, _signed(t) if t else 0, _keyword_list(keywords) if keywords else frozenset())
+
+
+@dataclass(frozen=True)
+class StaticBuff:
+    """ "(Other) (Elf) creatures you control get +1/+1 (and have flying)." while its source is on the battlefield."""
+    modifier: Modifier
+    other: bool  # "Other ...": not the source itself
+    subtype: str | None  # "Elf" in "Other Elf creatures you control"
+    text: str
+
+
+_AFFECTED = r"(?:(Other) )?(?:([A-Z][\w'-]*) )?[Cc]reatures you control"
+_STATIC = re.compile(rf"{_AFFECTED} (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
+
+
+@lru_cache(maxsize=None)
+def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
+    buffs = []
+    for line in rules_lines(card):
+        if m := _STATIC.fullmatch(line):
+            buffs.append(StaticBuff(_modifier(m, 3), m[1] is not None, m[2], line))
+    return tuple(buffs)
 
 
 @dataclass(frozen=True)
@@ -310,6 +387,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]))),
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
      lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),
+    (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
+    (re.compile(rf"(?i:{_SELF}) {_CHANGE}"), lambda m: PumpSource(_modifier(m, 1))),
+    (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
     (re.compile(r"(?i:create) (.+)\."), lambda m: _create(m, follows=False)),
     (re.compile(r"(?i:its controller creates) (.+)\."), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),

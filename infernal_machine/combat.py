@@ -2,16 +2,14 @@
 
 Creatures attack players (not planeswalkers yet). Supported keywords: flying,
 reach, vigilance, haste, defender, menace, trample, first strike, double
-strike, deathtouch and lifelink.
+strike, deathtouch and lifelink, whether printed or granted; power, toughness
+and keywords are read through the game so modifiers count.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
-
-from .cards import has_keyword
-from .characteristics import power, toughness
 
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
@@ -31,14 +29,6 @@ class Attack:
     blocked: bool = False  # stays blocked even if its blockers leave (CR 509.1h)
 
 
-def lethal_damage(permanent: Permanent, deathtouch: bool) -> int:
-    """Damage still needed to destroy a blocker; any amount is lethal with deathtouch."""
-    current = toughness(permanent)
-    if deathtouch or current is None:
-        return 1
-    return max(0, current - permanent.damage)
-
-
 class Combat:
     def __init__(self, game: Game):
         self.game = game
@@ -55,7 +45,7 @@ class Combat:
             if choice == 0:
                 continue
             defender = opponents[choice - 1]
-            if not has_keyword(permanent.card, "vigilance"):
+            if not self.game.has_keyword(permanent, "vigilance"):
                 permanent.tapped = True
             self.attacks.append(Attack(permanent, seat, defender))
             self.game.trigger("attacks", permanent, seat)
@@ -71,7 +61,7 @@ class Combat:
             for permanent in list(seat.battlefield):
                 if permanent.tapped or "Creature" not in permanent.card.type_line:
                     continue
-                blockable = [a for a in self.attacks if a.defender is seat and _can_block(permanent, a.attacker)]
+                blockable = [a for a in self.attacks if a.defender is seat and self._can_block(permanent, a.attacker)]
                 if not blockable:
                     continue
                 options = [NO_BLOCK] + [f"Block {self.game.label(a.attacker)}" for a in blockable]
@@ -83,7 +73,7 @@ class Combat:
                                          "attacker": attack.attacker.card.name})
         for attack in self.attacks:
             # Menace: a creature blocked by only one creature is unblocked instead (CR 702.110b).
-            if has_keyword(attack.attacker.card, "menace") and len(attack.blockers) == 1:
+            if self.game.has_keyword(attack.attacker, "menace") and len(attack.blockers) == 1:
                 self.game.broadcast({"event": "block_removed", "card": attack.blockers[0].card.name,
                                      "reason": "menace"})
                 attack.blockers = []
@@ -91,7 +81,7 @@ class Combat:
 
     def has_first_strike(self) -> bool:
         creatures = [a.attacker for a in self.attacks] + [b for a in self.attacks for b in a.blockers]
-        return any(_first_strike(c) or _double_strike(c) for c in creatures)
+        return any(self._has(c, "first strike") or self._has(c, "double strike") for c in creatures)
 
     def deal_damage(self, first_strike_step: bool) -> None:
         """Combat damage is worked out first, then dealt all at once (CR 510.1-510.2)."""
@@ -101,15 +91,15 @@ class Combat:
             if not self.game.on_battlefield(attacker):
                 continue
             blockers = [b for b in attack.blockers if self.game.on_battlefield(b)]
-            if _deals_damage_now(attacker, first_strike_step):
-                amount = max(0, power(attacker))
+            if self._deals_damage_now(attacker, first_strike_step):
+                amount = max(0, self.game.power(attacker))
                 if not attack.blocked:
                     hits.append((attacker, attack.defender, amount))
                 else:
                     hits += self._assign(attacker, blockers, attack.defender, amount)
             for blocker in blockers:
-                if _deals_damage_now(blocker, first_strike_step):
-                    hits.append((blocker, attacker, max(0, power(blocker))))
+                if self._deals_damage_now(blocker, first_strike_step):
+                    hits.append((blocker, attacker, max(0, self.game.power(blocker))))
         for source, target, amount in hits:
             if amount > 0:
                 self.game.damage(target, amount, source=source, combat=True)
@@ -118,11 +108,11 @@ class Combat:
                 amount: int) -> list[tuple[Permanent, Seat | Permanent, int]]:
         """Lethal damage to each blocker in order, the rest to the last one, or to
         the player with trample (CR 510.1c-d)."""
-        deathtouch = has_keyword(attacker.card, "deathtouch")
-        trample = has_keyword(attacker.card, "trample")
+        deathtouch = self.game.has_keyword(attacker, "deathtouch")
+        trample = self.game.has_keyword(attacker, "trample")
         hits: list[tuple[Permanent, Seat | Permanent, int]] = []
         for blocker in blockers:
-            share = min(amount, lethal_damage(blocker, deathtouch))
+            share = min(amount, self._lethal_damage(blocker, deathtouch))
             hits.append((attacker, blocker, share))
             amount -= share
         if amount > 0 and trample:
@@ -132,28 +122,26 @@ class Combat:
             hits[-1] = (source, target, share + amount)
         return hits
 
+    def _lethal_damage(self, permanent: Permanent, deathtouch: bool) -> int:
+        """Damage still needed to destroy a blocker; any amount is lethal with deathtouch."""
+        current = self.game.toughness(permanent)
+        if deathtouch or current is None:
+            return 1
+        return max(0, current - permanent.damage)
+
+    def _has(self, permanent: Permanent, keyword: str) -> bool:
+        return self.game.has_keyword(permanent, keyword)
+
     def _can_attack(self, permanent: Permanent) -> bool:
-        card = permanent.card
-        return ("Creature" in card.type_line and not permanent.tapped
-                and not (permanent.sick and not has_keyword(card, "haste"))
-                and not has_keyword(card, "defender"))
+        return ("Creature" in permanent.card.type_line and not permanent.tapped
+                and not (permanent.sick and not self._has(permanent, "haste"))
+                and not self._has(permanent, "defender"))
 
+    def _can_block(self, blocker: Permanent, attacker: Permanent) -> bool:
+        if self._has(attacker, "flying"):
+            return self._has(blocker, "flying") or self._has(blocker, "reach")
+        return True
 
-def _can_block(blocker: Permanent, attacker: Permanent) -> bool:
-    if has_keyword(attacker.card, "flying"):
-        return has_keyword(blocker.card, "flying") or has_keyword(blocker.card, "reach")
-    return True
-
-
-def _first_strike(permanent: Permanent) -> bool:
-    return has_keyword(permanent.card, "first strike")
-
-
-def _double_strike(permanent: Permanent) -> bool:
-    return has_keyword(permanent.card, "double strike")
-
-
-def _deals_damage_now(permanent: Permanent, first_strike_step: bool) -> bool:
-    if first_strike_step:
-        return _first_strike(permanent) or _double_strike(permanent)
-    return _double_strike(permanent) or not _first_strike(permanent)
+    def _deals_damage_now(self, permanent: Permanent, first_strike_step: bool) -> bool:
+        first, double = self._has(permanent, "first strike"), self._has(permanent, "double strike")
+        return first or double if first_strike_step else double or not first
