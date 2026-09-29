@@ -62,6 +62,17 @@ class Card:
         return asdict(self)
 
 
+_REMINDER = re.compile(r"\s*\([^)]*\)")
+
+
+def has_keyword(card: Card, keyword: str) -> bool:
+    """Whether a keyword line ("Flash", "Flying, hexproof", with or without reminder text) has `keyword`."""
+    for line in card.oracle_text.splitlines():
+        if keyword.lower() in _REMINDER.sub("", line).lower().split(", "):
+            return True
+    return False
+
+
 class CardSource(Protocol):
     def get(self, name: str) -> Card: ...
 

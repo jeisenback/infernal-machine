@@ -55,6 +55,17 @@ class BotPlayerTests(unittest.TestCase):
             self.assertIn("Omnath", names)  # cast from the command zone once it had four lands
 
 
+    def test_bots_use_spell_effects(self):
+        from tests.test_effects import BEAR, BOLT, COUNTERSPELL, DIVINATION, MURDER, RAINBOW
+        commander = Card(name="Omnath", mana_cost="{2}{G}", type_line="Legendary Creature — Elemental", toughness="3")
+        mixed = Deck([commander], [RAINBOW] * 38 + [BOLT] * 20 + [DIVINATION, COUNTERSPELL, MURDER] * 7 + [BEAR] * 20, [])
+        bots = [BotPlayer(f"P{i}", mixed) for i in range(3)]
+        game = Game([(b, mixed) for b in bots], seed=4)
+        game.play(max_turns=30)
+        self.assertTrue(any(seat.life < 40 for seat in game.seats))
+        self.assertTrue(any(BOLT in seat.graveyard for seat in game.seats))
+
+
 class GoldfishTests(unittest.TestCase):
     def test_reproducible(self):
         self.assertEqual(goldfish(deck(37, 62), games=200, seed=1), goldfish(deck(37, 62), games=200, seed=1))

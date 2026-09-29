@@ -73,12 +73,37 @@ winner = game.play()
 - **Actions so far:** play a land (one per turn, your main phase, empty stack), cast spells, and pass.
 - **Casting:** permanents, sorceries and your commander at sorcery speed.
   Instants and Flash cards whenever you have priority.
-- **Paying mana:** lands pay automatically, using each land's `produced_mana` from Scryfall.
-  Lands that make fewer colors are tapped first. X counts as 0, and Phyrexian symbols are paid with mana.
+- **Paying mana:** mana is paid automatically from lands (using Scryfall's `produced_mana`) and from
+  permanents with a simple tap ability: `{T}: Add {C}{C}.`, `{T}: Add {G}.`, `{T}: Add {R} or {G}.`,
+  and "one mana of any color" (optionally limited to your commander's colors).
+  Creatures can't tap for mana the turn they arrive. X counts as 0, and Phyrexian symbols are paid with mana.
 - **Commander tax:** your commander costs {2} more for each earlier cast from the command zone.
+  When your commander would go to the graveyard, you choose whether it goes back to the command zone instead.
 - **The stack:** spells go on the stack and resolve last in, first out once everyone passes in a row.
-  Permanents enter the battlefield. Instants and sorceries go to the graveyard.
-  Their rules text doesn't do anything yet.
+- **State checks:** players lose at 0 life or when drawing from an empty library.
+  Creatures die from lethal damage (unless indestructible) or 0 toughness,
+  and planeswalkers die at 0 loyalty. Damage wears off in the cleanup step.
+
+## Card effects
+
+`effects.py` reads an instant's or sorcery's rules text one sentence at a time. It understands:
+
+| Rules text | Example |
+|---|---|
+| Draw N cards. | Divination |
+| You gain N life. / Each opponent loses N life. | |
+| (This spell) deals N damage to any target / target creature / target player / ... | Lightning Bolt |
+| Destroy target creature / artifact / enchantment / nonland permanent / ... | Murder |
+| Counter target spell. | Counterspell |
+| Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. | Rampant Growth |
+
+- **Targets:** chosen when the spell is cast. If every target is gone when it resolves, the spell
+  does nothing ("fizzles"). Hexproof and shroud are respected, and a spell with no legal target can't be cast.
+- **Partial text:** if any sentence isn't understood, the spell still resolves but does nothing,
+  and the `resolve` event is marked `"unsupported": true`. The engine never does half of what a card says.
+- **Permanents:** they enter the battlefield. Their mana abilities work, but their other rules text
+  (enters-the-battlefield triggers, static abilities) isn't implemented yet.
+
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
 
@@ -95,7 +120,9 @@ stats = goldfish(deck, games=5000, turns=5)
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
   It plays a land whenever it can, then casts its commander if it can,
-  then its most expensive affordable spell, and otherwise passes. When bottoming or discarding,
+  then its most expensive affordable spell, and otherwise passes.
+  It targets opponents' things when it can, never responds to its own spell,
+  and always returns its commander to the command zone. When bottoming or discarding,
   it drops a land if over half the hand is lands, otherwise its most expensive spell.
 - **`goldfish`:** plays the deck alone many times with the same mulligan rules and one land a turn.
   It reports how often you mulligan, how many lands the kept hand has, and how often

@@ -2,19 +2,21 @@
 
 Players act only through the Player protocol, so TCP and local players are
 interchangeable. Actions so far: play a land, cast a spell (including your
-commander, with commander tax) paying with lands, and pass priority. Spells
-use the stack; permanents enter the battlefield when they resolve, but spell
-effects and rules text are not implemented yet.
+commander, with commander tax), and pass priority. Mana comes from lands and
+from permanents with simple mana abilities. Spells use the stack; instants and
+sorceries do what effects.py understands of their rules text, and permanents'
+other rules text is not implemented yet.
 """
 
 from __future__ import annotations
 
 import random
-import re
 from dataclasses import dataclass, field
+from typing import Any
 
 from .analysis import is_land
-from .cards import Card, Deck
+from .cards import Card, Deck, has_keyword
+from .effects import mana_ability, spell_effects, target_kind
 from .mana import parse_cost, pay
 from .player import Player
 
@@ -44,21 +46,30 @@ PERMANENT_TYPES = ("Artifact", "Battle", "Creature", "Enchantment", "Land", "Pla
 KEEP_PROMPT = "Keep this hand?"
 BOTTOM_PROMPT = "Put a card on the bottom of your library"
 DISCARD_PROMPT = "Discard down to hand size"
+TARGET_PROMPT = "Choose a target for "  # followed by the spell's name
+SEARCH_PROMPT = "Choose a basic land to put onto the battlefield"
+COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"
+COMMAND_ZONE_OPTIONS = ["Command zone", "Graveyard"]
 
 
-@dataclass
+@dataclass(eq=False)
 class Permanent:
     card: Card
     tapped: bool = False
+    sick: bool = False  # entered since its controller's last untap step
+    damage: int = 0
+    loyalty: int | None = None
 
 
-@dataclass
+@dataclass(eq=False)
 class StackItem:
     card: Card
     controller: "Seat"
+    effects: list | None = field(default_factory=list)  # None: rules text not understood
+    targets: list = field(default_factory=list)  # one per targeting effect, in order
 
 
-@dataclass
+@dataclass(eq=False)
 class Seat:
     player: Player
     index: int
@@ -68,6 +79,8 @@ class Seat:
     battlefield: list[Permanent] = field(default_factory=list)
     graveyard: list[Card] = field(default_factory=list)
     command_zone: list[Card] = field(default_factory=list)
+    commander_names: set[str] = field(default_factory=set)
+    color_identity: frozenset[str] = frozenset()
     commander_casts: dict[str, int] = field(default_factory=dict)
     lands_played: int = 0
     drew_from_empty: bool = False
@@ -84,7 +97,14 @@ class Game:
             raise ValueError("Commander needs at least two players")
         self.rng = random.Random(seed)
         self.seats = [
-            Seat(player, i, library=list(deck.main), command_zone=list(deck.commanders))
+            Seat(
+                player,
+                i,
+                library=list(deck.main),
+                command_zone=list(deck.commanders),
+                commander_names={c.name for c in deck.commanders},
+                color_identity=frozenset(color for c in deck.commanders for color in c.color_identity),
+            )
             for i, (player, deck) in enumerate(seats)
         ]
         self.turn = 0
@@ -98,6 +118,9 @@ class Game:
 
     def live_seats(self) -> list[Seat]:
         return [s for s in self.seats if not s.lost]
+
+    def opponents(self, seat: Seat) -> list[Seat]:
+        return [s for s in self.live_seats() if s is not seat]
 
     def winner(self) -> Seat | None:
         alive = self.live_seats()
@@ -122,7 +145,7 @@ class Game:
             seat.library += seat.hand
             seat.hand = []
             self.rng.shuffle(seat.library)
-            self._draw(seat, HAND_SIZE, announce=False)
+            self.draw(seat, HAND_SIZE, announce=False)
             seat.player.notify({"event": "opening_hand", "cards": [c.name for c in seat.hand], "mulligans": taken})
             to_bottom = max(0, taken - (1 if self.multiplayer else 0))
             if to_bottom >= HAND_SIZE or seat.player.choose(KEEP_PROMPT, ["Keep", "Mulligan"]) == 0:
@@ -161,10 +184,11 @@ class Game:
         if self.step == "untap":
             for permanent in seat.battlefield:
                 permanent.tapped = False
+                permanent.sick = False
         elif self.step == "draw":
             # CR 103.8: only a two-player game skips the first player's first draw.
             if not (self.turn == 1 and not self.multiplayer):
-                self._draw(seat, 1)
+                self.draw(seat, 1)
         elif self.step == "cleanup":
             excess = len(seat.hand) - HAND_SIZE
             for _ in range(max(0, excess)):
@@ -172,6 +196,9 @@ class Game:
                 card = seat.hand.pop(i)
                 seat.graveyard.append(card)
                 self._broadcast({"event": "discard", "seat": seat.index, "card": card.name})
+            for other in self.seats:  # CR 514.2
+                for permanent in other.battlefield:
+                    permanent.damage = 0
         self._check_state()
 
     def _priority_round(self, active: Seat) -> None:
@@ -187,19 +214,23 @@ class Game:
                 if not self.stack:
                     return
                 self._resolve(self.stack.pop())
-                passes, holder = 0, active
-                continue
-            actions = self.legal_actions(holder)
-            choice = actions[holder.player.choose(f"Priority: {self.step}", actions)]
-            if choice == PASS:
-                passes += 1
-                holder = self.seats[self._next_live_seat(holder.index)]
-                continue
-            self._perform(holder, choice)
+                holder = active  # after resolving, the active player gets priority (CR 117.3b)
+            else:
+                actions = self.legal_actions(holder)
+                choice = actions[holder.player.choose(f"Priority: {self.step}", actions)]
+                if choice == PASS:
+                    passes += 1
+                    holder = self.seats[self._next_live_seat(holder.index)]
+                    continue
+                self._perform(holder, choice)  # the same player gets priority again (CR 117.3c)
+            passes = 0
             self._check_state()
             if self.winner() is not None or active.lost:
                 return
-            passes = 0  # the acting player gets priority again (CR 117.3c)
+            if holder.lost:
+                holder = self.seats[self._next_live_seat(holder.index)]
+
+    # --- actions -------------------------------------------------------------
 
     def legal_actions(self, seat: Seat) -> list[str]:
         actions = [PASS]
@@ -207,26 +238,48 @@ class Game:
         if sorcery_timing and seat.lands_played < 1:
             actions += [PLAY_LAND + c.name for c in _unique(seat.hand) if is_land(c)]
         for card in _unique(seat.hand):
-            if not is_land(card) and (sorcery_timing or _instant_speed(card)) and self._payment(seat, card) is not None:
+            if not is_land(card) and (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card):
                 actions.append(CAST + card.name)
         for card in seat.command_zone:
-            if (sorcery_timing or _instant_speed(card)) and self._payment(seat, card, from_command_zone=True) is not None:
+            if (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card, from_command_zone=True):
                 actions.append(CAST_COMMANDER + card.name)
         return actions
 
     def commander_tax(self, seat: Seat, card: Card) -> int:
         return COMMANDER_TAX * seat.commander_casts.get(card.name, 0)
 
+    def _can_cast(self, seat: Seat, card: Card, from_command_zone: bool = False) -> bool:
+        if self._payment(seat, card, from_command_zone) is None:
+            return False
+        kinds = [target_kind(e) for e in _effects(card) or []]
+        return all(self.target_options(kind, seat) for kind in kinds if kind)
+
+    def _mana_sources(self, seat: Seat) -> list[tuple[Permanent, frozenset[str]]]:
+        """One entry per mana each untapped permanent can make; nonland sources first."""
+        abilities, lands = [], []
+        for permanent in seat.battlefield:
+            if permanent.tapped:
+                continue
+            if is_land(permanent.card):
+                lands.append((permanent, frozenset(permanent.card.produced_mana)))
+            elif not (permanent.sick and "Creature" in permanent.card.type_line):
+                for mana in mana_ability(permanent.card, seat.color_identity) or []:
+                    abilities.append((permanent, mana))
+        return abilities + lands
+
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False) -> list[Permanent] | None:
-        """The untapped lands to tap for `card`, or None if it can't be cast now."""
+        """The permanents to tap for `card`, or None if it can't be paid for now."""
         cost = parse_cost(card.mana_cost)
         if cost is None:
             return None
         if from_command_zone:
             cost = cost.plus_generic(self.commander_tax(seat, card))
-        lands = [p for p in seat.battlefield if not p.tapped and is_land(p.card)]
-        chosen = pay(cost, [frozenset(p.card.produced_mana) for p in lands])
-        return None if chosen is None else [lands[i] for i in chosen]
+        sources = self._mana_sources(seat)
+        chosen = pay(cost, [mana for _, mana in sources])
+        if chosen is None:
+            return None
+        # A permanent that makes several mana (Sol Ring) is tapped once.
+        return list({id(sources[i][0]): sources[i][0] for i in chosen}.values())
 
     def _perform(self, seat: Seat, action: str) -> None:
         if action.startswith(PLAY_LAND):
@@ -244,28 +297,76 @@ class Game:
             self._cast(seat, card, seat.hand)
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False) -> None:
-        lands = self._payment(seat, card, from_command_zone)
-        for land in lands:
-            land.tapped = True
+        effects = _effects(card)
+        targets, labels = [], []
+        for kind in (target_kind(e) for e in effects or []):
+            if kind:
+                options = self.target_options(kind, seat)
+                label, target = options[seat.player.choose(TARGET_PROMPT + card.name, [o[0] for o in options])]
+                targets.append(target)
+                labels.append(label)
+        tapped = self._payment(seat, card, from_command_zone)
+        for permanent in tapped:
+            permanent.tapped = True
         zone.remove(card)
-        self.stack.append(StackItem(card, seat))
+        self.stack.append(StackItem(card, seat, effects, targets))
         self._broadcast({"event": "cast", "seat": seat.index, "card": card.name,
                          "from": "command_zone" if from_command_zone else "hand",
-                         "tapped": [land.card.name for land in lands]})
+                         "targets": labels, "tapped": [p.card.name for p in tapped]})
 
     def _resolve(self, item: StackItem) -> None:
-        seat = item.controller
-        if any(t in item.card.type_line for t in PERMANENT_TYPES):
-            seat.battlefield.append(Permanent(item.card))
-            destination = "battlefield"
-        else:
-            seat.graveyard.append(item.card)
-            destination = "graveyard"
-        self._broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name, "to": destination})
+        seat, card = item.controller, item.card
+        if _is_permanent(card):
+            loyalty = int(card.loyalty) if card.loyalty and card.loyalty.isdigit() else None
+            seat.battlefield.append(Permanent(card, sick=True, loyalty=loyalty))
+            self._broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
+            return
+        if item.effects is None:
+            self._broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
+            self._to_graveyard(seat, card)
+            return
+        legal = [self.is_legal_target(target_kind(e), t, seat)
+                 for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
+        if legal and not any(legal):  # CR 608.2b: every target is gone
+            self._broadcast({"event": "fizzle", "seat": seat.index, "card": card.name})
+            self._to_graveyard(seat, card)
+            return
+        self._broadcast({"event": "resolve", "seat": seat.index, "card": card.name})
+        checks = iter(zip(item.targets, legal))
+        for effect in item.effects:
+            target = None
+            if target_kind(effect):
+                candidate, ok = next(checks)
+                target = candidate if ok else None
+            effect.resolve(self, seat, target)
+        self._to_graveyard(seat, card)
 
-    # --- helpers -------------------------------------------------------------
+    # --- targets -------------------------------------------------------------
 
-    def _draw(self, seat: Seat, count: int, announce: bool = True) -> None:
+    def target_options(self, kind: str, caster: Seat) -> list[tuple[str, Any]]:
+        """Legal targets of `kind` for a spell `caster` controls, as (label, object)."""
+        options: list[tuple[str, Any]] = []
+        if kind in ("any", "player", "player or planeswalker"):
+            options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
+        if kind == "spell":
+            options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack]
+            return options
+        for seat in self.live_seats():
+            for n, permanent in enumerate(seat.battlefield):
+                card = permanent.card
+                if not _permanent_matches(kind, card) or has_keyword(card, "shroud"):
+                    continue
+                if has_keyword(card, "hexproof") and seat is not caster:
+                    continue
+                options.append((f"{card.name} (seat {seat.index}, #{n + 1})", permanent))
+        return options
+
+    def is_legal_target(self, kind: str, target: Any, caster: Seat) -> bool:
+        return any(option is target for _, option in self.target_options(kind, caster))
+
+    # --- things effects do ---------------------------------------------------
+
+    def draw(self, seat: Seat, count: int, announce: bool = True) -> None:
         for _ in range(count):
             if not seat.library:
                 seat.drew_from_empty = True
@@ -276,18 +377,79 @@ class Game:
                 seat.player.notify({"event": "draw", "card": card.name})
                 self._broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
 
+    def change_life(self, seat: Seat, amount: int) -> None:
+        seat.life += amount
+        self._broadcast({"event": "life", "seat": seat.index, "change": amount, "life": seat.life})
+
+    def damage(self, target: Seat | Permanent, amount: int) -> None:
+        if isinstance(target, Seat):
+            self.change_life(target, -amount)
+            return
+        if "Creature" in target.card.type_line:
+            target.damage += amount
+        if target.loyalty is not None:
+            target.loyalty -= amount
+        self._broadcast({"event": "damage", "card": target.card.name, "amount": amount})
+
+    def destroy(self, permanent: Permanent) -> None:
+        if has_keyword(permanent.card, "indestructible"):
+            return
+        self._leave_battlefield(permanent, "destroyed")
+
+    def counter(self, item: StackItem) -> None:
+        self.stack.remove(item)
+        self._broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name})
+        self._to_graveyard(item.controller, item.card)
+
+    def fetch_basic_land(self, seat: Seat) -> None:
+        basics = _unique([c for c in seat.library if "Basic" in c.type_line and "Land" in c.type_line])
+        if basics:
+            choice = basics[seat.player.choose(SEARCH_PROMPT, [c.name for c in basics])]
+            seat.library.remove(choice)
+            seat.battlefield.append(Permanent(choice, tapped=True))
+            self._broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": True})
+        self.rng.shuffle(seat.library)
+
+    # --- helpers -------------------------------------------------------------
+
+    def _leave_battlefield(self, permanent: Permanent, reason: str) -> None:
+        owner = next(s for s in self.seats if any(p is permanent for p in s.battlefield))
+        owner.battlefield = [p for p in owner.battlefield if p is not permanent]
+        self._broadcast({"event": reason, "seat": owner.index, "card": permanent.card.name})
+        self._to_graveyard(owner, permanent.card)
+
+    def _to_graveyard(self, seat: Seat, card: Card) -> None:
+        """Put a card into its owner's graveyard; a commander may go to the command zone (CR 903.9a)."""
+        if card.name in seat.commander_names and seat.player.choose(COMMAND_ZONE_PROMPT, COMMAND_ZONE_OPTIONS) == 0:
+            seat.command_zone.append(card)
+            self._broadcast({"event": "to_command_zone", "seat": seat.index, "card": card.name})
+            return
+        seat.graveyard.append(card)
+
     def _check_state(self) -> None:
-        """State-based actions that apply so far (CR 704.5a, 704.5b)."""
-        for seat in self.live_seats():
-            reason = None
-            if seat.life <= 0:
-                reason = "life"
-            elif seat.drew_from_empty:
-                reason = "empty_library"
-            if reason:
-                seat.lost = True
-                self.stack = [item for item in self.stack if item.controller is not seat]  # CR 800.4a
-                self._broadcast({"event": "player_lost", "seat": seat.index, "reason": reason})
+        """State-based actions (CR 704.5): losing the game, lethal damage, zero toughness or loyalty."""
+        while True:
+            changed = False
+            for seat in self.live_seats():
+                reason = "life" if seat.life <= 0 else "empty_library" if seat.drew_from_empty else None
+                if reason:
+                    seat.lost = True
+                    seat.battlefield = []  # CR 800.4a: their objects leave the game
+                    self.stack = [item for item in self.stack if item.controller is not seat]
+                    self._broadcast({"event": "player_lost", "seat": seat.index, "reason": reason})
+                    changed = True
+            for seat in self.live_seats():
+                for permanent in list(seat.battlefield):
+                    toughness = _number(permanent.card.toughness)
+                    creature = "Creature" in permanent.card.type_line and toughness is not None
+                    if (creature and toughness <= 0) or (permanent.loyalty is not None and permanent.loyalty <= 0):
+                        self._leave_battlefield(permanent, "died")
+                        changed = True
+                    elif creature and permanent.damage >= toughness and not has_keyword(permanent.card, "indestructible"):
+                        self._leave_battlefield(permanent, "destroyed")
+                        changed = True
+            if not changed:
+                return
 
     def _turn_order(self, start: int) -> list[Seat]:
         return [self.seats[(start + i) % len(self.seats)] for i in range(len(self.seats))]
@@ -304,15 +466,31 @@ class Game:
                 seat.player.notify(event)
 
 
+def _is_permanent(card: Card) -> bool:
+    return any(t in card.type_line for t in PERMANENT_TYPES)
+
+
+def _effects(card: Card) -> list | None:
+    """Spell effects for instants and sorceries; permanent spells just enter the battlefield."""
+    return [] if _is_permanent(card) else spell_effects(card)
+
+
 def _instant_speed(card: Card) -> bool:
-    if "Instant" in card.type_line:
+    return "Instant" in card.type_line or has_keyword(card, "flash")
+
+
+def _permanent_matches(kind: str, card: Card) -> bool:
+    if kind == "any":
+        return "Creature" in card.type_line or "Planeswalker" in card.type_line
+    if kind == "permanent":
         return True
-    # Keyword lines look like "Flash" or "Flying, flash", possibly with reminder text.
-    for line in card.oracle_text.splitlines():
-        keywords = re.sub(r"\s*\([^)]*\)", "", line).lower().split(", ")
-        if "flash" in keywords:
-            return True
-    return False
+    if kind == "nonland permanent":
+        return not is_land(card)
+    return any(t.capitalize() in card.type_line for t in kind.split(" or ") if t != "player")
+
+
+def _number(value: str | None) -> int | None:
+    return int(value) if value and value.lstrip("-").isdigit() else None
 
 
 def _take(cards: list[Card], name: str) -> Card:

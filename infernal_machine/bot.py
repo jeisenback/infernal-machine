@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass
 from typing import Sequence
 
 from .analysis import is_land
 from .cards import Card, Deck
-from .game import BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS, PLAY_LAND
+from .game import (BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
+                   PLAY_LAND, TARGET_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
@@ -32,24 +34,48 @@ def worst_card(hand: list[Card]) -> int:
 
 class BotPlayer:
     """Keeps 2-5 land hands, plays a land whenever it can, then casts its most
-    expensive affordable spell (its commander first), and otherwise passes."""
+    expensive affordable spell (its commander first), and otherwise passes.
+
+    It targets opponents' things when it can, never responds to its own
+    spell, and always sends its commander back to the command zone.
+    """
 
     def __init__(self, name: str, deck: Deck):
         self.name = name
         self._cards = {c.name: c for c in deck.commanders + deck.main}
         self._hand: list[Card] = []
         self._mulligans = 0
+        self._seat: int | None = None
+        self._stack: list[int] = []  # seat of each spell on the stack, bottom first
 
     def notify(self, event: dict) -> None:
-        if event.get("event") == "opening_hand":
+        kind = event.get("event")
+        if kind == "opening_hand":
             self._hand = [self._cards[name] for name in event["cards"]]
             self._mulligans = event["mulligans"]
+        elif kind == "seat" and event["name"] == self.name:
+            self._seat = event["seat"]
+        elif kind == "cast":
+            self._stack.append(event["seat"])
+        elif kind in ("resolve", "fizzle") and self._stack:
+            self._stack.pop()
+        elif kind == "countered" and event["seat"] in self._stack:
+            self._stack.reverse()
+            self._stack.remove(event["seat"])
+            self._stack.reverse()
 
     def choose(self, prompt: str, options: Sequence[str]) -> int:
         if prompt == KEEP_PROMPT:
             return 0 if keep_hand(self._hand, self._mulligans) else 1
         if prompt in (BOTTOM_PROMPT, DISCARD_PROMPT):
             return worst_card([self._cards[name] for name in options])
+        if prompt.startswith(TARGET_PROMPT):
+            theirs = [i for i, option in enumerate(options) if _seat_of(option) != self._seat]
+            return theirs[0] if theirs else 0
+        if PASS not in options:
+            return 0  # search, command zone and other yes/no choices: take the first option
+        if self._stack and self._stack[-1] == self._seat:
+            return options.index(PASS)
         for i, option in enumerate(options):
             if option.startswith(PLAY_LAND):
                 return i
@@ -59,7 +85,12 @@ class BotPlayer:
         casts = [i for i, option in enumerate(options) if option.startswith(CAST)]
         if casts:
             return max(casts, key=lambda i: self._cards[options[i].removeprefix(CAST)].cmc)
-        return options.index(PASS) if PASS in options else 0
+        return options.index(PASS)
+
+
+def _seat_of(label: str) -> int | None:
+    match = re.search(r"\(seat (\d+)", label)
+    return int(match[1]) if match else None
 
 
 @dataclass
