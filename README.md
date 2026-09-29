@@ -135,6 +135,19 @@ winner = game.play()
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
 
+## What the engine can't play yet
+
+```
+python -m infernal_machine.report deck.txt
+```
+
+The report fetches the deck from Scryfall (caching cards in `.cache/cards.json`) and prints:
+- how many cards are fully playable,
+- the missing pieces grouped by kind, such as activated abilities, tokens or exile, with the most-affected kind first,
+- every rules-text line the engine doesn't understand yet.
+
+Use it to decide which effects to add next. In code: `deck_report(deck)` and `unsupported_lines(card)` in `report.py`.
+
 ## Bots and goldfishing
 
 ```python

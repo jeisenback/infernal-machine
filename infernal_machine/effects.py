@@ -43,6 +43,11 @@ def _rules_text(card: Card) -> str:
     return text
 
 
+def rules_lines(card: Card) -> list[str]:
+    """The card's rules text, one ability per line, as the other functions here see it."""
+    return [line.strip() for line in _rules_text(card).splitlines() if line.strip()]
+
+
 def _split_sentences(text: str) -> list[str]:
     return [s.strip() for line in text.splitlines() for s in re.split(r"(?<=\.)\s+", line) if s.strip()]
 
@@ -145,6 +150,11 @@ def spell_effects(card: Card) -> list | None:
     return _parse(_split_sentences(_rules_text(card)))
 
 
+def line_effects(line: str) -> list | None:
+    """Effects of one line of spell text (from rules_lines); None if not understood."""
+    return _parse(_split_sentences(line))
+
+
 @dataclass(frozen=True)
 class TriggeredAbility:
     event: str  # one of TRIGGER_EVENTS
@@ -199,13 +209,20 @@ def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozens
     to your commander's color identity).
     """
     for line in _REMINDER.sub("", card.oracle_text).splitlines():
-        line = line.strip()
-        if m := _ADD_SYMBOLS.fullmatch(line):
-            return [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1])]
-        if m := _ADD_EITHER.fullmatch(line):
-            return [frozenset((m[1], m[2]))]
-        if _ADD_ANY.fullmatch(line):
-            return [frozenset("WUBRG")]
-        if _ADD_IDENTITY.fullmatch(line):
-            return [commander_identity] if commander_identity else None
+        if is_mana_ability(line.strip()):
+            return _mana_from_line(line.strip(), commander_identity)
     return None
+
+
+def is_mana_ability(line: str) -> bool:
+    return any(p.fullmatch(line) for p in (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY, _ADD_IDENTITY))
+
+
+def _mana_from_line(line: str, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
+    if m := _ADD_SYMBOLS.fullmatch(line):
+        return [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1])]
+    if m := _ADD_EITHER.fullmatch(line):
+        return [frozenset((m[1], m[2]))]
+    if _ADD_ANY.fullmatch(line):
+        return [frozenset("WUBRG")]
+    return [commander_identity] if commander_identity else None
