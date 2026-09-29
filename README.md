@@ -53,6 +53,27 @@ stats.land_count, stats.average_mana_value, stats.curve, stats.color_pips
 - `average_mana_value` also leaves out lands.
 - `color_pips` counts colored mana symbols across all costs. Hybrid symbols count toward both colors.
 
+## Playing a game
+
+```python
+from infernal_machine.game import Game
+
+game = Game([(player_a, deck_a), (player_b, deck_b), (player_c, deck_c)], seed=42)
+winner = game.play()
+```
+
+- **Setup:** 40 life, commanders in the command zone, shuffle, and a random starting player.
+- **Mulligans:** London mulligan. The first one is free in games with 3 or more players (CR 103.5c).
+- **Turns:** all twelve steps. Priority goes around the table, and a step ends only when every
+  player passes in a row. There's no priority in untap or cleanup.
+- **Draw:** the first player skips their first draw only in a two-player game (CR 103.8).
+- **Cleanup:** discard down to seven cards.
+- **Losing:** a player loses at 0 life or when drawing from an empty library.
+  The last player standing wins.
+- **Actions so far:** play a land (one per turn, your main phase) and pass. There's no stack yet.
+- **Hidden cards:** a drawn card's name goes only to the player who drew it.
+- **Replays:** the same `seed` gives the same shuffles.
+
 ## TCP players
 
 The engine talks to players through the `Player` protocol (`notify`, `choose`).
