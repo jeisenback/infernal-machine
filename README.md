@@ -157,6 +157,10 @@ winner = game.play()
   | Whenever this creature attacks, ... | |
   | Whenever this creature deals combat damage to a player, ... | |
   | At the beginning of your upkeep / end step, ... | |
+  | Whenever another creature / a nontoken creature you control / an artifact ... enters, ... | Soul Warden |
+  | Whenever a land you control enters, ... (Landfall) | |
+  | Whenever (this creature or) another creature (you control) dies, ... | Zulaport Cutthroat |
+  | Whenever you cast a (creature / noncreature / instant or sorcery) spell, ... | |
 
   - Triggers go on the stack the next time a player would get priority. The active player's go
     first, so they resolve last, and players can respond to them.
@@ -164,7 +168,10 @@ winner = game.play()
   - "You may" abilities ask their controller when they resolve.
   - A card can call itself by its full name, its short legendary name ("Omnath"),
     "this creature", or "it".
-  - A trigger whose effect isn't understood is ignored.
+  - A trigger whose effect isn't understood is ignored. So is a watching trigger whose effect mentions
+    "it" or "that creature", because that may mean the other object rather than the source.
+  - Ability words like "Landfall —" are ignored when reading the trigger. A creature that dies still sees
+    its own death ("Whenever this creature or another creature dies").
 - **Activated abilities on permanents:** these also use the same effect list.
 
   | Cost | Example |

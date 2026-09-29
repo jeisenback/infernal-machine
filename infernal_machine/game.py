@@ -496,6 +496,7 @@ class Game:
         self.broadcast({"event": "cast", "seat": seat.index, "card": card.name,
                          "from": "command_zone" if from_command_zone else "hand",
                          "targets": labels, "x": x, "tapped": [p.card.name for p in tapped]})
+        self._observe("cast", card, seat)
 
     def _resolve(self, item: StackItem) -> None:
         seat, card = item.controller, item.card
@@ -565,8 +566,30 @@ class Game:
         """Note that `permanent`'s abilities for `event` triggered; they go on the stack
         the next time a player would get priority (CR 603.3)."""
         for ability in triggered_abilities(permanent.card):
-            if ability.event == event:
+            if ability.event == event and ability.watch is None:
                 self.pending.append(PendingTrigger(ability, permanent, controller))
+
+    def _observe(self, event: str, card: Card, seat: Seat, subject: Permanent | None = None,
+                 extra: list[tuple[Permanent, Seat]] = ()) -> None:
+        """Trigger abilities that watch for `event` happening to `card` (controlled by `seat`):
+        "Whenever another creature enters", landfall, "whenever a creature dies",
+        "whenever you cast a spell". `extra` adds watchers that just left the battlefield
+        and still "look back in time" (CR 603.10a)."""
+        watchers = [(p, s) for s in self.live_seats() for p in s.battlefield] + list(extra)
+        for watcher, watcher_seat in watchers:
+            for ability in triggered_abilities(watcher.card):
+                watch = ability.watch
+                if not watch or ability.event != event:
+                    continue
+                if watch.other and subject is watcher:
+                    continue
+                if (watch.yours or event == "cast") and watcher_seat is not seat:
+                    continue
+                if watch.nontoken and _is_token(card):
+                    continue
+                if not _watch_type_matches(watch.kind, card):
+                    continue
+                self.pending.append(PendingTrigger(ability, watcher, watcher_seat))
 
     def _put_triggers_on_stack(self) -> None:
         """Active player's triggers first, then the others in turn order (CR 603.3b).
@@ -755,6 +778,7 @@ class Game:
             permanent.counters[counter] = permanent.counters.get(counter, 0) + (x if count == "X" else count)
         seat.battlefield.append(permanent)
         self.trigger("enters", permanent, seat)
+        self._observe("permanent_enters", permanent.card, seat, subject=permanent)
 
     def _leave_battlefield(self, permanent: Permanent, reason: str, destination: str = "graveyard") -> None:
         owner = next(s for s in self.seats if any(p is permanent for p in s.battlefield))
@@ -764,6 +788,7 @@ class Game:
         self.broadcast({"event": reason, "seat": owner.index, "card": permanent.card.name})
         if destination == "graveyard" and "Creature" in permanent.card.type_line:
             self.trigger("dies", permanent, owner)
+            self._observe("creature_dies", permanent.card, owner, subject=permanent, extra=[(permanent, owner)])
         if _is_token(permanent.card):
             return  # tokens stop existing once they leave the battlefield (CR 111.7)
         self._move_card(owner, permanent.card, destination)
@@ -827,6 +852,17 @@ class Game:
         for seat in self.seats:
             if seat is not skip:
                 seat.player.notify(event)
+
+
+def _watch_type_matches(kind: str, card: Card) -> bool:
+    """Whether `card` is what a watch looks for: "creature", "land", ..., or for casts
+    "spell", "creature spell", "noncreature spell", "instant or sorcery spell", ..."""
+    kind = kind.removesuffix(" spell").removesuffix("spell").strip()
+    if not kind:
+        return True
+    if kind.startswith("non"):
+        return kind[3:].capitalize() not in card.type_line
+    return any(t.capitalize() in card.type_line for t in kind.split(" or "))
 
 
 def _is_token(card: Card) -> bool:

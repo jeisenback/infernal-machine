@@ -433,6 +433,16 @@ class TriggeredAbility:
     effects: tuple
     optional: bool  # "you may ...": the controller chooses when it resolves
     text: str
+    watch: "Watch | None" = None  # set when it watches other objects ("Whenever another creature enters")
+
+
+@dataclass(frozen=True)
+class Watch:
+    """What a watching trigger looks for."""
+    kind: str  # "creature", "land", "artifact", "enchantment"; for casts "spell", "creature spell", ...
+    other: bool = False  # "another": not the source itself
+    yours: bool = False  # "you control" / "under your control"
+    nontoken: bool = False
 
 
 _TRIGGERS = {
@@ -446,12 +456,49 @@ _TRIGGERS = {
 TRIGGER_EVENTS = tuple(_TRIGGERS)
 
 
+_WHO = rf"(?:({_SELF}) or another|(another)|an?)"
+_PERMANENT_WATCH = r"(nontoken creature|creature|land|artifact|enchantment)"
+_WATCHES = {
+    "permanent_enters": re.compile(
+        rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? enters(?: the battlefield)?( under your control)?, (.+)", re.I),
+    "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature)( you control)? dies, (.+)", re.I),
+    "cast": re.compile(r"Whenever you cast an? (spell|creature spell|noncreature spell|instant or sorcery spell"
+                       r"|artifact spell|enchantment spell), (.+)", re.I),
+}
+_ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
+
+
+def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
+    line = _ABILITY_WORD.sub("", line)
+    if m := _WATCHES["cast"].fullmatch(line):
+        return "cast", Watch(m[1].lower()), m[2]
+    for event in ("permanent_enters", "creature_dies"):
+        if m := _WATCHES[event].fullmatch(line):
+            self_or_other, another, kind = m[1], m[2], m[3].lower()
+            yours = bool(m[4]) or (event == "permanent_enters" and bool(m[5]))
+            watch = Watch(kind.removeprefix("nontoken "), other=bool(another) and not self_or_other,
+                          yours=yours, nontoken=kind.startswith("nontoken"))
+            return event, watch, m[len(m.groups())]
+    return None
+
+
 @lru_cache(maxsize=None)
 def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     """The triggered abilities on a permanent whose effects are all understood."""
     abilities = []
     for line in _rules_text(card).splitlines():
         line = line.strip()
+        if watched := _watch_trigger(line):
+            event, watch, rest = watched
+            # Here "it"/"that creature" may mean the other object, not the source: not supported yet.
+            if re.search(r"\bit\b|\bthat (creature|land|spell)\b", rest, re.I):
+                continue
+            optional = rest.lower().startswith("you may ")
+            rest = rest[len("you may "):] if optional else rest
+            effects = _parse(_split_sentences(rest[:1].upper() + rest[1:]))
+            if effects is not None:
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch))
+            continue
         for event, pattern in _TRIGGERS.items():
             match = pattern.fullmatch(line)
             if not match:
