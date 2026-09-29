@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .cards import has_keyword
+from .characteristics import power, toughness
 
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
@@ -30,17 +31,12 @@ class Attack:
     blocked: bool = False  # stays blocked even if its blockers leave (CR 509.1h)
 
 
-def power(permanent: Permanent) -> int:
-    value = permanent.card.power
-    return max(0, int(value)) if value and value.lstrip("-").isdigit() else 0
-
-
 def lethal_damage(permanent: Permanent, deathtouch: bool) -> int:
     """Damage still needed to destroy a blocker; any amount is lethal with deathtouch."""
-    toughness = permanent.card.toughness
-    if deathtouch or not (toughness and toughness.lstrip("-").isdigit()):
+    current = toughness(permanent)
+    if deathtouch or current is None:
         return 1
-    return max(0, int(toughness) - permanent.damage)
+    return max(0, current - permanent.damage)
 
 
 class Combat:
@@ -62,7 +58,7 @@ class Combat:
             if not has_keyword(permanent.card, "vigilance"):
                 permanent.tapped = True
             self.attacks.append(Attack(permanent, seat, defender))
-            self.game.trigger("attacks", permanent.card, seat)
+            self.game.trigger("attacks", permanent, seat)
             self.game.broadcast({"event": "attack", "seat": seat.index, "card": permanent.card.name,
                                  "defender": defender.index})
 
@@ -106,14 +102,14 @@ class Combat:
                 continue
             blockers = [b for b in attack.blockers if self.game.on_battlefield(b)]
             if _deals_damage_now(attacker, first_strike_step):
-                amount = power(attacker)
+                amount = max(0, power(attacker))
                 if not attack.blocked:
                     hits.append((attacker, attack.defender, amount))
                 else:
                     hits += self._assign(attacker, blockers, attack.defender, amount)
             for blocker in blockers:
                 if _deals_damage_now(blocker, first_strike_step):
-                    hits.append((blocker, attacker, power(blocker)))
+                    hits.append((blocker, attacker, max(0, power(blocker))))
         for source, target, amount in hits:
             if amount > 0:
                 self.game.damage(target, amount, source=source, combat=True)

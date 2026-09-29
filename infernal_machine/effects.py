@@ -15,6 +15,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable
 
 from .cards import Card
+from .characteristics import power
 
 if TYPE_CHECKING:
     from .game import Game, Seat
@@ -55,6 +56,11 @@ def _split_sentences(text: str) -> list[str]:
 def target_kind(effect: Any) -> str | None:
     """What an effect targets ("any", "creature", "spell", ...), or None."""
     return getattr(effect, "target", None)
+
+
+def uses_source(effect: Any) -> bool:
+    """Whether an effect acts on its ability's source ("put a +1/+1 counter on it")."""
+    return getattr(effect, "uses_source", False)
 
 
 def follows_target(effect: Any) -> bool:
@@ -140,7 +146,7 @@ class TargetControllerGainsLifeEqualToPower:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.last_controller is not None:
-            game.change_life(target.last_controller, _power(target.card))
+            game.change_life(target.last_controller, max(0, power(target)))
 
 
 @dataclass(frozen=True)
@@ -151,6 +157,65 @@ class TargetControllerMayFetchBasicLand:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.last_controller is not None:
             game.fetch_basic_land(target.last_controller, optional=True)
+
+
+@dataclass(frozen=True)
+class PutCounters:
+    count: int
+    counter: str  # "+1/+1" or "-1/-1"
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.put_counters(target, self.counter, self.count)
+
+
+@dataclass(frozen=True)
+class PutCountersOnEach:
+    """ "Put a +1/+1 counter on each creature you control." """
+    count: int
+    counter: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in list(controller.battlefield):
+            if "Creature" in permanent.card.type_line:
+                game.put_counters(permanent, self.counter, self.count)
+
+
+@dataclass(frozen=True)
+class PutCountersOnSource:
+    """ "Whenever this creature attacks, put a +1/+1 counter on it." """
+    count: int
+    counter: str
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.put_counters(target, self.counter, self.count)
+
+
+_COUNTER = r"([+\-\u2212]1/[+\-\u2212]1) counters?"
+
+
+def _counter_name(text: str) -> str:
+    return text.replace("\u2212", "-")
+
+
+_ENTERS_WITH = re.compile(rf"{_SELF} enters with {_N} {_COUNTER} on it\.", re.I)
+
+
+def enters_with_counters(card: Card) -> dict[str, int]:
+    """Counters from "This creature enters with N +1/+1 counters on it." """
+    counters: dict[str, int] = {}
+    for line in rules_lines(card):
+        if m := _ENTERS_WITH.fullmatch(line):
+            name = _counter_name(m[2])
+            counters[name] = counters.get(name, 0) + _count(m[1])
+    return counters
+
+
+def is_enters_with_counters(line: str) -> bool:
+    return _ENTERS_WITH.fullmatch(line) is not None
 
 
 @dataclass(frozen=True)
@@ -219,10 +284,6 @@ def _create(m: re.Match, follows: bool) -> Any:
     return (TargetControllerCreatesTokens if follows else CreateTokens)(*parsed)
 
 
-def _power(card: Card) -> int:
-    return max(0, int(card.power)) if card.power and card.power.lstrip("-").isdigit() else 0
-
-
 @dataclass(frozen=True)
 class FetchBasicLand:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
@@ -243,6 +304,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target spell\.", re.I), lambda m: Counter()),
     (re.compile(rf"exile target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower())),
     (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
+    (re.compile(rf"put {_N} {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
+     lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
+    (re.compile(rf"put {_N} {_COUNTER} on each creature you control\.", re.I),
+     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]))),
+    (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
+     lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),
     (re.compile(r"(?i:create) (.+)\."), lambda m: _create(m, follows=False)),
     (re.compile(r"(?i:its controller creates) (.+)\."), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),

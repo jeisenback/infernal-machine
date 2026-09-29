@@ -108,15 +108,15 @@ class TriggerTests(unittest.TestCase):
         game, a, _ = table()
         game.seats[0].battlefield = [Permanent(MARTYR)]
         game.seats[1].battlefield = [Permanent(MARTYR)]
-        game.trigger("dies", MARTYR, game.seats[0])
-        game.trigger("dies", MARTYR, game.seats[1])
+        game.trigger("dies", Permanent(MARTYR), game.seats[0])
+        game.trigger("dies", Permanent(MARTYR), game.seats[1])
         game._put_triggers_on_stack()
         self.assertEqual([item.controller.index for item in game.stack], [0, 1])
 
     def test_counterspell_cannot_target_abilities(self):
         game, _, _ = table()
         a, b = game.seats
-        game.trigger("dies", MARTYR, a)
+        game.trigger("dies", Permanent(MARTYR), a)
         game._put_triggers_on_stack()
         b.hand = [COUNTERSPELL]
         b.battlefield = lands(2)

@@ -16,9 +16,11 @@ from typing import Any
 
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword
+from .characteristics import MINUS, PLUS, power, toughness
 from .combat import Combat
-from .effects import (ActivatedAbility, TriggeredAbility, activated_abilities, follows_target, mana_ability,
-                      mana_ability_sacrifices, spell_effects, target_kind, triggered_abilities)
+from .effects import (ActivatedAbility, TriggeredAbility, activated_abilities, enters_with_counters, follows_target,
+                      mana_ability, mana_ability_sacrifices, spell_effects, target_kind, triggered_abilities,
+                      uses_source)
 from .mana import Cost, parse_cost, pay
 from .player import Player
 
@@ -67,6 +69,7 @@ class Permanent:
     deathtouched: bool = False  # dealt damage by a source with deathtouch (CR 704.5h)
     loyalty: int | None = None
     loyalty_turn: int | None = None  # turn a loyalty ability was last activated (CR 606.3)
+    counters: dict[str, int] = field(default_factory=dict)  # "+1/+1" -> 2
     activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
     last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
 
@@ -78,13 +81,18 @@ class StackItem:
     effects: list | None = field(default_factory=list)  # None: rules text not understood
     targets: list = field(default_factory=list)  # one per targeting effect, in order
     ability: TriggeredAbility | ActivatedAbility | None = None  # set for an ability rather than a spell
+    source: "Permanent | None" = None  # the ability's source, for effects on "it"
 
 
 @dataclass(eq=False)
 class PendingTrigger:
     ability: TriggeredAbility
-    source: Card
+    permanent: "Permanent"
     controller: "Seat"
+
+    @property
+    def source(self) -> Card:
+        return self.permanent.card
 
 
 @dataclass(eq=False)
@@ -226,7 +234,7 @@ class Game:
                 self.draw(seat, 1)
         elif self.step in ("upkeep", "end"):
             for permanent in list(seat.battlefield):
-                self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent.card, seat)
+                self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
         elif self.step == "declare_attackers":
             self.combat.declare_attackers(seat)
         elif self.step == "declare_blockers":
@@ -407,7 +415,7 @@ class Game:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn
         permanent.activated_turn[ability.text] = self.turn
-        self.stack.append(StackItem(permanent.card, seat, list(ability.effects), targets, ability))
+        self.stack.append(StackItem(permanent.card, seat, list(ability.effects), targets, ability, permanent))
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": ability.text, "targets": labels, "tapped": [p.card.name for p in tapped]})
         if ability.sacrifice:
@@ -484,17 +492,19 @@ class Game:
                 target = previous = candidate if ok else None
             elif follows_target(effect):
                 target = previous
+            elif uses_source(effect):
+                target = item.source if item.source and self.on_battlefield(item.source) else None
             effect.resolve(self, seat, target)
         return True
 
     # --- triggered abilities -------------------------------------------------
 
-    def trigger(self, event: str, source: Card, controller: Seat) -> None:
-        """Note that `source`'s abilities for `event` triggered; they go on the stack
+    def trigger(self, event: str, permanent: Permanent, controller: Seat) -> None:
+        """Note that `permanent`'s abilities for `event` triggered; they go on the stack
         the next time a player would get priority (CR 603.3)."""
-        for ability in triggered_abilities(source):
+        for ability in triggered_abilities(permanent.card):
             if ability.event == event:
-                self.pending.append(PendingTrigger(ability, source, controller))
+                self.pending.append(PendingTrigger(ability, permanent, controller))
 
     def _put_triggers_on_stack(self) -> None:
         """Active player's triggers first, then the others in turn order (CR 603.3b).
@@ -512,7 +522,8 @@ class Game:
             if chosen is None:
                 continue
             targets, labels = chosen
-            self.stack.append(StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability))
+            self.stack.append(StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability,
+                                        trigger.permanent))
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
                             "ability": trigger.ability.text, "targets": labels})
 
@@ -543,7 +554,10 @@ class Game:
         """How a permanent is shown in choices: "Grizzly Bears 2/2 (seat 1, #3)"."""
         seat = self.controller_of(permanent)
         n = next(i for i, p in enumerate(seat.battlefield) if p is permanent) + 1
-        stats = f" {permanent.card.power}/{permanent.card.toughness}" if "Creature" in permanent.card.type_line else ""
+        stats = ""
+        if "Creature" in permanent.card.type_line:
+            current = toughness(permanent)
+            stats = f" {power(permanent)}/{permanent.card.toughness if current is None else current}"
         return f"{permanent.card.name}{stats} (seat {seat.index}, #{n})"
 
     def controller_of(self, permanent: Permanent) -> Seat | None:
@@ -581,7 +595,7 @@ class Game:
         if isinstance(target, Seat):
             self.change_life(target, -amount)
             if combat and controller:
-                self.trigger("combat_damage_to_player", source.card, controller)
+                self.trigger("combat_damage_to_player", source, controller)
             if combat and controller and source.card.name in controller.commander_names:
                 key = (controller.index, source.card.name)
                 target.commander_damage[key] = target.commander_damage.get(key, 0) + amount
@@ -603,6 +617,11 @@ class Game:
         if has_keyword(permanent.card, "indestructible"):
             return
         self._leave_battlefield(permanent, "destroyed")
+
+    def put_counters(self, permanent: Permanent, counter: str, count: int) -> None:
+        permanent.counters[counter] = permanent.counters.get(counter, 0) + count
+        self.broadcast({"event": "counters", "card": permanent.card.name, "counter": counter,
+                        "added": count, "total": permanent.counters[counter]})
 
     def create_tokens(self, seat: Seat, token: Card, count: int) -> None:
         for _ in range(count):
@@ -638,8 +657,9 @@ class Game:
     # --- helpers -------------------------------------------------------------
 
     def _enter(self, seat: Seat, permanent: Permanent) -> None:
+        permanent.counters.update(enters_with_counters(permanent.card))  # CR 614.1c: it arrives with them
         seat.battlefield.append(permanent)
-        self.trigger("enters", permanent.card, seat)
+        self.trigger("enters", permanent, seat)
 
     def _leave_battlefield(self, permanent: Permanent, reason: str, destination: str = "graveyard") -> None:
         owner = next(s for s in self.seats if any(p is permanent for p in s.battlefield))
@@ -647,7 +667,7 @@ class Game:
         permanent.last_controller = owner
         self.broadcast({"event": reason, "seat": owner.index, "card": permanent.card.name})
         if destination == "graveyard" and "Creature" in permanent.card.type_line:
-            self.trigger("dies", permanent.card, owner)
+            self.trigger("dies", permanent, owner)
         if _is_token(permanent.card):
             return  # tokens stop existing once they leave the battlefield (CR 111.7)
         self._move_card(owner, permanent.card, destination)
@@ -681,12 +701,17 @@ class Game:
                     changed = True
             for seat in self.live_seats():
                 for permanent in list(seat.battlefield):
-                    toughness = _number(permanent.card.toughness)
-                    creature = "Creature" in permanent.card.type_line and toughness is not None
-                    if (creature and toughness <= 0) or (permanent.loyalty is not None and permanent.loyalty <= 0):
+                    counters = permanent.counters
+                    cancel = min(counters.get(PLUS, 0), counters.get(MINUS, 0))
+                    if cancel:  # CR 704.5q
+                        counters[PLUS] -= cancel
+                        counters[MINUS] -= cancel
+                    current = toughness(permanent)
+                    creature = current is not None
+                    if (creature and current <= 0) or (permanent.loyalty is not None and permanent.loyalty <= 0):
                         self._leave_battlefield(permanent, "died")
                         changed = True
-                    elif (creature and (permanent.damage >= toughness or permanent.deathtouched)
+                    elif (creature and (permanent.damage >= current or permanent.deathtouched)
                           and not has_keyword(permanent.card, "indestructible")):
                         self._leave_battlefield(permanent, "destroyed")
                         changed = True
@@ -742,10 +767,6 @@ def _permanent_matches(kind: str, card: Card) -> bool:
     if kind == "nonland permanent":
         return not is_land(card)
     return any(t.capitalize() in card.type_line for t in kind.split(" or ") if t != "player")
-
-
-def _number(value: str | None) -> int | None:
-    return int(value) if value and value.lstrip("-").isdigit() else None
 
 
 def _take(cards: list[Card], name: str) -> Card:

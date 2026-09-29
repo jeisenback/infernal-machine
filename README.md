@@ -113,10 +113,15 @@ winner = game.play()
 | Create N P/T color Subtype (artifact) creature token(s) (with flying, vigilance, ...). | Raise the Alarm |
 | Create N Treasure / Clue / Food token(s). | Smothering Tithe |
 | Destroy target permanent. Its controller creates a 3/3 green Beast creature token. | Beast Within |
+| Put N +1/+1 (or -1/-1) counters on target creature / on each creature you control / on it. | |
+| This creature enters with N +1/+1 counters on it. | Hydras |
 | Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. | Rampant Growth |
 
 - **Target restrictions:** destroy and exile targets can say "an opponent controls",
   "you don't control" or "you control".
+- **Counters:** +1/+1 and -1/-1 counters change power and toughness everywhere: combat, damage,
+  state checks, and the labels players see ("Bear 4/4"). Matching +1/+1 and -1/-1 counters cancel out.
+  `characteristics.py` works out current power and toughness.
 - **Tokens:** they enter with summoning sickness, and "dies" triggers still happen when they leave.
   After leaving the battlefield they stop existing, so they never reach the graveyard or exile.
   Treasure is a mana source that's sacrificed when used, and it's spent after lands and other sources.
