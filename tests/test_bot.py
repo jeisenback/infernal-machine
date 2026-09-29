@@ -41,6 +41,20 @@ class BotPlayerTests(unittest.TestCase):
             self.assertLessEqual(len(seat.hand), 7)
 
 
+    def test_bots_cast_spells(self):
+        forest = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
+        bear = Card(name="Grizzly Bears", mana_cost="{1}{G}", cmc=2, type_line="Creature — Bear")
+        commander = Card(name="Omnath", mana_cost="{3}{G}", cmc=4, type_line="Legendary Creature — Elemental")
+        green = Deck(commanders=[commander], main=[forest] * 40 + [bear] * 59, sideboard=[])
+        a, b = BotPlayer("A", green), BotPlayer("B", green)
+        game = Game([(a, green), (b, green)], seed=3)
+        game.play(max_turns=10)
+        for seat in game.seats:
+            names = [p.card.name for p in seat.battlefield]
+            self.assertIn("Grizzly Bears", names)
+            self.assertIn("Omnath", names)  # cast from the command zone once it had four lands
+
+
 class GoldfishTests(unittest.TestCase):
     def test_reproducible(self):
         self.assertEqual(goldfish(deck(37, 62), games=200, seed=1), goldfish(deck(37, 62), games=200, seed=1))

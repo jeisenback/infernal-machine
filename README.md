@@ -70,7 +70,15 @@ winner = game.play()
 - **Cleanup:** discard down to seven cards.
 - **Losing:** a player loses at 0 life or when drawing from an empty library.
   The last player standing wins.
-- **Actions so far:** play a land (one per turn, your main phase) and pass. There's no stack yet.
+- **Actions so far:** play a land (one per turn, your main phase, empty stack), cast spells, and pass.
+- **Casting:** permanents, sorceries and your commander at sorcery speed.
+  Instants and Flash cards whenever you have priority.
+- **Paying mana:** lands pay automatically, using each land's `produced_mana` from Scryfall.
+  Lands that make fewer colors are tapped first. X counts as 0, and Phyrexian symbols are paid with mana.
+- **Commander tax:** your commander costs {2} more for each earlier cast from the command zone.
+- **The stack:** spells go on the stack and resolve last in, first out once everyone passes in a row.
+  Permanents enter the battlefield. Instants and sorceries go to the graveyard.
+  Their rules text doesn't do anything yet.
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
 
@@ -86,7 +94,8 @@ stats = goldfish(deck, games=5000, turns=5)
 ```
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
-  It plays a land whenever it can and otherwise passes. When bottoming or discarding,
+  It plays a land whenever it can, then casts its commander if it can,
+  then its most expensive affordable spell, and otherwise passes. When bottoming or discarding,
   it drops a land if over half the hand is lands, otherwise its most expensive spell.
 - **`goldfish`:** plays the deck alone many times with the same mulligan rules and one land a turn.
   It reports how often you mulligan, how many lands the kept hand has, and how often

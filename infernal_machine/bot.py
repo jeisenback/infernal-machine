@@ -8,7 +8,7 @@ from typing import Sequence
 
 from .analysis import is_land
 from .cards import Card, Deck
-from .game import BOTTOM_PROMPT, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS
+from .game import BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS, PLAY_LAND
 
 MIN_LANDS = 2
 MAX_LANDS = 5
@@ -31,7 +31,8 @@ def worst_card(hand: list[Card]) -> int:
 
 
 class BotPlayer:
-    """Keeps 2-5 land hands, plays a land whenever it can, and otherwise passes."""
+    """Keeps 2-5 land hands, plays a land whenever it can, then casts its most
+    expensive affordable spell (its commander first), and otherwise passes."""
 
     def __init__(self, name: str, deck: Deck):
         self.name = name
@@ -50,8 +51,14 @@ class BotPlayer:
         if prompt in (BOTTOM_PROMPT, DISCARD_PROMPT):
             return worst_card([self._cards[name] for name in options])
         for i, option in enumerate(options):
-            if option.startswith("Play land"):
+            if option.startswith(PLAY_LAND):
                 return i
+        for i, option in enumerate(options):
+            if option.startswith(CAST_COMMANDER):
+                return i
+        casts = [i for i, option in enumerate(options) if option.startswith(CAST)]
+        if casts:
+            return max(casts, key=lambda i: self._cards[options[i].removeprefix(CAST)].cmc)
         return options.index(PASS) if PASS in options else 0
 
 

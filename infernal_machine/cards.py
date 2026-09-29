@@ -29,6 +29,7 @@ class Card:
     toughness: str | None = None
     loyalty: str | None = None
     color_identity: tuple[str, ...] = ()
+    produced_mana: tuple[str, ...] = ()
     commander_legal: bool = True
     scryfall_id: str | None = None
 
@@ -47,13 +48,14 @@ class Card:
             toughness=face.get("toughness"),
             loyalty=face.get("loyalty"),
             color_identity=tuple(data.get("color_identity", [])),
+            produced_mana=tuple(data.get("produced_mana", [])),
             commander_legal=data.get("legalities", {}).get("commander") == "legal",
             scryfall_id=data.get("id"),
         )
 
     @classmethod
     def from_dict(cls, data: dict) -> "Card":
-        tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity")}
+        tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity", "produced_mana")}
         return cls(**{**data, **tuples})
 
     def to_dict(self) -> dict:
