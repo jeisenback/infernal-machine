@@ -19,6 +19,10 @@ class Cost:
     def plus_generic(self, amount: int) -> "Cost":
         return Cost(self.generic + amount, self.colored, self.x)
 
+    def reduced(self, amount: int) -> "Cost":
+        """Cost reductions only lower the generic part (CR 601.2f)."""
+        return Cost(max(0, self.generic - amount), self.colored, self.x)
+
     def with_x(self, value: int) -> "Cost":
         """The cost to pay once X is chosen."""
         return Cost(self.generic + self.x * value, self.colored)

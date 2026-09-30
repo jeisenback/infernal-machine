@@ -99,6 +99,21 @@ winner = game.play()
 - **X spells:** the caster chooses X when casting, from 0 up to what they can afford.
   X works in effects ("draw X cards", "deals X damage", "create X tokens", "put X counters")
   and in "enters with X +1/+1 counters".
+- **Other costs:**
+  - Cost reducers: "Green spells you cast cost {1} less to cast." (Medallions), for a color, "creature",
+    "artifact", "enchantment", "noncreature", "instant and sorcery", or all spells. Only generic mana is
+    reduced, including commander tax and kicker.
+  - Alternative costs: "If you control a commander, you may cast this spell without paying its mana cost."
+    (Fierce Guardianship, Deadly Rollick) and "(If it's not your turn,) you may (pay N life and) exile a blue card
+    from your hand rather than pay this spell's mana cost." (Force of Will, Force of Negation). When more than
+    one way is payable, the caster chooses. X is 0 when the mana cost isn't paid.
+  - Kicker {N}: on instants and sorceries the caster chooses whether to pay it, and "If this spell was kicked, ..."
+    effects happen only when it was. Kicked effects that target, "instead" wordings, multikicker, non-mana kicker
+    costs and kicker on permanents aren't supported.
+  - Additional costs: "As an additional cost to cast this spell, sacrifice a creature / an artifact / an artifact
+    or creature / a land / a permanent", "discard a card" or "pay N life". They're paid after mana, so a creature
+    that tapped for mana can still be sacrificed. Effects that read the paid cost ("the sacrificed creature's
+    power") aren't supported.
 - **Commander tax:** your commander costs {2} more for each earlier cast from the command zone.
   When your commander would go to the graveyard, you choose whether it goes back to the command zone instead.
 - **The stack:** spells go on the stack and resolve last in, first out once everyone passes in a row.
@@ -291,7 +306,7 @@ winner = game.play()
   - A permanent can't tap itself for mana to pay for its own {T} or sacrifice ability.
   - Abilities go on the stack, so players can respond, and counterspells can't target them.
 - **Other rules text on permanents:** static abilities, mana abilities with a cost (Signets),
-  and costs like "sacrifice a creature" aren't implemented yet.
+  and activation costs like "sacrifice a creature" aren't implemented yet.
 
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.

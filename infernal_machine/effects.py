@@ -804,6 +804,97 @@ def cycling_cost(card: Card) -> str | None:
 
 def is_cycling_line(line: str) -> bool:
     return _CYCLING.fullmatch(line) is not None
+
+
+@dataclass(frozen=True)
+class AlternativeCost:
+    """A way to cast a spell instead of paying its mana cost (CR 118.9)."""
+    text: str  # how it's offered to the caster
+    commander: bool = False  # "If you control a commander, ..."
+    not_your_turn: bool = False  # "If it's not your turn, ..."
+    life: int = 0
+    exile_color: str | None = None  # exile a card of this color (a letter) from your hand
+
+
+@dataclass(frozen=True)
+class AdditionalCost:
+    """"As an additional cost to cast this spell, ..." (CR 601.2b)."""
+    sacrifice: str | None = None  # the kind of permanent: "creature", "artifact or creature", ...
+    discard: bool = False
+    life: int = 0
+
+
+_KICKER = re.compile(r"Kicker ((?:\{\d+\}|\{[WUBRGC]\})+)")
+_FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast this spell without paying its mana cost\.")
+_PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life and )?exile an? ({_COLOR_NAMES}) card "
+                    r"from your hand rather than pay this spell's mana cost\.")
+_ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
+                         rf"creature|permanent)|(discard a card)|pay {_N} life)\.")
+_REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery) )?spells "
+                        r"you cast cost \{(\d+)\} less to cast\.", re.I)
+
+
+def kicker_cost(card: Card) -> str | None:
+    """The mana cost from "Kicker {1}{U}" (only mana costs are supported), or None."""
+    return next((m[1] for line in rules_lines(card) if (m := _KICKER.fullmatch(line))), None)
+
+
+def alternative_costs(card: Card) -> list[AlternativeCost]:
+    costs = []
+    for line in rules_lines(card):
+        if _FREE_WITH_COMMANDER.fullmatch(line):
+            costs.append(AlternativeCost("Cast without paying its mana cost", commander=True))
+        elif m := _PITCH.fullmatch(line):
+            life = _count(m[2]) if m[2] else 0
+            text = f"Pay {life} life and exile a {m[3]} card" if life else f"Exile a {m[3]} card"
+            costs.append(AlternativeCost(text, not_your_turn=bool(m[1]), life=life, exile_color=_COLOR_LETTER[m[3]]))
+    return costs
+
+
+def additional_costs(card: Card) -> list[AdditionalCost]:
+    costs = []
+    for line in rules_lines(card):
+        if m := _ADDITIONAL.fullmatch(line):
+            costs.append(AdditionalCost(sacrifice=m[1], discard=bool(m[2]), life=_count(m[3]) if m[3] else 0))
+    return costs
+
+
+def cost_reductions(card: Card) -> list[tuple[str, int]]:
+    """Static "Green spells you cast cost {1} less to cast." abilities (Medallions): (what kind of spell, how much).
+    The kind is a color letter, a card type ("creature", "noncreature", "instant and sorcery") or "spell"."""
+    found = []
+    for line in rules_lines(card):
+        if m := _REDUCTION.fullmatch(line):
+            kind = (m[1] or "spell").lower()
+            found.append((_COLOR_LETTER.get(kind, kind), int(m[2])))
+    return found
+
+
+def is_casting_cost_line(line: str) -> bool:
+    """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
+    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL))
+
+
+def is_cost_reduction_line(line: str) -> bool:
+    return _REDUCTION.fullmatch(line) is not None
+
+
+@dataclass(frozen=True)
+class IfKicked:
+    """"If this spell was kicked, draw a card.": the effect happens only if the kicker cost was paid."""
+    effect: Any
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None and game.resolving_item.kicked:
+            self.effect.resolve(game, controller, target)
+
+
+def _kicked(m: re.Match) -> IfKicked | None:
+    effects = _parse([m[1][:1].upper() + m[1][1:]])
+    # Targets are chosen before the kicker is known here, so kicked effects can't target (or follow a target) yet.
+    if not effects or target_kind(effects[0]) or follows_target(effects[0]) or uses_source(effects[0]):
+        return None
+    return IfKicked(effects[0])
 _LAND_TYPES = rf"({_LAND_TYPE}(?:, {_LAND_TYPE})*(?:,? or {_LAND_TYPE})?)"
 
 
@@ -831,6 +922,7 @@ _PERMANENT_KIND = (r"((?:creature|artifact|enchantment|planeswalker|nonland perm
 _DAMAGE_KIND = r"(any target|target creature|target player|target creature or planeswalker|target player or planeswalker)"
 
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
+    (re.compile(r"if this spell was kicked, (.+)", re.I), _kicked),
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
     (re.compile(rf"you gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
@@ -918,10 +1010,10 @@ def _parse(sentences: list[str]) -> list | None:
 def spell_effects(card: Card) -> list | None:
     """Effects of an instant or sorcery, in order; None if any sentence isn't understood. A modal spell
     ("Choose one — ...") gives a single Modal effect."""
-    lines = rules_lines(card)
+    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line)]
     if lines and (m := _MODAL_HEADER.fullmatch(lines[0])):
         return _parse_modal(m[1].lower(), lines[1:])
-    return _parse(_split_sentences(_rules_text(card)))
+    return _parse(_split_sentences("\n".join(lines)))
 
 
 def line_effects(line: str) -> list | None:

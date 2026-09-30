@@ -20,9 +20,9 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AttachAura, Draw, EntersTapped, Modal, TriggeredAbility,
-                      WardCounter,
-                      activated_abilities, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
+                      TriggeredAbility, WardCounter,
+                      activated_abilities, additional_costs, alternative_costs, cost_reductions, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, is_identity_mana_land, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_source)
@@ -65,6 +65,10 @@ COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Co
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
+SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
+COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
+KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
+PITCH_PROMPT = "Choose a card to exile from your hand"
 WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
 MODE_PROMPT = "Choose a mode for "  # followed by the spell's name; options are the modes, then DONE_MODES once enough are chosen
@@ -135,6 +139,7 @@ class StackItem:
     ability: TriggeredAbility | ActivatedAbility | None = None  # set for an ability rather than a spell
     source: "Permanent | None" = None  # the ability's source, for effects on "it"
     x: int = 0  # the value chosen for X when it was cast
+    kicked: bool = False
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
 
 
@@ -404,7 +409,7 @@ class Game:
         return COMMANDER_TAX * seat.commander_casts.get(card.name, 0)
 
     def _can_cast(self, seat: Seat, card: Card, from_command_zone: bool = False) -> bool:
-        if self._payment(seat, card, from_command_zone) is None:
+        if not self._cast_ways(seat, card, from_command_zone):
             return False
         effects, colors = _effects(card) or [], frozenset(card.colors)
         if effects and isinstance(effects[0], Modal):
@@ -440,18 +445,76 @@ class Game:
                     bucket.append(ManaSource(permanent, mana, pain, damage))
         return abilities + lands + sacrifices
 
-    def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0) -> list[Permanent] | None:
-        """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now."""
-        cost = parse_cost(card.mana_cost)
+    def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
+                 alternative: AlternativeCost | None = None, kicked: bool = False) -> list[Permanent] | None:
+        """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now. An alternative
+        cost replaces the mana cost; commander tax and kicker are added, then cost reductions apply."""
+        cost = Cost() if alternative else parse_cost(card.mana_cost)
         if cost is None:
             return None
         if from_command_zone:
             cost = cost.plus_generic(self.commander_tax(seat, card))
-        return self._pay_cost(seat, cost.with_x(x))
+        if kicked:
+            cost = cost + parse_cost(kicker_cost(card))
+        return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card)))
 
-    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool) -> int:
+    def cost_reduction(self, seat: Seat, card: Card) -> int:
+        """How much less generic mana `card` costs `seat` (Medallions and the like)."""
+        return sum(amount for p in seat.battlefield for kind, amount in cost_reductions(p.card)
+                   if _spell_matches(kind, card))
+
+    def _cast_ways(self, seat: Seat, card: Card, from_command_zone: bool) -> list[AlternativeCost | None]:
+        """The ways `seat` can cast `card` now: None for its mana cost, then its alternative costs."""
+        return [way for way in [None, *alternative_costs(card)]
+                if self._can_pay_extras(seat, card, way) and self._payment(seat, card, from_command_zone, alternative=way)
+                is not None]
+
+    def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None) -> bool:
+        """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs,
+        and `alternative`'s condition, life and card to exile."""
+        extras = additional_costs(card)
+        others = list(seat.hand)
+        if card in others:
+            others.remove(card)
+        if sum(c.life for c in extras) + (alternative.life if alternative else 0) > seat.life:  # CR 119.4
+            return False
+        if any(c.discard for c in extras) and not others:
+            return False
+        if any(c.sacrifice and not any(_permanent_matches(c.sacrifice, p.card) for p in seat.battlefield) for c in extras):
+            return False
+        if alternative is None:
+            return True
+        if alternative.commander and not any(p.card.name in (p.owner or seat).commander_names for p in seat.battlefield):
+            return False
+        if alternative.not_your_turn and self.active == seat.index:
+            return False
+        return not alternative.exile_color or any(alternative.exile_color in c.colors for c in others)
+
+    def _pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None) -> None:
+        """Pay the non-mana costs of casting `card`, which has already left its zone."""
+        if alternative and alternative.exile_color:
+            options = [c for c in seat.hand if alternative.exile_color in c.colors]
+            exiled = options[seat.player.choose(PITCH_PROMPT, [c.name for c in options])]
+            seat.hand.remove(exiled)
+            self.broadcast({"event": "exiled_from_hand", "seat": seat.index, "card": exiled.name})
+            self._move_card(seat, exiled, "exile")
+        for extra in additional_costs(card):
+            if extra.discard:
+                discarded = seat.hand[seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])]
+                seat.hand.remove(discarded)
+                self.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
+                self._move_card(seat, discarded, "graveyard")
+            if extra.sacrifice:
+                options = [p for p in seat.battlefield if _permanent_matches(extra.sacrifice, p.card)]
+                choice = options[seat.player.choose(SACRIFICE_COST_PROMPT + card.name, [self.label(p) for p in options])]
+                self._leave_together([(choice, "sacrificed")])
+        life = sum(c.life for c in additional_costs(card)) + (alternative.life if alternative else 0)
+        if life:
+            self.change_life(seat, -life)
+
+    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kicked: bool) -> int:
         x = 0
-        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1) is not None:
+        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1, kicked=kicked) is not None:
             x += 1
         return x
 
@@ -599,18 +662,33 @@ class Game:
         if effects and isinstance(effects[0], Modal):
             effects = self._choose_modes(seat, card, effects[0])
         targets, labels = self._choose_targets(seat, effects, card.name, colors=frozenset(card.colors))
+        ways = self._cast_ways(seat, card, from_command_zone)
+        alternative = ways[0]
+        if len(ways) > 1:
+            options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
+            alternative = ways[seat.player.choose(COST_PROMPT + card.name, options)]
+        # Kicker is only offered on instants and sorceries: nothing reads it on permanents yet.
+        kicked = (not _is_permanent(card) and kicker_cost(card) is not None
+                  and self._payment(seat, card, from_command_zone, alternative=alternative, kicked=True) is not None
+                  and seat.player.choose(KICKER_PROMPT + card.name, YES_NO) == 0)
         x = 0
-        if parse_cost(card.mana_cost).x:
-            options = [str(n) for n in range(self._max_x(seat, card, from_command_zone) + 1)]
+        if alternative is None and parse_cost(card.mana_cost).x:  # casting without paying the mana cost makes X 0
+            options = [str(n) for n in range(self._max_x(seat, card, from_command_zone, kicked) + 1)]
             x = seat.player.choose(X_PROMPT + card.name, options)
-        tapped = self._payment(seat, card, from_command_zone, x)
+        tapped = self._payment(seat, card, from_command_zone, x, alternative, kicked)
         self._spend_mana(seat, tapped)
         zone.remove(card)
-        item = StackItem(card, seat, effects, targets, x=x)
+        self._pay_extras(seat, card, alternative)
+        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked)
         self.stack.append(item)
-        self.broadcast({"event": "cast", "seat": seat.index, "card": card.name,
-                         "from": "command_zone" if from_command_zone else "hand",
-                         "targets": labels, "x": x, "tapped": [p.card.name for p in tapped]})
+        event = {"event": "cast", "seat": seat.index, "card": card.name,
+                 "from": "command_zone" if from_command_zone else "hand",
+                 "targets": labels, "x": x, "tapped": [p.card.name for p in tapped]}
+        if kicked:
+            event["kicked"] = True
+        if alternative:
+            event["alternative"] = alternative.text
+        self.broadcast(event)
         self._observe("cast", card, seat)
         self._check_ward(item)
 
@@ -1364,6 +1442,20 @@ def _effects(card: Card) -> list | None:
         kind = aura_kind(card)
         return [AttachAura(kind)] if kind else []
     return spell_effects(card)
+
+
+def _spell_matches(kind: str, card: Card) -> bool:
+    """Whether a spell is the kind a cost reduction names: a color letter, "spell", "noncreature",
+    "instant and sorcery", or a card type."""
+    if kind == "spell":
+        return True
+    if kind in COLOR_NAMES:
+        return kind in card.colors
+    if kind == "noncreature":
+        return "Creature" not in card.type_line
+    if kind == "instant and sorcery":
+        return "Instant" in card.type_line or "Sorcery" in card.type_line
+    return kind.capitalize() in card.type_line
 
 
 def _instant_speed(card: Card) -> bool:

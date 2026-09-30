@@ -129,7 +129,9 @@ class Narrator:
         if kind == "cast":
             origin = " from the command zone" if e.get("from") == "command_zone" else ""
             x = f" with X={e['x']}" if e.get("x") else ""
-            return f"{who} {v('cast', 'casts')} {card}{origin}{x}{targets}."
+            kicked = " kicked" if e.get("kicked") else ""
+            how = f" ({e['alternative'].lower()})" if e.get("alternative") else ""
+            return f"{who} {v('cast', 'casts')} {card}{kicked}{origin}{x}{how}{targets}."
         if kind == "activate":
             return f"{who} {v('activate')} {card}: {ability}{targets}."
         if kind == "trigger":
@@ -178,6 +180,8 @@ class Narrator:
             return f"{card} leaves {self.poss(seat)} graveyard for the {e['to']}."
         if kind == "graveyard_exiled":
             return f"{self.poss(seat).capitalize()} graveyard is exiled."
+        if kind == "exiled_from_hand":
+            return f"{who} {v('exile')} {card} from {self.poss(seat)} hand."
         if kind == "discard":
             return f"{who} {v('discard')} {card}."
         if kind == "searched":
