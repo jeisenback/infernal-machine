@@ -115,6 +115,13 @@ winner = game.play()
 | Exile target creature. Its controller gains life equal to its power. | Swords to Plowshares |
 | Exile target creature. Its controller may search their library for a basic land card, ... | Path to Exile |
 | Exile target player's graveyard. | Tormod's Crypt |
+| Exile target card from a graveyard. | |
+| Return target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation |
+| Return target (creature) card from your graveyard to your hand / to the battlefield. | Raise Dead, Zombify |
+| Put target creature card from a graveyard onto the battlefield under your control. | Reanimate |
+| Search your library for a (creature) card, (reveal it,) put it into your hand, then shuffle. | Demonic Tutor |
+| Search your library for a card, then shuffle and put that card on top. | Vampiric Tutor |
+| You lose N life. | |
 | Destroy all creatures / artifacts / lands / nonland permanents / ... (optionally "you don't control", "you control") | Wrath of God, Armageddon |
 | Exile all creatures / ... | |
 | This spell deals N (or X) damage to each creature / each creature you don't control / each opponent / each player | Pyroclasm |
@@ -146,6 +153,13 @@ winner = game.play()
   Treasure is a mana source that's sacrificed when used, and it's spent after lands and other sources.
   Clue and Food work through their activated abilities. Copy tokens and tokens with quoted abilities
   aren't supported yet.
+- **Zones:** bounced permanents go to their owner's hand, and tokens stop existing. A commander headed for the
+  hand can go to the command zone instead. Cards keep their owner: a creature you reanimate from an opponent's
+  graveyard enters under your control, but goes back to their graveyard when it dies. Graveyard targets are
+  checked again on resolution, and a spell with no legal graveyard target can't be cast.
+- **Tutors:** the searcher picks from the matching cards in their library, which is then shuffled. Other players
+  only learn which card unless it says "reveal it". If nothing matches, the library is just shuffled.
+  Restrictions like "with mana value 3 or less" aren't supported yet.
 - **Mass effects:** nothing is targeted, so hexproof doesn't help. Indestructible permanents survive
   "destroy all" but not exile or sacrifice. Everything leaves the battlefield at the same moment, so a
   creature watching for deaths triggers for every other creature that died with it, and a creature with
@@ -227,7 +241,7 @@ stats = goldfish(deck, games=5000, turns=5)
 ```
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
-  It chooses the largest X it can afford and sacrifices its weakest creature. It doesn't judge whether a board
+  It chooses the largest X it can afford, sacrifices its weakest creature, and tutors for its most expensive card. It doesn't judge whether a board
   wipe helps it, so it will cast Wrath of God while ahead.
   It plays a land whenever it can, then casts its commander if it can,
   then its most expensive affordable spell, and otherwise passes.

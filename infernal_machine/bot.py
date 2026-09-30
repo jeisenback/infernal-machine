@@ -11,7 +11,7 @@ from .analysis import is_land
 from .cards import Card, Deck
 from .combat import ATTACK_PROMPT, BLOCK_PROMPT
 from .game import (ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
-                   PLAY_LAND, SACRIFICE_PROMPT, TARGET_PROMPT, X_PROMPT)
+                   PLAY_LAND, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
@@ -91,6 +91,8 @@ class BotPlayer:
             return self._block(prompt, options)
         if prompt.startswith(X_PROMPT):
             return len(options) - 1  # as big as it can afford
+        if prompt == SEARCH_CARD_PROMPT:
+            return max(range(len(options)), key=lambda i: self._cards[options[i]].cmc)  # its best card
         if prompt == SACRIFICE_PROMPT:
             return min(range(len(options)), key=lambda i: sum(_stats(options[i])))  # its weakest creature
         if prompt.startswith(TARGET_PROMPT):

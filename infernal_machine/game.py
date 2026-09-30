@@ -60,6 +60,7 @@ COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Co
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
+SEARCH_CARD_PROMPT = "Choose a card to search for"  # options are card names
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
@@ -79,6 +80,14 @@ class Permanent:
     activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
     last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
     last_power: int = 0  # its power just before it left (CR 608.2h: last known information)
+    owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
+
+
+@dataclass(eq=False)
+class GraveyardTarget:
+    """A card in a graveyard chosen as a target."""
+    card: Card
+    seat: "Seat"  # whose graveyard
 
 
 @dataclass(eq=False)
@@ -505,9 +514,8 @@ class Game:
             self._resolve_ability(item)
             return
         if _is_permanent(card):
-            loyalty = int(card.loyalty) if card.loyalty and card.loyalty.isdigit() else None
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-            self._enter(seat, Permanent(card, sick=True, loyalty=loyalty), x=item.x)
+            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card)), x=item.x)
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
@@ -618,6 +626,14 @@ class Game:
     def target_options(self, kind: str, caster: Seat) -> list[tuple[str, Any]]:
         """Legal targets of `kind` for a spell `caster` controls, as (label, object)."""
         options: list[tuple[str, Any]] = []
+        if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|any>"
+            _, card_type, whose = kind.split(":")
+            for seat in self.live_seats():
+                if whose == "yours" and seat is not caster:
+                    continue
+                options += [(f"{card.name} (seat {seat.index} graveyard)", GraveyardTarget(card, seat))
+                            for card in _unique(seat.graveyard) if _card_matches(card_type, card)]
+            return options
         if kind in ("any", "player", "player or planeswalker"):
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
         elif kind == "opponent":
@@ -658,7 +674,13 @@ class Game:
         return [s for s in self._turn_order(self.active) if not s.lost]
 
     def is_legal_target(self, kind: str, target: Any, caster: Seat) -> bool:
-        return any(option is target for _, option in self.target_options(kind, caster))
+        for _, option in self.target_options(kind, caster):
+            if option is target:
+                return True
+            if (isinstance(option, GraveyardTarget) and isinstance(target, GraveyardTarget)
+                    and option.seat is target.seat and option.card == target.card):
+                return True  # identical copies are interchangeable
+        return False
 
     # --- things effects do ---------------------------------------------------
 
@@ -723,6 +745,53 @@ class Game:
 
     def exile_all(self, permanents: list[Permanent]) -> None:
         self._leave_together([(p, "exiled") for p in permanents], destination="exile")
+
+    def return_to_hand(self, permanent: Permanent) -> None:
+        """Bounce: a permanent goes to its owner's hand (a token just stops existing)."""
+        self._leave_together([(permanent, "returned")], destination="hand")
+
+    def return_all_to_hand(self, permanents: list[Permanent]) -> None:
+        self._leave_together([(p, "returned") for p in permanents], destination="hand")
+
+    def return_from_graveyard(self, target: GraveyardTarget, controller: Seat, to: str) -> None:
+        """Move a card out of a graveyard to its owner's hand, or onto the battlefield under
+        `controller`'s control (it stays its owner's card)."""
+        seat, card = target.seat, target.card
+        if card not in seat.graveyard:
+            return
+        seat.graveyard.remove(card)
+        self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": to})
+        if to == "hand":
+            seat.hand.append(card)
+        else:
+            self._enter(controller, Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=seat))
+
+    def exile_from_graveyard(self, target: GraveyardTarget) -> None:
+        seat, card = target.seat, target.card
+        if card in seat.graveyard:
+            seat.graveyard.remove(card)
+            self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
+            self._move_card(seat, card, "exile")
+
+    def tutor(self, seat: Seat, card_type: str, to: str, reveal: bool) -> None:
+        """Search the library for a card of `card_type`: it goes to the hand (`to` is "hand")
+        or to the top of the library ("top") after shuffling. Only "reveal" shows others which card."""
+        matches = _unique([c for c in seat.library if _card_matches(card_type, c)])
+        found = None
+        if matches:
+            found = matches[seat.player.choose(SEARCH_CARD_PROMPT, [c.name for c in matches])]
+            seat.library.remove(found)
+        self.rng.shuffle(seat.library)
+        if found is None:
+            self.broadcast({"event": "searched", "seat": seat.index, "found": False})
+            return
+        if to == "hand":
+            seat.hand.append(found)
+        else:
+            seat.library.insert(0, found)
+        self.broadcast({"event": "searched", "seat": seat.index, "found": True, "to": to,
+                        **({"card": found.name} if reveal else {})}, skip=seat)
+        seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": to, "card": found.name})
 
     def sacrifice(self, seat: Seat) -> None:
         """`seat` chooses one of its creatures and sacrifices it; it dies (no targeting, so
@@ -805,6 +874,7 @@ class Game:
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
         for counter, count in enters_with_counters(permanent.card).items():  # CR 614.1c: it arrives with them
             permanent.counters[counter] = permanent.counters.get(counter, 0) + (x if count == "X" else count)
+        permanent.owner = permanent.owner or seat
         seat.battlefield.append(permanent)
         self.trigger("enters", permanent, seat)
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
@@ -827,22 +897,22 @@ class Game:
         for permanent, reason in leaving:
             self.broadcast({"event": reason, "seat": permanent.last_controller.index, "card": permanent.card.name})
         for permanent, _ in leaving:
-            owner = permanent.last_controller
+            controller = permanent.last_controller
             if destination == "graveyard" and "Creature" in permanent.card.type_line:
-                self.trigger("dies", permanent, owner)
-                self._observe("creature_dies", permanent.card, owner, subject=permanent, extra=gone)
+                self.trigger("dies", permanent, controller)
+                self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
             if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)
-                self._move_card(owner, permanent.card, destination)
+                self._move_card(permanent.owner or controller, permanent.card, destination)
 
     def _move_card(self, seat: Seat, card: Card, zone: str) -> None:
-        """Put a card into its owner's graveyard or exile; a commander may go to the
-        command zone instead (CR 903.9a)."""
+        """Put a card into its owner's graveyard, exile or hand; a commander may go to the
+        command zone instead (CR 903.9)."""
         if card.name in seat.commander_names:
             if seat.player.choose(COMMAND_ZONE_PROMPT, ["Command zone", zone.capitalize()]) == 0:
                 seat.command_zone.append(card)
                 self.broadcast({"event": "to_command_zone", "seat": seat.index, "card": card.name})
                 return
-        (seat.exile if zone == "exile" else seat.graveyard).append(card)
+        {"exile": seat.exile, "hand": seat.hand, "graveyard": seat.graveyard}[zone].append(card)
 
     def _check_state(self) -> None:
         """State-based actions (CR 704.5): losing the game, lethal damage, zero toughness or loyalty."""
@@ -905,6 +975,22 @@ def _watch_type_matches(kind: str, card: Card) -> bool:
         return True
     if kind.startswith("non"):
         return kind[3:].capitalize() not in card.type_line
+    return any(t.capitalize() in card.type_line for t in kind.split(" or "))
+
+
+def _starting_loyalty(card: Card) -> int | None:
+    return int(card.loyalty) if card.loyalty and card.loyalty.isdigit() else None
+
+
+def _card_matches(kind: str, card: Card) -> bool:
+    """Whether a card in a library or graveyard is of `kind`: "card", "permanent", "creature",
+    "instant or sorcery", "basic land", ..."""
+    if kind == "card":
+        return True
+    if kind == "permanent":
+        return _is_permanent(card)
+    if kind == "basic land":
+        return "Basic" in card.type_line and "Land" in card.type_line
     return any(t.capitalize() in card.type_line for t in kind.split(" or "))
 
 

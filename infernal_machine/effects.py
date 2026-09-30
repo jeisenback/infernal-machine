@@ -453,6 +453,72 @@ def _damage_each(m: re.Match) -> DamageEach:
 
 
 @dataclass(frozen=True)
+class ReturnToHand:
+    """Bounce: "Return target nonland permanent you don't control to its owner's hand." """
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.return_to_hand(target)
+
+
+@dataclass(frozen=True)
+class ReturnAllToHand:
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.return_all_to_hand(game.mass_targets(self.kind, controller))
+
+
+@dataclass(frozen=True)
+class ReturnFromGraveyard:
+    """ "Return target creature card from your graveyard to your hand / to the battlefield." """
+    target: str  # "graveyard:<card type>:<yours|any>"
+    to: str  # "hand" or "battlefield"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.return_from_graveyard(target, controller, self.to)
+
+
+@dataclass(frozen=True)
+class ExileFromGraveyard:
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_from_graveyard(target)
+
+
+@dataclass(frozen=True)
+class SearchLibrary:
+    """ "Search your library for a creature card, put it into your hand, then shuffle." """
+    card_type: str  # "card", "creature", "instant or sorcery", "basic land", ...
+    to: str  # "hand", or "top" of the library after shuffling
+    reveal: bool  # "reveal it": everyone sees which card
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.tutor(controller, self.card_type, self.to, self.reveal)
+
+
+@dataclass(frozen=True)
+class LoseLife:
+    amount: int | str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.change_life(controller, -game.amount(self.amount))
+
+
+_CARD_TYPE = r"(?:(creature|artifact|enchantment|land|permanent|instant or sorcery|instant|sorcery) )?card"
+_SEARCH_TYPE = (r"(?:(creature|land|artifact|enchantment|planeswalker|instant or sorcery|instant|sorcery"
+                r"|artifact or enchantment|basic land) )?card")
+
+
+def _graveyard_kind(card_type: str | None, whose: str) -> str:
+    return f"graveyard:{card_type or 'card'}:{whose}"
+
+
+@dataclass(frozen=True)
 class FetchBasicLand:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.fetch_basic_land(controller)
@@ -471,6 +537,19 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"destroy target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[1].lower())),
     (re.compile(r"counter target spell\.", re.I), lambda m: Counter()),
     (re.compile(rf"exile target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower())),
+    (re.compile(rf"return target {_PERMANENT_KIND} to its owner's hand\.", re.I), lambda m: ReturnToHand(m[1].lower())),
+    (re.compile(rf"return all {_MASS} to their owners' hands\.", re.I), lambda m: ReturnAllToHand(_mass_kind(m))),
+    (re.compile(rf"return target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
+     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand")),
+    (re.compile(rf"(?:return|put) target {_CARD_TYPE} from (your|a) graveyard (?:to|onto) the battlefield"
+                r"(?: under your control)?\.", re.I),
+     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours" if m[2].lower() == "your" else "any"), "battlefield")),
+    (re.compile(rf"exile target {_CARD_TYPE} from a graveyard\.", re.I),
+     lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"))),
+    (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal it, )?(?:put (?:it|that card) into your hand, "
+                r"then shuffle|then shuffle and put (?:it|that card|the card) on top(?: of your library)?)\.", re.I),
+     lambda m: SearchLibrary(m[1] or "card", "hand" if "into your hand" in m[0] else "top", "reveal it" in m[0].lower())),
+    (re.compile(rf"you lose {_N} life\.", re.I), lambda m: LoseLife(_count(m[1]))),
     (re.compile(rf"destroy all {_MASS}\.", re.I), lambda m: DestroyAll(_mass_kind(m))),
     (re.compile(r"they can't be regenerated\.", re.I), lambda m: CannotRegenerate()),
     (re.compile(rf"exile all {_MASS}\.", re.I), lambda m: ExileAll(_mass_kind(m))),
