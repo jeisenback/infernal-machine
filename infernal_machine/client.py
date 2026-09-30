@@ -142,7 +142,11 @@ class Narrator:
         if kind == "fizzle":
             return f"{card}'s ability fizzles: its target is gone." if ability else f"{card} fizzles: its target is gone."
         if kind == "countered":
-            return f"{card} is countered."
+            return f"{card}'s ability is countered." if ability else f"{card} is countered."
+        if kind == "damage_prevented":
+            return f"Damage to {card} is prevented (protection)."
+        if kind == "ward_paid":
+            return f"{who} {v('pay')} the ward cost {e['cost']}."
         if kind == "life":
             return f"{who} {v('gain') if e['change'] > 0 else v('lose')} {abs(e['change'])} life ({e['life']})."
         if kind == "damage":

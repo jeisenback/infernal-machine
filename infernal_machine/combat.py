@@ -144,6 +144,8 @@ class Combat:
     def _can_block(self, blocker: Permanent, attacker: Permanent) -> bool:
         if self._has(blocker, CANT_BLOCK):
             return False
+        if self.game.protected_from(attacker, frozenset(blocker.card.colors)):  # can't be blocked by those colors
+            return False
         if self._has(attacker, "flying"):
             return self._has(blocker, "flying") or self._has(blocker, "reach")
         return True

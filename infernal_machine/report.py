@@ -14,15 +14,17 @@ from dataclasses import dataclass
 
 from .analysis import is_land
 from .cards import Card, Deck
-from .effects import (activated_abilities, attached_abilities, is_cycling_line, is_enchant_line, is_enters_tapped_line,
-                      is_enters_with_counters, is_mana_ability, is_modal_header, is_return_exiled_line, line_effects,
-                      mode_text, rules_lines, static_abilities, triggered_abilities)
+from .effects import (PROTECTION, activated_abilities, attached_abilities, is_cycling_line, is_enchant_line,
+                      is_enters_tapped_line, is_enters_with_counters, is_mana_ability, is_modal_header,
+                      is_return_exiled_line, is_ward_line, line_effects, mode_text, rules_lines, static_abilities,
+                      triggered_abilities)
 from .mana import parse_cost
 
 # Keywords the engine implements (combat.py, game.py).
 SUPPORTED_KEYWORDS = {
     "flying", "reach", "vigilance", "haste", "defender", "menace", "trample", "first strike",
     "double strike", "deathtouch", "lifelink", "indestructible", "hexproof", "shroud", "flash",
+    "protection",  # "protection from <color>" only; see _is_keyword_line
 }
 # Lines that only matter when building the deck, which commander.py checks.
 _DECKBUILDING = re.compile(
@@ -74,7 +76,8 @@ def unsupported_lines(card: Card) -> list[str]:
 
 
 def _is_keyword_line(line: str) -> bool:
-    return all(part in SUPPORTED_KEYWORDS for part in line.lower().split(", "))
+    line = PROTECTION.sub("protection", line.lower())  # "protection from red and from blue" is one keyword
+    return all(part in SUPPORTED_KEYWORDS or is_ward_line(part) for part in line.split(", "))
 
 
 def category(line: str) -> str:

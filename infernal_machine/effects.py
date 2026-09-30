@@ -116,6 +116,16 @@ class Destroy:
 
 
 @dataclass(frozen=True)
+class WardCounter:
+    """The ward trigger of a permanent an opponent targeted: their spell or ability is countered
+    unless they pay `cost`."""
+    cost: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.resolve_ward(self.cost)
+
+
+@dataclass(frozen=True)
 class Counter:
     target: str = "spell"
 
@@ -305,9 +315,48 @@ def _signed(text: str) -> int:
     return int(text.replace("\u2212", "-"))
 
 
+_COLOR_NAMES = "white|blue|black|red|green"
+_COLOR_LETTER = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+_PROT = (rf"protection from (?:{_COLOR_NAMES})(?:(?:, and |, | and )(?:from )?(?:{_COLOR_NAMES}))*")
+PROTECTION = re.compile(_PROT, re.I)  # "protection from red", "protection from red and from blue"
+_KW = rf"(?:{_PROT}|[a-z]+(?: [a-z]+)?)"  # one keyword
+
+
+def _protection_keywords(text: str) -> frozenset[str]:
+    """ "protection from red and from blue" -> {"protection from red", "protection from blue"}"""
+    return frozenset(f"protection from {color.lower()}"
+                     for m in PROTECTION.finditer(text) for color in re.findall(_COLOR_NAMES, m[0], re.I))
+
+
 def _keyword_list(text: str) -> frozenset[str]:
-    """ "flying", "flying and vigilance", "flying, vigilance, and trample" -> {"flying", ...}"""
-    return frozenset(w.strip().lower() for w in re.split(r",? and |, ", text) if w.strip())
+    """ "flying", "flying and vigilance", "flying, vigilance, and trample" -> {"flying", ...}; a protection
+    clause becomes one keyword per color ("protection from red")."""
+    rest = PROTECTION.sub("", text)
+    return _protection_keywords(text) | frozenset(w.strip().lower() for w in re.split(r",? and |, ", rest) if w.strip())
+
+
+@lru_cache(maxsize=None)
+def printed_protection(card: Card) -> frozenset[str]:
+    """The colors (as letters) a card has protection from by its own keyword line, such as
+    "Flying, protection from red and from blue". An ability that gives protection to something
+    else ("Equipped creature has protection from red") doesn't count."""
+    letters: set[str] = set()
+    for line in rules_lines(card):
+        if PROTECTION.search(line) and re.fullmatch(rf"{_KW}(?:, {_KW})*", line, re.I):
+            letters.update(_COLOR_LETTER[kw.rsplit(" ", 1)[1]] for kw in _protection_keywords(line))
+    return frozenset(letters)
+
+
+_WARD = re.compile(r"(?:^|, )ward ((?:\{\d+\}|\{[WUBRGC]\})+)(?:,|$)", re.I)
+
+
+def ward_cost(card: Card) -> str | None:
+    """The mana cost of "Ward {2}" (other ward costs, like paying life, aren't supported), or None."""
+    return next((m[1] for line in rules_lines(card) if (m := _WARD.search(line))), None)
+
+
+def is_ward_line(text: str) -> bool:
+    return re.fullmatch(r"ward (?:\{\d+\}|\{[WUBRGC]\})+", text, re.I) is not None
 
 
 @dataclass(frozen=True)
@@ -345,7 +394,7 @@ class PumpEach:
 
 
 _PT = r"([+\-\u2212]\d+)/([+\-\u2212]\d+)"
-_KEYWORDS = r"([a-z]+(?: [a-z]+)?(?:(?:,? and |, )[a-z]+(?: [a-z]+)?)*)"
+_KEYWORDS = rf"({_KW}(?:(?:,? and |, ){_KW})*)"
 # "gets +3/+3", "gets +2/+0 and gains trample", "gains flying" (one or both parts), then "until end of turn."
 _CHANGE = rf"(?:gets? {_PT}(?: and gains? {_KEYWORDS})?|gains? {_KEYWORDS}) until end of turn\."
 

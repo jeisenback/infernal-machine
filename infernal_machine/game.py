@@ -21,8 +21,9 @@ from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AttachAura, Draw, EntersTapped, Modal, TriggeredAbility,
+                      WardCounter,
                       activated_abilities, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
-                      enters_with_counters, is_identity_mana_land, mana_pain,
+                      enters_with_counters, is_identity_mana_land, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_source)
 from .mana import Cost, parse_cost, pay
@@ -64,6 +65,8 @@ COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Co
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
+WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
+COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
 MODE_PROMPT = "Choose a mode for "  # followed by the spell's name; options are the modes, then DONE_MODES once enough are chosen
 DONE_MODES = "Done choosing modes"
 SEARCH_CARD_PROMPT = "Choose a card to search for"  # options are card names
@@ -132,6 +135,7 @@ class StackItem:
     ability: TriggeredAbility | ActivatedAbility | None = None  # set for an ability rather than a spell
     source: "Permanent | None" = None  # the ability's source, for effects on "it"
     x: int = 0  # the value chosen for X when it was cast
+    warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
 
 
 @dataclass(eq=False)
@@ -193,6 +197,8 @@ class Game:
         self.pending: list[PendingTrigger] = []  # triggered, not yet on the stack
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
+        self.resolving_item: StackItem | None = None  # what is resolving right now
+        self.resolving_colors: frozenset[str] = frozenset()  # its colors (for protection from damage)
 
     @property
     def multiplayer(self) -> bool:
@@ -387,7 +393,7 @@ class Game:
             return False
         if self._ability_payment(seat, permanent, ability) is None:
             return False
-        return all(self.target_options(kind, seat) for kind in map(target_kind, ability.effects) if kind)
+        return self._targets_exist(seat, ability.effects, frozenset(card.colors))
 
     def _ability_payment(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> list[Permanent] | None:
         cost = parse_cost(ability.mana_cost) if ability.mana_cost else Cost()
@@ -400,10 +406,10 @@ class Game:
     def _can_cast(self, seat: Seat, card: Card, from_command_zone: bool = False) -> bool:
         if self._payment(seat, card, from_command_zone) is None:
             return False
-        effects = _effects(card) or []
+        effects, colors = _effects(card) or [], frozenset(card.colors)
         if effects and isinstance(effects[0], Modal):
-            return sum(self._targets_exist(seat, modes) for modes in effects[0].modes) >= effects[0].min
-        return self._targets_exist(seat, effects)
+            return sum(self._targets_exist(seat, modes, colors) for modes in effects[0].modes) >= effects[0].min
+        return self._targets_exist(seat, effects, colors)
 
     def _spend_mana(self, seat: Seat, sources: list[Permanent]) -> None:
         """Tap the chosen mana sources; ones whose mana ability sacrifices them (Treasure) are sacrificed,
@@ -528,7 +534,8 @@ class Game:
                         "targets": [], "tapped": [p.card.name for p in tapped]})
 
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
-        targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name, permanent)
+        targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name, permanent,
+                                               frozenset(permanent.card.colors))
         tapped = self._ability_payment(seat, permanent, ability)
         self._spend_mana(seat, tapped)
         if ability.tap:
@@ -539,20 +546,23 @@ class Game:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn
         permanent.activated_turn[ability.text] = self.turn
-        self.stack.append(StackItem(permanent.card, seat, list(ability.effects), targets, ability, permanent))
+        item = StackItem(permanent.card, seat, list(ability.effects), targets, ability, permanent)
+        self.stack.append(item)
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
                         "tapped": [p.card.name for p in tapped]})
+        self._check_ward(item)
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
 
-    def _targets_exist(self, seat: Seat, effects) -> bool:
-        return all(self.target_options(kind, seat) for kind in map(target_kind, effects) if kind)
+    def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset()) -> bool:
+        return all(self.target_options(kind, seat, colors) for kind in map(target_kind, effects) if kind)
 
     def _choose_modes(self, seat: Seat, card: Card, modal: Modal) -> list:
         """Ask the caster for the modes of a modal spell (only ones with legal targets are offered) and
         return the chosen modes' effects in printed order."""
-        available = [i for i, effects in enumerate(modal.modes) if self._targets_exist(seat, effects)]
+        colors = frozenset(card.colors)
+        available = [i for i, effects in enumerate(modal.modes) if self._targets_exist(seat, effects, colors)]
         chosen: list[int] = []
         while len(chosen) < modal.max and len(chosen) < len(available):
             remaining = [i for i in available if i not in chosen]
@@ -565,16 +575,17 @@ class Game:
             chosen.append(remaining[pick])
         return [effect for i in sorted(chosen) for effect in modal.modes[i]]
 
-    def _choose_targets(self, seat: Seat, effects, source_name: str,
-                        source: Permanent | None = None) -> tuple[list, list[str]] | None:
+    def _choose_targets(self, seat: Seat, effects, source_name: str, source: Permanent | None = None,
+                        colors: frozenset[str] = frozenset()) -> tuple[list, list[str]] | None:
         """Ask `seat` for a target per targeting effect: (targets, labels), or None if one has no legal target.
-        "Another target ..." can't be `source` itself."""
+        "Another target ..." can't be `source` itself, and nothing with protection from `colors` (the
+        colors of the spell or source) can be chosen."""
         targets, labels = [], []
         for effect in effects or []:
             kind = target_kind(effect)
             if not kind:
                 continue
-            options = [o for o in self.target_options(kind, seat)
+            options = [o for o in self.target_options(kind, seat, colors)
                        if not (getattr(effect, "another", False) and o[1] is source)]
             if not options:
                 return None
@@ -587,7 +598,7 @@ class Game:
         effects = _effects(card)
         if effects and isinstance(effects[0], Modal):
             effects = self._choose_modes(seat, card, effects[0])
-        targets, labels = self._choose_targets(seat, effects, card.name)
+        targets, labels = self._choose_targets(seat, effects, card.name, colors=frozenset(card.colors))
         x = 0
         if parse_cost(card.mana_cost).x:
             options = [str(n) for n in range(self._max_x(seat, card, from_command_zone) + 1)]
@@ -595,11 +606,13 @@ class Game:
         tapped = self._payment(seat, card, from_command_zone, x)
         self._spend_mana(seat, tapped)
         zone.remove(card)
-        self.stack.append(StackItem(card, seat, effects, targets, x=x))
+        item = StackItem(card, seat, effects, targets, x=x)
+        self.stack.append(item)
         self.broadcast({"event": "cast", "seat": seat.index, "card": card.name,
                          "from": "command_zone" if from_command_zone else "hand",
                          "targets": labels, "x": x, "tapped": [p.card.name for p in tapped]})
         self._observe("cast", card, seat)
+        self._check_ward(item)
 
     # --- what players see ----------------------------------------------------
 
@@ -662,7 +675,7 @@ class Game:
         is no longer legal (CR 608.3b)."""
         seat, card = item.controller, item.card
         target = item.targets[0] if item.targets else None
-        if target is None or not self.is_legal_target(aura_kind(card), target, seat):
+        if target is None or not self.is_legal_target(aura_kind(card), target, seat, frozenset(card.colors)):
             self.broadcast({"event": "fizzle", "seat": seat.index, "card": card.name})
             self._move_card(seat, card, "graveyard")
             return
@@ -691,14 +704,17 @@ class Game:
     def _apply_effects(self, item: StackItem) -> bool:
         """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""
         self.x_value, self.resolving_source = item.x, item.source
+        self.resolving_item, self.resolving_colors = item, frozenset(item.card.colors)
         try:
             return self._apply_effects_now(item)
         finally:
             self.x_value, self.resolving_source = 0, None
+            self.resolving_item, self.resolving_colors = None, frozenset()
 
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
-        legal = [self.is_legal_target(target_kind(e), t, seat)
+        colors = frozenset(item.card.colors)
+        legal = [self.is_legal_target(target_kind(e), t, seat, colors)
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
         about = {"seat": seat.index, "card": item.card.name}
         if item.ability:
@@ -764,19 +780,23 @@ class Game:
             seat = trigger.controller
             if seat.lost:
                 continue
-            chosen = self._choose_targets(seat, trigger.ability.effects, trigger.source.name, trigger.permanent)
+            chosen = self._choose_targets(seat, trigger.ability.effects, trigger.source.name, trigger.permanent,
+                                          frozenset(trigger.source.colors))
             if chosen is None:
                 continue
             targets, labels = chosen
-            self.stack.append(StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability,
-                                        trigger.permanent))
+            item = StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability,
+                             trigger.permanent)
+            self.stack.append(item)
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
                             "ability": _shown(trigger.ability.text, trigger.source), "targets": labels})
+            self._check_ward(item)
 
     # --- targets -------------------------------------------------------------
 
-    def target_options(self, kind: str, caster: Seat) -> list[tuple[str, Any]]:
-        """Legal targets of `kind` for a spell `caster` controls, as (label, object)."""
+    def target_options(self, kind: str, caster: Seat, colors: frozenset[str] = frozenset()) -> list[tuple[str, Any]]:
+        """Legal targets of `kind` for a spell or ability `caster` controls, as (label, object). `colors` are the
+        colors of the source: a permanent with protection from one of them can't be chosen."""
         options: list[tuple[str, Any]] = []
         if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|any>"
             _, card_type, whose = kind.split(":")
@@ -803,6 +823,8 @@ class Game:
                     continue
                 if self.has_keyword(permanent, "hexproof") and seat is not caster:
                     continue
+                if self.protected_from(permanent, colors):
+                    continue
                 options.append((self.label(permanent), permanent))
         return options
 
@@ -827,8 +849,17 @@ class Game:
     def turn_order_from_active(self) -> list[Seat]:
         return [s for s in self._turn_order(self.active) if not s.lost]
 
-    def is_legal_target(self, kind: str, target: Any, caster: Seat) -> bool:
-        for _, option in self.target_options(kind, caster):
+    def protected_from(self, permanent: Permanent, colors: frozenset[str]) -> bool:
+        """Whether the permanent has protection from any of these colors (letters), by its own text or
+        because something gave it: it can't be targeted, damaged, blocked, enchanted or equipped by them."""
+        if not colors:
+            return False
+        granted = {kw for mod in self.modifiers(permanent) for kw in mod.keywords if kw.startswith("protection from ")}
+        printed = printed_protection(permanent.card)
+        return any(c in printed or f"protection from {COLOR_NAMES[c]}" in granted for c in colors)
+
+    def is_legal_target(self, kind: str, target: Any, caster: Seat, colors: frozenset[str] = frozenset()) -> bool:
+        for _, option in self.target_options(kind, caster, colors):
             if option is target:
                 return True
             if (isinstance(option, GraveyardTarget) and isinstance(target, GraveyardTarget)
@@ -855,6 +886,10 @@ class Game:
 
     def damage(self, target: Seat | Permanent, amount: int, source: Permanent | None = None,
                combat: bool = False) -> None:
+        colors = frozenset(source.card.colors) if source is not None else self.resolving_colors
+        if isinstance(target, Permanent) and self.protected_from(target, colors):
+            self.broadcast({"event": "damage_prevented", "card": target.card.name, "amount": amount})
+            return
         controller = self.controller_of(source) if source else None
         if isinstance(target, Seat):
             self.change_life(target, -amount)
@@ -1032,8 +1067,40 @@ class Game:
 
     def counter(self, item: StackItem) -> None:
         self.stack.remove(item)
-        self.broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name})
-        self._move_card(item.controller, item.card, "graveyard")
+        self.broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name,
+                        "ability": _shown(item.ability.text, item.card) if item.ability else None})
+        if not item.ability:  # countering an ability doesn't touch its source
+            self._move_card(item.controller, item.card, "graveyard")
+
+    def _check_ward(self, item: StackItem) -> None:
+        """Whenever a permanent with ward becomes the target of an opponent's spell or ability, a ward trigger
+        goes on the stack above it (CR 702.21a)."""
+        for target in item.targets:
+            if not isinstance(target, Permanent):
+                continue
+            owner = self.controller_of(target)
+            cost = ward_cost(target.card)
+            if owner is None or owner is item.controller or not cost:
+                continue
+            ability = TriggeredAbility("ward", (WardCounter(cost),), False, f"Ward {cost}")
+            self.stack.append(StackItem(target.card, owner, list(ability.effects), [], ability, target, warding=item))
+            self.broadcast({"event": "trigger", "seat": owner.index, "card": target.card.name,
+                            "ability": ability.text, "targets": []})
+
+    def resolve_ward(self, cost_text: str) -> None:
+        """The spell or ability that targeted a warded permanent is countered unless its controller pays."""
+        ward = self.resolving_item
+        item = ward.warding if ward else None
+        if item is None or item not in self.stack:
+            return
+        payer = item.controller
+        payment = self._pay_cost(payer, parse_cost(cost_text))
+        if payment is not None and payer.player.choose(WARD_PROMPT + item.card.name,
+                                                       [f"Pay {cost_text}", "Don't pay"]) == 0:
+            self._spend_mana(payer, payment)
+            self.broadcast({"event": "ward_paid", "seat": payer.index, "card": ward.card.name, "cost": cost_text})
+            return
+        self.counter(item)
 
     def fetch_basic_land(self, seat: Seat, optional: bool = False) -> None:
         if optional and seat.player.choose(SEARCH_OPTIONAL_PROMPT, YES_NO) != 0:
@@ -1206,7 +1273,8 @@ class Game:
                         counters[PLUS] -= cancel
                         counters[MINUS] -= cancel
                     host = permanent.attached_to
-                    if host is not None and not self.on_battlefield(host):
+                    if host is not None and (not self.on_battlefield(host)
+                                             or self.protected_from(host, frozenset(permanent.card.colors))):
                         permanent.attached_to = None  # CR 704.5n: Equipment stays, unattached
                         host = None
                     if "Aura" in permanent.card.type_line and host is None:

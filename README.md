@@ -205,6 +205,17 @@ winner = game.play()
   an Aura goes to the graveyard. Labels show attachments ("Sword attached to Bear (seat 0, #1)").
   "Can't attack or block" is supported through Auras. Other equip costs (like "Equip legendary creature {3}")
   and Auras on lands with special abilities aren't supported yet.
+- **Protection from a color:** "Protection from red" (and "from red and from blue"), whether printed or given by
+  Equipment, an Aura, a static ability, or "gains protection from red until end of turn". The protected permanent
+  can't be targeted by red spells or abilities, takes no damage from red sources, can't be blocked by red
+  creatures, and can't be enchanted or equipped by red permanents, so a red Aura or Equipment already on it
+  falls off. The source's color is what counts: colorless sources ignore protection. A spell that targeted it
+  before it gained protection fizzles. Not supported: "protection from the color of your choice" (Mother of
+  Runes), "protection from everything", and non-color qualities like "from creatures".
+- **Ward {N}:** when an opponent's spell or ability targets a warded permanent, a ward trigger goes on the stack
+  above it. When it resolves, that opponent may pay {N} or their spell or ability is countered (an ability's
+  source is left alone). You can't ward yourself, and if the opponent can't afford the cost they aren't asked.
+  Only mana ward costs work, not "Ward—Pay 3 life".
 - **Exile until it leaves:** Oblivion Ring, Banishing Light and Fiend Hunter exile a permanent, and when the source
   leaves the battlefield for any reason the exiled card comes back under its owner's control as a new permanent
   (summoning sick, without counters or attachments, and its "enters" abilities happen again). Tokens exiled this way
@@ -311,7 +322,7 @@ stats = goldfish(deck, games=5000, turns=5)
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
   It chooses the largest X it can afford, sacrifices its weakest creature, and tutors for its most expensive card.
-  It pays life for shocklands only while above 10 life, and takes the first mode of a modal spell. It always keeps cards on top when scrying or surveilling. It equips Equipment once (not repeatedly), puts helpful Auras on its own creatures, and Pacifism-style ones on
+  It pays life for shocklands only while above 10 life, takes the first mode of a modal spell, and always pays ward. It always keeps cards on top when scrying or surveilling. It equips Equipment once (not repeatedly), puts helpful Auras on its own creatures, and Pacifism-style ones on
   opponents'. It doesn't judge whether a board
   wipe helps it, so it will cast Wrath of God while ahead.
   It plays a land whenever it can, then casts its commander if it can,
