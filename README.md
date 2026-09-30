@@ -122,6 +122,11 @@ winner = game.play()
 | Search your library for a (creature) card, (reveal it,) put it into your hand, then shuffle. | Demonic Tutor |
 | Search your library for a card, then shuffle and put that card on top. | Vampiric Tutor |
 | You lose N life. | |
+| Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle. | Cultivate, Kodama's Reach |
+| Search your library for a (Plains, Island, ...) card, put it onto the battlefield (tapped), then shuffle. | Farseek, Nature's Lore |
+| Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle. | Explosive Vegetation |
+| Scry N. / Surveil N. | |
+| Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
 | Equipped creature gets +N/+N and has keywords. / Enchanted creature gets +N/+N and has keywords. | |
 | Enchant creature / land / ... (Auras) | |
@@ -169,6 +174,14 @@ winner = game.play()
   hand can go to the command zone instead. Cards keep their owner: a creature you reanimate from an opponent's
   graveyard enters under your control, but goes back to their graveyard when it dies. Graveyard targets are
   checked again on resolution, and a spell with no legal graveyard target can't be cast.
+- **Land ramp:** the player picks each land from the matching cards in their library ("basic land", or lands
+  with the listed land types, which includes non-basic lands like Steam Vents for "Island or Mountain"),
+  then the library is shuffled. Lands put onto the battlefield trigger landfall. A land put into the hand is
+  revealed when the card says so.
+- **Scry, surveil and mill:** scrying and surveilling look at the top cards one at a time and choose to keep
+  each on top or put it on the bottom (scry) or into the graveyard (surveil). Cards kept on top stay in
+  their original order. Only the scrying player sees the cards. Surveil's graveyard cards are public. Milling
+  more cards than the library holds just mills what's there, and the player loses on their next draw.
 - **Tutors:** the searcher picks from the matching cards in their library, which is then shuffled. Other players
   only learn which card unless it says "reveal it". If nothing matches, the library is just shuffled.
   Restrictions like "with mana value 3 or less" aren't supported yet.
@@ -254,7 +267,7 @@ stats = goldfish(deck, games=5000, turns=5)
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
   It chooses the largest X it can afford, sacrifices its weakest creature, and tutors for its most expensive card.
-  It equips Equipment once (not repeatedly), puts helpful Auras on its own creatures, and Pacifism-style ones on
+  It always keeps cards on top when scrying or surveilling. It equips Equipment once (not repeatedly), puts helpful Auras on its own creatures, and Pacifism-style ones on
   opponents'. It doesn't judge whether a board
   wipe helps it, so it will cast Wrath of God while ahead.
   It plays a land whenever it can, then casts its commander if it can,

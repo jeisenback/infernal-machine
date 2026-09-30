@@ -62,6 +62,11 @@ OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
 SEARCH_CARD_PROMPT = "Choose a card to search for"  # options are card names
+SEARCH_LAND_PROMPT = "Choose a land to put onto the battlefield"
+SEARCH_LAND_HAND_PROMPT = "Choose a land to put into your hand"
+SCRY_PROMPT = "Scry: "  # followed by the card's name; options are KEEP_ON_TOP and PUT_ON_BOTTOM
+SURVEIL_PROMPT = "Surveil: "  # options are KEEP_ON_TOP and PUT_IN_GRAVEYARD
+KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom", "Put into your graveyard"
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
@@ -900,6 +905,67 @@ class Game:
             self._enter(seat, Permanent(choice, tapped=True))
         self.rng.shuffle(seat.library)
 
+    def search_for_lands(self, seat: Seat, count: int, subtypes: tuple[str, ...], battlefield: int,
+                         tapped: bool, reveal: bool) -> None:
+        """Search for up to `count` lands (basic lands, or any land with one of `subtypes`): the first
+        `battlefield` go onto the battlefield and the rest into the hand, then the library is shuffled."""
+        to_battlefield: list[Card] = []
+        to_hand: list[Card] = []
+        for n in range(count):
+            matches = _unique([c for c in seat.library if _is_searched_land(c, subtypes)])
+            if not matches:
+                break
+            onto = n < battlefield
+            card = matches[seat.player.choose(SEARCH_LAND_PROMPT if onto else SEARCH_LAND_HAND_PROMPT,
+                                              [c.name for c in matches])]
+            seat.library.remove(card)
+            (to_battlefield if onto else to_hand).append(card)
+        self.rng.shuffle(seat.library)
+        for card in to_battlefield:
+            self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": tapped})
+            self._enter(seat, Permanent(card, tapped=tapped))
+        for card in to_hand:
+            seat.hand.append(card)
+            self.broadcast({"event": "revealed" if reveal else "searched", "seat": seat.index,
+                            **({"card": card.name} if reveal else {"found": True, "to": "hand"})}, skip=None if reveal else seat)
+            if not reveal:
+                seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": "hand", "card": card.name})
+        if not (to_battlefield or to_hand):
+            self.broadcast({"event": "searched", "seat": seat.index, "found": False})
+
+    def scry(self, seat: Seat, count: int) -> None:
+        """Look at the top `count` cards and put any of them on the bottom; the rest stay on top in
+        their order. Only the scrying player sees the cards."""
+        top = seat.library[:count]
+        del seat.library[:len(top)]
+        kept, bottom = [], []
+        for card in top:
+            choice = seat.player.choose(SCRY_PROMPT + card.name, [KEEP_ON_TOP, PUT_ON_BOTTOM])
+            (kept if choice == 0 else bottom).append(card)
+        seat.library = kept + seat.library + bottom
+        self.broadcast({"event": "scry", "seat": seat.index, "count": len(top)}, skip=seat)
+        seat.player.notify({"event": "scry", "seat": seat.index, "count": len(top), "bottom": [c.name for c in bottom]})
+
+    def surveil(self, seat: Seat, count: int) -> None:
+        """Look at the top `count` cards and put any of them into the graveyard (which everyone sees)."""
+        top = seat.library[:count]
+        del seat.library[:len(top)]
+        kept, binned = [], []
+        for card in top:
+            choice = seat.player.choose(SURVEIL_PROMPT + card.name, [KEEP_ON_TOP, PUT_IN_GRAVEYARD])
+            (kept if choice == 0 else binned).append(card)
+        seat.library = kept + seat.library
+        self.broadcast({"event": "surveil", "seat": seat.index, "count": len(top), "graveyard": [c.name for c in binned]})
+        for card in binned:
+            self._move_card(seat, card, "graveyard")
+
+    def mill(self, seat: Seat, count: int) -> None:
+        """Put the top `count` cards of the library into the graveyard (fewer if there aren't that many)."""
+        milled = [seat.library.pop(0) for _ in range(min(count, len(seat.library)))]
+        self.broadcast({"event": "milled", "seat": seat.index, "cards": [c.name for c in milled]})
+        for card in milled:
+            self._move_card(seat, card, "graveyard")
+
     # --- helpers -------------------------------------------------------------
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
@@ -1014,6 +1080,15 @@ def _watch_type_matches(kind: str, card: Card) -> bool:
     if kind.startswith("non"):
         return kind[3:].capitalize() not in card.type_line
     return any(t.capitalize() in card.type_line for t in kind.split(" or "))
+
+
+def _is_searched_land(card: Card, subtypes: tuple[str, ...]) -> bool:
+    """A basic land card, or (with `subtypes`) any land card with one of those land types."""
+    if "Land" not in card.type_line:
+        return False
+    if not subtypes:
+        return "Basic" in card.type_line
+    return any(sub in card.type_line for sub in subtypes)
 
 
 def _starting_loyalty(card: Card) -> int | None:

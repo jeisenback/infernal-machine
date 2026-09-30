@@ -13,7 +13,7 @@ SWORDS = Card(name="Swords to Plowshares", mana_cost="{W}", type_line="Instant",
 MIND_STONE = Card(name="Mind Stone", mana_cost="{2}", type_line="Artifact",
                   oracle_text="{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.")
 THRASIOS = Card(name="Thrasios, Triton Hero", mana_cost="{G}{U}", type_line="Legendary Creature — Merfolk Wizard",
-                oracle_text="{4}: Scry 1.\nPartner (You can have two commanders if both have partner.)")
+                oracle_text="{4}: Proliferate.\nPartner (You can have two commanders if both have partner.)")
 
 
 class UnsupportedLinesTests(unittest.TestCase):
@@ -23,13 +23,13 @@ class UnsupportedLinesTests(unittest.TestCase):
 
     def test_lists_only_what_is_missing(self):
         self.assertEqual(unsupported_lines(MULLDRIFTER), ["Evoke {2}{U}"])
-        self.assertEqual(unsupported_lines(THRASIOS), ["{4}: Scry 1."])  # partner is a deckbuilding line
+        self.assertEqual(unsupported_lines(THRASIOS), ["{4}: Proliferate."])  # partner is a deckbuilding line
         self.assertEqual(unsupported_lines(Card(name="x", mana_cost="{S}", type_line="Creature")), ["mana cost {S}"])
 
     def test_categories(self):
-        self.assertEqual(category("{4}: Scry 1."), "activated abilities")
+        self.assertEqual(category("{4}: Proliferate."), "activated abilities")
         self.assertEqual(category("+1: Draw a card."), "activated abilities")
-        self.assertEqual(category("When CARDNAME enters, scry 1."), "triggers (the trigger or its effect)")
+        self.assertEqual(category("When CARDNAME enters, proliferate."), "triggers (the trigger or its effect)")
         self.assertEqual(category("Create a 1/1 white Soldier creature token."), "tokens")
         self.assertEqual(category("Exile target creature. Its controller gains life equal to its power."), "exile")
         self.assertEqual(category("Creatures you control get +1/+1."), "pump and static buffs")
@@ -45,7 +45,7 @@ class ReportTests(unittest.TestCase):
         text = format_report(deck_report(deck))
         self.assertIn("Fully playable: 6/7 cards", text)  # Swords to Plowshares is playable now
         self.assertIn("activated abilities (1): Thrasios, Triton Hero", text)
-        self.assertIn("Thrasios, Triton Hero: {4}: Scry 1.", text)
+        self.assertIn("Thrasios, Triton Hero: {4}: Proliferate.", text)
 
 
 if __name__ == "__main__":

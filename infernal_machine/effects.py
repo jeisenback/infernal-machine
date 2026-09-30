@@ -574,6 +574,67 @@ class LoseLife:
         game.change_life(controller, -game.amount(self.amount))
 
 
+@dataclass(frozen=True)
+class SearchForLands:
+    """Land ramp: "Search your library for up to two basic land cards, reveal those cards, put one onto
+    the battlefield tapped and the other into your hand, then shuffle." (Cultivate)"""
+    count: int  # up to this many
+    subtypes: tuple[str, ...]  # () means basic lands; otherwise lands with one of these land types
+    battlefield: int  # how many go onto the battlefield (the rest go to the hand)
+    tapped: bool
+    reveal: bool
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.search_for_lands(controller, self.count, self.subtypes, self.battlefield, self.tapped, self.reveal)
+
+
+@dataclass(frozen=True)
+class Scry:
+    count: int | str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.scry(controller, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class Surveil:
+    count: int | str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.surveil(controller, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class Mill:
+    """ "Mill three cards." / "Each opponent mills three cards." / "Each player mills three cards." """
+    count: int | str
+    who: str  # "you", "each opponent" or "each player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            if self.who == "each player" or (self.who == "you") == (seat is controller):
+                game.mill(seat, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class TargetMill:
+    """ "Target player (or opponent) mills three cards." """
+    count: int | str
+    target: str  # "player" or "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.mill(target, game.amount(self.count))
+
+
+_LAND_TYPE = r"(?:Plains|Island|Swamp|Mountain|Forest)"
+_LAND_TYPES = rf"({_LAND_TYPE}(?:, {_LAND_TYPE})*(?:,? or {_LAND_TYPE})?)"
+
+
+def _land_types(text: str) -> tuple[str, ...]:
+    return tuple(t.capitalize() for t in re.findall(_LAND_TYPE, text, re.I))
+
+
 _CARD_TYPE = r"(?:(creature|artifact|enchantment|land|permanent|instant or sorcery|instant|sorcery) )?card"
 _SEARCH_TYPE = (r"(?:(creature|land|artifact|enchantment|planeswalker|instant or sorcery|instant|sorcery"
                 r"|artifact or enchantment|basic land) )?card")
@@ -615,6 +676,22 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"then shuffle|then shuffle and put (?:it|that card|the card) on top(?: of your library)?)\.", re.I),
      lambda m: SearchLibrary(m[1] or "card", "hand" if "into your hand" in m[0] else "top", "reveal it" in m[0].lower())),
     (re.compile(rf"you lose {_N} life\.", re.I), lambda m: LoseLife(_count(m[1]))),
+    (re.compile(r"search your library for up to two basic land cards, reveal those cards, put one onto the battlefield "
+                r"tapped and the other into your hand, then shuffle\.", re.I),
+     lambda m: SearchForLands(2, (), 1, True, True)),
+    (re.compile(r"search your library for up to (two|three|four) basic land cards, (?:reveal (?:them|those cards), )?"
+                r"put (?:them|those cards) onto the battlefield tapped, then shuffle\.", re.I),
+     lambda m: SearchForLands(_count(m[1]), (), _count(m[1]), True, False)),
+    (re.compile(rf"search your library for an? {_LAND_TYPES} card, put (?:it|that card) onto the battlefield( tapped)?, "
+                r"then shuffle\.", re.I),
+     lambda m: SearchForLands(1, _land_types(m[1]), 1, bool(m[2]), False)),
+    (re.compile(rf"scry {_N}\.", re.I), lambda m: Scry(_count(m[1]))),
+    (re.compile(rf"surveil {_N}\.", re.I), lambda m: Surveil(_count(m[1]))),
+    (re.compile(rf"mill {_N} cards?\.", re.I), lambda m: Mill(_count(m[1]), "you")),
+    (re.compile(rf"each (opponent|player) mills {_N} cards?\.", re.I),
+     lambda m: Mill(_count(m[2]), "each " + m[1].lower())),
+    (re.compile(rf"target (player|opponent) mills {_N} cards?\.", re.I),
+     lambda m: TargetMill(_count(m[2]), m[1].lower())),
     (re.compile(rf"destroy all {_MASS}\.", re.I), lambda m: DestroyAll(_mass_kind(m))),
     (re.compile(r"they can't be regenerated\.", re.I), lambda m: CannotRegenerate()),
     (re.compile(rf"exile all {_MASS}\.", re.I), lambda m: ExileAll(_mass_kind(m))),
