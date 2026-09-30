@@ -14,8 +14,9 @@ from dataclasses import dataclass
 
 from .analysis import is_land
 from .cards import Card, Deck
-from .effects import (activated_abilities, attached_abilities, is_enchant_line, is_enters_with_counters,
-                      is_mana_ability, line_effects, rules_lines, static_abilities, triggered_abilities)
+from .effects import (activated_abilities, attached_abilities, is_cycling_line, is_enchant_line, is_enters_tapped_line,
+                      is_enters_with_counters, is_mana_ability, line_effects, rules_lines, static_abilities,
+                      triggered_abilities)
 from .mana import parse_cost
 
 # Keywords the engine implements (combat.py, game.py).
@@ -61,12 +62,12 @@ def unsupported_lines(card: Card) -> list[str]:
     abilities = {a.text for a in triggered_abilities(card) + activated_abilities(card) + static_abilities(card)
                  + attached_abilities(card)}
     for line in rules_lines(card):
-        if _is_keyword_line(line) or _DECKBUILDING.fullmatch(line):
+        if _is_keyword_line(line) or _DECKBUILDING.fullmatch(line) or is_cycling_line(line):
             continue
         if spell and line_effects(line) is not None:
             continue
         if not spell and (line in abilities or is_mana_ability(line) or is_enters_with_counters(line)
-                          or is_enchant_line(line)):
+                          or is_enchant_line(line) or is_enters_tapped_line(line)):
             continue
         problems.append(line)
     return problems

@@ -20,8 +20,9 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AttachAura, TriggeredAbility, activated_abilities,
-                      attached_abilities, aura_kind, enters_with_counters,
+from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AttachAura, Draw, EntersTapped, TriggeredAbility,
+                      activated_abilities, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      enters_with_counters, is_identity_mana_land, mana_pain,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_source)
 from .mana import Cost, parse_cost, pay
@@ -48,6 +49,8 @@ PASS = "Pass"
 PLAY_LAND = "Play land: "
 CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
+CYCLE = "Cycle: "
+SHOCK_PROMPT = "Pay life so it enters untapped? "  # followed by the land's name
 ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
 COMMANDER_TAX = 2  # CR 903.8
 PERMANENT_TYPES = ("Artifact", "Battle", "Creature", "Enchantment", "Land", "Planeswalker")
@@ -88,6 +91,26 @@ class Permanent:
     last_power: int = 0  # its power just before it left (CR 608.2h: last known information)
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
+
+
+@dataclass(frozen=True)
+class ManaSource:
+    """One mana a permanent can make when tapped, and whether making it hurts (painlands, Talismans)."""
+    permanent: "Permanent"
+    types: frozenset[str]  # one mana of one of these types
+    pain: frozenset[str] = frozenset()  # types that deal `damage` to the controller when produced
+    damage: int = 0
+
+
+def _pain(source: ManaSource, symbol: frozenset[str] | None) -> int:
+    """Damage for tapping `source` for mana paying `symbol` (None: generic, so any type will do)."""
+    options = source.types if symbol is None else source.types & symbol
+    return source.damage if source.pain and all(t in source.pain for t in options) else 0
+
+
+class Payment(list):
+    """The permanents to tap for a cost; `pain` is the damage their mana deals to the payer."""
+    pain: int = 0
 
 
 @dataclass(eq=False)
@@ -327,6 +350,10 @@ class Game:
         for card in seat.command_zone:
             if (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card, from_command_zone=True):
                 actions.append(CAST_COMMANDER + card.name)
+        for card in _unique(seat.hand):
+            cost = cycling_cost(card)
+            if cost and self._pay_cost(seat, parse_cost(cost)) is not None:
+                actions.append(CYCLE + card.name)
         actions += list(self._activations(seat, sorcery_timing))
         return actions
 
@@ -372,26 +399,33 @@ class Game:
         kinds = [target_kind(e) for e in _effects(card) or []]
         return all(self.target_options(kind, seat) for kind in kinds if kind)
 
-    def _spend_mana(self, sources: list[Permanent]) -> None:
-        """Tap the chosen mana sources; ones whose mana ability sacrifices them (Treasure) are sacrificed."""
+    def _spend_mana(self, seat: Seat, sources: list[Permanent]) -> None:
+        """Tap the chosen mana sources; ones whose mana ability sacrifices them (Treasure) are sacrificed,
+        and painlands and Talismans that made painful mana damage the payer."""
         for source in sources:
             source.tapped = True
             if not is_land(source.card) and mana_ability_sacrifices(source.card):
                 self._leave_battlefield(source, "sacrificed")
+        if pain := getattr(sources, "pain", 0):
+            self.damage(seat, pain)
 
-    def _mana_sources(self, seat: Seat, exclude: Permanent | None = None) -> list[tuple[Permanent, frozenset[str]]]:
+    def _mana_sources(self, seat: Seat, exclude: Permanent | None = None) -> list[ManaSource]:
         """One entry per mana each untapped permanent can make: nonland sources first,
         then lands, and sources that sacrifice themselves (Treasure) last."""
         abilities, lands, sacrifices = [], [], []
         for permanent in seat.battlefield:
             if permanent.tapped or permanent is exclude:
                 continue
-            if is_land(permanent.card):
-                lands.append((permanent, frozenset(permanent.card.produced_mana)))
-            elif not (permanent.sick and "Creature" in permanent.card.type_line):
-                bucket = sacrifices if mana_ability_sacrifices(permanent.card) else abilities
-                for mana in mana_ability(permanent.card, seat.color_identity) or []:
-                    bucket.append((permanent, mana))
+            card = permanent.card
+            pain, damage = mana_pain(card) or (frozenset(), 0)
+            if is_land(card):
+                # Command Tower makes only the colors of your commander, whatever the card data lists.
+                types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
+                lands.append(ManaSource(permanent, types, pain, damage))
+            elif not (permanent.sick and "Creature" in card.type_line):
+                bucket = sacrifices if mana_ability_sacrifices(card) else abilities
+                for mana in mana_ability(card, seat.color_identity) or []:
+                    bucket.append(ManaSource(permanent, mana, pain, damage))
         return abilities + lands + sacrifices
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0) -> list[Permanent] | None:
@@ -424,20 +458,25 @@ class Game:
                     return chosen
         return None
 
-    def _pay_with_filters(self, cost: Cost, sources, combo) -> list[Permanent] | None:
+    def _pay_with_filters(self, cost: Cost, sources: list[ManaSource], combo) -> Payment | None:
         activation = sum((c for _, c, _ in combo), Cost())
-        first = pay(activation, [mana for _, mana in sources])
+        paid_first: dict[int, frozenset[str]] = {}
+        first = pay(activation, [s.types for s in sources], paid_first)
         if first is None:
             return None
         rest = [s for i, s in enumerate(sources) if i not in first]
-        made = [(permanent, mana) for permanent, _, units in combo for mana in units]
+        made = [ManaSource(permanent, mana) for permanent, _, units in combo for mana in units]
         pool = rest + made
-        second = pay(cost, [mana for _, mana in pool])
+        paid_second: dict[int, frozenset[str]] = {}
+        second = pay(cost, [s.types for s in pool], paid_second)
         if second is None:
             return None
-        used = [sources[i][0] for i in first] + [pool[i][0] for i in second] + [p for p, _, _ in combo]
+        used = [sources[i].permanent for i in first] + [pool[i].permanent for i in second] + [p for p, _, _ in combo]
         # A permanent that makes several mana (Sol Ring) is tapped once.
-        return list({id(p): p for p in used}.values())
+        payment = Payment({id(p): p for p in used}.values())
+        payment.pain = (sum(_pain(sources[i], paid_first.get(i)) for i in first)
+                        + sum(_pain(pool[i], paid_second.get(i)) for i in second))
+        return payment
 
     def _filter_sources(self, seat: Seat, exclude: Permanent | None) -> list[tuple[Permanent, Cost, list]]:
         found = []
@@ -455,6 +494,8 @@ class Game:
             self._enter(seat, Permanent(card))
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name})
+        elif action.startswith(CYCLE):
+            self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
         elif action.startswith(CAST_COMMANDER):
             name = action.removeprefix(CAST_COMMANDER)
             card = next(c for c in seat.command_zone if c.name == name)
@@ -468,10 +509,22 @@ class Game:
             permanent, ability = self._activations(seat, sorcery_timing)[action]
             self._activate(seat, permanent, ability)
 
+    def _cycle(self, seat: Seat, card: Card) -> None:
+        """Cycling: pay the cost, discard the card, and draw a card when the ability resolves."""
+        cost = cycling_cost(card)
+        tapped = self._pay_cost(seat, parse_cost(cost))
+        self._spend_mana(seat, tapped)
+        ability = ActivatedAbility(f"Cycling {cost}", (Draw(1),), mana_cost=cost)
+        self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cycling"})
+        self._move_card(seat, card, "graveyard")
+        self.stack.append(StackItem(card, seat, [Draw(1)], [], ability))
+        self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": ability.text,
+                        "targets": [], "tapped": [p.card.name for p in tapped]})
+
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
         targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name)
         tapped = self._ability_payment(seat, permanent, ability)
-        self._spend_mana(tapped)
+        self._spend_mana(seat, tapped)
         if ability.tap:
             permanent.tapped = True
         if ability.life:
@@ -508,7 +561,7 @@ class Game:
             options = [str(n) for n in range(self._max_x(seat, card, from_command_zone) + 1)]
             x = seat.player.choose(X_PROMPT + card.name, options)
         tapped = self._payment(seat, card, from_command_zone, x)
-        self._spend_mana(tapped)
+        self._spend_mana(seat, tapped)
         zone.remove(card)
         self.stack.append(StackItem(card, seat, effects, targets, x=x))
         self.broadcast({"event": "cast", "seat": seat.index, "card": card.name,
@@ -972,9 +1025,33 @@ class Game:
         for counter, count in enters_with_counters(permanent.card).items():  # CR 614.1c: it arrives with them
             permanent.counters[counter] = permanent.counters.get(counter, 0) + (x if count == "X" else count)
         permanent.owner = permanent.owner or seat
+        rule = enters_tapped_rule(permanent.card)
+        if rule and self._enters_tapped(seat, rule, permanent.card):
+            permanent.tapped = True
         seat.battlefield.append(permanent)
         self.trigger("enters", permanent, seat)
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
+
+    def _enters_tapped(self, seat: Seat, rule: EntersTapped, card: Card) -> bool:
+        """Whether a permanent entering under `seat`'s control enters tapped, given the lands it sees
+        (it isn't on the battlefield yet, so "other lands" are all the lands there)."""
+        lands = sum(1 for p in seat.battlefield if is_land(p.card))
+        if rule.kind == "always":
+            return True
+        if rule.kind == "unless_land_types":
+            return not any(t in p.card.type_line for p in seat.battlefield for t in rule.types)
+        if rule.kind == "unless_lands_at_most":
+            return lands > rule.count
+        if rule.kind == "unless_lands_at_least":
+            return lands < rule.count
+        if rule.kind == "unless_opponents":
+            return len(self.opponents(seat)) < rule.count
+        # Shock land: you may pay life. (You can only pay life you have to spare.)
+        if seat.life > rule.life and seat.player.choose(SHOCK_PROMPT + card.name,
+                                                        [f"Pay {rule.life} life", "Enter tapped"]) == 0:
+            self.change_life(seat, -rule.life)
+            return False
+        return True
 
     def _leave_battlefield(self, permanent: Permanent, reason: str, destination: str = "graveyard") -> None:
         self._leave_together([(permanent, reason)], destination)

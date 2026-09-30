@@ -54,24 +54,31 @@ def parse_cost(mana_cost: str) -> Cost | None:
     return Cost(generic, tuple(colored), x)
 
 
-def pay(cost: Cost, sources: list[frozenset[str]]) -> list[int] | None:
+def pay(cost: Cost, sources: list[frozenset[str]], paid_for: dict[int, frozenset[str]] | None = None) -> list[int] | None:
     """Pick which sources to tap for `cost`; each source makes one mana of one of its types.
 
     Returns source indices, or None if the cost can't be paid. Sources that
-    make fewer colors are used first, keeping flexible ones untapped.
+    make fewer colors are used first, keeping flexible ones untapped. If `paid_for`
+    is given it's filled with source index -> the colored symbol that source pays
+    (sources paying generic mana aren't listed).
     """
     order = sorted((i for i, s in enumerate(sources) if s), key=lambda i: len(sources[i]))
     symbols = sorted(cost.colored, key=len)
 
-    def assign(k: int, used: frozenset[int]) -> list[int] | None:
+    def assign(k: int, used: tuple[int, ...]) -> list[int] | None:
         if k == len(symbols):
             rest = [i for i in order if i not in used]
-            return sorted(used) + rest[: cost.generic] if len(rest) >= cost.generic else None
+            if len(rest) < cost.generic:
+                return None
+            if paid_for is not None:
+                paid_for.clear()
+                paid_for.update({i: symbols[n] for n, i in enumerate(used)})
+            return sorted(used) + rest[: cost.generic]
         for i in order:
             if i not in used and sources[i] & symbols[k]:
-                found = assign(k + 1, used | {i})
+                found = assign(k + 1, used + (i,))
                 if found is not None:
                     return found
         return None
 
-    return assign(0, frozenset())
+    return assign(0, ())

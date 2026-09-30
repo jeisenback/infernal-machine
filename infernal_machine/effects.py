@@ -627,7 +627,54 @@ class TargetMill:
             game.mill(target, game.amount(self.count))
 
 
+@dataclass(frozen=True)
+class EntersTapped:
+    """How a permanent (usually a land) may enter tapped. `kind` is one of: "always",
+    "unless_land_types" (checklands), "unless_lands_at_most" (fastlands), "unless_lands_at_least"
+    (slowlands), "unless_opponents" (bond lands), "shock" (pay life or it enters tapped)."""
+    kind: str
+    types: tuple[str, ...] = ()
+    count: int = 0
+    life: int = 0
+
+
 _LAND_TYPE = r"(?:Plains|Island|Swamp|Mountain|Forest)"
+_ENTERS_TAPPED = [
+    (re.compile(rf"{_SELF} enters tapped\.", re.I), lambda m: EntersTapped("always")),
+    (re.compile(rf"{_SELF} enters tapped unless you control an? ({_LAND_TYPE}) or an? ({_LAND_TYPE})\.", re.I),
+     lambda m: EntersTapped("unless_land_types", types=(m[1].capitalize(), m[2].capitalize()))),
+    (re.compile(rf"{_SELF} enters tapped unless you control {_N} or (fewer|more) other lands\.", re.I),
+     lambda m: EntersTapped("unless_lands_at_most" if m[2].lower() == "fewer" else "unless_lands_at_least",
+                            count=_count(m[1]))),
+    (re.compile(rf"{_SELF} enters tapped unless you have {_N} or more opponents\.", re.I),
+     lambda m: EntersTapped("unless_opponents", count=_count(m[1]))),
+    (re.compile(rf"As {_SELF} enters, you may pay {_N} life\. If you don't, it enters tapped\.", re.I),
+     lambda m: EntersTapped("shock", life=_count(m[1]))),
+]
+
+
+def enters_tapped_rule(card: Card) -> EntersTapped | None:
+    for line in rules_lines(card):
+        for pattern, build in _ENTERS_TAPPED:
+            if m := pattern.fullmatch(line):
+                return build(m)
+    return None
+
+
+def is_enters_tapped_line(line: str) -> bool:
+    return any(pattern.fullmatch(line) for pattern, _ in _ENTERS_TAPPED)
+
+
+_CYCLING = re.compile(r"Cycling ((?:\{\d+\}|\{[WUBRGC]\})+)")
+
+
+def cycling_cost(card: Card) -> str | None:
+    """The mana cost from "Cycling {2}" (only mana costs are supported), or None."""
+    return next((m[1] for line in rules_lines(card) if (m := _CYCLING.fullmatch(line))), None)
+
+
+def is_cycling_line(line: str) -> bool:
+    return _CYCLING.fullmatch(line) is not None
 _LAND_TYPES = rf"({_LAND_TYPE}(?:, {_LAND_TYPE})*(?:,? or {_LAND_TYPE})?)"
 
 
@@ -917,7 +964,10 @@ def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozens
     artifact" in the cost (Treasure).
     """
     line = _mana_line(card)
-    return _mana_from_line(line, commander_identity) if line else None
+    units = _mana_from_line(line, commander_identity) if line else None
+    if pain := mana_pain(card):  # a Talisman's colored ability joins its colorless one as a single mana
+        units = [units[0] | pain[0]] + units[1:] if units else [pain[0]]
+    return units
 
 
 def mana_ability_sacrifices(card: Card) -> bool:
@@ -932,10 +982,26 @@ def _mana_line(card: Card) -> str | None:
 
 
 _MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY, _ADD_IDENTITY)
+_PAIN = re.compile(rf"\{{T\}}: Add \{{([WUBRGC])\}} or \{{([WUBRGC])\}}\. {_SELF} deals {_N} damage to you\.", re.I)
 
 
 def is_mana_ability(line: str) -> bool:
-    return any(p.fullmatch(line) for p in _MANA_PATTERNS) or _FILTER.fullmatch(line) is not None
+    return (any(p.fullmatch(line) for p in _MANA_PATTERNS) or _FILTER.fullmatch(line) is not None
+            or _PAIN.fullmatch(line) is not None)
+
+
+def mana_pain(card: Card) -> tuple[frozenset[str], int] | None:
+    """For painlands and Talismans ("{T}: Add {G} or {U}. This land deals 1 damage to you."): the types
+    that cost damage when produced, and how much."""
+    for line in rules_lines(card):
+        if m := _PAIN.fullmatch(line):
+            return frozenset((m[1], m[2])), _count(m[3])
+    return None
+
+
+def is_identity_mana_land(card: Card) -> bool:
+    """Command Tower: a land that makes one mana of any color in your commander's color identity."""
+    return "Land" in card.type_line and any(_ADD_IDENTITY.fullmatch(line) for line in rules_lines(card))
 
 
 _FILTER = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add ((?:\{[WUBRGC]\})+)\.")

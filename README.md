@@ -78,7 +78,7 @@ winner = game.play()
   and "one mana of any color" (optionally limited to your commander's colors).
   Creatures can't tap for mana the turn they arrive. Phyrexian symbols are paid with mana.
   Signet-style abilities ("{1}, {T}: Add {W}{U}.") are used when plain sources aren't enough.
-  Their own cost is always paid by a plain source. Painlands and Talismans don't deal their damage yet.
+  Their own cost is always paid by a plain source.
 - **X spells:** the caster chooses X when casting, from 0 up to what they can afford.
   X works in effects ("draw X cards", "deals X damage", "create X tokens", "put X counters")
   and in "enters with X +1/+1 counters".
@@ -162,6 +162,20 @@ winner = game.play()
   Treasure is a mana source that's sacrificed when used, and it's spent after lands and other sources.
   Clue and Food work through their activated abilities. Copy tokens and tokens with quoted abilities
   aren't supported yet.
+- **Lands:**
+  - Entering tapped: "This land enters tapped" (taplands, gain-lands, temples, triomes), and the conditional
+    kinds: checklands ("unless you control an Island or a Swamp"; any land with that land type counts),
+    fastlands ("two or fewer other lands"), slowlands ("two or more other lands"), and bond lands
+    ("unless you have two or more opponents", so untapped in a 3+ player game). Fetched and reanimated lands
+    follow the same rules.
+  - Shocklands: you may pay 2 life or the land enters tapped. Life you can't spare (2 or less) isn't offered.
+  - Painlands and Talismans: 1 damage when tapped for a colored mana. Colorless mana from them is free, and
+    the payer picks painless sources first. Talismans make their colors now (they used to make colorless only).
+  - Command Tower: only makes your commander's colors, whatever the card data lists.
+  - Cycling {N}: an ability you can use from your hand at instant speed. Pay, discard the card, draw.
+    Landcycling and other costs aren't supported.
+  - Not yet: bouncelands, Pathways (double-faced), filter lands, City of Brass and Mana Confluence,
+    Ancient Tomb, lands that make several mana.
 - **Equipment and Auras:** "Equip {N}" is an activated ability at sorcery speed that targets a creature you
   control (re-equipping moves the Equipment). An Aura chooses what it enchants when cast, and goes to the
   graveyard instead of entering if that target is gone when it resolves. Attached permanents change the
@@ -267,7 +281,7 @@ stats = goldfish(deck, games=5000, turns=5)
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
   It chooses the largest X it can afford, sacrifices its weakest creature, and tutors for its most expensive card.
-  It always keeps cards on top when scrying or surveilling. It equips Equipment once (not repeatedly), puts helpful Auras on its own creatures, and Pacifism-style ones on
+  It pays life for shocklands only while above 10 life. It always keeps cards on top when scrying or surveilling. It equips Equipment once (not repeatedly), puts helpful Auras on its own creatures, and Pacifism-style ones on
   opponents'. It doesn't judge whether a board
   wipe helps it, so it will cast Wrath of God while ahead.
   It plays a land whenever it can, then casts its commander if it can,
