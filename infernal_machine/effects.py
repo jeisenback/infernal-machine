@@ -127,10 +127,90 @@ class Counter:
 @dataclass(frozen=True)
 class Exile:
     target: str
+    another: bool = False  # "exile another target ...": not the source itself
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.exile(target)
+
+
+@dataclass(frozen=True)
+class ExileUntilLeaves:
+    """Oblivion Ring, Banishing Light, Fiend Hunter: the target comes back when the source leaves the battlefield."""
+    target: str
+    another: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_until_leaves(target, game.resolving_source)
+
+
+@dataclass(frozen=True)
+class TargetDraw:
+    count: int | str
+    target: str = "player"  # "player" or "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.draw(target, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class TargetGainLife:
+    amount: int | str
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.change_life(target, game.amount(self.amount))
+
+
+@dataclass(frozen=True)
+class TargetLoseLife:
+    amount: int | str
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.change_life(target, -game.amount(self.amount))
+
+
+@dataclass(frozen=True)
+class Modal:
+    """ "Choose one — • ... • ..." The caster picks between `min` and `max` of the modes when casting (Game
+    flattens the chosen ones into the spell's effects); `texts` are the modes as printed."""
+    min: int
+    max: int
+    modes: tuple[tuple, ...]  # the effects of each mode
+    texts: tuple[str, ...]
+
+
+_MODAL_COUNTS = {"one": (1, 1), "two": (2, 2), "three": (3, 3), "one or both": (1, 2), "one or more": (1, 0)}
+_MODAL_HEADER = re.compile(r"Choose (one or both|one or more|one|two|three) \u2014", re.I)
+
+
+def is_modal_header(line: str) -> bool:
+    return _MODAL_HEADER.fullmatch(line) is not None
+
+
+def mode_text(line: str) -> str:
+    """A mode of a modal spell without its bullet."""
+    return line[2:] if line.startswith("\u2022 ") else line
+
+
+def _parse_modal(how: str, lines: list[str]) -> list | None:
+    modes, texts = [], []
+    for line in lines:
+        if not line.startswith("\u2022 "):
+            return None  # something other than modes (entwine, escalate, ...)
+        effects = _parse(_split_sentences(mode_text(line)))
+        if not effects:
+            return None
+        modes.append(tuple(effects))
+        texts.append(mode_text(line))
+    low, high = _MODAL_COUNTS[how]
+    high = high or len(modes)
+    return [Modal(low, high, tuple(modes), tuple(texts))] if len(modes) >= max(low, 1) else None
 
 
 @dataclass(frozen=True)
@@ -709,7 +789,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
     (re.compile(rf"destroy target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[1].lower())),
     (re.compile(r"counter target spell\.", re.I), lambda m: Counter()),
-    (re.compile(rf"exile target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower())),
+    (re.compile(rf"exile (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[2].lower(), bool(m[1]))),
+    (re.compile(rf"exile (another )?target {_PERMANENT_KIND} until {_SELF} leaves the battlefield\.", re.I),
+     lambda m: ExileUntilLeaves(m[2].lower(), bool(m[1]))),
+    (re.compile(rf"target (player|opponent) draws {_N} cards?\.", re.I), lambda m: TargetDraw(_count(m[2]), m[1].lower())),
+    (re.compile(rf"target (player|opponent) gains {_N} life\.", re.I), lambda m: TargetGainLife(_count(m[2]), m[1].lower())),
+    (re.compile(rf"target (player|opponent) loses {_N} life\.", re.I), lambda m: TargetLoseLife(_count(m[2]), m[1].lower())),
     (re.compile(rf"return target {_PERMANENT_KIND} to its owner's hand\.", re.I), lambda m: ReturnToHand(m[1].lower())),
     (re.compile(rf"return all {_MASS} to their owners' hands\.", re.I), lambda m: ReturnAllToHand(_mass_kind(m))),
     (re.compile(rf"return target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
@@ -782,7 +867,11 @@ def _parse(sentences: list[str]) -> list | None:
 
 
 def spell_effects(card: Card) -> list | None:
-    """Effects of an instant or sorcery, in order; None if any sentence isn't understood."""
+    """Effects of an instant or sorcery, in order; None if any sentence isn't understood. A modal spell
+    ("Choose one — ...") gives a single Modal effect."""
+    lines = rules_lines(card)
+    if lines and (m := _MODAL_HEADER.fullmatch(lines[0])):
+        return _parse_modal(m[1].lower(), lines[1:])
     return _parse(_split_sentences(_rules_text(card)))
 
 
@@ -846,9 +935,30 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     return None
 
 
+_RETURN_EXILED = re.compile(rf"When(?:ever)? {_SELF} leaves the battlefield, return the exiled card to the "
+                            r"battlefield under its owner's control\.", re.I)
+
+
+def is_return_exiled_line(line: str) -> bool:
+    """The second half of Oblivion Ring: the engine returns the exiled card when the source leaves."""
+    return _RETURN_EXILED.fullmatch(line) is not None
+
+
 @lru_cache(maxsize=None)
 def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     """The triggered abilities on a permanent whose effects are all understood."""
+    abilities = _triggered_abilities(card)
+    if any(is_return_exiled_line(line) for line in rules_lines(card)):
+        # Two-trigger wording: the enters-the-battlefield exile lasts until this permanent leaves.
+        abilities = [
+            TriggeredAbility(a.event, tuple(ExileUntilLeaves(e.target, e.another) if isinstance(e, Exile) else e
+                                            for e in a.effects), a.optional, a.text, a.watch)
+            if a.event == "enters" else a
+            for a in abilities]
+    return tuple(abilities)
+
+
+def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
     abilities = []
     for line in _rules_text(card).splitlines():
         line = line.strip()
@@ -875,7 +985,7 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
             if effects is not None:
                 abilities.append(TriggeredAbility(event, tuple(effects), optional, line))
             break
-    return tuple(abilities)
+    return abilities
 
 
 @dataclass(frozen=True)

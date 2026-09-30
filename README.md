@@ -132,6 +132,10 @@ winner = game.play()
 | Exile target creature. Its controller gains life equal to its power. | Swords to Plowshares |
 | Exile target creature. Its controller may search their library for a basic land card, ... | Path to Exile |
 | Exile target player's graveyard. | Tormod's Crypt |
+| Exile (another) target nonland permanent ... until this enchantment leaves the battlefield. | Banishing Light |
+| Exile another target ...; When this leaves the battlefield, return the exiled card to the battlefield under its owner's control. | Oblivion Ring, Fiend Hunter |
+| Choose one / two / three / one or both / one or more — • mode • mode ... | charms and commands |
+| Target player (or opponent) draws N cards / gains N life / loses N life. | |
 | Exile target card from a graveyard. | |
 | Return target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation |
 | Return target (creature) card from your graveyard to your hand / to the battlefield. | Raise Dead, Zombify |
@@ -201,6 +205,15 @@ winner = game.play()
   an Aura goes to the graveyard. Labels show attachments ("Sword attached to Bear (seat 0, #1)").
   "Can't attack or block" is supported through Auras. Other equip costs (like "Equip legendary creature {3}")
   and Auras on lands with special abilities aren't supported yet.
+- **Exile until it leaves:** Oblivion Ring, Banishing Light and Fiend Hunter exile a permanent, and when the source
+  leaves the battlefield for any reason the exiled card comes back under its owner's control as a new permanent
+  (summoning sick, without counters or attachments, and its "enters" abilities happen again). Tokens exiled this way
+  are gone for good, and a commander that went to the command zone instead isn't returned. If the source has left
+  by the time the exile ability resolves, nothing is exiled. "Another target" can't be the source itself.
+- **Modal spells:** you choose the modes as you cast. Only modes that have a legal target are offered, a mode can't
+  be chosen twice, and "one or both" / "one or more" let you stop with "Done choosing modes" once you have enough.
+  Chosen modes happen in the order printed. If any mode isn't supported (or the card has entwine or escalate), the
+  whole card is unsupported, and the report lists the mode.
 - **Zones:** bounced permanents go to their owner's hand, and tokens stop existing. A commander headed for the
   hand can go to the command zone instead. Cards keep their owner: a creature you reanimate from an opponent's
   graveyard enters under your control, but goes back to their graveyard when it dies. Graveyard targets are
@@ -298,7 +311,7 @@ stats = goldfish(deck, games=5000, turns=5)
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
   It chooses the largest X it can afford, sacrifices its weakest creature, and tutors for its most expensive card.
-  It pays life for shocklands only while above 10 life. It always keeps cards on top when scrying or surveilling. It equips Equipment once (not repeatedly), puts helpful Auras on its own creatures, and Pacifism-style ones on
+  It pays life for shocklands only while above 10 life, and takes the first mode of a modal spell. It always keeps cards on top when scrying or surveilling. It equips Equipment once (not repeatedly), puts helpful Auras on its own creatures, and Pacifism-style ones on
   opponents'. It doesn't judge whether a board
   wipe helps it, so it will cast Wrath of God while ahead.
   It plays a land whenever it can, then casts its commander if it can,

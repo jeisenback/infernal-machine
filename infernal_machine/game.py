@@ -20,7 +20,7 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AttachAura, Draw, EntersTapped, TriggeredAbility,
+from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AttachAura, Draw, EntersTapped, Modal, TriggeredAbility,
                       activated_abilities, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, is_identity_mana_land, mana_pain,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
@@ -64,6 +64,8 @@ COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Co
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
+MODE_PROMPT = "Choose a mode for "  # followed by the spell's name; options are the modes, then DONE_MODES once enough are chosen
+DONE_MODES = "Done choosing modes"
 SEARCH_CARD_PROMPT = "Choose a card to search for"  # options are card names
 SEARCH_LAND_PROMPT = "Choose a land to put onto the battlefield"
 SEARCH_LAND_HAND_PROMPT = "Choose a land to put into your hand"
@@ -91,6 +93,7 @@ class Permanent:
     last_power: int = 0  # its power just before it left (CR 608.2h: last known information)
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
+    linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
 
 
 @dataclass(frozen=True)
@@ -397,8 +400,10 @@ class Game:
     def _can_cast(self, seat: Seat, card: Card, from_command_zone: bool = False) -> bool:
         if self._payment(seat, card, from_command_zone) is None:
             return False
-        kinds = [target_kind(e) for e in _effects(card) or []]
-        return all(self.target_options(kind, seat) for kind in kinds if kind)
+        effects = _effects(card) or []
+        if effects and isinstance(effects[0], Modal):
+            return sum(self._targets_exist(seat, modes) for modes in effects[0].modes) >= effects[0].min
+        return self._targets_exist(seat, effects)
 
     def _spend_mana(self, seat: Seat, sources: list[Permanent]) -> None:
         """Tap the chosen mana sources; ones whose mana ability sacrifices them (Treasure) are sacrificed,
@@ -523,7 +528,7 @@ class Game:
                         "targets": [], "tapped": [p.card.name for p in tapped]})
 
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
-        targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name)
+        targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name, permanent)
         tapped = self._ability_payment(seat, permanent, ability)
         self._spend_mana(seat, tapped)
         if ability.tap:
@@ -541,13 +546,36 @@ class Game:
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
 
-    def _choose_targets(self, seat: Seat, effects, source_name: str) -> tuple[list, list[str]] | None:
-        """Ask `seat` for a target per targeting effect: (targets, labels), or None if one has no legal target."""
+    def _targets_exist(self, seat: Seat, effects) -> bool:
+        return all(self.target_options(kind, seat) for kind in map(target_kind, effects) if kind)
+
+    def _choose_modes(self, seat: Seat, card: Card, modal: Modal) -> list:
+        """Ask the caster for the modes of a modal spell (only ones with legal targets are offered) and
+        return the chosen modes' effects in printed order."""
+        available = [i for i, effects in enumerate(modal.modes) if self._targets_exist(seat, effects)]
+        chosen: list[int] = []
+        while len(chosen) < modal.max and len(chosen) < len(available):
+            remaining = [i for i in available if i not in chosen]
+            options = [_shown(modal.texts[i], card) for i in remaining]
+            if len(chosen) >= modal.min:
+                options.append(DONE_MODES)
+            pick = seat.player.choose(MODE_PROMPT + card.name, options)
+            if pick == len(remaining):
+                break
+            chosen.append(remaining[pick])
+        return [effect for i in sorted(chosen) for effect in modal.modes[i]]
+
+    def _choose_targets(self, seat: Seat, effects, source_name: str,
+                        source: Permanent | None = None) -> tuple[list, list[str]] | None:
+        """Ask `seat` for a target per targeting effect: (targets, labels), or None if one has no legal target.
+        "Another target ..." can't be `source` itself."""
         targets, labels = [], []
-        for kind in (target_kind(e) for e in effects or []):
+        for effect in effects or []:
+            kind = target_kind(effect)
             if not kind:
                 continue
-            options = self.target_options(kind, seat)
+            options = [o for o in self.target_options(kind, seat)
+                       if not (getattr(effect, "another", False) and o[1] is source)]
             if not options:
                 return None
             label, target = options[seat.player.choose(TARGET_PROMPT + source_name, [o[0] for o in options])]
@@ -557,6 +585,8 @@ class Game:
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False) -> None:
         effects = _effects(card)
+        if effects and isinstance(effects[0], Modal):
+            effects = self._choose_modes(seat, card, effects[0])
         targets, labels = self._choose_targets(seat, effects, card.name)
         x = 0
         if parse_cost(card.mana_cost).x:
@@ -734,7 +764,7 @@ class Game:
             seat = trigger.controller
             if seat.lost:
                 continue
-            chosen = self._choose_targets(seat, trigger.ability.effects, trigger.source.name)
+            chosen = self._choose_targets(seat, trigger.ability.effects, trigger.source.name, trigger.permanent)
             if chosen is None:
                 continue
             targets, labels = chosen
@@ -975,6 +1005,25 @@ class Game:
     def exile(self, permanent: Permanent) -> None:
         self._leave_battlefield(permanent, "exiled", destination="exile")
 
+    def exile_until_leaves(self, target: Permanent, source: Permanent | None) -> None:
+        """Exile `target` until `source` leaves the battlefield. If the source is already gone, nothing
+        is exiled. A token is exiled for good, since it would stop existing anyway."""
+        if source is not None and not self.on_battlefield(source):
+            return
+        owner = target.owner or self.controller_of(target)
+        card, before = target.card, len(owner.exile)
+        self.exile(target)
+        if source is not None and not _is_token(card) and len(owner.exile) > before:  # not sent to the command zone
+            source.linked_exile.append((owner, card))
+
+    def _return_from_exile(self, seat: Seat, card: Card) -> None:
+        """A card exiled "until" comes back as a new permanent under its owner's control."""
+        if seat.lost or card not in seat.exile:
+            return
+        seat.exile.remove(card)
+        self.broadcast({"event": "returned_from_exile", "seat": seat.index, "card": card.name})
+        self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=seat))
+
     def exile_graveyard(self, seat: Seat) -> None:
         cards, seat.graveyard = seat.graveyard, []
         self.broadcast({"event": "graveyard_exiled", "seat": seat.index, "cards": [c.name for c in cards]})
@@ -1116,6 +1165,10 @@ class Game:
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
             if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)
                 self._move_card(permanent.owner or controller, permanent.card, destination)
+        for permanent, _ in leaving:  # whatever they were holding in exile comes back
+            held, permanent.linked_exile = permanent.linked_exile, []
+            for seat, card in held:
+                self._return_from_exile(seat, card)
 
     def _move_card(self, seat: Seat, card: Card, zone: str) -> None:
         """Put a card into its owner's graveyard, exile or hand; a commander may go to the
