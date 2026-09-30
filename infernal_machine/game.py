@@ -59,6 +59,7 @@ SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+SACRIFICE_PROMPT = "Choose a creature to sacrifice"
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
@@ -619,6 +620,8 @@ class Game:
         options: list[tuple[str, Any]] = []
         if kind in ("any", "player", "player or planeswalker"):
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
+        elif kind == "opponent":
+            options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)]
         if kind == "spell":
             options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack if not i.ability]
             return options
@@ -703,6 +706,32 @@ class Game:
             return
         self._leave_battlefield(permanent, "destroyed")
 
+    def mass_targets(self, kind: str, caster: Seat) -> list[Permanent]:
+        """Every permanent an "all"/"each" effect of `kind` affects, e.g. "creature",
+        "artifact or enchantment", "creature you don't control". Nothing is targeted."""
+        kind, controller = _split_controller(kind)
+        found: list[Permanent] = []
+        for seat in self.live_seats():
+            if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
+                continue
+            found += [p for p in seat.battlefield if _permanent_matches(kind, p.card)]
+        return found
+
+    def destroy_all(self, permanents: list[Permanent]) -> None:
+        """Destroy them all at once; indestructible ones survive."""
+        self._leave_together([(p, "destroyed") for p in permanents if not self.has_keyword(p, "indestructible")])
+
+    def exile_all(self, permanents: list[Permanent]) -> None:
+        self._leave_together([(p, "exiled") for p in permanents], destination="exile")
+
+    def sacrifice(self, seat: Seat) -> None:
+        """`seat` chooses one of its creatures and sacrifices it; it dies (no targeting, so
+        hexproof and indestructible don't help)."""
+        creatures = [p for p in seat.battlefield if "Creature" in p.card.type_line]
+        if creatures:
+            choice = creatures[seat.player.choose(SACRIFICE_PROMPT, [self.label(p) for p in creatures])]
+            self._leave_together([(choice, "sacrificed")])
+
     # --- characteristics -----------------------------------------------------
 
     def modifiers(self, permanent: Permanent) -> list[Modifier]:
@@ -781,17 +810,29 @@ class Game:
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
 
     def _leave_battlefield(self, permanent: Permanent, reason: str, destination: str = "graveyard") -> None:
-        owner = next(s for s in self.seats if any(p is permanent for p in s.battlefield))
-        permanent.last_power = self.power(permanent)
-        owner.battlefield = [p for p in owner.battlefield if p is not permanent]
-        permanent.last_controller = owner
-        self.broadcast({"event": reason, "seat": owner.index, "card": permanent.card.name})
-        if destination == "graveyard" and "Creature" in permanent.card.type_line:
-            self.trigger("dies", permanent, owner)
-            self._observe("creature_dies", permanent.card, owner, subject=permanent, extra=[(permanent, owner)])
-        if _is_token(permanent.card):
-            return  # tokens stop existing once they leave the battlefield (CR 111.7)
-        self._move_card(owner, permanent.card, destination)
+        self._leave_together([(permanent, reason)], destination)
+
+    def _leave_together(self, leaving: list[tuple[Permanent, str]], destination: str = "graveyard") -> None:
+        """Permanents leave the battlefield at the same moment (a board wipe, or several
+        creatures with lethal damage). They all see each other go (CR 603.10a), so a creature
+        that watches for deaths triggers for every other creature that died with it."""
+        leaving = [(p, reason) for p, reason in leaving if self.on_battlefield(p)]
+        for permanent, _ in leaving:
+            permanent.last_power = self.power(permanent)
+            permanent.last_controller = self.controller_of(permanent)
+        for permanent, _ in leaving:
+            owner = permanent.last_controller
+            owner.battlefield = [p for p in owner.battlefield if p is not permanent]
+        gone = [(permanent, permanent.last_controller) for permanent, _ in leaving]
+        for permanent, reason in leaving:
+            self.broadcast({"event": reason, "seat": permanent.last_controller.index, "card": permanent.card.name})
+        for permanent, _ in leaving:
+            owner = permanent.last_controller
+            if destination == "graveyard" and "Creature" in permanent.card.type_line:
+                self.trigger("dies", permanent, owner)
+                self._observe("creature_dies", permanent.card, owner, subject=permanent, extra=gone)
+            if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)
+                self._move_card(owner, permanent.card, destination)
 
     def _move_card(self, seat: Seat, card: Card, zone: str) -> None:
         """Put a card into its owner's graveyard or exile; a commander may go to the
@@ -820,6 +861,7 @@ class Game:
                                            if a.defender is not seat and a.controller is not seat]
                     self.broadcast({"event": "player_lost", "seat": seat.index, "reason": reason})
                     changed = True
+            dying: list[tuple[Permanent, str]] = []
             for seat in self.live_seats():
                 for permanent in list(seat.battlefield):
                     counters = permanent.counters
@@ -830,12 +872,13 @@ class Game:
                     current = self.toughness(permanent)
                     creature = current is not None
                     if (creature and current <= 0) or (permanent.loyalty is not None and permanent.loyalty <= 0):
-                        self._leave_battlefield(permanent, "died")
-                        changed = True
+                        dying.append((permanent, "died"))
                     elif (creature and (permanent.damage >= current or permanent.deathtouched)
                           and not self.has_keyword(permanent, "indestructible")):
-                        self._leave_battlefield(permanent, "destroyed")
-                        changed = True
+                        dying.append((permanent, "destroyed"))
+            if dying:  # all at once (CR 704.3)
+                self._leave_together(dying)
+                changed = True
             if not changed:
                 return
 

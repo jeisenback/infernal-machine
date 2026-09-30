@@ -115,6 +115,10 @@ winner = game.play()
 | Exile target creature. Its controller gains life equal to its power. | Swords to Plowshares |
 | Exile target creature. Its controller may search their library for a basic land card, ... | Path to Exile |
 | Exile target player's graveyard. | Tormod's Crypt |
+| Destroy all creatures / artifacts / lands / nonland permanents / ... (optionally "you don't control", "you control") | Wrath of God, Armageddon |
+| Exile all creatures / ... | |
+| This spell deals N (or X) damage to each creature / each creature you don't control / each opponent / each player | Pyroclasm |
+| Each opponent (or each player) sacrifices a creature. Target player (or opponent) sacrifices a creature. | Diabolic Edict |
 | Create N P/T color Subtype (artifact) creature token(s) (with flying, vigilance, ...). | Raise the Alarm |
 | Create N Treasure / Clue / Food token(s). | Smothering Tithe |
 | Destroy target permanent. Its controller creates a 3/3 green Beast creature token. | Beast Within |
@@ -142,6 +146,13 @@ winner = game.play()
   Treasure is a mana source that's sacrificed when used, and it's spent after lands and other sources.
   Clue and Food work through their activated abilities. Copy tokens and tokens with quoted abilities
   aren't supported yet.
+- **Mass effects:** nothing is targeted, so hexproof doesn't help. Indestructible permanents survive
+  "destroy all" but not exile or sacrifice. Everything leaves the battlefield at the same moment, so a
+  creature watching for deaths triggers for every other creature that died with it, and a creature with
+  "Whenever this creature or another creature dies" sees itself go too. The same is true when several
+  creatures die to damage at once. "They can't be regenerated" is accepted and does nothing, since
+  regeneration isn't implemented. A player chooses their own creature to sacrifice, in turn order.
+  Restrictions like "with flying" or "with the greatest power" aren't supported yet.
 - **Exile:** each player has an exile zone. Exiled creatures don't "die", so dies triggers don't fire.
   A commander heading to exile or the graveyard can go to the command zone instead.
 - **Targets:** chosen when the spell is cast. If every target is gone when it resolves, the spell
@@ -216,7 +227,8 @@ stats = goldfish(deck, games=5000, turns=5)
 ```
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
-  It chooses the largest X it can afford.
+  It chooses the largest X it can afford and sacrifices its weakest creature. It doesn't judge whether a board
+  wipe helps it, so it will cast Wrath of God while ahead.
   It plays a land whenever it can, then casts its commander if it can,
   then its most expensive affordable spell, and otherwise passes.
   After casting, it activates abilities that tap, sacrifice, or use loyalty.

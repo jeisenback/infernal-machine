@@ -365,6 +365,94 @@ def _create(m: re.Match, follows: bool) -> Any:
 
 
 @dataclass(frozen=True)
+class DestroyAll:
+    """ "Destroy all creatures." Indestructible permanents survive; they all die together."""
+    kind: str  # "creature", "artifact or enchantment", "creature you don't control", ...
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.destroy_all(game.mass_targets(self.kind, controller))
+
+
+@dataclass(frozen=True)
+class ExileAll:
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_all(game.mass_targets(self.kind, controller))
+
+
+@dataclass(frozen=True)
+class CannotRegenerate:
+    """ "They can't be regenerated." Regeneration isn't in the engine, so there's nothing to do."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        pass
+
+
+@dataclass(frozen=True)
+class DamageEach:
+    """ "This spell deals 2 damage to each creature (and each player)." Nothing is targeted."""
+    amount: int | str
+    creatures: str | None  # None, "all", or "opponents" (only creatures you don't control)
+    players: str | None  # None, "opponents" or "all"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        amount = game.amount(self.amount)
+        if self.creatures:
+            kind = "creature" if self.creatures == "all" else "creature you don't control"
+            for permanent in game.mass_targets(kind, controller):
+                game.damage(permanent, amount)
+        if self.players:
+            for seat in (game.live_seats() if self.players == "all" else game.opponents(controller)):
+                game.damage(seat, amount)
+
+
+@dataclass(frozen=True)
+class EachSacrifices:
+    """ "Each opponent sacrifices a creature." / "Each player sacrifices a creature." """
+    who: str  # "opponent" or "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            if self.who == "player" or seat is not controller:
+                game.sacrifice(seat)
+
+
+@dataclass(frozen=True)
+class TargetSacrifices:
+    """ "Target player sacrifices a creature." (target is "player" or "opponent") """
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.sacrifice(target)
+
+
+_MASS_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments": "enchantment",
+               "planeswalkers": "planeswalker", "lands": "land", "nonland permanents": "nonland permanent",
+               "artifacts and enchantments": "artifact or enchantment",
+               "creatures and planeswalkers": "creature or planeswalker"}
+_MASS = (r"(artifacts and enchantments|creatures and planeswalkers|nonland permanents|creatures|artifacts"
+         r"|enchantments|planeswalkers|lands)( you don't control| you control| an opponent controls)?")
+
+
+def _mass_kind(m: re.Match) -> str:
+    return _MASS_KINDS[m[1].lower()] + (m[2] or "")
+
+
+def _damage_each(m: re.Match) -> DamageEach:
+    creatures = players = None
+    for part in (m[2].lower(), (m[3] or "").lower()):
+        if part == "creature":
+            creatures = "all"
+        elif part == "creature you don't control":
+            creatures = "opponents"
+        elif part:
+            players = "all" if part == "player" else "opponents"
+    return DamageEach(_count(m[1]), creatures, players)
+
+
+@dataclass(frozen=True)
 class FetchBasicLand:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.fetch_basic_land(controller)
@@ -383,6 +471,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"destroy target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[1].lower())),
     (re.compile(r"counter target spell\.", re.I), lambda m: Counter()),
     (re.compile(rf"exile target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower())),
+    (re.compile(rf"destroy all {_MASS}\.", re.I), lambda m: DestroyAll(_mass_kind(m))),
+    (re.compile(r"they can't be regenerated\.", re.I), lambda m: CannotRegenerate()),
+    (re.compile(rf"exile all {_MASS}\.", re.I), lambda m: ExileAll(_mass_kind(m))),
+    (re.compile(rf"{_SELF} deals {_N} damage to each (creature you don't control|creature|opponent|player)"
+                r"(?: and each (opponent|player))?\.", re.I), _damage_each),
+    (re.compile(r"each (opponent|player) sacrifices a creature\.", re.I), lambda m: EachSacrifices(m[1].lower())),
+    (re.compile(r"target (player|opponent) sacrifices a creature\.", re.I), lambda m: TargetSacrifices(m[1].lower())),
     (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
     (re.compile(rf"put {_N} {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),

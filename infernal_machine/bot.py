@@ -11,7 +11,7 @@ from .analysis import is_land
 from .cards import Card, Deck
 from .combat import ATTACK_PROMPT, BLOCK_PROMPT
 from .game import (ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
-                   PLAY_LAND, TARGET_PROMPT, X_PROMPT)
+                   PLAY_LAND, SACRIFICE_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
@@ -37,7 +37,8 @@ class BotPlayer:
     """Keeps 2-5 land hands, plays a land whenever it can, then casts its most
     expensive affordable spell (its commander first), and otherwise passes.
 
-    It chooses the largest X it can afford, targets opponents' things when it can, never responds to its own
+    It chooses the largest X it can afford, sacrifices its weakest creature, targets opponents' things
+    when it can, never responds to its own
     spell, and always sends its commander back to the command zone.
     After casting, it activates abilities whose cost taps or sacrifices the
     source, or uses loyalty (so it can't loop on a mana-only ability).
@@ -90,6 +91,8 @@ class BotPlayer:
             return self._block(prompt, options)
         if prompt.startswith(X_PROMPT):
             return len(options) - 1  # as big as it can afford
+        if prompt == SACRIFICE_PROMPT:
+            return min(range(len(options)), key=lambda i: sum(_stats(options[i])))  # its weakest creature
         if prompt.startswith(TARGET_PROMPT):
             theirs = [i for i, option in enumerate(options) if _seat_of(option) != self._seat]
             return theirs[0] if theirs else 0
