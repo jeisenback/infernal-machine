@@ -122,6 +122,10 @@ winner = game.play()
 | Search your library for a (creature) card, (reveal it,) put it into your hand, then shuffle. | Demonic Tutor |
 | Search your library for a card, then shuffle and put that card on top. | Vampiric Tutor |
 | You lose N life. | |
+| Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
+| Equipped creature gets +N/+N and has keywords. / Enchanted creature gets +N/+N and has keywords. | |
+| Enchant creature / land / ... (Auras) | |
+| Enchanted creature can't attack or block. | Pacifism |
 | Destroy all creatures / artifacts / lands / nonland permanents / ... (optionally "you don't control", "you control") | Wrath of God, Armageddon |
 | Exile all creatures / ... | |
 | This spell deals N (or X) damage to each creature / each creature you don't control / each opponent / each player | Pyroclasm |
@@ -153,6 +157,14 @@ winner = game.play()
   Treasure is a mana source that's sacrificed when used, and it's spent after lands and other sources.
   Clue and Food work through their activated abilities. Copy tokens and tokens with quoted abilities
   aren't supported yet.
+- **Equipment and Auras:** "Equip {N}" is an activated ability at sorcery speed that targets a creature you
+  control (re-equipping moves the Equipment). An Aura chooses what it enchants when cast, and goes to the
+  graveyard instead of entering if that target is gone when it resolves. Attached permanents change the
+  creature's power, toughness and keywords, so granted haste, hexproof or shroud work as usual (shroud stops
+  even the controller's equip). Equipment stays on the battlefield, unattached, when its creature leaves;
+  an Aura goes to the graveyard. Labels show attachments ("Sword attached to Bear (seat 0, #1)").
+  "Can't attack or block" is supported through Auras. Other equip costs (like "Equip legendary creature {3}")
+  and Auras on lands with special abilities aren't supported yet.
 - **Zones:** bounced permanents go to their owner's hand, and tokens stop existing. A commander headed for the
   hand can go to the command zone instead. Cards keep their owner: a creature you reanimate from an opponent's
   graveyard enters under your control, but goes back to their graveyard when it dies. Graveyard targets are
@@ -241,7 +253,9 @@ stats = goldfish(deck, games=5000, turns=5)
 ```
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
-  It chooses the largest X it can afford, sacrifices its weakest creature, and tutors for its most expensive card. It doesn't judge whether a board
+  It chooses the largest X it can afford, sacrifices its weakest creature, and tutors for its most expensive card.
+  It equips Equipment once (not repeatedly), puts helpful Auras on its own creatures, and Pacifism-style ones on
+  opponents'. It doesn't judge whether a board
   wipe helps it, so it will cast Wrath of God while ahead.
   It plays a land whenever it can, then casts its commander if it can,
   then its most expensive affordable spell, and otherwise passes.

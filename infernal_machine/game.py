@@ -20,7 +20,8 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
-from .effects import (ActivatedAbility, TriggeredAbility, activated_abilities, enters_with_counters,
+from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AttachAura, TriggeredAbility, activated_abilities,
+                      attached_abilities, aura_kind, enters_with_counters,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_source)
 from .mana import Cost, parse_cost, pay
@@ -81,6 +82,7 @@ class Permanent:
     last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
     last_power: int = 0  # its power just before it left (CR 608.2h: last known information)
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
+    attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
 
 
 @dataclass(eq=False)
@@ -159,6 +161,7 @@ class Game:
         self.combat = Combat(self)
         self.pending: list[PendingTrigger] = []  # triggered, not yet on the stack
         self.x_value = 0  # X of the spell resolving right now
+        self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
 
     @property
     def multiplayer(self) -> bool:
@@ -513,6 +516,9 @@ class Game:
         if item.ability:
             self._resolve_ability(item)
             return
+        if _is_permanent(card) and aura_kind(card):
+            self._resolve_aura(item)
+            return
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
             self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card)), x=item.x)
@@ -523,6 +529,25 @@ class Game:
             return
         self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard
         self._move_card(seat, card, "graveyard")
+
+    def _resolve_aura(self, item: StackItem) -> None:
+        """An Aura spell enters attached to its target, or goes to the graveyard if the target
+        is no longer legal (CR 608.3b)."""
+        seat, card = item.controller, item.card
+        target = item.targets[0] if item.targets else None
+        if target is None or not self.is_legal_target(aura_kind(card), target, seat):
+            self.broadcast({"event": "fizzle", "seat": seat.index, "card": card.name})
+            self._move_card(seat, card, "graveyard")
+            return
+        self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
+        self._enter(seat, Permanent(card, sick=True, attached_to=target))
+        self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
+
+    def attach(self, attachment: Permanent, creature: Permanent) -> None:
+        """Attach an Equipment to a creature (moving it if it was on another)."""
+        if self.on_battlefield(attachment) and self.on_battlefield(creature):
+            attachment.attached_to = creature
+            self.broadcast({"event": "attached", "card": attachment.card.name, "to": creature.card.name})
 
     def _resolve_ability(self, item: StackItem) -> None:
         seat, ability = item.controller, item.ability
@@ -538,11 +563,11 @@ class Game:
 
     def _apply_effects(self, item: StackItem) -> bool:
         """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""
-        self.x_value = item.x
+        self.x_value, self.resolving_source = item.x, item.source
         try:
             return self._apply_effects_now(item)
         finally:
-            self.x_value = 0
+            self.x_value, self.resolving_source = 0, None
 
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
@@ -662,7 +687,9 @@ class Game:
         if "Creature" in permanent.card.type_line:
             current = self.toughness(permanent)
             stats = f" {self.power(permanent)}/{permanent.card.toughness if current is None else current}"
-        return f"{permanent.card.name}{stats} (seat {seat.index}, #{n})"
+        host = permanent.attached_to
+        attached = f" attached to {host.card.name}" if host is not None and self.on_battlefield(host) else ""
+        return f"{permanent.card.name}{stats}{attached} (seat {seat.index}, #{n})"
 
     def controller_of(self, permanent: Permanent) -> Seat | None:
         return next((s for s in self.seats if any(p is permanent for p in s.battlefield)), None)
@@ -816,6 +843,10 @@ class Game:
                 if (buff.other and source is permanent) or (buff.subtype and buff.subtype not in subtypes):
                     continue
                 mods.append(buff.modifier)
+        for seat in self.seats:  # Equipment and Auras attached to it
+            for attachment in seat.battlefield:
+                if attachment.attached_to is permanent:
+                    mods.extend(buff.modifier for buff in attached_abilities(attachment.card))
         return mods
 
     def power(self, permanent: Permanent) -> int:
@@ -939,6 +970,13 @@ class Game:
                     if cancel:  # CR 704.5q
                         counters[PLUS] -= cancel
                         counters[MINUS] -= cancel
+                    host = permanent.attached_to
+                    if host is not None and not self.on_battlefield(host):
+                        permanent.attached_to = None  # CR 704.5n: Equipment stays, unattached
+                        host = None
+                    if "Aura" in permanent.card.type_line and host is None:
+                        dying.append((permanent, "unattached"))  # CR 704.5m
+                        continue
                     current = self.toughness(permanent)
                     creature = current is not None
                     if (creature and current <= 0) or (permanent.loyalty is not None and permanent.loyalty <= 0):
@@ -1003,8 +1041,12 @@ def _is_permanent(card: Card) -> bool:
 
 
 def _effects(card: Card) -> list | None:
-    """Spell effects for instants and sorceries; permanent spells just enter the battlefield."""
-    return [] if _is_permanent(card) else spell_effects(card)
+    """Spell effects for instants and sorceries. A permanent spell has none (it just enters the
+    battlefield) except an Aura, which has to target what it will enchant."""
+    if _is_permanent(card):
+        kind = aura_kind(card)
+        return [AttachAura(kind)] if kind else []
+    return spell_effects(card)
 
 
 def _instant_speed(card: Card) -> bool:

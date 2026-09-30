@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from .effects import CANT_ATTACK, CANT_BLOCK
+
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
 
@@ -135,9 +137,11 @@ class Combat:
     def _can_attack(self, permanent: Permanent) -> bool:
         return ("Creature" in permanent.card.type_line and not permanent.tapped
                 and not (permanent.sick and not self._has(permanent, "haste"))
-                and not self._has(permanent, "defender"))
+                and not self._has(permanent, "defender") and not self._has(permanent, CANT_ATTACK))
 
     def _can_block(self, blocker: Permanent, attacker: Permanent) -> bool:
+        if self._has(blocker, CANT_BLOCK):
+            return False
         if self._has(attacker, "flying"):
             return self._has(blocker, "flying") or self._has(blocker, "reach")
         return True

@@ -299,6 +299,71 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
 
 
 @dataclass(frozen=True)
+class Attach:
+    """Equip: attach the Equipment that made this ability to the target creature."""
+    target: str = "creature you control"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.resolving_source is not None:
+            game.attach(game.resolving_source, target)
+
+
+@dataclass(frozen=True)
+class AttachAura:
+    """The targeting of an Aura spell. The game attaches the Aura as it enters (Game._resolve)."""
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        pass
+
+
+_EQUIP = re.compile(r"Equip ((?:\{\d+\}|\{[WUBRGC]\})+)")
+_ENCHANT = re.compile(r"Enchant ((?:land|creature|artifact|enchantment|planeswalker|permanent|nonland permanent)"
+                      r"(?: an opponent controls| you control)?)", re.I)
+
+
+def equip_cost(card: Card) -> str | None:
+    """The mana cost from "Equip {2}", or None (other equip costs aren't supported)."""
+    return next((m[1] for line in rules_lines(card) if (m := _EQUIP.fullmatch(line))), None)
+
+
+def aura_kind(card: Card) -> str | None:
+    """What an Aura enchants ("creature", "creature you control", "land", ...), or None if it isn't an Aura."""
+    if "Aura" not in card.type_line:
+        return None
+    return next((m[1].lower() for line in rules_lines(card) if (m := _ENCHANT.fullmatch(line))), None)
+
+
+def is_enchant_line(line: str) -> bool:
+    return _ENCHANT.fullmatch(line) is not None
+
+
+@dataclass(frozen=True)
+class AttachedBuff:
+    """ "Equipped creature gets +1/+1 and has haste." / "Enchanted creature can't attack or block." """
+    modifier: Modifier
+    text: str
+
+
+_ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
+                       r"|can't attack or block)\.")
+CANT_ATTACK, CANT_BLOCK = "can't attack", "can't block"  # pseudo-keywords, so combat can ask has_keyword
+
+
+@lru_cache(maxsize=None)
+def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
+    buffs = []
+    for line in rules_lines(card):
+        if m := _ATTACHED.fullmatch(line):
+            if "can't attack or block" in line:
+                modifier = Modifier(keywords=frozenset({CANT_ATTACK, CANT_BLOCK}))
+            else:
+                modifier = _modifier(m, 1)
+            buffs.append(AttachedBuff(modifier, line))
+    return tuple(buffs)
+
+
+@dataclass(frozen=True)
 class CreateTokens:
     count: int
     token: Card
@@ -723,6 +788,8 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
         ability = _parse_activated(line, match[1], match[2], planeswalker)
         if ability is not None:
             abilities.append(ability)
+    if cost := equip_cost(card):
+        abilities.append(ActivatedAbility(f"Equip {cost}", (Attach(),), mana_cost=cost, sorcery_speed=True))
     return tuple(abilities)
 
 

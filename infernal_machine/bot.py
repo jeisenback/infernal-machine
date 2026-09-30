@@ -41,7 +41,8 @@ class BotPlayer:
     when it can, never responds to its own
     spell, and always sends its commander back to the command zone.
     After casting, it activates abilities whose cost taps or sacrifices the
-    source, or uses loyalty (so it can't loop on a mana-only ability).
+    source, or uses loyalty (so it can't loop on a mana-only ability), and equips
+    Equipment that isn't attached yet. It puts helpful Auras on its own creatures.
     In combat it attacks the opponent with the lowest life with every creature
     that has power, blocks when its blocker survives, and chump-blocks the
     biggest attacker once its life is at CHUMP_LIFE or below.
@@ -96,7 +97,10 @@ class BotPlayer:
         if prompt == SACRIFICE_PROMPT:
             return min(range(len(options)), key=lambda i: sum(_stats(options[i])))  # its weakest creature
         if prompt.startswith(TARGET_PROMPT):
+            mine = [i for i, option in enumerate(options) if _seat_of(option) == self._seat]
             theirs = [i for i, option in enumerate(options) if _seat_of(option) != self._seat]
+            if self._is_buff_aura(prompt.removeprefix(TARGET_PROMPT)) and mine:
+                return mine[0]
             return theirs[0] if theirs else 0
         if PASS not in options:
             return 0  # search, command zone and other yes/no choices: take the first option
@@ -112,10 +116,15 @@ class BotPlayer:
         if casts:
             return max(casts, key=lambda i: self._cards[options[i].removeprefix(CAST)].cmc)
         for i, option in enumerate(options):
-            if option.startswith(ACTIVATE) and _limited_cost(option):
+            if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)):
                 return i
         return options.index(PASS)
 
+
+    def _is_buff_aura(self, name: str) -> bool:
+        """An Aura that helps its target, as opposed to a Pacifism-style one that hurts it."""
+        card = self._cards.get(name)
+        return card is not None and "Aura" in card.type_line and "can't attack or block" not in card.oracle_text
 
     def _block(self, prompt: str, options: Sequence[str]) -> int:
         toughness = _stats(prompt)[1]
@@ -132,6 +141,13 @@ def _limited_cost(action: str) -> bool:
     """Whether an activation's cost can only be paid a limited number of times."""
     cost = action.split("): ", 1)[1].split(":", 1)[0]
     return "{T}" in cost or "Sacrifice" in cost or re.fullmatch(r"[+\u2212-]?\d+", cost) is not None
+
+
+def _equip_needed(action: str) -> bool:
+    """An "Equip" activation for Equipment that isn't attached to anything yet (once attached, its
+    label says "attached to ...", so the bot doesn't equip over and over)."""
+    label, text = action.split("): ", 1)
+    return text.startswith("Equip ") and " attached to " not in label
 
 
 def _stats(label: str) -> tuple[int, int]:
