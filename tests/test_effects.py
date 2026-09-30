@@ -61,6 +61,11 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(spell_effects(MURDER), [Destroy("creature")])
         self.assertEqual(spell_effects(RAMPANT), [FetchBasicLand()])
 
+    def test_fetch_basic_land_accepts_both_wordings(self):
+        for wording in ("it", "that card"):
+            text = f"Search your library for a basic land card, put {wording} onto the battlefield tapped, then shuffle."
+            self.assertEqual(spell_effects(Card(name="Growth", oracle_text=text)), [FetchBasicLand()], wording)
+
     def test_several_sentences_and_new_templating(self):
         card = Card(name="Mix", oracle_text="Draw a card. You gain 3 life.\nEach opponent loses 1 life.")
         self.assertEqual(spell_effects(card), [Draw(1), GainLife(3), OpponentsLoseLife(1)])

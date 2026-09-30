@@ -4,5 +4,9 @@ version = "0.1.0"
 description = "A Magic: The Gathering engine"
 requires-python = ">=3.11"
 
+[project.scripts]
+infernal-server = "infernal_machine.server:main"
+infernal-client = "infernal_machine.client:main"
+
 [tool.setuptools]
 packages = ["infernal_machine"]

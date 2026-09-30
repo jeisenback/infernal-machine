@@ -323,6 +323,7 @@ class Game:
                 holder = active  # after resolving, the active player gets priority (CR 117.3b)
             else:
                 actions = self.legal_actions(holder)
+                self.send_state(holder)
                 choice = actions[holder.player.choose(f"Priority: {self.step}", actions)]
                 if choice == PASS:
                     passes += 1
@@ -518,7 +519,7 @@ class Game:
         self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cycling"})
         self._move_card(seat, card, "graveyard")
         self.stack.append(StackItem(card, seat, [Draw(1)], [], ability))
-        self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": ability.text,
+        self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
 
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
@@ -535,7 +536,8 @@ class Game:
         permanent.activated_turn[ability.text] = self.turn
         self.stack.append(StackItem(permanent.card, seat, list(ability.effects), targets, ability, permanent))
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
-                        "ability": ability.text, "targets": labels, "tapped": [p.card.name for p in tapped]})
+                        "ability": _shown(ability.text, permanent.card), "targets": labels,
+                        "tapped": [p.card.name for p in tapped]})
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
 
@@ -568,6 +570,43 @@ class Game:
                          "from": "command_zone" if from_command_zone else "hand",
                          "targets": labels, "x": x, "tapped": [p.card.name for p in tapped]})
         self._observe("cast", card, seat)
+
+    # --- what players see ----------------------------------------------------
+
+    def snapshot(self, viewer: Seat) -> dict:
+        """The board as `viewer` may see it: everything public, plus their own hand. Opponents' hands and
+        libraries show as counts only. It's plain data, ready to send as JSON."""
+        return {
+            "turn": self.turn, "step": self.step, "active": self.active, "you": viewer.index,
+            "stack": [{"card": i.card.name, "seat": i.controller.index, "ability": _shown(i.ability.text, i.card) if i.ability else None}
+                      for i in self.stack],
+            "hand": [c.name for c in viewer.hand],
+            "seats": [{
+                "seat": s.index, "name": s.name, "life": s.life, "lost": s.lost,
+                "hand": len(s.hand), "library": len(s.library),
+                "graveyard": [c.name for c in s.graveyard], "exile": [c.name for c in s.exile],
+                "command_zone": [{"name": c.name, "tax": self.commander_tax(s, c)} for c in s.command_zone],
+                "commander_damage": [{"from_seat": seat, "commander": name, "damage": dmg}
+                                     for (seat, name), dmg in s.commander_damage.items()],
+                "battlefield": [self._permanent_view(p) for p in s.battlefield],
+            } for s in self.seats],
+        }
+
+    def _permanent_view(self, p: Permanent) -> dict:
+        creature = "Creature" in p.card.type_line
+        host = p.attached_to
+        return {
+            "name": p.card.name, "type": p.card.type_line, "tapped": p.tapped, "token": _is_token(p.card),
+            "sick": p.sick and creature,
+            "power": self.power(p) if creature else None, "toughness": self.toughness(p) if creature else None,
+            "damage": p.damage, "loyalty": p.loyalty, "counters": {k: v for k, v in p.counters.items() if v},
+            "attached_to": host.card.name if host is not None and self.on_battlefield(host) else None,
+        }
+
+    def send_state(self, seat: Seat) -> None:
+        """Show the board to a player who wants to see it (TCP players do; bots don't)."""
+        if getattr(seat.player, "wants_state", False):
+            seat.player.notify({"event": "state", **self.snapshot(seat)})
 
     def _resolve(self, item: StackItem) -> None:
         seat, card = item.controller, item.card
@@ -611,7 +650,7 @@ class Game:
         seat, ability = item.controller, item.ability
         if getattr(ability, "optional", False) and seat.player.choose(OPTIONAL_PROMPT + item.card.name, YES_NO) != 0:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
-                            "ability": ability.text, "declined": True})
+                            "ability": _shown(ability.text, item.card), "declined": True})
             return
         self._apply_effects(item)
 
@@ -633,7 +672,7 @@ class Game:
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
         about = {"seat": seat.index, "card": item.card.name}
         if item.ability:
-            about["ability"] = item.ability.text
+            about["ability"] = _shown(item.ability.text, item.card)
         if legal and not any(legal):
             self.broadcast({"event": "fizzle", **about})
             return False
@@ -702,7 +741,7 @@ class Game:
             self.stack.append(StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability,
                                         trigger.permanent))
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
-                            "ability": trigger.ability.text, "targets": labels})
+                            "ability": _shown(trigger.ability.text, trigger.source), "targets": labels})
 
     # --- targets -------------------------------------------------------------
 
@@ -1182,6 +1221,11 @@ def _card_matches(kind: str, card: Card) -> bool:
     if kind == "basic land":
         return "Basic" in card.type_line and "Land" in card.type_line
     return any(t.capitalize() in card.type_line for t in kind.split(" or "))
+
+
+def _shown(ability_text: str, card: Card) -> str:
+    """An ability's rules text as players see it: the card's name, not the CARDNAME placeholder."""
+    return ability_text.replace("CARDNAME", card.name)
 
 
 def _is_token(card: Card) -> bool:

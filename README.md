@@ -3,6 +3,23 @@
 A Magic: The Gathering engine, starting with the Commander format.
 Python 3.11+, standard library only.
 
+## Quick start: play a game
+
+You can try a full game offline, with no Scryfall, using the demo cards in `examples/`:
+
+```
+# terminal 1: a table for one human and two bots
+python -m infernal_machine.server --humans 1 --bots 2 --bot-deck examples/red_deck.txt \
+    --cache examples/demo_cards.json --no-check
+
+# terminal 2: join it
+python -m infernal_machine.client --name Alice --deck examples/green_deck.txt
+```
+
+For real decks, leave out `--cache examples/demo_cards.json` and `--no-check`. The server then fetches cards
+from Scryfall (and saves them in `.cache/cards.json`) and only seats decks that are legal Commander decks.
+See [Playing over TCP](#playing-over-tcp) for all the options.
+
 ## Pulling cards
 
 ```python
@@ -296,6 +313,34 @@ stats = goldfish(deck, games=5000, turns=5)
   It reports how often you mulligan, how many lands the kept hand has, and how often
   you've made every land drop through each turn. The example above is a 38-land deck.
 
+## Playing over TCP
+
+**Server** (`python -m infernal_machine.server`) hosts one table:
+
+| Option | Meaning |
+|---|---|
+| `--humans N` (default 1) | how many players will connect |
+| `--bots N` (default 3) | bots that fill the other seats |
+| `--bot-deck FILE` | decklist for the bots; repeat the option to give different bots different decks |
+| `--port`, `--host` | where to listen (default `0.0.0.0:4000`) |
+| `--seed N` | repeat the same shuffles |
+| `--max-turns N` (default 300) | end the game with no winner after this many turns |
+| `--cache FILE` | where fetched cards are saved (default `.cache/cards.json`) |
+| `--no-check` | accept decks that aren't legal Commander decks |
+
+Each human sends their decklist when they connect. The server fetches the cards, checks the deck, and either
+seats the player or explains why not (wrong size, a card outside the commander's colors, an unknown card, a name
+already in use), leaving the seat open. If a human disconnects during the game, a bot takes over their seat.
+
+**Client** (`python -m infernal_machine.client --name Alice --deck deck.txt [--host H] [--port P]`):
+- Events are printed as sentences ("Bot 1 casts Sol Ring.", "You lose 3 life (25).").
+- When you have a decision, the board is shown and the options are numbered. Type a number.
+  At a priority prompt, Enter passes. Type `b` to show the board again.
+- Prompts where passing is your only option are answered for you.
+- Your hand is shown to you only. Opponents' hands and libraries appear as counts.
+
+Both can also be run as `infernal-server` and `infernal-client` after `pip install .`.
+
 ## TCP players
 
 The engine talks to players through the `Player` protocol (`notify`, `choose`).
@@ -313,9 +358,10 @@ Each message is one JSON object per line:
 
 | Direction | Message |
 |---|---|
-| client -> server | `{"type": "hello", "name": "Alice"}` (must come first) |
+| client -> server | `{"type": "hello", "name": "Alice", "deck": "<decklist text>"}` (must come first; the deck is optional, but the game server needs it) |
 | server -> client | `{"type": "welcome", "seat": 0}` |
 | server -> client | `{"type": "event", ...}` (no reply) |
+| server -> client | `{"type": "event", "event": "state", ...}`: the whole board, sent before each of your decisions. It has `turn`, `step`, `active`, `you`, your `hand`, the `stack`, and for each seat its life, hand and library counts, graveyard, exile, command zone (with commander tax), commander damage, and battlefield (with current power and toughness, counters and attachments) |
 | server -> client | `{"type": "choose", "id": 1, "prompt": "...", "options": ["Keep", "Mulligan"]}` |
 | client -> server | `{"type": "response", "id": 1, "choice": 0}` |
 | server -> client | `{"type": "error", "message": "..."}` (after bad input the prompt is sent again) |

@@ -39,6 +39,7 @@ class Combat:
     def declare_attackers(self, seat: Seat) -> None:
         """Ask the active player, creature by creature, whether and whom to attack (CR 508.1)."""
         opponents = self.game.opponents(seat)
+        self.game.send_state(seat)
         options = [NO_ATTACK] + [f"Attack Player: {o.name} (seat {o.index})" for o in opponents]
         for permanent in list(seat.battlefield):
             if not self._can_attack(permanent):
@@ -60,6 +61,7 @@ class Combat:
         for seat in self.game.turn_order_from_active():
             if id(seat) not in defenders:
                 continue
+            self.game.send_state(seat)
             for permanent in list(seat.battlefield):
                 if permanent.tapped or "Creature" not in permanent.card.type_line:
                     continue

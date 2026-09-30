@@ -1,0 +1,15 @@
+// A demo deck for trying the server without Scryfall. It isn't a legal Commander deck
+// (too many copies), so run the server with --no-check.
+Commander
+1 Kaelen, Stormcaller
+
+Deck
+40 Mountain
+10 Raging Goblin
+12 Hill Giant
+8 Shivan Dragon
+12 Lightning Bolt
+6 Pyroclasm
+4 Sol Ring
+4 Mind Stone
+3 Swiftfoot Boots

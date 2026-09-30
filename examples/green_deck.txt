@@ -1,0 +1,17 @@
+// A demo deck for trying the server without Scryfall. It isn't a legal Commander deck
+// (too many copies), so run the server with --no-check.
+Commander
+1 Mira, Greenwarden
+
+Deck
+40 Forest
+4 Llanowar Elves
+10 Grizzly Bears
+10 Giant Spider
+4 Colossal Dreadmaw
+8 Giant Growth
+6 Rampant Growth
+6 Cultivate
+4 Sol Ring
+4 Mind Stone
+3 Swiftfoot Boots

@@ -761,7 +761,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
     (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
                 r"battlefield tapped, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand()),
-    (re.compile(r"search your library for a basic land card, put it onto the battlefield tapped, then shuffle\.", re.I),
+    (re.compile(r"search your library for a basic land card, put (?:it|that card) onto the battlefield tapped, "
+                r"then shuffle\.", re.I),
      lambda m: FetchBasicLand()),
 ]
 

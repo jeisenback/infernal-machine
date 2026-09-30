@@ -2,9 +2,11 @@
 
 Protocol (one JSON object per line, UTF-8):
 
-  client -> server  {"type": "hello", "name": "Alice"}          first message
+  client -> server  {"type": "hello", "name": "Alice", "deck": "<decklist text>"}   first message
+                                                                (the deck is optional; the game server needs it)
   server -> client  {"type": "welcome", "seat": 0}
   server -> client  {"type": "event", ...}                      no reply expected
+  server -> client  {"type": "event", "event": "state", ...}    the whole board, sent before your decisions
   server -> client  {"type": "choose", "id": 1, "prompt": "...", "options": [...]}
   client -> server  {"type": "response", "id": 1, "choice": 0}
   server -> client  {"type": "error", "message": "..."}         bad input; re-prompted
@@ -21,12 +23,26 @@ class Disconnected(ConnectionError):
     pass
 
 
+def send_promptly(sock: socket.socket) -> None:
+    """Turn off Nagle's algorithm: our messages are small and come in bursts, and with delayed ACKs
+    each one could otherwise be held back for tens of milliseconds. Sockets that aren't TCP (the
+    in-process pairs used in tests) don't support the option and don't need it."""
+    try:
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    except OSError:
+        pass
+
+
 class TcpPlayer:
     """A Player backed by a connected socket."""
+
+    wants_state = True  # the game sends this player a "state" event (the board) before their decisions
 
     def __init__(self, sock: socket.socket, name: str = ""):
         self.sock = sock
         self.name = name
+        self.hello: dict = {}
+        send_promptly(sock)
         self._reader = sock.makefile("r", encoding="utf-8", newline="\n")
         self._next_id = 0
 
@@ -53,13 +69,25 @@ class TcpPlayer:
             self._send({"type": "error", "message": f"Expected a response to choice {self._next_id}"})
             self._send(request)
 
-    def handshake(self, seat: int) -> None:
+    def read_hello(self) -> dict:
+        """Read the client's hello (raising Disconnected if it isn't one) and remember it in `hello`."""
         hello = self._receive()
         if hello.get("type") != "hello" or not isinstance(hello.get("name"), str):
             self._send({"type": "error", "message": "First message must be hello with a name"})
             raise Disconnected("Bad handshake")
         self.name = hello["name"]
+        self.hello = hello
+        return hello
+
+    def welcome(self, seat: int) -> None:
         self._send({"type": "welcome", "seat": seat})
+
+    def handshake(self, seat: int) -> None:
+        self.read_hello()
+        self.welcome(seat)
+
+    def send_error(self, message: str) -> None:
+        self._send({"type": "error", "message": message})
 
     def close(self) -> None:
         self._reader.close()
