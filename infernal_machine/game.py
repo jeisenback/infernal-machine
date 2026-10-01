@@ -101,6 +101,7 @@ class Permanent:
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
+    kicked: bool = False  # it was cast with its kicker cost paid
 
 
 @dataclass(frozen=True)
@@ -667,8 +668,7 @@ class Game:
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
             alternative = ways[seat.player.choose(COST_PROMPT + card.name, options)]
-        # Kicker is only offered on instants and sorceries: nothing reads it on permanents yet.
-        kicked = (not _is_permanent(card) and kicker_cost(card) is not None
+        kicked = (kicker_cost(card) is not None
                   and self._payment(seat, card, from_command_zone, alternative=alternative, kicked=True) is not None
                   and seat.player.choose(KICKER_PROMPT + card.name, YES_NO) == 0)
         x = 0
@@ -739,7 +739,7 @@ class Game:
             return
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card)), x=item.x)
+            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked), x=item.x)
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
@@ -821,7 +821,7 @@ class Game:
         """Note that `permanent`'s abilities for `event` triggered; they go on the stack
         the next time a player would get priority (CR 603.3)."""
         for ability in triggered_abilities(permanent.card):
-            if ability.event == event and ability.watch is None:
+            if ability.event == event and ability.watch is None and (permanent.kicked or not ability.kicked):
                 self.pending.append(PendingTrigger(ability, permanent, controller))
 
     def _observe(self, event: str, card: Card, seat: Seat, subject: Permanent | None = None,
@@ -1256,7 +1256,7 @@ class Game:
     # --- helpers -------------------------------------------------------------
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
-        for counter, count in enters_with_counters(permanent.card).items():  # CR 614.1c: it arrives with them
+        for counter, count in enters_with_counters(permanent.card, permanent.kicked).items():  # CR 614.1c: it arrives with them
             permanent.counters[counter] = permanent.counters.get(counter, 0) + (x if count == "X" else count)
         permanent.owner = permanent.owner or seat
         rule = enters_tapped_rule(permanent.card)

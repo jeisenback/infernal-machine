@@ -295,12 +295,16 @@ def _counter_name(text: str) -> str:
 
 
 _ENTERS_WITH = re.compile(rf"{_SELF} enters with {_N} {_COUNTER} on it\.", re.I)
+_IF_KICKED = re.compile(rf"if {_SELF} was kicked, ", re.I)
 
 
-def enters_with_counters(card: Card) -> dict[str, int | str]:
-    """Counters from "This creature enters with N (or X) +1/+1 counters on it." """
+def enters_with_counters(card: Card, kicked: bool = False) -> dict[str, int | str]:
+    """Counters from "This creature enters with N (or X) +1/+1 counters on it.", plus, when `kicked`,
+    "If this creature was kicked, it enters with N +1/+1 counters on it." """
     counters: dict[str, int | str] = {}
     for line in rules_lines(card):
+        if kicked and (k := _IF_KICKED.match(line)):
+            line = line[k.end():]
         if m := _ENTERS_WITH.fullmatch(line):
             name, count = _counter_name(m[2]), _count(m[1])
             counters[name] = count if count == "X" else counters.get(name, 0) + count
@@ -308,6 +312,8 @@ def enters_with_counters(card: Card) -> dict[str, int | str]:
 
 
 def is_enters_with_counters(line: str) -> bool:
+    if k := _IF_KICKED.match(line):
+        line = line[k.end():]
     return _ENTERS_WITH.fullmatch(line) is not None
 
 
@@ -1029,6 +1035,7 @@ class TriggeredAbility:
     optional: bool  # "you may ...": the controller chooses when it resolves
     text: str
     watch: "Watch | None" = None  # set when it watches other objects ("Whenever another creature enters")
+    kicked: bool = False  # "When this creature enters, if it was kicked, ...": only triggers if it was
 
 
 @dataclass(frozen=True)
@@ -1120,12 +1127,15 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
             if not match:
                 continue
             rest = match[1]
+            kicked = _IF_KICKED.match(rest)
+            if kicked:
+                rest = rest[kicked.end():]
             optional = rest.lower().startswith("you may ")
             if optional:
                 rest = rest[len("you may "):]
             effects = _parse(_split_sentences(rest[:1].upper() + rest[1:]))
             if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, line))
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, kicked=bool(kicked)))
             break
     return abilities
 

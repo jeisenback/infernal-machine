@@ -38,6 +38,14 @@ THRILL = Card(name="Thrill of Possibility", mana_cost="{1}{R}", type_line="Insta
 BARGAIN = Card(name="Bargain", mana_cost="{B}", type_line="Sorcery", colors=("B",),
                oracle_text="As an additional cost to cast this spell, pay 3 life.\nDraw two cards.")
 
+KAVU = Card(name="Untamed Kavu", mana_cost="{1}{G}", type_line="Creature — Kavu", colors=("G",), power="2",
+            toughness="2", oracle_text="Vigilance, trample\nKicker {3} (You may pay an additional {3} as you cast "
+            "this spell.)\nIf Untamed Kavu was kicked, it enters with three +1/+1 counters on it.")
+JOSU = Card(name="Josu Vess, Lich Knight", mana_cost="{2}{B}{B}", type_line="Legendary Creature — Zombie Knight",
+            colors=("B",), power="4", toughness="5",
+            oracle_text="Kicker {5}{B}\nMenace\nWhen Josu Vess enters, if it was kicked, create eight 2/2 black "
+                        "Zombie Knight creature tokens with menace.")
+
 
 class ParseTests(unittest.TestCase):
     def test_cost_reductions(self):
@@ -72,8 +80,8 @@ class ParseTests(unittest.TestCase):
     def test_report(self):
         for card in (EMERALD, ROLLICK, FORCE, ROIL, RITES, THRILL, BARGAIN):
             self.assertEqual(unsupported_lines(card), [], card.name)
-        kicked_creature = Card(name="Kicked Bear", mana_cost="{1}{G}", type_line="Creature — Bear", oracle_text="Kicker {2}")
-        self.assertEqual(unsupported_lines(kicked_creature), ["Kicker {2}"])
+        for card in (KAVU, JOSU):
+            self.assertEqual(unsupported_lines(card), [], card.name)
 
 
 def battlefield(*cards):
@@ -238,6 +246,26 @@ class KickerTests(unittest.TestCase):
         other.battlefield = battlefield(BEAR)
         game._priority_round(seat)
         self.assertFalse(any(prompt == KICKER_PROMPT + ROIL.name for prompt, _ in a.prompts))
+
+    def test_kicked_creature_enters_with_counters(self):
+        for answer, counters in (("Yes", {"+1/+1": 3}), ("No", {})):
+            game, _, _ = table(pick(CAST + KAVU.name, answer))
+            seat = game.seats[0]
+            seat.hand = [KAVU]
+            seat.battlefield = battlefield(*[FOREST] * 5)
+            game._priority_round(seat)
+            kavu = next(p for p in seat.battlefield if p.card is KAVU)
+            self.assertEqual(kavu.counters, counters, answer)
+            self.assertEqual(kavu.kicked, answer == "Yes")
+
+    def test_kicked_enters_trigger(self):
+        for answer, tokens in (("Yes", 8), ("No", 0)):
+            game, _, _ = table(pick(CAST + JOSU.name, answer))
+            seat = game.seats[0]
+            seat.hand = [JOSU]
+            seat.battlefield = battlefield(*[SWAMP] * 10)
+            game._priority_round(seat)
+            self.assertEqual(sum(p.card.name == "Zombie Knight" for p in seat.battlefield), tokens, answer)
 
 
 class AdditionalCostTests(unittest.TestCase):
