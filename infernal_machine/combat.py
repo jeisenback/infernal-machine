@@ -52,8 +52,15 @@ class Combat:
                 permanent.tapped = True
             self.attacks.append(Attack(permanent, seat, defender))
             self.game.trigger("attacks", permanent, seat)
+            for owner in self.game.live_seats():  # "Whenever equipped / enchanted creature attacks"
+                for attachment in list(owner.battlefield):
+                    if attachment.attached_to is permanent:
+                        self.game.trigger("host_attacks", attachment, owner)
             self.game.broadcast({"event": "attack", "seat": seat.index, "card": permanent.card.name,
                                  "defender": defender.index})
+        if len(self.attacks) >= 2:
+            for permanent in list(seat.battlefield):
+                self.game.trigger("attack_with_two", permanent, seat)
 
     def declare_blockers(self) -> None:
         """Each defending player, in turn order, assigns blockers (CR 509.1)."""

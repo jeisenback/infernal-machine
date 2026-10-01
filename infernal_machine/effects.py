@@ -1038,6 +1038,7 @@ class Watch:
     other: bool = False  # "another": not the source itself
     yours: bool = False  # "you control" / "under your control"
     nontoken: bool = False
+    caster: str = "you"  # for casts: "you", "player" (anyone) or "opponent"
 
 
 _TRIGGERS = {
@@ -1053,6 +1054,11 @@ _TRIGGERS = {
     "gain_life": re.compile(r"Whenever you gain life, (.+)", re.I),
     "lose_life": re.compile(r"Whenever you lose life, (.+)", re.I),
     "sacrifice_creature": re.compile(r"Whenever you sacrifice a creature, (.+)", re.I),
+    "ally_combat_damage": re.compile(r"Whenever a creature you control deals combat damage to a player, (.+)", re.I),
+    "token_combat_damage": re.compile(r"Whenever a creature token you control deals combat damage to a player, (.+)",
+                                      re.I),
+    "host_attacks": re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I),
+    "attack_with_two": re.compile(r"Whenever you attack with two or more creatures, (.+)", re.I),
 }
 TRIGGER_EVENTS = tuple(_TRIGGERS)
 
@@ -1063,8 +1069,9 @@ _WATCHES = {
     "permanent_enters": re.compile(
         rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? enters(?: the battlefield)?( under your control)?, (.+)", re.I),
     "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature)( you control)? dies, (.+)", re.I),
-    "cast": re.compile(r"Whenever you cast an? (spell|creature spell|noncreature spell|instant or sorcery spell"
-                       r"|artifact spell|enchantment spell), (.+)", re.I),
+    "cast": re.compile(r"Whenever (you cast|a player casts|an opponent casts) an? ((?:white|blue|black|red|green) spell"
+                       r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
+                       r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell), (.+)", re.I),
 }
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
 
@@ -1072,7 +1079,8 @@ _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Const
 def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     line = _ABILITY_WORD.sub("", line)
     if m := _WATCHES["cast"].fullmatch(line):
-        return "cast", Watch(m[1].lower()), m[2]
+        caster = {"you cast": "you", "a player casts": "player", "an opponent casts": "opponent"}[m[1].lower()]
+        return "cast", Watch(m[2].lower(), caster=caster), m[3]
     for event in ("permanent_enters", "creature_dies"):
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()

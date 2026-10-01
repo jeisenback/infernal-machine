@@ -4,7 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import Draw, GainLife, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, creature
+from tests.test_combat import BEAR, attack_all, creature
 from tests.test_effects import table
 
 DRYAD = Card(name="Dryad", mana_cost="{G}", type_line="Enchantment",
@@ -22,6 +22,33 @@ HARNESS = Card(name="Harness", mana_cost="{1}", type_line="Artifact — Equipmen
                oracle_text="When this Equipment enters, draw a card.\nEquip {1}")
 TREASURE = Card(name="Treasure", type_line="Token Artifact — Treasure",
                 oracle_text="{T}, Sacrifice this artifact: Add one mana of any color.")
+
+OHRAN = Card(name="Ohran", mana_cost="{G}", type_line="Enchantment",
+             oracle_text="Whenever a creature you control deals combat damage to a player, draw a card.")
+CRAFTER = Card(name="Crafter", mana_cost="{U}", type_line="Enchantment",
+               oracle_text="Whenever a creature token you control deals combat damage to a player, draw a card.")
+SPIRIT = Card(name="Spirit", type_line="Token Creature — Spirit", power="1", toughness="1")
+BOOTS = Card(name="Boots", mana_cost="{1}", type_line="Artifact — Equipment",
+             oracle_text="Whenever equipped creature attacks, you gain 2 life.\nEquip {1}")
+IMPETUS = Card(name="Impetus", mana_cost="{B}", type_line="Enchantment — Aura",
+               oracle_text="Enchant creature\nWhenever enchanted creature attacks, draw a card.")
+COMMANDO = Card(name="Commando", mana_cost="{R}", type_line="Enchantment",
+                oracle_text="Whenever you attack with two or more creatures, draw a card.")
+LIEGE = Card(name="Liege", mana_cost="{R}", type_line="Enchantment",
+             oracle_text="Whenever you cast a red spell, you gain 3 life.")
+DANCER = Card(name="Dancer", mana_cost="{W}", type_line="Enchantment",
+              oracle_text="Whenever you cast an Aura spell, you may draw a card.")
+SRAM = Card(name="Sram", mana_cost="{W}", type_line="Enchantment",
+            oracle_text="Whenever you cast an Aura, Equipment, or Vehicle spell, draw a card.")
+TESHAR = Card(name="Teshar", mana_cost="{W}", type_line="Enchantment",
+              oracle_text="Whenever you cast a historic spell, you gain 1 life.")
+ANCIENT = Card(name="Ancient", mana_cost="{G}", type_line="Enchantment",
+               oracle_text="Whenever a player casts a spell, you gain 1 life.")
+TAXMAN = Card(name="Taxman", mana_cost="{W}", type_line="Enchantment",
+              oracle_text="Whenever an opponent casts a spell, you gain 1 life.")
+BOLT = Card(name="Bolt", mana_cost="{R}", type_line="Instant", colors=("R",), oracle_text="Draw a card.")
+LEGEND = Card(name="Legend", mana_cost="{W}", type_line="Legendary Creature — Human", colors=("W",),
+              power="1", toughness="1")
 
 
 def resolve_triggers(game, seat):
@@ -145,6 +172,110 @@ class PlayerEventTests(unittest.TestCase):
         game.sacrifice(b)
         resolve_triggers(game, a)
         self.assertEqual(a.hand, [])
+
+
+def take_turn_attacking(game, seat):
+    game.turn = 3
+    game._take_turn(seat)
+
+
+class CombatTriggerTests(unittest.TestCase):
+    def test_a_creature_you_control_deals_combat_damage(self):
+        game, _, _ = table(attack_all)
+        a = game.seats[0]
+        a.battlefield = [Permanent(OHRAN), Permanent(BEAR), Permanent(BEAR)]
+        a.library = [BEAR] * 5
+        take_turn_attacking(game, a)
+        self.assertEqual(len(a.hand), 1 + 2)  # draw step, then once per creature
+
+    def test_only_tokens_count_for_token_triggers(self):
+        game, _, _ = table(attack_all)
+        a = game.seats[0]
+        a.battlefield = [Permanent(CRAFTER), Permanent(BEAR), Permanent(SPIRIT)]
+        a.library = [BEAR] * 5
+        take_turn_attacking(game, a)
+        self.assertEqual(len(a.hand), 1 + 1)
+
+    def test_opponents_creatures_dont_count(self):
+        game, _, _ = table(None, attack_all)
+        a, b = game.seats
+        a.battlefield = [Permanent(OHRAN)]
+        b.battlefield = [Permanent(BEAR)]
+        a.library = [BEAR] * 5
+        take_turn_attacking(game, b)
+        self.assertEqual(a.hand, [])
+
+    def test_equipped_and_enchanted_creature_attacks(self):
+        game, _, _ = table(attack_all)
+        a = game.seats[0]
+        bear = Permanent(BEAR)
+        a.battlefield = [bear, Permanent(BOOTS, attached_to=bear), Permanent(IMPETUS, attached_to=bear)]
+        a.library = [BEAR] * 5
+        take_turn_attacking(game, a)
+        self.assertEqual(a.life, 42)
+        self.assertEqual(len(a.hand), 1 + 1)
+
+    def test_attachment_on_a_creature_that_doesnt_attack(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        bear = Permanent(BEAR)
+        a.battlefield = [bear, Permanent(BOOTS, attached_to=bear)]
+        take_turn_attacking(game, a)
+        self.assertEqual(a.life, 40)
+
+    def test_attack_with_two_or_more(self):
+        game, _, _ = table(attack_all)
+        a = game.seats[0]
+        a.battlefield = [Permanent(COMMANDO), Permanent(BEAR), Permanent(BEAR)]
+        a.library = [BEAR] * 5
+        take_turn_attacking(game, a)
+        self.assertEqual(len(a.hand), 1 + 1)
+        game, _, _ = table(attack_all)
+        a = game.seats[0]
+        a.battlefield = [Permanent(COMMANDO), Permanent(BEAR)]
+        a.library = [BEAR] * 5
+        take_turn_attacking(game, a)
+        self.assertEqual(len(a.hand), 1)
+
+
+class CastFilterTests(unittest.TestCase):
+    def cast(self, watcher, spell, by=0, controller=0):
+        game, _, _ = table(lambda prompt, options: 0)
+        game.seats[controller].battlefield = [Permanent(watcher)]
+        game.seats[controller].library = [BEAR] * 3
+        game._observe("cast", spell, game.seats[by])
+        game._put_triggers_on_stack()
+        return game, len(game.stack)
+
+    def test_color(self):
+        self.assertEqual(self.cast(LIEGE, BOLT)[1], 1)
+        self.assertEqual(self.cast(LIEGE, LEGEND)[1], 0)
+
+    def test_aura(self):
+        self.assertEqual(self.cast(DANCER, IMPETUS)[1], 1)
+        self.assertEqual(self.cast(DANCER, BOOTS)[1], 0)
+
+    def test_aura_equipment_or_vehicle(self):
+        self.assertEqual(self.cast(SRAM, IMPETUS)[1], 1)
+        self.assertEqual(self.cast(SRAM, BOOTS)[1], 1)
+        self.assertEqual(self.cast(SRAM, BOLT)[1], 0)
+
+    def test_historic(self):
+        self.assertEqual(self.cast(TESHAR, LEGEND)[1], 1)
+        self.assertEqual(self.cast(TESHAR, BOOTS)[1], 1)  # artifacts are historic
+        self.assertEqual(self.cast(TESHAR, BOLT)[1], 0)
+
+    def test_a_player_casts(self):
+        self.assertEqual(self.cast(ANCIENT, BOLT, by=0)[1], 1)
+        self.assertEqual(self.cast(ANCIENT, BOLT, by=1)[1], 1)
+
+    def test_an_opponent_casts(self):
+        self.assertEqual(self.cast(TAXMAN, BOLT, by=0)[1], 0)
+        self.assertEqual(self.cast(TAXMAN, BOLT, by=1)[1], 1)
+
+    def test_report_accepts_them(self):
+        for card in (OHRAN, CRAFTER, BOOTS, IMPETUS, COMMANDO, LIEGE, DANCER, SRAM, TESHAR, ANCIENT, TAXMAN):
+            self.assertEqual(unsupported_lines(card), [], card.name)
 
 
 if __name__ == "__main__":

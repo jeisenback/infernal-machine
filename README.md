@@ -285,6 +285,11 @@ winner = game.play()
   | Whenever a land you control enters, ... (Landfall) | |
   | Whenever (this creature or) another creature (you control) dies, ... | Zulaport Cutthroat |
   | Whenever you cast a (creature / noncreature / instant or sorcery) spell, ... | |
+  | Whenever you cast a red (or other color) / Aura / "Aura, Equipment, or Vehicle" / historic spell, ... | Sram, Senior Edificer |
+  | Whenever a player / an opponent casts a spell, ... | |
+  | Whenever a creature (token) you control deals combat damage to a player, ... (once per creature) | Ohran Frostfang |
+  | Whenever equipped / enchanted creature attacks, ... | |
+  | Whenever you attack with two or more creatures, ... | Firemane Commando |
 
   - Triggers go on the stack the next time a player would get priority. The active player's go
     first, so they resolve last, and players can respond to them.

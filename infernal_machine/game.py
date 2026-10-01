@@ -11,6 +11,7 @@ other rules text is not implemented yet.
 from __future__ import annotations
 
 import random
+import re
 from itertools import combinations
 from dataclasses import dataclass, field
 from typing import Any
@@ -71,6 +72,7 @@ KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; opti
 PITCH_PROMPT = "Choose a card to exile from your hand"
 WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
+COLOR_LETTERS = {name: letter for letter, name in COLOR_NAMES.items()}
 MODE_PROMPT = "Choose a mode for "  # followed by the spell's name; options are the modes, then DONE_MODES once enough are chosen
 DONE_MODES = "Done choosing modes"
 SEARCH_CARD_PROMPT = "Choose a card to search for"  # options are card names
@@ -844,7 +846,12 @@ class Game:
                     continue
                 if watch.other and subject is watcher:
                     continue
-                if (watch.yours or event == "cast") and watcher_seat is not seat:
+                if event == "cast":
+                    if watch.caster == "you" and watcher_seat is not seat:
+                        continue
+                    if watch.caster == "opponent" and watcher_seat is seat:
+                        continue
+                elif watch.yours and watcher_seat is not seat:
                     continue
                 if watch.nontoken and _is_token(card):
                     continue
@@ -982,6 +989,10 @@ class Game:
             self.change_life(target, -amount)
             if combat and controller:
                 self.trigger("combat_damage_to_player", source, controller)
+                for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
+                    self.trigger("ally_combat_damage", permanent, controller)
+                    if _is_token(source.card):
+                        self.trigger("token_combat_damage", permanent, controller)
             if combat and controller and source.card.name in controller.commander_names:
                 key = (controller.index, source.card.name)
                 target.commander_damage[key] = target.commander_damage.get(key, 0) + amount
@@ -1403,13 +1414,18 @@ class Game:
 
 def _watch_type_matches(kind: str, card: Card) -> bool:
     """Whether `card` is what a watch looks for: "creature", "land", ..., or for casts
-    "spell", "creature spell", "noncreature spell", "instant or sorcery spell", ..."""
+    "spell", "creature spell", "noncreature spell", "instant or sorcery spell", "red spell",
+    "historic spell", "aura, equipment, or vehicle spell", ..."""
     kind = kind.removesuffix(" spell").removesuffix("spell").strip()
     if not kind:
         return True
     if kind.startswith("non"):
         return kind[3:].capitalize() not in card.type_line
-    return any(t.capitalize() in card.type_line for t in kind.split(" or "))
+    if kind in COLOR_LETTERS:
+        return COLOR_LETTERS[kind] in card.colors
+    if kind == "historic":  # CR 700.6
+        return any(t in card.type_line for t in ("Legendary", "Artifact", "Saga"))
+    return any(t.capitalize() in card.type_line for t in re.split(r",? or |, ", kind))
 
 
 def _is_searched_land(card: Card, subtypes: tuple[str, ...]) -> bool:
