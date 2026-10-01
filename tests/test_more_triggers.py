@@ -61,6 +61,25 @@ DESTINY = Card(name="Destiny", mana_cost="{W}", type_line="Enchantment — Aura"
 CHIROGRAPHY = Card(name="Chirography", mana_cost="{B}", type_line="Enchantment",
                    oracle_text="Whenever you lose life for the first time each turn, draw a card.")
 BREWER = creature("Brewer", 1, 1, "Whenever you sacrifice a creature, draw a card. This ability triggers only once each turn.")
+ZIMONE = creature("Zimone", 1, 1, "Whenever you cast your first spell with {X} in its mana cost each turn, put two +1/+1 "
+                  "counters on this creature.")
+NEV = creature("Nev", 1, 1, "Whenever you cast your first spell with {X} in its mana cost each turn, put X +1/+1 "
+               "counters on this creature.")
+BLAZE = Card(name="Blaze", mana_cost="{X}{R}", type_line="Sorcery", colors=("R",), oracle_text="Draw X cards.")
+RETRIEVER = Card(name="Retriever", mana_cost="{R}", type_line="Enchantment",
+                 oracle_text="At the beginning of each end step, if a card left your graveyard this turn, you gain 1 life.")
+EMERIA = Card(name="Emeria", type_line="Land",
+              oracle_text="At the beginning of your upkeep, if you control seven or more Plains, you gain 1 life.")
+OPHIOMANCER = creature("Ophiomancer", 2, 2, "At the beginning of each upkeep, if you control no Snakes, create a 1/1 "
+                       "black Snake creature token with deathtouch.")
+WITCH = Card(name="Witch", mana_cost="{B}", type_line="Enchantment",
+             oracle_text="At the beginning of your end step, if you gained life this turn, draw a card.")
+TAX = Card(name="Tax", mana_cost="{W}", type_line="Enchantment",
+           oracle_text="At the beginning of your upkeep, if an opponent controls more lands than you, draw a card.")
+ROOTHA = Card(name="Rootha", mana_cost="{U}", type_line="Enchantment",
+              oracle_text="At the beginning of combat on your turn, if you've cast an instant or sorcery spell this turn, "
+                          "draw a card.")
+PLAINS = Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",))
 
 
 def resolve_triggers(game, seat):
@@ -386,6 +405,154 @@ class OncePerTurnTests(unittest.TestCase):
     def test_report_accepts_them(self):
         for card in (QUINTORIUS, YAHENNI, MERCHANT, MAZIREK, DESTINY, CHIROGRAPHY, BREWER):
             self.assertEqual(unsupported_lines(card), [], card.name)
+
+
+def run_stack(game):
+    game._put_triggers_on_stack()
+    while game.stack:
+        game._resolve(game.stack.pop())
+
+
+class XSpellTests(unittest.TestCase):
+    def cast_blaze(self, game, seat, x):
+        seat.cast_log.append((game.turn, BLAZE))
+        game._observe("cast", BLAZE, seat, x=x)
+        run_stack(game)
+
+    def test_first_x_spell_each_turn(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        zimone = Permanent(ZIMONE)
+        a.battlefield = [zimone]
+        self.cast_blaze(game, a, 2)
+        self.cast_blaze(game, a, 2)
+        self.assertEqual(zimone.counters, {"+1/+1": 2})
+        game.turn += 1
+        self.cast_blaze(game, a, 1)
+        self.assertEqual(zimone.counters, {"+1/+1": 4})
+
+    def test_spells_without_x_dont_count(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        zimone = Permanent(ZIMONE)
+        a.battlefield = [zimone]
+        a.cast_log.append((game.turn, BOLT))  # a spell without X earlier this turn
+        self.cast_blaze(game, a, 1)
+        self.assertEqual(zimone.counters, {"+1/+1": 2})
+
+    def test_x_means_the_spells_x(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        nev = Permanent(NEV)
+        a.battlefield = [nev]
+        self.cast_blaze(game, a, 3)
+        self.assertEqual(nev.counters, {"+1/+1": 3})
+
+    def test_casting_records_the_spell(self):
+        from infernal_machine.game import CAST
+        from tests.test_effects import lands, pick
+        game, _, _ = table(pick(CAST, "2"))
+        a = game.seats[0]
+        zimone = Permanent(ZIMONE)
+        a.battlefield = [zimone] + lands(3)
+        a.hand = [BLAZE]
+        a.library = [BEAR] * 3
+        game._priority_round(a)
+        self.assertEqual(a.cast_log, [(game.turn, BLAZE)])
+        self.assertEqual(zimone.counters, {"+1/+1": 2})
+
+
+class ConditionTests(unittest.TestCase):
+    def step(self, game, seat, step):
+        game.step = step
+        game._turn_based_actions(seat)
+        resolve_triggers(game, seat)
+
+    def test_parsed_conditions(self):
+        for card in (RETRIEVER, EMERIA, OPHIOMANCER, WITCH, TAX, ROOTHA):
+            [ability] = triggered_abilities(card)
+            self.assertIsNotNone(ability.condition, card.name)
+            self.assertEqual(unsupported_lines(card), [], card.name)
+        card = Card(name="x", oracle_text="At the beginning of your upkeep, if the moon is full, draw a card.")
+        self.assertEqual(triggered_abilities(card), ())
+
+    def test_a_card_left_your_graveyard_this_turn(self):
+        from infernal_machine.game import GraveyardTarget
+        game, _, _ = table()
+        a = game.seats[0]
+        a.battlefield = [Permanent(RETRIEVER)]
+        self.step(game, a, "end")
+        self.assertEqual(a.life, 40)
+        a.graveyard = [BEAR]
+        game.return_from_graveyard(GraveyardTarget(BEAR, a), a, "hand")
+        self.step(game, a, "end")
+        self.assertEqual(a.life, 41)
+
+    def test_control_seven_or_more_plains(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        a.battlefield = [Permanent(EMERIA)] + [Permanent(PLAINS) for _ in range(6)]
+        self.step(game, a, "upkeep")
+        self.assertEqual(a.life, 40)
+        a.battlefield.append(Permanent(PLAINS))
+        self.step(game, a, "upkeep")
+        self.assertEqual(a.life, 41)
+
+    def test_control_no_snakes(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        a.battlefield = [Permanent(OPHIOMANCER)]
+        self.step(game, a, "upkeep")
+        self.step(game, a, "upkeep")
+        self.assertEqual([p.card.name for p in a.battlefield].count("Snake"), 1)
+
+    def test_condition_is_checked_again_on_resolution(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        a.battlefield = [Permanent(OPHIOMANCER)]
+        game.step = "upkeep"
+        game._turn_based_actions(a)
+        game._put_triggers_on_stack()
+        a.battlefield.append(Permanent(Card(name="Snake", type_line="Token Creature — Snake", power="1", toughness="1")))
+        run_stack(game)
+        self.assertEqual([p.card.name for p in a.battlefield].count("Snake"), 1)
+
+    def test_gained_life_this_turn(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        a.battlefield = [Permanent(WITCH)]
+        a.library = [BEAR] * 2
+        self.step(game, a, "end")
+        self.assertEqual(a.hand, [])
+        game.change_life(a, 1)
+        self.step(game, a, "end")
+        self.assertEqual(a.hand, [BEAR])
+
+    def test_an_opponent_controls_more_lands(self):
+        game, _, _ = table()
+        a, b = game.seats
+        a.battlefield = [Permanent(TAX), Permanent(PLAINS)]
+        b.battlefield = [Permanent(PLAINS)]
+        a.library = [BEAR] * 2
+        self.step(game, a, "upkeep")
+        self.assertEqual(a.hand, [])
+        b.battlefield.append(Permanent(PLAINS))
+        self.step(game, a, "upkeep")
+        self.assertEqual(a.hand, [BEAR])
+
+    def test_cast_an_instant_or_sorcery_this_turn(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        a.battlefield = [Permanent(ROOTHA)]
+        a.library = [BEAR] * 2
+        self.step(game, a, "beginning_of_combat")
+        self.assertEqual(a.hand, [])
+        a.cast_log.append((game.turn - 1, BLAZE))  # last turn doesn't count
+        self.step(game, a, "beginning_of_combat")
+        self.assertEqual(a.hand, [])
+        a.cast_log.append((game.turn, BLAZE))
+        self.step(game, a, "beginning_of_combat")
+        self.assertEqual(a.hand, [BEAR])
 
 
 if __name__ == "__main__":

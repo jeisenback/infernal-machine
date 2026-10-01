@@ -292,6 +292,7 @@ winner = game.play()
   | Whenever you cast a (creature / noncreature / instant or sorcery) spell, ... | |
   | Whenever you cast a red (or other color) / Aura / "Aura, Equipment, or Vehicle" / historic spell, ... | Sram, Senior Edificer |
   | Whenever a player / an opponent casts a spell, ... | |
+  | Whenever you cast your first spell with {X} in its mana cost each turn, ... (X is that spell's X) | Zimone, Infinite Analyst |
   | Whenever a creature (token) you control deals combat damage to a player, ... (once per creature) | Ohran Frostfang |
   | Whenever equipped / enchanted creature attacks, ... | |
   | Whenever you attack with two or more creatures, ... | Firemane Commando |
@@ -303,6 +304,10 @@ winner = game.play()
   - A card can call itself by its full name, its short legendary name ("Omnath"),
     "this creature" (or "this Aura", "this Equipment", "this Class", ...), or "it".
   - "This ability triggers only once each turn." is respected.
+  - Intervening "if" clauses are checked when the ability triggers and again when it resolves (CR 603.4).
+    Supported: "if a card left your graveyard this turn", "if you gained life this turn", "if an opponent
+    controls more lands than you", "if you've cast an instant or sorcery spell this turn", "if you control
+    seven or more Plains", "if you control no Snakes". A trigger with any other "if" clause is ignored.
   - Paying life counts as losing it. A creature that's sacrificed sees itself go
     ("Whenever you sacrifice a creature" on the creature itself triggers).
   - A trigger whose effect isn't understood is ignored. So is a watching trigger whose effect mentions

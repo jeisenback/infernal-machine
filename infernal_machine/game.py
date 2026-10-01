@@ -22,7 +22,7 @@ from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
-                      TriggeredAbility, WardCounter,
+                      Condition, TriggeredAbility, WardCounter,
                       activated_abilities, additional_costs, alternative_costs, cost_reductions, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, is_identity_mana_land, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
@@ -151,6 +151,7 @@ class PendingTrigger:
     ability: TriggeredAbility
     permanent: "Permanent"
     controller: "Seat"
+    x: int = 0  # for "Whenever you cast a spell with {X}, put X counters ...": that spell's X
 
     @property
     def source(self) -> Card:
@@ -174,6 +175,9 @@ class Seat:
     commander_damage: dict[tuple[int, str], int] = field(default_factory=dict)  # (seat, commander) -> damage
     lands_played: int = 0
     life_lost_turn: int | None = None  # the last turn this player lost life
+    life_gained_turn: int | None = None
+    graveyard_left_turn: int | None = None  # the last turn a card left this player's graveyard
+    cast_log: list[tuple[int, Card]] = field(default_factory=list)  # (turn, spell) for every spell cast
     drew_from_empty: bool = False
     lost: bool = False
 
@@ -699,7 +703,8 @@ class Game:
         if alternative:
             event["alternative"] = alternative.text
         self.broadcast(event)
-        self._observe("cast", card, seat)
+        seat.cast_log.append((self.turn, card))
+        self._observe("cast", card, seat, x=x)
         self._check_ward(item)
 
     # --- what players see ----------------------------------------------------
@@ -783,6 +788,11 @@ class Game:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": _shown(ability.text, item.card), "declined": True})
             return
+        condition = getattr(ability, "condition", None)
+        if condition and not self.condition_holds(condition, seat):  # checked again on resolution (CR 603.4)
+            self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
+                            "ability": _shown(ability.text, item.card), "condition_false": True})
+            return
         self._apply_effects(item)
 
     def amount(self, value: int | str) -> int:
@@ -834,15 +844,32 @@ class Game:
             if ability.event == event and ability.watch is None:
                 self._queue(ability, permanent, controller)
 
-    def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat) -> None:
+    def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0) -> None:
+        if ability.condition and not self.condition_holds(ability.condition, controller):
+            return
         if ability.once_per_turn:  # "This ability triggers only once each turn."
             if permanent.triggered_turn.get(ability.text) == self.turn:
                 return
             permanent.triggered_turn[ability.text] = self.turn
-        self.pending.append(PendingTrigger(ability, permanent, controller))
+        self.pending.append(PendingTrigger(ability, permanent, controller, x))
+
+    def condition_holds(self, condition: Condition, seat: Seat) -> bool:
+        """Whether an intervening "if" clause is true for `seat`, the ability's controller."""
+        kind = condition.kind
+        if kind == "graveyard_left":
+            return seat.graveyard_left_turn == self.turn
+        if kind == "gained_life":
+            return seat.life_gained_turn == self.turn
+        if kind == "opponent_more_lands":
+            lands = lambda s: sum(is_land(p.card) for p in s.battlefield)
+            return any(lands(o) > lands(seat) for o in self.opponents(seat))
+        if kind == "cast_this_turn":
+            return any(turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in seat.cast_log)
+        matching = sum(_has_type(p.card, condition.what) for p in seat.battlefield)
+        return matching >= condition.count if kind == "control_at_least" else matching == 0
 
     def _observe(self, event: str, card: Card, seat: Seat, subject: Permanent | None = None,
-                 extra: list[tuple[Permanent, Seat]] = ()) -> None:
+                 extra: list[tuple[Permanent, Seat]] = (), x: int = 0) -> None:
         """Trigger abilities that watch for `event` happening to `card` (controlled by `seat`):
         "Whenever another creature enters", landfall, "whenever a creature dies",
         "whenever you cast a spell". `extra` adds watchers that just left the battlefield
@@ -868,7 +895,10 @@ class Game:
                     continue
                 if not _watch_type_matches(watch.kind, card):
                     continue
-                self._queue(ability, watcher, watcher_seat)
+                if watch.first_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
+                                                 for turn, c in seat.cast_log) != 1:
+                    continue
+                self._queue(ability, watcher, watcher_seat, x)
 
     def _put_triggers_on_stack(self) -> None:
         """Active player's triggers first, then the others in turn order (CR 603.3b).
@@ -888,7 +918,7 @@ class Game:
                 continue
             targets, labels = chosen
             item = StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability,
-                             trigger.permanent)
+                             trigger.permanent, x=trigger.x)
             self.stack.append(item)
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
                             "ability": _shown(trigger.ability.text, trigger.source), "targets": labels})
@@ -989,6 +1019,8 @@ class Game:
             first_loss = amount < 0 and seat.life_lost_turn != self.turn
             if amount < 0:
                 seat.life_lost_turn = self.turn
+            else:
+                seat.life_gained_turn = self.turn
             for permanent in list(seat.battlefield):
                 self.trigger("gain_life" if amount > 0 else "lose_life", permanent, seat)
                 if first_loss:
@@ -1080,6 +1112,7 @@ class Game:
 
     def _left_graveyard(self, seat: Seat) -> None:
         """One or more cards just left `seat`'s graveyard, as one event."""
+        seat.graveyard_left_turn = self.turn
         for permanent in list(seat.battlefield):
             self.trigger("graveyard_leave", permanent, seat)
 
@@ -1446,10 +1479,17 @@ class Game:
                 seat.player.notify(event)
 
 
+def _has_type(card: Card, kind: str) -> bool:
+    """Whether a card has a type or subtype: "creature", "Plains", "Snake"."""
+    return kind.lower() in card.type_line.lower().replace("—", " ").split()
+
+
 def _watch_type_matches(kind: str, card: Card) -> bool:
     """Whether `card` is what a watch looks for: "creature", "land", ..., or for casts
     "spell", "creature spell", "noncreature spell", "instant or sorcery spell", "red spell",
     "historic spell", "aura, equipment, or vehicle spell", ..."""
+    if kind == "spell with {x} in its mana cost":
+        return "{X}" in card.mana_cost
     kind = kind.removesuffix(" spell").removesuffix("spell").strip()
     if not kind:
         return True

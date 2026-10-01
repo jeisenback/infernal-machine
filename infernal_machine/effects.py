@@ -9,6 +9,7 @@ enters, draw a card.") use the same templates for what they do.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from dataclasses import dataclass
 from functools import lru_cache
@@ -1030,6 +1031,39 @@ class TriggeredAbility:
     text: str
     watch: "Watch | None" = None  # set when it watches other objects ("Whenever another creature enters")
     once_per_turn: bool = False  # "This ability triggers only once each turn."
+    condition: "Condition | None" = None  # "At the beginning of your upkeep, if ..., ..." (CR 603.4)
+
+
+@dataclass(frozen=True)
+class Condition:
+    """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
+    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
+    #            "control_none"
+    count: int = 0
+    what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
+
+
+def _singular(word: str) -> str:
+    return word if word.endswith("ss") or word.lower() == "plains" else word.removesuffix("s")
+
+
+_CONDITIONS = [
+    (re.compile(r"a card left your graveyard this turn"), lambda m: Condition("graveyard_left")),
+    (re.compile(r"you gained life this turn"), lambda m: Condition("gained_life")),
+    (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
+    (re.compile(r"you've cast an? (instant or sorcery spell|creature spell|noncreature spell|spell) this turn"),
+     lambda m: Condition("cast_this_turn", what=m[1])),
+    (re.compile(rf"you control {_N} or more ([A-Za-z]+)"),
+     lambda m: Condition("control_at_least", _count(m[1]), _singular(m[2]))),
+    (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
+]
+
+
+def _condition(text: str) -> Condition | None:
+    for pattern, build in _CONDITIONS:
+        if m := pattern.fullmatch(text):
+            return build(m)
+    return None
 
 
 @dataclass(frozen=True)
@@ -1041,6 +1075,7 @@ class Watch:
     nontoken: bool = False
     caster: str = "you"  # for casts: "you", "player" (anyone) or "opponent"
     theirs: bool = False  # "an opponent controls"
+    first_each_turn: bool = False  # "your first ... spell each turn"
 
 
 _TRIGGERS = {
@@ -1077,9 +1112,11 @@ _WATCHES = {
         rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? enters(?: the battlefield)?( under your control)?, (.+)", re.I),
     "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature)( you control| an opponent controls)? dies, (.+)",
                                 re.I),
-    "cast": re.compile(r"Whenever (you cast|a player casts|an opponent casts) an? ((?:white|blue|black|red|green) spell"
+    "cast": re.compile(r"Whenever (you cast|a player casts|an opponent casts) (?:an?|(your first)) "
+                       r"((?:white|blue|black|red|green) spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
-                       r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell), (.+)", re.I),
+                       r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost)"
+                       r"(?(2) each turn), (.+)", re.I),
 }
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
 
@@ -1088,7 +1125,7 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     line = _ABILITY_WORD.sub("", line)
     if m := _WATCHES["cast"].fullmatch(line):
         caster = {"you cast": "you", "a player casts": "player", "an opponent casts": "opponent"}[m[1].lower()]
-        return "cast", Watch(m[2].lower(), caster=caster), m[3]
+        return "cast", Watch(m[3].lower(), caster=caster, first_each_turn=bool(m[2])), m[4]
     for event in ("permanent_enters", "creature_dies"):
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()
@@ -1115,8 +1152,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     if any(is_return_exiled_line(line) for line in rules_lines(card)):
         # Two-trigger wording: the enters-the-battlefield exile lasts until this permanent leaves.
         abilities = [
-            TriggeredAbility(a.event, tuple(ExileUntilLeaves(e.target, e.another) if isinstance(e, Exile) else e
-                                            for e in a.effects), a.optional, a.text, a.watch, a.once_per_turn)
+            dataclasses.replace(a, effects=tuple(ExileUntilLeaves(e.target, e.another) if isinstance(e, Exile) else e
+                                                 for e in a.effects))
             if a.event == "enters" else a
             for a in abilities]
     return tuple(abilities)
@@ -1125,13 +1162,20 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
 _TRIGGERS_ONCE = " This ability triggers only once each turn."
 
 
-def _trigger_body(rest: str) -> tuple[list | None, bool, bool]:
-    """The part of a trigger after its condition: (effects or None, "you may", "only once each turn")."""
+def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]:
+    """The part of a trigger after its event: (effects, or None if not understood; "you may";
+    "only once each turn"; an intervening "if" clause)."""
+    condition = None
+    if rest.startswith("if ") and ", " in rest:
+        text, rest = rest[3:].split(", ", 1)
+        condition = _condition(text)
+        if condition is None:
+            return None, False, False, None
     once = rest.endswith(_TRIGGERS_ONCE)
     rest = rest.removesuffix(_TRIGGERS_ONCE)
     optional = rest.lower().startswith("you may ")
     rest = rest[len("you may "):] if optional else rest
-    return _parse(_split_sentences(rest[:1].upper() + rest[1:])), optional, once
+    return _parse(_split_sentences(rest[:1].upper() + rest[1:])), optional, once, condition
 
 
 def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
@@ -1143,17 +1187,18 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
             # Here "it"/"that creature" may mean the other object, not the source: not supported yet.
             if re.search(r"\bit\b|\bthat (creature|land|spell)\b", rest, re.I):
                 continue
-            effects, optional, once = _trigger_body(rest)
+            effects, optional, once, condition = _trigger_body(rest)
             if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch, once))
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch, once, condition))
             continue
         for event, pattern in _TRIGGERS.items():
             match = pattern.fullmatch(line)
             if not match:
                 continue
-            effects, optional, once = _trigger_body(match[1])
+            effects, optional, once, condition = _trigger_body(match[1])
             if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, once_per_turn=once))
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, once_per_turn=once,
+                                                  condition=condition))
             break
     return abilities
 
