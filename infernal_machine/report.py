@@ -14,8 +14,8 @@ from dataclasses import dataclass
 
 from .analysis import is_land
 from .cards import Card, Deck
-from .effects import (PROTECTION, activated_abilities, attached_abilities, is_cycling_line, is_enchant_line,
-                      is_enters_tapped_line, is_enters_with_counters, is_mana_ability, is_modal_header,
+from .effects import (PROTECTION, activated_abilities, attached_abilities, is_casting_cost_line, is_cost_reduction_line,
+                      is_cycling_line, is_enchant_line, is_enters_tapped_line, is_enters_with_counters, is_mana_ability, is_modal_header,
                       is_return_exiled_line, is_ward_line, line_effects, mode_text, rules_lines, static_abilities,
                       triggered_abilities)
 from .mana import parse_cost
@@ -66,10 +66,13 @@ def unsupported_lines(card: Card) -> list[str]:
     for line in rules_lines(card):
         if _is_keyword_line(line) or _DECKBUILDING.fullmatch(line) or is_cycling_line(line):
             continue
+        if is_casting_cost_line(line) and (spell or not line.startswith("Kicker ")):
+            continue  # kicker only does something on instants and sorceries so far
         if spell and (is_modal_header(line) or line_effects(mode_text(line)) is not None):
             continue  # a sentence of the spell, or the "Choose one —" line, or one of its modes
         if not spell and (line in abilities or is_mana_ability(line) or is_enters_with_counters(line)
-                          or is_enchant_line(line) or is_enters_tapped_line(line) or is_return_exiled_line(line)):
+                          or is_enchant_line(line) or is_enters_tapped_line(line) or is_return_exiled_line(line)
+                          or is_cost_reduction_line(line)):
             continue
         problems.append(line)
     return problems

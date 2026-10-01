@@ -9,6 +9,7 @@ enters, draw a card.") use the same templates for what they do.
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from dataclasses import dataclass
 from functools import lru_cache
@@ -24,7 +25,8 @@ _NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 
             "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
 _N = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+|X)"
 _REMINDER = re.compile(r"\s*\([^)]*\)")
-_SELF = r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|planeswalker|permanent))"
+_SELF = (r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|planeswalker|permanent"
+         r"|Aura|Equipment|Class|Vehicle|Saga))")
 
 
 def _count(word: str) -> int | str:
@@ -804,6 +806,97 @@ def cycling_cost(card: Card) -> str | None:
 
 def is_cycling_line(line: str) -> bool:
     return _CYCLING.fullmatch(line) is not None
+
+
+@dataclass(frozen=True)
+class AlternativeCost:
+    """A way to cast a spell instead of paying its mana cost (CR 118.9)."""
+    text: str  # how it's offered to the caster
+    commander: bool = False  # "If you control a commander, ..."
+    not_your_turn: bool = False  # "If it's not your turn, ..."
+    life: int = 0
+    exile_color: str | None = None  # exile a card of this color (a letter) from your hand
+
+
+@dataclass(frozen=True)
+class AdditionalCost:
+    """"As an additional cost to cast this spell, ..." (CR 601.2b)."""
+    sacrifice: str | None = None  # the kind of permanent: "creature", "artifact or creature", ...
+    discard: bool = False
+    life: int = 0
+
+
+_KICKER = re.compile(r"Kicker ((?:\{\d+\}|\{[WUBRGC]\})+)")
+_FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast this spell without paying its mana cost\.")
+_PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life and )?exile an? ({_COLOR_NAMES}) card "
+                    r"from your hand rather than pay this spell's mana cost\.")
+_ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
+                         rf"creature|permanent)|(discard a card)|pay (?!X ){_N} life)\.")  # "pay X life" (Toxic Deluge) isn't supported
+_REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery) )?spells "
+                        r"you cast cost \{(\d+)\} less to cast\.", re.I)
+
+
+def kicker_cost(card: Card) -> str | None:
+    """The mana cost from "Kicker {1}{U}" (only mana costs are supported), or None."""
+    return next((m[1] for line in rules_lines(card) if (m := _KICKER.fullmatch(line))), None)
+
+
+def alternative_costs(card: Card) -> list[AlternativeCost]:
+    costs = []
+    for line in rules_lines(card):
+        if _FREE_WITH_COMMANDER.fullmatch(line):
+            costs.append(AlternativeCost("Cast without paying its mana cost", commander=True))
+        elif m := _PITCH.fullmatch(line):
+            life = _count(m[2]) if m[2] else 0
+            text = f"Pay {life} life and exile a {m[3]} card" if life else f"Exile a {m[3]} card"
+            costs.append(AlternativeCost(text, not_your_turn=bool(m[1]), life=life, exile_color=_COLOR_LETTER[m[3]]))
+    return costs
+
+
+def additional_costs(card: Card) -> list[AdditionalCost]:
+    costs = []
+    for line in rules_lines(card):
+        if m := _ADDITIONAL.fullmatch(line):
+            costs.append(AdditionalCost(sacrifice=m[1], discard=bool(m[2]), life=_count(m[3]) if m[3] else 0))
+    return costs
+
+
+def cost_reductions(card: Card) -> list[tuple[str, int]]:
+    """Static "Green spells you cast cost {1} less to cast." abilities (Medallions): (what kind of spell, how much).
+    The kind is a color letter, a card type ("creature", "noncreature", "instant and sorcery") or "spell"."""
+    found = []
+    for line in rules_lines(card):
+        if m := _REDUCTION.fullmatch(line):
+            kind = (m[1] or "spell").lower()
+            found.append((_COLOR_LETTER.get(kind, kind), int(m[2])))
+    return found
+
+
+def is_casting_cost_line(line: str) -> bool:
+    """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
+    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL))
+
+
+def is_cost_reduction_line(line: str) -> bool:
+    return _REDUCTION.fullmatch(line) is not None
+
+
+@dataclass(frozen=True)
+class IfKicked:
+    """"If this spell was kicked, draw a card.": the effect happens only if the kicker cost was paid."""
+    effect: Any
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None and game.resolving_item.kicked:
+            self.effect.resolve(game, controller, target)
+
+
+def _kicked(m: re.Match) -> IfKicked | None:
+    effects = _parse([m[1][:1].upper() + m[1][1:]])
+    # Targets are chosen before the kicker is known here, so kicked effects can't target (or follow a target) yet.
+    if not effects or target_kind(effects[0]) or follows_target(effects[0]) or uses_source(effects[0]):
+        return None
+    return IfKicked(effects[0])
 _LAND_TYPES = rf"({_LAND_TYPE}(?:, {_LAND_TYPE})*(?:,? or {_LAND_TYPE})?)"
 
 
@@ -831,6 +924,7 @@ _PERMANENT_KIND = (r"((?:creature|artifact|enchantment|planeswalker|nonland perm
 _DAMAGE_KIND = r"(any target|target creature|target player|target creature or planeswalker|target player or planeswalker)"
 
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
+    (re.compile(r"if this spell was kicked, (.+)", re.I), _kicked),
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
     (re.compile(rf"you gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
@@ -918,10 +1012,10 @@ def _parse(sentences: list[str]) -> list | None:
 def spell_effects(card: Card) -> list | None:
     """Effects of an instant or sorcery, in order; None if any sentence isn't understood. A modal spell
     ("Choose one — ...") gives a single Modal effect."""
-    lines = rules_lines(card)
+    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line)]
     if lines and (m := _MODAL_HEADER.fullmatch(lines[0])):
         return _parse_modal(m[1].lower(), lines[1:])
-    return _parse(_split_sentences(_rules_text(card)))
+    return _parse(_split_sentences("\n".join(lines)))
 
 
 def line_effects(line: str) -> list | None:
@@ -936,6 +1030,40 @@ class TriggeredAbility:
     optional: bool  # "you may ...": the controller chooses when it resolves
     text: str
     watch: "Watch | None" = None  # set when it watches other objects ("Whenever another creature enters")
+    once_per_turn: bool = False  # "This ability triggers only once each turn."
+    condition: "Condition | None" = None  # "At the beginning of your upkeep, if ..., ..." (CR 603.4)
+
+
+@dataclass(frozen=True)
+class Condition:
+    """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
+    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
+    #            "control_none"
+    count: int = 0
+    what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
+
+
+def _singular(word: str) -> str:
+    return word if word.endswith("ss") or word.lower() == "plains" else word.removesuffix("s")
+
+
+_CONDITIONS = [
+    (re.compile(r"a card left your graveyard this turn"), lambda m: Condition("graveyard_left")),
+    (re.compile(r"you gained life this turn"), lambda m: Condition("gained_life")),
+    (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
+    (re.compile(r"you've cast an? (instant or sorcery spell|creature spell|noncreature spell|spell) this turn"),
+     lambda m: Condition("cast_this_turn", what=m[1])),
+    (re.compile(rf"you control {_N} or more ([A-Za-z]+)"),
+     lambda m: Condition("control_at_least", _count(m[1]), _singular(m[2]))),
+    (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
+]
+
+
+def _condition(text: str) -> Condition | None:
+    for pattern, build in _CONDITIONS:
+        if m := pattern.fullmatch(text):
+            return build(m)
+    return None
 
 
 @dataclass(frozen=True)
@@ -945,6 +1073,9 @@ class Watch:
     other: bool = False  # "another": not the source itself
     yours: bool = False  # "you control" / "under your control"
     nontoken: bool = False
+    caster: str = "you"  # for casts: "you", "player" (anyone) or "opponent"
+    theirs: bool = False  # "an opponent controls"
+    first_each_turn: bool = False  # "your first ... spell each turn"
 
 
 _TRIGGERS = {
@@ -954,6 +1085,22 @@ _TRIGGERS = {
     "combat_damage_to_player": re.compile(rf"Whenever {_SELF} deals combat damage to a player, (.+)", re.I),
     "upkeep": re.compile(r"At the beginning of your upkeep, (.+)", re.I),
     "end_step": re.compile(r"At the beginning of your end step, (.+)", re.I),
+    "each_upkeep": re.compile(r"At the beginning of each upkeep, (.+)", re.I),
+    "each_end_step": re.compile(r"At the beginning of each end step, (.+)", re.I),
+    "combat": re.compile(r"At the beginning of combat on your turn, (.+)", re.I),
+    "gain_life": re.compile(r"Whenever you gain life, (.+)", re.I),
+    "lose_life": re.compile(r"Whenever you lose life, (.+)", re.I),
+    "sacrifice_creature": re.compile(r"Whenever you sacrifice a creature, (.+)", re.I),
+    "ally_combat_damage": re.compile(r"Whenever a creature you control deals combat damage to a player, (.+)", re.I),
+    "token_combat_damage": re.compile(r"Whenever a creature token you control deals combat damage to a player, (.+)",
+                                      re.I),
+    "host_attacks": re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I),
+    "attack_with_two": re.compile(r"Whenever you attack with two or more creatures, (.+)", re.I),
+    "graveyard_leave": re.compile(r"Whenever one or more cards leave your graveyard, (.+)", re.I),
+    "any_sacrifice": re.compile(r"Whenever a player sacrifices a permanent, (.+)", re.I),
+    "other_sacrifice": re.compile(r"Whenever a player sacrifices another permanent, (.+)", re.I),
+    "host_dies": re.compile(r"When(?:ever)? enchanted creature dies, (.+)", re.I),
+    "first_life_loss": re.compile(r"Whenever you lose life for the first time each turn, (.+)", re.I),
 }
 TRIGGER_EVENTS = tuple(_TRIGGERS)
 
@@ -963,9 +1110,13 @@ _PERMANENT_WATCH = r"(nontoken creature|creature|land|artifact|enchantment)"
 _WATCHES = {
     "permanent_enters": re.compile(
         rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? enters(?: the battlefield)?( under your control)?, (.+)", re.I),
-    "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature)( you control)? dies, (.+)", re.I),
-    "cast": re.compile(r"Whenever you cast an? (spell|creature spell|noncreature spell|instant or sorcery spell"
-                       r"|artifact spell|enchantment spell), (.+)", re.I),
+    "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature)( you control| an opponent controls)? dies, (.+)",
+                                re.I),
+    "cast": re.compile(r"Whenever (you cast|a player casts|an opponent casts) (?:an?|(your first)) "
+                       r"((?:white|blue|black|red|green) spell"
+                       r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
+                       r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost)"
+                       r"(?(2) each turn), (.+)", re.I),
 }
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
 
@@ -973,13 +1124,14 @@ _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Const
 def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     line = _ABILITY_WORD.sub("", line)
     if m := _WATCHES["cast"].fullmatch(line):
-        return "cast", Watch(m[1].lower()), m[2]
+        caster = {"you cast": "you", "a player casts": "player", "an opponent casts": "opponent"}[m[1].lower()]
+        return "cast", Watch(m[3].lower(), caster=caster, first_each_turn=bool(m[2])), m[4]
     for event in ("permanent_enters", "creature_dies"):
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()
-            yours = bool(m[4]) or (event == "permanent_enters" and bool(m[5]))
+            yours = m[4] == " you control" or (event == "permanent_enters" and bool(m[5]))
             watch = Watch(kind.removeprefix("nontoken "), other=bool(another) and not self_or_other,
-                          yours=yours, nontoken=kind.startswith("nontoken"))
+                          yours=yours, nontoken=kind.startswith("nontoken"), theirs=m[4] == " an opponent controls")
             return event, watch, m[len(m.groups())]
     return None
 
@@ -1000,11 +1152,30 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     if any(is_return_exiled_line(line) for line in rules_lines(card)):
         # Two-trigger wording: the enters-the-battlefield exile lasts until this permanent leaves.
         abilities = [
-            TriggeredAbility(a.event, tuple(ExileUntilLeaves(e.target, e.another) if isinstance(e, Exile) else e
-                                            for e in a.effects), a.optional, a.text, a.watch)
+            dataclasses.replace(a, effects=tuple(ExileUntilLeaves(e.target, e.another) if isinstance(e, Exile) else e
+                                                 for e in a.effects))
             if a.event == "enters" else a
             for a in abilities]
     return tuple(abilities)
+
+
+_TRIGGERS_ONCE = " This ability triggers only once each turn."
+
+
+def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]:
+    """The part of a trigger after its event: (effects, or None if not understood; "you may";
+    "only once each turn"; an intervening "if" clause)."""
+    condition = None
+    if rest.startswith("if ") and ", " in rest:
+        text, rest = rest[3:].split(", ", 1)
+        condition = _condition(text)
+        if condition is None:
+            return None, False, False, None
+    once = rest.endswith(_TRIGGERS_ONCE)
+    rest = rest.removesuffix(_TRIGGERS_ONCE)
+    optional = rest.lower().startswith("you may ")
+    rest = rest[len("you may "):] if optional else rest
+    return _parse(_split_sentences(rest[:1].upper() + rest[1:])), optional, once, condition
 
 
 def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
@@ -1016,23 +1187,18 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
             # Here "it"/"that creature" may mean the other object, not the source: not supported yet.
             if re.search(r"\bit\b|\bthat (creature|land|spell)\b", rest, re.I):
                 continue
-            optional = rest.lower().startswith("you may ")
-            rest = rest[len("you may "):] if optional else rest
-            effects = _parse(_split_sentences(rest[:1].upper() + rest[1:]))
+            effects, optional, once, condition = _trigger_body(rest)
             if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch))
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch, once, condition))
             continue
         for event, pattern in _TRIGGERS.items():
             match = pattern.fullmatch(line)
             if not match:
                 continue
-            rest = match[1]
-            optional = rest.lower().startswith("you may ")
-            if optional:
-                rest = rest[len("you may "):]
-            effects = _parse(_split_sentences(rest[:1].upper() + rest[1:]))
+            effects, optional, once, condition = _trigger_body(match[1])
             if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, line))
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, once_per_turn=once,
+                                                  condition=condition))
             break
     return abilities
 
