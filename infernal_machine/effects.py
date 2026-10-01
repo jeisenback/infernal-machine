@@ -604,6 +604,14 @@ class DamageEach:
 
 
 @dataclass(frozen=True)
+class SacrificeCreature:
+    """ "Sacrifice a creature." (you choose which) """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.sacrifice(controller)
+
+
+@dataclass(frozen=True)
 class EachSacrifices:
     """ "Each opponent sacrifices a creature." / "Each player sacrifices a creature." """
     who: str  # "opponent" or "player"
@@ -973,6 +981,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N} damage to each (creature you don't control|creature|opponent|player)"
                 r"(?: and each (opponent|player))?\.", re.I), _damage_each),
     (re.compile(r"each (opponent|player) sacrifices a creature\.", re.I), lambda m: EachSacrifices(m[1].lower())),
+    (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),
     (re.compile(r"target (player|opponent) sacrifices a creature\.", re.I), lambda m: TargetSacrifices(m[1].lower())),
     (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
     (re.compile(rf"put {_N} {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
@@ -995,9 +1004,30 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
 ]
 
 
+_YOUR_ACTION = rf"(?:draw (?:a card|{_N} cards)|gain {_N} life|lose {_N} life)"
+
+
+def _you_do(phrase: str) -> str:
+    """A sentence for something you do: "draw a card" -> "Draw a card.", "lose 1 life" -> "You lose 1 life." """
+    return phrase[:1].upper() + phrase[1:] + "." if phrase.lower().startswith("draw") else f"You {phrase}."
+
+
+def _clauses(sentence: str) -> list[str]:
+    """Rewrite wording the templates don't cover into sentences they do: "X and you gain 1 life." is two
+    sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
+    "You create" add nothing."""
+    sentence = sentence.replace(" of their choice.", ".")
+    sentence = re.sub(r"^You (draw|create) ", lambda m: m[1].capitalize() + " ", sentence)
+    if m := re.fullmatch(rf"(.+) and you ({_YOUR_ACTION})\.", sentence, re.I):
+        return _clauses(m[1] + ".") + [_you_do(m[2])]
+    if m := re.fullmatch(rf"(?:you )?(?P<first>{_YOUR_ACTION}) and (?P<second>{_YOUR_ACTION})\.", sentence, re.I):
+        return [_you_do(m["first"]), _you_do(m["second"])]
+    return [sentence]
+
+
 def _parse(sentences: list[str]) -> list | None:
     effects = []
-    for sentence in sentences:
+    for sentence in (clause for s in sentences for clause in _clauses(s)):
         for pattern, build in _TEMPLATES:
             match = pattern.fullmatch(sentence)
             effect = build(match) if match else None
