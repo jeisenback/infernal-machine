@@ -119,12 +119,14 @@ class ScryfallSource:
         missing: list[str] = []
         for start in range(0, len(wanted), self.COLLECTION_BATCH):
             batch = wanted[start : start + self.COLLECTION_BATCH]
-            body = {"identifiers": [{"name": n} for n in batch]}
+            # /cards/collection doesn't find "Fire // Ice", only "Fire", so send the front face.
+            fronts = {n.split(" // ")[0].lower(): n for n in batch}
+            body = {"identifiers": [{"name": front} for front in fronts]}
             data = self._call("/cards/collection", body)
             for card_data in data.get("data", []):
                 card = Card.from_scryfall(card_data)
                 found[card.name] = card
-            missing += [ident["name"] for ident in data.get("not_found", [])]
+            missing += [fronts.get(ident["name"], ident["name"]) for ident in data.get("not_found", [])]
         if missing:
             raise CardNotFound(", ".join(missing))
         return _match_requested(wanted, found)
