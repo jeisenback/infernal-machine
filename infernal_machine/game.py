@@ -298,6 +298,12 @@ class Game:
         elif self.step in ("upkeep", "end"):
             for permanent in list(seat.battlefield):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
+            for other in self.live_seats():  # "At the beginning of each upkeep / end step"
+                for permanent in list(other.battlefield):
+                    self.trigger("each_upkeep" if self.step == "upkeep" else "each_end_step", permanent, other)
+        elif self.step == "beginning_of_combat":
+            for permanent in list(seat.battlefield):
+                self.trigger("combat", permanent, seat)
         elif self.step == "declare_attackers":
             self.combat.declare_attackers(seat)
         elif self.step == "declare_blockers":
@@ -961,6 +967,9 @@ class Game:
     def change_life(self, seat: Seat, amount: int) -> None:
         seat.life += amount
         self.broadcast({"event": "life", "seat": seat.index, "change": amount, "life": seat.life})
+        if amount:  # "Whenever you gain life" / "Whenever you lose life": once per event, not per point
+            for permanent in list(seat.battlefield):
+                self.trigger("gain_life" if amount > 0 else "lose_life", permanent, seat)
 
     def damage(self, target: Seat | Permanent, amount: int, source: Permanent | None = None,
                combat: bool = False) -> None:
@@ -1303,6 +1312,12 @@ class Game:
         gone = [(permanent, permanent.last_controller) for permanent, _ in leaving]
         for permanent, reason in leaving:
             self.broadcast({"event": reason, "seat": permanent.last_controller.index, "card": permanent.card.name})
+        for permanent, reason in leaving:
+            if reason == "sacrificed" and "Creature" in permanent.card.type_line:
+                # "Whenever you sacrifice a creature" looks back in time, so the sacrificed creature sees itself go.
+                controller = permanent.last_controller
+                for watcher in controller.battlefield + [p for p, _ in leaving if p.last_controller is controller]:
+                    self.trigger("sacrifice_creature", watcher, controller)
         for permanent, _ in leaving:
             controller = permanent.last_controller
             if destination == "graveyard" and "Creature" in permanent.card.type_line:

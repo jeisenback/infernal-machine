@@ -24,7 +24,8 @@ _NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 
             "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
 _N = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+|X)"
 _REMINDER = re.compile(r"\s*\([^)]*\)")
-_SELF = r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|planeswalker|permanent))"
+_SELF = (r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|planeswalker|permanent"
+         r"|Aura|Equipment|Class|Vehicle|Saga))")
 
 
 def _count(word: str) -> int | str:
@@ -1046,6 +1047,12 @@ _TRIGGERS = {
     "combat_damage_to_player": re.compile(rf"Whenever {_SELF} deals combat damage to a player, (.+)", re.I),
     "upkeep": re.compile(r"At the beginning of your upkeep, (.+)", re.I),
     "end_step": re.compile(r"At the beginning of your end step, (.+)", re.I),
+    "each_upkeep": re.compile(r"At the beginning of each upkeep, (.+)", re.I),
+    "each_end_step": re.compile(r"At the beginning of each end step, (.+)", re.I),
+    "combat": re.compile(r"At the beginning of combat on your turn, (.+)", re.I),
+    "gain_life": re.compile(r"Whenever you gain life, (.+)", re.I),
+    "lose_life": re.compile(r"Whenever you lose life, (.+)", re.I),
+    "sacrifice_creature": re.compile(r"Whenever you sacrifice a creature, (.+)", re.I),
 }
 TRIGGER_EVENTS = tuple(_TRIGGERS)
 

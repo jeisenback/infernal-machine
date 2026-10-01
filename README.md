@@ -277,6 +277,10 @@ winner = game.play()
   | Whenever this creature attacks, ... | |
   | Whenever this creature deals combat damage to a player, ... | |
   | At the beginning of your upkeep / end step, ... | |
+  | At the beginning of each upkeep / each end step, ... (every player's turn) | Tendershoot Dryad |
+  | At the beginning of combat on your turn, ... | |
+  | Whenever you gain life / lose life, ... (once per event, not per point) | Dina, Soul Steeper |
+  | Whenever you sacrifice a creature, ... | Smothering Abomination |
   | Whenever another creature / a nontoken creature you control / an artifact ... enters, ... | Soul Warden |
   | Whenever a land you control enters, ... (Landfall) | |
   | Whenever (this creature or) another creature (you control) dies, ... | Zulaport Cutthroat |
@@ -287,7 +291,9 @@ winner = game.play()
   - Targets are chosen when a trigger goes on the stack. A trigger with no legal target is removed.
   - "You may" abilities ask their controller when they resolve.
   - A card can call itself by its full name, its short legendary name ("Omnath"),
-    "this creature", or "it".
+    "this creature" (or "this Aura", "this Equipment", "this Class", ...), or "it".
+  - Paying life counts as losing it. A creature that's sacrificed sees itself go
+    ("Whenever you sacrifice a creature" on the creature itself triggers).
   - A trigger whose effect isn't understood is ignored. So is a watching trigger whose effect mentions
     "it" or "that creature", because that may mean the other object rather than the source.
   - Ability words like "Landfall —" are ignored when reading the trigger. A creature that dies still sees
