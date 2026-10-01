@@ -61,7 +61,9 @@ class FakeScryfall:
             found, missing = [], []
             for ident in identifiers:
                 name = ident["name"].lower()
-                card = DB.get(name) or next((c for n, c in DB.items() if name in n.split(" // ")), None)
+                # Like Scryfall, the collection endpoint finds a face by its own name but not by "A // B".
+                card = None if " // " in name else (
+                    DB.get(name) or next((c for n, c in DB.items() if name in n.split(" // ")), None))
                 (found.append(card) if card else missing.append(ident))
             return {"data": found, "not_found": missing}
         name = request.full_url.split("exact=")[1].replace("+", " ").lower()
@@ -108,6 +110,10 @@ class ScryfallSourceTests(unittest.TestCase):
         cards = self.source.get_many(["lightning bolt", "Fire", "Grizzly Bears"])
         self.assertEqual(cards["lightning bolt"].name, "Lightning Bolt")
         self.assertEqual(cards["Fire"].name, "Fire // Ice")
+
+    def test_get_many_finds_full_split_names(self):
+        cards = self.source.get_many(["Fire // Ice"])
+        self.assertEqual(cards["Fire // Ice"].name, "Fire // Ice")
 
     def test_get_many_batches_requests(self):
         self.source.COLLECTION_BATCH = 2

@@ -278,17 +278,39 @@ winner = game.play()
   | Whenever this creature attacks, ... | |
   | Whenever this creature deals combat damage to a player, ... | |
   | At the beginning of your upkeep / end step, ... | |
+  | At the beginning of each upkeep / each end step, ... (every player's turn) | Tendershoot Dryad |
+  | At the beginning of combat on your turn, ... | |
+  | Whenever you gain life / lose life, ... (once per event, not per point) | Dina, Soul Steeper |
+  | Whenever you sacrifice a creature, ... | Smothering Abomination |
   | Whenever another creature / a nontoken creature you control / an artifact ... enters, ... | Soul Warden |
   | Whenever a land you control enters, ... (Landfall) | |
   | Whenever (this creature or) another creature (you control) dies, ... | Zulaport Cutthroat |
+  | Whenever a creature an opponent controls dies, ... | Yahenni, Undying Partisan |
+  | When enchanted creature dies, ... | |
+  | Whenever one or more cards leave your graveyard, ... (once per event) | Quintorius, History Chaser |
+  | Whenever a player sacrifices a permanent / another permanent, ... | Merchant of Venom |
+  | Whenever you lose life for the first time each turn, ... | |
   | Whenever you cast a (creature / noncreature / instant or sorcery) spell, ... | |
+  | Whenever you cast a red (or other color) / Aura / "Aura, Equipment, or Vehicle" / historic spell, ... | Sram, Senior Edificer |
+  | Whenever a player / an opponent casts a spell, ... | |
+  | Whenever you cast your first spell with {X} in its mana cost each turn, ... (X is that spell's X) | Zimone, Infinite Analyst |
+  | Whenever a creature (token) you control deals combat damage to a player, ... (once per creature) | Ohran Frostfang |
+  | Whenever equipped / enchanted creature attacks, ... | |
+  | Whenever you attack with two or more creatures, ... | Firemane Commando |
 
   - Triggers go on the stack the next time a player would get priority. The active player's go
     first, so they resolve last, and players can respond to them.
   - Targets are chosen when a trigger goes on the stack. A trigger with no legal target is removed.
   - "You may" abilities ask their controller when they resolve.
   - A card can call itself by its full name, its short legendary name ("Omnath"),
-    "this creature", or "it".
+    "this creature" (or "this Aura", "this Equipment", "this Class", ...), or "it".
+  - "This ability triggers only once each turn." is respected.
+  - Intervening "if" clauses are checked when the ability triggers and again when it resolves (CR 603.4).
+    Supported: "if a card left your graveyard this turn", "if you gained life this turn", "if an opponent
+    controls more lands than you", "if you've cast an instant or sorcery spell this turn", "if you control
+    seven or more Plains", "if you control no Snakes". A trigger with any other "if" clause is ignored.
+  - Paying life counts as losing it. A creature that's sacrificed sees itself go
+    ("Whenever you sacrifice a creature" on the creature itself triggers).
   - A trigger whose effect isn't understood is ignored. So is a watching trigger whose effect mentions
     "it" or "that creature", because that may mean the other object rather than the source.
   - Ability words like "Landfall —" are ignored when reading the trigger. A creature that dies still sees
