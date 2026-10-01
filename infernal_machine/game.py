@@ -98,6 +98,7 @@ class Permanent:
     counters: dict[str, int] = field(default_factory=dict)  # "+1/+1" -> 2
     until_end_of_turn: list[Modifier] = field(default_factory=list)
     activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
+    triggered_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last triggered (once-a-turn ones)
     last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
     last_power: int = 0  # its power just before it left (CR 608.2h: last known information)
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
@@ -172,6 +173,7 @@ class Seat:
     commander_casts: dict[str, int] = field(default_factory=dict)
     commander_damage: dict[tuple[int, str], int] = field(default_factory=dict)  # (seat, commander) -> damage
     lands_played: int = 0
+    life_lost_turn: int | None = None  # the last turn this player lost life
     drew_from_empty: bool = False
     lost: bool = False
 
@@ -830,7 +832,14 @@ class Game:
         the next time a player would get priority (CR 603.3)."""
         for ability in triggered_abilities(permanent.card):
             if ability.event == event and ability.watch is None:
-                self.pending.append(PendingTrigger(ability, permanent, controller))
+                self._queue(ability, permanent, controller)
+
+    def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat) -> None:
+        if ability.once_per_turn:  # "This ability triggers only once each turn."
+            if permanent.triggered_turn.get(ability.text) == self.turn:
+                return
+            permanent.triggered_turn[ability.text] = self.turn
+        self.pending.append(PendingTrigger(ability, permanent, controller))
 
     def _observe(self, event: str, card: Card, seat: Seat, subject: Permanent | None = None,
                  extra: list[tuple[Permanent, Seat]] = ()) -> None:
@@ -853,11 +862,13 @@ class Game:
                         continue
                 elif watch.yours and watcher_seat is not seat:
                     continue
+                if watch.theirs and watcher_seat is seat:
+                    continue
                 if watch.nontoken and _is_token(card):
                     continue
                 if not _watch_type_matches(watch.kind, card):
                     continue
-                self.pending.append(PendingTrigger(ability, watcher, watcher_seat))
+                self._queue(ability, watcher, watcher_seat)
 
     def _put_triggers_on_stack(self) -> None:
         """Active player's triggers first, then the others in turn order (CR 603.3b).
@@ -975,8 +986,13 @@ class Game:
         seat.life += amount
         self.broadcast({"event": "life", "seat": seat.index, "change": amount, "life": seat.life})
         if amount:  # "Whenever you gain life" / "Whenever you lose life": once per event, not per point
+            first_loss = amount < 0 and seat.life_lost_turn != self.turn
+            if amount < 0:
+                seat.life_lost_turn = self.turn
             for permanent in list(seat.battlefield):
                 self.trigger("gain_life" if amount > 0 else "lose_life", permanent, seat)
+                if first_loss:
+                    self.trigger("first_life_loss", permanent, seat)
 
     def damage(self, target: Seat | Permanent, amount: int, source: Permanent | None = None,
                combat: bool = False) -> None:
@@ -1048,6 +1064,7 @@ class Game:
             return
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": to})
+        self._left_graveyard(seat)
         if to == "hand":
             seat.hand.append(card)
         else:
@@ -1059,6 +1076,12 @@ class Game:
             seat.graveyard.remove(card)
             self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
             self._move_card(seat, card, "exile")
+            self._left_graveyard(seat)
+
+    def _left_graveyard(self, seat: Seat) -> None:
+        """One or more cards just left `seat`'s graveyard, as one event."""
+        for permanent in list(seat.battlefield):
+            self.trigger("graveyard_leave", permanent, seat)
 
     def tutor(self, seat: Seat, card_type: str, to: str, reveal: bool) -> None:
         """Search the library for a card of `card_type`: it goes to the hand (`to` is "hand")
@@ -1162,6 +1185,8 @@ class Game:
         self.broadcast({"event": "graveyard_exiled", "seat": seat.index, "cards": [c.name for c in cards]})
         for card in cards:
             self._move_card(seat, card, "exile")
+        if cards:
+            self._left_graveyard(seat)
 
     def counter(self, item: StackItem) -> None:
         self.stack.remove(item)
@@ -1323,16 +1348,25 @@ class Game:
         gone = [(permanent, permanent.last_controller) for permanent, _ in leaving]
         for permanent, reason in leaving:
             self.broadcast({"event": reason, "seat": permanent.last_controller.index, "card": permanent.card.name})
+        # Sacrifice triggers look back in time, so what was sacrificed sees itself go.
+        everyone = [(p, s) for s in self.live_seats() for p in s.battlefield] + gone
         for permanent, reason in leaving:
-            if reason == "sacrificed" and "Creature" in permanent.card.type_line:
-                # "Whenever you sacrifice a creature" looks back in time, so the sacrificed creature sees itself go.
-                controller = permanent.last_controller
-                for watcher in controller.battlefield + [p for p, _ in leaving if p.last_controller is controller]:
+            if reason != "sacrificed":
+                continue
+            controller = permanent.last_controller
+            for watcher, watcher_seat in everyone:
+                if watcher_seat is controller and "Creature" in permanent.card.type_line:
                     self.trigger("sacrifice_creature", watcher, controller)
+                self.trigger("any_sacrifice", watcher, watcher_seat)
+                if watcher is not permanent:
+                    self.trigger("other_sacrifice", watcher, watcher_seat)
         for permanent, _ in leaving:
             controller = permanent.last_controller
             if destination == "graveyard" and "Creature" in permanent.card.type_line:
                 self.trigger("dies", permanent, controller)
+                for attachment, attachment_seat in everyone:  # "When enchanted creature dies"
+                    if attachment.attached_to is permanent:
+                        self.trigger("host_dies", attachment, attachment_seat)
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
             if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)
                 self._move_card(permanent.owner or controller, permanent.card, destination)

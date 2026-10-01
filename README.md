@@ -284,6 +284,11 @@ winner = game.play()
   | Whenever another creature / a nontoken creature you control / an artifact ... enters, ... | Soul Warden |
   | Whenever a land you control enters, ... (Landfall) | |
   | Whenever (this creature or) another creature (you control) dies, ... | Zulaport Cutthroat |
+  | Whenever a creature an opponent controls dies, ... | Yahenni, Undying Partisan |
+  | When enchanted creature dies, ... | |
+  | Whenever one or more cards leave your graveyard, ... (once per event) | Quintorius, History Chaser |
+  | Whenever a player sacrifices a permanent / another permanent, ... | Merchant of Venom |
+  | Whenever you lose life for the first time each turn, ... | |
   | Whenever you cast a (creature / noncreature / instant or sorcery) spell, ... | |
   | Whenever you cast a red (or other color) / Aura / "Aura, Equipment, or Vehicle" / historic spell, ... | Sram, Senior Edificer |
   | Whenever a player / an opponent casts a spell, ... | |
@@ -297,6 +302,7 @@ winner = game.play()
   - "You may" abilities ask their controller when they resolve.
   - A card can call itself by its full name, its short legendary name ("Omnath"),
     "this creature" (or "this Aura", "this Equipment", "this Class", ...), or "it".
+  - "This ability triggers only once each turn." is respected.
   - Paying life counts as losing it. A creature that's sacrificed sees itself go
     ("Whenever you sacrifice a creature" on the creature itself triggers).
   - A trigger whose effect isn't understood is ignored. So is a watching trigger whose effect mentions

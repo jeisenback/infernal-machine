@@ -50,6 +50,18 @@ BOLT = Card(name="Bolt", mana_cost="{R}", type_line="Instant", colors=("R",), or
 LEGEND = Card(name="Legend", mana_cost="{W}", type_line="Legendary Creature — Human", colors=("W",),
               power="1", toughness="1")
 
+QUINTORIUS = Card(name="Quintorius", mana_cost="{R}{W}", type_line="Legendary Creature — Elephant",
+                  power="2", toughness="5",
+                  oracle_text="Whenever one or more cards leave your graveyard, you gain 1 life.")
+YAHENNI = creature("Yahenni", 2, 2, "Whenever a creature an opponent controls dies, put a +1/+1 counter on this creature.")
+MERCHANT = creature("Merchant", 2, 2, "Whenever a player sacrifices a permanent, put a +1/+1 counter on this creature.")
+MAZIREK = creature("Mazirek", 2, 2, "Whenever a player sacrifices another permanent, you gain 1 life.")
+DESTINY = Card(name="Destiny", mana_cost="{W}", type_line="Enchantment — Aura",
+               oracle_text="Enchant creature\nWhen enchanted creature dies, draw a card.")
+CHIROGRAPHY = Card(name="Chirography", mana_cost="{B}", type_line="Enchantment",
+                   oracle_text="Whenever you lose life for the first time each turn, draw a card.")
+BREWER = creature("Brewer", 1, 1, "Whenever you sacrifice a creature, draw a card. This ability triggers only once each turn.")
+
 
 def resolve_triggers(game, seat):
     game._priority_round(seat)
@@ -275,6 +287,104 @@ class CastFilterTests(unittest.TestCase):
 
     def test_report_accepts_them(self):
         for card in (OHRAN, CRAFTER, BOOTS, IMPETUS, COMMANDO, LIEGE, DANCER, SRAM, TESHAR, ANCIENT, TAXMAN):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+
+class WatchingMoreTests(unittest.TestCase):
+    def test_cards_leaving_your_graveyard_trigger_once_per_event(self):
+        from infernal_machine.game import GraveyardTarget
+        game, _, _ = table()
+        a, b = game.seats
+        a.battlefield = [Permanent(QUINTORIUS)]
+        a.graveyard = [BEAR, BEAR, BEAR]
+        game.return_from_graveyard(GraveyardTarget(a.graveyard[0], a), a, "hand")
+        game.exile_graveyard(a)  # two cards, one event
+        game.exile_graveyard(a)  # nothing left: no event
+        game.exile_graveyard(b)  # someone else's graveyard
+        resolve_triggers(game, a)
+        self.assertEqual(a.life, 42)
+
+    def test_a_creature_an_opponent_controls_dies(self):
+        game, _, _ = table()
+        a, b = game.seats
+        yahenni, mine, theirs = Permanent(YAHENNI), Permanent(BEAR), Permanent(BEAR)
+        a.battlefield = [yahenni, mine]
+        b.battlefield = [theirs]
+        game.destroy(mine)
+        game.destroy(theirs)
+        resolve_triggers(game, a)
+        self.assertEqual(yahenni.counters, {"+1/+1": 1})
+
+    def test_a_player_sacrifices_a_permanent(self):
+        game, _, _ = table()
+        a, b = game.seats
+        merchant = Permanent(MERCHANT)
+        a.battlefield = [merchant, Permanent(TREASURE)]
+        b.battlefield = [Permanent(BEAR)]
+        game._leave_battlefield(a.battlefield[1], "sacrificed")
+        game.sacrifice(b)
+        game.destroy(merchant)  # not a sacrifice
+        game.seats[0].battlefield = [merchant]
+        resolve_triggers(game, a)
+        self.assertEqual(merchant.counters, {"+1/+1": 2})
+
+    def test_another_permanent_excludes_itself(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        a.battlefield = [Permanent(MAZIREK)]
+        game.sacrifice(a)
+        resolve_triggers(game, a)
+        self.assertEqual(a.life, 40)
+        a.battlefield = [Permanent(MAZIREK), Permanent(TREASURE)]
+        game._leave_battlefield(a.battlefield[1], "sacrificed")
+        resolve_triggers(game, a)
+        self.assertEqual(a.life, 41)
+
+    def test_enchanted_creature_dies(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        bear = Permanent(BEAR)
+        a.battlefield = [bear, Permanent(DESTINY, attached_to=bear)]
+        a.library = [BEAR]
+        game.destroy(bear)
+        resolve_triggers(game, a)
+        self.assertEqual(a.hand, [BEAR])
+
+
+class OncePerTurnTests(unittest.TestCase):
+    def test_first_life_loss_each_turn(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        a.battlefield = [Permanent(CHIROGRAPHY)]
+        a.library = [BEAR] * 3
+        game.change_life(a, -1)
+        game.change_life(a, -1)
+        resolve_triggers(game, a)
+        self.assertEqual(len(a.hand), 1)
+        game.turn += 1
+        game.change_life(a, -1)
+        resolve_triggers(game, a)
+        self.assertEqual(len(a.hand), 2)
+
+    def test_triggers_only_once_each_turn(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        brewer = Permanent(BREWER)
+        a.battlefield = [Permanent(BEAR), Permanent(BEAR), Permanent(BEAR), brewer]
+        a.library = [BEAR] * 3
+        [ability] = triggered_abilities(BREWER)
+        self.assertEqual((ability.effects, ability.once_per_turn), ((Draw(1),), True))
+        for _ in range(2):
+            game.sacrifice(a)  # the first creature offered: a Bear
+        resolve_triggers(game, a)
+        self.assertEqual(len(a.hand), 1)
+        game.turn += 1
+        game.sacrifice(a)
+        resolve_triggers(game, a)
+        self.assertEqual(len(a.hand), 2)
+
+    def test_report_accepts_them(self):
+        for card in (QUINTORIUS, YAHENNI, MERCHANT, MAZIREK, DESTINY, CHIROGRAPHY, BREWER):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
 

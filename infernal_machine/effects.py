@@ -1029,6 +1029,7 @@ class TriggeredAbility:
     optional: bool  # "you may ...": the controller chooses when it resolves
     text: str
     watch: "Watch | None" = None  # set when it watches other objects ("Whenever another creature enters")
+    once_per_turn: bool = False  # "This ability triggers only once each turn."
 
 
 @dataclass(frozen=True)
@@ -1039,6 +1040,7 @@ class Watch:
     yours: bool = False  # "you control" / "under your control"
     nontoken: bool = False
     caster: str = "you"  # for casts: "you", "player" (anyone) or "opponent"
+    theirs: bool = False  # "an opponent controls"
 
 
 _TRIGGERS = {
@@ -1059,6 +1061,11 @@ _TRIGGERS = {
                                       re.I),
     "host_attacks": re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I),
     "attack_with_two": re.compile(r"Whenever you attack with two or more creatures, (.+)", re.I),
+    "graveyard_leave": re.compile(r"Whenever one or more cards leave your graveyard, (.+)", re.I),
+    "any_sacrifice": re.compile(r"Whenever a player sacrifices a permanent, (.+)", re.I),
+    "other_sacrifice": re.compile(r"Whenever a player sacrifices another permanent, (.+)", re.I),
+    "host_dies": re.compile(r"When(?:ever)? enchanted creature dies, (.+)", re.I),
+    "first_life_loss": re.compile(r"Whenever you lose life for the first time each turn, (.+)", re.I),
 }
 TRIGGER_EVENTS = tuple(_TRIGGERS)
 
@@ -1068,7 +1075,8 @@ _PERMANENT_WATCH = r"(nontoken creature|creature|land|artifact|enchantment)"
 _WATCHES = {
     "permanent_enters": re.compile(
         rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? enters(?: the battlefield)?( under your control)?, (.+)", re.I),
-    "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature)( you control)? dies, (.+)", re.I),
+    "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature)( you control| an opponent controls)? dies, (.+)",
+                                re.I),
     "cast": re.compile(r"Whenever (you cast|a player casts|an opponent casts) an? ((?:white|blue|black|red|green) spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell), (.+)", re.I),
@@ -1084,9 +1092,9 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     for event in ("permanent_enters", "creature_dies"):
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()
-            yours = bool(m[4]) or (event == "permanent_enters" and bool(m[5]))
+            yours = m[4] == " you control" or (event == "permanent_enters" and bool(m[5]))
             watch = Watch(kind.removeprefix("nontoken "), other=bool(another) and not self_or_other,
-                          yours=yours, nontoken=kind.startswith("nontoken"))
+                          yours=yours, nontoken=kind.startswith("nontoken"), theirs=m[4] == " an opponent controls")
             return event, watch, m[len(m.groups())]
     return None
 
@@ -1108,10 +1116,22 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
         # Two-trigger wording: the enters-the-battlefield exile lasts until this permanent leaves.
         abilities = [
             TriggeredAbility(a.event, tuple(ExileUntilLeaves(e.target, e.another) if isinstance(e, Exile) else e
-                                            for e in a.effects), a.optional, a.text, a.watch)
+                                            for e in a.effects), a.optional, a.text, a.watch, a.once_per_turn)
             if a.event == "enters" else a
             for a in abilities]
     return tuple(abilities)
+
+
+_TRIGGERS_ONCE = " This ability triggers only once each turn."
+
+
+def _trigger_body(rest: str) -> tuple[list | None, bool, bool]:
+    """The part of a trigger after its condition: (effects or None, "you may", "only once each turn")."""
+    once = rest.endswith(_TRIGGERS_ONCE)
+    rest = rest.removesuffix(_TRIGGERS_ONCE)
+    optional = rest.lower().startswith("you may ")
+    rest = rest[len("you may "):] if optional else rest
+    return _parse(_split_sentences(rest[:1].upper() + rest[1:])), optional, once
 
 
 def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
@@ -1123,23 +1143,17 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
             # Here "it"/"that creature" may mean the other object, not the source: not supported yet.
             if re.search(r"\bit\b|\bthat (creature|land|spell)\b", rest, re.I):
                 continue
-            optional = rest.lower().startswith("you may ")
-            rest = rest[len("you may "):] if optional else rest
-            effects = _parse(_split_sentences(rest[:1].upper() + rest[1:]))
+            effects, optional, once = _trigger_body(rest)
             if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch))
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch, once))
             continue
         for event, pattern in _TRIGGERS.items():
             match = pattern.fullmatch(line)
             if not match:
                 continue
-            rest = match[1]
-            optional = rest.lower().startswith("you may ")
-            if optional:
-                rest = rest[len("you may "):]
-            effects = _parse(_split_sentences(rest[:1].upper() + rest[1:]))
+            effects, optional, once = _trigger_body(match[1])
             if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, line))
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, once_per_turn=once))
             break
     return abilities
 
