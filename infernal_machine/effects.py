@@ -298,11 +298,13 @@ def _counter_name(text: str) -> str:
 
 _ENTERS_WITH = re.compile(rf"{_SELF} enters with {_N} {_COUNTER} on it\.", re.I)
 _IF_KICKED = re.compile(rf"if {_SELF} was kicked, ", re.I)
+_ENTERS_PER_KICK = re.compile(rf"{_SELF} enters with an? {_COUNTER} on it for each time it was kicked\.", re.I)
 
 
-def enters_with_counters(card: Card, kicked: bool = False) -> dict[str, int | str]:
-    """Counters from "This creature enters with N (or X) +1/+1 counters on it.", plus, when `kicked`,
-    "If this creature was kicked, it enters with N +1/+1 counters on it." """
+def enters_with_counters(card: Card, kicked: int = 0) -> dict[str, int | str]:
+    """Counters from "This creature enters with N (or X) +1/+1 counters on it.", plus, when `kicked` (the number
+    of times), "If this creature was kicked, it enters with N +1/+1 counters on it." and multikicker's
+    "... enters with a +1/+1 counter on it for each time it was kicked." """
     counters: dict[str, int | str] = {}
     for line in rules_lines(card):
         if kicked and (k := _IF_KICKED.match(line)):
@@ -310,13 +312,16 @@ def enters_with_counters(card: Card, kicked: bool = False) -> dict[str, int | st
         if m := _ENTERS_WITH.fullmatch(line):
             name, count = _counter_name(m[2]), _count(m[1])
             counters[name] = count if count == "X" else counters.get(name, 0) + count
+        elif kicked and (m := _ENTERS_PER_KICK.fullmatch(line)):
+            name = _counter_name(m[1])
+            counters[name] = counters.get(name, 0) + kicked
     return counters
 
 
 def is_enters_with_counters(line: str) -> bool:
     if k := _IF_KICKED.match(line):
         line = line[k.end():]
-    return _ENTERS_WITH.fullmatch(line) is not None
+    return _ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None
 
 
 def _signed(text: str) -> int:
@@ -832,7 +837,7 @@ class AdditionalCost:
     life: int = 0
 
 
-_KICKER = re.compile(r"Kicker ((?:\{\d+\}|\{[WUBRGC]\})+)")
+_KICKER = re.compile(r"(?:Multik|K)icker ((?:\{\d+\}|\{[WUBRGC]\})+)")
 _FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast this spell without paying its mana cost\.")
 _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life and )?exile an? ({_COLOR_NAMES}) card "
                     r"from your hand rather than pay this spell's mana cost\.")
@@ -843,8 +848,13 @@ _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|nonc
 
 
 def kicker_cost(card: Card) -> str | None:
-    """The mana cost from "Kicker {1}{U}" (only mana costs are supported), or None."""
+    """The mana cost from "Kicker {1}{U}" or "Multikicker {1}{G}" (only mana costs are supported), or None."""
     return next((m[1] for line in rules_lines(card) if (m := _KICKER.fullmatch(line))), None)
+
+
+def is_multikicker(card: Card) -> bool:
+    """Multikicker: the kicker cost can be paid any number of times (CR 702.33c)."""
+    return any(line.startswith("Multikicker ") and _KICKER.fullmatch(line) for line in rules_lines(card))
 
 
 def alternative_costs(card: Card) -> list[AlternativeCost]:
@@ -899,10 +909,15 @@ class IfKicked:
 
 def _kicked(m: re.Match) -> IfKicked | None:
     effects = _parse([m[1][:1].upper() + m[1][1:]])
-    # Targets are chosen before the kicker is known here, so kicked effects can't target (or follow a target) yet.
-    if not effects or target_kind(effects[0]) or follows_target(effects[0]) or uses_source(effects[0]):
+    return IfKicked(effects[0]) if effects else None
+
+
+def kicked_effects(effects: list | None, kicked: int) -> list | None:
+    """A spell's effects once it's known whether it was kicked: "If this spell was kicked, ..." effects
+    become plain effects, or are dropped. This happens before targets are chosen, so kicked effects can target."""
+    if effects is None:
         return None
-    return IfKicked(effects[0])
+    return [e.effect if isinstance(e, IfKicked) else e for e in effects if kicked or not isinstance(e, IfKicked)]
 _LAND_TYPES = rf"({_LAND_TYPE}(?:, {_LAND_TYPE})*(?:,? or {_LAND_TYPE})?)"
 
 

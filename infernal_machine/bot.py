@@ -11,7 +11,7 @@ from .analysis import is_land
 from .cards import Card, Deck
 from .combat import ATTACK_PROMPT, BLOCK_PROMPT
 from .game import (ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
-                   PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
+                   MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
@@ -92,7 +92,7 @@ class BotPlayer:
             return self._block(prompt, options)
         if prompt.startswith(SHOCK_PROMPT):
             return 0 if self._life.get(self._seat, 0) > 10 else 1  # pay life only while healthy
-        if prompt.startswith(X_PROMPT):
+        if prompt.startswith((X_PROMPT, MULTIKICKER_PROMPT)):
             return len(options) - 1  # as big as it can afford
         if prompt == SEARCH_CARD_PROMPT:
             return max(range(len(options)), key=lambda i: self._cards[options[i]].cmc)  # its best card
