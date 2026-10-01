@@ -175,6 +175,8 @@ winner = game.play()
 | Exile all creatures / ... | |
 | This spell deals N (or X) damage to each creature / each creature you don't control / each opponent / each player | Pyroclasm |
 | Each opponent (or each player) sacrifices a creature. Target player (or opponent) sacrifices a creature. | Diabolic Edict |
+| Sacrifice a creature. | Smothering Abomination |
+| Two things joined by "and": "... and you gain 1 life", "You gain 1 life and draw a card", "You draw two cards and lose 2 life" | Blood Artist, Night's Whisper |
 | Create N P/T color Subtype (artifact) creature token(s) (with flying, vigilance, ...). | Raise the Alarm |
 | Create N Treasure / Clue / Food token(s). | Smothering Tithe |
 | Destroy target permanent. Its controller creates a 3/3 green Beast creature token. | Beast Within |
@@ -185,6 +187,14 @@ winner = game.play()
 | This creature gets +1/+0 until end of turn. (as an activated ability) | Shivan Dragon |
 | Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. | Rampant Growth |
 
+- **Wording:** "of their choice" and a leading "You draw" / "You create" are read the same as without them.
+- **Amounts that depend on the game:** "..., where X is ...", "... equal to ..." and "... for each ..." are worked out
+  when the effect resolves. Supported: its (or this creature's) power, using its last known power if it has left the
+  battlefield; +1/+1 counters on it; the number of <type> you control; creatures on the battlefield; the amount of life
+  you gained this turn; spells you've cast this turn; the greatest mana value among instant and sorcery spells you've
+  cast this turn; opponents. "For each" multiplies drawing, life, tokens and +1/+1 counters ("create a 1/1 Saproling
+  token for each +1/+1 counter on this creature"). A sentence a template already understands is never rewritten.
+  "An X/X ... token" gets its size when it's created (Rootha, Mastering the Moment).
 - **Target restrictions:** destroy and exile targets can say "an opponent controls",
   "you don't control" or "you control".
 - **Counters:** +1/+1 and -1/-1 counters change power and toughness. Matching +1/+1 and -1/-1
