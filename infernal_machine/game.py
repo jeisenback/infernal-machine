@@ -22,7 +22,7 @@ from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
-                      Condition, TriggeredAbility, WardCounter,
+                      Amount, Condition, TriggeredAbility, WardCounter,
                       activated_abilities, additional_costs, alternative_costs, cost_reductions, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, is_identity_mana_land, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
@@ -176,6 +176,7 @@ class Seat:
     lands_played: int = 0
     life_lost_turn: int | None = None  # the last turn this player lost life
     life_gained_turn: int | None = None
+    life_gained_amount: int = 0  # how much life this player gained on life_gained_turn
     graveyard_left_turn: int | None = None  # the last turn a card left this player's graveyard
     cast_log: list[tuple[int, Card]] = field(default_factory=list)  # (turn, spell) for every spell cast
     drew_from_empty: bool = False
@@ -795,6 +796,30 @@ class Game:
             return
         self._apply_effects(item)
 
+    def evaluate(self, amount: Amount, controller: Seat) -> int:
+        """Work out an amount that depends on the game, for the resolving spell or ability."""
+        source, kind = self.resolving_source, amount.kind
+        this_turn = [card for turn, card in controller.cast_log if turn == self.turn]
+        if kind == "source_power":
+            if source is None:
+                return 0
+            return self.power(source) if self.on_battlefield(source) else source.last_power  # last known (CR 608.2h)
+        if kind == "source_counters":
+            return source.counters.get(amount.what, 0) if source else 0
+        if kind == "on_battlefield":
+            return sum(_has_type(p.card, amount.what) for s in self.live_seats() for p in s.battlefield)
+        if kind == "you_control":
+            return sum(_has_type(p.card, amount.what) for p in controller.battlefield)
+        if kind == "life_gained":
+            return controller.life_gained_amount if controller.life_gained_turn == self.turn else 0
+        if kind == "spells_cast":
+            return len(this_turn)
+        if kind == "greatest_mana_value_cast":
+            return int(max((c.cmc for c in this_turn if _watch_type_matches(amount.what, c)), default=0))
+        if kind == "opponents":
+            return len(self.opponents(controller))
+        raise ValueError(f"unknown amount {kind}")
+
     def amount(self, value: int | str) -> int:
         """A number from an effect; "X" is the resolving spell's X."""
         return self.x_value if value == "X" else value
@@ -1020,6 +1045,9 @@ class Game:
             if amount < 0:
                 seat.life_lost_turn = self.turn
             else:
+                if seat.life_gained_turn != self.turn:
+                    seat.life_gained_amount = 0
+                seat.life_gained_amount += amount
                 seat.life_gained_turn = self.turn
             for permanent in list(seat.battlefield):
                 self.trigger("gain_life" if amount > 0 else "lose_life", permanent, seat)

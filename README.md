@@ -184,6 +184,12 @@ winner = game.play()
 | Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. | Rampant Growth |
 
 - **Wording:** "of their choice" and a leading "You draw" / "You create" are read the same as without them.
+- **Amounts that depend on the game:** "..., where X is ...", "... equal to ..." and "... for each ..." are worked out
+  when the effect resolves. Supported: its (or this creature's) power, using its last known power if it has left the
+  battlefield; +1/+1 counters on it; the number of <type> you control; creatures on the battlefield; the amount of life
+  you gained this turn; spells you've cast this turn; the greatest mana value among instant and sorcery spells you've
+  cast this turn; opponents. "For each" multiplies drawing, life, tokens and +1/+1 counters ("create a 1/1 Saproling
+  token for each +1/+1 counter on this creature"). A sentence a template already understands is never rewritten.
 - **Target restrictions:** destroy and exile targets can say "an opponent controls",
   "you don't control" or "you control".
 - **Counters:** +1/+1 and -1/-1 counters change power and toughness. Matching +1/+1 and -1/-1

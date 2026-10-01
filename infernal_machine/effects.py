@@ -604,6 +604,44 @@ class DamageEach:
 
 
 @dataclass(frozen=True)
+class Amount:
+    """A number that depends on the game, worked out when the effect resolves: "its power",
+    "the number of Auras you control", "the amount of life you gained this turn", ..."""
+    kind: str  # see Game.evaluate
+    what: str = ""  # a type ("Aura"), a counter ("+1/+1") or a spell kind ("instant or sorcery spell")
+
+
+_AMOUNTS = [
+    (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
+    (re.compile(r"(?:the number of )?\+1/\+1 counters? on (?:it|this creature|CARDNAME)", re.I),
+     lambda m: Amount("source_counters", "+1/+1")),
+    (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
+    (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
+    (re.compile(r"(?:the number of )?spells? you've cast this turn", re.I), lambda m: Amount("spells_cast")),
+    (re.compile(r"the greatest mana value among instant and sorcery spells you've cast this turn", re.I),
+     lambda m: Amount("greatest_mana_value_cast", "instant or sorcery spell")),
+    (re.compile(r"opponents?", re.I), lambda m: Amount("opponents")),
+    (re.compile(r"(?:the number of )?([A-Za-z]+) you control", re.I), lambda m: Amount("you_control", _singular(m[1]))),
+]
+
+
+def _amount(text: str) -> Amount | None:
+    for pattern, build in _AMOUNTS:
+        if m := pattern.fullmatch(text):
+            return build(m)
+    return None
+
+
+@dataclass(frozen=True)
+class DefineX:
+    """Sets X for the effects after it ("..., where X is the number of Auras you control.")."""
+    amount: Amount
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.x_value = game.evaluate(self.amount, controller)
+
+
+@dataclass(frozen=True)
 class SacrificeCreature:
     """ "Sacrifice a creature." (you choose which) """
 
@@ -982,6 +1020,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(?: and each (opponent|player))?\.", re.I), _damage_each),
     (re.compile(r"each (opponent|player) sacrifices a creature\.", re.I), lambda m: EachSacrifices(m[1].lower())),
     (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),
+    (re.compile(r"Let X be (.+)\."), lambda m: DefineX(a) if (a := _amount(m[1])) else None),
     (re.compile(r"target (player|opponent) sacrifices a creature\.", re.I), lambda m: TargetSacrifices(m[1].lower())),
     (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
     (re.compile(rf"put {_N} {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
@@ -1012,11 +1051,35 @@ def _you_do(phrase: str) -> str:
     return phrase[:1].upper() + phrase[1:] + "." if phrase.lower().startswith("draw") else f"You {phrase}."
 
 
+_TIMES_X = [
+    (r"\b(draws?) (?:a card|cards)\b", r"\1 X cards"),
+    (r"\b(gains?|loses?) (?:1 )?life\b", r"\1 X life"),
+    (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
+    (r"\b(creates?) a number of (.+?) tokens\b", r"\1 X \2 tokens"),
+    (r"\b(put) (?:a|one) (\+1/\+1) counter\b", r"\1 X \2 counters"),
+]
+
+
+def _times_x(text: str) -> tuple[str, int]:
+    """"draw a card" -> "draw X cards", "create a 1/1 ... token" -> "create X 1/1 ... tokens", ...;
+    and how many replacements were made (0: the amount has nothing to apply to)."""
+    total = 0
+    for pattern, replacement in _TIMES_X:
+        text, n = re.subn(pattern, replacement, text, flags=re.I)
+        total += n
+    return text, total
+
+
 def _clauses(sentence: str) -> list[str]:
     """Rewrite wording the templates don't cover into sentences they do: "X and you gain 1 life." is two
     sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
     "You create" add nothing."""
     sentence = sentence.replace(" of their choice.", ".")
+    if m := re.fullmatch(r"(.+), where X is (.+)\.", sentence):
+        return [f"Let X be {m[2]}."] + _clauses(m[1] + ".") if _amount(m[2]) else [sentence]
+    if m := re.fullmatch(r"(.+) (?:equal to|for each) (.+)\.", sentence):
+        body, count = _times_x(m[1])
+        return [f"Let X be {m[2]}."] + _clauses(body + ".") if count and _amount(m[2]) else [sentence]
     sentence = re.sub(r"^You (draw|create) ", lambda m: m[1].capitalize() + " ", sentence)
     if m := re.fullmatch(rf"(.+) and you ({_YOUR_ACTION})\.", sentence, re.I):
         return _clauses(m[1] + ".") + [_you_do(m[2])]
@@ -1025,17 +1088,24 @@ def _clauses(sentence: str) -> list[str]:
     return [sentence]
 
 
+def _template(sentence: str) -> Any:
+    """The effect of one sentence a template understands as written, or None."""
+    for pattern, build in _TEMPLATES:
+        match = pattern.fullmatch(sentence)
+        effect = build(match) if match else None
+        if effect is not None:
+            return effect
+    return None
+
+
 def _parse(sentences: list[str]) -> list | None:
     effects = []
-    for sentence in (clause for s in sentences for clause in _clauses(s)):
-        for pattern, build in _TEMPLATES:
-            match = pattern.fullmatch(sentence)
-            effect = build(match) if match else None
-            if effect is not None:
-                effects.append(effect)
-                break
-        else:
+    for sentence in sentences:
+        # A sentence a template already reads is taken as written; only the others are rewritten (_clauses).
+        found = [effect] if (effect := _template(sentence)) is not None else [_template(c) for c in _clauses(sentence)]
+        if None in found:
             return None
+        effects += found
     return effects
 
 
