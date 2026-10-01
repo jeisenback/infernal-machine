@@ -2,10 +2,11 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.client import Narrator
-from infernal_machine.effects import (AdditionalCost, AlternativeCost, Draw, IfKicked, ReturnToHand, additional_costs,
-                                      alternative_costs, cost_reductions, kicker_cost, spell_effects)
-from infernal_machine.game import (CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, SACRIFICE_COST_PROMPT, Game,
-                                   Permanent)
+from infernal_machine.effects import (AdditionalCost, AlternativeCost, Damage, Draw, IfKicked, ReturnToHand,
+                                      additional_costs, alternative_costs, cost_reductions, is_multikicker, kicker_cost,
+                                      spell_effects)
+from infernal_machine.game import (CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, MULTIKICKER_PROMPT,
+                                   SACRIFICE_COST_PROMPT, TARGET_PROMPT, Game, Permanent, StackItem)
 from infernal_machine.report import unsupported_lines
 from tests.test_effects import pick, table
 
@@ -37,6 +38,24 @@ THRILL = Card(name="Thrill of Possibility", mana_cost="{1}{R}", type_line="Insta
               oracle_text="As an additional cost to cast this spell, discard a card.\nDraw two cards.")
 BARGAIN = Card(name="Bargain", mana_cost="{B}", type_line="Sorcery", colors=("B",),
                oracle_text="As an additional cost to cast this spell, pay 3 life.\nDraw two cards.")
+
+KAVU = Card(name="Untamed Kavu", mana_cost="{1}{G}", type_line="Creature — Kavu", colors=("G",), power="2",
+            toughness="2", oracle_text="Vigilance, trample\nKicker {3} (You may pay an additional {3} as you cast "
+            "this spell.)\nIf Untamed Kavu was kicked, it enters with three +1/+1 counters on it.")
+JOSU = Card(name="Josu Vess, Lich Knight", mana_cost="{2}{B}{B}", type_line="Legendary Creature — Zombie Knight",
+            colors=("B",), power="4", toughness="5",
+            oracle_text="Kicker {5}{B}\nMenace\nWhen Josu Vess enters, if it was kicked, create eight 2/2 black "
+                        "Zombie Knight creature tokens with menace.")
+
+KICKED_BOLT = Card(name="Kicked Bolt", mana_cost="{U}", type_line="Instant", colors=("U",),
+                   oracle_text="Kicker {U}\nDraw a card. If this spell was kicked, it deals 2 damage to any target.")
+KICKED_SHATTER = Card(name="Kicked Shatter", mana_cost="{U}", type_line="Instant", colors=("U",),
+                      oracle_text="Kicker {U}\nDraw a card. If this spell was kicked, destroy target artifact.")
+GNARLID = Card(name="Gnarlid Pack", mana_cost="{1}{G}", type_line="Creature — Beast", colors=("G",), power="2",
+               toughness="2", oracle_text="Multikicker {1}{G} (You may pay an additional {1}{G} any number of times "
+               "as you cast this spell.)\nGnarlid Pack enters with a +1/+1 counter on it for each time it was kicked.")
+KICKED_AURA = Card(name="Kicked Aura", mana_cost="{G}", type_line="Enchantment — Aura", colors=("G",),
+                   oracle_text="Kicker {G}\nEnchant creature\nWhen Kicked Aura enters, if it was kicked, draw a card.")
 
 
 class ParseTests(unittest.TestCase):
@@ -75,16 +94,20 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(kicker_cost(ROIL), "{1}{U}")
         self.assertEqual(spell_effects(ROIL), [ReturnToHand("nonland permanent"), IfKicked(Draw(1))])
 
-    def test_kicked_effects_that_target_are_not_supported(self):
-        card = Card(name="Kicked Bolt", type_line="Instant", oracle_text="Kicker {R}\nDraw a card. If this spell was "
-                    "kicked, it deals 2 damage to any target.")
-        self.assertIsNone(spell_effects(card))
+    def test_kicked_effects_can_target(self):
+        self.assertEqual(spell_effects(KICKED_BOLT), [Draw(1), IfKicked(Damage(2, "any"))])
+
+    def test_multikicker(self):
+        self.assertEqual(kicker_cost(GNARLID), "{1}{G}")
+        self.assertTrue(is_multikicker(GNARLID))
+        self.assertFalse(is_multikicker(ROIL))
+        self.assertEqual(unsupported_lines(GNARLID), [])
 
     def test_report(self):
         for card in (EMERALD, ROLLICK, FORCE, ROIL, RITES, THRILL, BARGAIN):
             self.assertEqual(unsupported_lines(card), [], card.name)
-        kicked_creature = Card(name="Kicked Bear", mana_cost="{1}{G}", type_line="Creature — Bear", oracle_text="Kicker {2}")
-        self.assertEqual(unsupported_lines(kicked_creature), ["Kicker {2}"])
+        for card in (KAVU, JOSU):
+            self.assertEqual(unsupported_lines(card), [], card.name)
 
 
 def battlefield(*cards):
@@ -187,8 +210,32 @@ class AlternativeCostTests(unittest.TestCase):
         self.assertIn(CAST + NEGATION.name, game.legal_actions(other))
 
 
+    def test_fierce_guardianship_counters_a_noncreature_spell_for_free(self):
+        guardianship = Card(name="Fierce Guardianship", mana_cost="{2}{U}", type_line="Instant", colors=("U",),
+                            oracle_text="If you control a commander, you may cast this spell without paying its mana "
+                                        "cost.\nCounter target noncreature spell.")
+        game, _, _ = table(pick(CAST + OPT.name), pick(CAST + guardianship.name, "Cast without"))
+        seat, other = game.seats
+        seat.hand, seat.library = [OPT], [BEAR]
+        seat.battlefield = battlefield(ISLAND)
+        other.hand, other.commander_names = [guardianship], {COMMANDER.name}
+        other.battlefield = battlefield(COMMANDER)
+        game._priority_round(seat)
+        self.assertEqual(seat.hand, [])
+        self.assertEqual(seat.graveyard, [OPT])
+        self.assertEqual(other.graveyard, [guardianship])
+
+    def test_noncreature_counter_cant_target_a_creature_spell(self):
+        game, _, _ = table()
+        seat, other = game.seats
+        other.hand = [NEGATION, OPT]
+        game.stack.append(StackItem(BEAR, seat, []))
+        self.assertNotIn(CAST + NEGATION.name, game.legal_actions(other))
+        game.stack.append(game_item(game, seat))
+        self.assertIn(CAST + NEGATION.name, game.legal_actions(other))
+
+
 def game_item(game: Game, seat):
-    from infernal_machine.game import StackItem
     return StackItem(OPT, seat, spell_effects(OPT))
 
 
@@ -225,6 +272,67 @@ class KickerTests(unittest.TestCase):
         other.battlefield = battlefield(BEAR)
         game._priority_round(seat)
         self.assertFalse(any(prompt == KICKER_PROMPT + ROIL.name for prompt, _ in a.prompts))
+
+    def test_kicked_creature_enters_with_counters(self):
+        for answer, counters in (("Yes", {"+1/+1": 3}), ("No", {})):
+            game, _, _ = table(pick(CAST + KAVU.name, answer))
+            seat = game.seats[0]
+            seat.hand = [KAVU]
+            seat.battlefield = battlefield(*[FOREST] * 5)
+            game._priority_round(seat)
+            kavu = next(p for p in seat.battlefield if p.card is KAVU)
+            self.assertEqual(kavu.counters, counters, answer)
+            self.assertEqual(kavu.kicked, answer == "Yes")
+
+    def test_kicked_enters_trigger(self):
+        for answer, tokens in (("Yes", 8), ("No", 0)):
+            game, _, _ = table(pick(CAST + JOSU.name, answer))
+            seat = game.seats[0]
+            seat.hand = [JOSU]
+            seat.battlefield = battlefield(*[SWAMP] * 10)
+            game._priority_round(seat)
+            self.assertEqual(sum(p.card.name == "Zombie Knight" for p in seat.battlefield), tokens, answer)
+
+    def test_kicked_effect_targets_only_when_kicked(self):
+        for answer, life, targeted in (("Yes", 38, True), ("No", 40, False)):
+            game, a, _ = table(pick(CAST + KICKED_BOLT.name, answer, "Player: B"))
+            seat, other = game.seats
+            seat.hand, seat.library = [KICKED_BOLT], [OPT]
+            seat.battlefield = battlefield(ISLAND, ISLAND)
+            game._priority_round(seat)
+            self.assertEqual(other.life, life, answer)
+            self.assertEqual(seat.hand, [OPT], answer)
+            self.assertEqual(any(p == TARGET_PROMPT + KICKED_BOLT.name for p, _ in a.prompts), targeted, answer)
+
+    def test_kicker_not_offered_without_a_kicked_target(self):
+        game, a, _ = table(pick(CAST + KICKED_SHATTER.name))
+        seat = game.seats[0]
+        seat.hand, seat.library = [KICKED_SHATTER], [OPT]
+        seat.battlefield = battlefield(ISLAND, ISLAND)
+        game._priority_round(seat)
+        self.assertEqual(seat.hand, [OPT])
+        self.assertFalse(any(p == KICKER_PROMPT + KICKED_SHATTER.name for p, _ in a.prompts))
+
+    def test_multikicker_counters(self):
+        game, a, _ = table(pick(CAST + GNARLID.name, "2"))
+        seat = game.seats[0]
+        seat.hand = [GNARLID]
+        seat.battlefield = battlefield(*[FOREST] * 7)
+        game._priority_round(seat)
+        self.assertEqual(next(o for p, o in a.prompts if p == MULTIKICKER_PROMPT + GNARLID.name), ["0", "1", "2"])
+        pack = next(p for p in seat.battlefield if p.card is GNARLID)
+        self.assertEqual((pack.kicked, pack.counters), (2, {"+1/+1": 2}))
+        self.assertEqual(next(e for e in a.events if e["event"] == "cast")["kicked"], 2)
+
+    def test_kicked_aura_remembers_it(self):
+        game, _, _ = table(pick(CAST + KICKED_AURA.name, "Yes", "Grizzly Bears"))
+        seat = game.seats[0]
+        seat.hand, seat.library = [KICKED_AURA], [OPT]
+        seat.battlefield = battlefield(FOREST, FOREST, BEAR)
+        game._priority_round(seat)
+        aura = next(p for p in seat.battlefield if p.card is KICKED_AURA)
+        self.assertEqual(aura.kicked, 1)
+        self.assertEqual(seat.hand, [OPT])
 
 
 class AdditionalCostTests(unittest.TestCase):
@@ -281,6 +389,8 @@ class NarrationTests(unittest.TestCase):
         line = narrator.narrate({"event": "cast", "seat": 0, "card": "Into the Roil", "targets": [], "x": 0,
                                   "kicked": True})
         self.assertIn("Into the Roil kicked", line)
+        line = narrator.narrate({"event": "cast", "seat": 0, "card": "Gnarlid Pack", "targets": [], "x": 0, "kicked": 2})
+        self.assertIn("Gnarlid Pack kicked 2 times", line)
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, TriggeredAbility, WardCounter,
-                      activated_abilities, additional_costs, alternative_costs, cost_reductions, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      activated_abilities, additional_costs, alternative_costs, cost_reductions, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, is_identity_mana_land, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_source)
@@ -69,6 +69,7 @@ SACRIFICE_PROMPT = "Choose a creature to sacrifice"
 SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
 COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
 KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
+MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = "Choose a card to exile from your hand"
 WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
@@ -104,6 +105,7 @@ class Permanent:
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
+    kicked: int = 0  # how many times its kicker cost was paid when it was cast
 
 
 @dataclass(frozen=True)
@@ -142,7 +144,7 @@ class StackItem:
     ability: TriggeredAbility | ActivatedAbility | None = None  # set for an ability rather than a spell
     source: "Permanent | None" = None  # the ability's source, for effects on "it"
     x: int = 0  # the value chosen for X when it was cast
-    kicked: bool = False
+    kicked: int = 0  # how many times the kicker cost was paid
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
 
 
@@ -426,7 +428,7 @@ class Game:
     def _can_cast(self, seat: Seat, card: Card, from_command_zone: bool = False) -> bool:
         if not self._cast_ways(seat, card, from_command_zone):
             return False
-        effects, colors = _effects(card) or [], frozenset(card.colors)
+        effects, colors = kicked_effects(_effects(card), 0) or [], frozenset(card.colors)
         if effects and isinstance(effects[0], Modal):
             return sum(self._targets_exist(seat, modes, colors) for modes in effects[0].modes) >= effects[0].min
         return self._targets_exist(seat, effects, colors)
@@ -461,7 +463,7 @@ class Game:
         return abilities + lands + sacrifices
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
-                 alternative: AlternativeCost | None = None, kicked: bool = False) -> list[Permanent] | None:
+                 alternative: AlternativeCost | None = None, kicked: int = 0) -> list[Permanent] | None:
         """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now. An alternative
         cost replaces the mana cost; commander tax and kicker are added, then cost reductions apply."""
         cost = Cost() if alternative else parse_cost(card.mana_cost)
@@ -469,7 +471,7 @@ class Game:
             return None
         if from_command_zone:
             cost = cost.plus_generic(self.commander_tax(seat, card))
-        if kicked:
+        for _ in range(kicked):
             cost = cost + parse_cost(kicker_cost(card))
         return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card)))
 
@@ -527,7 +529,7 @@ class Game:
         if life:
             self.change_life(seat, -life)
 
-    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kicked: bool) -> int:
+    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kicked: int) -> int:
         x = 0
         while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1, kicked=kicked) is not None:
             x += 1
@@ -676,16 +678,15 @@ class Game:
         effects = _effects(card)
         if effects and isinstance(effects[0], Modal):
             effects = self._choose_modes(seat, card, effects[0])
-        targets, labels = self._choose_targets(seat, effects, card.name, colors=frozenset(card.colors))
+        # Alternative costs and kicker are announced before targets are chosen (CR 601.2b-c).
         ways = self._cast_ways(seat, card, from_command_zone)
         alternative = ways[0]
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
             alternative = ways[seat.player.choose(COST_PROMPT + card.name, options)]
-        # Kicker is only offered on instants and sorceries: nothing reads it on permanents yet.
-        kicked = (not _is_permanent(card) and kicker_cost(card) is not None
-                  and self._payment(seat, card, from_command_zone, alternative=alternative, kicked=True) is not None
-                  and seat.player.choose(KICKER_PROMPT + card.name, YES_NO) == 0)
+        kicked = self._choose_kicks(seat, card, effects, from_command_zone, alternative)
+        effects = kicked_effects(effects, kicked)
+        targets, labels = self._choose_targets(seat, effects, card.name, colors=frozenset(card.colors))
         x = 0
         if alternative is None and parse_cost(card.mana_cost).x:  # casting without paying the mana cost makes X 0
             options = [str(n) for n in range(self._max_x(seat, card, from_command_zone, kicked) + 1)]
@@ -700,13 +701,31 @@ class Game:
                  "from": "command_zone" if from_command_zone else "hand",
                  "targets": labels, "x": x, "tapped": [p.card.name for p in tapped]}
         if kicked:
-            event["kicked"] = True
+            event["kicked"] = kicked
         if alternative:
             event["alternative"] = alternative.text
         self.broadcast(event)
         seat.cast_log.append((self.turn, card))
         self._observe("cast", card, seat, x=x)
         self._check_ward(item)
+
+    def _choose_kicks(self, seat: Seat, card: Card, effects: list | None, from_command_zone: bool,
+                      alternative: AlternativeCost | None) -> int:
+        """Ask how many times to pay the kicker cost: yes or no, or any affordable number for multikicker.
+        Kicking is only offered when the kicked spell's targets exist."""
+        if kicker_cost(card) is None:
+            return 0
+        if not self._targets_exist(seat, kicked_effects(effects, 1) or [], frozenset(card.colors)):
+            return 0
+        most = 0
+        while (most < (MAX_X if is_multikicker(card) else 1)
+               and self._payment(seat, card, from_command_zone, alternative=alternative, kicked=most + 1) is not None):
+            most += 1
+        if not most:
+            return 0
+        if is_multikicker(card):
+            return seat.player.choose(MULTIKICKER_PROMPT + card.name, [str(n) for n in range(most + 1)])
+        return 1 if seat.player.choose(KICKER_PROMPT + card.name, YES_NO) == 0 else 0
 
     # --- what players see ----------------------------------------------------
 
@@ -755,7 +774,7 @@ class Game:
             return
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card)), x=item.x)
+            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked), x=item.x)
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
@@ -774,7 +793,7 @@ class Game:
             self._move_card(seat, card, "graveyard")
             return
         self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-        self._enter(seat, Permanent(card, sick=True, attached_to=target))
+        self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked))
         self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
 
     def attach(self, attachment: Permanent, creature: Permanent) -> None:
@@ -790,7 +809,7 @@ class Game:
                             "ability": _shown(ability.text, item.card), "declined": True})
             return
         condition = getattr(ability, "condition", None)
-        if condition and not self.condition_holds(condition, seat):  # checked again on resolution (CR 603.4)
+        if condition and not self.condition_holds(condition, seat, item.source):  # checked again on resolution (CR 603.4)
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": _shown(ability.text, item.card), "condition_false": True})
             return
@@ -870,7 +889,7 @@ class Game:
                 self._queue(ability, permanent, controller)
 
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0) -> None:
-        if ability.condition and not self.condition_holds(ability.condition, controller):
+        if ability.condition and not self.condition_holds(ability.condition, controller, permanent):
             return
         if ability.once_per_turn:  # "This ability triggers only once each turn."
             if permanent.triggered_turn.get(ability.text) == self.turn:
@@ -878,9 +897,11 @@ class Game:
             permanent.triggered_turn[ability.text] = self.turn
         self.pending.append(PendingTrigger(ability, permanent, controller, x))
 
-    def condition_holds(self, condition: Condition, seat: Seat) -> bool:
-        """Whether an intervening "if" clause is true for `seat`, the ability's controller."""
+    def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None) -> bool:
+        """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`."""
         kind = condition.kind
+        if kind == "kicked":
+            return source is not None and source.kicked
         if kind == "graveyard_left":
             return seat.graveyard_left_turn == self.turn
         if kind == "gained_life":
@@ -967,8 +988,9 @@ class Game:
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
         elif kind == "opponent":
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)]
-        if kind == "spell":
-            options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack if not i.ability]
+        if kind.endswith("spell"):  # "spell", "noncreature spell", ...
+            options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
+                        if not i.ability and _watch_type_matches(kind, i.card)]
             return options
         kind, controller = _split_controller(kind)
         for seat in self.live_seats():
@@ -1361,7 +1383,7 @@ class Game:
     # --- helpers -------------------------------------------------------------
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
-        for counter, count in enters_with_counters(permanent.card).items():  # CR 614.1c: it arrives with them
+        for counter, count in enters_with_counters(permanent.card, permanent.kicked).items():  # CR 614.1c: it arrives with them
             permanent.counters[counter] = permanent.counters.get(counter, 0) + (x if count == "X" else count)
         permanent.owner = permanent.owner or seat
         rule = enters_tapped_rule(permanent.card)

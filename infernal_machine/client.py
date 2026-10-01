@@ -129,7 +129,8 @@ class Narrator:
         if kind == "cast":
             origin = " from the command zone" if e.get("from") == "command_zone" else ""
             x = f" with X={e['x']}" if e.get("x") else ""
-            kicked = " kicked" if e.get("kicked") else ""
+            kicks = e.get("kicked", 0)
+            kicked = f" kicked {kicks} times" if kicks > 1 else " kicked" if kicks else ""
             how = f" ({e['alternative'].lower()})" if e.get("alternative") else ""
             return f"{who} {v('cast', 'casts')} {card}{kicked}{origin}{x}{how}{targets}."
         if kind == "activate":
