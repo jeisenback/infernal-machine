@@ -829,7 +829,7 @@ _FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast thi
 _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life and )?exile an? ({_COLOR_NAMES}) card "
                     r"from your hand rather than pay this spell's mana cost\.")
 _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
-                         rf"creature|permanent)|(discard a card)|pay {_N} life)\.")
+                         rf"creature|permanent)|(discard a card)|pay (?!X ){_N} life)\.")  # "pay X life" (Toxic Deluge) isn't supported
 _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery) )?spells "
                         r"you cast cost \{(\d+)\} less to cast\.", re.I)
 
