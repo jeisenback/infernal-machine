@@ -888,8 +888,9 @@ class Game:
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
         elif kind == "opponent":
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)]
-        if kind == "spell":
-            options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack if not i.ability]
+        if kind.endswith("spell"):  # "spell", "noncreature spell", ...
+            options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
+                        if not i.ability and _watch_type_matches(kind, i.card)]
             return options
         kind, controller = _split_controller(kind)
         for seat in self.live_seats():

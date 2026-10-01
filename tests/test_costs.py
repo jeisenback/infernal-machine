@@ -5,7 +5,7 @@ from infernal_machine.client import Narrator
 from infernal_machine.effects import (AdditionalCost, AlternativeCost, Draw, IfKicked, ReturnToHand, additional_costs,
                                       alternative_costs, cost_reductions, kicker_cost, spell_effects)
 from infernal_machine.game import (CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, SACRIFICE_COST_PROMPT, Game,
-                                   Permanent)
+                                   Permanent, StackItem)
 from infernal_machine.report import unsupported_lines
 from tests.test_effects import pick, table
 
@@ -176,8 +176,32 @@ class AlternativeCostTests(unittest.TestCase):
         self.assertIn(CAST + NEGATION.name, game.legal_actions(other))
 
 
+    def test_fierce_guardianship_counters_a_noncreature_spell_for_free(self):
+        guardianship = Card(name="Fierce Guardianship", mana_cost="{2}{U}", type_line="Instant", colors=("U",),
+                            oracle_text="If you control a commander, you may cast this spell without paying its mana "
+                                        "cost.\nCounter target noncreature spell.")
+        game, _, _ = table(pick(CAST + OPT.name), pick(CAST + guardianship.name, "Cast without"))
+        seat, other = game.seats
+        seat.hand, seat.library = [OPT], [BEAR]
+        seat.battlefield = battlefield(ISLAND)
+        other.hand, other.commander_names = [guardianship], {COMMANDER.name}
+        other.battlefield = battlefield(COMMANDER)
+        game._priority_round(seat)
+        self.assertEqual(seat.hand, [])
+        self.assertEqual(seat.graveyard, [OPT])
+        self.assertEqual(other.graveyard, [guardianship])
+
+    def test_noncreature_counter_cant_target_a_creature_spell(self):
+        game, _, _ = table()
+        seat, other = game.seats
+        other.hand = [NEGATION, OPT]
+        game.stack.append(StackItem(BEAR, seat, []))
+        self.assertNotIn(CAST + NEGATION.name, game.legal_actions(other))
+        game.stack.append(game_item(game, seat))
+        self.assertIn(CAST + NEGATION.name, game.legal_actions(other))
+
+
 def game_item(game: Game, seat):
-    from infernal_machine.game import StackItem
     return StackItem(OPT, seat, spell_effects(OPT))
 
 

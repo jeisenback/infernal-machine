@@ -142,7 +142,7 @@ winner = game.play()
 | You gain N life. / Each opponent loses N life. | |
 | (This spell) deals N damage to any target / target creature / target player / ... | Lightning Bolt |
 | Destroy target creature / artifact / enchantment / nonland permanent / ... | Murder |
-| Counter target spell. | Counterspell |
+| Counter target (noncreature / creature / instant or sorcery / artifact / enchantment) spell. | Counterspell, Negate |
 | Exile target creature / artifact / nonland permanent / ... | |
 | Exile target creature. Its controller gains life equal to its power. | Swords to Plowshares |
 | Exile target creature. Its controller may search their library for a basic land card, ... | Path to Exile |
