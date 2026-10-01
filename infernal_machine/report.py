@@ -66,8 +66,8 @@ def unsupported_lines(card: Card) -> list[str]:
     for line in rules_lines(card):
         if _is_keyword_line(line) or _DECKBUILDING.fullmatch(line) or is_cycling_line(line):
             continue
-        if is_casting_cost_line(line) and (spell or not line.startswith("Kicker ")):
-            continue  # kicker only does something on instants and sorceries so far
+        if is_casting_cost_line(line):
+            continue
         if spell and (is_modal_header(line) or line_effects(mode_text(line)) is not None):
             continue  # a sentence of the spell, or the "Choose one —" line, or one of its modes
         if not spell and (line in abilities or is_mana_ability(line) or is_enters_with_counters(line)

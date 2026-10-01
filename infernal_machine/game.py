@@ -104,6 +104,7 @@ class Permanent:
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
+    kicked: bool = False  # it was cast with its kicker cost paid
 
 
 @dataclass(frozen=True)
@@ -681,8 +682,7 @@ class Game:
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
             alternative = ways[seat.player.choose(COST_PROMPT + card.name, options)]
-        # Kicker is only offered on instants and sorceries: nothing reads it on permanents yet.
-        kicked = (not _is_permanent(card) and kicker_cost(card) is not None
+        kicked = (kicker_cost(card) is not None
                   and self._payment(seat, card, from_command_zone, alternative=alternative, kicked=True) is not None
                   and seat.player.choose(KICKER_PROMPT + card.name, YES_NO) == 0)
         x = 0
@@ -754,7 +754,7 @@ class Game:
             return
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card)), x=item.x)
+            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked), x=item.x)
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
@@ -789,7 +789,7 @@ class Game:
                             "ability": _shown(ability.text, item.card), "declined": True})
             return
         condition = getattr(ability, "condition", None)
-        if condition and not self.condition_holds(condition, seat):  # checked again on resolution (CR 603.4)
+        if condition and not self.condition_holds(condition, seat, item.source):  # checked again on resolution (CR 603.4)
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": _shown(ability.text, item.card), "condition_false": True})
             return
@@ -845,7 +845,7 @@ class Game:
                 self._queue(ability, permanent, controller)
 
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0) -> None:
-        if ability.condition and not self.condition_holds(ability.condition, controller):
+        if ability.condition and not self.condition_holds(ability.condition, controller, permanent):
             return
         if ability.once_per_turn:  # "This ability triggers only once each turn."
             if permanent.triggered_turn.get(ability.text) == self.turn:
@@ -853,9 +853,11 @@ class Game:
             permanent.triggered_turn[ability.text] = self.turn
         self.pending.append(PendingTrigger(ability, permanent, controller, x))
 
-    def condition_holds(self, condition: Condition, seat: Seat) -> bool:
-        """Whether an intervening "if" clause is true for `seat`, the ability's controller."""
+    def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None) -> bool:
+        """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`."""
         kind = condition.kind
+        if kind == "kicked":
+            return source is not None and source.kicked
         if kind == "graveyard_left":
             return seat.graveyard_left_turn == self.turn
         if kind == "gained_life":
@@ -942,8 +944,9 @@ class Game:
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
         elif kind == "opponent":
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)]
-        if kind == "spell":
-            options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack if not i.ability]
+        if kind.endswith("spell"):  # "spell", "noncreature spell", ...
+            options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
+                        if not i.ability and _watch_type_matches(kind, i.card)]
             return options
         kind, controller = _split_controller(kind)
         for seat in self.live_seats():
@@ -1333,7 +1336,7 @@ class Game:
     # --- helpers -------------------------------------------------------------
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
-        for counter, count in enters_with_counters(permanent.card).items():  # CR 614.1c: it arrives with them
+        for counter, count in enters_with_counters(permanent.card, permanent.kicked).items():  # CR 614.1c: it arrives with them
             permanent.counters[counter] = permanent.counters.get(counter, 0) + (x if count == "X" else count)
         permanent.owner = permanent.owner or seat
         rule = enters_tapped_rule(permanent.card)

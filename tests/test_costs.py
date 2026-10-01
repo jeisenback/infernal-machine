@@ -5,7 +5,7 @@ from infernal_machine.client import Narrator
 from infernal_machine.effects import (AdditionalCost, AlternativeCost, Draw, IfKicked, ReturnToHand, additional_costs,
                                       alternative_costs, cost_reductions, kicker_cost, spell_effects)
 from infernal_machine.game import (CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, SACRIFICE_COST_PROMPT, Game,
-                                   Permanent)
+                                   Permanent, StackItem)
 from infernal_machine.report import unsupported_lines
 from tests.test_effects import pick, table
 
@@ -37,6 +37,14 @@ THRILL = Card(name="Thrill of Possibility", mana_cost="{1}{R}", type_line="Insta
               oracle_text="As an additional cost to cast this spell, discard a card.\nDraw two cards.")
 BARGAIN = Card(name="Bargain", mana_cost="{B}", type_line="Sorcery", colors=("B",),
                oracle_text="As an additional cost to cast this spell, pay 3 life.\nDraw two cards.")
+
+KAVU = Card(name="Untamed Kavu", mana_cost="{1}{G}", type_line="Creature — Kavu", colors=("G",), power="2",
+            toughness="2", oracle_text="Vigilance, trample\nKicker {3} (You may pay an additional {3} as you cast "
+            "this spell.)\nIf Untamed Kavu was kicked, it enters with three +1/+1 counters on it.")
+JOSU = Card(name="Josu Vess, Lich Knight", mana_cost="{2}{B}{B}", type_line="Legendary Creature — Zombie Knight",
+            colors=("B",), power="4", toughness="5",
+            oracle_text="Kicker {5}{B}\nMenace\nWhen Josu Vess enters, if it was kicked, create eight 2/2 black "
+                        "Zombie Knight creature tokens with menace.")
 
 
 class ParseTests(unittest.TestCase):
@@ -83,8 +91,8 @@ class ParseTests(unittest.TestCase):
     def test_report(self):
         for card in (EMERALD, ROLLICK, FORCE, ROIL, RITES, THRILL, BARGAIN):
             self.assertEqual(unsupported_lines(card), [], card.name)
-        kicked_creature = Card(name="Kicked Bear", mana_cost="{1}{G}", type_line="Creature — Bear", oracle_text="Kicker {2}")
-        self.assertEqual(unsupported_lines(kicked_creature), ["Kicker {2}"])
+        for card in (KAVU, JOSU):
+            self.assertEqual(unsupported_lines(card), [], card.name)
 
 
 def battlefield(*cards):
@@ -187,8 +195,32 @@ class AlternativeCostTests(unittest.TestCase):
         self.assertIn(CAST + NEGATION.name, game.legal_actions(other))
 
 
+    def test_fierce_guardianship_counters_a_noncreature_spell_for_free(self):
+        guardianship = Card(name="Fierce Guardianship", mana_cost="{2}{U}", type_line="Instant", colors=("U",),
+                            oracle_text="If you control a commander, you may cast this spell without paying its mana "
+                                        "cost.\nCounter target noncreature spell.")
+        game, _, _ = table(pick(CAST + OPT.name), pick(CAST + guardianship.name, "Cast without"))
+        seat, other = game.seats
+        seat.hand, seat.library = [OPT], [BEAR]
+        seat.battlefield = battlefield(ISLAND)
+        other.hand, other.commander_names = [guardianship], {COMMANDER.name}
+        other.battlefield = battlefield(COMMANDER)
+        game._priority_round(seat)
+        self.assertEqual(seat.hand, [])
+        self.assertEqual(seat.graveyard, [OPT])
+        self.assertEqual(other.graveyard, [guardianship])
+
+    def test_noncreature_counter_cant_target_a_creature_spell(self):
+        game, _, _ = table()
+        seat, other = game.seats
+        other.hand = [NEGATION, OPT]
+        game.stack.append(StackItem(BEAR, seat, []))
+        self.assertNotIn(CAST + NEGATION.name, game.legal_actions(other))
+        game.stack.append(game_item(game, seat))
+        self.assertIn(CAST + NEGATION.name, game.legal_actions(other))
+
+
 def game_item(game: Game, seat):
-    from infernal_machine.game import StackItem
     return StackItem(OPT, seat, spell_effects(OPT))
 
 
@@ -225,6 +257,26 @@ class KickerTests(unittest.TestCase):
         other.battlefield = battlefield(BEAR)
         game._priority_round(seat)
         self.assertFalse(any(prompt == KICKER_PROMPT + ROIL.name for prompt, _ in a.prompts))
+
+    def test_kicked_creature_enters_with_counters(self):
+        for answer, counters in (("Yes", {"+1/+1": 3}), ("No", {})):
+            game, _, _ = table(pick(CAST + KAVU.name, answer))
+            seat = game.seats[0]
+            seat.hand = [KAVU]
+            seat.battlefield = battlefield(*[FOREST] * 5)
+            game._priority_round(seat)
+            kavu = next(p for p in seat.battlefield if p.card is KAVU)
+            self.assertEqual(kavu.counters, counters, answer)
+            self.assertEqual(kavu.kicked, answer == "Yes")
+
+    def test_kicked_enters_trigger(self):
+        for answer, tokens in (("Yes", 8), ("No", 0)):
+            game, _, _ = table(pick(CAST + JOSU.name, answer))
+            seat = game.seats[0]
+            seat.hand = [JOSU]
+            seat.battlefield = battlefield(*[SWAMP] * 10)
+            game._priority_round(seat)
+            self.assertEqual(sum(p.card.name == "Zombie Knight" for p in seat.battlefield), tokens, answer)
 
 
 class AdditionalCostTests(unittest.TestCase):

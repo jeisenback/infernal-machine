@@ -297,12 +297,16 @@ def _counter_name(text: str) -> str:
 
 
 _ENTERS_WITH = re.compile(rf"{_SELF} enters with {_N} {_COUNTER} on it\.", re.I)
+_IF_KICKED = re.compile(rf"if {_SELF} was kicked, ", re.I)
 
 
-def enters_with_counters(card: Card) -> dict[str, int | str]:
-    """Counters from "This creature enters with N (or X) +1/+1 counters on it." """
+def enters_with_counters(card: Card, kicked: bool = False) -> dict[str, int | str]:
+    """Counters from "This creature enters with N (or X) +1/+1 counters on it.", plus, when `kicked`,
+    "If this creature was kicked, it enters with N +1/+1 counters on it." """
     counters: dict[str, int | str] = {}
     for line in rules_lines(card):
+        if kicked and (k := _IF_KICKED.match(line)):
+            line = line[k.end():]
         if m := _ENTERS_WITH.fullmatch(line):
             name, count = _counter_name(m[2]), _count(m[1])
             counters[name] = count if count == "X" else counters.get(name, 0) + count
@@ -310,6 +314,8 @@ def enters_with_counters(card: Card) -> dict[str, int | str]:
 
 
 def is_enters_with_counters(line: str) -> bool:
+    if k := _IF_KICKED.match(line):
+        line = line[k.end():]
     return _ENTERS_WITH.fullmatch(line) is not None
 
 
@@ -931,7 +937,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
     (re.compile(rf"destroy target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[1].lower())),
-    (re.compile(r"counter target spell\.", re.I), lambda m: Counter()),
+    (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
+     lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[2].lower(), bool(m[1]))),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND} until {_SELF} leaves the battlefield\.", re.I),
      lambda m: ExileUntilLeaves(m[2].lower(), bool(m[1]))),
@@ -1038,7 +1045,7 @@ class TriggeredAbility:
 class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
-    #            "control_none"
+    #            "control_none", "kicked"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
 
@@ -1056,6 +1063,7 @@ _CONDITIONS = [
     (re.compile(rf"you control {_N} or more ([A-Za-z]+)"),
      lambda m: Condition("control_at_least", _count(m[1]), _singular(m[2]))),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
+    (re.compile(rf"{_SELF} was kicked"), lambda m: Condition("kicked")),
 ]
 
 
