@@ -107,10 +107,13 @@ winner = game.play()
     (Fierce Guardianship, Deadly Rollick) and "(If it's not your turn,) you may (pay N life and) exile a blue card
     from your hand rather than pay this spell's mana cost." (Force of Will, Force of Negation). When more than
     one way is payable, the caster chooses. X is 0 when the mana cost isn't paid.
-  - Kicker {N}: the caster chooses whether to pay it. "If this spell was kicked, ..." effects on instants and
-    sorceries happen only when it was. A kicked permanent remembers it: "If this creature was kicked, it enters with
+  - Kicker {N}: the caster chooses whether to pay it, before choosing targets. "If this spell was kicked, ..."
+    effects on instants and sorceries happen only when it was, and can target (kicker is only offered when those
+    targets exist). A kicked permanent (Auras too) remembers it: "If this creature was kicked, it enters with
     N +1/+1 counters on it." and "When this creature enters, if it was kicked, ..." (Untamed Kavu, Josu Vess).
-    Kicked spell effects that target, "instead" wordings, multikicker and non-mana kicker costs aren't supported.
+  - Multikicker {N}: the caster chooses how many times to pay it, and "... enters with a +1/+1 counter on it for
+    each time it was kicked." counts them (Gnarlid Pack). "Instead" wordings and non-mana kicker costs aren't
+    supported.
   - Additional costs: "As an additional cost to cast this spell, sacrifice a creature / an artifact / an artifact
     or creature / a land / a permanent", "discard a card" or "pay N life". They're paid after mana, so a creature
     that tapped for mana can still be sacrificed. Effects that read the paid cost ("the sacrificed creature's
