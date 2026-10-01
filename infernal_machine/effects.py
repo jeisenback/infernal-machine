@@ -500,7 +500,11 @@ class CreateTokens:
     token: Card
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.create_tokens(controller, self.token, game.amount(self.count))
+        token = self.token
+        if "X" in (token.power, token.toughness):  # "an X/X ... token": its size is fixed as it's created
+            token = dataclasses.replace(token, power=str(game.amount(token.power)),
+                                        toughness=str(game.amount(token.toughness)))
+        game.create_tokens(controller, token, game.amount(self.count))
 
 
 @dataclass(frozen=True)
@@ -524,7 +528,7 @@ _NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD}
 _COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 _COLOR = r"(?:white|blue|black|red|green)"
 _CREATURE_TOKEN = re.compile(
-    rf"{_N} (\d+)/(\d+) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact )?"
+    rf"{_N} (\d+|X)/(\d+|X) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact )?"
     r"creature tokens?(?: with ([a-z ,]+))?"
 )
 _NAMED_TOKEN = re.compile(rf"(?i:{_N}) (Treasure|Clue|Food) tokens?")

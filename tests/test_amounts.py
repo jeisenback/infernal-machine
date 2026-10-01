@@ -25,6 +25,12 @@ SCHOLAR = Card(name="Scholar", mana_cost="{U}", type_line="Enchantment",
 ROOTHA = Card(name="Rootha", mana_cost="{U}", type_line="Enchantment",
               oracle_text="At the beginning of your end step, you gain X life, where X is the greatest mana value among "
                           "instant and sorcery spells you've cast this turn.")
+ROOTHA_COMMANDER = Card(name="Rootha, Mastering the Moment", mana_cost="{3}{U}{R}", type_line="Legendary Creature",
+                        power="3", toughness="3",
+                        oracle_text="At the beginning of combat on your turn, if you've cast an instant or sorcery spell "
+                                    "this turn, create an X/X blue and red Elemental creature token with flying and haste, "
+                                    "where X is the greatest mana value among instant and sorcery spells you've cast this "
+                                    "turn.")
 AURA = Card(name="Aura", mana_cost="{W}", type_line="Enchantment — Aura", oracle_text="Enchant creature")
 SPELL = Card(name="Spell", mana_cost="{2}{U}", cmc=3, type_line="Instant", oracle_text="Draw a card.")
 BIG_SPELL = Card(name="Big Spell", mana_cost="{4}{U}", cmc=5, type_line="Sorcery", oracle_text="Draw a card.")
@@ -125,6 +131,18 @@ class AmountTests(unittest.TestCase):
         a.cast_log = [(game.turn, SPELL), (game.turn, BIG_SPELL), (game.turn - 1, BIG_SPELL), (game.turn, BEAR)]
         run(game, a, "end")
         self.assertEqual(a.life, 45)
+
+
+    def test_x_by_x_tokens(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        a.battlefield = [Permanent(ROOTHA_COMMANDER)]
+        self.assertEqual(unsupported_lines(ROOTHA_COMMANDER), [])
+        a.cast_log = [(game.turn, SPELL), (game.turn, BIG_SPELL)]
+        run(game, a, "beginning_of_combat")
+        token = a.battlefield[-1]
+        self.assertEqual((token.card.name, game.power(token), game.toughness(token)), ("Elemental", 5, 5))
+        self.assertTrue(game.has_keyword(token, "haste"))
 
 
 if __name__ == "__main__":

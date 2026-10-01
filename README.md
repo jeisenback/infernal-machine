@@ -190,6 +190,7 @@ winner = game.play()
   you gained this turn; spells you've cast this turn; the greatest mana value among instant and sorcery spells you've
   cast this turn; opponents. "For each" multiplies drawing, life, tokens and +1/+1 counters ("create a 1/1 Saproling
   token for each +1/+1 counter on this creature"). A sentence a template already understands is never rewritten.
+  "An X/X ... token" gets its size when it's created (Rootha, Mastering the Moment).
 - **Target restrictions:** destroy and exile targets can say "an opponent controls",
   "you don't control" or "you control".
 - **Counters:** +1/+1 and -1/-1 counters change power and toughness. Matching +1/+1 and -1/-1
