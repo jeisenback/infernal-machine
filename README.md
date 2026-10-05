@@ -289,6 +289,11 @@ winner = game.play()
   | When this creature enters, ... | Mulldrifter: "When Mulldrifter enters, draw two cards." |
   | When this creature dies, ... | |
   | Whenever this creature attacks, ... | |
+  | Whenever this creature blocks, ... | |
+  | When this creature enters or dies, ... (also "attacks or blocks"; one ability per event) | |
+  | Whenever a creature you control attacks, ... (once per attacker) | |
+  | Whenever you draw a card, ... (once per card; the opening hand doesn't count) | |
+  | Whenever an opponent draws a card / gains life, ... | |
   | Whenever this creature deals combat damage to a player, ... | |
   | At the beginning of your upkeep / end step, ... | |
   | At the beginning of each upkeep / each end step, ... (every player's turn) | Tendershoot Dryad |
@@ -324,8 +329,8 @@ winner = game.play()
     seven or more Plains", "if you control no Snakes". A trigger with any other "if" clause is ignored.
   - Paying life counts as losing it. A creature that's sacrificed sees itself go
     ("Whenever you sacrifice a creature" on the creature itself triggers).
-  - A trigger whose effect isn't understood is ignored. So is a watching trigger whose effect mentions
-    "it" or "that creature", because that may mean the other object rather than the source.
+  - A trigger whose effect isn't understood is ignored.
+  - In "Whenever another creature (you control) enters / dies" triggers, "it" and "that creature" mean that creature ("put a +1/+1 counter on it"), but only when every effect is about "it". In other watching triggers a line that says "it" is ignored.
   - Ability words like "Landfall —" are ignored when reading the trigger. A creature that dies still sees
     its own death ("Whenever this creature or another creature dies").
 - **Activated abilities on permanents:** these also use the same effect list.

@@ -52,6 +52,7 @@ class Combat:
                 permanent.tapped = True
             self.attacks.append(Attack(permanent, seat, defender))
             self.game.trigger("attacks", permanent, seat)
+            self.game._trigger_each("ally_attacks", seat)
             for owner in self.game.live_seats():  # "Whenever equipped / enchanted creature attacks"
                 for attachment in list(owner.battlefield):
                     if attachment.attached_to is permanent:
@@ -80,6 +81,7 @@ class Combat:
                 if choice:
                     attack = blockable[choice - 1]
                     attack.blockers.append(permanent)
+                    self.game.trigger("blocks", permanent, seat)
                     self.game.broadcast({"event": "block", "seat": seat.index, "card": permanent.card.name,
                                          "attacker": attack.attacker.card.name})
         for attack in self.attacks:

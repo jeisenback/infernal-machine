@@ -26,7 +26,7 @@ from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost
                       activated_abilities, additional_costs, alternative_costs, cost_reductions, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, is_identity_mana_land, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
-                      triggered_abilities, uses_source)
+                      triggered_abilities, uses_source, uses_subject)
 from .mana import Cost, parse_cost, pay
 from .player import Player
 
@@ -145,6 +145,7 @@ class StackItem:
     source: "Permanent | None" = None  # the ability's source, for effects on "it"
     x: int = 0  # the value chosen for X when it was cast
     kicked: int = 0  # how many times the kicker cost was paid
+    subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
 
 
@@ -154,6 +155,7 @@ class PendingTrigger:
     permanent: "Permanent"
     controller: "Seat"
     x: int = 0  # for "Whenever you cast a spell with {X}, put X counters ...": that spell's X
+    subject: "Permanent | None" = None  # what a watching trigger saw happen
 
     @property
     def source(self) -> Card:
@@ -874,6 +876,8 @@ class Game:
                 target = previous = candidate if ok else None
             elif follows_target(effect):
                 target = previous
+            elif uses_subject(effect):
+                target = item.subject if item.subject and self.on_battlefield(item.subject) else None
             elif uses_source(effect):
                 target = item.source if item.source and self.on_battlefield(item.source) else None
             effect.resolve(self, seat, target)
@@ -888,14 +892,20 @@ class Game:
             if ability.event == event and ability.watch is None:
                 self._queue(ability, permanent, controller)
 
-    def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0) -> None:
+    def _trigger_each(self, event: str, seat: Seat) -> None:
+        """`event` happened for `seat`: every permanent it controls with an ability for it triggers."""
+        for permanent in list(seat.battlefield):
+            self.trigger(event, permanent, seat)
+
+    def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0,
+               subject: Permanent | None = None) -> None:
         if ability.condition and not self.condition_holds(ability.condition, controller, permanent):
             return
         if ability.once_per_turn:  # "This ability triggers only once each turn."
             if permanent.triggered_turn.get(ability.text) == self.turn:
                 return
             permanent.triggered_turn[ability.text] = self.turn
-        self.pending.append(PendingTrigger(ability, permanent, controller, x))
+        self.pending.append(PendingTrigger(ability, permanent, controller, x, subject))
 
     def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None) -> bool:
         """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`."""
@@ -944,7 +954,7 @@ class Game:
                 if watch.first_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
                                                  for turn, c in seat.cast_log) != 1:
                     continue
-                self._queue(ability, watcher, watcher_seat, x)
+                self._queue(ability, watcher, watcher_seat, x, subject)
 
     def _put_triggers_on_stack(self) -> None:
         """Active player's triggers first, then the others in turn order (CR 603.3b).
@@ -964,7 +974,7 @@ class Game:
                 continue
             targets, labels = chosen
             item = StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability,
-                             trigger.permanent, x=trigger.x)
+                             trigger.permanent, x=trigger.x, subject=trigger.subject)
             self.stack.append(item)
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
                             "ability": _shown(trigger.ability.text, trigger.source), "targets": labels})
@@ -1058,6 +1068,9 @@ class Game:
             if announce:
                 seat.player.notify({"event": "draw", "card": card.name})
                 self.broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
+                self._trigger_each("draw", seat)
+                for opponent in self.opponents(seat):
+                    self._trigger_each("opponent_draw", opponent)
 
     def change_life(self, seat: Seat, amount: int) -> None:
         seat.life += amount
@@ -1075,6 +1088,9 @@ class Game:
                 self.trigger("gain_life" if amount > 0 else "lose_life", permanent, seat)
                 if first_loss:
                     self.trigger("first_life_loss", permanent, seat)
+            if amount > 0:
+                for opponent in self.opponents(seat):
+                    self._trigger_each("opponent_gain_life", opponent)
 
     def damage(self, target: Seat | Permanent, amount: int, source: Permanent | None = None,
                combat: bool = False) -> None:
