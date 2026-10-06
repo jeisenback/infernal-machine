@@ -302,7 +302,13 @@ winner = game.play()
   more cards than the library holds just mills what's there, and the player loses on their next draw.
 - **Tutors:** the searcher picks from the matching cards in their library, which is then shuffled. Other players
   only learn which card unless it says "reveal it". If nothing matches, the library is just shuffled.
-  Restrictions like "with mana value 3 or less" aren't supported yet.
+  "With mana value 3 or less / 3 or greater / 3" works for searches and for graveyard targets
+  ("Return target creature card with mana value 2 or less from your graveyard to your hand"); only the cards that
+  match are offered. "A land card" can go onto the battlefield (any land, not just a basic). Reanimate's "You lose
+  life equal to its mana value" follows the card it put onto the battlefield.
+- **Targets:** "another target ..." (bounce, destroy, exile) can't be the source itself, and "up to one target ..."
+  (bounce) adds a "No target" choice at the end of the list; the spell can be cast even when there is nothing to
+  target. Bots take a real target when there is one.
 - **Mass effects:** nothing is targeted, so hexproof doesn't help. A restriction ("with flying", "with power 4 or
   greater", "nonblack") is checked when the effect resolves, using the permanent's current keywords and stats, so
   a creature that was given flying until end of turn counts. Only the keywords the engine knows are accepted; "with a
@@ -312,7 +318,7 @@ winner = game.play()
   "Whenever this creature or another creature dies" sees itself go too. The same is true when several
   creatures die to damage at once. "They can't be regenerated" is accepted and does nothing, since
   regeneration isn't implemented. A player chooses their own creature to sacrifice, in turn order.
-  Restrictions like "with flying" or "with the greatest power" aren't supported yet.
+  "Sacrifices the creature with the greatest power" isn't supported yet.
 - **Exile:** each player has an exile zone. Exiled creatures don't "die", so dies triggers don't fire.
   A commander heading to exile or the graveyard can go to the command zone instead.
 - **Targets:** chosen when the spell is cast. If every target is gone when it resolves, the spell

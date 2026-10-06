@@ -65,6 +65,7 @@ SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
 SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
 DISCARD_COST_PROMPT = "Choose a card to discard for "  # followed by the ability's source
@@ -722,7 +723,8 @@ class Game:
             self._leave_battlefield(permanent, "sacrificed")
 
     def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset()) -> bool:
-        return all(self.target_options(kind, seat, colors) for kind in map(target_kind, effects) if kind)
+        return all(self.target_options(target_kind(e), seat, colors) for e in effects
+                   if target_kind(e) and not getattr(e, "optional_target", False))
 
     def _choose_modes(self, seat: Seat, card: Card, modal: Modal) -> list:
         """Ask the caster for the modes of a modal spell (only ones with legal targets are offered) and
@@ -753,6 +755,8 @@ class Game:
                 continue
             options = [o for o in self.target_options(kind, seat, colors)
                        if not (getattr(effect, "another", False) and o[1] is source)]
+            if getattr(effect, "optional_target", False):  # "up to one target": it can be left out
+                options.append((NO_TARGET, None))
             if not options:
                 return None
             label, target = options[seat.player.choose(TARGET_PROMPT + source_name, [o[0] for o in options])]
@@ -944,7 +948,7 @@ class Game:
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
         colors = frozenset(item.card.colors)
-        legal = [self.is_legal_target(target_kind(e), t, seat, colors)
+        legal = [(t is None and getattr(e, "optional_target", False)) or self.is_legal_target(target_kind(e), t, seat, colors)
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
         about = {"seat": seat.index, "card": item.card.name}
         if item.ability:
@@ -1725,6 +1729,8 @@ def _is_searched_land(card: Card, subtypes: tuple[str, ...]) -> bool:
         return False
     if not subtypes:
         return "Basic" in card.type_line
+    if subtypes == ("*",):  # "a land card"
+        return True
     return any(sub in card.type_line for sub in subtypes)
 
 
@@ -1735,6 +1741,13 @@ def _starting_loyalty(card: Card) -> int | None:
 def _card_matches(kind: str, card: Card) -> bool:
     """Whether a card in a library or graveyard is of `kind`: "card", "permanent", "creature",
     "instant or sorcery", "basic land", ..."""
+    kind, _, value = kind.partition("|")  # "creature|mv<=3": with a mana value of 3 or less
+    if value:
+        number = int(value.lstrip("mv<>="))
+        mana_value = card.cmc
+        if not ((value.startswith("mv<=") and mana_value <= number) or (value.startswith("mv>=") and mana_value >= number)
+                or (value.startswith("mv=") and mana_value == number)):
+            return False
     if kind == "card":
         return True
     if kind == "permanent":

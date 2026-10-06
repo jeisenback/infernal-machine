@@ -121,6 +121,7 @@ class Damage:
 @dataclass(frozen=True)
 class Destroy:
     target: str
+    another: bool = False  # "destroy another target ...": not the source itself
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -861,6 +862,8 @@ def _damage_each(m: re.Match) -> DamageEach | None:
 class ReturnToHand:
     """Bounce: "Return target nonland permanent you don't control to its owner's hand." """
     target: str
+    another: bool = False  # "Return another target creature ...": not the source itself
+    optional_target: bool = False  # "Return up to one target creature ...": the target may be left out
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -884,6 +887,16 @@ class ReturnFromGraveyard:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.return_from_graveyard(target, controller, self.to)
+
+
+@dataclass(frozen=True)
+class LoseLifeEqualToManaValue:
+    """Reanimate: "You lose life equal to its mana value." (the card the previous effect put onto the battlefield)"""
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.change_life(controller, -int(target.card.cmc))
 
 
 @dataclass(frozen=True)
@@ -1208,13 +1221,25 @@ def _land_types(text: str) -> tuple[str, ...]:
     return tuple(t.capitalize() for t in re.findall(_LAND_TYPE, text, re.I))
 
 
-_CARD_TYPE = r"(?:(creature|artifact|enchantment|land|permanent|instant or sorcery|instant|sorcery) )?card"
-_SEARCH_TYPE = (r"(?:(creature|land|artifact|enchantment|planeswalker|instant or sorcery|instant|sorcery"
-                r"|artifact or enchantment|basic land) )?card")
+_MANA_VALUE = r"(?: with mana value \d+(?: or less| or greater)?)?"
+_CARD_TYPE = rf"((?:(?:creature|artifact|enchantment|land|permanent|instant or sorcery|instant|sorcery) )?card{_MANA_VALUE})"
+_SEARCH_TYPE = (r"((?:(?:creature|land|artifact|enchantment|planeswalker|instant or sorcery|instant|sorcery"
+                rf"|artifact or enchantment|basic land) )?card{_MANA_VALUE})")
+_CARD_PHRASE = re.compile(r"(?:(.+?) )?card(?: with mana value (\d+)(?: (or less|or greater))?)?")
 
 
-def _graveyard_kind(card_type: str | None, whose: str) -> str:
-    return f"graveyard:{card_type or 'card'}:{whose}"
+def _card_kind(phrase: str | None) -> str:
+    """"creature card with mana value 3 or less" -> "creature|mv<=3"; "card" -> "card". The kind is what the
+    game matches library and graveyard cards against."""
+    m = _CARD_PHRASE.fullmatch((phrase or "card").lower())
+    kind = m[1] or "card"
+    if m[2]:
+        kind += "|mv" + {"or less": "<=", "or greater": ">="}.get(m[3], "=") + m[2]
+    return kind
+
+
+def _graveyard_kind(phrase: str | None, whose: str) -> str:
+    return f"graveyard:{_card_kind(phrase)}:{whose}"
 
 
 @dataclass(frozen=True)
@@ -1234,7 +1259,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
-    (re.compile(rf"destroy target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[1].lower())),
+    (re.compile(rf"destroy (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[2].lower(), bool(m[1]))),
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[2].lower(), bool(m[1]))),
@@ -1243,7 +1268,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (player|opponent) draws {_N} cards?\.", re.I), lambda m: TargetDraw(_count(m[2]), m[1].lower())),
     (re.compile(rf"target (player|opponent) gains {_N} life\.", re.I), lambda m: TargetGainLife(_count(m[2]), m[1].lower())),
     (re.compile(rf"target (player|opponent) loses {_N} life\.", re.I), lambda m: TargetLoseLife(_count(m[2]), m[1].lower())),
-    (re.compile(rf"return target {_PERMANENT_KIND} to its owner's hand\.", re.I), lambda m: ReturnToHand(m[1].lower())),
+    (re.compile(rf"return (another |up to one )?target {_PERMANENT_KIND} to its owner's hand\.", re.I),
+     lambda m: ReturnToHand(m[2].lower(), (m[1] or "").lower() == "another ", (m[1] or "").lower() == "up to one ")),
     (re.compile(rf"return all {_MASS} to their owners' hands\.", re.I), lambda m: ReturnAllToHand(_mass_kind(m))),
     (re.compile(rf"return target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand")),
@@ -1254,7 +1280,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"))),
     (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal it, )?(?:put (?:it|that card) into your hand, "
                 r"then shuffle|then shuffle and put (?:it|that card|the card) on top(?: of your library)?)\.", re.I),
-     lambda m: SearchLibrary(m[1] or "card", "hand" if "into your hand" in m[0] else "top", "reveal it" in m[0].lower())),
+     lambda m: SearchLibrary(_card_kind(m[1]), "hand" if "into your hand" in m[0] else "top", "reveal it" in m[0].lower())),
+    (re.compile(r"search your library for a land card, put it onto the battlefield( tapped)?, then shuffle\.", re.I),
+     lambda m: SearchForLands(1, ("*",), 1, bool(m[1]), False)),
+    (re.compile(r"you lose life equal to its mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
     (re.compile(rf"you lose {_N} life\.", re.I), lambda m: LoseLife(_count(m[1]))),
     (re.compile(r"search your library for up to two basic land cards, reveal those cards, put one onto the battlefield "
                 r"tapped and the other into your hand, then shuffle\.", re.I),
