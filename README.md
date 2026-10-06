@@ -136,7 +136,14 @@ winner = game.play()
 - **Commander tax:** your commander costs {2} more for each earlier cast from the command zone.
   When your commander would go to the graveyard, you choose whether it goes back to the command zone instead.
 - **The stack:** spells go on the stack and resolve last in, first out once everyone passes in a row.
-- **Combat:** the active player chooses, creature by creature, whether to attack and which opponent.
+- **Combat:** the active player chooses, creature by creature, whether to attack and whom: an opponent, or a
+  planeswalker an opponent controls ("Attack Planeswalker: ..."). Damage to a planeswalker removes loyalty (it dies at
+  0), and the player's creatures can block attackers aimed at their planeswalker. A trampler's extra damage goes to
+  the planeswalker. If the planeswalker has left, the attacker deals no damage. Bots attack players only.
+  "Whenever a creature attacks you" triggers only for attacks on the player; "... attacks you or a planeswalker you
+  control" triggers for both. When several creatures block one attacker, its controller names which blocker gets
+  lethal damage first, then the next, and so on (bots go for the weakest first); the rest goes to the last, or to the
+  player with trample.
   Each defending player then chooses blockers, and damage is dealt all at once. With no attackers,
   the blockers and damage steps are skipped. If any creature in combat has first strike or double strike,
   there's an extra first-strike damage step.
@@ -279,6 +286,15 @@ winner = game.play()
   dies. Threaten's effect ends in the cleanup step; Control Magic's ends as soon as the Aura stops being
   attached or leaves, and the creature goes back to whoever controlled it before. A lone "Untap that creature."
   isn't understood. Bots aim Control Magic at an opponent's creature.
+- **Vehicles:** "Crew N" is an ability at instant speed: tap untapped creatures you control, one at a time, until their
+  total power is N or more (summoning-sick creatures can crew, the Vehicle can't crew itself). Until end of turn the
+  Vehicle is an artifact creature, with its printed power and toughness, so it can attack (not the turn it arrived)
+  and block, and it dies like a creature. It goes back to being a plain card at end of turn or when it leaves. It
+  can't be crewed twice in a turn, and bots crew whenever they can.
+- **Sagas:** "I — ...", "II — ..." and "I, II — ..." chapters. A Saga enters with a lore counter and its
+  chapter I triggers; each of its controller's turns, after the draw step, it gets another and the matching chapter
+  triggers. Once the last chapter's ability has resolved it is put into the graveyard. A Saga is all or nothing: if
+  any chapter isn't understood it has none, and the report lists its lines.
 - **Protection from a color:** "Protection from red" (and "from red and from blue"), whether printed or given by
   Equipment, an Aura, a static ability, or "gains protection from red until end of turn". The protected permanent
   can't be targeted by red spells or abilities, takes no damage from red sources, can't be blocked by red
@@ -346,6 +362,16 @@ winner = game.play()
   a destroy effect make that effect skip shields. Exile, sacrifice and zero toughness aren't destruction, so shields
   don't help. Activating in response works like any ability, but bots don't regenerate on their own.
   "Sacrifices the creature with the greatest power" isn't supported yet.
+- **Fight, proliferate, persist and undying:**
+  - "Target creature you control fights target creature you don't control." (also "fights another target creature")
+    and "Target creature you control deals damage equal to its power to target creature you don't control." (a bite,
+    one-sided). It takes two targets; each deals damage equal to its power to the other at the same time, with its
+    deathtouch and lifelink. If either target is gone or they are the same creature, nothing happens.
+  - "Proliferate." lets you pick any permanents (yours or an opponent's) that have counters, or planeswalkers; each gets
+    one more of every kind it has. You choose one at a time and finish with "Done". Bots pick only their own.
+  - Persist and undying: when the creature dies with no -1/-1 (persist) or +1/+1 (undying) counter on it, it comes
+    back from the graveyard under its owner's control with one. It is a dies trigger, so it uses the stack and
+    can be answered; a token or a card that went somewhere else instead (a commander in the command zone) doesn't return.
 - **Exile:** each player has an exile zone. Exiled creatures don't "die", so dies triggers don't fire.
   A commander heading to exile or the graveyard can go to the command zone instead.
 - **Targets:** chosen when the spell is cast. If every target is gone when it resolves, the spell
