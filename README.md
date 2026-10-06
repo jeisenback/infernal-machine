@@ -235,8 +235,16 @@ winner = game.play()
   - Painlands and Talismans: 1 damage when tapped for a colored mana. Colorless mana from them is free, and
     the payer picks painless sources first. Talismans make their colors now (they used to make colorless only).
   - Command Tower: only makes your commander's colors, whatever the card data lists.
+  - Ancient Tomb ("{T}: Add {C}{C}. ... deals 2 damage to you."): two mana from one tap, and the damage is dealt
+    once per tap however much of the mana is used. Bouncelands ("{T}: Add {B}{G}.") make both colors the same way.
+  - City of Brass ("Whenever this land becomes tapped, it deals 1 damage to you."): hurts every time it's tapped
+    for mana. Mana Confluence ("{T}, Pay 1 life: Add one mana of any color."): pays life (not damage), and is not
+    used when you can't afford it. The payer picks painless sources first.
+  - Bouncelands: "enters tapped" plus "When this land enters, return a land you control to its owner's hand."
+    You choose the land and it can be itself; bots return the newest land.
   - Cycling {N}: an ability you can use from your hand at instant speed. Pay, discard the card, draw.
-    Landcycling and other costs aren't supported.
+    Basic landcycling {N} and Plainscycling / Islandcycling / Swampcycling / Mountaincycling / Forestcycling {N}
+    fetch a land to your hand instead (basic land, or any land with that type). Costs other than mana aren't supported.
   - Not yet: bouncelands, Pathways (double-faced), filter lands, City of Brass and Mana Confluence,
     Ancient Tomb, lands that make several mana.
 - **Equipment and Auras:** "Equip {N}" is an activated ability at sorcery speed that targets a creature you

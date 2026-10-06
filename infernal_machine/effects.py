@@ -874,6 +874,19 @@ class SearchForLands:
         game.search_for_lands(controller, self.count, self.subtypes, self.battlefield, self.tapped, self.reveal)
 
 
+RETURN_LAND_PROMPT = "Return which land to your hand? "
+
+
+@dataclass(frozen=True)
+class ReturnOwnLand:
+    """Bounceland: "Return a land you control to its owner's hand." (you choose; it can be the land itself)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        lands = [p for p in controller.battlefield if "Land" in p.card.type_line]
+        if lands:
+            game.return_to_hand(lands[controller.player.choose(RETURN_LAND_PROMPT, [game.label(p) for p in lands])])
+
+
 @dataclass(frozen=True)
 class Scry:
     count: int | str
@@ -1003,12 +1016,32 @@ def is_enters_tapped_line(line: str) -> bool:
     return any(pattern.fullmatch(line) for pattern, _ in _ENTERS_TAPPED)
 
 
-_CYCLING = re.compile(r"Cycling ((?:\{\d+\}|\{[WUBRGC]\})+)")
+_CYCLING = re.compile(r"(Cycling|Basic landcycling|(?:Plains|Island|Swamp|Mountain|Forest)cycling) "
+                      r"((?:\{\d+\}|\{[WUBRGC]\})+)")
+_CYCLING_LAND_TYPES = {"plainscycling": "Plains", "islandcycling": "Island", "swampcycling": "Swamp",
+                       "mountaincycling": "Mountain", "forestcycling": "Forest"}
+
+
+def cycling(card: Card) -> tuple[str, str, tuple] | None:
+    """A card's cycling: (its name, like "Forestcycling", the mana cost, what the ability does when it resolves).
+    Plain cycling draws a card; basic landcycling and Forestcycling-style abilities fetch a land to your hand."""
+    for line in rules_lines(card):
+        if m := _CYCLING.fullmatch(line):
+            word = m[1]
+            if word == "Cycling":
+                effects: tuple = (Draw(1),)
+            elif word == "Basic landcycling":
+                effects = (SearchForLands(1, (), 0, False, True),)
+            else:
+                effects = (SearchForLands(1, (_CYCLING_LAND_TYPES[word.lower()],), 0, False, True),)
+            return word, m[2], effects
+    return None
 
 
 def cycling_cost(card: Card) -> str | None:
-    """The mana cost from "Cycling {2}" (only mana costs are supported), or None."""
-    return next((m[1] for line in rules_lines(card) if (m := _CYCLING.fullmatch(line))), None)
+    """The mana cost from "Cycling {2}" or "Forestcycling {1}" (only mana costs are supported), or None."""
+    found = cycling(card)
+    return found[1] if found else None
 
 
 def is_cycling_line(line: str) -> bool:
@@ -1180,6 +1213,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchForLands(1, _land_types(m[1]), 1, bool(m[2]), False)),
     (re.compile(rf"scry {_N}\.", re.I), lambda m: Scry(_count(m[1]))),
     (re.compile(rf"surveil {_N}\.", re.I), lambda m: Surveil(_count(m[1]))),
+    (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"populate\.", re.I), lambda m: Populate()),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
@@ -1659,6 +1693,9 @@ def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozens
     artifact" in the cost (Treasure).
     """
     line = _mana_line(card)
+    for rule in rules_lines(card):  # Ancient Tomb-style "{T}: Add {C}{C}. ... deals 2 damage to you."
+        if m := _PAIN_MULTI.fullmatch(rule):
+            return [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1])]
     units = _mana_from_line(line, commander_identity) if line else None
     if pain := mana_pain(card):  # a Talisman's colored ability joins its colorless one as a single mana
         units = [units[0] | pain[0]] + units[1:] if units else [pain[0]]
@@ -1678,11 +1715,17 @@ def _mana_line(card: Card) -> str | None:
 
 _MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY, _ADD_IDENTITY)
 _PAIN = re.compile(rf"\{{T\}}: Add \{{([WUBRGC])\}} or \{{([WUBRGC])\}}\. {_SELF} deals {_N} damage to you\.", re.I)
+# Ancient Tomb: two mana, and the damage is dealt once however much of it is used.
+_PAIN_MULTI = re.compile(rf"\{{T\}}: Add ((?:\{{[WUBRGC]\}}){{2,}})\. {_SELF} deals {_N} damage to you\.", re.I)
+# City of Brass: the damage comes from the land becoming tapped.
+_TAPPED_PAIN = re.compile(rf"Whenever {_SELF} becomes tapped, it deals {_N} damage to you\.", re.I)
+# Mana Confluence: paying life, not damage.
+_PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add one mana of any color\.", re.I)
 
 
 def is_mana_ability(line: str) -> bool:
     return (any(p.fullmatch(line) for p in _MANA_PATTERNS) or _FILTER.fullmatch(line) is not None
-            or _PAIN.fullmatch(line) is not None)
+            or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))
 
 
 def mana_pain(card: Card) -> tuple[frozenset[str], int] | None:
@@ -1691,6 +1734,26 @@ def mana_pain(card: Card) -> tuple[frozenset[str], int] | None:
     for line in rules_lines(card):
         if m := _PAIN.fullmatch(line):
             return frozenset((m[1], m[2])), _count(m[3])
+        if m := _PAIN_MULTI.fullmatch(line):
+            return frozenset(re.findall(r"[WUBRGC]", m[1])), _count(m[2])
+        if m := _TAPPED_PAIN.fullmatch(line):  # every color it makes hurts
+            return frozenset("WUBRGC"), _count(m[1])
+    return None
+
+
+def mana_life_cost(card: Card) -> int:
+    """Life paid each time a land is tapped for mana ("{T}, Pay 1 life: Add one mana of any color."), or 0."""
+    return next((_count(m[1]) for line in rules_lines(card) if (m := _PAY_LIFE_ANY.fullmatch(line))), 0)
+
+
+def land_mana_units(card: Card) -> list[frozenset[str]] | None:
+    """The mana a land makes in one tap when that's more than one ("{T}: Add {B}{G}.", Ancient Tomb's
+    {C}{C}), one set per mana; None for the usual one mana, which comes from the card's data."""
+    for line in rules_lines(card):
+        m = _ADD_SYMBOLS.fullmatch(line) or _PAIN_MULTI.fullmatch(line)
+        if m:
+            symbols = re.findall(r"[WUBRGC]", m[2] if m.re is _ADD_SYMBOLS else m[1])
+            return [frozenset(symbol) for symbol in symbols] if len(symbols) > 1 else None
     return None
 
 
