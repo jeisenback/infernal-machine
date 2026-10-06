@@ -1227,6 +1227,22 @@ class BecomeMonarch:
 
 
 @dataclass(frozen=True)
+class TakeInitiative:
+    """ "You take the initiative." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.take_initiative(controller)
+
+
+@dataclass(frozen=True)
+class ThroneOfTheDeadThree:
+    """The last room of the Undercity; the engine puts it on the stack itself."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.throne_of_the_dead_three(controller)
+
+
+@dataclass(frozen=True)
 class Goad:
     target: str
 
@@ -1602,6 +1618,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
+    (re.compile(r"you take the initiative\.", re.I), lambda m: TakeInitiative()),
     (re.compile(r"target player takes an extra turn after this one\.", re.I), lambda m: TargetExtraTurn()),
     (re.compile(r"after this (?:main )?phase, there is an additional combat phase( followed by an additional main phase)?\.",
                 re.I), lambda m: ExtraCombat(bool(m[1]))),

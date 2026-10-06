@@ -193,6 +193,7 @@ winner = game.play()
 | After this (main) phase, there is an additional combat phase (followed by an additional main phase). | Relentless Assault |
 | Untap all creatures that attacked this turn. / Untap all creatures you control. | Aggravated Assault |
 | You become the monarch. | Palace Jailer |
+| You take the initiative. | Undercity Dire Rat style cards |
 | Goad target creature. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
@@ -351,8 +352,17 @@ winner = game.play()
   - Extra turns go to the player who asked, right after the current turn; the latest one asked for goes first,
     and regular turn order then carries on from where it was.
   - The monarch draws a card at their end step. Combat damage dealt to the monarch by a creature makes that
-    creature's controller the monarch. If the monarch loses, the active player becomes monarch. The initiative
-    and voting aren't built.
+    creature's controller the monarch. If the monarch loses, the active player becomes monarch. Voting isn't built.
+  - **The initiative:** "You take the initiative" makes you venture into the Undercity (`undercity.py` has the
+    rooms: Secret Entrance, Forge, Lost Well, Trap!, Arena, Stash, Archives, Catacombs, Throne of the Dead
+    Three). You also venture at your upkeep while you hold it, and combat damage to the holder from a creature
+    takes it (each hit is checked on its own, so two players' creatures hitting at once give it to the first
+    one resolved). If the holder loses, the active player takes it. Each room's ability goes on the stack and
+    uses the normal targeting, so the player chooses targets and the next room (when there are two exits);
+    leaving the last room completes the dungeon and the next venture starts over. The Throne's creature enters
+    with three +1/+1 counters and hexproof until its controller's next turn begins. Bots take the first exit and
+    put the Forge's counters on their own creature. "Whenever you take the initiative" and "if you have the
+    initiative" aren't understood.
   - An additional combat phase goes right after the current phase (after combat ends, if it comes from inside
     combat), with an additional main phase after it if the card says so. Cast before combat, it simply gives
     you two combats, and creatures tapped in the first can't attack in the second.
