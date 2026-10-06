@@ -107,6 +107,13 @@ winner = game.play()
     (Fierce Guardianship, Deadly Rollick) and "(If it's not your turn,) you may (pay N life and) exile a blue card
     from your hand rather than pay this spell's mana cost." (Force of Will, Force of Negation). When more than
     one way is payable, the caster chooses. X is 0 when the mana cost isn't paid.
+  - Flashback {N}: you may cast the card from your graveyard for that cost (at the usual timing: an instant at any
+    time, anything else at sorcery speed). Whenever it leaves the stack, whether it resolves, fizzles or is
+    countered, it is exiled instead of going to the graveyard. Bots use graveyard casts like any other cast.
+  - Escape—{N}, Exile N other cards from your graveyard: you cast it from the graveyard for that cost and exile the
+    other cards you choose, which counts as cards leaving your graveyard. It isn't exiled afterwards, so an escaped
+    creature stays. Only one graveyard-casting ability per card is used (the first on the card). Kicker and
+    commander tax don't apply to a graveyard cast.
   - Kicker {N}: the caster chooses whether to pay it, before choosing targets. "If this spell was kicked, ..."
     effects on instants and sorceries happen only when it was, and can target (kicker is only offered when those
     targets exist). A kicked permanent (Auras too) remembers it: "If this creature was kicked, it enters with
