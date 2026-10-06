@@ -67,6 +67,8 @@ OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
 SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
+DISCARD_COST_PROMPT = "Choose a card to discard for "  # followed by the ability's source
+EXILE_COST_PROMPT = "Choose a card to exile from your graveyard for "  # followed by the ability's source
 COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
 KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
@@ -448,9 +450,40 @@ class Game:
             return False
         if ability.life > seat.life:  # CR 119.4
             return False
+        if ability.discard and not seat.hand:
+            return False
+        if ability.exile_graveyard and not seat.graveyard:
+            return False
+        if ability.sacrifice_other and not self._sacrifice_choices(seat, permanent, ability):
+            return False
         if self._ability_payment(seat, permanent, ability) is None:
             return False
         return self._targets_exist(seat, ability.effects, frozenset(card.colors))
+
+    def _sacrifice_choices(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> list[Permanent]:
+        """What `seat` could sacrifice to pay the ability's "Sacrifice a creature" cost."""
+        return [p for p in seat.battlefield if _permanent_matches(ability.sacrifice_other, p.card)
+                and not (ability.sacrifice_another and p is source)]
+
+    def _pay_card_costs(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> None:
+        """Pay an activated ability's "Sacrifice a creature", "Discard a card" and "Exile a card from your
+        graveyard" costs (CR 602.2b)."""
+        name = source.card.name
+        if ability.discard:
+            card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT + name, [c.name for c in seat.hand])]
+            seat.hand.remove(card)
+            self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
+            self._move_card(seat, card, "graveyard")
+        if ability.exile_graveyard:
+            card = seat.graveyard[seat.player.choose(EXILE_COST_PROMPT + name, [c.name for c in seat.graveyard])]
+            seat.graveyard.remove(card)
+            self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
+            self._move_card(seat, card, "exile")
+            self._left_graveyard(seat)
+        if ability.sacrifice_other:
+            options = self._sacrifice_choices(seat, source, ability)
+            choice = options[seat.player.choose(SACRIFICE_COST_PROMPT + name, [self.label(p) for p in options])]
+            self._leave_together([(choice, "sacrificed")])
 
     def _ability_payment(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> list[Permanent] | None:
         cost = parse_cost(ability.mana_cost) if ability.mana_cost else Cost()
@@ -657,6 +690,7 @@ class Game:
             permanent.tapped = True
         if ability.life:
             self.change_life(seat, -ability.life)
+        self._pay_card_costs(seat, permanent, ability)
         if ability.loyalty is not None:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn

@@ -364,6 +364,9 @@ winner = game.play()
   |---|---|
   | Mana, {T}, sacrifice this, pay N life | Mind Stone: "{1}, {T}, Sacrifice this artifact: Draw a card." |
   | Planeswalker loyalty (+1, −3, 0) | "−3: Destroy target creature." |
+  | Sacrifice a creature / another creature / an artifact (land, enchantment, permanent) | "Sacrifice a creature: Draw a card." |
+  | Discard a card | "{1}, Discard a card: Draw a card." |
+  | Exile a card from your graveyard | "{1}, Exile a card from your graveyard: You gain 1 life." |
 
   - They can be activated whenever you have priority, unless they say "Activate only as a sorcery".
     "Activate only once each turn" is respected.
@@ -371,8 +374,10 @@ winner = game.play()
   - Creatures can't use {T} abilities the turn they arrive (unless they have haste).
   - A permanent can't tap itself for mana to pay for its own {T} or sacrifice ability.
   - Abilities go on the stack, so players can respond, and counterspells can't target them.
-- **Other rules text on permanents:** static abilities, mana abilities with a cost (Signets),
-  and activation costs like "sacrifice a creature" aren't implemented yet.
+  - Card costs ("Sacrifice a creature", "Discard a card", "Exile a card from your graveyard") are paid when you
+    activate, and the ability isn't offered unless you can pay. You can sacrifice only your own permanents; the
+    source itself counts unless it says "another". Bots don't use abilities that cost their own cards. Costs
+    that name several cards ("sacrifice two creatures") aren't supported.
 
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
