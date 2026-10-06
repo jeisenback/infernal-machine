@@ -82,6 +82,7 @@ KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; opti
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = "Choose a card to exile from your hand"
 ESCAPE_PROMPT = "Choose a card to exile from your graveyard"
+UNLESS_PROMPT = "Pay to stop "  # followed by the triggering card's name; options: "Pay {1}", "Don't pay"
 WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
 COLOR_LETTERS = {name: letter for letter, name in COLOR_NAMES.items()}
@@ -1792,8 +1793,22 @@ class Game:
         self._plan[at + 1:at + 1] = extra + (["main2"] if main else [])
 
     def become_monarch(self, seat: Seat) -> None:
+        if self.monarch is seat:  # already the monarch: nothing changes, so nothing triggers
+            return
         self.monarch = seat
         self.broadcast({"event": "monarch", "seat": seat.index})
+        self._trigger_each("become_monarch", seat)
+        for opponent in self.opponents(seat):
+            self._trigger_each("opponent_become_monarch", opponent, player=seat)
+
+    def pays_unless(self, payer: Seat, cost_text: str, source: Card) -> bool:
+        """"... unless that player pays {1}": whether `payer` can and chooses to pay the cost (and pays it)."""
+        payment = self._pay_cost(payer, parse_cost(cost_text))
+        if payment is None or payer.player.choose(UNLESS_PROMPT + source.name, [f"Pay {cost_text}", "Don't pay"]) != 0:
+            return False
+        self._spend_mana(payer, payment)
+        self.broadcast({"event": "paid_unless", "seat": payer.index, "card": source.name, "cost": cost_text})
+        return True
 
     def goad(self, permanent: Permanent, goader: Seat) -> None:
         permanent.goaded_by = goader
