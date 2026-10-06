@@ -963,6 +963,15 @@ class Scry:
 
 
 @dataclass(frozen=True)
+class AddMana:
+    """Ritual: "Add {B}{B}{B}." The mana waits in its controller's pool until the step ends."""
+    units: tuple[frozenset[str], ...]
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.add_mana(controller, self.units)
+
+
+@dataclass(frozen=True)
 class ExtraTurn:
     """ "Take an extra turn after this one." """
 
@@ -1318,6 +1327,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"scry {_N}\.", re.I), lambda m: Scry(_count(m[1]))),
     (re.compile(rf"surveil {_N}\.", re.I), lambda m: Surveil(_count(m[1]))),
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
+    (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
+     lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
     (re.compile(r"populate\.", re.I), lambda m: Populate()),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
@@ -1719,7 +1730,7 @@ class ActivatedAbility:
 
 
 _ACTIVATED = re.compile(r"([^:\"]+): (.+)")
-_MANA_PART = re.compile(r"(\{(?:\d+|[WUBRGC]|[WUBRGC]/[WUBRGCP])\})+")
+_MANA_PART = re.compile(r"(\{(?:\d+|X|S|[WUBRGC]|[WUBRGC]/[WUBRGCP]|2/[WUBRGC])\})+")
 _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
 _SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?) (creature|artifact|land|enchantment|permanent|artifact or creature)")

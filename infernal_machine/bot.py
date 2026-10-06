@@ -117,7 +117,8 @@ class BotPlayer:
         for i, option in enumerate(options):
             if option.startswith(CAST_COMMANDER):
                 return i
-        casts = [i for i, option in enumerate(options) if option.startswith((CAST, CAST_GRAVEYARD))]
+        casts = [i for i, option in enumerate(options)
+                 if option.startswith((CAST, CAST_GRAVEYARD)) and not _is_ritual(self._cards.get(_cast_name(option)))]
         if casts:
             return max(casts, key=lambda i: self._cards[_cast_name(options[i])].cmc)
         for i, option in enumerate(options):
@@ -145,6 +146,12 @@ class BotPlayer:
 def _cast_name(option: str) -> str:
     """The card in a "Cast: ..." or "Cast from graveyard: ..." action."""
     return option.removeprefix(CAST).removeprefix(CAST_GRAVEYARD)
+
+
+def _is_ritual(card: Card | None) -> bool:
+    """A card that only adds mana ("Add {B}{B}{B}."): the bot doesn't plan ahead, so it would only waste it."""
+    lines = [line.strip() for line in (card.oracle_text if card else "").splitlines() if line.strip()]
+    return bool(lines) and all(re.fullmatch(r"Add (\{[WUBRGC]\})+\.", line) for line in lines)
 
 
 def _limited_cost(action: str) -> bool:
