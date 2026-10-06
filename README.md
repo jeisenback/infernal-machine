@@ -193,7 +193,9 @@ winner = game.play()
 | After this (main) phase, there is an additional combat phase (followed by an additional main phase). | Relentless Assault |
 | Untap all creatures that attacked this turn. / Untap all creatures you control. | Aggravated Assault |
 | You become the monarch. | Palace Jailer |
-| Goad target creature. | |
+| Goad target creature. / Goad all creatures you don't control. | Disrupt Decorum |
+| Whenever an opponent casts a spell / draws a card, (you may) draw a card / create a Treasure token unless that player pays {N}. | Rhystic Study, Mystic Remora, Smothering Tithe |
+| Whenever you become the monarch, ... / Whenever an opponent becomes the monarch, ... | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
 | Equipped creature gets +N/+N and has keywords. / Enchanted creature gets +N/+N and has keywords. | |
@@ -357,7 +359,13 @@ winner = game.play()
     combat), with an additional main phase after it if the card says so. Cast before combat, it simply gives
     you two combats, and creatures tapped in the first can't attack in the second.
   - A goaded creature must attack each combat if able, and not the goader if another opponent can be attacked.
-    It lasts until the goader's next untap step.
+    It lasts until the goader's next untap step. "Goad all creatures you don't control" goads every creature
+    each opponent controls.
+  - "Whenever you become the monarch" and "Whenever an opponent becomes the monarch" trigger only when the
+    monarch actually changes.
+  - "... unless that player pays {N}": the player who cast the spell or drew the card is asked whether to pay
+    when the trigger resolves, and is only asked if they can. Understood only for effects that need no target
+    (draw, create a token, gain or lose life).
 - **Scry, surveil and mill:** scrying and surveilling look at the top cards one at a time and choose to keep
   each on top or put it on the bottom (scry) or into the graveyard (surveil). When two or more stay on top the
   player is asked which goes on top next (bots keep the order). Only the scrying player sees the cards. Surveil's graveyard cards are public. Milling
