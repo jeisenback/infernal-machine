@@ -130,7 +130,8 @@ class BotPlayer:
     def _is_buff_aura(self, name: str) -> bool:
         """An Aura that helps its target, as opposed to a Pacifism-style one that hurts it."""
         card = self._cards.get(name)
-        return card is not None and "Aura" in card.type_line and "can't attack or block" not in card.oracle_text
+        return (card is not None and "Aura" in card.type_line and "can't attack or block" not in card.oracle_text
+                and "You control enchanted creature" not in card.oracle_text)
 
     def _block(self, prompt: str, options: Sequence[str]) -> int:
         toughness = _stats(prompt)[1]

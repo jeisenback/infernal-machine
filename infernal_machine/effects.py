@@ -1006,6 +1006,41 @@ class AddMana:
 
 
 @dataclass(frozen=True)
+class GainControl:
+    """ "Gain control of target creature (until end of turn). (Untap that creature. It gains haste until end of
+    turn.)" """
+    target: str
+    until_end_of_turn: bool = False
+    untap: bool = False
+    haste: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.gain_control(target, controller, until_eot=self.until_end_of_turn, untap=self.untap, haste=self.haste)
+
+
+@dataclass(frozen=True)
+class UntapThat:
+    """ "Untap that creature." Only meaningful right after "Gain control of ...": _merge_control folds it in."""
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        pass
+
+
+_CONTROL_AURA = "You control enchanted creature."
+
+
+def aura_controls(card: Card) -> bool:
+    """Control Magic: an Aura that gives its controller control of the enchanted creature."""
+    return "Aura" in card.type_line and _CONTROL_AURA in rules_lines(card)
+
+
+def is_control_aura_line(line: str) -> bool:
+    return line == _CONTROL_AURA
+
+
+@dataclass(frozen=True)
 class ExtraTurn:
     """ "Take an extra turn after this one." """
 
@@ -1363,6 +1398,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
+    (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
+     lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
+    (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
     (re.compile(r"populate\.", re.I), lambda m: Populate()),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
@@ -1476,7 +1514,25 @@ def _parse(sentences: list[str]) -> list | None:
         if None in found:
             return None
         effects += found
-    return _merge_no_regen(effects)
+    return _merge_control(_merge_no_regen(effects))
+
+
+def _merge_control(effects: list) -> list | None:
+    """Threaten: "Gain control of target creature until end of turn. Untap that creature. It gains haste until end
+    of turn." is one effect. A lone "Untap that creature." has nothing to refer to, so the line isn't understood."""
+    merged: list = []
+    for effect in effects:
+        after_control = bool(merged) and isinstance(merged[-1], GainControl)
+        if isinstance(effect, UntapThat):
+            if not after_control:
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], untap=True)
+        elif (isinstance(effect, PumpSource) and effect.modifier.keywords == frozenset({"haste"})
+              and effect.modifier.power == effect.modifier.toughness == 0 and after_control and merged[-1].untap):
+            merged[-1] = dataclasses.replace(merged[-1], haste=True)
+        else:
+            merged.append(effect)
+    return merged
 
 
 def _merge_no_regen(effects: list) -> list:
