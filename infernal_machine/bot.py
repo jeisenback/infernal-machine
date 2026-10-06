@@ -12,7 +12,7 @@ from .cards import Card, Deck
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT
 from .undercity import HELPS_ITS_TARGET
-from .game import (VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
+from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
@@ -84,7 +84,7 @@ class BotPlayer:
     def choose(self, prompt: str, options: Sequence[str]) -> int:
         if prompt == KEEP_PROMPT:
             return 0 if keep_hand(self._hand, self._mulligans) else 1
-        if prompt in (BOTTOM_PROMPT, DISCARD_PROMPT):
+        if prompt in (BOTTOM_PROMPT, DISCARD_PROMPT, DISCARD_CARD_PROMPT):
             return worst_card([self._cards[name] for name in options])
         if prompt.startswith(ATTACK_PROMPT):
             if _stats(prompt)[0] <= 0:
@@ -108,9 +108,10 @@ class BotPlayer:
             return min(range(len(options)), key=lambda i: _stats(options[i])[1])
         if prompt == RETURN_LAND_PROMPT:
             return len(options) - 1  # the bounceland that just came in is the newest land
-        if prompt in (SEARCH_CARD_PROMPT, LOOK_PROMPT, THRONE_PROMPT):
-            named = [i for i, name in enumerate(options) if name in self._cards]  # never declines the optional take
-            return max(named, key=lambda i: self._cards[options[i]].cmc)  # its best card
+        if prompt in (SEARCH_CARD_PROMPT, LOOK_PROMPT, CHOOSE_DISCARD_PROMPT, THRONE_PROMPT):
+            taken = [i for i, name in enumerate(options) if name != NONE_TAKEN]  # never declines the optional take
+            # its best card; one it can't see in its own deck (from an opponent's hand) counts as worth nothing
+            return max(taken, key=lambda i: self._cards[options[i]].cmc if options[i] in self._cards else 0)
         if prompt == SACRIFICE_PROMPT or prompt.startswith(SACRIFICE_COST_PROMPT):
             return min(range(len(options)), key=lambda i: sum(_stats(options[i])))  # its weakest creature
         if prompt.startswith(TARGET_PROMPT):

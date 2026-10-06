@@ -74,6 +74,16 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(len(unsupported_lines(BADMODE)), 1)
 
 
+class CommandTests(unittest.TestCase):
+    def test_kolaghans_command_is_fully_supported_now_that_discard_exists(self):
+        card = Card(name="Kolaghan's Command", mana_cost="{1}{B}{R}", type_line="Instant",
+                    oracle_text="Choose two \u2014\n\u2022 Return target creature card from your graveyard to your hand.\n"
+                                "\u2022 Target player discards a card.\n\u2022 Destroy target artifact.\n"
+                                "\u2022 Kolaghan's Command deals 2 damage to any target.")
+        self.assertEqual(unsupported_lines(card), [])
+        self.assertEqual(len(spell_effects(card)[0].modes), 4)
+
+
 class EntwineTests(unittest.TestCase):
     def cast(self, mana, answer):
         policy = lambda prompt, options: (answer if prompt.startswith(ENTWINE_PROMPT) else modes(0)(prompt, options))

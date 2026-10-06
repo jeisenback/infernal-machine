@@ -1434,6 +1434,80 @@ class Mill:
 
 
 @dataclass(frozen=True)
+class Discard:
+    """ "Discard a card." / "Each opponent discards two cards." / "Each player discards their hand." (count None) """
+    count: int | str | None
+    who: str  # "you", "each opponent" or "each player"
+    random: bool = False  # "at random"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            if self.who == "each player" or (self.who == "you") == (seat is controller):
+                game.discard(seat, None if self.count is None else game.amount(self.count), self.random)
+
+
+@dataclass(frozen=True)
+class TargetDiscard:
+    """ "Target player (or opponent) discards two cards." """
+    count: int | str
+    target: str  # "player" or "opponent"
+    random: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.discard(target, game.amount(self.count), self.random)
+
+
+@dataclass(frozen=True)
+class EachDraw:
+    """ "Each player draws seven cards." """
+    count: int | str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            game.draw(seat, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class RevealHand:
+    """ "Target opponent reveals their hand." Only ever the start of a TargetChooseDiscard (see _merge_hand_discard)."""
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone reveal of a hand is never built")
+
+
+@dataclass(frozen=True)
+class ChooseFromHand:
+    """ "You choose a nonland card (with mana value 3 or less) from it." """
+    excluded: tuple[str, ...]  # card types it can't be, lowercase
+    max_mv: int | None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone choice from a hand is never built")
+
+
+@dataclass(frozen=True)
+class DiscardChosen:
+    """ "That player discards that card." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone discard of the chosen card is never built")
+
+
+@dataclass(frozen=True)
+class TargetChooseDiscard:
+    """Thoughtseize, Duress, Inquisition of Kozilek: look at their hand and make them discard a card you choose."""
+    target: str  # "player" or "opponent"
+    excluded: tuple[str, ...]
+    max_mv: int | None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.reveal_and_discard(controller, target, self.excluded, self.max_mv)
+
+
+@dataclass(frozen=True)
 class TargetMill:
     """ "Target player (or opponent) mills three cards." """
     count: int | str
@@ -1776,6 +1850,25 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"goad (?:all creatures you don't control|each creature your opponents control)\.", re.I),
      lambda m: GoadAll()),
     (re.compile(rf"mill {_N} cards?\.", re.I), lambda m: Mill(_count(m[1]), "you")),
+    (re.compile(rf"discard {_N} cards?( at random)?\.", re.I), lambda m: Discard(_count(m[1]), "you", bool(m[2]))),
+    (re.compile(r"discard your hand\.", re.I), lambda m: Discard(None, "you")),
+    (re.compile(rf"each (opponent|player) discards {_N} cards?( at random)?\.", re.I),
+     lambda m: Discard(_count(m[2]), "each " + m[1].lower(), bool(m[3]))),
+    (re.compile(r"each (opponent|player) discards their hand\.", re.I), lambda m: Discard(None, "each " + m[1].lower())),
+    (re.compile(rf"target (player|opponent) discards {_N} cards?( at random)?\.", re.I),
+     lambda m: TargetDiscard(_count(m[2]), m[1].lower(), bool(m[3]))),
+    (re.compile(rf"each player draws {_N} cards?\.", re.I), lambda m: EachDraw(_count(m[1]))),
+    (re.compile(rf"each player discards their hand, then draws {_N} cards?\.", re.I),
+     lambda m: [Discard(None, "each player"), EachDraw(_count(m[1]))]),
+    (re.compile(rf"draw {_N} cards?, then discard {_N} cards?\.", re.I),
+     lambda m: [Draw(_count(m[1])), Discard(_count(m[2]), "you")]),
+    (re.compile(rf"discard {_N} cards?, then draw {_N} cards?\.", re.I),
+     lambda m: [Discard(_count(m[1]), "you"), Draw(_count(m[2]))]),
+    (re.compile(r"target (player|opponent) reveals their hand\.", re.I), lambda m: RevealHand(m[1].lower())),
+    (re.compile(r"you choose an? ((?:non[a-z]+(?:, non[a-z]+)*) )?card(?: with mana value (\d+) or less)? from it\.", re.I),
+     lambda m: ChooseFromHand(tuple(w.strip(",") for w in m[1].lower().replace("non", "").split()) if m[1] else (),
+                              int(m[2]) if m[2] else None)),
+    (re.compile(r"that player discards that card\.", re.I), lambda m: DiscardChosen()),
     (re.compile(rf"each (opponent|player) mills {_N} cards?\.", re.I),
      lambda m: Mill(_count(m[2]), "each " + m[1].lower())),
     (re.compile(rf"target (player|opponent) mills {_N} cards?\.", re.I),
@@ -1870,6 +1963,28 @@ def _template(sentence: str) -> Any:
     return None
 
 
+def _merge_hand_discard(effects: list) -> list | None:
+    """"Target opponent reveals their hand. You choose a nonland card from it. That player discards that card." becomes
+    one TargetChooseDiscard; any one of the three sentences alone isn't understood."""
+    merged: list = []
+    i = 0
+    while i < len(effects):
+        effect = effects[i]
+        if isinstance(effect, RevealHand):
+            if not (i + 2 < len(effects) and isinstance(effects[i + 1], ChooseFromHand)
+                    and isinstance(effects[i + 2], DiscardChosen)):
+                return None
+            choose = effects[i + 1]
+            merged.append(TargetChooseDiscard(effect.target, choose.excluded, choose.max_mv))
+            i += 3
+            continue
+        if isinstance(effect, (ChooseFromHand, DiscardChosen)):
+            return None
+        merged.append(effect)
+        i += 1
+    return merged
+
+
 def _vote_outcome(kind: str, option: str, text: str, tie: bool) -> VoteOutcome | None:
     """What a vote does, read from the sentence's own clause; only for effects that need no target."""
     effects = _parse(_split_sentences(text[:1].upper() + text[1:] + "."))
@@ -1919,7 +2034,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
