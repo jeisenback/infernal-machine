@@ -11,7 +11,7 @@ from .analysis import is_land
 from .cards import Card, Deck
 from .combat import ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT
-from .game import (ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
+from .game import (ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
@@ -118,9 +118,9 @@ class BotPlayer:
             if option.startswith(CAST_COMMANDER):
                 return i
         casts = [i for i, option in enumerate(options)
-                 if option.startswith(CAST) and not _is_ritual(self._cards.get(option.removeprefix(CAST)))]
+                 if option.startswith((CAST, CAST_GRAVEYARD)) and not _is_ritual(self._cards.get(_cast_name(option)))]
         if casts:
-            return max(casts, key=lambda i: self._cards[options[i].removeprefix(CAST)].cmc)
+            return max(casts, key=lambda i: self._cards[_cast_name(options[i])].cmc)
         for i, option in enumerate(options):
             if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)):
                 return i
@@ -141,6 +141,11 @@ class BotPlayer:
         if self._life.get(self._seat, 0) <= self.CHUMP_LIFE:
             return max(powers, key=powers.get)
         return 0
+
+
+def _cast_name(option: str) -> str:
+    """The card in a "Cast: ..." or "Cast from graveyard: ..." action."""
+    return option.removeprefix(CAST).removeprefix(CAST_GRAVEYARD)
 
 
 def _is_ritual(card: Card | None) -> bool:

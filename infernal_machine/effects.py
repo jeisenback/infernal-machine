@@ -1148,6 +1148,8 @@ _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life a
                     r"from your hand rather than pay this spell's mana cost\.")
 _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
                          rf"creature|permanent)|(discard a card)|pay (?!X ){_N} life)\.")  # "pay X life" (Toxic Deluge) isn't supported
+_FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
+_ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four|five|six) other cards? from your graveyard\.")
 _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery) )?spells "
                         r"you cast cost \{(\d+)\} less to cast\.", re.I)
 
@@ -1174,6 +1176,25 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
     return costs
 
 
+@dataclass(frozen=True)
+class GraveyardCast:
+    """A way to cast a card from the graveyard: Flashback (then it is exiled) or Escape (exile other cards too)."""
+    word: str  # "Flashback" or "Escape"
+    cost: str  # the mana cost to pay instead of the card's own
+    exile: int = 0  # other cards to exile from the graveyard (Escape)
+    exile_after: bool = False  # exile it instead of putting it in the graveyard when it leaves the stack (Flashback)
+
+
+def graveyard_casts(card: Card) -> list[GraveyardCast]:
+    found = []
+    for line in rules_lines(card):
+        if m := _FLASHBACK.fullmatch(line):
+            found.append(GraveyardCast("Flashback", m[1], exile_after=True))
+        elif m := _ESCAPE.fullmatch(line):
+            found.append(GraveyardCast("Escape", m[1], exile=_count(m[2])))
+    return found
+
+
 def additional_costs(card: Card) -> list[AdditionalCost]:
     costs = []
     for line in rules_lines(card):
@@ -1195,7 +1216,7 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL))
+    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE))
 
 
 def is_cost_reduction_line(line: str) -> bool:
