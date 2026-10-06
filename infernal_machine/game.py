@@ -61,6 +61,8 @@ PERMANENT_TYPES = ("Artifact", "Battle", "Creature", "Enchantment", "Land", "Pla
 KEEP_PROMPT = "Keep this hand?"
 BOTTOM_PROMPT = "Put a card on the bottom of your library"
 DISCARD_PROMPT = "Discard down to hand size"
+DISCARD_CARD_PROMPT = "Choose a card to discard"  # options are card names
+CHOOSE_DISCARD_PROMPT = "Choose a card from their hand to discard"  # options are card names
 TARGET_PROMPT = "Choose a target for "  # followed by the spell's name
 SEARCH_PROMPT = "Choose a basic land to put onto the battlefield"
 SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
@@ -1811,6 +1813,31 @@ class Game:
         self.broadcast({"event": "surveil", "seat": seat.index, "count": len(top), "graveyard": [c.name for c in binned]})
         for card in binned:
             self._move_card(seat, card, "graveyard")
+
+    def discard(self, seat: Seat, count: int | None, random: bool = False) -> None:
+        """Discard `count` cards (the whole hand if None); the player chooses which unless it says "at random"."""
+        for _ in range(len(seat.hand) if count is None else min(count, len(seat.hand))):
+            if count is None:
+                card = seat.hand.pop(0)  # all of them go, so there is nothing to choose
+            elif random:
+                card = seat.hand.pop(self.rng.randrange(len(seat.hand)))
+            else:
+                card = seat.hand.pop(seat.player.choose(DISCARD_CARD_PROMPT, [c.name for c in seat.hand]))
+            self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
+            self._move_card(seat, card, "graveyard")
+
+    def reveal_and_discard(self, chooser: Seat, victim: Seat, excluded: tuple[str, ...], max_mv: int | None) -> None:
+        """Thoughtseize: `victim` reveals their hand and `chooser` picks a card from it that isn't one of the
+        `excluded` types (and costs at most `max_mv`); the victim discards it."""
+        self.broadcast({"event": "revealed_hand", "seat": victim.index, "cards": [c.name for c in victim.hand]})
+        eligible = _unique([c for c in victim.hand if not any(t.capitalize() in c.type_line for t in excluded)
+                            and (max_mv is None or c.cmc <= max_mv)])
+        if not eligible:
+            return
+        card = eligible[chooser.player.choose(CHOOSE_DISCARD_PROMPT, [c.name for c in eligible])]
+        victim.hand.remove(card)
+        self.broadcast({"event": "discard", "seat": victim.index, "card": card.name})
+        self._move_card(victim, card, "graveyard")
 
     def mill(self, seat: Seat, count: int) -> None:
         """Put the top `count` cards of the library into the graveyard (fewer if there aren't that many)."""
