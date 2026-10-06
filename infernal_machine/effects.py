@@ -1620,7 +1620,8 @@ _TRIGGERS = {
     "attacks": re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I),
     "blocks": re.compile(rf"Whenever {_SELF} blocks, (.+)", re.I),
     "ally_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
-    "attacked": re.compile(r"Whenever a creature attacks you(?: or a planeswalker you control)?, (.+)", re.I),
+    "attacked": re.compile(r"Whenever a creature attacks you, (.+)", re.I),
+    "attacked_or_walker": re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),
     "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
     "opponent_gain_life": re.compile(r"Whenever an opponent gains life, (.+)", re.I),
@@ -1677,7 +1678,7 @@ _WATCHES = {
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
 # Triggers about some other creature: there "it" and "that creature" mean that creature, not the source.
-_OBJECT_EVENTS = {"ally_attacks", "attacked", "ally_combat_damage", "token_combat_damage"}
+_OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat_damage", "token_combat_damage"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
 _PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
