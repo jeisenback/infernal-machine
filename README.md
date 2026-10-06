@@ -193,7 +193,7 @@ winner = game.play()
 | After this (main) phase, there is an additional combat phase (followed by an additional main phase). | Relentless Assault |
 | Untap all creatures that attacked this turn. / Untap all creatures you control. | Aggravated Assault |
 | You become the monarch. | Palace Jailer |
-| You take the initiative. | Undercity Dire Rat style cards |
+| You take the initiative. | Caves of Chaos Adventurer |
 | Goad target creature. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
