@@ -60,7 +60,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(spell_effects(both), [DestroyAll("artifact or enchantment")])
 
     def test_variants_that_need_more_are_unsupported(self):
-        for text in ("Destroy all creatures with flying.", "Each opponent sacrifices a creature with the greatest power.",
+        for text in ("Destroy all creatures with a +1/+1 counter on them.", "Each opponent sacrifices a creature with the greatest power.",
                      "Destroy all creatures. Draw a card for each creature destroyed this way."):
             self.assertIsNone(spell_effects(Card(name="x", oracle_text=text)), text)
 
