@@ -136,7 +136,14 @@ winner = game.play()
 - **Commander tax:** your commander costs {2} more for each earlier cast from the command zone.
   When your commander would go to the graveyard, you choose whether it goes back to the command zone instead.
 - **The stack:** spells go on the stack and resolve last in, first out once everyone passes in a row.
-- **Combat:** the active player chooses, creature by creature, whether to attack and which opponent.
+- **Combat:** the active player chooses, creature by creature, whether to attack and whom: an opponent, or a
+  planeswalker an opponent controls ("Attack Planeswalker: ..."). Damage to a planeswalker removes loyalty (it dies at
+  0), and the player's creatures can block attackers aimed at their planeswalker. A trampler's extra damage goes to
+  the planeswalker. If the planeswalker has left, the attacker deals no damage. Bots attack players only.
+  "Whenever a creature attacks you" triggers only for attacks on the player; "... attacks you or a planeswalker you
+  control" triggers for both. When several creatures block one attacker, its controller names which blocker gets
+  lethal damage first, then the next, and so on (bots go for the weakest first); the rest goes to the last, or to the
+  player with trample.
   Each defending player then chooses blockers, and damage is dealt all at once. With no attackers,
   the blockers and damage steps are skipped. If any creature in combat has first strike or double strike,
   there's an extra first-strike damage step.
@@ -273,6 +280,36 @@ winner = game.play()
   an Aura goes to the graveyard. Labels show attachments ("Sword attached to Bear (seat 0, #1)").
   "Can't attack or block" is supported through Auras. Other equip costs (like "Equip legendary creature {3}")
   and Auras on lands with special abilities aren't supported yet.
+- **Replacement effects:** statics that change what would happen, read from a permanent on the battlefield.
+  - Rest in Peace: "If a card or token would be put into a graveyard from anywhere, exile it instead." (Leyline of the
+    Void: only an opponent's cards.) Every route to a graveyard is covered: spells, dying, discarding, milling, cycling.
+    Things still die, so dies triggers happen; a commander can still choose the command zone. Rest in Peace's "exile
+    all cards from all graveyards" is supported.
+  - Doubling Season and Parallel Lives: tokens an effect creates under your control, and counters an effect puts on your
+    permanents (including the counters a permanent enters with), are doubled. Several stack (two doublers: four times).
+    Hardened Scales adds one to +1/+1 counters on your creatures first, then doubling applies.
+  - Panharmonicon and Yarok: a triggered ability of a permanent you control that triggers because an artifact or creature
+    (or any permanent) entered triggers an additional time; each such permanent adds one. Both the entering
+    permanent's own "When this enters" and watching "Whenever another creature enters" abilities count.
+    "This ability triggers only once each turn" still holds.
+- **Copying:**
+  - Clone: "You may have this creature enter the battlefield as a copy of any creature on the battlefield." (also
+    "a creature you control", and artifacts, enchantments or lands). It is decided as it enters, with a "Don't copy
+    anything" choice, so the copy's enters abilities trigger. A copy has the other card's printed characteristics,
+    not its counters or damage; a copy of a token isn't a token. It goes to the graveyard as the Clone card.
+    Bots copy the biggest creature. "Except ..." variants (Phyrexian Metamorph, Phantasmal Image) aren't supported.
+  - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
+    the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
+    instead of going to the graveyard, even if countered. With the second sentence its controller picks targets
+    again (the old ones are still choices); without it the copy keeps them. Abilities can't be copied yet.
+  - "Create a token that's a copy of target creature" and populate were added earlier.
+- **Control change:** "Gain control of target creature." (permanent), "Gain control of target creature until end of turn.
+  Untap that creature. It gains haste until end of turn." (Threaten), and Control Magic ("Enchant creature. You
+  control enchanted creature."). The permanent moves to the new controller's battlefield, is summoning sick for
+  them (haste fixes that), and leaves combat. Its owner doesn't change, so it goes to its owner's graveyard if it
+  dies. Threaten's effect ends in the cleanup step; Control Magic's ends as soon as the Aura stops being
+  attached or leaves, and the creature goes back to whoever controlled it before. A lone "Untap that creature."
+  isn't understood. Bots aim Control Magic at an opponent's creature.
 - **Vehicles:** "Crew N" is an ability at instant speed: tap untapped creatures you control, one at a time, until their
   total power is N or more (summoning-sick creatures can crew, the Vehicle can't crew itself). Until end of turn the
   Vehicle is an artifact creature, with its printed power and toughness, so it can attack (not the turn it arrived)

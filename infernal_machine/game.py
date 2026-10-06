@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      saga_chapters, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -67,6 +67,8 @@ SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+CLONE_PROMPT = "Choose what to copy for "  # followed by the card's name; the last option is NOT_A_COPY
+NOT_A_COPY = "Don't copy anything"
 CREW_PROMPT = "Choose a creature to tap to crew "  # followed by the Vehicle's name
 PROLIFERATE_PROMPT = "Proliferate: choose a permanent"
 DONE = "Done"
@@ -119,6 +121,10 @@ class Permanent:
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
     regeneration: int = 0  # regeneration shields, which last until end of turn
+    real_card: "Card | None" = None  # a Clone's own card, while it is a copy of something else
+    control_origin: "Seat | None" = None  # who controlled it before a control-change effect took it
+    control_aura: "Permanent | None" = None  # the Aura (Control Magic) that holds control of it
+    control_eot: bool = False  # control changes back at end of turn (Threaten)
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     attacked_turn: int | None = None  # the last turn it attacked
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
@@ -172,6 +178,7 @@ class StackItem:
     kicked: int = 0  # how many times the kicker cost was paid
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
+    is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
     player: "Seat | None" = None  # for a watching trigger: the player whose action set it off ("that player")
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
@@ -398,8 +405,8 @@ class Game:
             for _ in range(max(0, excess)):
                 i = seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])
                 card = seat.hand.pop(i)
-                seat.graveyard.append(card)
                 self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
+                self._move_card(seat, card, "graveyard")
             for other in self.seats:  # CR 514.2
                 for permanent in other.battlefield:
                     permanent.damage = 0
@@ -408,6 +415,9 @@ class Game:
                     permanent.regeneration = 0
                     if permanent.original is not None:  # a Vehicle's crew lasts until end of turn
                         permanent.card, permanent.original = permanent.original, None
+            for permanent in [p for s in self.live_seats() for p in s.battlefield]:  # control "until end of turn" ends
+                if permanent.control_eot:
+                    self._return_control(permanent)
         self._check_state()
 
     def _priority_round(self, active: Seat) -> None:
@@ -982,10 +992,12 @@ class Game:
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
-            self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
+            if not item.is_copy:
+                self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
             return
         self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard (or exile, after flashback)
-        self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
+        if not item.is_copy:
+            self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
 
     def _resolve_aura(self, item: StackItem) -> None:
         """An Aura spell enters attached to its target, or goes to the graveyard if the target
@@ -1099,7 +1111,8 @@ class Game:
         the next time a player would get priority (CR 603.3)."""
         for ability in triggered_abilities(permanent.card):
             if ability.event == event and ability.watch is None:
-                self._queue(ability, permanent, controller, subject=subject, player=player)
+                for _ in range(self._trigger_times(controller, event, permanent.card)):
+                    self._queue(ability, permanent, controller, subject=subject, player=player)
 
     def _trigger_each(self, event: str, seat: Seat, subject: Permanent | None = None,
                       player: Seat | None = None) -> None:
@@ -1175,7 +1188,8 @@ class Game:
                 if watch.first_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
                                                  for turn, c in seat.cast_log) != 1:
                     continue
-                self._queue(ability, watcher, watcher_seat, x, subject, seat)
+                for _ in range(self._trigger_times(watcher_seat, event, card)):
+                    self._queue(ability, watcher, watcher_seat, x, subject, seat)
 
     def _put_triggers_on_stack(self) -> None:
         """Active player's triggers first, then the others in turn order (CR 603.3b).
@@ -1219,9 +1233,11 @@ class Game:
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
         elif kind == "opponent":
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)]
-        if kind.endswith("spell"):  # "spell", "noncreature spell", ...
+        if _split_controller(kind)[0].endswith("spell"):  # "spell", "noncreature spell", "... spell you control"
+            kind, whose = _split_controller(kind)
             options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
-                        if not i.ability and _watch_type_matches(kind, i.card)]
+                        if not i.ability and _watch_type_matches(kind, i.card)
+                        and not (whose == "you" and i.controller is not caster)]
             return options
         kind, controller = _split_controller(kind)
         for seat in self.live_seats():
@@ -1521,6 +1537,46 @@ class Game:
         self.broadcast({"event": "modified", "card": permanent.card.name, "power": modifier.power,
                         "toughness": modifier.toughness, "keywords": sorted(modifier.keywords)})
 
+    def gain_control(self, permanent: Permanent, seat: Seat, aura: Permanent | None = None, until_eot: bool = False,
+                     untap: bool = False, haste: bool = False) -> None:
+        """`seat` takes control of `permanent` (CR 701.10): it moves to their battlefield, is summoning sick under
+        them, and leaves combat. `aura` holds control for as long as it stays attached; `until_eot` gives it back
+        at end of turn. Its owner doesn't change."""
+        current = self.controller_of(permanent)
+        if current is None:
+            return
+        if current is not seat:
+            permanent.owner = permanent.owner or current  # whose card it is doesn't change
+            current.battlefield = [p for p in current.battlefield if p is not permanent]
+            seat.battlefield.append(permanent)
+            permanent.sick = True
+            if permanent.control_origin is None:
+                permanent.control_origin = current
+            self.combat.attacks = [a for a in self.combat.attacks if a.attacker is not permanent]
+            for attack in self.combat.attacks:
+                attack.blockers = [b for b in attack.blockers if b is not permanent]
+            self.broadcast({"event": "gained_control", "seat": seat.index, "card": permanent.card.name})
+        if aura is not None:
+            permanent.control_aura = aura
+        if until_eot:
+            permanent.control_eot = True
+        if untap:
+            permanent.tapped = False
+        if haste:
+            self.modify_until_end_of_turn(permanent, Modifier(0, 0, frozenset({"haste"})))
+
+    def _return_control(self, permanent: Permanent) -> None:
+        """A control-change effect ended: `permanent` goes back to the player who controlled it before."""
+        origin, now = permanent.control_origin, self.controller_of(permanent)
+        permanent.control_origin, permanent.control_aura, permanent.control_eot = None, None, False
+        if origin is None or origin.lost or now is None or now is origin:
+            return
+        now.battlefield = [p for p in now.battlefield if p is not permanent]
+        origin.battlefield.append(permanent)
+        permanent.sick = True
+        self.combat.attacks = [a for a in self.combat.attacks if a.attacker is not permanent]
+        self.broadcast({"event": "control_returned", "seat": origin.index, "card": permanent.card.name})
+
     def proliferate(self, seat: Seat) -> None:
         """`seat` chooses any permanents with counters (or planeswalkers); each gets one more of every kind of
         counter it has."""
@@ -1565,12 +1621,15 @@ class Game:
         self._enter(seat, Permanent(dead.card, sick=True, loyalty=_starting_loyalty(dead.card), counters={counter: 1}))
 
     def put_counters(self, permanent: Permanent, counter: str, count: int) -> None:
+        holder = self.controller_of(permanent)
+        if holder is not None:
+            count = self._counters_to_add(holder, permanent.card, counter, count)
         permanent.counters[counter] = permanent.counters.get(counter, 0) + count
         self.broadcast({"event": "counters", "card": permanent.card.name, "counter": counter,
                         "added": count, "total": permanent.counters[counter]})
 
     def create_tokens(self, seat: Seat, token: Card, count: int) -> None:
-        for _ in range(count):
+        for _ in range(count * self._factor(seat, "tokens")):
             self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
                             "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
             self._enter(seat, Permanent(token, sick=True))
@@ -1609,7 +1668,7 @@ class Game:
         self.stack.remove(item)
         self.broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name,
                         "ability": _shown(item.ability.text, item.card) if item.ability else None})
-        if not item.ability:  # countering an ability doesn't touch its source
+        if not item.ability and not item.is_copy:  # countering an ability doesn't touch its source; a copy just ends
             self._move_card(item.controller, item.card, "exile" if item.exile_after else "graveyard")
 
     def _check_ward(self, item: StackItem) -> None:
@@ -1763,8 +1822,11 @@ class Game:
     # --- helpers -------------------------------------------------------------
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
+        if clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
+            self._become_copy(seat, permanent, *clone)
         for counter, count in enters_with_counters(permanent.card, permanent.kicked).items():  # CR 614.1c: it arrives with them
-            permanent.counters[counter] = permanent.counters.get(counter, 0) + (x if count == "X" else count)
+            number = self._counters_to_add(seat, permanent.card, counter, x if count == "X" else count)
+            permanent.counters[counter] = permanent.counters.get(counter, 0) + number
         permanent.owner = permanent.owner or seat
         rule = enters_tapped_rule(permanent.card)
         if rule and self._enters_tapped(seat, rule, permanent.card):
@@ -1776,6 +1838,35 @@ class Game:
         if saga_chapters(permanent.card):
             self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
+
+    def _become_copy(self, seat: Seat, permanent: Permanent, kind: str, yours: bool) -> None:
+        """Clone: choose a permanent on the battlefield and enter as a copy of it. A copy gets the other card's
+        printed characteristics (not its counters, damage or changes); a token's copy isn't a token."""
+        options = [p for s in self.live_seats() if not yours or s is seat for p in s.battlefield
+                   if _permanent_matches(kind, p.card)]
+        if not options:
+            return
+        pick = seat.player.choose(CLONE_PROMPT + permanent.card.name, [self.label(p) for p in options] + [NOT_A_COPY])
+        if pick == len(options):
+            return
+        copied = options[pick].card
+        permanent.real_card = permanent.card
+        permanent.card = dataclasses.replace(copied, type_line=copied.type_line.removeprefix("Token "))
+        self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.real_card.name,
+                        "as": permanent.card.name})
+
+    def copy_spell(self, item: StackItem, controller: Seat, new_targets: bool = False) -> None:
+        """Put a copy of a spell on the stack under `controller`'s control; it resolves first. It isn't cast, and it
+        stops existing instead of going to the graveyard. With `new_targets` the copy's controller chooses its
+        targets again (the old ones are still legal choices)."""
+        if item not in self.stack or item.ability:
+            return
+        targets = list(item.targets)
+        if new_targets and (chosen := self._choose_targets(controller, item.effects, item.card.name,
+                                                           colors=frozenset(item.card.colors))):
+            targets = chosen[0]
+        self.stack.append(StackItem(item.card, controller, item.effects, targets, x=item.x, kicked=item.kicked, is_copy=True))
+        self.broadcast({"event": "copied_spell", "seat": controller.index, "card": item.card.name})
 
     def _enters_tapped(self, seat: Seat, rule: EntersTapped, card: Card) -> bool:
         """Whether a permanent entering under `seat`'s control enters tapped, given the lands it sees
@@ -1837,6 +1928,8 @@ class Game:
                     if attachment.attached_to is permanent:
                         self.trigger("host_dies", attachment, attachment_seat)
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
+            if permanent.real_card is not None:  # a Clone goes to the graveyard as itself
+                permanent.card, permanent.real_card = permanent.real_card, None
             if permanent.original is not None:  # a crewed Vehicle goes back to being just a card
                 permanent.card, permanent.original = permanent.original, None
             if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)
@@ -1846,9 +1939,56 @@ class Game:
             for seat, card in held:
                 self._return_from_exile(seat, card)
 
+    def _exiled_instead(self, owner: Seat) -> bool:
+        """Whether a card of `owner`'s going to the graveyard is exiled instead (Rest in Peace, Leyline of the Void)."""
+        for seat in self.live_seats():
+            for permanent in seat.battlefield:
+                kind = replacement_effects(permanent.card).graveyard
+                if kind == "any" or (kind == "opponent" and owner is not seat):
+                    return True
+        return False
+
+    def exile_all_graveyards(self) -> None:
+        for seat in self.live_seats():
+            cards, seat.graveyard = seat.graveyard, []
+            for card in cards:
+                self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
+                self._move_card(seat, card, "exile")
+            if cards:
+                self._left_graveyard(seat)
+
+    def _factor(self, seat: Seat, attribute: str) -> int:
+        """How many times as many tokens or counters `seat`'s replacement effects make (Doubling Season stacks)."""
+        factor = 1
+        for permanent in seat.battlefield:
+            factor *= getattr(replacement_effects(permanent.card), attribute)
+        return factor
+
+    def _counters_to_add(self, seat: Seat, card: Card, counter: str, count: int) -> int:
+        """Counters going onto a permanent `seat` controls: +1/+1 counters get Hardened Scales' extra one first,
+        then Doubling Season doubles."""
+        if counter == "+1/+1" and "Creature" in card.type_line:
+            count += sum(replacement_effects(p.card).plus_one for p in seat.battlefield)
+        return count * self._factor(seat, "counters")
+
+    def _trigger_times(self, controller: Seat, event: str, entering: Card | None) -> int:
+        """How many times an ability of `controller`'s triggers: once, plus once more for each Panharmonicon when an
+        artifact or creature (or any permanent, for Yarok) is entering the battlefield."""
+        if event not in ("enters", "permanent_enters") or entering is None:
+            return 1
+        extra = 0
+        for permanent in controller.battlefield:
+            kind = replacement_effects(permanent.card).extra_trigger
+            if kind == "permanent" or (kind == "artifact or creature"
+                                       and ("Artifact" in entering.type_line or "Creature" in entering.type_line)):
+                extra += 1
+        return 1 + extra
+
     def _move_card(self, seat: Seat, card: Card, zone: str) -> None:
         """Put a card into its owner's graveyard, exile or hand; a commander may go to the
-        command zone instead (CR 903.9)."""
+        command zone instead (CR 903.9). Rest in Peace and its kind send a card to exile instead of a graveyard."""
+        if zone == "graveyard" and self._exiled_instead(seat):
+            zone = "exile"
         if card.name in seat.commander_names:
             if seat.player.choose(COMMAND_ZONE_PROMPT, ["Command zone", zone.capitalize()]) == 0:
                 seat.command_zone.append(card)
@@ -1885,7 +2025,15 @@ class Game:
                     if cancel:  # CR 704.5q
                         counters[PLUS] -= cancel
                         counters[MINUS] -= cancel
+                    holder = permanent.control_aura  # Control Magic let go of it: it goes back
+                    if holder is not None and (not self.on_battlefield(holder) or holder.attached_to is not permanent):
+                        self._return_control(permanent)
+                        changed = True
                     host = permanent.attached_to
+                    if host is not None and aura_controls(permanent.card) and self.on_battlefield(host) \
+                            and self.controller_of(host) is not seat:  # Control Magic takes control of its creature
+                        self.gain_control(host, seat, aura=permanent)
+                        changed = True
                     if host is not None and (not self.on_battlefield(host)
                                              or self.protected_from(host, frozenset(permanent.card.colors))):
                         permanent.attached_to = None  # CR 704.5n: Equipment stays, unattached

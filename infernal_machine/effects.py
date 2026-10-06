@@ -531,6 +531,68 @@ def aura_kind(card: Card) -> str | None:
     return next((m[1].lower() for line in rules_lines(card) if (m := _ENCHANT.fullmatch(line))), None)
 
 
+_REPLACE_ANY_GRAVEYARD = "If a card or token would be put into a graveyard from anywhere, exile it instead."
+_REPLACE_OPPONENT_GRAVEYARD = "If a card would be put into an opponent's graveyard from anywhere, exile it instead."
+_DOUBLE_TOKENS = ("If an effect would create one or more tokens under your control, it creates twice that many of "
+                  "those tokens instead.")
+_DOUBLE_COUNTERS = ("If an effect would put one or more counters on a permanent you control, it puts twice that many "
+                    "of those counters instead.")
+_PLUS_ONE_COUNTERS = ("If one or more +1/+1 counters would be put on a creature you control, that many plus one "
+                      "+1/+1 counters are put on it instead.")
+_EXTRA_TRIGGER = re.compile(r"If (an artifact or creature|a permanent) entering the battlefield causes a triggered "
+                            r"ability of a permanent you control to trigger, that ability triggers an additional time\.")
+
+
+@dataclass(frozen=True)
+class Replacements:
+    """What a permanent's static replacement effects do (CR 614), as the game applies them."""
+    graveyard: str | None = None  # "any": cards go to exile instead of a graveyard; "opponent": only an opponent's
+    tokens: int = 1  # how many times as many tokens its controller creates
+    counters: int = 1  # how many times as many counters go on its controller's permanents
+    plus_one: int = 0  # extra +1/+1 counters on its controller's creatures
+    extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice
+
+
+@lru_cache(maxsize=None)
+def replacement_effects(card: Card) -> Replacements:
+    found: dict[str, Any] = {}
+    for line in rules_lines(card):
+        if line == _REPLACE_ANY_GRAVEYARD:
+            found["graveyard"] = "any"
+        elif line == _REPLACE_OPPONENT_GRAVEYARD:
+            found.setdefault("graveyard", "opponent")
+        elif line == _DOUBLE_TOKENS:
+            found["tokens"] = found.get("tokens", 1) * 2
+        elif line == _DOUBLE_COUNTERS:
+            found["counters"] = found.get("counters", 1) * 2
+        elif line == _PLUS_ONE_COUNTERS:
+            found["plus_one"] = found.get("plus_one", 0) + 1
+        elif m := _EXTRA_TRIGGER.fullmatch(line):
+            found["extra_trigger"] = m[1].removeprefix("an ").removeprefix("a ")
+    return Replacements(**found)
+
+
+def is_replacement_line(line: str) -> bool:
+    return (line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+                     _PLUS_ONE_COUNTERS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
+
+
+_CLONE = re.compile(r"You may have CARDNAME enter(?: the battlefield)? as a copy of "
+                    r"(?:any (creature|artifact|enchantment|land) on the battlefield|a (creature) you control)\.")
+
+
+def clone_kind(card: Card) -> tuple[str, bool] | None:
+    """For Clone: what the card may enter as a copy of ("creature") and whether it must be one you control."""
+    for line in rules_lines(card):
+        if m := _CLONE.fullmatch(line):
+            return (m[1] or m[2]), m[2] is not None
+    return None
+
+
+def is_clone_line(line: str) -> bool:
+    return _CLONE.fullmatch(line) is not None
+
+
 def is_enchant_line(line: str) -> bool:
     return _ENCHANT.fullmatch(line) is not None
 
@@ -1007,6 +1069,69 @@ class AddMana:
 
 
 @dataclass(frozen=True)
+class ExileAllGraveyards:
+    """ "Exile all cards from all graveyards." (Rest in Peace) """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_all_graveyards()
+
+
+@dataclass(frozen=True)
+class CopySpell:
+    """ "Copy target instant or sorcery spell. You may choose new targets for the copy." """
+    target: str  # "instant or sorcery spell", optionally "... you control"
+    new_targets: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.copy_spell(target, controller, self.new_targets)
+
+
+@dataclass(frozen=True)
+class NewTargets:
+    """ "You may choose new targets for the copy." Only meaningful after a copy effect (_merge_copy folds it in)."""
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        pass
+
+
+@dataclass(frozen=True)
+class GainControl:
+    """ "Gain control of target creature (until end of turn). (Untap that creature. It gains haste until end of
+    turn.)" """
+    target: str
+    until_end_of_turn: bool = False
+    untap: bool = False
+    haste: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.gain_control(target, controller, until_eot=self.until_end_of_turn, untap=self.untap, haste=self.haste)
+
+
+@dataclass(frozen=True)
+class UntapThat:
+    """ "Untap that creature." Only meaningful right after "Gain control of ...": _merge_control folds it in."""
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        pass
+
+
+_CONTROL_AURA = "You control enchanted creature."
+
+
+def aura_controls(card: Card) -> bool:
+    """Control Magic: an Aura that gives its controller control of the enchanted creature."""
+    return "Aura" in card.type_line and _CONTROL_AURA in rules_lines(card)
+
+
+def is_control_aura_line(line: str) -> bool:
+    return line == _CONTROL_AURA
+
+
+@dataclass(frozen=True)
 class BecomeCreature:
     """Crewing a Vehicle: until end of turn it is an artifact creature."""
     uses_source = True
@@ -1461,6 +1586,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
+    (re.compile(r"exile all cards from all graveyards\.", re.I), lambda m: ExileAllGraveyards()),
+    (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
+     lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
+    (re.compile(r"you may choose new targets for the copy\.", re.I), lambda m: NewTargets()),
+    (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
+     lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
+    (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
     (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
     (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
      lambda m: [FightFirst(m[1].lower()), Fight(m[3].lower(), another=bool(m[2]))]),
@@ -1580,7 +1712,12 @@ def _parse(sentences: list[str]) -> list | None:
             return None
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
-    return _merge_impulse(_merge_no_regen(effects))
+    merged = _merge_no_regen(effects)
+    for merge in (_merge_copy, _merge_control, _merge_impulse):  # each returns None for a line it rejects
+        merged = merge(merged)
+        if merged is None:
+            return None
+    return merged
 
 
 def _merge_impulse(effects: list) -> list | None:
@@ -1603,6 +1740,38 @@ def _merge_impulse(effects: list) -> list | None:
             return None
         merged.append(effect)
         i += 1
+    return merged
+
+
+def _merge_copy(effects: list) -> list | None:
+    """"Copy target instant or sorcery spell. You may choose new targets for the copy." is one effect. The second
+    sentence on its own has no copy to refer to, so the line isn't understood."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, NewTargets):
+            if not merged or not isinstance(merged[-1], CopySpell):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], new_targets=True)
+        else:
+            merged.append(effect)
+    return merged
+
+
+def _merge_control(effects: list) -> list | None:
+    """Threaten: "Gain control of target creature until end of turn. Untap that creature. It gains haste until end
+    of turn." is one effect. A lone "Untap that creature." has nothing to refer to, so the line isn't understood."""
+    merged: list = []
+    for effect in effects:
+        after_control = bool(merged) and isinstance(merged[-1], GainControl)
+        if isinstance(effect, UntapThat):
+            if not after_control:
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], untap=True)
+        elif (isinstance(effect, PumpSource) and effect.modifier.keywords == frozenset({"haste"})
+              and effect.modifier.power == effect.modifier.toughness == 0 and after_control and merged[-1].untap):
+            merged[-1] = dataclasses.replace(merged[-1], haste=True)
+        else:
+            merged.append(effect)
     return merged
 
 
@@ -1698,7 +1867,8 @@ _TRIGGERS = {
     "attacks": re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I),
     "blocks": re.compile(rf"Whenever {_SELF} blocks, (.+)", re.I),
     "ally_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
-    "attacked": re.compile(r"Whenever a creature attacks you(?: or a planeswalker you control)?, (.+)", re.I),
+    "attacked": re.compile(r"Whenever a creature attacks you, (.+)", re.I),
+    "attacked_or_walker": re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),
     "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
     "opponent_gain_life": re.compile(r"Whenever an opponent gains life, (.+)", re.I),
@@ -1755,7 +1925,7 @@ _WATCHES = {
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
 # Triggers about some other creature: there "it" and "that creature" mean that creature, not the source.
-_OBJECT_EVENTS = {"ally_attacks", "attacked", "ally_combat_damage", "token_combat_damage"}
+_OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat_damage", "token_combat_damage"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
 _PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
