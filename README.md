@@ -183,7 +183,9 @@ winner = game.play()
 | Sacrifice a creature. | Smothering Abomination |
 | Two things joined by "and": "... and you gain 1 life", "You gain 1 life and draw a card", "You draw two cards and lose 2 life" | Blood Artist, Night's Whisper |
 | Create N P/T color Subtype (artifact) creature token(s) (with flying, vigilance, ...). | Raise the Alarm |
+| Create a P/T ... creature token with (flying and) "<an ability we understand>" | Pest: "When this creature dies, you gain 1 life." |
 | Create N Treasure / Clue / Food token(s). | Smothering Tithe |
+| Create a token that's a copy of target creature (you control). / Populate. | Growing Ranks |
 | Destroy target permanent. Its controller creates a 3/3 green Beast creature token. | Beast Within |
 | Put N +1/+1 (or -1/-1) counters on target creature / on each creature you control / on it. | |
 | This creature enters with N +1/+1 counters on it. | Hydras |
@@ -196,7 +198,7 @@ winner = game.play()
 - **Amounts that depend on the game:** "..., where X is ...", "... equal to ..." and "... for each ..." are worked out
   when the effect resolves. Supported: its (or this creature's) power, using its last known power if it has left the
   battlefield; +1/+1 counters on it; the number of <type> you control; creatures on the battlefield; the amount of life
-  you gained this turn; spells you've cast this turn; the greatest mana value among instant and sorcery spells you've
+  you gained this turn; half your life total, rounded down or up; spells you've cast this turn; the greatest mana value among instant and sorcery spells you've
   cast this turn; opponents. "For each" multiplies drawing, life, tokens and +1/+1 counters ("create a 1/1 Saproling
   token for each +1/+1 counter on this creature"). A sentence a template already understands is never rewritten.
   "An X/X ... token" gets its size when it's created (Rootha, Mastering the Moment).

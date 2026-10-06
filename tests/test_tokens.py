@@ -40,7 +40,8 @@ class ParseTests(unittest.TestCase):
         self.assertIsInstance(spell_effects(BEAST_WITHIN)[1], TargetControllerCreatesTokens)
 
     def test_unsupported_tokens(self):
-        self.assertIsNone(spell_effects(Card(name="x", oracle_text="Create a token that's a copy of target creature.")))
+        self.assertIsNone(spell_effects(Card(name="x", oracle_text="Create a token that's a copy of target creature, "
+                                                                  "except it's a 1/1.")))
         quoted = 'Create a 1/1 green Saproling creature token with "This creature gets +1/+1."'
         self.assertIsNone(spell_effects(Card(name="x", oracle_text=quoted)))
 

@@ -549,6 +549,38 @@ class CreateTokens:
 
 
 @dataclass(frozen=True)
+class CopyToken:
+    """ "Create a token that's a copy of target creature you control." """
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            card = target.card
+            if not card.type_line.startswith("Token"):
+                card = dataclasses.replace(card, type_line="Token " + card.type_line)
+            game.create_tokens(controller, card, 1)
+
+
+POPULATE_PROMPT = "Populate: copy which token? "
+
+
+@dataclass(frozen=True)
+class Populate:
+    """ "Populate": create a copy of a creature token you control (you choose which). """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        kinds = []
+        for permanent in controller.battlefield:
+            if permanent.card.type_line.startswith("Token") and "Creature" in permanent.card.type_line \
+                    and permanent.card not in kinds:
+                kinds.append(permanent.card)
+        if kinds:
+            pick = 0 if len(kinds) == 1 else controller.player.choose(
+                POPULATE_PROMPT, [f"{c.name} {c.power}/{c.toughness}" for c in kinds])
+            game.create_tokens(controller, kinds[pick], 1)
+
+
+@dataclass(frozen=True)
 class TargetControllerCreatesTokens:
     """Beast Within: "Its controller creates a 3/3 green Beast creature token." """
     count: int
@@ -570,7 +602,7 @@ _COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G
 _COLOR = r"(?:white|blue|black|red|green)"
 _CREATURE_TOKEN = re.compile(
     rf"{_N} (\d+|X)/(\d+|X) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact )?"
-    r"creature tokens?(?: with ([a-z ,]+))?"
+    r"creature tokens?(?: with (?:([a-z ,]+?)(?:,? and |, |$))?(?:\"(.+)\")?)?"  # keywords and/or a quoted ability
 )
 _NAMED_TOKEN = re.compile(rf"(?i:{_N}) (Treasure|Clue|Food) tokens?")
 
@@ -582,7 +614,7 @@ def _token(spec: str) -> tuple[int, Card] | None:
     m = _CREATURE_TOKEN.fullmatch(spec)
     if not m:
         return None
-    count, power, toughness, colors, subtypes, artifact, keywords = m.groups()
+    count, power, toughness, colors, subtypes, artifact, keywords, quoted = m.groups()
     keyword_line = ""
     if keywords:
         words = [w.strip() for w in re.split(r",? and |, ", keywords) if w.strip()]
@@ -590,16 +622,24 @@ def _token(spec: str) -> tuple[int, Card] | None:
     card = Card(
         name=subtypes.strip(),
         type_line=f"Token {'Artifact ' if artifact else ''}Creature — {subtypes.strip()}",
-        oracle_text=keyword_line,
+        oracle_text="\n".join(line for line in (keyword_line, quoted) if line),
         colors=tuple(_COLOR_WORDS[c] for c in re.findall(_COLOR, colors)),
         power=power,
         toughness=toughness,
     )
+    if quoted and not _is_ability(card, quoted):
+        return None  # a token ability we can't play: don't create a half-working token
     return _count(count), card
 
 
+def _is_ability(card: Card, line: str) -> bool:
+    """Whether `line` of `card`'s rules text is an ability we understand."""
+    known = {a.text for a in (*triggered_abilities(card), *activated_abilities(card), *static_abilities(card))}
+    return line in known or is_mana_ability(line)
+
+
 def _create(m: re.Match, follows: bool) -> Any:
-    parsed = _token(m[1])
+    parsed = _token(m[1] + '."' if m[2] else m[1])  # a quoted ability's own full stop comes before its closing quote
     if parsed is None:
         return None
     return (TargetControllerCreatesTokens if follows else CreateTokens)(*parsed)
@@ -662,6 +702,7 @@ _AMOUNTS = [
      lambda m: Amount("source_counters", "+1/+1")),
     (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
     (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
+    (re.compile(r"half your life total, rounded (down|up)", re.I), lambda m: Amount("half_life", m[1].lower())),
     (re.compile(r"(?:the number of )?spells? you've cast this turn", re.I), lambda m: Amount("spells_cast")),
     (re.compile(r"the greatest mana value among instant and sorcery spells you've cast this turn", re.I),
      lambda m: Amount("greatest_mana_value_cast", "instant or sorcery spell")),
@@ -1116,6 +1157,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchForLands(1, _land_types(m[1]), 1, bool(m[2]), False)),
     (re.compile(rf"scry {_N}\.", re.I), lambda m: Scry(_count(m[1]))),
     (re.compile(rf"surveil {_N}\.", re.I), lambda m: Surveil(_count(m[1]))),
+    (re.compile(r"populate\.", re.I), lambda m: Populate()),
+    (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
     (re.compile(r"target player takes an extra turn after this one\.", re.I), lambda m: TargetExtraTurn()),
@@ -1148,8 +1191,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
     (re.compile(rf"(?i:{_SELF}) {_CHANGE}"), lambda m: PumpSource(_modifier(m, 1))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
-    (re.compile(r"(?i:create) (.+)\."), lambda m: _create(m, follows=False)),
-    (re.compile(r"(?i:its controller creates) (.+)\."), lambda m: _create(m, follows=True)),
+    (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
+    (re.compile(r'(?i:its controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
     (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
                 r"battlefield tapped, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand()),

@@ -864,6 +864,8 @@ class Game:
             return sum(_has_type(p.card, amount.what) for s in self.live_seats() for p in s.battlefield)
         if kind == "you_control":
             return sum(_has_type(p.card, amount.what) for p in controller.battlefield)
+        if kind == "half_life":
+            return max(0, controller.life) // 2 if amount.what == "down" else (max(0, controller.life) + 1) // 2
         if kind == "life_gained":
             return controller.life_gained_amount if controller.life_gained_turn == self.turn else 0
         if kind == "spells_cast":
