@@ -9,7 +9,7 @@ from typing import Sequence
 
 from .analysis import is_land
 from .cards import Card, Deck
-from .combat import ATTACK_PROMPT, BLOCK_PROMPT
+from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT
 from .game import (PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
@@ -98,6 +98,8 @@ class BotPlayer:
         if prompt == PROLIFERATE_PROMPT:  # add counters to its own permanents, and never to an opponent's
             mine = [i for i, option in enumerate(options[:-1]) if _seat_of(option) == self._seat]
             return mine[0] if mine else len(options) - 1
+        if prompt.startswith(ASSIGN_PROMPT):  # kill the blockers with the least toughness first
+            return min(range(len(options)), key=lambda i: _stats(options[i])[1])
         if prompt == RETURN_LAND_PROMPT:
             return len(options) - 1  # the bounceland that just came in is the newest land
         if prompt == SEARCH_CARD_PROMPT:

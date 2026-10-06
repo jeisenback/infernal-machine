@@ -136,7 +136,14 @@ winner = game.play()
 - **Commander tax:** your commander costs {2} more for each earlier cast from the command zone.
   When your commander would go to the graveyard, you choose whether it goes back to the command zone instead.
 - **The stack:** spells go on the stack and resolve last in, first out once everyone passes in a row.
-- **Combat:** the active player chooses, creature by creature, whether to attack and which opponent.
+- **Combat:** the active player chooses, creature by creature, whether to attack and whom: an opponent, or a
+  planeswalker an opponent controls ("Attack Planeswalker: ..."). Damage to a planeswalker removes loyalty (it dies at
+  0), and the player's creatures can block attackers aimed at their planeswalker. A trampler's extra damage goes to
+  the planeswalker. If the planeswalker has left, the attacker deals no damage. Bots attack players only.
+  "Whenever a creature attacks you" triggers only for attacks on the player; "... attacks you or a planeswalker you
+  control" triggers for both. When several creatures block one attacker, its controller names which blocker gets
+  lethal damage first, then the next, and so on (bots go for the weakest first); the rest goes to the last, or to the
+  player with trample.
   Each defending player then chooses blockers, and damage is dealt all at once. With no attackers,
   the blockers and damage steps are skipped. If any creature in combat has first strike or double strike,
   there's an extra first-strike damage step.
