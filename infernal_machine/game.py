@@ -24,10 +24,11 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
+from .undercity import ROOMS, START
 from .mana import SNOW, Cost, parse_cost, pay
 from .player import Player
 
@@ -83,6 +84,9 @@ MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's
 PITCH_PROMPT = "Choose a card to exile from your hand"
 ESCAPE_PROMPT = "Choose a card to exile from your graveyard"
 VOTE_PROMPT = "Vote: "  # followed by the source's name; options are the choices, or permanent labels
+VENTURE_PROMPT = "Venture into the Undercity: choose the next room"  # options are room names
+THRONE_PROMPT = "Throne of the Dead Three: choose a creature"  # options are card names
+UNLESS_PROMPT = "Pay to stop "  # followed by the triggering card's name; options: "Pay {1}", "Don't pay"
 WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
 COLOR_LETTERS = {name: letter for letter, name in COLOR_NAMES.items()}
@@ -113,6 +117,7 @@ class Permanent:
     loyalty_turn: int | None = None  # turn a loyalty ability was last activated (CR 606.3)
     counters: dict[str, int] = field(default_factory=dict)  # "+1/+1" -> 2
     until_end_of_turn: list[Modifier] = field(default_factory=list)
+    until_next_turn: list[Modifier] = field(default_factory=list)  # "until your next turn": ends as its controller's turn begins
     activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
     triggered_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last triggered (once-a-turn ones)
     last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
@@ -193,10 +198,11 @@ class PendingTrigger:
     x: int = 0  # for "Whenever you cast a spell with {X}, put X counters ...": that spell's X
     subject: "Permanent | None" = None  # what a watching trigger saw happen
     player: "Seat | None" = None  # who did it
+    card: Card | None = None  # for a dungeon room's ability, which has no permanent behind it
 
     @property
     def source(self) -> Card:
-        return self.permanent.card
+        return self.card or self.permanent.card
 
 
 @dataclass(eq=False)
@@ -207,6 +213,7 @@ class Seat:
     library: list[Card] = field(default_factory=list)
     hand: list[Card] = field(default_factory=list)
     battlefield: list[Permanent] = field(default_factory=list)
+    undercity_room: str | None = None  # where this player's venture marker is, if they are in the Undercity
     mana_pool: list[frozenset[str]] = field(default_factory=list)  # mana added by rituals, gone at the end of the step
     graveyard: list[Card] = field(default_factory=list)
     exile: list[Card] = field(default_factory=list)
@@ -258,6 +265,7 @@ class Game:
         self._plan_index = 0
         self.regular = 0  # the seat whose regular turn it is (or was, during an extra turn)
         self.monarch: Seat | None = None
+        self.initiative: Seat | None = None
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
@@ -365,6 +373,7 @@ class Game:
             for permanent in seat.battlefield:
                 permanent.tapped = False
                 permanent.sick = False
+                permanent.until_next_turn = []
             for other in self.live_seats():  # goad lasts until the goader's next turn
                 for permanent in other.battlefield:
                     if permanent.goaded_by is seat:
@@ -379,6 +388,8 @@ class Game:
             for other in self.live_seats():  # "At the beginning of each upkeep / end step"
                 for permanent in list(other.battlefield):
                     self.trigger("each_upkeep" if self.step == "upkeep" else "each_end_step", permanent, other)
+            if self.step == "upkeep" and self.initiative is seat:  # CR 725.2: the initiative ventures at upkeep
+                self.venture(seat)
             if self.step == "end" and self.monarch is seat:  # CR 724.2: the monarch draws at their end step
                 self.broadcast({"event": "monarch_draw", "seat": seat.index})
                 self.draw(seat, 1)
@@ -1347,6 +1358,8 @@ class Game:
                 self.trigger("combat_damage_to_player", source, controller)
                 if target is self.monarch and controller is not target:  # CR 724.2
                     self.become_monarch(controller)
+                if target is self.initiative and controller is not target:  # CR 725.2
+                    self.take_initiative(controller)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
@@ -1503,7 +1516,7 @@ class Game:
     def modifiers(self, permanent: Permanent) -> list[Modifier]:
         """Everything currently changing a permanent: its "until end of turn" effects, plus
         static abilities of permanents its controller controls ("Creatures you control get +1/+1")."""
-        mods = list(permanent.until_end_of_turn)
+        mods = permanent.until_end_of_turn + permanent.until_next_turn
         controller = self.controller_of(permanent)
         if controller is None or "Creature" not in permanent.card.type_line:
             return mods
@@ -1793,8 +1806,60 @@ class Game:
         self._plan[at + 1:at + 1] = extra + (["main2"] if main else [])
 
     def become_monarch(self, seat: Seat) -> None:
+        if self.monarch is seat:  # already the monarch: nothing changes, so nothing triggers
+            return
         self.monarch = seat
         self.broadcast({"event": "monarch", "seat": seat.index})
+        self._trigger_each("become_monarch", seat)
+        for opponent in self.opponents(seat):
+            self._trigger_each("opponent_become_monarch", opponent, player=seat)
+
+    def pays_unless(self, payer: Seat, cost_text: str, source: Card) -> bool:
+        """"... unless that player pays {1}": whether `payer` can and chooses to pay the cost (and pays it)."""
+        payment = self._pay_cost(payer, parse_cost(cost_text))
+        if payment is None or payer.player.choose(UNLESS_PROMPT + source.name, [f"Pay {cost_text}", "Don't pay"]) != 0:
+            return False
+        self._spend_mana(payer, payment)
+        self.broadcast({"event": "paid_unless", "seat": payer.index, "card": source.name, "cost": cost_text})
+        return True
+
+    def take_initiative(self, seat: Seat) -> None:
+        """Taking the initiative ventures into the Undercity (CR 725.2); already having it does nothing."""
+        if self.initiative is seat:
+            return
+        self.initiative = seat
+        self.broadcast({"event": "initiative", "seat": seat.index})
+        self.venture(seat)
+
+    def venture(self, seat: Seat) -> None:
+        """Move `seat`'s marker into the next room of the Undercity (the first room if it has none yet); leaving the
+        last room completes the dungeon, and the venture starts a fresh one. The room's ability is put on the stack."""
+        room = seat.undercity_room
+        options = ROOMS[room].leads_to if room else (START,)
+        if not options:
+            self.broadcast({"event": "dungeon_completed", "seat": seat.index, "dungeon": "Undercity"})
+            options = (START,)
+        entered = options[seat.player.choose(VENTURE_PROMPT, list(options))] if len(options) > 1 else options[0]
+        seat.undercity_room = entered
+        self.broadcast({"event": "venture", "seat": seat.index, "room": entered})
+        effects = (ThroneOfTheDeadThree(),) if entered == "Throne of the Dead Three" else tuple(line_effects(ROOMS[entered].text))
+        ability = TriggeredAbility("venture", effects, False, ROOMS[entered].text)
+        self.pending.append(PendingTrigger(ability, None, seat, card=Card(name=entered, type_line="Dungeon Room")))
+
+    def throne_of_the_dead_three(self, seat: Seat) -> None:
+        """Reveal the top ten cards; a creature among them enters with three +1/+1 counters and hexproof until
+        the controller's next turn; the library is shuffled."""
+        top = seat.library[:10]
+        self.broadcast({"event": "revealed", "seat": seat.index, "cards": [c.name for c in top]})
+        creatures = _unique([c for c in top if "Creature" in c.type_line])
+        if creatures:
+            card = creatures[seat.player.choose(THRONE_PROMPT, [c.name for c in creatures])]
+            seat.library.remove(card)
+            permanent = Permanent(card, sick=True)
+            self._enter(seat, permanent)
+            self.put_counters(permanent, "+1/+1", 3)
+            permanent.until_next_turn.append(Modifier(0, 0, frozenset({"hexproof"})))
+        self.rng.shuffle(seat.library)
 
     def vote(self, starter: Seat, options: list[str]) -> list[int]:
         """Each player votes, starting with `starter` and going in turn order; the votes are public. Returns the
@@ -2041,6 +2106,10 @@ class Game:
                         self.monarch = None
                         if not self.seats[self.active].lost:
                             self.become_monarch(self.seats[self.active])
+                    if self.initiative is seat:  # CR 725.4: the active player takes it, if they're still in
+                        self.initiative = None
+                        if not self.seats[self.active].lost:
+                            self.take_initiative(self.seats[self.active])
                     changed = True
             dying: list[tuple[Permanent, str]] = []
             for seat in self.live_seats():

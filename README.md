@@ -193,10 +193,13 @@ winner = game.play()
 | After this (main) phase, there is an additional combat phase (followed by an additional main phase). | Relentless Assault |
 | Untap all creatures that attacked this turn. / Untap all creatures you control. | Aggravated Assault |
 | You become the monarch. | Palace Jailer |
+| You take the initiative. | Caves of Chaos Adventurer |
+| Goad target creature. / Goad all creatures you don't control. | Disrupt Decorum |
+| Whenever an opponent casts a spell / draws a card, (you may) draw a card / create a Treasure token unless that player pays {N}. | Rhystic Study, Mystic Remora, Smothering Tithe |
+| Whenever you become the monarch, ... / Whenever an opponent becomes the monarch, ... | |
 | Starting with you, each player votes for X or Y. For each X vote, ... / If X gets more votes (or the vote is tied), ... | Tivit, Plea for Power |
 | Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes. | Council's Judgment |
 | Investigate. | |
-| Goad target creature. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
 | Equipped creature gets +N/+N and has keywords. / Enchanted creature gets +N/+N and has keywords. | |
@@ -354,8 +357,17 @@ winner = game.play()
   - Extra turns go to the player who asked, right after the current turn; the latest one asked for goes first,
     and regular turn order then carries on from where it was.
   - The monarch draws a card at their end step. Combat damage dealt to the monarch by a creature makes that
-    creature's controller the monarch. If the monarch loses, the active player becomes monarch. The initiative
-    isn't built.
+    creature's controller the monarch. If the monarch loses, the active player becomes monarch.
+  - **The initiative:** "You take the initiative" makes you venture into the Undercity (`undercity.py` has the
+    rooms: Secret Entrance, Forge, Lost Well, Trap!, Arena, Stash, Archives, Catacombs, Throne of the Dead
+    Three). You also venture at your upkeep while you hold it, and combat damage to the holder from a creature
+    takes it (each hit is checked on its own, so two players' creatures hitting at once give it to the first
+    one resolved). If the holder loses, the active player takes it. Each room's ability goes on the stack and
+    uses the normal targeting, so the player chooses targets and the next room (when there are two exits);
+    leaving the last room completes the dungeon and the next venture starts over. The Throne's creature enters
+    with three +1/+1 counters and hexproof until its controller's next turn begins. Bots take the first exit and
+    put the Forge's counters on their own creature. "Whenever you take the initiative" and "if you have the
+    initiative" aren't understood.
   - **Voting:** "Starting with you, each player votes for X or Y" (and, for Council's Judgment, for a nonland
     permanent you don't control), with the card's own outcome: "For each X vote, ..." (Tivit),
     "If X gets more votes [or the vote is tied], ..." (Plea for Power), or "Exile each permanent with the most votes
@@ -367,7 +379,13 @@ winner = game.play()
     combat), with an additional main phase after it if the card says so. Cast before combat, it simply gives
     you two combats, and creatures tapped in the first can't attack in the second.
   - A goaded creature must attack each combat if able, and not the goader if another opponent can be attacked.
-    It lasts until the goader's next untap step.
+    It lasts until the goader's next untap step. "Goad all creatures you don't control" goads every creature
+    each opponent controls.
+  - "Whenever you become the monarch" and "Whenever an opponent becomes the monarch" trigger only when the
+    monarch actually changes.
+  - "... unless that player pays {N}": the player who cast the spell or drew the card is asked whether to pay
+    when the trigger resolves, and is only asked if they can. Understood only for effects that need no target
+    (draw, create a token, gain or lose life).
 - **Scry, surveil and mill:** scrying and surveilling look at the top cards one at a time and choose to keep
   each on top or put it on the bottom (scry) or into the graveyard (surveil). When two or more stay on top the
   player is asked which goes on top next (bots keep the order). Only the scrying player sees the cards. Surveil's graveyard cards are public. Milling
