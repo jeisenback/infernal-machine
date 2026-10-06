@@ -272,6 +272,17 @@ winner = game.play()
   an Aura goes to the graveyard. Labels show attachments ("Sword attached to Bear (seat 0, #1)").
   "Can't attack or block" is supported through Auras. Other equip costs (like "Equip legendary creature {3}")
   and Auras on lands with special abilities aren't supported yet.
+- **Copying:**
+  - Clone: "You may have this creature enter the battlefield as a copy of any creature on the battlefield." (also
+    "a creature you control", and artifacts, enchantments or lands). It is decided as it enters, with a "Don't copy
+    anything" choice, so the copy's enters abilities trigger. A copy has the other card's printed characteristics,
+    not its counters or damage; a copy of a token isn't a token. It goes to the graveyard as the Clone card.
+    Bots copy the biggest creature. "Except ..." variants (Phyrexian Metamorph, Phantasmal Image) aren't supported.
+  - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
+    the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
+    instead of going to the graveyard, even if countered. With the second sentence its controller picks targets
+    again (the old ones are still choices); without it the copy keeps them. Abilities can't be copied yet.
+  - "Create a token that's a copy of target creature" and populate were added earlier.
 - **Protection from a color:** "Protection from red" (and "from red and from blue"), whether printed or given by
   Equipment, an Aura, a static ability, or "gains protection from red until end of turn". The protected permanent
   can't be targeted by red spells or abilities, takes no damage from red sources, can't be blocked by red
