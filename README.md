@@ -178,8 +178,10 @@ winner = game.play()
 | Enchanted creature can't attack or block. | Pacifism |
 | Destroy all creatures / artifacts / lands / nonland permanents / ... (optionally "you don't control", "you control") | Wrath of God, Armageddon |
 | Exile all creatures / ... | |
+| Destroy / exile all creatures with flying / without flying / with power 4 or greater / with toughness 2 or less / nonblack / white | Hurricane-style wipes |
 | This spell deals N (or X) damage to each creature / each creature you don't control / each opponent / each player | Pyroclasm |
-| Each opponent (or each player) sacrifices a creature. Target player (or opponent) sacrifices a creature. | Diabolic Edict |
+| ... damage to each creature with flying (and each player) | Electrickery-style |
+| Each opponent (or each player) sacrifices a creature / artifact / enchantment / land / permanent. Target player (or opponent) sacrifices one. | Diabolic Edict |
 | Sacrifice a creature. | Smothering Abomination |
 | Two things joined by "and": "... and you gain 1 life", "You gain 1 life and draw a card", "You draw two cards and lose 2 life" | Blood Artist, Night's Whisper |
 | Create N P/T color Subtype (artifact) creature token(s) (with flying, vigilance, ...). | Raise the Alarm |
@@ -301,7 +303,10 @@ winner = game.play()
 - **Tutors:** the searcher picks from the matching cards in their library, which is then shuffled. Other players
   only learn which card unless it says "reveal it". If nothing matches, the library is just shuffled.
   Restrictions like "with mana value 3 or less" aren't supported yet.
-- **Mass effects:** nothing is targeted, so hexproof doesn't help. Indestructible permanents survive
+- **Mass effects:** nothing is targeted, so hexproof doesn't help. A restriction ("with flying", "with power 4 or
+  greater", "nonblack") is checked when the effect resolves, using the permanent's current keywords and stats, so
+  a creature that was given flying until end of turn counts. Only the keywords the engine knows are accepted; "with a
+  +1/+1 counter on it" and similar aren't supported. Indestructible permanents survive
   "destroy all" but not exile or sacrifice. Everything leaves the battlefield at the same moment, so a
   creature watching for deaths triggers for every other creature that died with it, and a creature with
   "Whenever this creature or another creature dies" sees itself go too. The same is true when several
