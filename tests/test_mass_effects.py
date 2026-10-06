@@ -43,7 +43,7 @@ def names(seat):
 
 class ParseTests(unittest.TestCase):
     def test_templates(self):
-        self.assertEqual(spell_effects(WRATH), [DestroyAll("creature"), CannotRegenerate()])
+        self.assertEqual(spell_effects(WRATH), [DestroyAll("creature", no_regen=True)])
         self.assertEqual(spell_effects(ARMAGEDDON), [DestroyAll("land")])
         self.assertEqual(spell_effects(PURGE), [DestroyAll("creature you don't control")])
         self.assertEqual(spell_effects(BANISH), [ExileAll("creature")])

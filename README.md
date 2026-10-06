@@ -115,6 +115,13 @@ winner = game.play()
     (Fierce Guardianship, Deadly Rollick) and "(If it's not your turn,) you may (pay N life and) exile a blue card
     from your hand rather than pay this spell's mana cost." (Force of Will, Force of Negation). When more than
     one way is payable, the caster chooses. X is 0 when the mana cost isn't paid.
+  - Flashback {N}: you may cast the card from your graveyard for that cost (at the usual timing: an instant at any
+    time, anything else at sorcery speed). Whenever it leaves the stack, whether it resolves, fizzles or is
+    countered, it is exiled instead of going to the graveyard. Bots use graveyard casts like any other cast.
+  - Escape—{N}, Exile N other cards from your graveyard: you cast it from the graveyard for that cost and exile the
+    other cards you choose, which counts as cards leaving your graveyard. It isn't exiled afterwards, so an escaped
+    creature stays. Only one graveyard-casting ability per card is used (the first on the card). Kicker and
+    commander tax don't apply to a graveyard cast.
   - Kicker {N}: the caster chooses whether to pay it, before choosing targets. "If this spell was kicked, ..."
     effects on instants and sorceries happen only when it was, and can target (kicker is only offered when those
     targets exist). A kicked permanent (Auras too) remembers it: "If this creature was kicked, it enters with
@@ -324,8 +331,13 @@ winner = game.play()
   "destroy all" but not exile or sacrifice. Everything leaves the battlefield at the same moment, so a
   creature watching for deaths triggers for every other creature that died with it, and a creature with
   "Whenever this creature or another creature dies" sees itself go too. The same is true when several
-  creatures die to damage at once. "They can't be regenerated" is accepted and does nothing, since
-  regeneration isn't implemented. A player chooses their own creature to sacrifice, in turn order.
+  creatures die to damage at once. A player chooses their own creature to sacrifice, in turn order.
+- **Regeneration:** "Regenerate target creature.", "{B}: Regenerate this creature." and "Regenerate each creature you
+  control." give a shield that lasts until end of turn (several stack). The next time the creature would be
+  destroyed, by a destroy effect or by lethal damage or deathtouch, it is tapped, loses all its damage and leaves
+  combat instead (a blocked attacker stays blocked). "It can't be regenerated" and "They can't be regenerated" after
+  a destroy effect make that effect skip shields. Exile, sacrifice and zero toughness aren't destruction, so shields
+  don't help. Activating in response works like any ability, but bots don't regenerate on their own.
   "Sacrifices the creature with the greatest power" isn't supported yet.
 - **Fight, proliferate, persist and undying:**
   - "Target creature you control fights target creature you don't control." (also "fights another target creature")

@@ -122,10 +122,11 @@ class Damage:
 class Destroy:
     target: str
     another: bool = False  # "destroy another target ...": not the source itself
+    no_regen: bool = False  # "It can't be regenerated."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.destroy(target)
+            game.destroy(target, self.no_regen)
 
 
 @dataclass(frozen=True)
@@ -687,9 +688,10 @@ class DestroyAll:
     """ "Destroy all creatures." Indestructible permanents survive; they all die together."""
     kind: str  # "creature", "artifact or enchantment", "creature you don't control", ...
     restriction: MassFilter | None = None  # "... with flying"
+    no_regen: bool = False  # "They can't be regenerated."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction))
+        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen)
 
 
 @dataclass(frozen=True)
@@ -703,10 +705,42 @@ class ExileAll:
 
 @dataclass(frozen=True)
 class CannotRegenerate:
-    """ "They can't be regenerated." Regeneration isn't in the engine, so there's nothing to do."""
+    """ "They can't be regenerated." After a destroy effect it is folded into that effect (see _merge_no_regen);
+    anywhere else there is nothing for it to stop."""
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         pass
+
+
+@dataclass(frozen=True)
+class Regenerate:
+    """ "Regenerate target creature." Gives it a shield: the next time it would be destroyed this turn, it is
+    tapped, loses its damage and leaves combat instead."""
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.regenerate(target)
+
+
+@dataclass(frozen=True)
+class RegenerateSource:
+    """ "{B}: Regenerate CARDNAME." """
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.regenerate(target)
+
+
+@dataclass(frozen=True)
+class RegenerateEach:
+    """ "Regenerate each creature you control." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in list(controller.battlefield):
+            if "Creature" in permanent.card.type_line:
+                game.regenerate(permanent)
 
 
 @dataclass(frozen=True)
@@ -1191,6 +1225,8 @@ _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life a
                     r"from your hand rather than pay this spell's mana cost\.")
 _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
                          rf"creature|permanent)|(discard a card)|pay (?!X ){_N} life)\.")  # "pay X life" (Toxic Deluge) isn't supported
+_FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
+_ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four|five|six) other cards? from your graveyard\.")
 _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery) )?spells "
                         r"you cast cost \{(\d+)\} less to cast\.", re.I)
 
@@ -1217,6 +1253,25 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
     return costs
 
 
+@dataclass(frozen=True)
+class GraveyardCast:
+    """A way to cast a card from the graveyard: Flashback (then it is exiled) or Escape (exile other cards too)."""
+    word: str  # "Flashback" or "Escape"
+    cost: str  # the mana cost to pay instead of the card's own
+    exile: int = 0  # other cards to exile from the graveyard (Escape)
+    exile_after: bool = False  # exile it instead of putting it in the graveyard when it leaves the stack (Flashback)
+
+
+def graveyard_casts(card: Card) -> list[GraveyardCast]:
+    found = []
+    for line in rules_lines(card):
+        if m := _FLASHBACK.fullmatch(line):
+            found.append(GraveyardCast("Flashback", m[1], exile_after=True))
+        elif m := _ESCAPE.fullmatch(line):
+            found.append(GraveyardCast("Escape", m[1], exile=_count(m[2])))
+    return found
+
+
 def additional_costs(card: Card) -> list[AdditionalCost]:
     costs = []
     for line in rules_lines(card):
@@ -1238,7 +1293,7 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL))
+    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE))
 
 
 def is_cost_reduction_line(line: str) -> bool:
@@ -1372,7 +1427,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (player|opponent) mills {_N} cards?\.", re.I),
      lambda m: TargetMill(_count(m[2]), m[1].lower())),
     (re.compile(rf"destroy all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(DestroyAll, m)),
-    (re.compile(r"they can't be regenerated\.", re.I), lambda m: CannotRegenerate()),
+    (re.compile(r"(?:they|it) can't be regenerated\.", re.I), lambda m: CannotRegenerate()),
+    (re.compile(rf"regenerate target {_PERMANENT_KIND}\.", re.I), lambda m: Regenerate(m[1].lower())),
+    (re.compile(rf"regenerate {_SELF}\.", re.I), lambda m: RegenerateSource()),
+    (re.compile(r"regenerate each creature you control\.", re.I), lambda m: RegenerateEach()),
     (re.compile(rf"exile all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(ExileAll, m)),
     (re.compile(rf"{_SELF} deals {_N} damage to each (creature you don't control|creature|opponent|player)"
                 rf"(?: {_RESTRICTION})?(?: and each (opponent|player))?\.", re.I), _damage_each),
@@ -1467,7 +1525,18 @@ def _parse(sentences: list[str]) -> list | None:
             return None
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
-    return effects
+    return _merge_no_regen(effects)
+
+
+def _merge_no_regen(effects: list) -> list:
+    """"Destroy all creatures. They can't be regenerated." becomes one destroy effect that skips regeneration."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, CannotRegenerate) and merged and isinstance(merged[-1], (Destroy, DestroyAll)):
+            merged[-1] = dataclasses.replace(merged[-1], no_regen=True)
+        else:
+            merged.append(effect)
+    return merged
 
 
 def spell_effects(card: Card) -> list | None:
