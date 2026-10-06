@@ -12,13 +12,14 @@ class ParseCostTests(unittest.TestCase):
         self.assertEqual(parse_cost("{2}{G}{G}"), Cost(2, (G, G)))
         self.assertEqual(parse_cost("{X}{U}"), Cost(0, (U,), x=1))
         self.assertEqual(parse_cost("{X}{X}{G}").with_x(3), Cost(6, (G,)))
-        self.assertEqual(parse_cost("{G/U}{W/P}{C}"), Cost(0, (GU, W, frozenset("C"))))
+        self.assertEqual(parse_cost("{G/U}{W/P}{C}"), Cost(0, (GU, frozenset("C")), 0, (), (W,)))
+        self.assertEqual(parse_cost("{2/W}{S}"), Cost(0, (frozenset("S"),), 0, (W,)))
         self.assertEqual(parse_cost("{0}"), Cost(0, ()))
 
     def test_unsupported_or_missing(self):
         self.assertIsNone(parse_cost(""))
-        self.assertIsNone(parse_cost("{S}"))
-        self.assertIsNone(parse_cost("{2/W}"))
+        self.assertIsNone(parse_cost("{Q}"))
+        self.assertIsNone(parse_cost("{3/W}"))
 
 
 class PayTests(unittest.TestCase):
