@@ -11,7 +11,7 @@ from .analysis import is_land
 from .cards import Card, Deck
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT
-from .game import (CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
+from .game import (CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
@@ -105,8 +105,9 @@ class BotPlayer:
             return min(range(len(options)), key=lambda i: _stats(options[i])[1])
         if prompt == RETURN_LAND_PROMPT:
             return len(options) - 1  # the bounceland that just came in is the newest land
-        if prompt == SEARCH_CARD_PROMPT:
-            return max(range(len(options)), key=lambda i: self._cards[options[i]].cmc)  # its best card
+        if prompt in (SEARCH_CARD_PROMPT, LOOK_PROMPT):
+            named = [i for i, name in enumerate(options) if name in self._cards]  # never declines the optional take
+            return max(named, key=lambda i: self._cards[options[i]].cmc)  # its best card
         if prompt == SACRIFICE_PROMPT or prompt.startswith(SACRIFICE_COST_PROMPT):
             return min(range(len(options)), key=lambda i: sum(_stats(options[i])))  # its weakest creature
         if prompt.startswith(TARGET_PROMPT):

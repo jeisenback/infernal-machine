@@ -92,6 +92,9 @@ SEARCH_LAND_PROMPT = "Choose a land to put onto the battlefield"
 SEARCH_LAND_HAND_PROMPT = "Choose a land to put into your hand"
 SCRY_PROMPT = "Scry: "  # followed by the card's name; options are KEEP_ON_TOP and PUT_ON_BOTTOM
 SURVEIL_PROMPT = "Surveil: "  # options are KEEP_ON_TOP and PUT_IN_GRAVEYARD
+ORDER_TOP_PROMPT = "Put on top next"  # options are card names; asked while two or more cards stay on top
+LOOK_PROMPT = "Take a card from the top of your library"  # options are card names, then NONE_TAKEN if optional
+NONE_TAKEN = "Take none"
 KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom", "Put into your graveyard"
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
@@ -1746,9 +1749,38 @@ class Game:
         for card in top:
             choice = seat.player.choose(SCRY_PROMPT + card.name, [KEEP_ON_TOP, PUT_ON_BOTTOM])
             (kept if choice == 0 else bottom).append(card)
-        seat.library = kept + seat.library + bottom
+        seat.library = self._ordered(seat, kept) + seat.library + bottom
         self.broadcast({"event": "scry", "seat": seat.index, "count": len(top)}, skip=seat)
         seat.player.notify({"event": "scry", "seat": seat.index, "count": len(top), "bottom": [c.name for c in bottom]})
+
+    def _ordered(self, seat: Seat, cards: list[Card]) -> list[Card]:
+        """Let the player choose the order of the cards they keep on top (first asked goes on top)."""
+        cards, ordered = list(cards), []
+        while len(cards) > 1:
+            ordered.append(cards.pop(seat.player.choose(ORDER_TOP_PROMPT, [c.name for c in cards])))
+        return ordered + cards
+
+    def look_at_top(self, seat: Seat, count: int, card_type: str | None) -> None:
+        """Look at the top `count` cards: take one into the hand (a card of `card_type` if given, and then
+        only if the player wants it); the rest go to the bottom in a random order."""
+        top = seat.library[:count]
+        del seat.library[:len(top)]
+        matches = _unique([c for c in top if card_type is None or _card_matches(card_type, c)])
+        taken = None
+        if matches:
+            options = [c.name for c in matches] + ([NONE_TAKEN] if card_type else [])
+            choice = seat.player.choose(LOOK_PROMPT, options)
+            if choice < len(matches):
+                taken = matches[choice]
+                top.remove(taken)
+                seat.hand.append(taken)
+        self.rng.shuffle(top)
+        seat.library += top
+        looked = len(top) + (taken is not None)
+        self.broadcast({"event": "looked", "seat": seat.index, "count": looked,
+                        **({"card": taken.name} if taken and card_type else {})}, skip=seat)
+        seat.player.notify({"event": "looked", "seat": seat.index, "count": looked,
+                            "card": taken.name if taken else None})
 
     def add_combat(self, main: bool) -> None:
         """An additional combat phase (and main phase) right after the current phase (CR 500.8)."""
@@ -1775,7 +1807,7 @@ class Game:
         for card in top:
             choice = seat.player.choose(SURVEIL_PROMPT + card.name, [KEEP_ON_TOP, PUT_IN_GRAVEYARD])
             (kept if choice == 0 else binned).append(card)
-        seat.library = kept + seat.library
+        seat.library = self._ordered(seat, kept) + seat.library
         self.broadcast({"event": "surveil", "seat": seat.index, "count": len(top), "graveyard": [c.name for c in binned]})
         for card in binned:
             self._move_card(seat, card, "graveyard")
