@@ -531,6 +531,52 @@ def aura_kind(card: Card) -> str | None:
     return next((m[1].lower() for line in rules_lines(card) if (m := _ENCHANT.fullmatch(line))), None)
 
 
+_REPLACE_ANY_GRAVEYARD = "If a card or token would be put into a graveyard from anywhere, exile it instead."
+_REPLACE_OPPONENT_GRAVEYARD = "If a card would be put into an opponent's graveyard from anywhere, exile it instead."
+_DOUBLE_TOKENS = ("If an effect would create one or more tokens under your control, it creates twice that many of "
+                  "those tokens instead.")
+_DOUBLE_COUNTERS = ("If an effect would put one or more counters on a permanent you control, it puts twice that many "
+                    "of those counters instead.")
+_PLUS_ONE_COUNTERS = ("If one or more +1/+1 counters would be put on a creature you control, that many plus one "
+                      "+1/+1 counters are put on it instead.")
+_EXTRA_TRIGGER = re.compile(r"If (an artifact or creature|a permanent) entering the battlefield causes a triggered "
+                            r"ability of a permanent you control to trigger, that ability triggers an additional time\.")
+
+
+@dataclass(frozen=True)
+class Replacements:
+    """What a permanent's static replacement effects do (CR 614), as the game applies them."""
+    graveyard: str | None = None  # "any": cards go to exile instead of a graveyard; "opponent": only an opponent's
+    tokens: int = 1  # how many times as many tokens its controller creates
+    counters: int = 1  # how many times as many counters go on its controller's permanents
+    plus_one: int = 0  # extra +1/+1 counters on its controller's creatures
+    extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice
+
+
+@lru_cache(maxsize=None)
+def replacement_effects(card: Card) -> Replacements:
+    found: dict[str, Any] = {}
+    for line in rules_lines(card):
+        if line == _REPLACE_ANY_GRAVEYARD:
+            found["graveyard"] = "any"
+        elif line == _REPLACE_OPPONENT_GRAVEYARD:
+            found.setdefault("graveyard", "opponent")
+        elif line == _DOUBLE_TOKENS:
+            found["tokens"] = found.get("tokens", 1) * 2
+        elif line == _DOUBLE_COUNTERS:
+            found["counters"] = found.get("counters", 1) * 2
+        elif line == _PLUS_ONE_COUNTERS:
+            found["plus_one"] = found.get("plus_one", 0) + 1
+        elif m := _EXTRA_TRIGGER.fullmatch(line):
+            found["extra_trigger"] = m[1].removeprefix("an ").removeprefix("a ")
+    return Replacements(**found)
+
+
+def is_replacement_line(line: str) -> bool:
+    return (line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+                     _PLUS_ONE_COUNTERS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
+
+
 def is_enchant_line(line: str) -> bool:
     return _ENCHANT.fullmatch(line) is not None
 
@@ -1006,6 +1052,14 @@ class AddMana:
 
 
 @dataclass(frozen=True)
+class ExileAllGraveyards:
+    """ "Exile all cards from all graveyards." (Rest in Peace) """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_all_graveyards()
+
+
+@dataclass(frozen=True)
 class ExtraTurn:
     """ "Take an extra turn after this one." """
 
@@ -1363,6 +1417,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
+    (re.compile(r"exile all cards from all graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"populate\.", re.I), lambda m: Populate()),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
