@@ -181,6 +181,7 @@ winner = game.play()
 | Search your library for a (Plains, Island, ...) card, put it onto the battlefield (tapped), then shuffle. | Farseek, Nature's Lore |
 | Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle. | Explosive Vegetation |
 | Scry N. / Surveil N. | |
+| Look at the top N cards of your library. Put one of them into your hand and the rest on the bottom. / You may reveal a creature card from among them... | |
 | Take an extra turn after this one. / Target player takes an extra turn after this one. | Time Walk, Time Warp |
 | After this (main) phase, there is an additional combat phase (followed by an additional main phase). | Relentless Assault |
 | Untap all creatures that attacked this turn. / Untap all creatures you control. | Aggravated Assault |
@@ -321,9 +322,15 @@ winner = game.play()
   - A goaded creature must attack each combat if able, and not the goader if another opponent can be attacked.
     It lasts until the goader's next untap step.
 - **Scry, surveil and mill:** scrying and surveilling look at the top cards one at a time and choose to keep
-  each on top or put it on the bottom (scry) or into the graveyard (surveil). Cards kept on top stay in
-  their original order. Only the scrying player sees the cards. Surveil's graveyard cards are public. Milling
+  each on top or put it on the bottom (scry) or into the graveyard (surveil). When two or more stay on top the
+  player is asked which goes on top next (bots keep the order). Only the scrying player sees the cards. Surveil's graveyard cards are public. Milling
   more cards than the library holds just mills what's there, and the player loses on their next draw.
+- **Look at the top N (impulse effects):** "Look at the top four cards of your library. Put one of them into
+  your hand and the rest on the bottom of your library in any order." and "Look at the top five cards... You may
+  reveal a creature card from among them and put it into your hand. Put the rest on the bottom..." are understood
+  only as a whole. The rest go to the bottom in a random order (the engine picks the order for "any order").
+  The optional reveal shows everyone the card; the plain version keeps it private. Bots take the highest
+  mana value card.
 - **Tutors:** the searcher picks from the matching cards in their library, which is then shuffled. Other players
   only learn which card unless it says "reveal it". If nothing matches, the library is just shuffled.
   "With mana value 3 or less / 3 or greater / 3" works for searches and for graveyard targets

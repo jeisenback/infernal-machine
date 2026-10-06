@@ -1111,6 +1111,43 @@ class Goad:
 
 
 @dataclass(frozen=True)
+class LookAtTop:
+    """ "Look at the top five cards of your library." Only ever a step of an Impulse (see _merge_impulse)."""
+    count: int | str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone look at the top of the library is never built")
+
+
+@dataclass(frozen=True)
+class TakeFromTop:
+    """The sentence after a look: "Put one of them into your hand and the rest on the bottom of your library in any
+    order." (card_type None) or "You may reveal a creature card from among them and put it into your hand." """
+    card_type: str | None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone take from the top is never built")
+
+
+@dataclass(frozen=True)
+class RestOnBottom:
+    """ "Put the rest on the bottom of your library in a random order." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone put-the-rest is never built")
+
+
+@dataclass(frozen=True)
+class Impulse:
+    """Look at the top cards, take one, put the rest on the bottom."""
+    count: int | str
+    card_type: str | None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.look_at_top(controller, game.amount(self.count), self.card_type)
+
+
+@dataclass(frozen=True)
 class Surveil:
     count: int | str
 
@@ -1413,6 +1450,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchForLands(1, _land_types(m[1]), 1, bool(m[2]), False)),
     (re.compile(rf"scry {_N}\.", re.I), lambda m: Scry(_count(m[1]))),
     (re.compile(rf"surveil {_N}\.", re.I), lambda m: Surveil(_count(m[1]))),
+    (re.compile(rf"look at the top (?:{_N} cards?|card) of your library\.", re.I),
+     lambda m: LookAtTop(_count(m[1] or "one"))),
+    (re.compile(r"put one of them into your hand and the rest on the bottom of your library in any order\.", re.I),
+     lambda m: TakeFromTop(None)),
+    (re.compile(rf"you may reveal an? {_SEARCH_TYPE} from among them and put it into your hand\.", re.I),
+     lambda m: TakeFromTop(_card_kind(m[1]))),
+    (re.compile(r"put the rest on the bottom of your library in (?:a random|any) order\.", re.I),
+     lambda m: RestOnBottom()),
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
@@ -1535,7 +1580,30 @@ def _parse(sentences: list[str]) -> list | None:
             return None
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
-    return _merge_no_regen(effects)
+    return _merge_impulse(_merge_no_regen(effects))
+
+
+def _merge_impulse(effects: list) -> list | None:
+    """"Look at the top five cards of your library. You may reveal a creature card from among them and put it into your
+    hand. Put the rest on the bottom ..." becomes one Impulse; a look or take that isn't completed isn't understood."""
+    merged: list = []
+    i = 0
+    while i < len(effects):
+        effect = effects[i]
+        if isinstance(effect, LookAtTop) and i + 1 < len(effects) and isinstance(effects[i + 1], TakeFromTop):
+            take = effects[i + 1]
+            i += 2
+            if take.card_type is not None:  # the optional reveal needs the rest-on-the-bottom sentence
+                if not (i < len(effects) and isinstance(effects[i], RestOnBottom)):
+                    return None
+                i += 1
+            merged.append(Impulse(effect.count, take.card_type))
+            continue
+        if isinstance(effect, (LookAtTop, TakeFromTop, RestOnBottom)):
+            return None
+        merged.append(effect)
+        i += 1
+    return merged
 
 
 def _merge_no_regen(effects: list) -> list:
