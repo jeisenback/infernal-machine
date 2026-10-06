@@ -11,7 +11,7 @@ from .analysis import is_land
 from .cards import Card, Deck
 from .combat import ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT
-from .game import (ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
+from .game import (PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
@@ -95,6 +95,9 @@ class BotPlayer:
             return 0 if self._life.get(self._seat, 0) > 10 else 1  # pay life only while healthy
         if prompt.startswith((X_PROMPT, MULTIKICKER_PROMPT)):
             return len(options) - 1  # as big as it can afford
+        if prompt == PROLIFERATE_PROMPT:  # add counters to its own permanents, and never to an opponent's
+            mine = [i for i, option in enumerate(options[:-1]) if _seat_of(option) == self._seat]
+            return mine[0] if mine else len(options) - 1
         if prompt == RETURN_LAND_PROMPT:
             return len(options) - 1  # the bounceland that just came in is the newest land
         if prompt == SEARCH_CARD_PROMPT:
