@@ -1252,6 +1252,32 @@ class Goad:
 
 
 @dataclass(frozen=True)
+class GoadAll:
+    """ "Goad all creatures you don't control." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.opponents(controller):
+            for permanent in list(seat.battlefield):
+                if "Creature" in permanent.card.type_line:
+                    game.goad(permanent, controller)
+
+
+@dataclass(frozen=True)
+class UnlessPays:
+    """ "Draw a card unless that player pays {1}": the effects happen unless the player who set the trigger off pays.
+    Only for effects that need no target, so they run the same either way."""
+    effects: tuple
+    cost: str
+    uses_player = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.pays_unless(target, self.cost, game.resolving_item.card):
+            return
+        for effect in self.effects:
+            effect.resolve(game, controller, None)
+
+
+@dataclass(frozen=True)
 class LookAtTop:
     """ "Look at the top five cards of your library." Only ever a step of an Impulse (see _merge_impulse)."""
     count: int | str
@@ -1625,6 +1651,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"untap all creatures that attacked this turn\.", re.I), lambda m: UntapCreatures("attacked")),
     (re.compile(r"untap all creatures you control\.", re.I), lambda m: UntapCreatures("yours")),
     (re.compile(r"goad target (creature)\.", re.I), lambda m: Goad(m[1].lower())),
+    (re.compile(r"goad (?:all creatures you don't control|each creature your opponents control)\.", re.I),
+     lambda m: GoadAll()),
     (re.compile(rf"mill {_N} cards?\.", re.I), lambda m: Mill(_count(m[1]), "you")),
     (re.compile(rf"each (opponent|player) mills {_N} cards?\.", re.I),
      lambda m: Mill(_count(m[2]), "each " + m[1].lower())),
@@ -1890,6 +1918,8 @@ _TRIGGERS = {
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
     "opponent_gain_life": re.compile(r"Whenever an opponent gains life, (.+)", re.I),
     "opponent_lose_life": re.compile(r"Whenever an opponent loses life, (.+)", re.I),
+    "become_monarch": re.compile(r"Whenever you become the monarch, (.+)", re.I),
+    "opponent_become_monarch": re.compile(r"Whenever an opponent becomes the monarch, (.+)", re.I),
     "opponent_sacrifice_creature": re.compile(r"Whenever an opponent sacrifices a creature, (.+)", re.I),
     "second_draw": re.compile(r"Whenever you draw your second card each turn, (.+)", re.I),
     "combat_damage_to_player": re.compile(rf"Whenever {_SELF} deals combat damage to a player, (.+)", re.I),
@@ -1944,7 +1974,7 @@ _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
 # Triggers about some other creature: there "it" and "that creature" mean that creature, not the source.
 _OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat_damage", "token_combat_damage"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
-_PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life"}
+_PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
 _PLAYER_PRONOUNS = [
     (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
@@ -2040,12 +2070,21 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
     return _parse(_split_sentences(rest[:1].upper() + rest[1:])), optional, once, condition
 
 
+_UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", re.I)
+
+
 def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | None, bool, bool, Condition | None]:
     """Like _trigger_body for a trigger about another object or player. "It" means the permanent that set it off
     (only if every effect is about "it"), "that player" / "they" the player who did it (only for effects that
     target a player); where neither can be pointed at, the line isn't understood."""
     rest = _THAT_CREATURE.sub("it", rest)
     about_player = False
+    if player_ok and (m := _UNLESS_PAYS.fullmatch(rest)):
+        effects, optional, once, condition = _trigger_body(m[1] + ".")
+        if effects is None or any(target_kind(e) or uses_source(e) or uses_subject(e) or uses_player(e)
+                                  or follows_target(e) for e in effects):
+            return None, False, False, None
+        return [UnlessPays(tuple(effects), m[2])], optional, once, condition
     if player_ok:
         replaced = rest
         for pattern, replacement in _PLAYER_PRONOUNS:
