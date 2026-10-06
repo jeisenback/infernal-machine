@@ -378,7 +378,6 @@ winner = game.play()
     activate, and the ability isn't offered unless you can pay. You can sacrifice only your own permanents; the
     source itself counts unless it says "another". Bots don't use abilities that cost their own cards. Costs
     that name several cards ("sacrifice two creatures") aren't supported.
-- **Other rules text on permanents:** static abilities and mana abilities with a cost (Signets) are covered above.
 
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
