@@ -279,6 +279,18 @@ winner = game.play()
   an Aura goes to the graveyard. Labels show attachments ("Sword attached to Bear (seat 0, #1)").
   "Can't attack or block" is supported through Auras. Other equip costs (like "Equip legendary creature {3}")
   and Auras on lands with special abilities aren't supported yet.
+- **Replacement effects:** statics that change what would happen, read from a permanent on the battlefield.
+  - Rest in Peace: "If a card or token would be put into a graveyard from anywhere, exile it instead." (Leyline of the
+    Void: only an opponent's cards.) Every route to a graveyard is covered: spells, dying, discarding, milling, cycling.
+    Things still die, so dies triggers happen; a commander can still choose the command zone. Rest in Peace's "exile
+    all cards from all graveyards" is supported.
+  - Doubling Season and Parallel Lives: tokens an effect creates under your control, and counters an effect puts on your
+    permanents (including the counters a permanent enters with), are doubled. Several stack (two doublers: four times).
+    Hardened Scales adds one to +1/+1 counters on your creatures first, then doubling applies.
+  - Panharmonicon and Yarok: a triggered ability of a permanent you control that triggers because an artifact or creature
+    (or any permanent) entered triggers an additional time; each such permanent adds one. Both the entering
+    permanent's own "When this enters" and watching "Whenever another creature enters" abilities count.
+    "This ability triggers only once each turn" still holds.
 - **Copying:**
   - Clone: "You may have this creature enter the battlefield as a copy of any creature on the battlefield." (also
     "a creature you control", and artifacts, enchantments or lands). It is decided as it enters, with a "Don't copy

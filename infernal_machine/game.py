@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      clone_kind, aura_controls, saga_chapters, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -402,8 +402,8 @@ class Game:
             for _ in range(max(0, excess)):
                 i = seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])
                 card = seat.hand.pop(i)
-                seat.graveyard.append(card)
                 self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
+                self._move_card(seat, card, "graveyard")
             for other in self.seats:  # CR 514.2
                 for permanent in other.battlefield:
                     permanent.damage = 0
@@ -1108,7 +1108,8 @@ class Game:
         the next time a player would get priority (CR 603.3)."""
         for ability in triggered_abilities(permanent.card):
             if ability.event == event and ability.watch is None:
-                self._queue(ability, permanent, controller, subject=subject, player=player)
+                for _ in range(self._trigger_times(controller, event, permanent.card)):
+                    self._queue(ability, permanent, controller, subject=subject, player=player)
 
     def _trigger_each(self, event: str, seat: Seat, subject: Permanent | None = None,
                       player: Seat | None = None) -> None:
@@ -1184,7 +1185,8 @@ class Game:
                 if watch.first_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
                                                  for turn, c in seat.cast_log) != 1:
                     continue
-                self._queue(ability, watcher, watcher_seat, x, subject, seat)
+                for _ in range(self._trigger_times(watcher_seat, event, card)):
+                    self._queue(ability, watcher, watcher_seat, x, subject, seat)
 
     def _put_triggers_on_stack(self) -> None:
         """Active player's triggers first, then the others in turn order (CR 603.3b).
@@ -1616,12 +1618,15 @@ class Game:
         self._enter(seat, Permanent(dead.card, sick=True, loyalty=_starting_loyalty(dead.card), counters={counter: 1}))
 
     def put_counters(self, permanent: Permanent, counter: str, count: int) -> None:
+        holder = self.controller_of(permanent)
+        if holder is not None:
+            count = self._counters_to_add(holder, permanent.card, counter, count)
         permanent.counters[counter] = permanent.counters.get(counter, 0) + count
         self.broadcast({"event": "counters", "card": permanent.card.name, "counter": counter,
                         "added": count, "total": permanent.counters[counter]})
 
     def create_tokens(self, seat: Seat, token: Card, count: int) -> None:
-        for _ in range(count):
+        for _ in range(count * self._factor(seat, "tokens")):
             self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
                             "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
             self._enter(seat, Permanent(token, sick=True))
@@ -1788,7 +1793,8 @@ class Game:
         if clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
             self._become_copy(seat, permanent, *clone)
         for counter, count in enters_with_counters(permanent.card, permanent.kicked).items():  # CR 614.1c: it arrives with them
-            permanent.counters[counter] = permanent.counters.get(counter, 0) + (x if count == "X" else count)
+            number = self._counters_to_add(seat, permanent.card, counter, x if count == "X" else count)
+            permanent.counters[counter] = permanent.counters.get(counter, 0) + number
         permanent.owner = permanent.owner or seat
         rule = enters_tapped_rule(permanent.card)
         if rule and self._enters_tapped(seat, rule, permanent.card):
@@ -1901,9 +1907,56 @@ class Game:
             for seat, card in held:
                 self._return_from_exile(seat, card)
 
+    def _exiled_instead(self, owner: Seat) -> bool:
+        """Whether a card of `owner`'s going to the graveyard is exiled instead (Rest in Peace, Leyline of the Void)."""
+        for seat in self.live_seats():
+            for permanent in seat.battlefield:
+                kind = replacement_effects(permanent.card).graveyard
+                if kind == "any" or (kind == "opponent" and owner is not seat):
+                    return True
+        return False
+
+    def exile_all_graveyards(self) -> None:
+        for seat in self.live_seats():
+            cards, seat.graveyard = seat.graveyard, []
+            for card in cards:
+                self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
+                self._move_card(seat, card, "exile")
+            if cards:
+                self._left_graveyard(seat)
+
+    def _factor(self, seat: Seat, attribute: str) -> int:
+        """How many times as many tokens or counters `seat`'s replacement effects make (Doubling Season stacks)."""
+        factor = 1
+        for permanent in seat.battlefield:
+            factor *= getattr(replacement_effects(permanent.card), attribute)
+        return factor
+
+    def _counters_to_add(self, seat: Seat, card: Card, counter: str, count: int) -> int:
+        """Counters going onto a permanent `seat` controls: +1/+1 counters get Hardened Scales' extra one first,
+        then Doubling Season doubles."""
+        if counter == "+1/+1" and "Creature" in card.type_line:
+            count += sum(replacement_effects(p.card).plus_one for p in seat.battlefield)
+        return count * self._factor(seat, "counters")
+
+    def _trigger_times(self, controller: Seat, event: str, entering: Card | None) -> int:
+        """How many times an ability of `controller`'s triggers: once, plus once more for each Panharmonicon when an
+        artifact or creature (or any permanent, for Yarok) is entering the battlefield."""
+        if event not in ("enters", "permanent_enters") or entering is None:
+            return 1
+        extra = 0
+        for permanent in controller.battlefield:
+            kind = replacement_effects(permanent.card).extra_trigger
+            if kind == "permanent" or (kind == "artifact or creature"
+                                       and ("Artifact" in entering.type_line or "Creature" in entering.type_line)):
+                extra += 1
+        return 1 + extra
+
     def _move_card(self, seat: Seat, card: Card, zone: str) -> None:
         """Put a card into its owner's graveyard, exile or hand; a commander may go to the
-        command zone instead (CR 903.9)."""
+        command zone instead (CR 903.9). Rest in Peace and its kind send a card to exile instead of a graveyard."""
+        if zone == "graveyard" and self._exiled_instead(seat):
+            zone = "exile"
         if card.name in seat.commander_names:
             if seat.player.choose(COMMAND_ZONE_PROMPT, ["Command zone", zone.capitalize()]) == 0:
                 seat.command_zone.append(card)
