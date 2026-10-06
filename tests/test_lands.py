@@ -59,7 +59,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(mana_ability(TALISMAN, frozenset()), [frozenset("CUB")])
         self.assertTrue(is_identity_mana_land(TOWER))
         self.assertEqual((cycling_cost(TRIOME), cycling_cost(FOREST)), ("{3}", None))
-        self.assertIsNone(cycling_cost(Card(name="x", oracle_text="Plainscycling {1}")))
+        self.assertIsNone(cycling_cost(Card(name="x", oracle_text="Cycling\u2014Pay 2 life.")))
 
     def test_report(self):
         for card in (TEMPLE, CHECK, FAST, SLOW, BOND, SHOCK, PAIN, TALISMAN, TOWER, TRIOME):

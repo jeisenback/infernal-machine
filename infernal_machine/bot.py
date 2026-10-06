@@ -10,6 +10,7 @@ from typing import Sequence
 from .analysis import is_land
 from .cards import Card, Deck
 from .combat import ATTACK_PROMPT, BLOCK_PROMPT
+from .effects import RETURN_LAND_PROMPT
 from .game import (ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
 
@@ -94,6 +95,8 @@ class BotPlayer:
             return 0 if self._life.get(self._seat, 0) > 10 else 1  # pay life only while healthy
         if prompt.startswith((X_PROMPT, MULTIKICKER_PROMPT)):
             return len(options) - 1  # as big as it can afford
+        if prompt == RETURN_LAND_PROMPT:
+            return len(options) - 1  # the bounceland that just came in is the newest land
         if prompt == SEARCH_CARD_PROMPT:
             return max(range(len(options)), key=lambda i: self._cards[options[i]].cmc)  # its best card
         if prompt == SACRIFICE_PROMPT or prompt.startswith(SACRIFICE_COST_PROMPT):

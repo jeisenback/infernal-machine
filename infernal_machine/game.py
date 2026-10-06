@@ -23,8 +23,8 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, MassFilter, TriggeredAbility, WardCounter,
-                      activated_abilities, additional_costs, alternative_costs, cost_reductions, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
-                      enters_with_counters, is_identity_mana_land, mana_pain, printed_protection, ward_cost,
+                      activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      enters_with_counters, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .mana import Cost, parse_cost, pay
@@ -119,6 +119,7 @@ class ManaSource:
     types: frozenset[str]  # one mana of one of these types
     pain: frozenset[str] = frozenset()  # types that deal `damage` to the controller when produced
     damage: int = 0
+    life: bool = False  # the `damage` is life paid (Mana Confluence), not damage dealt
 
 
 def _pain(source: ManaSource, symbol: frozenset[str] | None) -> int:
@@ -128,8 +129,9 @@ def _pain(source: ManaSource, symbol: frozenset[str] | None) -> int:
 
 
 class Payment(list):
-    """The permanents to tap for a cost; `pain` is the damage their mana deals to the payer."""
+    """The permanents to tap for a cost; `pain` is the damage their mana deals to the payer, `life` the life it costs."""
     pain: int = 0
+    life: int = 0
 
 
 @dataclass(eq=False)
@@ -510,6 +512,8 @@ class Game:
                 self._leave_battlefield(source, "sacrificed")
         if pain := getattr(sources, "pain", 0):
             self.damage(seat, pain)
+        if life := getattr(sources, "life", 0):
+            self.change_life(seat, -life)
 
     def _mana_sources(self, seat: Seat, exclude: Permanent | None = None) -> list[ManaSource]:
         """One entry per mana each untapped permanent can make: nonland sources first,
@@ -521,6 +525,13 @@ class Game:
             card = permanent.card
             pain, damage = mana_pain(card) or (frozenset(), 0)
             if is_land(card):
+                if life_cost := mana_life_cost(card):
+                    if seat.life >= life_cost:  # Mana Confluence: paying life, which you must have
+                        lands.append(ManaSource(permanent, frozenset("WUBRG"), frozenset("WUBRGC"), life_cost, life=True))
+                    continue
+                if units := land_mana_units(card):  # a bounceland or Ancient Tomb makes several mana in one tap
+                    lands.extend(ManaSource(permanent, mana, pain, damage) for mana in units)
+                    continue
                 # Command Tower makes only the colors of your commander, whatever the card data lists.
                 types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
                 lands.append(ManaSource(permanent, types, pain, damage))
@@ -634,8 +645,14 @@ class Game:
         used = [sources[i].permanent for i in first] + [pool[i].permanent for i in second] + [p for p, _, _ in combo]
         # A permanent that makes several mana (Sol Ring) is tapped once.
         payment = Payment({id(p): p for p in used}.values())
-        payment.pain = (sum(_pain(sources[i], paid_first.get(i)) for i in first)
-                        + sum(_pain(pool[i], paid_second.get(i)) for i in second))
+        # A permanent hurts (or costs life) once per tap, however many of its mana are used.
+        hurt: dict[int, int] = {}
+        paid_life: dict[int, int] = {}
+        for source, symbol in ([(sources[i], paid_first.get(i)) for i in first]
+                               + [(pool[i], paid_second.get(i)) for i in second]):
+            into = paid_life if source.life else hurt
+            into[id(source.permanent)] = max(into.get(id(source.permanent), 0), _pain(source, symbol))
+        payment.pain, payment.life = sum(hurt.values()), sum(paid_life.values())
         return payment
 
     def _filter_sources(self, seat: Seat, exclude: Permanent | None) -> list[tuple[Permanent, Cost, list]]:
@@ -671,13 +688,13 @@ class Game:
 
     def _cycle(self, seat: Seat, card: Card) -> None:
         """Cycling: pay the cost, discard the card, and draw a card when the ability resolves."""
-        cost = cycling_cost(card)
+        word, cost, effects = cycling(card)
         tapped = self._pay_cost(seat, parse_cost(cost))
         self._spend_mana(seat, tapped)
-        ability = ActivatedAbility(f"Cycling {cost}", (Draw(1),), mana_cost=cost)
+        ability = ActivatedAbility(f"{word} {cost}", effects, mana_cost=cost)
         self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cycling"})
         self._move_card(seat, card, "graveyard")
-        self.stack.append(StackItem(card, seat, [Draw(1)], [], ability))
+        self.stack.append(StackItem(card, seat, list(effects), [], ability))
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
 
