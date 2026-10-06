@@ -861,6 +861,7 @@ def _mass_kind(m: re.Match) -> str:
 
 
 _SACRIFICE_KIND = r"(creature|artifact|enchantment|land|permanent)"
+_FIGHTER = r"(creature(?: you control| you don't control| an opponent controls)?)"
 _MASS_KEYWORDS = (r"(?:flying|reach|trample|haste|vigilance|menace|deathtouch|lifelink|first strike|double strike"
                   r"|defender|indestructible|hexproof)")
 _RESTRICTION = rf"(with (?:power|toughness) \d+ or (?:greater|less)|with {_MASS_KEYWORDS}|without {_MASS_KEYWORDS})"
@@ -1039,6 +1040,93 @@ class NewTargets:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         pass
+
+
+@dataclass(frozen=True)
+class GainControl:
+    """ "Gain control of target creature (until end of turn). (Untap that creature. It gains haste until end of
+    turn.)" """
+    target: str
+    until_end_of_turn: bool = False
+    untap: bool = False
+    haste: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.gain_control(target, controller, until_eot=self.until_end_of_turn, untap=self.untap, haste=self.haste)
+
+
+@dataclass(frozen=True)
+class UntapThat:
+    """ "Untap that creature." Only meaningful right after "Gain control of ...": _merge_control folds it in."""
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        pass
+
+
+_CONTROL_AURA = "You control enchanted creature."
+
+
+def aura_controls(card: Card) -> bool:
+    """Control Magic: an Aura that gives its controller control of the enchanted creature."""
+    return "Aura" in card.type_line and _CONTROL_AURA in rules_lines(card)
+
+
+def is_control_aura_line(line: str) -> bool:
+    return line == _CONTROL_AURA
+
+
+@dataclass(frozen=True)
+class BecomeCreature:
+    """Crewing a Vehicle: until end of turn it is an artifact creature."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.become_creature(target)
+
+
+@dataclass(frozen=True)
+class Proliferate:
+    """ "Proliferate.": choose any permanents with counters; each gets one more counter of each kind it has."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.proliferate(controller)
+
+
+@dataclass(frozen=True)
+class FightFirst:
+    """The first target of a fight ("Target creature you control ... fights ..."): remembered for the second."""
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.carried = target
+
+
+@dataclass(frozen=True)
+class Fight:
+    """The second target of a fight. Each deals damage equal to its power to the other; with `one_sided` only the
+    first does ("Target creature you control deals damage equal to its power to target creature you don't control")."""
+    target: str
+    one_sided: bool = False
+    another: bool = False  # "fights another target creature": not the first target
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        first = game.resolving_item.carried if game.resolving_item is not None else None
+        if first is not None and target is not None and first is not target:
+            game.fight(first, target, self.one_sided)
+
+
+@dataclass(frozen=True)
+class ReturnWithCounter:
+    """Persist and undying: the creature that died comes back with a counter on it."""
+    counter: str  # "-1/-1" (persist) or "+1/+1" (undying)
+    uses_dead_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.return_with_counter(target, self.counter)
 
 
 @dataclass(frozen=True)
@@ -1402,6 +1490,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
      lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
     (re.compile(r"you may choose new targets for the copy\.", re.I), lambda m: NewTargets()),
+    (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
+     lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
+    (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
+    (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
+    (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
+     lambda m: [FightFirst(m[1].lower()), Fight(m[3].lower(), another=bool(m[2]))]),
+    (re.compile(rf"target {_FIGHTER} deals damage equal to its power to target {_FIGHTER}\.", re.I),
+     lambda m: [FightFirst(m[1].lower()), Fight(m[2].lower(), one_sided=True)]),
     (re.compile(r"populate\.", re.I), lambda m: Populate()),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
@@ -1514,8 +1610,10 @@ def _parse(sentences: list[str]) -> list | None:
         found = [effect] if (effect := _template(sentence)) is not None else [_template(c) for c in _clauses(sentence)]
         if None in found:
             return None
-        effects += found
-    return _merge_copy(_merge_no_regen(effects))
+        for effect in found:  # one sentence can make several effects (a fight has two targets)
+            effects += effect if isinstance(effect, list) else [effect]
+    merged = _merge_copy(_merge_no_regen(effects))
+    return None if merged is None else _merge_control(merged)
 
 
 def _merge_copy(effects: list) -> list | None:
@@ -1527,6 +1625,24 @@ def _merge_copy(effects: list) -> list | None:
             if not merged or not isinstance(merged[-1], CopySpell):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], new_targets=True)
+        else:
+            merged.append(effect)
+    return merged
+
+
+def _merge_control(effects: list) -> list | None:
+    """Threaten: "Gain control of target creature until end of turn. Untap that creature. It gains haste until end
+    of turn." is one effect. A lone "Untap that creature." has nothing to refer to, so the line isn't understood."""
+    merged: list = []
+    for effect in effects:
+        after_control = bool(merged) and isinstance(merged[-1], GainControl)
+        if isinstance(effect, UntapThat):
+            if not after_control:
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], untap=True)
+        elif (isinstance(effect, PumpSource) and effect.modifier.keywords == frozenset({"haste"})
+              and effect.modifier.power == effect.modifier.toughness == 0 and after_control and merged[-1].untap):
+            merged[-1] = dataclasses.replace(merged[-1], haste=True)
         else:
             merged.append(effect)
     return merged
@@ -1572,7 +1688,7 @@ class TriggeredAbility:
 class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
-    #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none"
+    #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
 
@@ -1624,7 +1740,8 @@ _TRIGGERS = {
     "attacks": re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I),
     "blocks": re.compile(rf"Whenever {_SELF} blocks, (.+)", re.I),
     "ally_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
-    "attacked": re.compile(r"Whenever a creature attacks you(?: or a planeswalker you control)?, (.+)", re.I),
+    "attacked": re.compile(r"Whenever a creature attacks you, (.+)", re.I),
+    "attacked_or_walker": re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),
     "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
     "opponent_gain_life": re.compile(r"Whenever an opponent gains life, (.+)", re.I),
@@ -1681,7 +1798,7 @@ _WATCHES = {
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
 # Triggers about some other creature: there "it" and "that creature" mean that creature, not the source.
-_OBJECT_EVENTS = {"ally_attacks", "attacked", "ally_combat_damage", "token_combat_damage"}
+_OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat_damage", "token_combat_damage"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
 _PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
@@ -1717,10 +1834,39 @@ def is_return_exiled_line(line: str) -> bool:
     return _RETURN_EXILED.fullmatch(line) is not None
 
 
+_ROMAN = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}
+_CHAPTER = re.compile(r"((?:I|II|III|IV|V|VI|VII)(?:, (?:I|II|III|IV|V|VI|VII))*) \u2014 (.+)")
+
+
+@lru_cache(maxsize=None)
+def saga_chapters(card: Card) -> dict[int, tuple[tuple, str]]:
+    """A Saga's chapters: number -> (its effects, the line it is printed on). All or nothing: if any chapter isn't
+    understood the Saga gets none, so it never does half of what it says."""
+    found: dict[int, tuple[tuple, str]] = {}
+    if "Saga" not in card.type_line:
+        return found
+    for line in rules_lines(card):
+        if m := _CHAPTER.fullmatch(line):
+            effects = _parse(_split_sentences(m[2]))
+            if not effects:
+                return {}
+            for numeral in m[1].split(", "):
+                found[_ROMAN[numeral]] = (tuple(effects), line)
+    return found
+
+
 @lru_cache(maxsize=None)
 def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     """The triggered abilities on a permanent whose effects are all understood."""
     abilities = _triggered_abilities(card)
+    for number, (effects, line) in saga_chapters(card).items():  # a lore counter makes the chapter trigger
+        abilities.append(TriggeredAbility(f"chapter_{number}", effects, False, line))
+    for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard
+        words = {word.strip().lower() for word in line.split(",")}
+        for keyword, counter in (("persist", "-1/-1"), ("undying", "+1/+1")):
+            if keyword in words:
+                abilities.append(TriggeredAbility("dies", (ReturnWithCounter(counter),), False, line,
+                                                  condition=Condition("no_counter", what=counter)))
     if any(is_return_exiled_line(line) for line in rules_lines(card)):
         # Two-trigger wording: the enters-the-battlefield exile lasts until this permanent leaves.
         abilities = [
@@ -1828,8 +1974,10 @@ class ActivatedAbility:
     sacrifice_another: bool = False  # "Sacrifice another creature": not the source itself
     discard: bool = False  # "Discard a card"
     exile_graveyard: bool = False  # "Exile a card from your graveyard"
+    crew: int = 0  # "Crew N": tap untapped creatures you control with total power N or more
 
 
+_CREW = re.compile(r"Crew (\d+)")
 _ACTIVATED = re.compile(r"([^:\"]+): (.+)")
 _MANA_PART = re.compile(r"(\{(?:\d+|X|S|[WUBRGC]|[WUBRGC]/[WUBRGCP]|2/[WUBRGC])\})+")
 _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
@@ -1847,6 +1995,9 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
     planeswalker = "Planeswalker" in card.type_line
     abilities = []
     for line in rules_lines(card):
+        if m := _CREW.fullmatch(line):  # a Vehicle: tap creatures and it becomes an artifact creature this turn
+            abilities.append(ActivatedAbility(line, (BecomeCreature(),), crew=int(m[1])))
+            continue
         match = _ACTIVATED.fullmatch(line)
         if not match or is_mana_ability(line):
             continue

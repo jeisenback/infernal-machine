@@ -9,9 +9,9 @@ from typing import Sequence
 
 from .analysis import is_land
 from .cards import Card, Deck
-from .combat import ATTACK_PROMPT, BLOCK_PROMPT
+from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT
-from .game import (CLONE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
+from .game import (CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, PASS,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
@@ -98,6 +98,11 @@ class BotPlayer:
         if prompt.startswith(CLONE_PROMPT):  # copy the biggest creature, or nothing if there is none
             sizes = [sum(_stats(option)) for option in options[:-1]]
             return sizes.index(max(sizes)) if sizes and max(sizes) > 0 else len(options) - 1
+        if prompt == PROLIFERATE_PROMPT:  # add counters to its own permanents, and never to an opponent's
+            mine = [i for i, option in enumerate(options[:-1]) if _seat_of(option) == self._seat]
+            return mine[0] if mine else len(options) - 1
+        if prompt.startswith(ASSIGN_PROMPT):  # kill the blockers with the least toughness first
+            return min(range(len(options)), key=lambda i: _stats(options[i])[1])
         if prompt == RETURN_LAND_PROMPT:
             return len(options) - 1  # the bounceland that just came in is the newest land
         if prompt == SEARCH_CARD_PROMPT:
@@ -133,7 +138,8 @@ class BotPlayer:
     def _is_buff_aura(self, name: str) -> bool:
         """An Aura that helps its target, as opposed to a Pacifism-style one that hurts it."""
         card = self._cards.get(name)
-        return card is not None and "Aura" in card.type_line and "can't attack or block" not in card.oracle_text
+        return (card is not None and "Aura" in card.type_line and "can't attack or block" not in card.oracle_text
+                and "You control enchanted creature" not in card.oracle_text)
 
     def _block(self, prompt: str, options: Sequence[str]) -> int:
         toughness = _stats(prompt)[1]
@@ -160,6 +166,8 @@ def _is_ritual(card: Card | None) -> bool:
 def _limited_cost(action: str) -> bool:
     """Whether an activation's cost can only be paid a limited number of times."""
     cost = action.split("): ", 1)[1].split(":", 1)[0]
+    if cost.startswith("Crew "):
+        return True  # it taps creatures, and a Vehicle that is already a creature isn't crewed again
     if re.search(r"Sacrifice (a|an|another) |Discard a card|Exile a card", cost):
         return False  # the bot doesn't pay with its own cards
     return "{T}" in cost or "Sacrifice" in cost or re.fullmatch(r"[+\u2212-]?\d+", cost) is not None
