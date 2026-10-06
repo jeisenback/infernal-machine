@@ -83,6 +83,7 @@ KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; opti
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = "Choose a card to exile from your hand"
 ESCAPE_PROMPT = "Choose a card to exile from your graveyard"
+VOTE_PROMPT = "Vote: "  # followed by the source's name; options are the choices, or permanent labels
 VENTURE_PROMPT = "Venture into the Undercity: choose the next room"  # options are room names
 THRONE_PROMPT = "Throne of the Dead Three: choose a creature"  # options are card names
 UNLESS_PROMPT = "Pay to stop "  # followed by the triggering card's name; options: "Pay {1}", "Don't pay"
@@ -1859,6 +1860,30 @@ class Game:
             self.put_counters(permanent, "+1/+1", 3)
             permanent.until_next_turn.append(Modifier(0, 0, frozenset({"hexproof"})))
         self.rng.shuffle(seat.library)
+
+    def vote(self, starter: Seat, options: list[str]) -> list[int]:
+        """Each player votes, starting with `starter` and going in turn order; the votes are public. Returns the
+        number of votes for each option."""
+        source = self.resolving_item.card.name if self.resolving_item else ""
+        counts = [0] * len(options)
+        for seat in self._turn_order(starter.index):
+            if seat.lost:
+                continue
+            choice = seat.player.choose(VOTE_PROMPT + source, options)
+            counts[choice] += 1
+            self.broadcast({"event": "vote", "seat": seat.index, "choice": options[choice]})
+        return counts
+
+    def vote_to_exile(self, starter: Seat) -> None:
+        """Council's Judgment: each player votes for a nonland permanent `starter` doesn't control; each permanent
+        with the most votes, or tied for the most, is exiled."""
+        voted = [p for seat in self.opponents(starter) for p in seat.battlefield if not is_land(p.card)]
+        if not voted:
+            return
+        counts = self.vote(starter, [self.label(p) for p in voted])
+        for permanent, count in zip(voted, counts):
+            if count == max(counts) and self.on_battlefield(permanent):
+                self.exile(permanent)
 
     def goad(self, permanent: Permanent, goader: Seat) -> None:
         permanent.goaded_by = goader

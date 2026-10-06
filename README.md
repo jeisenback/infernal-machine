@@ -197,6 +197,9 @@ winner = game.play()
 | Goad target creature. / Goad all creatures you don't control. | Disrupt Decorum |
 | Whenever an opponent casts a spell / draws a card, (you may) draw a card / create a Treasure token unless that player pays {N}. | Rhystic Study, Mystic Remora, Smothering Tithe |
 | Whenever you become the monarch, ... / Whenever an opponent becomes the monarch, ... | |
+| Starting with you, each player votes for X or Y. For each X vote, ... / If X gets more votes (or the vote is tied), ... | Tivit, Plea for Power |
+| Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes. | Council's Judgment |
+| Investigate. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
 | Equipped creature gets +N/+N and has keywords. / Enchanted creature gets +N/+N and has keywords. | |
@@ -354,7 +357,7 @@ winner = game.play()
   - Extra turns go to the player who asked, right after the current turn; the latest one asked for goes first,
     and regular turn order then carries on from where it was.
   - The monarch draws a card at their end step. Combat damage dealt to the monarch by a creature makes that
-    creature's controller the monarch. If the monarch loses, the active player becomes monarch. Voting isn't built.
+    creature's controller the monarch. If the monarch loses, the active player becomes monarch.
   - **The initiative:** "You take the initiative" makes you venture into the Undercity (`undercity.py` has the
     rooms: Secret Entrance, Forge, Lost Well, Trap!, Arena, Stash, Archives, Catacombs, Throne of the Dead
     Three). You also venture at your upkeep while you hold it, and combat damage to the holder from a creature
@@ -365,6 +368,13 @@ winner = game.play()
     with three +1/+1 counters and hexproof until its controller's next turn begins. Bots take the first exit and
     put the Forge's counters on their own creature. "Whenever you take the initiative" and "if you have the
     initiative" aren't understood.
+  - **Voting:** "Starting with you, each player votes for X or Y" (and, for Council's Judgment, for a nonland
+    permanent you don't control), with the card's own outcome: "For each X vote, ..." (Tivit),
+    "If X gets more votes [or the vote is tied], ..." (Plea for Power), or "Exile each permanent with the most votes
+    or tied for most votes". The vote goes round in turn order starting with the caster, and every vote is public.
+    Only outcomes that need no target are understood, and a vote with no outcome is ignored with its card. Bots
+    vote against an opponent's permanent, and for the first word otherwise. Not built: outcomes that scale a
+    per-opponent effect ("Each opponent discards a card for each taxes vote"), since there is no discard effect yet.
   - An additional combat phase goes right after the current phase (after combat ends, if it comes from inside
     combat), with an additional main phase after it if the card says so. Cast before combat, it simply gives
     you two combats, and creatures tapped in the first can't attack in the second.

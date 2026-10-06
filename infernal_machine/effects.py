@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 _NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
             "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+_VOTE_PREFIX = r"(?:[A-Z][\w' -]* \u2014 )?"  # "Will of the council — ", "Council's dilemma — "
 _N = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+|X)"
 _REMINDER = re.compile(r"\s*\([^)]*\)")
 _SELF = (r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|planeswalker|permanent"
@@ -1227,6 +1228,64 @@ class BecomeMonarch:
 
 
 @dataclass(frozen=True)
+class VoteStart:
+    """ "Starting with you, each player votes for X or Y." (options), or for a nonland permanent (None). Only ever a
+    step of a Vote or VoteToExile (see _merge_votes)."""
+    options: tuple[str, str] | None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone vote is never built")
+
+
+@dataclass(frozen=True)
+class VoteOutcome:
+    """ "For each X vote, ..." (each) or "If X gets more votes [or the vote is tied], ..." (more): what happens."""
+    kind: str  # "each" or "more"
+    option: str
+    effects: tuple
+    tie: bool = False  # "or the vote is tied"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone vote outcome is never built")
+
+
+@dataclass(frozen=True)
+class ExileMostVoted:
+    """ "Exile each permanent with the most votes or tied for most votes." Only ever the end of a permanent vote."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone exile of the most voted is never built")
+
+
+@dataclass(frozen=True)
+class Vote:
+    """Each player votes for one of two words; the outcomes follow the votes (the effects need no target)."""
+    options: tuple[str, str]
+    outcomes: tuple[VoteOutcome, ...]
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        counts = dict(zip(self.options, game.vote(controller, list(self.options))))
+        for outcome in self.outcomes:
+            if outcome.kind == "each":
+                times = counts[outcome.option]
+            else:
+                other = next(o for o in self.options if o != outcome.option)
+                times = int(counts[outcome.option] > counts[other]
+                            or (outcome.tie and counts[outcome.option] == counts[other]))
+            for _ in range(times):
+                for effect in outcome.effects:
+                    effect.resolve(game, controller, None)
+
+
+@dataclass(frozen=True)
+class VoteToExile:
+    """Council's Judgment."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.vote_to_exile(controller)
+
+
+@dataclass(frozen=True)
 class TakeInitiative:
     """ "You take the initiative." """
 
@@ -1644,6 +1703,16 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
+    (re.compile(r"investigate\.", re.I), lambda m: CreateTokens(1, CLUE)),
+    (re.compile(rf"{_VOTE_PREFIX}starting with you, each player votes for (\w+) or (\w+)\.", re.I),
+     lambda m: VoteStart((m[1].lower(), m[2].lower()))),
+    (re.compile(rf"{_VOTE_PREFIX}starting with you, each player votes for a nonland permanent you don't control\.", re.I),
+     lambda m: VoteStart(None)),
+    (re.compile(r"exile each permanent with the most votes or tied for most votes\.", re.I),
+     lambda m: ExileMostVoted()),
+    (re.compile(r"for each (\w+) vote, (.+)\.", re.I), lambda m: _vote_outcome("each", m[1], m[2], False)),
+    (re.compile(r"if (\w+) gets more votes( or the vote is tied)?, (.+)\.", re.I),
+     lambda m: _vote_outcome("more", m[1], m[3], bool(m[2]))),
     (re.compile(r"you take the initiative\.", re.I), lambda m: TakeInitiative()),
     (re.compile(r"target player takes an extra turn after this one\.", re.I), lambda m: TargetExtraTurn()),
     (re.compile(r"after this (?:main )?phase, there is an additional combat phase( followed by an additional main phase)?\.",
@@ -1748,6 +1817,45 @@ def _template(sentence: str) -> Any:
     return None
 
 
+def _vote_outcome(kind: str, option: str, text: str, tie: bool) -> VoteOutcome | None:
+    """What a vote does, read from the sentence's own clause; only for effects that need no target."""
+    effects = _parse(_split_sentences(text[:1].upper() + text[1:] + "."))
+    if not effects or any(target_kind(e) or uses_source(e) or uses_subject(e) or uses_player(e) or follows_target(e)
+                          for e in effects):
+        return None
+    return VoteOutcome(kind, option.lower(), tuple(effects), tie)
+
+
+def _merge_votes(effects: list) -> list | None:
+    """"Starting with you, each player votes for X or Y. For each X vote, ..." becomes one Vote, and the permanent vote
+    one VoteToExile; a vote with no outcome, or outcomes about other words, isn't understood."""
+    merged: list = []
+    i = 0
+    while i < len(effects):
+        effect = effects[i]
+        if isinstance(effect, VoteStart) and effect.options is None:
+            if not (i + 1 < len(effects) and isinstance(effects[i + 1], ExileMostVoted)):
+                return None
+            merged.append(VoteToExile())
+            i += 2
+            continue
+        if isinstance(effect, VoteStart):
+            outcomes = []
+            i += 1
+            while i < len(effects) and isinstance(effects[i], VoteOutcome):
+                outcomes.append(effects[i])
+                i += 1
+            if not outcomes or any(o.option not in effect.options or o.kind != outcomes[0].kind for o in outcomes):
+                return None
+            merged.append(Vote(effect.options, tuple(outcomes)))
+            continue
+        if isinstance(effect, (VoteOutcome, ExileMostVoted)):
+            return None
+        merged.append(effect)
+        i += 1
+    return merged
+
+
 def _parse(sentences: list[str]) -> list | None:
     effects = []
     for sentence in sentences:
@@ -1758,7 +1866,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
@@ -2111,6 +2219,7 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
     abilities = []
     for line in _rules_text(card).splitlines():
         line = line.strip()
+        bare = _ABILITY_WORD.sub("", line)  # patterns read the line without "Council's dilemma — "; its text stays whole
         if watched := _watch_trigger(line):
             event, watch, rest = watched
             effects, optional, once, condition = _event_body(
@@ -2118,7 +2227,7 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
             if effects is not None:
                 abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch, once, condition))
             continue
-        if several := _SEVERAL_EVENTS.fullmatch(line):
+        if several := _SEVERAL_EVENTS.fullmatch(bare):
             effects, optional, once, condition = _trigger_body(several[2])
             if effects is not None:
                 for event, pattern in _SELF_EVENTS.items():
@@ -2127,7 +2236,7 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
                                                           condition=condition))
             continue
         for event, pattern in _TRIGGERS.items():
-            match = pattern.fullmatch(line)
+            match = pattern.fullmatch(bare)
             if not match:
                 continue
             if event in _OBJECT_EVENTS or event in _PLAYER_EVENTS:
