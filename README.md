@@ -208,6 +208,12 @@ winner = game.play()
   counters cancel out.
 - **Static abilities:** "(Other) (Elf) creatures you control get +1/+1 (and have flying)" and
   "Creatures you control have haste". These apply only while their source is on the battlefield.
+  - Either can be conditional, written "As long as X, ..." or "... as long as X.", and a creature can buff
+    itself ("As long as you control an artifact, this creature gets +1/+1 and has flying."). The buff is checked
+    every time power, toughness or keywords are looked at, so it switches on and off as the game changes.
+    Conditions: you control a/N or more <type>, you control no <type>, it's your turn, you're the monarch,
+    you have no cards in hand, you have N or more cards in hand, plus the graveyard, life, lands and cast
+    conditions listed under triggers. A line with any other condition is ignored.
 - **Current power, toughness and keywords:** printed values plus counters, static abilities and
   "until end of turn" effects. They count everywhere: combat, damage, targeting (granted hexproof),
   destroy (granted indestructible), state checks, and the labels players see ("Bear 4/4").
@@ -347,7 +353,8 @@ winner = game.play()
   - Intervening "if" clauses are checked when the ability triggers and again when it resolves (CR 603.4).
     Supported: "if a card left your graveyard this turn", "if you gained life this turn", "if an opponent
     controls more lands than you", "if you've cast an instant or sorcery spell this turn", "if you control
-    seven or more Plains", "if you control no Snakes". A trigger with any other "if" clause is ignored.
+    seven or more Plains", "if you control no Snakes", "if you control an artifact", "if it's your turn", "if you're
+    the monarch", "if you have no cards in hand". A trigger with any other "if" clause is ignored.
   - Paying life counts as losing it. A creature that's sacrificed sees itself go
     ("Whenever you sacrifice a creature" on the creature itself triggers).
   - A trigger whose effect isn't understood is ignored.
