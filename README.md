@@ -339,6 +339,16 @@ winner = game.play()
   a destroy effect make that effect skip shields. Exile, sacrifice and zero toughness aren't destruction, so shields
   don't help. Activating in response works like any ability, but bots don't regenerate on their own.
   "Sacrifices the creature with the greatest power" isn't supported yet.
+- **Fight, proliferate, persist and undying:**
+  - "Target creature you control fights target creature you don't control." (also "fights another target creature")
+    and "Target creature you control deals damage equal to its power to target creature you don't control." (a bite,
+    one-sided). It takes two targets; each deals damage equal to its power to the other at the same time, with its
+    deathtouch and lifelink. If either target is gone or they are the same creature, nothing happens.
+  - "Proliferate." lets you pick any permanents (yours or an opponent's) that have counters, or planeswalkers; each gets
+    one more of every kind it has. You choose one at a time and finish with "Done". Bots pick only their own.
+  - Persist and undying: when the creature dies with no -1/-1 (persist) or +1/+1 (undying) counter on it, it comes
+    back from the graveyard under its owner's control with one. It is a dies trigger, so it uses the stack and
+    can be answered; a token or a card that went somewhere else instead (a commander in the command zone) doesn't return.
 - **Exile:** each player has an exile zone. Exiled creatures don't "die", so dies triggers don't fire.
   A commander heading to exile or the graveyard can go to the command zone instead.
 - **Targets:** chosen when the spell is cast. If every target is gone when it resolves, the spell

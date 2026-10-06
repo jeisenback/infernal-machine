@@ -67,6 +67,8 @@ SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+PROLIFERATE_PROMPT = "Proliferate: choose a permanent"
+DONE = "Done"
 NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
 SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
@@ -163,6 +165,7 @@ class StackItem:
     source: "Permanent | None" = None  # the ability's source, for effects on "it"
     x: int = 0  # the value chosen for X when it was cast
     kicked: int = 0  # how many times the kicker cost was paid
+    carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
     player: "Seat | None" = None  # for a watching trigger: the player whose action set it off ("that player")
@@ -1045,6 +1048,8 @@ class Game:
                 target = item.player if item.player and not item.player.lost else None
             elif uses_subject(effect):
                 target = item.subject if item.subject and self.on_battlefield(item.subject) else None
+            elif getattr(effect, "uses_dead_source", False):
+                target = item.source  # persist and undying: the creature has already left the battlefield
             elif uses_source(effect):
                 target = item.source if item.source and self.on_battlefield(item.source) else None
             effect.resolve(self, seat, target)
@@ -1091,6 +1096,8 @@ class Game:
             return any(lands(o) > lands(seat) for o in self.opponents(seat))
         if kind == "cast_this_turn":
             return any(turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in seat.cast_log)
+        if kind == "no_counter":  # "if it had no -1/-1 counters on it": what it had when it left
+            return source is None or source.counters.get(condition.what, 0) == 0
         if kind == "your_turn":
             return self.active == seat.index
         if kind == "monarch":
@@ -1477,6 +1484,49 @@ class Game:
         permanent.until_end_of_turn.append(modifier)
         self.broadcast({"event": "modified", "card": permanent.card.name, "power": modifier.power,
                         "toughness": modifier.toughness, "keywords": sorted(modifier.keywords)})
+
+    def proliferate(self, seat: Seat) -> None:
+        """`seat` chooses any permanents with counters (or planeswalkers); each gets one more of every kind of
+        counter it has."""
+        candidates = [p for s in self.live_seats() for p in s.battlefield
+                      if any(n > 0 for n in p.counters.values()) or p.loyalty is not None]
+        chosen: list[Permanent] = []
+        while len(chosen) < len(candidates):
+            rest = [p for p in candidates if p not in chosen]
+            pick = seat.player.choose(PROLIFERATE_PROMPT, [self.label(p) for p in rest] + [DONE])
+            if pick == len(rest):
+                break
+            chosen.append(rest[pick])
+        for permanent in chosen:
+            for counter, count in list(permanent.counters.items()):
+                if count > 0:
+                    self.put_counters(permanent, counter, 1)
+            if permanent.loyalty is not None:
+                permanent.loyalty += 1
+                self.broadcast({"event": "counters", "card": permanent.card.name, "counter": "loyalty",
+                                "added": 1, "total": permanent.loyalty})
+
+    def fight(self, first: Permanent, second: Permanent, one_sided: bool = False) -> None:
+        """Two creatures each deal damage equal to their power to the other at the same time (CR 701.12). With
+        `one_sided`, only `first` deals damage."""
+        if not (self.on_battlefield(first) and self.on_battlefield(second)):
+            return
+        hit_second, hit_first = self.power(first), self.power(second)
+        self.broadcast({"event": "fight", "card": first.card.name, "against": second.card.name})
+        self.damage(second, hit_second, source=first)
+        if not one_sided:
+            self.damage(first, hit_first, source=second)
+
+    def return_with_counter(self, dead: Permanent | None, counter: str) -> None:
+        """Persist and undying: put the card that just died back onto the battlefield with a counter, under its
+        owner's control, if it is still in the graveyard (a token or a commander sent elsewhere isn't)."""
+        seat = (dead.owner or dead.last_controller) if dead is not None else None
+        if seat is None or dead.card not in seat.graveyard:
+            return
+        seat.graveyard.remove(dead.card)
+        self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": dead.card.name, "to": "battlefield"})
+        self._left_graveyard(seat)
+        self._enter(seat, Permanent(dead.card, sick=True, loyalty=_starting_loyalty(dead.card), counters={counter: 1}))
 
     def put_counters(self, permanent: Permanent, counter: str, count: int) -> None:
         permanent.counters[counter] = permanent.counters.get(counter, 0) + count

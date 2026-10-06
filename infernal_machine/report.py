@@ -25,6 +25,7 @@ SUPPORTED_KEYWORDS = {
     "flying", "reach", "vigilance", "haste", "defender", "menace", "trample", "first strike",
     "double strike", "deathtouch", "lifelink", "indestructible", "hexproof", "shroud", "flash",
     "protection",  # "protection from <color>" only; see _is_keyword_line
+    "persist", "undying",
 }
 # Lines that only matter when building the deck, which commander.py checks.
 _DECKBUILDING = re.compile(
