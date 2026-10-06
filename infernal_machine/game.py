@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      saga_chapters, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -67,6 +67,7 @@ SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+CREW_PROMPT = "Choose a creature to tap to crew "  # followed by the Vehicle's name
 NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
 SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
@@ -113,6 +114,7 @@ class Permanent:
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
     regeneration: int = 0  # regeneration shields, which last until end of turn
+    original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     attacked_turn: int | None = None  # the last turn it attacked
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
 
@@ -366,6 +368,13 @@ class Game:
             if self.step == "end" and self.monarch is seat:  # CR 724.2: the monarch draws at their end step
                 self.broadcast({"event": "monarch_draw", "seat": seat.index})
                 self.draw(seat, 1)
+        elif self.step == "main1":  # after the draw step, each Saga gets a lore counter and its chapter triggers
+            for permanent in list(seat.battlefield):
+                if saga_chapters(permanent.card):
+                    permanent.counters["lore"] = permanent.counters.get("lore", 0) + 1
+                    self.broadcast({"event": "counters", "card": permanent.card.name, "counter": "lore",
+                                    "added": 1, "total": permanent.counters["lore"]})
+                    self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
         elif self.step == "beginning_of_combat":
             self.combat = Combat(self)
             for permanent in list(seat.battlefield):
@@ -391,6 +400,8 @@ class Game:
                     permanent.deathtouched = False
                     permanent.until_end_of_turn = []  # CR 514.2
                     permanent.regeneration = 0
+                    if permanent.original is not None:  # a Vehicle's crew lasts until end of turn
+                        permanent.card, permanent.original = permanent.original, None
         self._check_state()
 
     def _priority_round(self, active: Seat) -> None:
@@ -479,6 +490,10 @@ class Game:
             return False
         if ability.sacrifice_other and not self._sacrifice_choices(seat, permanent, ability):
             return False
+        if ability.crew and (permanent.original is not None
+                             or any(i.source is permanent and getattr(i.ability, "crew", 0) for i in self.stack)  # already crewing
+                             or sum(self.power(p) for p in self._crew_candidates(seat, permanent)) < ability.crew):
+            return False
         if self._ability_payment(seat, permanent, ability) is None:
             return False
         return self._targets_exist(seat, ability.effects, frozenset(card.colors))
@@ -488,10 +503,28 @@ class Game:
         return [p for p in seat.battlefield if _permanent_matches(ability.sacrifice_other, p.card)
                 and not (ability.sacrifice_another and p is source)]
 
+    def _crew_candidates(self, seat: Seat, vehicle: Permanent) -> list[Permanent]:
+        """The untapped creatures that could crew `vehicle` (summoning sickness doesn't matter, CR 702.122)."""
+        return [p for p in seat.battlefield if p is not vehicle and not p.tapped and "Creature" in p.card.type_line]
+
+    def become_creature(self, vehicle: Permanent) -> None:
+        """A crewed Vehicle is an artifact creature until end of turn."""
+        if vehicle.original is None:
+            vehicle.original = vehicle.card
+            vehicle.card = dataclasses.replace(vehicle.card, type_line=vehicle.card.type_line.replace("Artifact", "Artifact Creature", 1))
+            self.broadcast({"event": "became_creature", "card": vehicle.card.name})
+
     def _pay_card_costs(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> None:
         """Pay an activated ability's "Sacrifice a creature", "Discard a card" and "Exile a card from your
         graveyard" costs (CR 602.2b)."""
         name = source.card.name
+        if ability.crew:  # tap creatures until their power adds up to the crew number
+            crewed = 0
+            while crewed < ability.crew:
+                options = self._crew_candidates(seat, source)
+                member = options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])]
+                member.tapped = True
+                crewed += self.power(member)
         if ability.discard:
             card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT + name, [c.name for c in seat.hand])]
             seat.hand.remove(card)
@@ -1654,8 +1687,12 @@ class Game:
         rule = enters_tapped_rule(permanent.card)
         if rule and self._enters_tapped(seat, rule, permanent.card):
             permanent.tapped = True
+        if saga_chapters(permanent.card):  # a Saga arrives with a lore counter, which triggers chapter I
+            permanent.counters["lore"] = permanent.counters.get("lore", 0) + 1
         seat.battlefield.append(permanent)
         self.trigger("enters", permanent, seat)
+        if saga_chapters(permanent.card):
+            self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
 
     def _enters_tapped(self, seat: Seat, rule: EntersTapped, card: Card) -> bool:
@@ -1718,6 +1755,8 @@ class Game:
                     if attachment.attached_to is permanent:
                         self.trigger("host_dies", attachment, attachment_seat)
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
+            if permanent.original is not None:  # a crewed Vehicle goes back to being just a card
+                permanent.card, permanent.original = permanent.original, None
             if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)
                 self._move_card(permanent.owner or controller, permanent.card, destination)
         for permanent, _ in leaving:  # whatever they were holding in exile comes back
@@ -1772,6 +1811,11 @@ class Game:
                     if "Aura" in permanent.card.type_line and host is None:
                         dying.append((permanent, "unattached"))  # CR 704.5m
                         continue
+                    chapters = saga_chapters(permanent.card)
+                    if (chapters and permanent.counters.get("lore", 0) >= max(chapters)
+                            and not self._chapter_pending(permanent)):  # CR 714.4: done once the last chapter has resolved
+                        dying.append((permanent, "saga_done"))
+                        continue
                     current = self.toughness(permanent)
                     creature = current is not None
                     if (creature and current <= 0) or (permanent.loyalty is not None and permanent.loyalty <= 0):
@@ -1785,6 +1829,10 @@ class Game:
                 changed = True
             if not changed:
                 return
+
+    def _chapter_pending(self, saga: Permanent) -> bool:
+        """Whether a chapter ability of `saga` is waiting to go on the stack or is on it."""
+        return any(i.source is saga for i in self.stack) or any(t.permanent is saga for t in self.pending)
 
     def _turn_order(self, start: int) -> list[Seat]:
         return [self.seats[(start + i) % len(self.seats)] for i in range(len(self.seats))]

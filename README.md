@@ -272,6 +272,15 @@ winner = game.play()
   an Aura goes to the graveyard. Labels show attachments ("Sword attached to Bear (seat 0, #1)").
   "Can't attack or block" is supported through Auras. Other equip costs (like "Equip legendary creature {3}")
   and Auras on lands with special abilities aren't supported yet.
+- **Vehicles:** "Crew N" is an ability at instant speed: tap untapped creatures you control, one at a time, until their
+  total power is N or more (summoning-sick creatures can crew, the Vehicle can't crew itself). Until end of turn the
+  Vehicle is an artifact creature, with its printed power and toughness, so it can attack (not the turn it arrived)
+  and block, and it dies like a creature. It goes back to being a plain card at end of turn or when it leaves. It
+  can't be crewed twice in a turn, and bots crew whenever they can.
+- **Sagas:** "I — ...", "II — ..." and "I, II — ..." chapters. A Saga enters with a lore counter and its
+  chapter I triggers; each of its controller's turns, after the draw step, it gets another and the matching chapter
+  triggers. Once the last chapter's ability has resolved it is put into the graveyard. A Saga is all or nothing: if
+  any chapter isn't understood it has none, and the report lists its lines.
 - **Protection from a color:** "Protection from red" (and "from red and from blue"), whether printed or given by
   Equipment, an Aura, a static ability, or "gains protection from red until end of turn". The protected permanent
   can't be targeted by red spells or abilities, takes no damage from red sources, can't be blocked by red
