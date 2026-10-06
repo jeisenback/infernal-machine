@@ -324,8 +324,13 @@ winner = game.play()
   "destroy all" but not exile or sacrifice. Everything leaves the battlefield at the same moment, so a
   creature watching for deaths triggers for every other creature that died with it, and a creature with
   "Whenever this creature or another creature dies" sees itself go too. The same is true when several
-  creatures die to damage at once. "They can't be regenerated" is accepted and does nothing, since
-  regeneration isn't implemented. A player chooses their own creature to sacrifice, in turn order.
+  creatures die to damage at once. A player chooses their own creature to sacrifice, in turn order.
+- **Regeneration:** "Regenerate target creature.", "{B}: Regenerate this creature." and "Regenerate each creature you
+  control." give a shield that lasts until end of turn (several stack). The next time the creature would be
+  destroyed, by a destroy effect or by lethal damage or deathtouch, it is tapped, loses all its damage and leaves
+  combat instead (a blocked attacker stays blocked). "It can't be regenerated" and "They can't be regenerated" after
+  a destroy effect make that effect skip shields. Exile, sacrifice and zero toughness aren't destruction, so shields
+  don't help. Activating in response works like any ability, but bots don't regenerate on their own.
   "Sacrifices the creature with the greatest power" isn't supported yet.
 - **Exile:** each player has an exile zone. Exiled creatures don't "die", so dies triggers don't fire.
   A commander heading to exile or the graveyard can go to the command zone instead.
