@@ -455,18 +455,41 @@ class StaticBuff:
     other: bool  # "Other ...": not the source itself
     subtype: str | None  # "Elf" in "Other Elf creatures you control"
     text: str
+    self_only: bool = False  # "CARDNAME gets +1/+1 as long as ...": only the source itself
+    condition: "Condition | None" = None  # "As long as you control an artifact, ...": applies only while it holds
 
 
 _AFFECTED = r"(?:(Other) )?(?:([A-Z][\w'-]*) )?[Cc]reatures you control"
 _STATIC = re.compile(rf"{_AFFECTED} (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
 
 
+_SELF_STATIC = re.compile(rf"{_SELF} (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS})\.", re.I)
+_AS_LONG_AS_FIRST = re.compile(r"As long as (.+?), (.+\.)")
+_AS_LONG_AS_LAST = re.compile(r"(.+?) as long as (.+)\.")
+
+
+def _conditional(line: str) -> tuple[str, str] | None:
+    """Split "As long as X, Y." or "Y as long as X." into (Y with its full stop, X)."""
+    if m := _AS_LONG_AS_FIRST.fullmatch(line):
+        return m[2], m[1]
+    if m := _AS_LONG_AS_LAST.fullmatch(line):
+        return m[1] + ".", m[2]
+    return None
+
+
 @lru_cache(maxsize=None)
 def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
     buffs = []
     for line in rules_lines(card):
-        if m := _STATIC.fullmatch(line):
-            buffs.append(StaticBuff(_modifier(m, 3), m[1] is not None, m[2], line))
+        sentence, condition = line, None
+        if split := _conditional(line):
+            sentence, text = split
+            if (condition := _condition(text)) is None:
+                continue
+        if m := _STATIC.fullmatch(sentence):
+            buffs.append(StaticBuff(_modifier(m, 3), m[1] is not None, m[2], line, condition=condition))
+        elif condition and (m := _SELF_STATIC.fullmatch(sentence)):  # unconditional ones would just be printed text
+            buffs.append(StaticBuff(_modifier(m, 1), False, None, line, self_only=True, condition=condition))
     return tuple(buffs)
 
 
@@ -1297,7 +1320,7 @@ class TriggeredAbility:
 class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
-    #            "control_none", "kicked"
+    #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
 
@@ -1315,6 +1338,11 @@ _CONDITIONS = [
     (re.compile(rf"you control {_N} or more ([A-Za-z]+)"),
      lambda m: Condition("control_at_least", _count(m[1]), _singular(m[2]))),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
+    (re.compile(r"you control an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, _singular(m[1]))),
+    (re.compile(r"it's your turn"), lambda m: Condition("your_turn")),
+    (re.compile(r"you're the monarch"), lambda m: Condition("monarch")),
+    (re.compile(rf"you have {_N} or more cards in hand"), lambda m: Condition("hand_at_least", _count(m[1]))),
+    (re.compile(r"you have no cards in hand"), lambda m: Condition("hand_none")),
     (re.compile(rf"{_SELF} was kicked"), lambda m: Condition("kicked")),
 ]
 

@@ -995,6 +995,14 @@ class Game:
             return any(lands(o) > lands(seat) for o in self.opponents(seat))
         if kind == "cast_this_turn":
             return any(turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in seat.cast_log)
+        if kind == "your_turn":
+            return self.active == seat.index
+        if kind == "monarch":
+            return self.monarch is seat
+        if kind == "hand_at_least":
+            return len(seat.hand) >= condition.count
+        if kind == "hand_none":
+            return not seat.hand
         matching = sum(_has_type(p.card, condition.what) for p in seat.battlefield)
         return matching >= condition.count if kind == "control_at_least" else matching == 0
 
@@ -1303,6 +1311,10 @@ class Game:
         for source in controller.battlefield:
             for buff in static_abilities(source.card):
                 if (buff.other and source is permanent) or (buff.subtype and buff.subtype not in subtypes):
+                    continue
+                if buff.self_only and source is not permanent:
+                    continue
+                if buff.condition and not self.condition_holds(buff.condition, controller, source):
                     continue
                 mods.append(buff.modifier)
         for seat in self.seats:  # Equipment and Auras attached to it
