@@ -11,7 +11,8 @@ from .analysis import is_land
 from .cards import Card, Deck
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT
-from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
+from .undercity import HELPS_ITS_TARGET
+from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
@@ -98,6 +99,8 @@ class BotPlayer:
         if prompt.startswith(CLONE_PROMPT):  # copy the biggest creature, or nothing if there is none
             sizes = [sum(_stats(option)) for option in options[:-1]]
             return sizes.index(max(sizes)) if sizes and max(sizes) > 0 else len(options) - 1
+        if prompt.startswith(VOTE_PROMPT) and all(_seat_of(o) is not None for o in options):
+            return next((i for i, o in enumerate(options) if _seat_of(o) != self._seat), 0)  # vote against an opponent's
         if prompt == PROLIFERATE_PROMPT:  # add counters to its own permanents, and never to an opponent's
             mine = [i for i, option in enumerate(options[:-1]) if _seat_of(option) == self._seat]
             return mine[0] if mine else len(options) - 1
@@ -105,7 +108,7 @@ class BotPlayer:
             return min(range(len(options)), key=lambda i: _stats(options[i])[1])
         if prompt == RETURN_LAND_PROMPT:
             return len(options) - 1  # the bounceland that just came in is the newest land
-        if prompt in (SEARCH_CARD_PROMPT, LOOK_PROMPT, CHOOSE_DISCARD_PROMPT):
+        if prompt in (SEARCH_CARD_PROMPT, LOOK_PROMPT, CHOOSE_DISCARD_PROMPT, THRONE_PROMPT):
             taken = [i for i, name in enumerate(options) if name != NONE_TAKEN]  # never declines the optional take
             # its best card; one it can't see in its own deck (from an opponent's hand) counts as worth nothing
             return max(taken, key=lambda i: self._cards[options[i]].cmc if options[i] in self._cards else 0)
@@ -139,6 +142,8 @@ class BotPlayer:
 
     def _is_buff_aura(self, name: str) -> bool:
         """An Aura that helps its target, as opposed to a Pacifism-style one that hurts it."""
+        if name in HELPS_ITS_TARGET:
+            return True
         card = self._cards.get(name)
         return (card is not None and "Aura" in card.type_line and "can't attack or block" not in card.oracle_text
                 and "You control enchanted creature" not in card.oracle_text)
