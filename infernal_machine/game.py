@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      aura_controls, saga_chapters, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      clone_kind, aura_controls, saga_chapters, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -67,6 +67,8 @@ SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+CLONE_PROMPT = "Choose what to copy for "  # followed by the card's name; the last option is NOT_A_COPY
+NOT_A_COPY = "Don't copy anything"
 CREW_PROMPT = "Choose a creature to tap to crew "  # followed by the Vehicle's name
 PROLIFERATE_PROMPT = "Proliferate: choose a permanent"
 DONE = "Done"
@@ -116,6 +118,7 @@ class Permanent:
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
     regeneration: int = 0  # regeneration shields, which last until end of turn
+    real_card: "Card | None" = None  # a Clone's own card, while it is a copy of something else
     control_origin: "Seat | None" = None  # who controlled it before a control-change effect took it
     control_aura: "Permanent | None" = None  # the Aura (Control Magic) that holds control of it
     control_eot: bool = False  # control changes back at end of turn (Threaten)
@@ -172,6 +175,7 @@ class StackItem:
     kicked: int = 0  # how many times the kicker cost was paid
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
+    is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
     player: "Seat | None" = None  # for a watching trigger: the player whose action set it off ("that player")
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
@@ -985,10 +989,12 @@ class Game:
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
-            self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
+            if not item.is_copy:
+                self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
             return
         self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard (or exile, after flashback)
-        self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
+        if not item.is_copy:
+            self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
 
     def _resolve_aura(self, item: StackItem) -> None:
         """An Aura spell enters attached to its target, or goes to the graveyard if the target
@@ -1222,9 +1228,11 @@ class Game:
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
         elif kind == "opponent":
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)]
-        if kind.endswith("spell"):  # "spell", "noncreature spell", ...
+        if _split_controller(kind)[0].endswith("spell"):  # "spell", "noncreature spell", "... spell you control"
+            kind, whose = _split_controller(kind)
             options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
-                        if not i.ability and _watch_type_matches(kind, i.card)]
+                        if not i.ability and _watch_type_matches(kind, i.card)
+                        and not (whose == "you" and i.controller is not caster)]
             return options
         kind, controller = _split_controller(kind)
         for seat in self.live_seats():
@@ -1652,7 +1660,7 @@ class Game:
         self.stack.remove(item)
         self.broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name,
                         "ability": _shown(item.ability.text, item.card) if item.ability else None})
-        if not item.ability:  # countering an ability doesn't touch its source
+        if not item.ability and not item.is_copy:  # countering an ability doesn't touch its source; a copy just ends
             self._move_card(item.controller, item.card, "exile" if item.exile_after else "graveyard")
 
     def _check_ward(self, item: StackItem) -> None:
@@ -1777,6 +1785,8 @@ class Game:
     # --- helpers -------------------------------------------------------------
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
+        if clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
+            self._become_copy(seat, permanent, *clone)
         for counter, count in enters_with_counters(permanent.card, permanent.kicked).items():  # CR 614.1c: it arrives with them
             permanent.counters[counter] = permanent.counters.get(counter, 0) + (x if count == "X" else count)
         permanent.owner = permanent.owner or seat
@@ -1790,6 +1800,35 @@ class Game:
         if saga_chapters(permanent.card):
             self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
+
+    def _become_copy(self, seat: Seat, permanent: Permanent, kind: str, yours: bool) -> None:
+        """Clone: choose a permanent on the battlefield and enter as a copy of it. A copy gets the other card's
+        printed characteristics (not its counters, damage or changes); a token's copy isn't a token."""
+        options = [p for s in self.live_seats() if not yours or s is seat for p in s.battlefield
+                   if _permanent_matches(kind, p.card)]
+        if not options:
+            return
+        pick = seat.player.choose(CLONE_PROMPT + permanent.card.name, [self.label(p) for p in options] + [NOT_A_COPY])
+        if pick == len(options):
+            return
+        copied = options[pick].card
+        permanent.real_card = permanent.card
+        permanent.card = dataclasses.replace(copied, type_line=copied.type_line.removeprefix("Token "))
+        self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.real_card.name,
+                        "as": permanent.card.name})
+
+    def copy_spell(self, item: StackItem, controller: Seat, new_targets: bool = False) -> None:
+        """Put a copy of a spell on the stack under `controller`'s control; it resolves first. It isn't cast, and it
+        stops existing instead of going to the graveyard. With `new_targets` the copy's controller chooses its
+        targets again (the old ones are still legal choices)."""
+        if item not in self.stack or item.ability:
+            return
+        targets = list(item.targets)
+        if new_targets and (chosen := self._choose_targets(controller, item.effects, item.card.name,
+                                                           colors=frozenset(item.card.colors))):
+            targets = chosen[0]
+        self.stack.append(StackItem(item.card, controller, item.effects, targets, x=item.x, kicked=item.kicked, is_copy=True))
+        self.broadcast({"event": "copied_spell", "seat": controller.index, "card": item.card.name})
 
     def _enters_tapped(self, seat: Seat, rule: EntersTapped, card: Card) -> bool:
         """Whether a permanent entering under `seat`'s control enters tapped, given the lands it sees
@@ -1851,6 +1890,8 @@ class Game:
                     if attachment.attached_to is permanent:
                         self.trigger("host_dies", attachment, attachment_seat)
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
+            if permanent.real_card is not None:  # a Clone goes to the graveyard as itself
+                permanent.card, permanent.real_card = permanent.real_card, None
             if permanent.original is not None:  # a crewed Vehicle goes back to being just a card
                 permanent.card, permanent.original = permanent.original, None
             if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)

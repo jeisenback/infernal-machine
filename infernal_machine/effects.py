@@ -531,6 +531,22 @@ def aura_kind(card: Card) -> str | None:
     return next((m[1].lower() for line in rules_lines(card) if (m := _ENCHANT.fullmatch(line))), None)
 
 
+_CLONE = re.compile(r"You may have CARDNAME enter(?: the battlefield)? as a copy of "
+                    r"(?:any (creature|artifact|enchantment|land) on the battlefield|a (creature) you control)\.")
+
+
+def clone_kind(card: Card) -> tuple[str, bool] | None:
+    """For Clone: what the card may enter as a copy of ("creature") and whether it must be one you control."""
+    for line in rules_lines(card):
+        if m := _CLONE.fullmatch(line):
+            return (m[1] or m[2]), m[2] is not None
+    return None
+
+
+def is_clone_line(line: str) -> bool:
+    return _CLONE.fullmatch(line) is not None
+
+
 def is_enchant_line(line: str) -> bool:
     return _ENCHANT.fullmatch(line) is not None
 
@@ -1007,6 +1023,26 @@ class AddMana:
 
 
 @dataclass(frozen=True)
+class CopySpell:
+    """ "Copy target instant or sorcery spell. You may choose new targets for the copy." """
+    target: str  # "instant or sorcery spell", optionally "... you control"
+    new_targets: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.copy_spell(target, controller, self.new_targets)
+
+
+@dataclass(frozen=True)
+class NewTargets:
+    """ "You may choose new targets for the copy." Only meaningful after a copy effect (_merge_copy folds it in)."""
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        pass
+
+
+@dataclass(frozen=True)
 class GainControl:
     """ "Gain control of target creature (until end of turn). (Untap that creature. It gains haste until end of
     turn.)" """
@@ -1451,6 +1487,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
+    (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
+     lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
+    (re.compile(r"you may choose new targets for the copy\.", re.I), lambda m: NewTargets()),
     (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
      lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
     (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
@@ -1573,7 +1612,22 @@ def _parse(sentences: list[str]) -> list | None:
             return None
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
-    return _merge_control(_merge_no_regen(effects))
+    merged = _merge_copy(_merge_no_regen(effects))
+    return None if merged is None else _merge_control(merged)
+
+
+def _merge_copy(effects: list) -> list | None:
+    """"Copy target instant or sorcery spell. You may choose new targets for the copy." is one effect. The second
+    sentence on its own has no copy to refer to, so the line isn't understood."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, NewTargets):
+            if not merged or not isinstance(merged[-1], CopySpell):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], new_targets=True)
+        else:
+            merged.append(effect)
+    return merged
 
 
 def _merge_control(effects: list) -> list | None:
