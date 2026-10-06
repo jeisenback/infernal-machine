@@ -24,7 +24,7 @@ class UnsupportedLinesTests(unittest.TestCase):
     def test_lists_only_what_is_missing(self):
         self.assertEqual(unsupported_lines(MULLDRIFTER), ["Evoke {2}{U}"])
         self.assertEqual(unsupported_lines(THRASIOS), ["{4}: Proliferate."])  # partner is a deckbuilding line
-        self.assertEqual(unsupported_lines(Card(name="x", mana_cost="{S}", type_line="Creature")), ["mana cost {S}"])
+        self.assertEqual(unsupported_lines(Card(name="x", mana_cost="{Q}", type_line="Creature")), ["mana cost {Q}"])
 
     def test_categories(self):
         self.assertEqual(category("{4}: Proliferate."), "activated abilities")

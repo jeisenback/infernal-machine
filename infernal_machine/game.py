@@ -10,6 +10,7 @@ other rules text is not implemented yet.
 
 from __future__ import annotations
 
+import dataclasses
 import random
 import re
 from itertools import combinations
@@ -27,7 +28,7 @@ from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost
                       enters_with_counters, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
-from .mana import Cost, parse_cost, pay
+from .mana import SNOW, Cost, parse_cost, pay
 from .player import Player
 
 STARTING_LIFE = 40
@@ -116,11 +117,16 @@ class Permanent:
 @dataclass(frozen=True)
 class ManaSource:
     """One mana a permanent can make when tapped, and whether making it hurts (painlands, Talismans)."""
-    permanent: "Permanent"
+    permanent: "Permanent | None"  # None: mana already in the pool
     types: frozenset[str]  # one mana of one of these types
     pain: frozenset[str] = frozenset()  # types that deal `damage` to the controller when produced
     damage: int = 0
     life: bool = False  # the `damage` is life paid (Mana Confluence), not damage dealt
+
+
+def _snowy(permanent: "Permanent", types: frozenset[str]) -> frozenset[str]:
+    """A snow permanent's mana can also pay for {S}."""
+    return types | {SNOW} if "Snow" in permanent.card.type_line else types
 
 
 def _pain(source: ManaSource, symbol: frozenset[str] | None) -> int:
@@ -130,9 +136,11 @@ def _pain(source: ManaSource, symbol: frozenset[str] | None) -> int:
 
 
 class Payment(list):
-    """The permanents to tap for a cost; `pain` is the damage their mana deals to the payer, `life` the life it costs."""
+    """The permanents to tap for a cost; `pain` is the damage their mana deals to the payer, `life` the life it costs,
+    `pool` the mana types it uses up from the payer's mana pool."""
     pain: int = 0
     life: int = 0
+    pool: tuple[frozenset[str], ...] = ()
 
 
 @dataclass(eq=False)
@@ -179,6 +187,7 @@ class Seat:
     library: list[Card] = field(default_factory=list)
     hand: list[Card] = field(default_factory=list)
     battlefield: list[Permanent] = field(default_factory=list)
+    mana_pool: list[frozenset[str]] = field(default_factory=list)  # mana added by rituals, gone at the end of the step
     graveyard: list[Card] = field(default_factory=list)
     exile: list[Card] = field(default_factory=list)
     command_zone: list[Card] = field(default_factory=list)
@@ -319,6 +328,7 @@ class Game:
                 if over():
                     return
                 self._priority_round(seat)
+                self._empty_pools()
                 if over():
                     return
             self.step = step
@@ -327,6 +337,7 @@ class Game:
                 return
             if step not in NO_PRIORITY_STEPS:
                 self._priority_round(seat)
+            self._empty_pools()
 
     def _turn_based_actions(self, seat: Seat) -> None:
         if self.step == "untap":
@@ -488,8 +499,9 @@ class Game:
             choice = options[seat.player.choose(SACRIFICE_COST_PROMPT + name, [self.label(p) for p in options])]
             self._leave_together([(choice, "sacrificed")])
 
-    def _ability_payment(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> list[Permanent] | None:
-        cost = parse_cost(ability.mana_cost) if ability.mana_cost else Cost()
+    def _ability_payment(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility,
+                         x: int = 0) -> list[Permanent] | None:
+        cost = (parse_cost(ability.mana_cost) if ability.mana_cost else Cost()).with_x(x)
         # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
         return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice else None)
 
@@ -515,11 +527,23 @@ class Game:
             self.damage(seat, pain)
         if life := getattr(sources, "life", 0):
             self.change_life(seat, -life)
+        for unit in getattr(sources, "pool", ()):
+            seat.mana_pool.remove(unit)
+
+    def add_mana(self, seat: Seat, units: tuple[frozenset[str], ...]) -> None:
+        """Mana from a spell or ability goes to the pool, to be spent before the step ends."""
+        seat.mana_pool.extend(units)
+        self.broadcast({"event": "mana_added", "seat": seat.index, "mana": ["".join(sorted(u)) for u in units]})
+
+    def _empty_pools(self) -> None:
+        for seat in self.seats:
+            seat.mana_pool.clear()
 
     def _mana_sources(self, seat: Seat, exclude: Permanent | None = None) -> list[ManaSource]:
         """One entry per mana each untapped permanent can make: nonland sources first,
         then lands, and sources that sacrifice themselves (Treasure) last."""
         abilities, lands, sacrifices = [], [], []
+        pooled = [ManaSource(None, unit) for unit in seat.mana_pool]
         for permanent in seat.battlefield:
             if permanent.tapped or permanent is exclude:
                 continue
@@ -535,12 +559,12 @@ class Game:
                     continue
                 # Command Tower makes only the colors of your commander, whatever the card data lists.
                 types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
-                lands.append(ManaSource(permanent, types, pain, damage))
+                lands.append(ManaSource(permanent, _snowy(permanent, types), pain, damage))
             elif not (permanent.sick and "Creature" in card.type_line):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
                 for mana in mana_ability(card, seat.color_identity) or []:
-                    bucket.append(ManaSource(permanent, mana, pain, damage))
-        return abilities + lands + sacrifices
+                    bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage))
+        return pooled + abilities + lands + sacrifices
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
                  alternative: AlternativeCost | None = None, kicked: int = 0) -> list[Permanent] | None:
@@ -616,7 +640,20 @@ class Game:
         return x
 
     def _pay_cost(self, seat: Seat, cost: Cost, exclude: Permanent | None = None) -> list[Permanent] | None:
-        """The permanents to tap for `cost`, or None if it can't be paid.
+        """The permanents to tap for `cost`, or None if it can't be paid. A Phyrexian symbol is paid with mana
+        when that works, otherwise with 2 life (never down to 0 life)."""
+        for by_life in range(len(cost.phyrexian) + 1):
+            rest = dataclasses.replace(cost, phyrexian=cost.phyrexian[by_life:])
+            payment = self._pay_mana(seat, rest, exclude)
+            if payment is not None and not by_life:
+                return payment
+            if payment is not None and seat.life > payment.life + 2 * by_life:
+                payment.life += 2 * by_life
+                return payment
+        return None
+
+    def _pay_mana(self, seat: Seat, cost: Cost, exclude: Permanent | None = None) -> list[Permanent] | None:
+        """The permanents to tap for a cost of mana only, or None if it can't be paid.
 
         Signet-style sources ("{1}, {T}: Add {W}{U}.") are tried only when plain
         sources aren't enough, fewest first; their own costs are paid from plain sources.
@@ -644,8 +681,10 @@ class Game:
         if second is None:
             return None
         used = [sources[i].permanent for i in first] + [pool[i].permanent for i in second] + [p for p, _, _ in combo]
-        # A permanent that makes several mana (Sol Ring) is tapped once.
-        payment = Payment({id(p): p for p in used}.values())
+        # A permanent that makes several mana (Sol Ring) is tapped once. Mana already in the pool has no permanent.
+        payment = Payment({id(p): p for p in used if p is not None}.values())
+        payment.pool = tuple(s.types for s in [sources[i] for i in first] + [pool[i] for i in second]
+                             if s.permanent is None)
         # A permanent hurts (or costs life) once per tap, however many of its mana are used.
         hurt: dict[int, int] = {}
         paid_life: dict[int, int] = {}
@@ -702,7 +741,13 @@ class Game:
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
         targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name, permanent,
                                                frozenset(permanent.card.colors))
-        tapped = self._ability_payment(seat, permanent, ability)
+        x = 0
+        if ability.mana_cost and parse_cost(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then paid
+            most = 0
+            while most < MAX_X and self._ability_payment(seat, permanent, ability, most + 1) is not None:
+                most += 1
+            x = seat.player.choose(X_PROMPT + permanent.card.name, [str(n) for n in range(most + 1)])
+        tapped = self._ability_payment(seat, permanent, ability, x)
         self._spend_mana(seat, tapped)
         if ability.tap:
             permanent.tapped = True
@@ -713,7 +758,7 @@ class Game:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn
         permanent.activated_turn[ability.text] = self.turn
-        item = StackItem(permanent.card, seat, list(ability.effects), targets, ability, permanent)
+        item = StackItem(permanent.card, seat, list(ability.effects), targets, ability, permanent, x=x)
         self.stack.append(item)
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
@@ -829,6 +874,7 @@ class Game:
             "hand": [c.name for c in viewer.hand],
             "seats": [{
                 "seat": s.index, "name": s.name, "life": s.life, "lost": s.lost,
+                "mana_pool": ["".join(sorted(u)) for u in s.mana_pool],
                 "hand": len(s.hand), "library": len(s.library),
                 "graveyard": [c.name for c in s.graveyard], "exile": [c.name for c in s.exile],
                 "command_zone": [{"name": c.name, "tax": self.commander_tax(s, c)} for c in s.command_zone],

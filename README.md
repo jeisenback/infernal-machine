@@ -93,9 +93,17 @@ winner = game.play()
 - **Paying mana:** mana is paid automatically from lands (using Scryfall's `produced_mana`) and from
   permanents with a simple tap ability: `{T}: Add {C}{C}.`, `{T}: Add {G}.`, `{T}: Add {R} or {G}.`,
   and "one mana of any color" (optionally limited to your commander's colors).
-  Creatures can't tap for mana the turn they arrive. Phyrexian symbols are paid with mana.
+  Creatures can't tap for mana the turn they arrive.
+  - Phyrexian symbols ({B/P}) are paid with mana when possible, otherwise with 2 life each, but never down to 0 life.
+  - Twobrid symbols ({2/W}) are paid with one mana of that color if possible, otherwise with two mana of any kind.
+  - {S} (snow) is paid by mana from a snow permanent ("Snow-Covered Forest"), which still makes its normal color.
   Signet-style abilities ("{1}, {T}: Add {W}{U}.") are used when plain sources aren't enough.
   Their own cost is always paid by a plain source.
+- **Mana pool and rituals:** "Add {B}{B}{B}." as a spell (Dark Ritual) puts mana in the caster's pool. Pool mana is
+  spent first on whatever they cast or activate next, and the pool empties at the end of every step. Clients see it
+  as `mana_pool` in the board state. Bots don't cast cards that only add mana, since they don't plan ahead.
+- **X in abilities:** "{X}, {T}: Draw X cards." asks for X when you activate, from 0 up to what you can afford,
+  the same way spells do.
 - **X spells:** the caster chooses X when casting, from 0 up to what they can afford.
   X works in effects ("draw X cards", "deals X damage", "create X tokens", "put X counters")
   and in "enters with X +1/+1 counters".
