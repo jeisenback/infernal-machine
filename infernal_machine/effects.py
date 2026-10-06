@@ -1007,6 +1007,16 @@ class AddMana:
 
 
 @dataclass(frozen=True)
+class BecomeCreature:
+    """Crewing a Vehicle: until end of turn it is an artifact creature."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.become_creature(target)
+
+
+@dataclass(frozen=True)
 class Proliferate:
     """ "Proliferate.": choose any permanents with counters; each gets one more counter of each kind it has."""
 
@@ -1713,10 +1723,33 @@ def is_return_exiled_line(line: str) -> bool:
     return _RETURN_EXILED.fullmatch(line) is not None
 
 
+_ROMAN = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}
+_CHAPTER = re.compile(r"((?:I|II|III|IV|V|VI|VII)(?:, (?:I|II|III|IV|V|VI|VII))*) \u2014 (.+)")
+
+
+@lru_cache(maxsize=None)
+def saga_chapters(card: Card) -> dict[int, tuple[tuple, str]]:
+    """A Saga's chapters: number -> (its effects, the line it is printed on). All or nothing: if any chapter isn't
+    understood the Saga gets none, so it never does half of what it says."""
+    found: dict[int, tuple[tuple, str]] = {}
+    if "Saga" not in card.type_line:
+        return found
+    for line in rules_lines(card):
+        if m := _CHAPTER.fullmatch(line):
+            effects = _parse(_split_sentences(m[2]))
+            if not effects:
+                return {}
+            for numeral in m[1].split(", "):
+                found[_ROMAN[numeral]] = (tuple(effects), line)
+    return found
+
+
 @lru_cache(maxsize=None)
 def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     """The triggered abilities on a permanent whose effects are all understood."""
     abilities = _triggered_abilities(card)
+    for number, (effects, line) in saga_chapters(card).items():  # a lore counter makes the chapter trigger
+        abilities.append(TriggeredAbility(f"chapter_{number}", effects, False, line))
     for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard
         words = {word.strip().lower() for word in line.split(",")}
         for keyword, counter in (("persist", "-1/-1"), ("undying", "+1/+1")):
@@ -1830,8 +1863,10 @@ class ActivatedAbility:
     sacrifice_another: bool = False  # "Sacrifice another creature": not the source itself
     discard: bool = False  # "Discard a card"
     exile_graveyard: bool = False  # "Exile a card from your graveyard"
+    crew: int = 0  # "Crew N": tap untapped creatures you control with total power N or more
 
 
+_CREW = re.compile(r"Crew (\d+)")
 _ACTIVATED = re.compile(r"([^:\"]+): (.+)")
 _MANA_PART = re.compile(r"(\{(?:\d+|X|S|[WUBRGC]|[WUBRGC]/[WUBRGCP]|2/[WUBRGC])\})+")
 _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
@@ -1849,6 +1884,9 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
     planeswalker = "Planeswalker" in card.type_line
     abilities = []
     for line in rules_lines(card):
+        if m := _CREW.fullmatch(line):  # a Vehicle: tap creatures and it becomes an artifact creature this turn
+            abilities.append(ActivatedAbility(line, (BecomeCreature(),), crew=int(m[1])))
+            continue
         match = _ACTIVATED.fullmatch(line)
         if not match or is_mana_ability(line):
             continue

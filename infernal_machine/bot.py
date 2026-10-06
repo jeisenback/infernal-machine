@@ -160,6 +160,8 @@ def _is_ritual(card: Card | None) -> bool:
 def _limited_cost(action: str) -> bool:
     """Whether an activation's cost can only be paid a limited number of times."""
     cost = action.split("): ", 1)[1].split(":", 1)[0]
+    if cost.startswith("Crew "):
+        return True  # it taps creatures, and a Vehicle that is already a creature isn't crewed again
     if re.search(r"Sacrifice (a|an|another) |Discard a card|Exile a card", cost):
         return False  # the bot doesn't pay with its own cards
     return "{T}" in cost or "Sacrifice" in cost or re.fullmatch(r"[+\u2212-]?\d+", cost) is not None
