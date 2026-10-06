@@ -44,15 +44,21 @@ class Combat:
         for permanent in list(seat.battlefield):
             if not self._can_attack(permanent):
                 continue
-            choice = seat.player.choose(ATTACK_PROMPT + self.game.label(permanent), options)
-            if choice == 0:
-                continue
-            defender = opponents[choice - 1]
+            if goader := permanent.goaded_by:  # must attack, and not the goader if there's anyone else
+                targets = [o for o in opponents if o is not goader] or opponents
+                defender = targets[0] if len(targets) == 1 else targets[seat.player.choose(
+                    ATTACK_PROMPT + self.game.label(permanent), [f"Attack Player: {o.name} (seat {o.index})" for o in targets])]
+            else:
+                choice = seat.player.choose(ATTACK_PROMPT + self.game.label(permanent), options)
+                if choice == 0:
+                    continue
+                defender = opponents[choice - 1]
             if not self.game.has_keyword(permanent, "vigilance"):
                 permanent.tapped = True
             self.attacks.append(Attack(permanent, seat, defender))
             self.game.trigger("attacks", permanent, seat)
             self.game._trigger_each("ally_attacks", seat)
+            self.game._trigger_each("attacked", defender)
             for owner in self.game.live_seats():  # "Whenever equipped / enchanted creature attacks"
                 for attachment in list(owner.battlefield):
                     if attachment.attached_to is permanent:

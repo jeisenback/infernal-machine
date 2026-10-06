@@ -804,6 +804,29 @@ class Scry:
 
 
 @dataclass(frozen=True)
+class ExtraTurn:
+    """ "Take an extra turn after this one." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.extra_turns.append(controller.index)
+
+
+@dataclass(frozen=True)
+class BecomeMonarch:
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.become_monarch(controller)
+
+
+@dataclass(frozen=True)
+class Goad:
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.goad(target, controller)
+
+
+@dataclass(frozen=True)
 class Surveil:
     count: int | str
 
@@ -1049,6 +1072,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchForLands(1, _land_types(m[1]), 1, bool(m[2]), False)),
     (re.compile(rf"scry {_N}\.", re.I), lambda m: Scry(_count(m[1]))),
     (re.compile(rf"surveil {_N}\.", re.I), lambda m: Surveil(_count(m[1]))),
+    (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
+    (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
+    (re.compile(r"goad target (creature)\.", re.I), lambda m: Goad(m[1].lower())),
     (re.compile(rf"mill {_N} cards?\.", re.I), lambda m: Mill(_count(m[1]), "you")),
     (re.compile(rf"each (opponent|player) mills {_N} cards?\.", re.I),
      lambda m: Mill(_count(m[2]), "each " + m[1].lower())),
@@ -1226,6 +1252,7 @@ _TRIGGERS = {
     "attacks": re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I),
     "blocks": re.compile(rf"Whenever {_SELF} blocks, (.+)", re.I),
     "ally_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
+    "attacked": re.compile(r"Whenever a creature attacks you(?: or a planeswalker you control)?, (.+)", re.I),
     "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
     "opponent_gain_life": re.compile(r"Whenever an opponent gains life, (.+)", re.I),
@@ -1278,6 +1305,8 @@ _WATCHES = {
 }
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
+# Triggers about some other creature: "it" and "that creature" there don't mean the source, which isn't supported.
+_OBJECT_EVENTS = {"ally_attacks", "attacked", "ally_combat_damage", "token_combat_damage"}
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
 
 
@@ -1369,6 +1398,8 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
             match = pattern.fullmatch(line)
             if not match:
                 continue
+            if event in _OBJECT_EVENTS and re.search(r"\bit\b|\bthat creature\b", match[1], re.I):
+                break
             effects, optional, once, condition = _trigger_body(match[1])
             if effects is not None:
                 abilities.append(TriggeredAbility(event, tuple(effects), optional, line, once_per_turn=once,

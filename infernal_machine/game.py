@@ -106,6 +106,7 @@ class Permanent:
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
+    goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
 
 
 @dataclass(frozen=True)
@@ -213,6 +214,9 @@ class Game:
         self.stack: list[StackItem] = []
         self.combat = Combat(self)
         self.pending: list[PendingTrigger] = []  # triggered, not yet on the stack
+        self.extra_turns: list[int] = []  # seats that take an extra turn next; the last one asked for goes first
+        self.regular = 0  # the seat whose regular turn it is (or was, during an extra turn)
+        self.monarch: Seat | None = None
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
@@ -267,13 +271,23 @@ class Game:
     def play(self, max_turns: int = 100) -> Seat | None:
         """Run setup and turns until one player is left or `max_turns` is reached."""
         self.setup()
+        self.regular = self.active
         while self.winner() is None and self.turn < max_turns:
             self.turn += 1
             self._take_turn(self.seats[self.active])
-            self.active = self._next_live_seat(self.active)
+            self.active = self._next_turn_seat()
         winner = self.winner()
         self.broadcast({"event": "game_over", "winner": winner.index if winner else None, "turn": self.turn})
         return winner
+
+    def _next_turn_seat(self) -> int:
+        """Whose turn comes next: an extra turn if one was asked for (CR 500.7), else the next regular turn."""
+        while self.extra_turns:
+            index = self.extra_turns.pop()
+            if not self.seats[index].lost:
+                return index
+        self.regular = self._next_live_seat(self.regular)
+        return self.regular
 
     def _take_turn(self, seat: Seat) -> None:
         seat.lands_played = 0
@@ -304,6 +318,10 @@ class Game:
             for permanent in seat.battlefield:
                 permanent.tapped = False
                 permanent.sick = False
+            for other in self.live_seats():  # goad lasts until the goader's next turn
+                for permanent in other.battlefield:
+                    if permanent.goaded_by is seat:
+                        permanent.goaded_by = None
         elif self.step == "draw":
             # CR 103.8: only a two-player game skips the first player's first draw.
             if not (self.turn == 1 and not self.multiplayer):
@@ -314,6 +332,9 @@ class Game:
             for other in self.live_seats():  # "At the beginning of each upkeep / end step"
                 for permanent in list(other.battlefield):
                     self.trigger("each_upkeep" if self.step == "upkeep" else "each_end_step", permanent, other)
+            if self.step == "end" and self.monarch is seat:  # CR 724.2: the monarch draws at their end step
+                self.broadcast({"event": "monarch_draw", "seat": seat.index})
+                self.draw(seat, 1)
         elif self.step == "beginning_of_combat":
             for permanent in list(seat.battlefield):
                 self.trigger("combat", permanent, seat)
@@ -1103,6 +1124,8 @@ class Game:
             self.change_life(target, -amount)
             if combat and controller:
                 self.trigger("combat_damage_to_player", source, controller)
+                if target is self.monarch and controller is not target:  # CR 724.2
+                    self.become_monarch(controller)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller)
                     if _is_token(source.card):
@@ -1376,6 +1399,14 @@ class Game:
         self.broadcast({"event": "scry", "seat": seat.index, "count": len(top)}, skip=seat)
         seat.player.notify({"event": "scry", "seat": seat.index, "count": len(top), "bottom": [c.name for c in bottom]})
 
+    def become_monarch(self, seat: Seat) -> None:
+        self.monarch = seat
+        self.broadcast({"event": "monarch", "seat": seat.index})
+
+    def goad(self, permanent: Permanent, goader: Seat) -> None:
+        permanent.goaded_by = goader
+        self.broadcast({"event": "goaded", "card": permanent.card.name, "by": goader.index})
+
     def surveil(self, seat: Seat, count: int) -> None:
         """Look at the top `count` cards and put any of them into the graveyard (which everyone sees)."""
         top = seat.library[:count]
@@ -1500,6 +1531,10 @@ class Game:
                     self.combat.attacks = [a for a in self.combat.attacks
                                            if a.defender is not seat and a.controller is not seat]
                     self.broadcast({"event": "player_lost", "seat": seat.index, "reason": reason})
+                    if self.monarch is seat:  # CR 724.4: the active player takes it, if they're still in
+                        self.monarch = None
+                        if not self.seats[self.active].lost:
+                            self.become_monarch(self.seats[self.active])
                     changed = True
             dying: list[tuple[Permanent, str]] = []
             for seat in self.live_seats():
