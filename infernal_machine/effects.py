@@ -811,6 +811,7 @@ def _mass_kind(m: re.Match) -> str:
 
 
 _SACRIFICE_KIND = r"(creature|artifact|enchantment|land|permanent)"
+_FIGHTER = r"(creature(?: you control| you don't control| an opponent controls)?)"
 _MASS_KEYWORDS = (r"(?:flying|reach|trample|haste|vigilance|menace|deathtouch|lifelink|first strike|double strike"
                   r"|defender|indestructible|hexproof)")
 _RESTRICTION = rf"(with (?:power|toughness) \d+ or (?:greater|less)|with {_MASS_KEYWORDS}|without {_MASS_KEYWORDS})"
@@ -969,6 +970,48 @@ class AddMana:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.add_mana(controller, self.units)
+
+
+@dataclass(frozen=True)
+class Proliferate:
+    """ "Proliferate.": choose any permanents with counters; each gets one more counter of each kind it has."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.proliferate(controller)
+
+
+@dataclass(frozen=True)
+class FightFirst:
+    """The first target of a fight ("Target creature you control ... fights ..."): remembered for the second."""
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.carried = target
+
+
+@dataclass(frozen=True)
+class Fight:
+    """The second target of a fight. Each deals damage equal to its power to the other; with `one_sided` only the
+    first does ("Target creature you control deals damage equal to its power to target creature you don't control")."""
+    target: str
+    one_sided: bool = False
+    another: bool = False  # "fights another target creature": not the first target
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        first = game.resolving_item.carried if game.resolving_item is not None else None
+        if first is not None and target is not None and first is not target:
+            game.fight(first, target, self.one_sided)
+
+
+@dataclass(frozen=True)
+class ReturnWithCounter:
+    """Persist and undying: the creature that died comes back with a counter on it."""
+    counter: str  # "-1/-1" (persist) or "+1/+1" (undying)
+    uses_dead_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.return_with_counter(target, self.counter)
 
 
 @dataclass(frozen=True)
@@ -1308,6 +1351,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
+    (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
+    (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
+     lambda m: [FightFirst(m[1].lower()), Fight(m[3].lower(), another=bool(m[2]))]),
+    (re.compile(rf"target {_FIGHTER} deals damage equal to its power to target {_FIGHTER}\.", re.I),
+     lambda m: [FightFirst(m[1].lower()), Fight(m[2].lower(), one_sided=True)]),
     (re.compile(r"populate\.", re.I), lambda m: Populate()),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
@@ -1417,7 +1465,8 @@ def _parse(sentences: list[str]) -> list | None:
         found = [effect] if (effect := _template(sentence)) is not None else [_template(c) for c in _clauses(sentence)]
         if None in found:
             return None
-        effects += found
+        for effect in found:  # one sentence can make several effects (a fight has two targets)
+            effects += effect if isinstance(effect, list) else [effect]
     return effects
 
 
@@ -1450,7 +1499,7 @@ class TriggeredAbility:
 class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
-    #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none"
+    #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
 
@@ -1599,6 +1648,12 @@ def is_return_exiled_line(line: str) -> bool:
 def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     """The triggered abilities on a permanent whose effects are all understood."""
     abilities = _triggered_abilities(card)
+    for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard
+        words = {word.strip().lower() for word in line.split(",")}
+        for keyword, counter in (("persist", "-1/-1"), ("undying", "+1/+1")):
+            if keyword in words:
+                abilities.append(TriggeredAbility("dies", (ReturnWithCounter(counter),), False, line,
+                                                  condition=Condition("no_counter", what=counter)))
     if any(is_return_exiled_line(line) for line in rules_lines(card)):
         # Two-trigger wording: the enters-the-battlefield exile lasts until this permanent leaves.
         abilities = [
