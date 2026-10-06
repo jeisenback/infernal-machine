@@ -47,7 +47,25 @@ def _rules_text(card: Card) -> str:
     front = card.name.split(" // ")[0]
     for name in dict.fromkeys((card.name, front, front.split(",")[0])):
         text = re.sub(rf"(?<!\w){re.escape(name)}(?!\w)", "CARDNAME", text)
-    return text
+    return _join_modes(text)
+
+
+# "When this creature enters, choose one —" and "{T}: Choose one —" are followed by their modes on separate lines.
+_MODAL_LEAD = re.compile(r".+[,:] choose (?:one or both|one or more|one|two|three) \u2014", re.I)
+
+
+def _join_modes(text: str) -> str:
+    """Put the modes of a modal triggered or activated ability on its own line, so it is one ability like any other
+    ("When ... enters, choose one — \u2022 Scry 2. \u2022 You gain 3 life."). A modal spell keeps its lines."""
+    lines: list[str] = []
+    joining = False
+    for line in text.splitlines():
+        if joining and line.strip().startswith("\u2022 "):
+            lines[-1] += " " + line.strip()
+            continue
+        joining = _MODAL_LEAD.fullmatch(line.strip()) is not None
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def rules_lines(card: Card) -> list[str]:
@@ -236,6 +254,17 @@ def _parse_modal(how: str, lines: list[str]) -> list | None:
     low, high = _MODAL_COUNTS[how]
     high = high or len(modes)
     return [Modal(low, high, tuple(modes), tuple(texts))] if len(modes) >= max(low, 1) else None
+
+
+_MODAL_INLINE = re.compile(r"choose (one or both|one or more|one|two|three) \u2014 (\u2022 .+)", re.I)
+
+
+def _parse_modal_inline(text: str) -> list | None:
+    """The modes of a modal triggered or activated ability, joined onto its line (see _join_modes), or None if
+    the text isn't one."""
+    if not (m := _MODAL_INLINE.fullmatch(text)):
+        return None
+    return _parse_modal(m[1].lower(), ["\u2022 " + part for part in m[2].removeprefix("\u2022 ").split(" \u2022 ")])
 
 
 @dataclass(frozen=True)
@@ -1222,6 +1251,17 @@ class UntapCreatures:
 
 
 @dataclass(frozen=True)
+class TapAll:
+    """ "Tap all creatures your opponents control." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.opponents(controller):
+            for permanent in seat.battlefield:
+                if "Creature" in permanent.card.type_line:
+                    permanent.tapped = True
+
+
+@dataclass(frozen=True)
 class BecomeMonarch:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.become_monarch(controller)
@@ -1498,6 +1538,8 @@ _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life a
                     r"from your hand rather than pay this spell's mana cost\.")
 _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
                          rf"creature|permanent)|(discard a card)|pay (?!X ){_N} life)\.")  # "pay X life" (Toxic Deluge) isn't supported
+_ENTWINE = re.compile(r"Entwine ((?:\{[^}]+\})+)")
+_ESCALATE = re.compile(r"Escalate ((?:\{[^}]+\})+)")  # "Escalate\u2014Discard a card." (a cost that isn't mana) isn't supported
 _FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
 _ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four|five|six) other cards? from your graveyard\.")
 _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery) )?spells "
@@ -1507,6 +1549,16 @@ _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|nonc
 def kicker_cost(card: Card) -> str | None:
     """The mana cost from "Kicker {1}{U}" or "Multikicker {1}{G}" (only mana costs are supported), or None."""
     return next((m[1] for line in rules_lines(card) if (m := _KICKER.fullmatch(line))), None)
+
+
+def entwine_cost(card: Card) -> str | None:
+    """The mana cost from "Entwine {2}": pay it to choose all the modes of a modal spell."""
+    return next((m[1] for line in rules_lines(card) if (m := _ENTWINE.fullmatch(line))), None)
+
+
+def escalate_cost(card: Card) -> str | None:
+    """The mana cost from "Escalate {1}": pay it for each mode chosen beyond the first."""
+    return next((m[1] for line in rules_lines(card) if (m := _ESCALATE.fullmatch(line))), None)
 
 
 def is_multikicker(card: Card) -> bool:
@@ -1566,7 +1618,7 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE))
+    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE))
 
 
 def is_cost_reduction_line(line: str) -> bool:
@@ -1703,6 +1755,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
+    (re.compile(r"tap all creatures your opponents control\.", re.I), lambda m: TapAll()),
     (re.compile(r"investigate\.", re.I), lambda m: CreateTokens(1, CLUE)),
     (re.compile(rf"{_VOTE_PREFIX}starting with you, each player votes for (\w+) or (\w+)\.", re.I),
      lambda m: VoteStart((m[1].lower(), m[2].lower()))),
@@ -2171,6 +2224,8 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
         condition = _condition(text)
         if condition is None:
             return None, False, False, None
+    if _MODAL_INLINE.fullmatch(rest):
+        return _parse_modal_inline(rest), False, False, condition
     once = rest.endswith(_TRIGGERS_ONCE)
     rest = rest.removesuffix(_TRIGGERS_ONCE)
     optional = rest.lower().startswith("you may ")
@@ -2325,6 +2380,9 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
                 fields["exile_graveyard"] = True
             else:
                 return None
+    if _MODAL_INLINE.fullmatch(effect):
+        effects = _parse_modal_inline(effect)
+        return ActivatedAbility(line, tuple(effects), **fields) if effects else None
     sentences = _split_sentences(effect)
     if _SORCERY_ONLY in sentences:
         fields["sorcery_speed"] = True

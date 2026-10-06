@@ -175,7 +175,9 @@ winner = game.play()
 | Exile target player's graveyard. | Tormod's Crypt |
 | Exile (another) target nonland permanent ... until this enchantment leaves the battlefield. | Banishing Light |
 | Exile another target ...; When this leaves the battlefield, return the exiled card to the battlefield under its owner's control. | Oblivion Ring, Fiend Hunter |
-| Choose one / two / three / one or both / one or more — • mode • mode ... | charms and commands |
+| Choose one / two / three / one or both / one or more — • mode • mode ... (also in "When ..., choose one —" and "{T}: Choose one —") | charms and commands, Charming Prince |
+| Entwine {cost} / Escalate {cost} (mana costs only) | Tooth and Nail |
+| Tap all creatures your opponents control. | Cryptic Command |
 | Target player (or opponent) draws N cards / gains N life / loses N life. | |
 | Exile target card from a graveyard. | |
 | Return target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation |
@@ -343,8 +345,16 @@ winner = game.play()
   by the time the exile ability resolves, nothing is exiled. "Another target" can't be the source itself.
 - **Modal spells:** you choose the modes as you cast. Only modes that have a legal target are offered, a mode can't
   be chosen twice, and "one or both" / "one or more" let you stop with "Done choosing modes" once you have enough.
-  Chosen modes happen in the order printed. If any mode isn't supported (or the card has entwine or escalate), the
-  whole card is unsupported, and the report lists the mode.
+  Chosen modes happen in the order printed. If any mode isn't supported, the whole card is unsupported, and the
+  report lists the mode.
+  - **Entwine {cost}:** offered (yes or no) when every mode has a target and the extra cost can be paid; paying it
+    does all the modes. **Escalate {cost}:** each mode beyond the first adds the cost, and a mode that would cost
+    more than the caster has isn't offered. Only mana costs are understood ("Escalate\u2014Discard a card" leaves
+    the card unsupported). Bots always entwine when they can, and keep adding modes while they can pay.
+  - **Modal triggers and abilities** ("When this creature enters, choose one \u2014", "{T}: Choose one \u2014"): the
+    modes are chosen when the ability goes on the stack, before its targets. It isn't put on the stack if no
+    mode has a legal target (and can't be activated at all). One mode that isn't understood leaves the whole
+    ability unsupported.
 - **Zones:** bounced permanents go to their owner's hand, and tokens stop existing. A commander headed for the
   hand can go to the command zone instead. Cards keep their owner: a creature you reanimate from an opponent's
   graveyard enters under your control, but goes back to their graveyard when it dies. Graveyard targets are
