@@ -82,6 +82,7 @@ KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; opti
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = "Choose a card to exile from your hand"
 ESCAPE_PROMPT = "Choose a card to exile from your graveyard"
+VOTE_PROMPT = "Vote: "  # followed by the source's name; options are the choices, or permanent labels
 WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
 COLOR_LETTERS = {name: letter for letter, name in COLOR_NAMES.items()}
@@ -1794,6 +1795,30 @@ class Game:
     def become_monarch(self, seat: Seat) -> None:
         self.monarch = seat
         self.broadcast({"event": "monarch", "seat": seat.index})
+
+    def vote(self, starter: Seat, options: list[str]) -> list[int]:
+        """Each player votes, starting with `starter` and going in turn order; the votes are public. Returns the
+        number of votes for each option."""
+        source = self.resolving_item.card.name if self.resolving_item else ""
+        counts = [0] * len(options)
+        for seat in self._turn_order(starter.index):
+            if seat.lost:
+                continue
+            choice = seat.player.choose(VOTE_PROMPT + source, options)
+            counts[choice] += 1
+            self.broadcast({"event": "vote", "seat": seat.index, "choice": options[choice]})
+        return counts
+
+    def vote_to_exile(self, starter: Seat) -> None:
+        """Council's Judgment: each player votes for a nonland permanent `starter` doesn't control; each permanent
+        with the most votes, or tied for the most, is exiled."""
+        voted = [p for seat in self.opponents(starter) for p in seat.battlefield if not is_land(p.card)]
+        if not voted:
+            return
+        counts = self.vote(starter, [self.label(p) for p in voted])
+        for permanent, count in zip(voted, counts):
+            if count == max(counts) and self.on_battlefield(permanent):
+                self.exile(permanent)
 
     def goad(self, permanent: Permanent, goader: Seat) -> None:
         permanent.goaded_by = goader

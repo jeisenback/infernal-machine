@@ -193,6 +193,9 @@ winner = game.play()
 | After this (main) phase, there is an additional combat phase (followed by an additional main phase). | Relentless Assault |
 | Untap all creatures that attacked this turn. / Untap all creatures you control. | Aggravated Assault |
 | You become the monarch. | Palace Jailer |
+| Starting with you, each player votes for X or Y. For each X vote, ... / If X gets more votes (or the vote is tied), ... | Tivit, Plea for Power |
+| Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes. | Council's Judgment |
+| Investigate. | |
 | Goad target creature. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
@@ -352,7 +355,14 @@ winner = game.play()
     and regular turn order then carries on from where it was.
   - The monarch draws a card at their end step. Combat damage dealt to the monarch by a creature makes that
     creature's controller the monarch. If the monarch loses, the active player becomes monarch. The initiative
-    and voting aren't built.
+    isn't built.
+  - **Voting:** "Starting with you, each player votes for X or Y" (and, for Council's Judgment, for a nonland
+    permanent you don't control), with the card's own outcome: "For each X vote, ..." (Tivit),
+    "If X gets more votes [or the vote is tied], ..." (Plea for Power), or "Exile each permanent with the most votes
+    or tied for most votes". The vote goes round in turn order starting with the caster, and every vote is public.
+    Only outcomes that need no target are understood, and a vote with no outcome is ignored with its card. Bots
+    vote against an opponent's permanent, and for the first word otherwise. Not built: outcomes that scale a
+    per-opponent effect ("Each opponent discards a card for each taxes vote"), since there is no discard effect yet.
   - An additional combat phase goes right after the current phase (after combat ends, if it comes from inside
     combat), with an additional main phase after it if the card says so. Cast before combat, it simply gives
     you two combats, and creatures tapped in the first can't attack in the second.
