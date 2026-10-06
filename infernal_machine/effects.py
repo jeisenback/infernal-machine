@@ -812,6 +812,35 @@ class ExtraTurn:
 
 
 @dataclass(frozen=True)
+class TargetExtraTurn:
+    """ "Target player takes an extra turn after this one." """
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.extra_turns.append(target.index)
+
+
+@dataclass(frozen=True)
+class ExtraCombat:
+    """ "After this phase, there is an additional combat phase (followed by an additional main phase)." """
+    main: bool
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.add_combat(self.main)
+
+
+@dataclass(frozen=True)
+class UntapCreatures:
+    which: str  # "attacked": the creatures that attacked this turn; "yours": every creature you control
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in controller.battlefield:
+            if "Creature" in permanent.card.type_line and (self.which == "yours" or permanent.attacked_turn == game.turn):
+                permanent.tapped = False
+
+
+@dataclass(frozen=True)
 class BecomeMonarch:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.become_monarch(controller)
@@ -1074,6 +1103,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"surveil {_N}\.", re.I), lambda m: Surveil(_count(m[1]))),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
+    (re.compile(r"target player takes an extra turn after this one\.", re.I), lambda m: TargetExtraTurn()),
+    (re.compile(r"after this (?:main )?phase, there is an additional combat phase( followed by an additional main phase)?\.",
+                re.I), lambda m: ExtraCombat(bool(m[1]))),
+    (re.compile(r"untap all creatures that attacked this turn\.", re.I), lambda m: UntapCreatures("attacked")),
+    (re.compile(r"untap all creatures you control\.", re.I), lambda m: UntapCreatures("yours")),
     (re.compile(r"goad target (creature)\.", re.I), lambda m: Goad(m[1].lower())),
     (re.compile(rf"mill {_N} cards?\.", re.I), lambda m: Mill(_count(m[1]), "you")),
     (re.compile(rf"each (opponent|player) mills {_N} cards?\.", re.I),

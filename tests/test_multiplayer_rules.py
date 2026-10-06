@@ -1,8 +1,9 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import BecomeMonarch, ExtraTurn, Goad, spell_effects
-from infernal_machine.game import CAST, Permanent
+from infernal_machine.effects import (BecomeMonarch, ExtraCombat, ExtraTurn, Goad, TargetExtraTurn, UntapCreatures,
+                                      spell_effects)
+from infernal_machine.game import CAST, STEPS, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR, creature
 from tests.test_effects import FOREST, lands, pick, table
@@ -12,6 +13,16 @@ TIME_WALK = Card(name="Time Walk", mana_cost="{1}{U}", type_line="Sorcery", orac
 ISLAND = Card(name="Island", type_line="Basic Land", produced_mana=("U",))
 PALACE = creature("Palace Jailer", 2, 2, "When CARDNAME enters, you become the monarch.")
 ROPE = Card(name="Rope", mana_cost="{1}{R}", type_line="Sorcery", oracle_text="Goad target creature.")
+RELENTLESS = Card(name="Relentless Assault", mana_cost="{2}{R}{R}", type_line="Sorcery",
+                  oracle_text="Untap all creatures that attacked this turn. After this main phase, there is an "
+                              "additional combat phase followed by an additional main phase.")
+TIME_WARP = Card(name="Time Warp", mana_cost="{3}{U}{U}", type_line="Sorcery",
+                 oracle_text="Target player takes an extra turn after this one.")
+AGGRAVATED = Card(name="Aggravated Assault", mana_cost="{2}{R}", type_line="Enchantment",
+                  oracle_text="{3}{R}{R}: Untap all creatures you control. After this main phase, there is an "
+                              "additional combat phase followed by an additional main phase. "
+                              "Activate only once each turn.")
+MOUNTAIN = Card(name="Mountain", type_line="Basic Land", produced_mana=("R",))
 ARCHERS = Card(name="Archers", mana_cost="{2}", type_line="Enchantment",
                oracle_text="Whenever a creature attacks you or a planeswalker you control, you gain 1 life.")
 
@@ -171,6 +182,79 @@ class AttackedTriggerTests(unittest.TestCase):
         card = Card(name="W", type_line="Enchantment",
                     oracle_text="Whenever a creature attacks you, put a +1/+1 counter on it.")
         self.assertEqual(len(unsupported_lines(card)), 1)
+
+
+def cast_then_attack(prompt, options):
+    """In the second main phase, cast whatever it can; attack the first opponent with everything; otherwise pass."""
+    for i, option in enumerate(options):
+        if option.startswith("Cast:") and "main2" in prompt:
+            return i
+    if options[0] == "Don't attack":
+        return 1
+    return options.index("Pass") if "Pass" in options else 0
+
+
+class ExtraCombatTests(unittest.TestCase):
+    def test_parse(self):
+        self.assertEqual(spell_effects(RELENTLESS), [UntapCreatures("attacked"), ExtraCombat(True)])
+        self.assertEqual(spell_effects(TIME_WARP), [TargetExtraTurn()])
+        for card in (RELENTLESS, TIME_WARP, AGGRAVATED):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+        self.assertEqual(spell_effects(Card(name="Seize", type_line="Sorcery", oracle_text=
+                         "After this phase, there is an additional combat phase.")), [ExtraCombat(False)])
+
+    def test_the_phases_go_after_the_current_one(self):
+        game, _, _ = table()
+        game.step, game._plan, game._plan_index = "main1", list(STEPS), STEPS.index("main1")
+        game.add_combat(True)
+        combat = STEPS[STEPS.index("beginning_of_combat"):STEPS.index("end_of_combat") + 1]
+        self.assertEqual(game._plan, STEPS[:STEPS.index("main1") + 1] + combat + ["main2"] + STEPS[STEPS.index("beginning_of_combat"):])
+
+    def test_from_inside_combat_it_waits_for_combat_to_end(self):
+        game, _, _ = table()
+        game.step, game._plan, game._plan_index = "declare_attackers", list(STEPS), STEPS.index("declare_attackers")
+        game.add_combat(False)
+        end = STEPS.index("end_of_combat")
+        self.assertEqual(game._plan[end + 1:end + 6], STEPS[STEPS.index("beginning_of_combat"):end + 1])
+        self.assertEqual(game._plan[end + 6], "main2")
+
+    def test_a_creature_attacks_again_in_the_extra_combat(self):
+        game, a, _ = self._turn(RELENTLESS)
+        attacks = [e for e in game.seats[0].player.events if e["event"] == "attack"]
+        self.assertEqual(len(attacks), 2)
+
+    def test_without_the_card_it_attacks_once(self):
+        game, a, _ = self._turn(None)
+        self.assertEqual(len([e for e in game.seats[0].player.events if e["event"] == "attack"]), 1)
+
+    def _turn(self, card):
+        game, _, _ = table(cast_then_attack)
+        a = game.seats[0]
+        a.battlefield = [Permanent(BEAR)] + lands(4, MOUNTAIN)
+        a.hand = [card] if card else []
+        game.turn = 3
+        game._take_turn(a)
+        return game, a, game.seats[1]
+
+    def test_untap_only_the_creatures_that_attacked(self):
+        game, _, _ = table()
+        a = game.seats[0]
+        attacker, idle = Permanent(BEAR, tapped=True), Permanent(BEAR, tapped=True)
+        attacker.attacked_turn = game.turn
+        UntapCreatures("attacked").resolve(game, a, None)
+        a.battlefield = [attacker, idle]
+        UntapCreatures("attacked").resolve(game, a, None)
+        self.assertEqual([p.tapped for p in a.battlefield], [False, True])
+        UntapCreatures("yours").resolve(game, a, None)
+        self.assertEqual([p.tapped for p in a.battlefield], [False, False])
+
+    def test_time_warp_gives_the_target_an_extra_turn(self):
+        game, _, _ = table(pick(CAST))
+        a = game.seats[0]
+        a.hand = [TIME_WARP]
+        a.battlefield = lands(5, ISLAND)
+        game._priority_round(a)
+        self.assertEqual(len(game.extra_turns), 1)
 
 
 if __name__ == "__main__":

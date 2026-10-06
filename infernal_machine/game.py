@@ -106,6 +106,7 @@ class Permanent:
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
+    attacked_turn: int | None = None  # the last turn it attacked
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
 
 
@@ -215,6 +216,8 @@ class Game:
         self.combat = Combat(self)
         self.pending: list[PendingTrigger] = []  # triggered, not yet on the stack
         self.extra_turns: list[int] = []  # seats that take an extra turn next; the last one asked for goes first
+        self._plan: list[str] = list(STEPS)  # the steps of the current turn, extended by extra combat phases
+        self._plan_index = 0
         self.regular = 0  # the seat whose regular turn it is (or was, during an extra turn)
         self.monarch: Seat | None = None
         self.x_value = 0  # X of the spell resolving right now
@@ -293,7 +296,11 @@ class Game:
         seat.lands_played = 0
         self.broadcast({"event": "turn", "turn": self.turn, "seat": seat.index})
         over = lambda: self.winner() is not None or seat.lost
-        for step in STEPS:
+        self._plan, index = list(STEPS), 0
+        while index < len(self._plan):
+            step = self._plan[index]
+            self._plan_index = index
+            index += 1
             if step in ("declare_blockers", "combat_damage") and not self.combat.attacks:
                 continue  # CR 508.8: no attackers, no blockers or damage steps
             if step == "combat_damage" and self.combat.has_first_strike():
@@ -336,6 +343,7 @@ class Game:
                 self.broadcast({"event": "monarch_draw", "seat": seat.index})
                 self.draw(seat, 1)
         elif self.step == "beginning_of_combat":
+            self.combat = Combat(self)
             for permanent in list(seat.battlefield):
                 self.trigger("combat", permanent, seat)
         elif self.step == "declare_attackers":
@@ -1398,6 +1406,15 @@ class Game:
         seat.library = kept + seat.library + bottom
         self.broadcast({"event": "scry", "seat": seat.index, "count": len(top)}, skip=seat)
         seat.player.notify({"event": "scry", "seat": seat.index, "count": len(top), "bottom": [c.name for c in bottom]})
+
+    def add_combat(self, main: bool) -> None:
+        """An additional combat phase (and main phase) right after the current phase (CR 500.8)."""
+        at = self._plan_index
+        if self.step in ("beginning_of_combat", "declare_attackers", "declare_blockers", "first_strike_damage",
+                         "combat_damage", "end_of_combat"):
+            at = self._plan.index("end_of_combat", at)
+        extra = ["beginning_of_combat", "declare_attackers", "declare_blockers", "combat_damage", "end_of_combat"]
+        self._plan[at + 1:at + 1] = extra + (["main2"] if main else [])
 
     def become_monarch(self, seat: Seat) -> None:
         self.monarch = seat

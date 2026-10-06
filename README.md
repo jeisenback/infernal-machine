@@ -166,7 +166,9 @@ winner = game.play()
 | Search your library for a (Plains, Island, ...) card, put it onto the battlefield (tapped), then shuffle. | Farseek, Nature's Lore |
 | Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle. | Explosive Vegetation |
 | Scry N. / Surveil N. | |
-| Take an extra turn after this one. | Time Walk |
+| Take an extra turn after this one. / Target player takes an extra turn after this one. | Time Walk, Time Warp |
+| After this (main) phase, there is an additional combat phase (followed by an additional main phase). | Relentless Assault |
+| Untap all creatures that attacked this turn. / Untap all creatures you control. | Aggravated Assault |
 | You become the monarch. | Palace Jailer |
 | Goad target creature. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
@@ -270,7 +272,10 @@ winner = game.play()
     and regular turn order then carries on from where it was.
   - The monarch draws a card at their end step. Combat damage dealt to the monarch by a creature makes that
     creature's controller the monarch. If the monarch loses, the active player becomes monarch. The initiative
-    isn't built yet.
+    and voting aren't built.
+  - An additional combat phase goes right after the current phase (after combat ends, if it comes from inside
+    combat), with an additional main phase after it if the card says so. Cast before combat, it simply gives
+    you two combats, and creatures tapped in the first can't attack in the second.
   - A goaded creature must attack each combat if able, and not the goader if another opponent can be attacked.
     It lasts until the goader's next untap step.
   - A trigger about another creature ("Whenever a creature you control attacks") that says "it" or "that

@@ -56,6 +56,7 @@ class Combat:
             if not self.game.has_keyword(permanent, "vigilance"):
                 permanent.tapped = True
             self.attacks.append(Attack(permanent, seat, defender))
+            permanent.attacked_turn = self.game.turn
             self.game.trigger("attacks", permanent, seat)
             self.game._trigger_each("ally_attacks", seat)
             self.game._trigger_each("attacked", defender)
