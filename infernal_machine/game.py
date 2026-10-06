@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      saga_chapters, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      aura_controls, saga_chapters, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -116,6 +116,9 @@ class Permanent:
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
     regeneration: int = 0  # regeneration shields, which last until end of turn
+    control_origin: "Seat | None" = None  # who controlled it before a control-change effect took it
+    control_aura: "Permanent | None" = None  # the Aura (Control Magic) that holds control of it
+    control_eot: bool = False  # control changes back at end of turn (Threaten)
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     attacked_turn: int | None = None  # the last turn it attacked
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
@@ -405,6 +408,9 @@ class Game:
                     permanent.regeneration = 0
                     if permanent.original is not None:  # a Vehicle's crew lasts until end of turn
                         permanent.card, permanent.original = permanent.original, None
+            for permanent in [p for s in self.live_seats() for p in s.battlefield]:  # control "until end of turn" ends
+                if permanent.control_eot:
+                    self._return_control(permanent)
         self._check_state()
 
     def _priority_round(self, active: Seat) -> None:
@@ -1518,6 +1524,46 @@ class Game:
         self.broadcast({"event": "modified", "card": permanent.card.name, "power": modifier.power,
                         "toughness": modifier.toughness, "keywords": sorted(modifier.keywords)})
 
+    def gain_control(self, permanent: Permanent, seat: Seat, aura: Permanent | None = None, until_eot: bool = False,
+                     untap: bool = False, haste: bool = False) -> None:
+        """`seat` takes control of `permanent` (CR 701.10): it moves to their battlefield, is summoning sick under
+        them, and leaves combat. `aura` holds control for as long as it stays attached; `until_eot` gives it back
+        at end of turn. Its owner doesn't change."""
+        current = self.controller_of(permanent)
+        if current is None:
+            return
+        if current is not seat:
+            permanent.owner = permanent.owner or current  # whose card it is doesn't change
+            current.battlefield = [p for p in current.battlefield if p is not permanent]
+            seat.battlefield.append(permanent)
+            permanent.sick = True
+            if permanent.control_origin is None:
+                permanent.control_origin = current
+            self.combat.attacks = [a for a in self.combat.attacks if a.attacker is not permanent]
+            for attack in self.combat.attacks:
+                attack.blockers = [b for b in attack.blockers if b is not permanent]
+            self.broadcast({"event": "gained_control", "seat": seat.index, "card": permanent.card.name})
+        if aura is not None:
+            permanent.control_aura = aura
+        if until_eot:
+            permanent.control_eot = True
+        if untap:
+            permanent.tapped = False
+        if haste:
+            self.modify_until_end_of_turn(permanent, Modifier(0, 0, frozenset({"haste"})))
+
+    def _return_control(self, permanent: Permanent) -> None:
+        """A control-change effect ended: `permanent` goes back to the player who controlled it before."""
+        origin, now = permanent.control_origin, self.controller_of(permanent)
+        permanent.control_origin, permanent.control_aura, permanent.control_eot = None, None, False
+        if origin is None or origin.lost or now is None or now is origin:
+            return
+        now.battlefield = [p for p in now.battlefield if p is not permanent]
+        origin.battlefield.append(permanent)
+        permanent.sick = True
+        self.combat.attacks = [a for a in self.combat.attacks if a.attacker is not permanent]
+        self.broadcast({"event": "control_returned", "seat": origin.index, "card": permanent.card.name})
+
     def proliferate(self, seat: Seat) -> None:
         """`seat` chooses any permanents with counters (or planeswalkers); each gets one more of every kind of
         counter it has."""
@@ -1853,7 +1899,15 @@ class Game:
                     if cancel:  # CR 704.5q
                         counters[PLUS] -= cancel
                         counters[MINUS] -= cancel
+                    holder = permanent.control_aura  # Control Magic let go of it: it goes back
+                    if holder is not None and (not self.on_battlefield(holder) or holder.attached_to is not permanent):
+                        self._return_control(permanent)
+                        changed = True
                     host = permanent.attached_to
+                    if host is not None and aura_controls(permanent.card) and self.on_battlefield(host) \
+                            and self.controller_of(host) is not seat:  # Control Magic takes control of its creature
+                        self.gain_control(host, seat, aura=permanent)
+                        changed = True
                     if host is not None and (not self.on_battlefield(host)
                                              or self.protected_from(host, frozenset(permanent.card.colors))):
                         permanent.attached_to = None  # CR 704.5n: Equipment stays, unattached

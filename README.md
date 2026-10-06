@@ -279,6 +279,13 @@ winner = game.play()
   an Aura goes to the graveyard. Labels show attachments ("Sword attached to Bear (seat 0, #1)").
   "Can't attack or block" is supported through Auras. Other equip costs (like "Equip legendary creature {3}")
   and Auras on lands with special abilities aren't supported yet.
+- **Control change:** "Gain control of target creature." (permanent), "Gain control of target creature until end of turn.
+  Untap that creature. It gains haste until end of turn." (Threaten), and Control Magic ("Enchant creature. You
+  control enchanted creature."). The permanent moves to the new controller's battlefield, is summoning sick for
+  them (haste fixes that), and leaves combat. Its owner doesn't change, so it goes to its owner's graveyard if it
+  dies. Threaten's effect ends in the cleanup step; Control Magic's ends as soon as the Aura stops being
+  attached or leaves, and the creature goes back to whoever controlled it before. A lone "Untap that creature."
+  isn't understood. Bots aim Control Magic at an opponent's creature.
 - **Vehicles:** "Crew N" is an ability at instant speed: tap untapped creatures you control, one at a time, until their
   total power is N or more (summoning-sick creatures can crew, the Vehicle can't crew itself). Until end of turn the
   Vehicle is an artifact creature, with its printed power and toughness, so it can attack (not the turn it arrived)
