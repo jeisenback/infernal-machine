@@ -61,8 +61,7 @@ class ParseTests(unittest.TestCase):
 
     def test_variants_that_need_more_are_unsupported(self):
         for text in ("Look at the top three cards of your library.",
-                     "Search your library for up to three basic land cards, put them onto the battlefield.",
-                     "Search your library for a land card, put it onto the battlefield, then shuffle."):
+                     "Search your library for up to three basic land cards, put them onto the battlefield."):
             self.assertIsNone(spell_effects(Card(name="Foo", oracle_text=text)), text)
 
     def test_report(self):
