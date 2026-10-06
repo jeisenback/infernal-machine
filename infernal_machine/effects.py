@@ -1544,12 +1544,17 @@ class ActivatedAbility:
     loyalty: int | None = None  # planeswalker loyalty change: +1, -2, 0
     sorcery_speed: bool = False  # "Activate only as a sorcery." (loyalty abilities always)
     once_per_turn: bool = False  # "Activate only once each turn."
+    sacrifice_other: str | None = None  # "Sacrifice a creature": the kind ("creature", "artifact or creature", ...)
+    sacrifice_another: bool = False  # "Sacrifice another creature": not the source itself
+    discard: bool = False  # "Discard a card"
+    exile_graveyard: bool = False  # "Exile a card from your graveyard"
 
 
 _ACTIVATED = re.compile(r"([^:\"]+): (.+)")
 _MANA_PART = re.compile(r"(\{(?:\d+|[WUBRGC]|[WUBRGC]/[WUBRGCP])\})+")
 _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?) (creature|artifact|land|enchantment|permanent|artifact or creature)")
 _LOYALTY = re.compile(r"([+\u2212-]?)(\d+)")
 _SORCERY_ONLY = "Activate only as a sorcery."
 _ONCE_EACH_TURN = "Activate only once each turn."
@@ -1589,6 +1594,12 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
                 fields["sacrifice"] = True
             elif (m := _PAY_LIFE.fullmatch(part)) and m[1] != "X":
                 fields["life"] = _count(m[1])
+            elif m := _SACRIFICE_OTHER.fullmatch(part):
+                fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another")
+            elif part == "Discard a card":
+                fields["discard"] = True
+            elif part == "Exile a card from your graveyard":
+                fields["exile_graveyard"] = True
             else:
                 return None
     sentences = _split_sentences(effect)
