@@ -22,7 +22,7 @@ from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
-                      Amount, Condition, TriggeredAbility, WardCounter,
+                      Amount, Condition, MassFilter, TriggeredAbility, WardCounter,
                       activated_abilities, additional_costs, alternative_costs, cost_reductions, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, is_identity_mana_land, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
@@ -1217,16 +1217,34 @@ class Game:
             return
         self._leave_battlefield(permanent, "destroyed")
 
-    def mass_targets(self, kind: str, caster: Seat) -> list[Permanent]:
+    def mass_targets(self, kind: str, caster: Seat, restriction: MassFilter | None = None) -> list[Permanent]:
         """Every permanent an "all"/"each" effect of `kind` affects, e.g. "creature",
-        "artifact or enchantment", "creature you don't control". Nothing is targeted."""
+        "artifact or enchantment", "creature you don't control", narrowed by a restriction such as
+        "with flying". Nothing is targeted."""
         kind, controller = _split_controller(kind)
         found: list[Permanent] = []
         for seat in self.live_seats():
             if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
                 continue
-            found += [p for p in seat.battlefield if _permanent_matches(kind, p.card)]
+            found += [p for p in seat.battlefield
+                      if _permanent_matches(kind, p.card) and self._passes(p, restriction)]
         return found
+
+    def _passes(self, permanent: Permanent, restriction: MassFilter | None) -> bool:
+        if restriction is None:
+            return True
+        if restriction.keyword and self.has_keyword(permanent, restriction.keyword) != restriction.keyword_wanted:
+            return False
+        if restriction.stat:
+            value = self.power(permanent) if restriction.stat == "power" else self.toughness(permanent)
+            if value is None or "Creature" not in permanent.card.type_line:
+                return False
+            if (restriction.at_least is not None and value < restriction.at_least) or \
+                    (restriction.at_most is not None and value > restriction.at_most):
+                return False
+        if restriction.color and (restriction.color in permanent.card.colors) == restriction.other_color:
+            return False
+        return True
 
     def destroy_all(self, permanents: list[Permanent]) -> None:
         """Destroy them all at once; indestructible ones survive."""
@@ -1290,12 +1308,13 @@ class Game:
                         **({"card": found.name} if reveal else {})}, skip=seat)
         seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": to, "card": found.name})
 
-    def sacrifice(self, seat: Seat) -> None:
-        """`seat` chooses one of its creatures and sacrifices it; it dies (no targeting, so
-        hexproof and indestructible don't help)."""
-        creatures = [p for p in seat.battlefield if "Creature" in p.card.type_line]
-        if creatures:
-            choice = creatures[seat.player.choose(SACRIFICE_PROMPT, [self.label(p) for p in creatures])]
+    def sacrifice(self, seat: Seat, kind: str = "creature") -> None:
+        """`seat` chooses one of its permanents of `kind` (a creature, artifact, land, ...) and sacrifices it
+        (no targeting, so hexproof and indestructible don't help)."""
+        options = [p for p in seat.battlefield if _permanent_matches(kind, p.card)]
+        if options:
+            prompt = SACRIFICE_PROMPT if kind == "creature" else f"Choose a {kind} to sacrifice"
+            choice = options[seat.player.choose(prompt, [self.label(p) for p in options])]
             self._leave_together([(choice, "sacrificed")])
 
     # --- characteristics -----------------------------------------------------

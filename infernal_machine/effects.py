@@ -669,20 +669,35 @@ def _create(m: re.Match, follows: bool) -> Any:
 
 
 @dataclass(frozen=True)
+class MassFilter:
+    """Which of the permanents of an "all"/"each" effect are affected: "with flying", "without flying",
+    "with power 4 or greater", "nonblack"."""
+    keyword: str | None = None
+    keyword_wanted: bool = True  # False: "without flying"
+    stat: str | None = None  # "power" or "toughness"
+    at_least: int | None = None  # "with power 4 or greater"
+    at_most: int | None = None  # "with toughness 2 or less"
+    color: str | None = None  # a color letter
+    other_color: bool = False  # "nonblack": every one that isn't that color
+
+
+@dataclass(frozen=True)
 class DestroyAll:
     """ "Destroy all creatures." Indestructible permanents survive; they all die together."""
     kind: str  # "creature", "artifact or enchantment", "creature you don't control", ...
+    restriction: MassFilter | None = None  # "... with flying"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.destroy_all(game.mass_targets(self.kind, controller))
+        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction))
 
 
 @dataclass(frozen=True)
 class ExileAll:
     kind: str
+    restriction: MassFilter | None = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_all(game.mass_targets(self.kind, controller))
+        game.exile_all(game.mass_targets(self.kind, controller, self.restriction))
 
 
 @dataclass(frozen=True)
@@ -699,12 +714,13 @@ class DamageEach:
     amount: int | str
     creatures: str | None  # None, "all", or "opponents" (only creatures you don't control)
     players: str | None  # None, "opponents" or "all"
+    restriction: MassFilter | None = None  # "each creature with flying"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         amount = game.amount(self.amount)
         if self.creatures:
             kind = "creature" if self.creatures == "all" else "creature you don't control"
-            for permanent in game.mass_targets(kind, controller):
+            for permanent in game.mass_targets(kind, controller, self.restriction):
                 game.damage(permanent, amount)
         if self.players:
             for seat in (game.live_seats() if self.players == "all" else game.opponents(controller)):
@@ -760,23 +776,25 @@ class SacrificeCreature:
 
 @dataclass(frozen=True)
 class EachSacrifices:
-    """ "Each opponent sacrifices a creature." / "Each player sacrifices a creature." """
+    """ "Each opponent sacrifices a creature." / "Each player sacrifices a land." """
     who: str  # "opponent" or "player"
+    kind: str = "creature"  # "creature", "artifact", "enchantment", "land" or "permanent"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for seat in game.turn_order_from_active():
             if self.who == "player" or seat is not controller:
-                game.sacrifice(seat)
+                game.sacrifice(seat, self.kind)
 
 
 @dataclass(frozen=True)
 class TargetSacrifices:
     """ "Target player sacrifices a creature." (target is "player" or "opponent") """
     target: str
+    kind: str = "creature"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.sacrifice(target)
+            game.sacrifice(target, self.kind)
 
 
 _MASS_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments": "enchantment",
@@ -791,16 +809,52 @@ def _mass_kind(m: re.Match) -> str:
     return _MASS_KINDS[m[1].lower()] + (m[2] or "")
 
 
-def _damage_each(m: re.Match) -> DamageEach:
+_SACRIFICE_KIND = r"(creature|artifact|enchantment|land|permanent)"
+_MASS_KEYWORDS = (r"(?:flying|reach|trample|haste|vigilance|menace|deathtouch|lifelink|first strike|double strike"
+                  r"|defender|indestructible|hexproof)")
+_RESTRICTION = rf"(with (?:power|toughness) \d+ or (?:greater|less)|with {_MASS_KEYWORDS}|without {_MASS_KEYWORDS})"
+_COLOR_ADJECTIVE = r"(?:(non)?(white|blue|black|red|green) )?"
+_STAT_RESTRICTION = re.compile(r"with (power|toughness) (\d+) or (greater|less)")
+
+
+# The same, with an optional color adjective before and "with flying" etc. after (destroy and exile only).
+_MASS_NOUN = (r"(artifacts and enchantments|creatures and planeswalkers|nonland permanents|creatures|artifacts"
+              r"|enchantments|planeswalkers|lands)")
+_MASS_FILTERED = rf"{_COLOR_ADJECTIVE}{_MASS_NOUN}(?: {_RESTRICTION})?( you don't control| you control| an opponent controls)?"
+
+
+def _mass_effect(cls: type, m: re.Match) -> Any:
+    kind = _MASS_KINDS[m[3].lower()] + (m[5] or "")
+    return cls(kind, _mass_filter(m[1], m[2], m[4]))
+
+
+
+
+def _mass_filter(non: str | None, color: str | None, restriction: str | None) -> MassFilter | None:
+    """The filter for an optional color adjective ("nonblack") and an optional "with ..." / "without ..." phrase."""
+    fields: dict[str, Any] = {}
+    if color:
+        fields.update(color=_COLOR_WORDS[color.lower()], other_color=bool(non))
+    if restriction:
+        if m := _STAT_RESTRICTION.fullmatch(restriction.lower()):
+            fields.update(stat=m[1], **{"at_least" if m[3] == "greater" else "at_most": int(m[2])})
+        else:
+            fields.update(keyword=restriction.lower().split(" ", 1)[1], keyword_wanted=restriction.lower().startswith("with "))
+    return MassFilter(**fields) if fields else None
+
+
+def _damage_each(m: re.Match) -> DamageEach | None:
     creatures = players = None
-    for part in (m[2].lower(), (m[3] or "").lower()):
+    if m[3] and not m[2].lower().startswith("creature"):
+        return None  # "each opponent with flying" isn't a thing
+    for part in (m[2].lower(), (m[4] or "").lower()):
         if part == "creature":
             creatures = "all"
         elif part == "creature you don't control":
             creatures = "opponents"
         elif part:
             players = "all" if part == "player" else "opponents"
-    return DamageEach(_count(m[1]), creatures, players)
+    return DamageEach(_count(m[1]), creatures, players, _mass_filter(None, None, m[3]))
 
 
 @dataclass(frozen=True)
@@ -1195,15 +1249,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Mill(_count(m[2]), "each " + m[1].lower())),
     (re.compile(rf"target (player|opponent) mills {_N} cards?\.", re.I),
      lambda m: TargetMill(_count(m[2]), m[1].lower())),
-    (re.compile(rf"destroy all {_MASS}\.", re.I), lambda m: DestroyAll(_mass_kind(m))),
+    (re.compile(rf"destroy all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(DestroyAll, m)),
     (re.compile(r"they can't be regenerated\.", re.I), lambda m: CannotRegenerate()),
-    (re.compile(rf"exile all {_MASS}\.", re.I), lambda m: ExileAll(_mass_kind(m))),
+    (re.compile(rf"exile all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(ExileAll, m)),
     (re.compile(rf"{_SELF} deals {_N} damage to each (creature you don't control|creature|opponent|player)"
-                r"(?: and each (opponent|player))?\.", re.I), _damage_each),
-    (re.compile(r"each (opponent|player) sacrifices a creature\.", re.I), lambda m: EachSacrifices(m[1].lower())),
+                rf"(?: {_RESTRICTION})?(?: and each (opponent|player))?\.", re.I), _damage_each),
+    (re.compile(rf"each (opponent|player) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
+     lambda m: EachSacrifices(m[1].lower(), m[2].lower())),
     (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),
     (re.compile(r"Let X be (.+)\."), lambda m: DefineX(a) if (a := _amount(m[1])) else None),
-    (re.compile(r"target (player|opponent) sacrifices a creature\.", re.I), lambda m: TargetSacrifices(m[1].lower())),
+    (re.compile(rf"target (player|opponent) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
+     lambda m: TargetSacrifices(m[1].lower(), m[2].lower())),
     (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
     (re.compile(rf"put {_N} {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
