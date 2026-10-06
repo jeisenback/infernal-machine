@@ -201,6 +201,9 @@ winner = game.play()
 | Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes. | Council's Judgment |
 | Investigate. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
+| Discard N cards (at random). / Discard your hand. / Target player (or opponent) discards N cards (at random). / Each opponent (or player) discards N cards or their hand. | Mind Rot, Hymn to Tourach, Windfall |
+| Draw N cards, then discard N cards. / Each player discards their hand, then draws N cards. / Each player draws N cards. | Faithless Looting, Wheel of Fortune |
+| Target player reveals their hand. You choose a (nonland / noncreature, nonland / ... with mana value N or less) card from it. That player discards that card. | Thoughtseize, Duress, Inquisition of Kozilek |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
 | Equipped creature gets +N/+N and has keywords. / Enchanted creature gets +N/+N and has keywords. | |
 | Enchant creature / land / ... (Auras) | |
@@ -390,6 +393,14 @@ winner = game.play()
   each on top or put it on the bottom (scry) or into the graveyard (surveil). When two or more stay on top the
   player is asked which goes on top next (bots keep the order). Only the scrying player sees the cards. Surveil's graveyard cards are public. Milling
   more cards than the library holds just mills what's there, and the player loses on their next draw.
+- **Discard:** the player discards the cards they choose, unless it says "at random" (then nobody is asked) or
+  "their hand" (all of it goes, in order, and nobody is asked). Discarding more cards than the hand holds just
+  empties it, and every discard is public. Thoughtseize-style effects reveal the hand to everyone, then the
+  caster picks from the cards that fit ("nonland", "noncreature, nonland", "mana value 3 or less"); if none fit,
+  the hand is only revealed. The three sentences are understood only together. Bots discard their worst card
+  (a land if more than half the hand is lands, otherwise the most expensive spell), and take the most expensive
+  card they can see; cards from an opponent's hand they don't know count as worth nothing. Not understood: "Discard
+  a card, then ..." followed by anything but a draw, "whenever you discard", madness, and discarding "that many".
 - **Look at the top N (impulse effects):** "Look at the top four cards of your library. Put one of them into
   your hand and the rest on the bottom of your library in any order." and "Look at the top five cards... You may
   reveal a creature card from among them and put it into your hand. Put the rest on the bottom..." are understood
