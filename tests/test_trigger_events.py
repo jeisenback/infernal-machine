@@ -158,8 +158,8 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(unsupported_lines(watcher("W", text)), [], text)
 
     def test_still_unsupported(self):
-        for text in ("Whenever you draw your second card each turn, draw a card.",
-                     "Whenever a creature you control attacks, put a +1/+1 counter on it."):
+        for text in ("Whenever you draw your third card each turn, draw a card.",
+                     "Whenever a creature you control attacks, it and target creature gain flying."):
             self.assertEqual(unsupported_lines(watcher("W", text)), [text], text)
 
 

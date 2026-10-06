@@ -278,8 +278,6 @@ winner = game.play()
     you two combats, and creatures tapped in the first can't attack in the second.
   - A goaded creature must attack each combat if able, and not the goader if another opponent can be attacked.
     It lasts until the goader's next untap step.
-  - A trigger about another creature ("Whenever a creature you control attacks") that says "it" or "that
-    creature" is ignored, because the engine can't point at the attacker yet.
 - **Scry, surveil and mill:** scrying and surveilling look at the top cards one at a time and choose to keep
   each on top or put it on the bottom (scry) or into the graveyard (surveil). Cards kept on top stay in
   their original order. Only the scrying player sees the cards. Surveil's graveyard cards are public. Milling
@@ -311,7 +309,9 @@ winner = game.play()
   | When this creature enters or dies, ... (also "attacks or blocks"; one ability per event) | |
   | Whenever a creature you control attacks, ... (once per attacker) | |
   | Whenever you draw a card, ... (once per card; the opening hand doesn't count) | |
-  | Whenever an opponent draws a card / gains life, ... | |
+  | Whenever an opponent draws a card / gains life / loses life, ... | Sheoldred, the Apocalypse |
+  | Whenever you draw your second card each turn, ... | |
+  | Whenever an opponent sacrifices a creature, ... | |
   | Whenever this creature deals combat damage to a player, ... | |
   | At the beginning of your upkeep / end step, ... | |
   | At the beginning of each upkeep / each end step, ... (every player's turn) | Tendershoot Dryad |
@@ -349,7 +349,11 @@ winner = game.play()
   - Paying life counts as losing it. A creature that's sacrificed sees itself go
     ("Whenever you sacrifice a creature" on the creature itself triggers).
   - A trigger whose effect isn't understood is ignored.
-  - In "Whenever another creature (you control) enters / dies" triggers, "it" and "that creature" mean that creature ("put a +1/+1 counter on it"), but only when every effect is about "it". In other watching triggers a line that says "it" is ignored.
+  - In triggers about another creature (enters, dies, attacks, attacks you, deals combat damage), "it" and
+    "that creature" mean that creature ("put a +1/+1 counter on it"), but only when every effect is about "it".
+  - In triggers about another player (an opponent draws, gains or loses life, or casts a spell), "that player"
+    and "they" mean that player ("they lose 2 life", "deals 2 damage to that player"), but only for effects that
+    target a player. Anywhere else a line that says "it", "they" or "that player" is ignored.
   - Ability words like "Landfall —" are ignored when reading the trigger. A creature that dies still sees
     its own death ("Whenever this creature or another creature dies").
 - **Activated abilities on permanents:** these also use the same effect list.

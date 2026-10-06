@@ -58,8 +58,8 @@ class Combat:
             self.attacks.append(Attack(permanent, seat, defender))
             permanent.attacked_turn = self.game.turn
             self.game.trigger("attacks", permanent, seat)
-            self.game._trigger_each("ally_attacks", seat)
-            self.game._trigger_each("attacked", defender)
+            self.game._trigger_each("ally_attacks", seat, subject=permanent)
+            self.game._trigger_each("attacked", defender, subject=permanent)
             for owner in self.game.live_seats():  # "Whenever equipped / enchanted creature attacks"
                 for attachment in list(owner.battlefield):
                     if attachment.attached_to is permanent:

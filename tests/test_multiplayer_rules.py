@@ -178,10 +178,6 @@ class AttackedTriggerTests(unittest.TestCase):
         game._priority_round(a)
         self.assertEqual(b.life, 42)
 
-    def test_it_means_the_attacker_which_is_not_supported(self):
-        card = Card(name="W", type_line="Enchantment",
-                    oracle_text="Whenever a creature attacks you, put a +1/+1 counter on it.")
-        self.assertEqual(len(unsupported_lines(card)), 1)
 
 
 def cast_then_attack(prompt, options):

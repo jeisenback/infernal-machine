@@ -73,6 +73,11 @@ def uses_subject(effect: Any) -> bool:
     return getattr(effect, "uses_subject", False)
 
 
+def uses_player(effect: Any) -> bool:
+    """Whether an effect acts on the player who set off a watching trigger ("... that player loses 2 life")."""
+    return getattr(effect, "uses_player", False)
+
+
 def follows_target(effect: Any) -> bool:
     """Whether an effect acts on the previous effect's target ("Its controller gains life ...")."""
     return getattr(effect, "follows_target", False)
@@ -275,6 +280,16 @@ class OnSubject:
     """A watching trigger's effect on "it": the permanent that set it off, not the ability's source."""
     inner: Any
     uses_subject = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        self.inner.resolve(game, controller, target)
+
+
+@dataclass(frozen=True)
+class OnPlayer:
+    """A trigger's effect on "that player" / "they": the player whose action set it off."""
+    inner: Any
+    uses_player = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         self.inner.resolve(game, controller, target)
@@ -1290,6 +1305,9 @@ _TRIGGERS = {
     "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
     "opponent_gain_life": re.compile(r"Whenever an opponent gains life, (.+)", re.I),
+    "opponent_lose_life": re.compile(r"Whenever an opponent loses life, (.+)", re.I),
+    "opponent_sacrifice_creature": re.compile(r"Whenever an opponent sacrifices a creature, (.+)", re.I),
+    "second_draw": re.compile(r"Whenever you draw your second card each turn, (.+)", re.I),
     "combat_damage_to_player": re.compile(rf"Whenever {_SELF} deals combat damage to a player, (.+)", re.I),
     "upkeep": re.compile(r"At the beginning of your upkeep, (.+)", re.I),
     "end_step": re.compile(r"At the beginning of your end step, (.+)", re.I),
@@ -1339,8 +1357,16 @@ _WATCHES = {
 }
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
-# Triggers about some other creature: "it" and "that creature" there don't mean the source, which isn't supported.
+# Triggers about some other creature: there "it" and "that creature" mean that creature, not the source.
 _OBJECT_EVENTS = {"ally_attacks", "attacked", "ally_combat_damage", "token_combat_damage"}
+# Triggers about what some other player did: there "that player" and "they" mean that player.
+_PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life"}
+_THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
+_PLAYER_PRONOUNS = [
+    (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
+    (re.compile(r"\bthat player (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
+    (re.compile(r"\bto that player\b", re.I), "to target player"),
+]
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
 
 
@@ -1401,22 +1427,42 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
     return _parse(_split_sentences(rest[:1].upper() + rest[1:])), optional, once, condition
 
 
+def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | None, bool, bool, Condition | None]:
+    """Like _trigger_body for a trigger about another object or player. "It" means the permanent that set it off
+    (only if every effect is about "it"), "that player" / "they" the player who did it (only for effects that
+    target a player); where neither can be pointed at, the line isn't understood."""
+    rest = _THAT_CREATURE.sub("it", rest)
+    about_player = False
+    if player_ok:
+        replaced = rest
+        for pattern, replacement in _PLAYER_PRONOUNS:
+            replaced = pattern.sub(replacement, replaced)
+        about_player, rest = replaced != rest, replaced
+    about_subject = re.search(r"\bit\b|\bthat spell\b", rest, re.I) is not None
+    if about_subject and not subject_ok:
+        return None, False, False, None
+    effects, optional, once, condition = _trigger_body(rest)
+    if effects is None:
+        return None, False, False, None
+    if about_player:
+        if not all(getattr(e, "target", None) in ("player", "opponent", "any") for e in effects):
+            return None, False, False, None
+        effects = [OnPlayer(e) for e in effects]
+    elif about_subject:
+        if not all(uses_source(e) for e in effects):
+            return None, False, False, None
+        effects = [OnSubject(e) for e in effects]
+    return effects, optional, once, condition
+
+
 def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
     abilities = []
     for line in _rules_text(card).splitlines():
         line = line.strip()
         if watched := _watch_trigger(line):
             event, watch, rest = watched
-            rest = re.sub(r"\bthat (creature|land)\b", "it", rest, flags=re.I)
-            about_subject = re.search(r"\bit\b|\bthat spell\b", rest, re.I)
-            if about_subject and event not in _SUBJECT_EVENTS:
-                continue  # "it" would mean something we can't point at
-            effects, optional, once, condition = _trigger_body(rest)
-            if effects is not None and about_subject:
-                # "it" is the permanent that set this off, not the source: only effects that are all about "it".
-                if not all(uses_source(e) for e in effects):
-                    continue
-                effects = [OnSubject(e) for e in effects]
+            effects, optional, once, condition = _event_body(
+                rest, event in _SUBJECT_EVENTS, event == "cast" and watch.caster != "you")
             if effects is not None:
                 abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch, once, condition))
             continue
@@ -1432,9 +1478,11 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
             match = pattern.fullmatch(line)
             if not match:
                 continue
-            if event in _OBJECT_EVENTS and re.search(r"\bit\b|\bthat creature\b", match[1], re.I):
-                break
-            effects, optional, once, condition = _trigger_body(match[1])
+            if event in _OBJECT_EVENTS or event in _PLAYER_EVENTS:
+                effects, optional, once, condition = _event_body(match[1], event in _OBJECT_EVENTS,
+                                                                 event in _PLAYER_EVENTS)
+            else:
+                effects, optional, once, condition = _trigger_body(match[1])
             if effects is not None:
                 abilities.append(TriggeredAbility(event, tuple(effects), optional, line, once_per_turn=once,
                                                   condition=condition))
