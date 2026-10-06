@@ -112,6 +112,7 @@ class Permanent:
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
+    regeneration: int = 0  # regeneration shields, which last until end of turn
     attacked_turn: int | None = None  # the last turn it attacked
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
 
@@ -389,6 +390,7 @@ class Game:
                     permanent.damage = 0
                     permanent.deathtouched = False
                     permanent.until_end_of_turn = []  # CR 514.2
+                    permanent.regeneration = 0
         self._check_state()
 
     def _priority_round(self, active: Seat) -> None:
@@ -1306,10 +1308,32 @@ class Game:
         if controller and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
 
-    def destroy(self, permanent: Permanent) -> None:
+    def destroy(self, permanent: Permanent, no_regen: bool = False) -> None:
         if self.has_keyword(permanent, "indestructible"):
             return
+        if not no_regen and self._regenerated(permanent):
+            return
         self._leave_battlefield(permanent, "destroyed")
+
+    def regenerate(self, permanent: Permanent) -> None:
+        """Give `permanent` a regeneration shield until end of turn."""
+        permanent.regeneration += 1
+        self.broadcast({"event": "regeneration_shield", "card": permanent.card.name})
+
+    def _regenerated(self, permanent: Permanent) -> bool:
+        """Use up a regeneration shield, if it has one, instead of letting `permanent` be destroyed: it taps,
+        loses all damage and is removed from combat (CR 701.15)."""
+        if permanent.regeneration <= 0:
+            return False
+        permanent.regeneration -= 1
+        permanent.tapped = True
+        permanent.damage = 0
+        permanent.deathtouched = False
+        self.combat.attacks = [a for a in self.combat.attacks if a.attacker is not permanent]
+        for attack in self.combat.attacks:
+            attack.blockers = [b for b in attack.blockers if b is not permanent]
+        self.broadcast({"event": "regenerated", "card": permanent.card.name})
+        return True
 
     def mass_targets(self, kind: str, caster: Seat, restriction: MassFilter | None = None) -> list[Permanent]:
         """Every permanent an "all"/"each" effect of `kind` affects, e.g. "creature",
@@ -1340,9 +1364,12 @@ class Game:
             return False
         return True
 
-    def destroy_all(self, permanents: list[Permanent]) -> None:
-        """Destroy them all at once; indestructible ones survive."""
-        self._leave_together([(p, "destroyed") for p in permanents if not self.has_keyword(p, "indestructible")])
+    def destroy_all(self, permanents: list[Permanent], no_regen: bool = False) -> None:
+        """Destroy them all at once; indestructible ones survive, and so do ones with a regeneration shield
+        unless they "can't be regenerated"."""
+        doomed = [p for p in permanents if not self.has_keyword(p, "indestructible")
+                  and (no_regen or not self._regenerated(p))]
+        self._leave_together([(p, "destroyed") for p in doomed])
 
     def exile_all(self, permanents: list[Permanent]) -> None:
         self._leave_together([(p, "exiled") for p in permanents], destination="exile")
@@ -1751,7 +1778,8 @@ class Game:
                         dying.append((permanent, "died"))
                     elif (creature and (permanent.damage >= current or permanent.deathtouched)
                           and not self.has_keyword(permanent, "indestructible")):
-                        dying.append((permanent, "destroyed"))
+                        if not self._regenerated(permanent):
+                            dying.append((permanent, "destroyed"))
             if dying:  # all at once (CR 704.3)
                 self._leave_together(dying)
                 changed = True
