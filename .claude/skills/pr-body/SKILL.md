@@ -31,6 +31,6 @@ Rules:
 - **Closes only when the issue is whole.** If any listed item is left, write "Part of #N" and say what remains.
 - **Numbers are real.** Quote the counts from the last run on this commit. If a step was skipped (no bot games, no mutation checks), say so. Do not write "all tests pass" without a count.
 - **Name the bugs the tests caught** and any behaviour change to existing play.
-- **Texts from memory.** List the cards whose text was not checked against Scryfall.
+- **Texts from memory.** List the cards whose text was not checked against Scryfall, and say they are logged in #50.
 - **Merge notes.** Run `git branch -r` and the GitHub tools to list open PRs. Name the usual hotspots if touched: the `_parse` return line, the template list and trigger loop in `effects.py`, the `become_monarch` area in `game.py`, and the README support list.
 - End with the attribution lines the session gives. No emojis.
