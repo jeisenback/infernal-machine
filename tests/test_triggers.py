@@ -33,7 +33,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(triggered_abilities(OMNATH)[0].effects, (Draw(1),))  # short legendary name
 
     def test_unsupported_effects_are_left_out(self):
-        card = Card(name="x", oracle_text="When this creature enters, proliferate.")
+        card = Card(name="x", oracle_text="When this creature enters, venture into the dungeon.")
         self.assertEqual(triggered_abilities(card), ())
 
 
