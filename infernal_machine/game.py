@@ -484,6 +484,7 @@ class Game:
         sorcery_timing = seat.index == self.active and self.step in ("main1", "main2") and not self.stack
         if sorcery_timing and seat.lands_played < 1:
             actions += [PLAY_LAND + c.name for c in _unique(seat.hand) if is_land(c)]
+            actions += [PLAY_LAND + c.back.name for c in _unique(seat.hand) if c.back]  # a Pathway's other face
         for card in _unique(seat.hand):
             if not is_land(card) and (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card):
                 actions.append(CAST + card.name)
@@ -861,7 +862,8 @@ class Game:
 
     def _perform(self, seat: Seat, action: str) -> None:
         if action.startswith(PLAY_LAND):
-            card = _take(seat.hand, action.removeprefix(PLAY_LAND))
+            name = action.removeprefix(PLAY_LAND)
+            card = _take_face(seat.hand, name)
             self._enter(seat, Permanent(card, sick=True))  # a land that becomes a creature can't attack the turn it came in
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name})
@@ -2646,6 +2648,13 @@ def _take(cards: list[Card], name: str) -> Card:
     card = next(c for c in cards if c.name == name)
     cards.remove(card)
     return card
+
+
+def _take_face(cards: list[Card], name: str) -> Card:
+    """The card named `name` leaves the list; if it is the back face of a double-faced card, that face comes out."""
+    card = next(c for c in cards if c.name == name or (c.back and c.back.name == name))
+    cards.remove(card)
+    return card.back if card.back and card.back.name == name else card
 
 
 def _unique(cards: list[Card]) -> list[Card]:
