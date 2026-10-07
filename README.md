@@ -186,7 +186,9 @@ winner = game.play()
 | Return target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation |
 | Return target (creature) card from your graveyard to your hand / to the battlefield. | Raise Dead, Zombify |
 | Put target creature card from a graveyard onto the battlefield under your control. | Reanimate |
-| Search your library for a (creature) card, (reveal it,) put it into your hand, then shuffle. | Demonic Tutor |
+| Search your library for a (creature / legendary creature / Aura / Equipment / nonbasic land) card (with mana value N or less), (reveal it,) put it into your hand, then shuffle. | Demonic Tutor, Stoneforge-style |
+| Search your library for a nonbasic land card / up to two Forest cards, put it onto the battlefield (tapped), then shuffle. | Skyshroud Claim |
+| Return target creature card from your graveyard to the battlefield tapped. | |
 | Search your library for a card, then shuffle and put that card on top. | Vampiric Tutor |
 | You lose N life. | |
 | Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle. | Cultivate, Kodama's Reach |
@@ -483,6 +485,14 @@ winner = game.play()
   ("Return target creature card with mana value 2 or less from your graveyard to your hand"); only the cards that
   match are offered. "A land card" can go onto the battlefield (any land, not just a basic). Reanimate's "You lose
   life equal to its mana value" follows the card it put onto the battlefield.
+  The kind can also be "legendary" or "legendary creature", "nonbasic land", or a subtype: "Aura", "Equipment",
+  "Vehicle", "Saga" ("an Equipment card with mana value 2 or less"). The same kinds work for cards in a
+  graveyard ("Return target legendary creature card from your graveyard to your hand"). "Return ... to the
+  battlefield tapped" is supported. Land searches also cover "a nonbasic land card" and "up to two Forest (or
+  Mountain or Forest) cards" onto the battlefield, tapped or not. "Your opponents control" works in "Return all
+  creatures your opponents control to their owners' hands" and in destroy and exile all. Still missing: choosing
+  several targets at once ("Return up to two target creatures"), "target creature token", tribal tutors
+  ("Elf card") and any card type not listed.
 - **Targets:** "another target ..." (bounce, destroy, exile) can't be the source itself, and "up to one target ..."
   (bounce) adds a "No target" choice at the end of the list; the spell can be cast even when there is nothing to
   target. Bots take a real target when there is one.

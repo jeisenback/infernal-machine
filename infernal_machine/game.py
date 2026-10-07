@@ -1586,7 +1586,7 @@ class Game:
     def return_all_to_hand(self, permanents: list[Permanent]) -> None:
         self._leave_together([(p, "returned") for p in permanents], destination="hand")
 
-    def return_from_graveyard(self, target: GraveyardTarget, controller: Seat, to: str) -> None:
+    def return_from_graveyard(self, target: GraveyardTarget, controller: Seat, to: str, tapped: bool = False) -> None:
         """Move a card out of a graveyard to its owner's hand, or onto the battlefield under
         `controller`'s control (it stays its owner's card)."""
         seat, card = target.seat, target.card
@@ -1598,7 +1598,7 @@ class Game:
         if to == "hand":
             seat.hand.append(card)
         else:
-            self._enter(controller, Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=seat))
+            self._enter(controller, Permanent(card, sick=True, tapped=tapped, loyalty=_starting_loyalty(card), owner=seat))
 
     def exile_from_graveyard(self, target: GraveyardTarget) -> None:
         seat, card = target.seat, target.card
@@ -2434,6 +2434,8 @@ def _is_searched_land(card: Card, subtypes: tuple[str, ...]) -> bool:
         return "Basic" in card.type_line
     if subtypes == ("*",):  # "a land card"
         return True
+    if subtypes == ("nonbasic",):  # "a nonbasic land card"
+        return "Basic" not in card.type_line
     return any(sub in card.type_line for sub in subtypes)
 
 
@@ -2457,6 +2459,10 @@ def _card_matches(kind: str, card: Card) -> bool:
         return _is_permanent(card)
     if kind == "basic land":
         return "Basic" in card.type_line and "Land" in card.type_line
+    if kind == "nonbasic land":
+        return "Basic" not in card.type_line and "Land" in card.type_line
+    if kind.startswith("legendary"):  # "legendary creature": legendary, and the rest of the kind
+        return "Legendary" in card.type_line and _card_matches(kind.removeprefix("legendary").strip() or "card", card)
     return any(t.capitalize() in card.type_line for t in kind.split(" or "))
 
 

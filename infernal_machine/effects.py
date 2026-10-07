@@ -1235,11 +1235,11 @@ _MASS_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments":
                "artifacts and enchantments": "artifact or enchantment",
                "creatures and planeswalkers": "creature or planeswalker"}
 _MASS = (r"(artifacts and enchantments|creatures and planeswalkers|nonland permanents|creatures|artifacts"
-         r"|enchantments|planeswalkers|lands)( you don't control| you control| an opponent controls)?")
+         r"|enchantments|planeswalkers|lands)( you don't control| you control| an opponent controls| your opponents control)?")
 
 
 def _mass_kind(m: re.Match) -> str:
-    return _MASS_KINDS[m[1].lower()] + (m[2] or "")
+    return _MASS_KINDS[m[1].lower()] + (m[2] or "").replace(" your opponents control", " an opponent controls")
 
 
 _SACRIFICE_KIND = r"(creature|artifact|enchantment|land|permanent)"
@@ -1254,11 +1254,11 @@ _STAT_RESTRICTION = re.compile(r"with (power|toughness) (\d+) or (greater|less)"
 # The same, with an optional color adjective before and "with flying" etc. after (destroy and exile only).
 _MASS_NOUN = (r"(artifacts and enchantments|creatures and planeswalkers|nonland permanents|creatures|artifacts"
               r"|enchantments|planeswalkers|lands)")
-_MASS_FILTERED = rf"{_COLOR_ADJECTIVE}{_MASS_NOUN}(?: {_RESTRICTION})?( you don't control| you control| an opponent controls)?"
+_MASS_FILTERED = rf"{_COLOR_ADJECTIVE}{_MASS_NOUN}(?: {_RESTRICTION})?( you don't control| you control| an opponent controls| your opponents control)?"
 
 
 def _mass_effect(cls: type, m: re.Match) -> Any:
-    kind = _MASS_KINDS[m[3].lower()] + (m[5] or "")
+    kind = _MASS_KINDS[m[3].lower()] + (m[5] or "").replace(" your opponents control", " an opponent controls")
     return cls(kind, _mass_filter(m[1], m[2], m[4]))
 
 
@@ -1316,10 +1316,11 @@ class ReturnFromGraveyard:
     """ "Return target creature card from your graveyard to your hand / to the battlefield." """
     target: str  # "graveyard:<card type>:<yours|any>"
     to: str  # "hand" or "battlefield"
+    tapped: bool = False  # "... to the battlefield tapped"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.return_from_graveyard(target, controller, self.to)
+            game.return_from_graveyard(target, controller, self.to, self.tapped)
 
 
 @dataclass(frozen=True)
@@ -2040,14 +2041,19 @@ def kicked_effects(effects: list | None, kicked: int) -> list | None:
 _LAND_TYPES = rf"({_LAND_TYPE}(?:, {_LAND_TYPE})*(?:,? or {_LAND_TYPE})?)"
 
 
+_LAND_TYPES_PLURAL = rf"({_LAND_TYPE}(?:, {_LAND_TYPE})*(?:,? or {_LAND_TYPE})?) cards"
+
+
 def _land_types(text: str) -> tuple[str, ...]:
     return tuple(t.capitalize() for t in re.findall(_LAND_TYPE, text, re.I))
 
 
 _MANA_VALUE = r"(?: with mana value \d+(?: or less| or greater)?)?"
-_CARD_TYPE = rf"((?:(?:creature|artifact|enchantment|land|permanent|instant or sorcery|instant|sorcery) )?card{_MANA_VALUE})"
-_SEARCH_TYPE = (r"((?:(?:creature|land|artifact|enchantment|planeswalker|instant or sorcery|instant|sorcery"
-                rf"|artifact or enchantment|basic land) )?card{_MANA_VALUE})")
+_SUBTYPE_CARDS = "aura or equipment|aura|equipment|vehicle|saga"  # an Aura card, an Equipment card, ...
+_CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|artifact|enchantment|land|permanent"
+              rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
+_SEARCH_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|land|artifact|enchantment|planeswalker"
+                rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
 _CARD_PHRASE = re.compile(r"(?:(.+?) )?card(?: with mana value (\d+)(?: (or less|or greater))?)?")
 
 
@@ -2113,9 +2119,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"return all {_MASS} to their owners' hands\.", re.I), lambda m: ReturnAllToHand(_mass_kind(m))),
     (re.compile(rf"return target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand")),
-    (re.compile(rf"(?:return|put) target {_CARD_TYPE} from (your|a) graveyard (?:to|onto) the battlefield"
+    (re.compile(rf"(?:return|put) target {_CARD_TYPE} from (your|a) graveyard (?:to|onto) the battlefield( tapped)?"
                 r"(?: under your control)?\.", re.I),
-     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours" if m[2].lower() == "your" else "any"), "battlefield")),
+     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours" if m[2].lower() == "your" else "any"), "battlefield",
+                                   bool(m[3]))),
     (re.compile(rf"exile target {_CARD_TYPE} from a graveyard\.", re.I),
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"))),
     (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal it, )?(?:put (?:it|that card) into your hand, "
@@ -2123,6 +2130,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchLibrary(_card_kind(m[1]), "hand" if "into your hand" in m[0] else "top", "reveal it" in m[0].lower())),
     (re.compile(r"search your library for a land card, put it onto the battlefield( tapped)?, then shuffle\.", re.I),
      lambda m: SearchForLands(1, ("*",), 1, bool(m[1]), False)),
+    (re.compile(r"search your library for a nonbasic land card, put it onto the battlefield( tapped)?, then shuffle\.", re.I),
+     lambda m: SearchForLands(1, ("nonbasic",), 1, bool(m[1]), False)),
+    (re.compile(rf"search your library for up to (two|three|four) {_LAND_TYPES_PLURAL}, put them onto the battlefield"
+                r"( tapped)?, then shuffle\.", re.I),
+     lambda m: SearchForLands(_count(m[1]), _land_types(m[2]), _count(m[1]), bool(m[3]), False)),
     (re.compile(r"you lose life equal to its mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
     (re.compile(rf"you lose {_N} life\.", re.I), lambda m: LoseLife(_count(m[1]))),
     (re.compile(r"search your library for up to two basic land cards, reveal those cards, put one onto the battlefield "
