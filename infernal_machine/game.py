@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -510,7 +510,9 @@ class Game:
         """Activated abilities `seat` can activate now, keyed by their action text."""
         options = {}
         for permanent in seat.battlefield:
-            for ability in activated_abilities(permanent.card):
+            granted = [a for other in self.seats for attachment in other.battlefield if attachment.attached_to is permanent
+                       for a in granted_abilities(attachment.card)]
+            for ability in [*activated_abilities(permanent.card), *granted]:
                 if self._can_activate(seat, permanent, ability, sorcery_timing):
                     text = ability.text.replace("CARDNAME", permanent.card.name)
                     options[f"{ACTIVATE}{self.label(permanent)}: {text}"] = (permanent, ability)
@@ -669,8 +671,13 @@ class Game:
                     if seat.life >= life_cost:  # Mana Confluence: paying life, which you must have
                         lands.append(ManaSource(permanent, frozenset("WUBRG"), frozenset("WUBRGC"), life_cost, life=True))
                     continue
+                gifted = [mana for other in self.seats for a in other.battlefield if a.attached_to is permanent
+                          for mana in granted_mana(a.card)]  # "Enchanted land has "{T}: Add {G}{G}."": the better of the two
                 if units := land_mana_units(card):  # a bounceland or Ancient Tomb makes several mana in one tap
                     lands.extend(ManaSource(permanent, mana, pain, damage) for mana in units)
+                    continue
+                if len(gifted) > 1:  # more mana than the land's own single one
+                    lands.extend(ManaSource(permanent, mana, pain, damage) for mana in gifted)
                     continue
                 # Command Tower makes only the colors of your commander, whatever the card data lists.
                 types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
@@ -1123,6 +1130,16 @@ class Game:
         self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked))
         self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
 
+    def return_to_hand_from_graveyard(self, card: Card) -> None:
+        """Put `card` from whichever graveyard it is in into its hand (it may already be gone)."""
+        for seat in self.seats:
+            if any(c is card for c in seat.graveyard):
+                seat.graveyard = [c for c in seat.graveyard if c is not card]
+                seat.hand.append(card)
+                self.broadcast({"event": "returned_to_hand", "seat": seat.index, "card": card.name})
+                self._left_graveyard(seat)
+                return
+
     def attach(self, attachment: Permanent, creature: Permanent) -> None:
         """Attach an Equipment to a creature (moving it if it was on another)."""
         if self.on_battlefield(attachment) and self.on_battlefield(creature):
@@ -1466,6 +1483,10 @@ class Game:
                     self.become_monarch(controller)
                 if target is self.initiative and controller is not target:  # CR 725.2
                     self.take_initiative(controller)
+                for holder in self.live_seats():  # "Whenever equipped (enchanted) creature deals combat damage to a player"
+                    for attachment in list(holder.battlefield):
+                        if attachment.attached_to is source:
+                            self.trigger("host_combat_damage", attachment, holder)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
@@ -2181,6 +2202,8 @@ class Game:
                     self.trigger("other_sacrifice", watcher, watcher_seat)
         for permanent, _ in leaving:
             controller = permanent.last_controller
+            if destination == "graveyard" and not _is_token(permanent.card):  # Rancor: "put into a graveyard from the battlefield"
+                self.trigger("put_into_graveyard", permanent, controller)
             if destination == "graveyard" and "Creature" in permanent.card.type_line:
                 self.trigger("dies", permanent, controller)
                 for attachment, attachment_seat in everyone:  # "When enchanted creature dies"

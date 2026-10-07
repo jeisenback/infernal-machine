@@ -184,7 +184,7 @@ def _equip_needed(action: str) -> bool:
     """An "Equip" activation for Equipment that isn't attached to anything yet (once attached, its
     label says "attached to ...", so the bot doesn't equip over and over)."""
     label, text = action.split("): ", 1)
-    return text.startswith("Equip ") and " attached to " not in label
+    return text.startswith(("Equip ", "Equip\u2014")) and " attached to " not in label
 
 
 def _stats(label: str) -> tuple[int, int]:

@@ -702,6 +702,17 @@ _ENCHANT = re.compile(r"Enchant ((?:land|creature|artifact|enchantment|planeswal
                       r"(?: an opponent controls| you control)?)", re.I)
 
 
+_EQUIP_OTHER = re.compile(r"Equip\u2014(.+)\.")
+
+
+def _equip_other_cost(card: Card) -> ActivatedAbility | None:
+    """ "Equip\u2014Pay 3 life." / "Equip\u2014Sacrifice a creature." / "Equip\u2014Discard a card.": an equip cost that isn't plain mana."""
+    for line in rules_lines(card):
+        if (m := _EQUIP_OTHER.fullmatch(line)) and (fields := _cost_fields(m[1])):
+            return ActivatedAbility(line, (Attach(),), sorcery_speed=True, **fields)
+    return None
+
+
 def equip_cost(card: Card) -> str | None:
     """The mana cost from "Equip {2}", or None (other equip costs aren't supported)."""
     return next((m[1] for line in rules_lines(card) if (m := _EQUIP.fullmatch(line))), None)
@@ -790,6 +801,36 @@ class AttachedBuff:
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
                        r"|can't attack or block)\.")
 CANT_ATTACK, CANT_BLOCK = "can't attack", "can't block"  # pseudo-keywords, so combat can ask has_keyword
+
+
+_GRANT = re.compile(r'(?:Equipped|Enchanted) (?:creature|land|permanent) has "(.+)"\.?')  # the quote's own full stop is inside it
+
+
+def is_granting_line(line: str) -> bool:
+    """ "Enchanted creature has "{T}: Draw a card."" where the quoted ability is one we understand."""
+    return (m := _GRANT.fullmatch(line)) is not None and (
+        is_mana_ability(m[1]) or (a := _ACTIVATED.fullmatch(m[1])) is not None
+        and _parse_activated(m[1], a[1], a[2], False) is not None)
+
+
+@lru_cache(maxsize=None)
+def granted_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
+    """The activated abilities an Aura or Equipment gives what it is attached to ("Enchanted creature has "{T}: Draw a
+    card."")."""
+    found = []
+    for line in rules_lines(card):
+        if (m := _GRANT.fullmatch(line)) and not is_mana_ability(m[1]) and (a := _ACTIVATED.fullmatch(m[1])):
+            if ability := _parse_activated(m[1], a[1], a[2], False):
+                found.append(ability)
+    return tuple(found)
+
+
+def granted_mana(card: Card) -> list[frozenset[str]]:
+    """The mana an Aura gives a land it enchants ("Enchanted land has "{T}: Add {G}{G}."")."""
+    for line in rules_lines(card):
+        if (m := _GRANT.fullmatch(line)) and any(p.fullmatch(m[1]) for p in (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY)):
+            return _mana_from_line(m[1], frozenset()) or []
+    return []
 
 
 @lru_cache(maxsize=None)
@@ -1562,6 +1603,17 @@ class ThroneOfTheDeadThree:
 
 
 @dataclass(frozen=True)
+class ReturnSelfToHand:
+    """Rancor: "When this Aura is put into a graveyard from the battlefield, return it to its owner's hand." (and "When
+    enchanted creature dies, return this Aura ..."). It is already in the graveyard when this resolves."""
+    uses_dead_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.return_to_hand_from_graveyard(target.card)
+
+
+@dataclass(frozen=True)
 class Goad:
     target: str
 
@@ -2066,6 +2118,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
+    (re.compile(rf"return {_SELF} to its owner's hand\.", re.I), lambda m: ReturnSelfToHand()),
     (re.compile(r"tap all creatures your opponents control\.", re.I), lambda m: TapAll()),
     (re.compile(r"investigate\.", re.I), lambda m: CreateTokens(1, CLUE)),
     (re.compile(rf"{_VOTE_PREFIX}starting with you, each player votes for (\w+) or (\w+)\.", re.I),
@@ -2520,7 +2573,9 @@ _TRIGGERS = {
     "graveyard_leave": re.compile(r"Whenever one or more cards leave your graveyard, (.+)", re.I),
     "any_sacrifice": re.compile(r"Whenever a player sacrifices a permanent, (.+)", re.I),
     "other_sacrifice": re.compile(r"Whenever a player sacrifices another permanent, (.+)", re.I),
-    "host_dies": re.compile(r"When(?:ever)? enchanted creature dies, (.+)", re.I),
+    "host_dies": re.compile(r"When(?:ever)? (?:enchanted|equipped) creature dies, (.+)", re.I),
+    "host_combat_damage": re.compile(r"Whenever (?:enchanted|equipped) creature deals combat damage to a player, (.+)", re.I),
+    "put_into_graveyard": re.compile(rf"When {_SELF} is put into a graveyard from the battlefield, (.+)", re.I),
     "first_life_loss": re.compile(r"Whenever you lose life for the first time each turn, (.+)", re.I),
 }
 TRIGGER_EVENTS = tuple(_TRIGGERS)
@@ -2773,7 +2828,32 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
             abilities.append(ability)
     if cost := equip_cost(card):
         abilities.append(ActivatedAbility(f"Equip {cost}", (Attach(),), mana_cost=cost, sorcery_speed=True))
+    elif (other := _equip_other_cost(card)) is not None:
+        abilities.append(other)
     return tuple(abilities)
+
+
+def _cost_fields(cost: str) -> dict[str, Any] | None:
+    """The fields of an ActivatedAbility that a cost sets ("{1}, {T}, Pay 2 life"), or None if any part isn't understood."""
+    fields: dict[str, Any] = {}
+    for part in cost.split(", "):
+        if _MANA_PART.fullmatch(part):
+            fields["mana_cost"] = fields.get("mana_cost", "") + part
+        elif part == "{T}":
+            fields["tap"] = True
+        elif _SACRIFICE_SELF.fullmatch(part):
+            fields["sacrifice"] = True
+        elif (m := _PAY_LIFE.fullmatch(part)) and m[1] != "X":
+            fields["life"] = _count(m[1])
+        elif m := _SACRIFICE_OTHER.fullmatch(part):
+            fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another")
+        elif part == "Discard a card":
+            fields["discard"] = True
+        elif part == "Exile a card from your graveyard":
+            fields["exile_graveyard"] = True
+        else:
+            return None
+    return fields
 
 
 def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> ActivatedAbility | None:
@@ -2782,24 +2862,10 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
     if planeswalker and loyalty:
         amount = int(loyalty[2])
         fields.update(loyalty=-amount if loyalty[1] in ("\u2212", "-") else amount, sorcery_speed=True)
+    elif (paid := _cost_fields(cost)) is None:
+        return None
     else:
-        for part in cost.split(", "):
-            if _MANA_PART.fullmatch(part):
-                fields["mana_cost"] = fields.get("mana_cost", "") + part
-            elif part == "{T}":
-                fields["tap"] = True
-            elif _SACRIFICE_SELF.fullmatch(part):
-                fields["sacrifice"] = True
-            elif (m := _PAY_LIFE.fullmatch(part)) and m[1] != "X":
-                fields["life"] = _count(m[1])
-            elif m := _SACRIFICE_OTHER.fullmatch(part):
-                fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another")
-            elif part == "Discard a card":
-                fields["discard"] = True
-            elif part == "Exile a card from your graveyard":
-                fields["exile_graveyard"] = True
-            else:
-                return None
+        fields.update(paid)
     if _MODAL_INLINE.fullmatch(effect):
         effects = _parse_modal_inline(effect)
         return ActivatedAbility(line, tuple(effects), **fields) if effects else None
