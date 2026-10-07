@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -83,6 +83,7 @@ SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell
 DISCARD_COST_PROMPT = "Choose a card to discard for "  # followed by the ability's source
 EXILE_COST_PROMPT = "Choose a card to exile from your graveyard for "  # followed by the ability's source
 COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
+ENTWINE_PROMPT = "Pay the entwine cost for "  # followed by the spell's name; options: YES_NO
 KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = "Choose a card to exile from your hand"
@@ -541,7 +542,7 @@ class Game:
             return False
         if self._ability_payment(seat, permanent, ability) is None:
             return False
-        return self._targets_exist(seat, ability.effects, frozenset(card.colors))
+        return self._effects_possible(seat, ability.effects, frozenset(card.colors))
 
     def _sacrifice_choices(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> list[Permanent]:
         """What `seat` could sacrifice to pay the ability's "Sacrifice a creature" cost."""
@@ -628,9 +629,7 @@ class Game:
         if not self._cast_ways(seat, card, from_command_zone, graveyard):
             return False
         effects, colors = kicked_effects(_effects(card), 0) or [], frozenset(card.colors)
-        if effects and isinstance(effects[0], Modal):
-            return sum(self._targets_exist(seat, modes, colors) for modes in effects[0].modes) >= effects[0].min
-        return self._targets_exist(seat, effects, colors)
+        return self._effects_possible(seat, effects, colors)
 
     def _spend_mana(self, seat: Seat, sources: list[Permanent]) -> None:
         """Tap the chosen mana sources; ones whose mana ability sacrifices them (Treasure) are sacrificed,
@@ -683,7 +682,7 @@ class Game:
         return pooled + abilities + lands + sacrifices
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
-                 alternative: AlternativeCost | None = None, kicked: int = 0) -> list[Permanent] | None:
+                 alternative: AlternativeCost | None = None, kicked: int = 0, extra: str = "") -> list[Permanent] | None:
         """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now. An alternative
         cost replaces the mana cost; commander tax and kicker are added, then cost reductions apply."""
         cost = Cost() if alternative else parse_cost(card.mana_cost)
@@ -693,6 +692,8 @@ class Game:
             cost = cost.plus_generic(self.commander_tax(seat, card))
         for _ in range(kicked):
             cost = cost + parse_cost(kicker_cost(card))
+        if extra:  # entwine, or escalate for each mode beyond the first
+            cost = cost + parse_cost(extra)
         return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card)))
 
     def cost_reduction(self, seat: Seat, card: Card) -> int:
@@ -763,9 +764,9 @@ class Game:
         if life:
             self.change_life(seat, -life)
 
-    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kicked: int) -> int:
+    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kicked: int, extra: str = "") -> int:
         x = 0
-        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1, kicked=kicked) is not None:
+        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1, kicked=kicked, extra=extra) is not None:
             x += 1
         return x
 
@@ -900,7 +901,10 @@ class Game:
                         "targets": [], "tapped": [p.card.name for p in tapped]})
 
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
-        targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name, permanent,
+        effects = list(ability.effects)
+        if effects and isinstance(effects[0], Modal):
+            effects, _ = self._choose_modes(seat, permanent.card, effects[0])
+        targets, labels = self._choose_targets(seat, effects, permanent.card.name, permanent,
                                                frozenset(permanent.card.colors))
         x = 0
         if ability.mana_cost and parse_cost(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then paid
@@ -919,7 +923,7 @@ class Game:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn
         permanent.activated_turn[ability.text] = self.turn
-        item = StackItem(permanent.card, seat, list(ability.effects), targets, ability, permanent, x=x)
+        item = StackItem(permanent.card, seat, effects, targets, ability, permanent, x=x)
         self.stack.append(item)
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
@@ -928,17 +932,35 @@ class Game:
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
 
+    def _effects_possible(self, seat: Seat, effects, colors: frozenset[str] = frozenset()) -> bool:
+        """Whether the targets exist: for a modal spell or ability, for enough of its modes."""
+        if effects and isinstance(effects[0], Modal):
+            return sum(self._targets_exist(seat, modes, colors) for modes in effects[0].modes) >= effects[0].min
+        return self._targets_exist(seat, effects, colors)
+
     def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset()) -> bool:
         return all(self.target_options(target_kind(e), seat, colors) for e in effects
                    if target_kind(e) and not getattr(e, "optional_target", False))
 
-    def _choose_modes(self, seat: Seat, card: Card, modal: Modal) -> list:
-        """Ask the caster for the modes of a modal spell (only ones with legal targets are offered) and
-        return the chosen modes' effects in printed order."""
+    def _choose_modes(self, seat: Seat, card: Card, modal: Modal, from_command_zone: bool = False,
+                      casting: bool = False) -> tuple[list, str]:
+        """Ask the controller for the modes of a modal spell or ability (only ones with legal targets are offered):
+        the chosen modes' effects in printed order, and any extra mana cost for them. When casting, entwine (all the
+        modes) and escalate (each mode beyond the first) are offered if they can be paid for."""
         colors = frozenset(card.colors)
         available = [i for i, effects in enumerate(modal.modes) if self._targets_exist(seat, effects, colors)]
+        if len(available) < modal.min:
+            return [], ""
+        entwine, escalate = (entwine_cost(card), escalate_cost(card)) if casting else (None, None)
+        if (entwine and len(available) == len(modal.modes) > 1
+                and self._payment(seat, card, from_command_zone, extra=entwine) is not None
+                and seat.player.choose(ENTWINE_PROMPT + card.name, YES_NO) == 0):
+            return [effect for modes in modal.modes for effect in modes], entwine
         chosen: list[int] = []
         while len(chosen) < modal.max and len(chosen) < len(available):
+            if escalate and chosen and self._payment(seat, card, from_command_zone,
+                                                     extra=escalate * len(chosen)) is None:
+                break  # another mode would cost more than the caster has
             remaining = [i for i in available if i not in chosen]
             options = [_shown(modal.texts[i], card) for i in remaining]
             if len(chosen) >= modal.min:
@@ -947,7 +969,8 @@ class Game:
             if pick == len(remaining):
                 break
             chosen.append(remaining[pick])
-        return [effect for i in sorted(chosen) for effect in modal.modes[i]]
+        extra = escalate * (len(chosen) - 1) if escalate and len(chosen) > 1 else ""
+        return [effect for i in sorted(chosen) for effect in modal.modes[i]], extra
 
     def _choose_targets(self, seat: Seat, effects, source_name: str, source: Permanent | None = None,
                         colors: frozenset[str] = frozenset()) -> tuple[list, list[str]] | None:
@@ -974,8 +997,9 @@ class Game:
               graveyard: GraveyardCast | None = None) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
+        extra = ""
         if effects and isinstance(effects[0], Modal):
-            effects = self._choose_modes(seat, card, effects[0])
+            effects, extra = self._choose_modes(seat, card, effects[0], from_command_zone, casting=True)
         # Alternative costs and kicker are announced before targets are chosen (CR 601.2b-c).
         ways = self._cast_ways(seat, card, from_command_zone, graveyard)
         alternative = ways[0]
@@ -987,9 +1011,9 @@ class Game:
         targets, labels = self._choose_targets(seat, effects, card.name, colors=frozenset(card.colors))
         x = 0
         if alternative is None and parse_cost(paying.mana_cost).x:  # casting without paying the mana cost makes X 0
-            options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kicked) + 1)]
+            options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kicked, extra) + 1)]
             x = seat.player.choose(X_PROMPT + card.name, options)
-        tapped = self._payment(seat, paying, from_command_zone, x, alternative, kicked)
+        tapped = self._payment(seat, paying, from_command_zone, x, alternative, kicked, extra)
         self._spend_mana(seat, tapped)
         zone.remove(card)
         self._pay_extras(seat, card, alternative, graveyard)
@@ -1000,6 +1024,8 @@ class Game:
                  "targets": labels, "x": x, "tapped": [p.card.name for p in tapped]}
         if kicked:
             event["kicked"] = kicked
+        if extra:
+            event["extra_cost"] = extra
         if alternative:
             event["alternative"] = alternative.text
         self.broadcast(event)
@@ -1290,12 +1316,17 @@ class Game:
             seat = trigger.controller
             if seat.lost:
                 continue
-            chosen = self._choose_targets(seat, trigger.ability.effects, trigger.source.name, trigger.permanent,
+            effects = list(trigger.ability.effects)
+            if effects and isinstance(effects[0], Modal):  # "When this enters, choose one —": modes, then targets
+                effects, _ = self._choose_modes(seat, trigger.source, effects[0])
+                if not effects:
+                    continue
+            chosen = self._choose_targets(seat, effects, trigger.source.name, trigger.permanent,
                                           frozenset(trigger.source.colors))
             if chosen is None:
                 continue
             targets, labels = chosen
-            item = StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability,
+            item = StackItem(trigger.source, seat, effects, targets, trigger.ability,
                              trigger.permanent, x=trigger.x, subject=trigger.subject, player=trigger.player)
             self.stack.append(item)
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
