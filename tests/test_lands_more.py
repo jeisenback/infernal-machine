@@ -1,7 +1,7 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import filter_mana_ability, reflected_mana
+from infernal_machine.effects import filter_mana_ability, mana_life_cost, mana_life_types, reflected_mana
 from infernal_machine.game import CYCLE, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_effects import FOREST, pick, table
@@ -105,6 +105,53 @@ class LifeCyclingTests(unittest.TestCase):
         a = game.seats[0]
         a.hand, a.life = [LIFE_CYCLER], 2
         self.assertEqual([x for x in game.legal_actions(a) if x.startswith(CYCLE)], [])
+
+
+HORIZON = Card(name="Horizon Canopy", type_line="Land", produced_mana=("G", "W"),
+               oracle_text="{T}, Pay 1 life: Add {G} or {W}.\n{1}, {T}, Sacrifice this land: Draw a card.")
+SIGNET_WU = Card(name="Azorius Signet", mana_cost="{2}", type_line="Artifact", oracle_text="{1}, {T}: Add {W}{U}.")
+SIGNET_BR = Card(name="Rakdos Signet", mana_cost="{2}", type_line="Artifact", oracle_text="{1}, {T}: Add {B}{R}.")
+
+
+class LifeColorTests(unittest.TestCase):
+    def test_parse(self):
+        self.assertEqual(mana_life_types(HORIZON), frozenset("GW"))
+        self.assertEqual(mana_life_cost(HORIZON), 1)
+
+    def test_paying_life_for_a_listed_color(self):
+        game, _, _ = table(None)
+        a = game.seats[0]
+        a.battlefield = [Permanent(HORIZON)]
+        payment = game._payment(a, spell("{W}"))
+        self.assertEqual(payment.life, 1)
+        self.assertIsNone(game._payment(a, spell("{R}")))
+
+    def test_not_offered_without_life_to_spare(self):
+        game, _, _ = table(None)
+        a = game.seats[0]
+        a.battlefield = [Permanent(HORIZON)]
+        a.life = 0
+        self.assertIsNone(game._payment(a, spell("{W}")))
+
+
+class SignetChainTests(unittest.TestCase):
+    def test_a_signet_can_pay_for_another(self):
+        game, _, _ = table(None)
+        a = game.seats[0]
+        a.battlefield = [Permanent(SIGNET_WU), Permanent(SIGNET_BR), Permanent(MOUNTAIN)]
+        self.assertIsNotNone(game._payment(a, spell("{U}{B}{R}")))
+
+    def test_a_signet_cannot_pay_for_itself(self):
+        game, _, _ = table(None)
+        a = game.seats[0]
+        a.battlefield = [Permanent(SIGNET_WU)]
+        self.assertIsNone(game._payment(a, spell("{W}")))
+
+    def test_two_signets_still_need_one_real_source(self):
+        game, _, _ = table(None)
+        a = game.seats[0]
+        a.battlefield = [Permanent(SIGNET_WU), Permanent(SIGNET_BR)]
+        self.assertIsNone(game._payment(a, spell("{W}")))
 
 
 if __name__ == "__main__":

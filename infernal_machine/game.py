@@ -13,7 +13,7 @@ from __future__ import annotations
 import dataclasses
 import random
 import re
-from itertools import combinations
+from itertools import combinations, permutations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -25,7 +25,7 @@ from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reflected_mana,
-                      enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
+                      enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
@@ -671,7 +671,7 @@ class Game:
             if is_land(card):
                 if life_cost := mana_life_cost(card):
                     if seat.life >= life_cost:  # Mana Confluence: paying life, which you must have
-                        lands.append(ManaSource(permanent, frozenset("WUBRG"), frozenset("WUBRGC"), life_cost, life=True))
+                        lands.append(ManaSource(permanent, mana_life_types(card), frozenset("WUBRGC"), life_cost, life=True))
                     continue
                 gifted = [mana for other in self.seats for a in other.battlefield if a.attached_to is permanent
                           for mana in granted_mana(a.card)]  # "Enchanted land has "{T}: Add {G}{G}."": the better of the two
@@ -823,28 +823,36 @@ class Game:
         return None
 
     def _pay_with_filters(self, cost: Cost, sources: list[ManaSource], combo) -> Payment | None:
-        activation = sum((c for _, c, _ in combo), Cost())
-        paid_first: dict[int, frozenset[str]] = {}
-        first = pay(activation, [s.types for s in sources], paid_first)
-        if first is None:
+        """Pay `cost` using the filters in `combo`, in any order: each filter's own cost is paid from plain sources or
+        the mana earlier filters made (so Signets can feed each other, but none feeds itself)."""
+        for ordered in permutations(combo):
+            if (payment := self._pay_in_order(cost, sources, ordered)) is not None:
+                return payment
+        return None
+
+    def _pay_in_order(self, cost: Cost, sources: list[ManaSource], ordered) -> Payment | None:
+        pool = list(sources)
+        used: list[tuple[ManaSource, frozenset[str] | None]] = []
+        for permanent, activation, units in ordered:
+            paid: dict[int, frozenset[str]] = {}
+            chosen = pay(activation, [s.types for s in pool], paid)
+            if chosen is None:
+                return None
+            used += [(pool[i], paid.get(i)) for i in chosen]
+            pool = [s for i, s in enumerate(pool) if i not in chosen] + [ManaSource(permanent, mana) for mana in units]
+        paid = {}
+        chosen = pay(cost, [s.types for s in pool], paid)
+        if chosen is None:
             return None
-        rest = [s for i, s in enumerate(sources) if i not in first]
-        made = [ManaSource(permanent, mana) for permanent, _, units in combo for mana in units]
-        pool = rest + made
-        paid_second: dict[int, frozenset[str]] = {}
-        second = pay(cost, [s.types for s in pool], paid_second)
-        if second is None:
-            return None
-        used = [sources[i].permanent for i in first] + [pool[i].permanent for i in second] + [p for p, _, _ in combo]
+        used += [(pool[i], paid.get(i)) for i in chosen]
         # A permanent that makes several mana (Sol Ring) is tapped once. Mana already in the pool has no permanent.
-        payment = Payment({id(p): p for p in used if p is not None}.values())
-        payment.pool = tuple(s.types for s in [sources[i] for i in first] + [pool[i] for i in second]
-                             if s.permanent is None)
+        permanents = [s.permanent for s, _ in used if s.permanent is not None] + [p for p, _, _ in ordered]
+        payment = Payment({id(p): p for p in permanents}.values())
+        payment.pool = tuple(s.types for s, _ in used if s.permanent is None)
         # A permanent hurts (or costs life) once per tap, however many of its mana are used.
         hurt: dict[int, int] = {}
         paid_life: dict[int, int] = {}
-        for source, symbol in ([(sources[i], paid_first.get(i)) for i in first]
-                               + [(pool[i], paid_second.get(i)) for i in second]):
+        for source, symbol in used:
             into = paid_life if source.life else hurt
             into[id(source.permanent)] = max(into.get(id(source.permanent), 0), _pain(source, symbol))
         payment.pain, payment.life = sum(hurt.values()), sum(paid_life.values())

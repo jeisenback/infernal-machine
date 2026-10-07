@@ -3186,7 +3186,7 @@ _PAIN_MULTI = re.compile(rf"\{{T\}}: Add ((?:\{{[WUBRGC]\}}){{2,}})\. {_SELF} de
 # City of Brass: the damage comes from the land becoming tapped.
 _TAPPED_PAIN = re.compile(rf"Whenever {_SELF} becomes tapped, it deals {_N} damage to you\.", re.I)
 # Mana Confluence: paying life, not damage.
-_PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add one mana of any color\.", re.I)
+_PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add (one mana of any color|\{{([WUBRG])\}}(?: or \{{([WUBRG])\}})?)\.", re.I)
 
 
 def is_mana_ability(line: str) -> bool:
@@ -3223,6 +3223,14 @@ def reflected_mana(card: Card) -> tuple[bool, bool] | None:
 def mana_life_cost(card: Card) -> int:
     """Life paid each time a land is tapped for mana ("{T}, Pay 1 life: Add one mana of any color."), or 0."""
     return next((_count(m[1]) for line in rules_lines(card) if (m := _PAY_LIFE_ANY.fullmatch(line))), 0)
+
+
+def mana_life_types(card: Card) -> frozenset[str]:
+    """The mana a land with a life-cost mana ability makes: any color (Mana Confluence) or the listed ones (Horizon lands)."""
+    for line in rules_lines(card):
+        if m := _PAY_LIFE_ANY.fullmatch(line):
+            return frozenset("WUBRG") if m[2].startswith("one") else frozenset(c for c in (m[3], m[4]) if c)
+    return frozenset()
 
 
 def land_mana_units(card: Card) -> list[frozenset[str]] | None:
