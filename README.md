@@ -224,6 +224,12 @@ winner = game.play()
 | Put N +1/+1 (or -1/-1) counters on target creature / on each creature you control / on it. | |
 | This creature enters with N +1/+1 counters on it. | Hydras |
 | Target creature gets +N/+N (and gains keywords) / gains keywords until end of turn. | Giant Growth |
+| Creatures you control (or your opponents control) get +N/+N (and gain keywords) until end of turn. | |
+| Target creature gets +X/+X (-X/-X, +X/+0, ...) until end of turn, for each ... / where X is ... | |
+| Target creature becomes a 4/4 Dragon until end of turn. / has base power and toughness 0/1 until end of turn. | |
+| Put N <kind> counters on target <permanent>. / Remove N (all) <kind> counters from target <permanent>. / Remove all counters from target <permanent>. | |
+| Double the number of +1/+1 counters on each creature you control. | |
+| Each opponent (or player) creates a token. / Target opponent creates a token. | |
 | Creatures you control get +N/+N and gain trample until end of turn. | Overrun |
 | This creature gets +1/+0 until end of turn. (as an activated ability) | Shivan Dragon |
 | Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. | Rampant Growth |
@@ -231,15 +237,22 @@ winner = game.play()
 - **Wording:** "of their choice" and a leading "You draw" / "You create" are read the same as without them.
 - **Amounts that depend on the game:** "..., where X is ...", "... equal to ..." and "... for each ..." are worked out
   when the effect resolves. Supported: its (or this creature's) power, using its last known power if it has left the
-  battlefield; +1/+1 counters on it; the number of <type> you control; creatures on the battlefield; the amount of life
+  battlefield; counters of any kind on it ("charge counters on this artifact"); cards (or <type> cards) in your graveyard; the number of <type> you control; creatures on the battlefield; the amount of life
   you gained this turn; half your life total, rounded down or up; spells you've cast this turn; the greatest mana value among instant and sorcery spells you've
-  cast this turn; opponents. "For each" multiplies drawing, life, tokens and +1/+1 counters ("create a 1/1 Saproling
+  cast this turn; opponents. "For each" multiplies drawing, life, tokens, +1/+1 counters and a +1/+1, -1/-1, +1/+0 or +0/+1 pump (a bigger multiple like "+2/+2 for each" isn't understood) ("create a 1/1 Saproling
   token for each +1/+1 counter on this creature"). A sentence a template already understands is never rewritten.
   "An X/X ... token" gets its size when it's created (Rootha, Mastering the Moment).
 - **Target restrictions:** destroy and exile targets can say "an opponent controls",
   "you don't control" or "you control".
 - **Counters:** +1/+1 and -1/-1 counters change power and toughness. Matching +1/+1 and -1/-1
-  counters cancel out.
+  counters cancel out. Other kinds ("charge", "time") are only counted. "Put N <kind> counters on target <permanent>",
+  "Remove N <kind> counters from target ...", "Remove all (<kind>) counters from target ..." and "Double the number of
+  +1/+1 counters on each creature you control" work. Moving a counter from one permanent to another isn't built.
+- **Setting power and toughness:** "Target creature becomes a 4/4 (color) (Subtype) (creature) (with flying) until end of
+  turn" and "has base power and toughness 0/1 until end of turn" set the base; counters and bonuses still add to it,
+  whatever order they came in. Its types, subtypes and colors don't change (so a land can't be animated this way yet).
+- **Tokens for other players:** "Each opponent (or player) creates ..." and "Target opponent creates ...". A token
+  with "This creature can't block / attack / attack or block." gets that restriction.
 - **Static abilities:** "(Other) (Elf) creatures you control get +1/+1 (and have flying)" and
   "Creatures you control have haste". These apply only while their source is on the battlefield.
   - Either can be conditional, written "As long as X, ..." or "... as long as X.", and a creature can buff
