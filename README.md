@@ -564,6 +564,7 @@ winner = game.play()
   | Whenever an opponent sacrifices a creature, ... | |
   | Whenever you discard a card / an opponent discards a card, ... | Megrim |
   | Whenever an opponent searches their library, ... | Opposition Agent |
+  | Whenever a creature enters / dies, ... its controller ... | |
   | Whenever this creature deals combat damage to a player, ... | |
   | At the beginning of your upkeep / end step, ... | |
   | At the beginning of each upkeep / each end step, ... (every player's turn) | Tendershoot Dryad |

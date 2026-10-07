@@ -92,5 +92,33 @@ class SearchTriggerTests(unittest.TestCase):
         self.assertEqual(b.life, 37)
 
 
+class ItsControllerTests(unittest.TestCase):
+    def enter(self, text, creature_type="Creature — Bear"):
+        game, _ = table3()
+        a, b, c = game.seats
+        a.battlefield = [Permanent(watcher("Watch", text))]
+        b.battlefield = [Permanent(Card(name="Bear", type_line=creature_type, power="2", toughness="2"))]
+        return game, a, b, c
+
+    def test_parse(self):
+        card = watcher("Watch", "Whenever another creature enters, its controller loses 1 life.")
+        (ability,) = triggered_abilities(card)
+        self.assertIsInstance(ability.effects[0], OnPlayer)
+        self.assertEqual(unsupported_lines(card), [])
+
+    def test_its_controller_loses_life_when_a_creature_enters(self):
+        game, a, b, c = self.enter("Whenever another creature enters, its controller loses 1 life.")
+        game._enter(b, Permanent(Card(name="Cub", type_line="Creature — Bear", power="1", toughness="1")))
+        game._enter(c, Permanent(Card(name="Cub", type_line="Creature — Bear", power="1", toughness="1")))
+        settle(game)
+        self.assertEqual((a.life, b.life, c.life), (40, 39, 39))
+
+    def test_that_creatures_controller_when_it_dies(self):
+        game, a, b, c = self.enter("Whenever a creature dies, Watch deals 2 damage to that creature's controller.")
+        game._leave_together([(b.battlefield[0], "destroyed")])
+        settle(game)
+        self.assertEqual((a.life, b.life, c.life), (40, 38, 40))
+
+
 if __name__ == "__main__":
     unittest.main()

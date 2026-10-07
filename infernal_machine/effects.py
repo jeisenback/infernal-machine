@@ -2818,7 +2818,10 @@ _OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat
 _PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
                   "opponent_discard", "opponent_search"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
+_CONTROLLER = r"(?:its|that (?:creature|permanent|land)'s) controller"
 _PLAYER_PRONOUNS = [
+    (re.compile(rf"\b{_CONTROLLER} (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
+    (re.compile(rf"\bto {_CONTROLLER}\b", re.I), "to target player"),
     (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bthat player (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
     (re.compile(r"\bto that player\b", re.I), "to target player"),
@@ -2921,8 +2924,13 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     """Like _trigger_body for a trigger about another object or player. "It" means the permanent that set it off
     (only if every effect is about "it"), "that player" / "they" the player who did it (only for effects that
     target a player); where neither can be pointed at, the line isn't understood."""
-    rest = _THAT_CREATURE.sub("it", rest)
     about_player = False
+    if player_ok:  # before "that creature" becomes "it": "that creature's controller" names the player who controls it
+        before = rest
+        for pattern, replacement in _PLAYER_PRONOUNS[:2]:
+            rest = pattern.sub(replacement, rest)
+        about_player = rest != before
+    rest = _THAT_CREATURE.sub("it", rest)
     if player_ok and (m := _UNLESS_PAYS.fullmatch(rest)):
         effects, optional, once, condition = _trigger_body(m[1] + ".")
         if effects is None or any(target_kind(e) or uses_source(e) or uses_subject(e) or uses_player(e)
@@ -2933,7 +2941,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
         replaced = rest
         for pattern, replacement in _PLAYER_PRONOUNS:
             replaced = pattern.sub(replacement, replaced)
-        about_player, rest = replaced != rest, replaced
+        about_player, rest = about_player or replaced != rest, replaced
     about_subject = re.search(r"\bit\b|\bthat spell\b", rest, re.I) is not None
     if about_subject and not subject_ok:
         return None, False, False, None
@@ -2959,7 +2967,8 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
         if watched := _watch_trigger(line):
             event, watch, rest = watched
             effects, optional, once, condition = _event_body(
-                rest, event in _SUBJECT_EVENTS, event == "cast" and watch.caster != "you")
+                rest, event in _SUBJECT_EVENTS,
+                (event == "cast" and watch.caster != "you") or event in _SUBJECT_EVENTS)
             if effects is not None:
                 abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch, once, condition))
             continue
