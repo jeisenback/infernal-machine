@@ -299,8 +299,8 @@ winner = game.play()
   After leaving the battlefield they stop existing, so they never reach the graveyard or exile.
   Treasure is a mana source that's sacrificed when used, and it's spent after lands and other sources.
   "Create a 0/0 Fractal token. Put X +1/+1 counters on it." (or ", then put three ... on it") gives the new token the
-  counters. Clue and Food work through their activated abilities. Copy tokens and tokens with quoted abilities
-  aren't supported yet.
+  counters. Clue and Food work through their activated abilities. A token with a quoted ability
+  ("When this token dies, you gain 1 life.") works when that ability is understood; otherwise the card isn't.
 - **Lands:**
   - Entering tapped: "This land enters tapped" (taplands, gain-lands, temples, triomes), and the conditional
     kinds: checklands ("unless you control an Island or a Swamp"; any land with that land type counts),
