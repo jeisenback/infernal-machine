@@ -175,6 +175,9 @@ winner = game.play()
 | Exile target player's graveyard. | Tormod's Crypt |
 | Exile (another) target nonland permanent ... until this enchantment leaves the battlefield. | Banishing Light |
 | Exile another target ...; When this leaves the battlefield, return the exiled card to the battlefield under its owner's control. | Oblivion Ring, Fiend Hunter |
+| Exile target creature (you control), then return it to the battlefield under its owner's (your) control. / ... Return it to the battlefield (or its owner's hand) at the beginning of the next end step. | Cloudshift, Flickerwisp |
+| Exile target spell. / Counter target spell. If that spell is countered this way, exile it instead ... | Dissipate |
+| Exile the top N cards of your library. You may play it (them) this turn. / Until the end of your next turn, you may play those cards. | Light Up the Stage |
 | Choose one / two / three / one or both / one or more — • mode • mode ... | charms and commands |
 | Target player (or opponent) draws N cards / gains N life / loses N life. | |
 | Exile target card from a graveyard. | |
@@ -367,6 +370,19 @@ winner = game.play()
   (summoning sick, without counters or attachments, and its "enters" abilities happen again). Tokens exiled this way
   are gone for good, and a commander that went to the command zone instead isn't returned. If the source has left
   by the time the exile ability resolves, nothing is exiled. "Another target" can't be the source itself.
+- **Flicker and delayed returns:** "Exile target creature you control, then return it to the battlefield under its
+  owner's (or your) control" (Cloudshift, Ephemerate) brings it back at once; "Exile target creature. Return it to the
+  battlefield under its owner's control at the beginning of the next end step" (Flickerwisp's "another target
+  permanent" too) or "...to its owner's hand at the beginning of the next end step" waits. It comes back as a new
+  object with no counters, summoning sick, and its enters triggers happen again. A token is gone for good. Cast
+  during the end step itself, the card waits for the next turn's end step.
+- **Exiling a spell:** "Exile target (kind of) spell." and "Counter target spell. If that spell is countered this way,
+  exile it instead of putting it into its owner's graveyard." The spell goes to its owner's exile, not the graveyard.
+- **Exile, then play it:** "Exile the top card (or N cards) of your library. You may play it this turn" and
+  "...Until the end of your next turn, you may play those cards." The cards sit in exile and show up as "Cast from
+  exile: ..." and "Play land from exile: ..." until the permission ends (a land uses your land drop; each card can
+  be played once). "Your next turn" is the next turn that comes round to you in normal order. Without "you may play",
+  "Exile the top N cards" just exiles them. Bots play exiled cards like cards in hand.
 - **Modal spells:** you choose the modes as you cast. Only modes that have a legal target are offered, a mode can't
   be chosen twice, and "one or both" / "one or more" let you stop with "Done choosing modes" once you have enough.
   Chosen modes happen in the order printed. If any mode isn't supported (or the card has entwine or escalate), the

@@ -143,10 +143,66 @@ class WardCounter:
 @dataclass(frozen=True)
 class Counter:
     target: str = "spell"
+    exile: bool = False  # "exile it instead of putting it into its owner's graveyard"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.counter(target)
+            game.counter(target, self.exile)
+
+
+@dataclass(frozen=True)
+class ExileInstead:
+    """ "If that spell is countered this way, exile it instead of putting it into its owner's graveyard." Only ever the
+    end of a Counter (see _merge_exile)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone 'exile it instead' is never built")
+
+
+@dataclass(frozen=True)
+class Flicker:
+    """Exile a permanent and bring it back: right away ("now") or as the next end step begins ("end_step"), to the
+    battlefield or its owner's hand. `under_owner`: "under its owner's control" (otherwise under yours)."""
+    target: str
+    when: str = "now"
+    to: str = "battlefield"
+    under_owner: bool = True
+    another: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.flicker(target, controller, self.when, self.to, self.under_owner)
+
+
+@dataclass(frozen=True)
+class ReturnLater:
+    """ "Return it to the battlefield under its owner's control at the beginning of the next end step." Only ever the
+    end of an Exile (see _merge_exile)."""
+    to: str
+    under_owner: bool
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone delayed return is never built")
+
+
+@dataclass(frozen=True)
+class ExileTop:
+    """ "Exile the top two cards of your library. Until the end of your next turn, you may play those cards." (`play` is
+    None, "this turn" or "next turn")"""
+    count: int | str
+    play: str | None = None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_top(controller, game.amount(self.count), self.play)
+
+
+@dataclass(frozen=True)
+class PlayExiled:
+    """ "You may play it this turn." Only ever the end of an ExileTop (see _merge_exile)."""
+    until: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone permission to play exiled cards is never built")
 
 
 @dataclass(frozen=True)
@@ -1881,6 +1937,23 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[2].lower(), bool(m[1]))),
+    (re.compile(r"exile target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
+     lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell", exile=True)),
+    (re.compile(r"if that spell is countered this way, exile it instead of putting it into its owner's graveyard\.", re.I),
+     lambda m: ExileInstead()),
+    (re.compile(rf"exile (another )?target {_PERMANENT_KIND}, then return (?:it|that card) to the battlefield under "
+                r"(your|its owner's) control\.", re.I),
+     lambda m: Flicker(m[2].lower(), under_owner=m[3].lower() != "your", another=bool(m[1]))),
+    (re.compile(r"return (?:it|that card) to the battlefield under (your|its owner's) control at the beginning of the "
+                r"next end step\.", re.I), lambda m: ReturnLater("battlefield", m[1].lower() != "your")),
+    (re.compile(r"return (?:it|that card) to its owner's hand at the beginning of the next end step\.", re.I),
+     lambda m: ReturnLater("hand", True)),
+    (re.compile(rf"exile the top (?:card|{_N} cards) of your library\.", re.I), lambda m: ExileTop(_count(m[1] or "one"))),
+    (re.compile(r"you may play (?:it|that card|those cards|them) this turn\.", re.I), lambda m: PlayExiled("this turn")),
+    (re.compile(r"until (?:the )?end of turn, you may play (?:it|that card|those cards|them)\.", re.I),
+     lambda m: PlayExiled("this turn")),
+    (re.compile(r"until (?:the )?end of your next turn, you may play (?:it|that card|those cards|them)\.", re.I),
+     lambda m: PlayExiled("next turn")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND} until {_SELF} leaves the battlefield\.", re.I),
      lambda m: ExileUntilLeaves(m[2].lower(), bool(m[1]))),
     (re.compile(rf"target (player|opponent) draws {_N} cards?\.", re.I), lambda m: TargetDraw(_count(m[2]), m[1].lower())),
@@ -2109,6 +2182,29 @@ def _template(sentence: str) -> Any:
     return None
 
 
+def _merge_exile(effects: list) -> list | None:
+    """Counter + "exile it instead" is one Counter(exile); Exile + "return it at the beginning of the next end step" is
+    one Flicker; ExileTop + "you may play it" is one ExileTop(play). A leftover second half isn't understood."""
+    merged: list = []
+    for effect in effects:
+        before = merged[-1] if merged else None
+        if isinstance(effect, ExileInstead):
+            if not isinstance(before, Counter):
+                return None
+            merged[-1] = dataclasses.replace(before, exile=True)
+        elif isinstance(effect, ReturnLater):
+            if not isinstance(before, Exile):
+                return None
+            merged[-1] = Flicker(before.target, "end_step", effect.to, effect.under_owner, before.another)
+        elif isinstance(effect, PlayExiled):
+            if not isinstance(before, ExileTop) or before.play:
+                return None
+            merged[-1] = dataclasses.replace(before, play=effect.until)
+        else:
+            merged.append(effect)
+    return merged
+
+
 def _merge_hand_discard(effects: list) -> list | None:
     """"Target opponent reveals their hand. You choose a nonland card from it. That player discards that card." becomes
     one TargetChooseDiscard; any one of the three sentences alone isn't understood."""
@@ -2190,7 +2286,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
