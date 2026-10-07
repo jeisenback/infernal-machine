@@ -97,7 +97,11 @@ winner = game.play()
   - Phyrexian symbols ({B/P}) are paid with mana when possible, otherwise with 2 life each, but never down to 0 life.
   - Twobrid symbols ({2/W}) are paid with one mana of that color if possible, otherwise with two mana of any kind.
   - {S} (snow) is paid by mana from a snow permanent ("Snow-Covered Forest"), which still makes its normal color.
-  Signet-style abilities ("{1}, {T}: Add {W}{U}.") are used when plain sources aren't enough.
+  Signet-style abilities ("{1}, {T}: Add {W}{U}.") are used when plain sources aren't enough. One Signet can pay
+  another's {1} (but never its own). A Signet's cost is paid with the first mana that fits, so a chain of Signets
+  can occasionally miss a payment that a different choice would have found.
+  Lands with "{T}, Pay 1 life: Add {G} or {W}." (Horizon lands) pay life for each tap, like Mana Confluence, and are
+  not used at 1 life or less.
   Their own cost is always paid by a plain source.
 - **Mana pool and rituals:** "Add {B}{B}{B}." as a spell (Dark Ritual) puts mana in the caster's pool. Pool mana is
   spent first on whatever they cast or activate next, and the pool empties at the end of every step. Clients see it
