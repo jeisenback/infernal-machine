@@ -298,7 +298,8 @@ winner = game.play()
 - **Tokens:** they enter with summoning sickness, and "dies" triggers still happen when they leave.
   After leaving the battlefield they stop existing, so they never reach the graveyard or exile.
   Treasure is a mana source that's sacrificed when used, and it's spent after lands and other sources.
-  Clue and Food work through their activated abilities. Copy tokens and tokens with quoted abilities
+  "Create a 0/0 Fractal token. Put X +1/+1 counters on it." (or ", then put three ... on it") gives the new token the
+  counters. Clue and Food work through their activated abilities. Copy tokens and tokens with quoted abilities
   aren't supported yet.
 - **Lands:**
   - Entering tapped: "This land enters tapped" (taplands, gain-lands, temples, triomes), and the conditional
@@ -585,6 +586,8 @@ winner = game.play()
   | Whenever an opponent sacrifices a creature, ... | |
   | Whenever you discard a card / an opponent discards a card, ... | Megrim |
   | Whenever an opponent searches their library, ... | Opposition Agent |
+  | Whenever a Pest (Elf, token, creature token) you control dies / another Elf you control enters, ... | |
+  | Whenever (another) creature (permanent) you control leaves the battlefield, ... | |
   | Whenever a creature enters / dies, ... its controller ... | |
   | Whenever this creature deals combat damage to a player, ... | |
   | At the beginning of your upkeep / end step, ... | |

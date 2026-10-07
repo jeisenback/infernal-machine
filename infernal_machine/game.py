@@ -1909,11 +1909,14 @@ class Game:
                 self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
                                 "added": -removed, "total": permanent.counters.get(kind, 0)})
 
-    def create_tokens(self, seat: Seat, token: Card, count: int) -> None:
+    def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None) -> None:
         for _ in range(count * self._factor(seat, "tokens")):
             self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
                             "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
-            self._enter(seat, Permanent(token, sick=True))
+            made = Permanent(token, sick=True)
+            self._enter(seat, made)
+            if counters:
+                self.put_counters(made, counters[1], counters[0])
 
     def exile(self, permanent: Permanent) -> None:
         self._leave_battlefield(permanent, "exiled", destination="exile")
@@ -2393,6 +2396,7 @@ class Game:
                     if attachment.attached_to is permanent:
                         self.trigger("host_dies", attachment, attachment_seat)
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
+            self._observe("permanent_leaves", permanent.card, controller, subject=permanent, extra=gone)
             if permanent.real_card is not None:  # a Clone goes to the graveyard as itself
                 permanent.card, permanent.real_card = permanent.real_card, None
             if permanent.reconfigured is not None:  # an attached Equipment creature goes back to being just a card
@@ -2564,6 +2568,8 @@ def _watch_type_matches(kind: str, card: Card) -> bool:
     kind = kind.removesuffix(" spell").removesuffix("spell").strip()
     if not kind:
         return True
+    if kind == "token" or kind.endswith(" token"):  # "token", "creature token"
+        return _is_token(card) and (kind == "token" or _watch_type_matches(kind.removesuffix(" token"), card))
     if kind.startswith("non"):
         return kind[3:].capitalize() not in card.type_line
     if kind in COLOR_LETTERS:

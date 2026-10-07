@@ -27,7 +27,7 @@ _VOTE_PREFIX = r"(?:[A-Z][\w' -]* \u2014 )?"  # "Will of the council — ", "Cou
 _N = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+|X)"
 _REMINDER = re.compile(r"\s*\([^)]*\)")
 _SELF = (r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|planeswalker|permanent"
-         r"|Aura|Equipment|Class|Vehicle|Saga))")
+         r"|Aura|Equipment|Class|Vehicle|Saga|token))")
 
 
 def _count(word: str) -> int | str:
@@ -925,13 +925,15 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
 class CreateTokens:
     count: int
     token: Card
+    counters: tuple[int | str, str] | None = None  # "Create a 0/0 ... token. Put X +1/+1 counters on it."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         token = self.token
         if "X" in (token.power, token.toughness):  # "an X/X ... token": its size is fixed as it's created
             token = dataclasses.replace(token, power=str(game.amount(token.power)),
                                         toughness=str(game.amount(token.toughness)))
-        game.create_tokens(controller, token, game.amount(self.count))
+        counters = (game.amount(self.counters[0]), self.counters[1]) if self.counters else None
+        game.create_tokens(controller, token, game.amount(self.count), counters)
 
 
 @dataclass(frozen=True)
@@ -1060,6 +1062,19 @@ def _animate(m: re.Match, target: str | None, offset: int = 0) -> Animate:
     return Animate(int(power), int(toughness), tuple(_COLOR_WORDS[c] for c in re.findall(_COLOR, colors or "")),
                    subtypes or "", artifact is not None, _keyword_list(keywords) if keywords else frozenset(),
                    target, uses_source=target is None)
+
+
+def _merge_token_counters(effects: list) -> list | None:
+    """"Create a 0/0 Fractal creature token. Put X +1/+1 counters on it." is one CreateTokens whose tokens come in with
+    the counters (the second sentence means the new token, not the ability's source)."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, PutCountersOnSource) and merged and isinstance(merged[-1], CreateTokens) \
+                and merged[-1].counters is None:
+            merged[-1] = dataclasses.replace(merged[-1], counters=(effect.count, effect.counter))
+        else:
+            merged.append(effect)
+    return merged
 
 
 def _merge_reveal_top(effects: list) -> list | None:
@@ -2574,6 +2589,8 @@ def _clauses(sentence: str) -> list[str]:
     if m := re.fullmatch(r"(.+) (?:equal to|for each) (.+)\.", sentence):
         body, count = _times_x(m[1])
         return [f"Let X be {m[2]}."] + _clauses(body + ".") if count and _amount(m[2]) else [sentence]
+    if m := re.fullmatch(r"(Create .+ tokens?), then (put .+ counters? on it\.)", sentence):
+        return [m[1] + ".", m[2].capitalize()]
     sentence = re.sub(r"^You (draw|create) ", lambda m: m[1].capitalize() + " ", sentence)
     if m := re.fullmatch(rf"(.+) and you ({_YOUR_ACTION})\.", sentence, re.I):
         return _clauses(m[1] + ".") + [_you_do(m[2])]
@@ -2696,7 +2713,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile, _merge_wipe_gift, _merge_reveal_top):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
@@ -2900,12 +2917,14 @@ _SEVERAL_EVENTS = re.compile(rf"When(?:ever)? {_SELF} ({_ANY_SELF_EVENT}(?: or {
 
 
 _WHO = rf"(?:({_SELF}) or another|(another)|an?)"
-_PERMANENT_WATCH = r"(nontoken creature|creature|land|artifact|enchantment)"
+_TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
+_PERMANENT_WATCH = rf"(nontoken creature|creature token|token|creature|land|artifact|enchantment|{_TRIBE})"
 _WATCHES = {
     "permanent_enters": re.compile(
         rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? enters(?: the battlefield)?( under your control)?, (.+)", re.I),
-    "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature)( you control| an opponent controls)? dies, (.+)",
-                                re.I),
+    "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature token|token|creature|{_TRIBE})"
+                                r"( you control| an opponent controls)? dies, (.+)", re.I),
+    "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? leaves the battlefield, (.+)", re.I),
     "cast": re.compile(r"Whenever (you cast|a player casts|an opponent casts) (?:an?|(your first)) "
                        r"((?:white|blue|black|red|green) spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
@@ -2939,7 +2958,7 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     if m := _WATCHES["cast"].fullmatch(line):
         caster = {"you cast": "you", "a player casts": "player", "an opponent casts": "opponent"}[m[1].lower()]
         return "cast", Watch(m[3].lower(), caster=caster, first_each_turn=bool(m[2])), m[4]
-    for event in ("permanent_enters", "creature_dies"):
+    for event in ("permanent_enters", "creature_dies", "permanent_leaves"):
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()
             yours = m[4] == " you control" or (event == "permanent_enters" and bool(m[5]))
