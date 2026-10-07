@@ -1887,6 +1887,26 @@ class BecomePrepared:
             game.prepare(target)
 
 
+@dataclass(frozen=True)
+class TargetPrepared:
+    """ "Target creature becomes prepared / unprepared." Only a creature with a prepare spell can become prepared."""
+    target: str  # "creature" or "creature that attacked this turn"
+    prepared: bool
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.prepare(target) if self.prepared else game.unprepare(target)
+
+
+@dataclass(frozen=True)
+class PrepareEach:
+    """ "Each creature you control becomes prepared." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in list(controller.battlefield):
+            game.prepare(permanent)
+
+
 _ENTERS_PREPARED = re.compile(rf"{_SELF} enters prepared\.", re.I)
 
 
@@ -2438,6 +2458,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [FightFirst(m[1].lower()), Fight(m[2].lower(), one_sided=True)]),
     (re.compile(r"populate\.", re.I), lambda m: Populate()),
     (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
+    (re.compile(r"each creature you control becomes prepared\.", re.I), lambda m: PrepareEach()),
+    (re.compile(r"target (creature(?: that attacked this turn)?) becomes (prepared|unprepared)\.", re.I),
+     lambda m: TargetPrepared(m[1].lower(), m[2].lower() == "prepared")),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
@@ -2839,7 +2862,8 @@ class TriggeredAbility:
 class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
-    #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter"
+    #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
+    #            "not_prepared", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
 
@@ -2863,6 +2887,11 @@ _CONDITIONS = [
     (re.compile(rf"you have {_N} or more cards in hand"), lambda m: Condition("hand_at_least", _count(m[1]))),
     (re.compile(r"you have no cards in hand"), lambda m: Condition("hand_none")),
     (re.compile(rf"{_SELF} was kicked"), lambda m: Condition("kicked")),
+    (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
+    (re.compile(rf"there are {_N} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
+     lambda m: Condition("graveyard_at_least", _count(m[1]), m[2].replace(" and/or ", " or "))),
+    (re.compile(rf"a player has {_N} or fewer cards in hand"), lambda m: Condition("any_hand_at_most", _count(m[1]))),
+    (re.compile(r"an opponent has more cards in hand than you"), lambda m: Condition("opponent_more_cards")),
 ]
 
 
