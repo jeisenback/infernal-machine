@@ -184,3 +184,20 @@ class MassPumpAndDamageTests(unittest.TestCase):
         spell_effects(sorcery("All creatures get -2/-2 until end of turn."))[0].resolve(game, a, None)
         game._check_state()
         self.assertEqual((survivors(a), survivors(b)), (["Big"], []))
+
+
+class FarewellTests(unittest.TestCase):
+    def test_farewell_is_a_plain_modal_spell(self):
+        farewell = Card(name="Farewell", mana_cost="{4}{W}{W}", type_line="Sorcery",
+                        oracle_text="Choose one or more \u2014\n\u2022 Exile all artifacts.\n\u2022 Exile all creatures.\n"
+                                    "\u2022 Exile all enchantments.\n\u2022 Exile all graveyards.")
+        self.assertEqual(unsupported_lines(farewell), [])
+        game, _ = table3()
+        a, b, _ = game.seats
+        b.battlefield, b.graveyard = [Permanent(SMALL), Permanent(RELIC)], [BIG]
+        modes = spell_effects(farewell)[0].modes
+        for index in (1, 3):  # creatures and graveyards
+            for effect in modes[index]:
+                effect.resolve(game, a, None)
+        self.assertEqual((survivors(b), b.graveyard), (["Relic"], []))
+        self.assertEqual(sorted(c.name for c in b.exile), ["Big", "Small"])
