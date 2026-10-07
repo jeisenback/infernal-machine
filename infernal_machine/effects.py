@@ -279,6 +279,30 @@ class PutCounters:
 
 
 @dataclass(frozen=True)
+class RemoveCounters:
+    """ "Remove a +1/+1 counter from target creature." / "Remove all counters from target permanent." (count None: all;
+    counter None: of every kind)"""
+    count: int | str | None
+    counter: str | None
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.remove_counters(target, self.counter, None if self.count is None else game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class DoubleCounters:
+    """ "Double the number of +1/+1 counters on each creature you control." """
+    counter: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in list(controller.battlefield):
+            if "Creature" in permanent.card.type_line and permanent.counters.get(self.counter):
+                game.put_counters(permanent, self.counter, permanent.counters[self.counter])
+
+
+@dataclass(frozen=True)
 class OnSubject:
     """A watching trigger's effect on "it": the permanent that set it off, not the ability's source."""
     inner: Any
@@ -322,7 +346,7 @@ class PutCountersOnSource:
             game.put_counters(target, self.counter, game.amount(self.count))
 
 
-_COUNTER = r"([+\-\u2212]1/[+\-\u2212]1) counters?"
+_COUNTER = r"([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters?"  # "+1/+1", or a named one ("charge")
 
 
 def _counter_name(text: str) -> str:
@@ -430,16 +454,34 @@ class PumpSource:
 @dataclass(frozen=True)
 class PumpEach:
     """ "Creatures you control get +3/+3 and gain trample until end of turn." Affects only the
-    creatures there when it resolves (CR 611.2c)."""
+    creatures there when it resolves (CR 611.2c). `opponents`: "Creatures your opponents control get -1/-1"."""
     modifier: Modifier
+    opponents: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in list(controller.battlefield):
-            if "Creature" in permanent.card.type_line:
-                game.modify_until_end_of_turn(permanent, self.modifier)
+        seats = game.opponents(controller) if self.opponents else [controller]
+        for seat in seats:
+            for permanent in list(seat.battlefield):
+                if "Creature" in permanent.card.type_line:
+                    game.modify_until_end_of_turn(permanent, self.modifier)
+
+
+@dataclass(frozen=True)
+class PumpX:
+    """ "Target creature gets +X/+X until end of turn." (X from "for each ..." or "where X is ..."): `power` and
+    `toughness` are the multiples of X (1, 0 or -1)."""
+    power: int
+    toughness: int
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            x = game.amount("X")
+            game.modify_until_end_of_turn(target, Modifier(self.power * x, self.toughness * x))
 
 
 _PT = r"([+\-\u2212]\d+)/([+\-\u2212]\d+)"
+_PT_X = r"([+\-\u2212])(X|0)/([+\-\u2212])(X|0)"  # at least one X: "+X/+X", "-X/-0", "+0/+X"
 _KEYWORDS = rf"({_KW}(?:(?:,? and |, ){_KW})*)"
 # "gets +3/+3", "gets +2/+0 and gains trample", "gains flying" (one or both parts), then "until end of turn."
 _CHANGE = rf"(?:gets? {_PT}(?: and gains? {_KEYWORDS})?|gains? {_KEYWORDS}) until end of turn\."
@@ -466,6 +508,7 @@ _AFFECTED = r"(?:(Other) )?(?:([A-Z][\w'-]*) )?[Cc]reatures you control"
 _STATIC = re.compile(rf"{_AFFECTED} (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
 
 
+_CANT = re.compile(rf"{_SELF} can't (attack or block|attack|block)\.", re.I)
 _SELF_STATIC = re.compile(rf"{_SELF} (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS})\.", re.I)
 _AS_LONG_AS_FIRST = re.compile(r"As long as (.+?), (.+\.)")
 _AS_LONG_AS_LAST = re.compile(r"(.+?) as long as (.+)\.")
@@ -491,6 +534,9 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                 continue
         if m := _STATIC.fullmatch(sentence):
             buffs.append(StaticBuff(_modifier(m, 3), m[1] is not None, m[2], line, condition=condition))
+        elif m := _CANT.fullmatch(sentence):  # "This creature can't block." (a token's, for one)
+            keywords = {"attack": {CANT_ATTACK}, "block": {CANT_BLOCK}}.get(m[1].lower(), {CANT_ATTACK, CANT_BLOCK})
+            buffs.append(StaticBuff(Modifier(0, 0, frozenset(keywords)), False, None, line, self_only=True, condition=condition))
         elif condition and (m := _SELF_STATIC.fullmatch(sentence)):  # unconditional ones would just be printed text
             buffs.append(StaticBuff(_modifier(m, 1), False, None, line, self_only=True, condition=condition))
     return tuple(buffs)
@@ -669,6 +715,31 @@ class Populate:
 
 
 @dataclass(frozen=True)
+class EachCreatesTokens:
+    """ "Each opponent creates a 1/1 white Spirit creature token with flying." / "Each player creates a Treasure token." """
+    count: int
+    token: Card
+    who: str  # "each opponent" or "each player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            if self.who == "each player" or seat is not controller:
+                game.create_tokens(seat, self.token, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class TargetCreatesTokens:
+    """ "Target opponent creates a Treasure token." """
+    count: int
+    token: Card
+    target: str  # "player" or "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.create_tokens(target, self.token, game.amount(self.count))
+
+
+@dataclass(frozen=True)
 class TargetControllerCreatesTokens:
     """Beast Within: "Its controller creates a 3/3 green Beast creature token." """
     count: int
@@ -724,6 +795,20 @@ def _is_ability(card: Card, line: str) -> bool:
     """Whether `line` of `card`'s rules text is an ability we understand."""
     known = {a.text for a in (*triggered_abilities(card), *activated_abilities(card), *static_abilities(card))}
     return line in known or is_mana_ability(line)
+
+
+def _create_for_others(m: re.Match) -> Any:
+    parsed = _token(m[2] + '."' if m[3] else m[2])
+    if parsed is None:
+        return None
+    who = m[1].lower()
+    return EachCreatesTokens(*parsed, who) if who.startswith("each") else TargetCreatesTokens(*parsed, who)
+
+
+def _pump_x(sp: str, px: str, st: str, tx: str, target: str) -> PumpX:
+    """+X/+X, -X/-X, +X/+0, ... as multiples of X (a plain +0/+0 never gets here: the ordinary pump reads it first)."""
+    sign = lambda s, v: 0 if v == "0" else (-1 if s in ("-", "\u2212") else 1)
+    return PumpX(sign(sp, px), sign(st, tx), target)
 
 
 def _create(m: re.Match, follows: bool) -> Any:
@@ -835,8 +920,10 @@ class Amount:
 
 _AMOUNTS = [
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
-    (re.compile(r"(?:the number of )?\+1/\+1 counters? on (?:it|this creature|CARDNAME)", re.I),
-     lambda m: Amount("source_counters", "+1/+1")),
+    (re.compile(r"(?:the number of )?([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters? on (?:it|this creature|this artifact|CARDNAME)",
+                re.I), lambda m: Amount("source_counters", _counter_name(m[1].lower()))),
+    (re.compile(r"(?:the number of )?(?:(creature|land|artifact|enchantment|instant|sorcery|planeswalker) )?cards? in your graveyard",
+                re.I), lambda m: Amount("graveyard", (m[1] or "card").lower())),
     (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
     (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
     (re.compile(r"half your life total, rounded (down|up)", re.I), lambda m: Amount("half_life", m[1].lower())),
@@ -1844,6 +1931,26 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
      lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
+    (re.compile(rf"(?i:target) {_PERMANENT_KIND} gets? {_PT_X} until end of turn\."),
+     lambda m: _pump_x(m[2], m[3], m[4], m[5], m[1].lower())),
+    (re.compile(rf"(?i:target) (creature(?: an opponent controls| you control)?) (?i:becomes) an? (\d+)/(\d+)"
+                rf"(?: (?:white|blue|black|red|green|colorless))?(?: [A-Z][\w'-]*)*(?: creature)?(?: with {_KEYWORDS})?"
+                r" until end of turn\."),
+     lambda m: Pump(Modifier(0, 0, _keyword_list(m[4]) if m[4] else frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
+    (re.compile(rf"target (creature(?: an opponent controls| you control)?) has base power and toughness (\d+)/(\d+)"
+                r" until end of turn\.", re.I),
+     lambda m: Pump(Modifier(0, 0, frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
+    (re.compile(rf"(?i:creatures your opponents control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), opponents=True)),
+    (re.compile(rf"remove {_N} {_COUNTER} from target {_PERMANENT_KIND}\.", re.I),
+     lambda m: RemoveCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
+    (re.compile(rf"remove all {_COUNTER} from target {_PERMANENT_KIND}\.", re.I),
+     lambda m: RemoveCounters(None, _counter_name(m[1]), m[2].lower())),
+    (re.compile(rf"remove all counters from target {_PERMANENT_KIND}\.", re.I),
+     lambda m: RemoveCounters(None, None, m[1].lower())),
+    (re.compile(rf"double the number of {_COUNTER} on each creature you control\.", re.I),
+     lambda m: DoubleCounters(_counter_name(m[1]))),
+    (re.compile(r'(each opponent|each player) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
+    (re.compile(r'target (player|opponent) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
     (re.compile(rf"(?i:{_SELF}) {_CHANGE}"), lambda m: PumpSource(_modifier(m, 1))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
@@ -1871,6 +1978,8 @@ _TIMES_X = [
     (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
     (r"\b(creates?) a number of (.+?) tokens\b", r"\1 X \2 tokens"),
     (r"\b(put) (?:a|one) (\+1/\+1) counter\b", r"\1 X \2 counters"),
+    (r"\b(gets?) ([+\-\u2212])([01])/([+\-\u2212])([01])\b",
+     lambda m: f"{m[1]} {m[2]}{'X' if m[3] == '1' else '0'}/{m[4]}{'X' if m[5] == '1' else '0'}" if "1" in (m[3], m[5]) else m[0]),
 ]
 
 
