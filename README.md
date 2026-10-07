@@ -341,17 +341,22 @@ winner = game.play()
   chapter I triggers; each of its controller's turns, after the draw step, it gets another and the matching chapter
   triggers. Once the last chapter's ability has resolved it is put into the graveyard. A Saga is all or nothing: if
   any chapter isn't understood it has none, and the report lists its lines.
-- **Protection from a color:** "Protection from red" (and "from red and from blue"), whether printed or given by
-  Equipment, an Aura, a static ability, or "gains protection from red until end of turn". The protected permanent
-  can't be targeted by red spells or abilities, takes no damage from red sources, can't be blocked by red
-  creatures, and can't be enchanted or equipped by red permanents, so a red Aura or Equipment already on it
-  falls off. The source's color is what counts: colorless sources ignore protection. A spell that targeted it
-  before it gained protection fizzles. Not supported: "protection from the color of your choice" (Mother of
-  Runes), "protection from everything", and non-color qualities like "from creatures".
-- **Ward {N}:** when an opponent's spell or ability targets a warded permanent, a ward trigger goes on the stack
-  above it. When it resolves, that opponent may pay {N} or their spell or ability is countered (an ability's
-  source is left alone). You can't ward yourself, and if the opponent can't afford the cost they aren't asked.
-  Only mana ward costs work, not "Ward—Pay 3 life".
+- **Protection:** "Protection from red" (and "from red and from blue"), printed or given by Equipment, an Aura, a
+  static ability, or "gains protection from red until end of turn". The protected permanent can't be targeted,
+  damaged, blocked, enchanted or equipped by the source. What counts about the source is its colors, its card types
+  and whether it is monocolored, multicolored or colorless, so these work too: "protection from everything", "from
+  all colors", "from monocolored" / "multicolored", "from creatures" / "artifacts" / "enchantments" / "instants" /
+  "sorceries" / "planeswalkers". Protection from creatures stops creatures blocking it and creature damage and
+  abilities, but not a Bolt. An Aura or Equipment of a type it is protected from falls off. A spell that targeted it
+  before it gained protection fizzles.
+  - **"Protection from the color of your choice"** (Mother of Runes, Gods Willing), as "Target creature (you
+    control) gains protection from the color of your choice until end of turn" or "This creature gains ...": the
+    controller picks one of the five colors as it resolves. Bots take the first (white).
+- **Ward:** when an opponent's spell or ability targets a warded permanent, a ward trigger goes on the stack and the
+  spell or ability is countered unless its controller pays. The cost can be mana ("Ward {2}"), life ("Ward—Pay 3
+  life."), discarding ("Ward—Discard a card.") or a mix ("Ward—{1}, Pay 2 life."); if they can't pay they aren't
+  asked, and bots always pay when they can. Ward can also be given: "Other creatures you control have ward {1}",
+  "Equipped creature has ward {2}". You can't ward yourself. Not supported: tapping or sacrificing as a ward cost.
 - **Exile until it leaves:** Oblivion Ring, Banishing Light and Fiend Hunter exile a permanent, and when the source
   leaves the battlefield for any reason the exiled card comes back under its owner's control as a new permanent
   (summoning sick, without counters or attachments, and its "enters" abilities happen again). Tokens exiled this way

@@ -4,7 +4,7 @@ from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
 from infernal_machine.characteristics import Modifier
 from infernal_machine.client import Narrator
-from infernal_machine.effects import Pump, attached_abilities, printed_protection, spell_effects, ward_cost
+from infernal_machine.effects import GrantProtection, Pump, attached_abilities, printed_protection, spell_effects, ward_cost
 from infernal_machine.game import ACTIVATE, CAST, WARD_PROMPT, Game, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import attack_all
@@ -65,18 +65,21 @@ class ParseTests(unittest.TestCase):
         both = Card(name="Both", oracle_text="Target creature gets +1/+1 and gains flying and protection from green until end of turn.")
         self.assertEqual(spell_effects(both)[0].modifier.keywords, frozenset({"flying", "protection from green"}))
         choice = Card(name="Mother", oracle_text="Target creature gains protection from the color of your choice until end of turn.")
-        self.assertIsNone(spell_effects(choice))
+        self.assertEqual(spell_effects(choice), [GrantProtection("creature")])
 
     def test_ward(self):
         self.assertEqual((ward_cost(WARDED), ward_cost(KNIGHT)), ("{2}", None))
         self.assertEqual(ward_cost(creature("x", 1, 1, "G", "Flying, ward {1}")), "{1}")
-        self.assertIsNone(ward_cost(creature("x", 1, 1, "G", "Ward—Pay 3 life.")))
+        self.assertEqual(ward_cost(creature("x", 1, 1, "G", "Ward—Pay 3 life.")), "Pay 3 life")
+        self.assertIsNone(ward_cost(creature("x", 1, 1, "G", "Ward—Tap an untapped creature you control.")))
 
     def test_report(self):
         for card in (KNIGHT, PALADIN, WARDED, SWORD):
             self.assertEqual(unsupported_lines(card), [], card.name)
-        self.assertEqual(unsupported_lines(creature("x", 1, 1, "G", "Protection from everything")), ["Protection from everything"])
-        self.assertEqual(unsupported_lines(creature("x", 1, 1, "G", "Ward—Pay 3 life.")), ["Ward—Pay 3 life."])
+        self.assertEqual(unsupported_lines(creature("x", 1, 1, "G", "Protection from everything")), [])
+        self.assertEqual(unsupported_lines(creature("x", 1, 1, "G", "Ward—Pay 3 life.")), [])
+        self.assertEqual(unsupported_lines(creature("x", 1, 1, "G", "Ward—Tap an untapped creature you control.")),
+                         ["Ward—Tap an untapped creature you control."])
 
 
 class ProtectionTests(unittest.TestCase):

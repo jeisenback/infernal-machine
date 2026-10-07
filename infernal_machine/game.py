@@ -20,12 +20,12 @@ from typing import Any
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword
 from . import characteristics
-from .characteristics import MINUS, PLUS, Modifier
+from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
-                      enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, ward_cost,
+                      enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
@@ -89,6 +89,7 @@ VOTE_PROMPT = "Vote: "  # followed by the source's name; options are the choices
 VENTURE_PROMPT = "Venture into the Undercity: choose the next room"  # options are room names
 THRONE_PROMPT = "Throne of the Dead Three: choose a creature"  # options are card names
 UNLESS_PROMPT = "Pay to stop "  # followed by the triggering card's name; options: "Pay {1}", "Don't pay"
+PROTECTION_PROMPT = "Choose a color for protection: "  # followed by the source's name; options are the five colors
 WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
 COLOR_LETTERS = {name: letter for letter, name in COLOR_NAMES.items()}
@@ -526,7 +527,7 @@ class Game:
             return False
         if self._ability_payment(seat, permanent, ability) is None:
             return False
-        return self._targets_exist(seat, ability.effects, frozenset(card.colors))
+        return self._targets_exist(seat, ability.effects, source_qualities(card))
 
     def _sacrifice_choices(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> list[Permanent]:
         """What `seat` could sacrifice to pay the ability's "Sacrifice a creature" cost."""
@@ -584,7 +585,7 @@ class Game:
                   graveyard: GraveyardCast | None = None) -> bool:
         if not self._cast_ways(seat, card, from_command_zone, graveyard):
             return False
-        effects, colors = kicked_effects(_effects(card), 0) or [], frozenset(card.colors)
+        effects, colors = kicked_effects(_effects(card), 0) or [], source_qualities(card)
         if effects and isinstance(effects[0], Modal):
             return sum(self._targets_exist(seat, modes, colors) for modes in effects[0].modes) >= effects[0].min
         return self._targets_exist(seat, effects, colors)
@@ -830,7 +831,7 @@ class Game:
 
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
         targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name, permanent,
-                                               frozenset(permanent.card.colors))
+                                               source_qualities(permanent.card))
         x = 0
         if ability.mana_cost and parse_cost(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then paid
             most = 0
@@ -864,7 +865,7 @@ class Game:
     def _choose_modes(self, seat: Seat, card: Card, modal: Modal) -> list:
         """Ask the caster for the modes of a modal spell (only ones with legal targets are offered) and
         return the chosen modes' effects in printed order."""
-        colors = frozenset(card.colors)
+        colors = source_qualities(card)
         available = [i for i, effects in enumerate(modal.modes) if self._targets_exist(seat, effects, colors)]
         chosen: list[int] = []
         while len(chosen) < modal.max and len(chosen) < len(available):
@@ -913,7 +914,7 @@ class Game:
             alternative = ways[seat.player.choose(COST_PROMPT + card.name, options)]
         kicked = 0 if graveyard else self._choose_kicks(seat, card, effects, from_command_zone, alternative)
         effects = kicked_effects(effects, kicked)
-        targets, labels = self._choose_targets(seat, effects, card.name, colors=frozenset(card.colors))
+        targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
         x = 0
         if alternative is None and parse_cost(paying.mana_cost).x:  # casting without paying the mana cost makes X 0
             options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kicked) + 1)]
@@ -942,7 +943,7 @@ class Game:
         Kicking is only offered when the kicked spell's targets exist."""
         if kicker_cost(card) is None:
             return 0
-        if not self._targets_exist(seat, kicked_effects(effects, 1) or [], frozenset(card.colors)):
+        if not self._targets_exist(seat, kicked_effects(effects, 1) or [], source_qualities(card)):
             return 0
         most = 0
         while (most < (MAX_X if is_multikicker(card) else 1)
@@ -1018,7 +1019,7 @@ class Game:
         is no longer legal (CR 608.3b)."""
         seat, card = item.controller, item.card
         target = item.targets[0] if item.targets else None
-        if target is None or not self.is_legal_target(aura_kind(card), target, seat, frozenset(card.colors)):
+        if target is None or not self.is_legal_target(aura_kind(card), target, seat, source_qualities(card)):
             self.broadcast({"event": "fizzle", "seat": seat.index, "card": card.name})
             self._move_card(seat, card, "graveyard")
             return
@@ -1080,7 +1081,7 @@ class Game:
     def _apply_effects(self, item: StackItem) -> bool:
         """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""
         self.x_value, self.resolving_source = item.x, item.source
-        self.resolving_item, self.resolving_colors = item, frozenset(item.card.colors)
+        self.resolving_item, self.resolving_colors = item, source_qualities(item.card)
         try:
             return self._apply_effects_now(item)
         finally:
@@ -1089,7 +1090,7 @@ class Game:
 
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
-        colors = frozenset(item.card.colors)
+        colors = source_qualities(item.card)
         legal = [(t is None and getattr(e, "optional_target", False)) or self.is_legal_target(target_kind(e), t, seat, colors)
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
         about = {"seat": seat.index, "card": item.card.name}
@@ -1220,7 +1221,7 @@ class Game:
             if seat.lost:
                 continue
             chosen = self._choose_targets(seat, trigger.ability.effects, trigger.source.name, trigger.permanent,
-                                          frozenset(trigger.source.colors))
+                                          source_qualities(trigger.source))
             if chosen is None:
                 continue
             targets, labels = chosen
@@ -1292,13 +1293,17 @@ class Game:
         return [s for s in self._turn_order(self.active) if not s.lost]
 
     def protected_from(self, permanent: Permanent, colors: frozenset[str]) -> bool:
-        """Whether the permanent has protection from any of these colors (letters), by its own text or
-        because something gave it: it can't be targeted, damaged, blocked, enchanted or equipped by them."""
+        """Whether the permanent has protection from a source with these qualities (color letters, card types,
+        "monocolored" and so on; see source_qualities), by its own text or because something gave it: it can't be
+        targeted, damaged, blocked, enchanted or equipped by it."""
         if not colors:
             return False
-        granted = {kw for mod in self.modifiers(permanent) for kw in mod.keywords if kw.startswith("protection from ")}
-        printed = printed_protection(permanent.card)
-        return any(c in printed or f"protection from {COLOR_NAMES[c]}" in granted for c in colors)
+        held = set(printed_protection(permanent.card))
+        for modifier in self.modifiers(permanent):
+            for keyword in modifier.keywords:
+                if keyword.startswith("protection from "):
+                    held |= protection_tokens(keyword)
+        return "everything" in held or bool(held & colors)
 
     def is_legal_target(self, kind: str, target: Any, caster: Seat, colors: frozenset[str] = frozenset()) -> bool:
         for _, option in self.target_options(kind, caster, colors):
@@ -1351,7 +1356,7 @@ class Game:
 
     def damage(self, target: Seat | Permanent, amount: int, source: Permanent | None = None,
                combat: bool = False) -> None:
-        colors = frozenset(source.card.colors) if source is not None else self.resolving_colors
+        colors = source_qualities(source.card) if source is not None else self.resolving_colors
         if isinstance(target, Permanent) and self.protected_from(target, colors):
             self.broadcast({"event": "damage_prevented", "card": target.card.name, "amount": amount})
             return
@@ -1707,13 +1712,46 @@ class Game:
             if not isinstance(target, Permanent):
                 continue
             owner = self.controller_of(target)
-            cost = ward_cost(target.card)
+            cost = self.ward_of(target)
             if owner is None or owner is item.controller or not cost:
                 continue
             ability = TriggeredAbility("ward", (WardCounter(cost),), False, f"Ward {cost}")
             self.stack.append(StackItem(target.card, owner, list(ability.effects), [], ability, target, warding=item))
             self.broadcast({"event": "trigger", "seat": owner.index, "card": target.card.name,
                             "ability": ability.text, "targets": []})
+
+    def ward_of(self, permanent: Permanent) -> str | None:
+        """The ward cost the permanent has: its own, or one a static ability gives it ("Creatures you control have ward {1}")."""
+        return ward_cost(permanent.card) or next((keyword.removeprefix("ward ") for modifier in self.modifiers(permanent)
+                                                  for keyword in modifier.keywords if keyword.startswith("ward ")), None)
+
+    def _ward_payment(self, payer: Seat, fields: dict) -> list[Permanent] | None:
+        """The permanents to tap for a ward cost's mana (none if it has no mana), or None if it can't be paid."""
+        return self._pay_cost(payer, parse_cost(fields["mana_cost"])) if fields.get("mana_cost") else []
+
+    def can_pay_ward(self, payer: Seat, cost_text: str) -> bool:
+        fields = ward_fields(cost_text) or {}
+        return (self._ward_payment(payer, fields) is not None
+                and payer.life >= fields.get("life", 0) and (not fields.get("discard") or bool(payer.hand))
+                and (not fields.get("sacrifice_other")
+                     or any(_permanent_matches(fields["sacrifice_other"], p.card) for p in payer.battlefield)))
+
+    def pay_ward(self, payer: Seat, cost_text: str) -> None:
+        fields = ward_fields(cost_text) or {}
+        self._spend_mana(payer, self._ward_payment(payer, fields) or [])
+        if fields.get("life"):
+            self.change_life(payer, -fields["life"])
+        if fields.get("discard"):
+            self.discard(payer, 1)
+        if fields.get("sacrifice_other"):
+            self.sacrifice(payer, fields["sacrifice_other"])
+
+    def grant_protection_of_choice(self, permanent: Permanent, chooser: Seat) -> None:
+        """"... gains protection from the color of your choice until end of turn." """
+        source = self.resolving_item.card.name if self.resolving_item else permanent.card.name
+        names = list(COLOR_NAMES.values())
+        name = names[chooser.player.choose(PROTECTION_PROMPT + source, names)]
+        self.modify_until_end_of_turn(permanent, Modifier(0, 0, frozenset({f"protection from {name}"})))
 
     def resolve_ward(self, cost_text: str) -> None:
         """The spell or ability that targeted a warded permanent is countered unless its controller pays."""
@@ -1722,10 +1760,10 @@ class Game:
         if item is None or item not in self.stack:
             return
         payer = item.controller
-        payment = self._pay_cost(payer, parse_cost(cost_text))
-        if payment is not None and payer.player.choose(WARD_PROMPT + item.card.name,
-                                                       [f"Pay {cost_text}", "Don't pay"]) == 0:
-            self._spend_mana(payer, payment)
+        shown = f"Pay {cost_text}" if cost_text.startswith("{") else cost_text
+        if self.can_pay_ward(payer, cost_text) and payer.player.choose(WARD_PROMPT + item.card.name,
+                                                                       [shown, "Don't pay"]) == 0:
+            self.pay_ward(payer, cost_text)
             self.broadcast({"event": "ward_paid", "seat": payer.index, "card": ward.card.name, "cost": cost_text})
             return
         self.counter(item)
@@ -1993,7 +2031,7 @@ class Game:
             return
         targets = list(item.targets)
         if new_targets and (chosen := self._choose_targets(controller, item.effects, item.card.name,
-                                                           colors=frozenset(item.card.colors))):
+                                                           colors=source_qualities(item.card))):
             targets = chosen[0]
         self.stack.append(StackItem(item.card, controller, item.effects, targets, x=item.x, kicked=item.kicked, is_copy=True))
         self.broadcast({"event": "copied_spell", "seat": controller.index, "card": item.card.name})
@@ -2169,7 +2207,7 @@ class Game:
                         self.gain_control(host, seat, aura=permanent)
                         changed = True
                     if host is not None and (not self.on_battlefield(host)
-                                             or self.protected_from(host, frozenset(permanent.card.colors))):
+                                             or self.protected_from(host, source_qualities(permanent.card))):
                         permanent.attached_to = None  # CR 704.5n: Equipment stays, unattached
                         host = None
                     if "Aura" in permanent.card.type_line and host is None:

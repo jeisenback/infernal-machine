@@ -80,6 +80,8 @@ def unsupported_lines(card: Card) -> list[str]:
 
 
 def _is_keyword_line(line: str) -> bool:
+    if is_ward_line(line):  # "Ward\u2014{1}, Pay 2 life." has a comma that isn't between keywords
+        return True
     line = PROTECTION.sub("protection", line.lower())  # "protection from red and from blue" is one keyword
     return all(part in SUPPORTED_KEYWORDS or is_ward_line(part) for part in line.split(", "))
 
