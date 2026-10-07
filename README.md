@@ -35,6 +35,10 @@ deck = load_deck(open("deck.txt").read(), source)  # deck.commanders, deck.main,
   It sends the required headers and spaces requests 100 ms apart.
 - `CachedSource` wraps any source and stores the cards it fetches in a JSON file,
   so repeat lookups work offline.
+- `BulkSource(".cache/oracle_bulk.json")` skips the per-card API calls. It downloads Scryfall's
+  [Oracle Cards bulk file](https://scryfall.com/docs/api/bulk-data) (~25 MB gzipped, ~35,000 cards) once, saves a
+  slim copy, and refreshes it after a week (keeping the old copy if Scryfall is unreachable). Everything after
+  that is offline. The server uses it with `--bulk .cache/oracle_bulk.json`.
 - `parse_decklist` reads Arena/MTGO/Moxfield text: `Commander` / `Deck` / `Sideboard`
   headers, `1 Sol Ring (CMM) 400`, and Moxfield's `*CMDR*` and `*F*` tags.
 
