@@ -2756,6 +2756,9 @@ _TRIGGERS = {
     "opponent_lose_life": re.compile(r"Whenever an opponent loses life, (.+)", re.I),
     "become_monarch": re.compile(r"Whenever you become the monarch, (.+)", re.I),
     "opponent_become_monarch": re.compile(r"Whenever an opponent becomes the monarch, (.+)", re.I),
+    "discard": re.compile(r"Whenever you discard a card, (.+)", re.I),
+    "opponent_discard": re.compile(r"Whenever an opponent discards a card, (.+)", re.I),
+    "opponent_search": re.compile(r"Whenever an opponent searches their library, (.+)", re.I),
     "opponent_sacrifice_creature": re.compile(r"Whenever an opponent sacrifices a creature, (.+)", re.I),
     "second_draw": re.compile(r"Whenever you draw your second card each turn, (.+)", re.I),
     "combat_damage_to_player": re.compile(rf"Whenever {_SELF} deals combat damage to a player, (.+)", re.I),
@@ -2812,7 +2815,8 @@ _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
 # Triggers about some other creature: there "it" and "that creature" mean that creature, not the source.
 _OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat_damage", "token_combat_damage"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
-_PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch"}
+_PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
+                  "opponent_discard", "opponent_search"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
 _PLAYER_PRONOUNS = [
     (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),

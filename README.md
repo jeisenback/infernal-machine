@@ -562,6 +562,8 @@ winner = game.play()
   | Whenever an opponent draws a card / gains life / loses life, ... | Sheoldred, the Apocalypse |
   | Whenever you draw your second card each turn, ... | |
   | Whenever an opponent sacrifices a creature, ... | |
+  | Whenever you discard a card / an opponent discards a card, ... | Megrim |
+  | Whenever an opponent searches their library, ... | Opposition Agent |
   | Whenever this creature deals combat damage to a player, ... | |
   | At the beginning of your upkeep / end step, ... | |
   | At the beginning of each upkeep / each end step, ... (every player's turn) | Tendershoot Dryad |
@@ -602,7 +604,7 @@ winner = game.play()
   - A trigger whose effect isn't understood is ignored.
   - In triggers about another creature (enters, dies, attacks, attacks you, deals combat damage), "it" and
     "that creature" mean that creature ("put a +1/+1 counter on it"), but only when every effect is about "it".
-  - In triggers about another player (an opponent draws, gains or loses life, or casts a spell), "that player"
+  - In triggers about another player (an opponent draws, gains or loses life, discards, searches their library, or casts a spell), "that player"
     and "they" mean that player ("they lose 2 life", "deals 2 damage to that player"), but only for effects that
     target a player. Anywhere else a line that says "it", "they" or "that player" is ignored.
   - Ability words like "Landfall —" are ignored when reading the trigger. A creature that dies still sees

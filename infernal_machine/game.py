@@ -1257,6 +1257,17 @@ class Game:
         for permanent in list(seat.battlefield):
             self.trigger(event, permanent, seat, subject, player)
 
+    def _searched(self, seat: Seat) -> None:
+        """`seat` searched their library (found something or not)."""
+        for opponent in self.opponents(seat):
+            self._trigger_each("opponent_search", opponent, player=seat)
+
+    def _discarded(self, seat: Seat) -> None:
+        """`seat` discarded a card: "Whenever you discard a card" and "Whenever an opponent discards a card"."""
+        self._trigger_each("discard", seat)
+        for opponent in self.opponents(seat):
+            self._trigger_each("opponent_discard", opponent, player=seat)
+
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0,
                subject: Permanent | None = None, player: Seat | None = None) -> None:
         if ability.condition and not self.condition_holds(ability.condition, controller, permanent):
@@ -1670,6 +1681,7 @@ class Game:
             found = matches[seat.player.choose(SEARCH_CARD_PROMPT, [c.name for c in matches])]
             seat.library.remove(found)
         self.rng.shuffle(seat.library)
+        self._searched(seat)
         if found is None:
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
             return
@@ -1987,6 +1999,7 @@ class Game:
             self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": True})
             self._enter(seat, Permanent(choice, tapped=True))
         self.rng.shuffle(seat.library)
+        self._searched(seat)
 
     def search_for_lands(self, seat: Seat, count: int, subtypes: tuple[str, ...], battlefield: int,
                          tapped: bool, reveal: bool) -> None:
@@ -2015,6 +2028,7 @@ class Game:
                 seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": "hand", "card": card.name})
         if not (to_battlefield or to_hand):
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
+        self._searched(seat)
 
     def scry(self, seat: Seat, count: int) -> None:
         """Look at the top `count` cards and put any of them on the bottom; the rest stay on top in
@@ -2175,6 +2189,7 @@ class Game:
                 card = seat.hand.pop(seat.player.choose(DISCARD_CARD_PROMPT, [c.name for c in seat.hand]))
             self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
             self._move_card(seat, card, "graveyard")
+            self._discarded(seat)
 
     def reveal_and_discard(self, chooser: Seat, victim: Seat, excluded: tuple[str, ...], max_mv: int | None) -> None:
         """Thoughtseize: `victim` reveals their hand and `chooser` picks a card from it that isn't one of the
@@ -2188,6 +2203,7 @@ class Game:
         victim.hand.remove(card)
         self.broadcast({"event": "discard", "seat": victim.index, "card": card.name})
         self._move_card(victim, card, "graveyard")
+        self._discarded(victim)
 
     def mill(self, seat: Seat, count: int) -> None:
         """Put the top `count` cards of the library into the graveyard (fewer if there aren't that many)."""
