@@ -130,7 +130,7 @@ class LifeColorTests(unittest.TestCase):
         game, _, _ = table(None)
         a = game.seats[0]
         a.battlefield = [Permanent(HORIZON)]
-        a.life = 0
+        a.life = 1  # paying it would end the game
         self.assertIsNone(game._payment(a, spell("{W}")))
 
 

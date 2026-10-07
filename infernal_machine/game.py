@@ -670,7 +670,7 @@ class Game:
             pain, damage = mana_pain(card) or (frozenset(), 0)
             if is_land(card):
                 if life_cost := mana_life_cost(card):
-                    if seat.life >= life_cost:  # Mana Confluence: paying life, which you must have
+                    if seat.life > life_cost:  # Mana Confluence: paying life, never down to 0
                         lands.append(ManaSource(permanent, mana_life_types(card), frozenset("WUBRGC"), life_cost, life=True))
                     continue
                 gifted = [mana for other in self.seats for a in other.battlefield if a.attached_to is permanent
