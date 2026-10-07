@@ -343,7 +343,14 @@ winner = game.play()
   - **Granting abilities:** "Enchanted (or equipped) creature has "{T}: Draw a card."" lets that creature activate it
     (a summoning-sick one can't use {T}). "Enchanted land has "{T}: Add {G}{G}."" makes the land tap for that mana
     instead of its own single mana. A quoted ability that isn't understood leaves the card unsupported.
-  - **Not built:** Reconfigure, Fortify and Fortifications, "Whenever this Equipment becomes attached", Wild
+  - **Reconfigure {N}:** an Equipment creature has two abilities at sorcery speed: attach to another creature you
+    control (offered only if you have one), and "(unattach)" (offered only while attached). While attached it is
+    not a creature; when unattached, when its creature leaves, or when it leaves the battlefield it is its real
+    card again.
+  - **"It" on the host:** "Whenever equipped (enchanted) creature attacks (deals combat damage to a player), put a
+    +1/+1 counter on it" means the equipped creature. In "Whenever equipped creature dies, ... it" the creature is
+    gone, so that line isn't understood.
+  - **Not built:** Fortify and Fortifications, "Whenever this Equipment becomes attached", Wild
     Growth-style "whenever enchanted land is tapped for mana", and an equip bonus that scales ("+1/+1 for each").
 - **Replacement effects:** statics that change what would happen, read from a permanent on the battlefield.
   - Rest in Peace: "If a card or token would be put into a graveyard from anywhere, exile it instead." (Leyline of the

@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -138,6 +138,7 @@ class Permanent:
     control_aura: "Permanent | None" = None  # the Aura (Control Magic) that holds control of it
     control_eot: bool = False  # control changes back at end of turn (Threaten)
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
+    reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
     attacked_turn: int | None = None  # the last turn it attacked
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
 
@@ -536,6 +537,11 @@ class Game:
         if len(seat.hand) < ability.discard or len(seat.graveyard) < ability.exile_graveyard:
             return False
         if ability.sacrifice_other and len(self._sacrifice_choices(seat, permanent, ability)) < ability.sacrifice_count:
+            return False
+        if ability.reconfigure == "unattach" and permanent.attached_to is None:
+            return False
+        if ability.reconfigure == "attach" and not any(p is not permanent and "Creature" in p.card.type_line
+                                                       for p in seat.battlefield):
             return False
         if ability.crew and (permanent.original is not None
                              or any(i.source is permanent and getattr(i.ability, "crew", 0) for i in self.stack)  # already crewing
@@ -1181,7 +1187,18 @@ class Game:
         """Attach an Equipment to a creature (moving it if it was on another)."""
         if self.on_battlefield(attachment) and self.on_battlefield(creature):
             attachment.attached_to = creature
+            if reconfigure_cost(attachment.card) and attachment.reconfigured is None and "Creature" in attachment.card.type_line:
+                attachment.reconfigured = attachment.card  # Reconfigure: attached, it isn't a creature
+                head, dash, tail = attachment.card.type_line.partition("\u2014")
+                attachment.card = dataclasses.replace(attachment.card,
+                                                      type_line=" ".join(w for w in head.split() if w != "Creature") + f" {dash}{tail}".rstrip())
             self.broadcast({"event": "attached", "card": attachment.card.name, "to": creature.card.name})
+
+    def detach(self, attachment: Permanent) -> None:
+        """An Equipment stops being attached; a Reconfigure creature becomes a creature again."""
+        attachment.attached_to = None
+        if attachment.reconfigured is not None:
+            attachment.card, attachment.reconfigured = attachment.reconfigured, None
 
     def _resolve_ability(self, item: StackItem) -> None:
         seat, ability = item.controller, item.ability
@@ -1542,7 +1559,7 @@ class Game:
                 for holder in self.live_seats():  # "Whenever equipped (enchanted) creature deals combat damage to a player"
                     for attachment in list(holder.battlefield):
                         if attachment.attached_to is source:
-                            self.trigger("host_combat_damage", attachment, holder)
+                            self.trigger("host_combat_damage", attachment, holder, source)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
@@ -2373,6 +2390,8 @@ class Game:
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
             if permanent.real_card is not None:  # a Clone goes to the graveyard as itself
                 permanent.card, permanent.real_card = permanent.real_card, None
+            if permanent.reconfigured is not None:  # an attached Equipment creature goes back to being just a card
+                permanent.card, permanent.reconfigured = permanent.reconfigured, None
             if permanent.original is not None:  # a crewed Vehicle goes back to being just a card
                 permanent.card, permanent.original = permanent.original, None
             if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)
@@ -2483,7 +2502,7 @@ class Game:
                         changed = True
                     if host is not None and (not self.on_battlefield(host)
                                              or self.protected_from(host, source_qualities(permanent.card))):
-                        permanent.attached_to = None  # CR 704.5n: Equipment stays, unattached
+                        self.detach(permanent)  # CR 704.5n: Equipment stays, unattached
                         host = None
                     if "Aura" in permanent.card.type_line and host is None:
                         dying.append((permanent, "unattached"))  # CR 704.5m
