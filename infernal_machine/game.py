@@ -25,7 +25,7 @@ from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
-                      enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
+                      enters_prepared, enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
@@ -55,6 +55,7 @@ CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
+CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
 CYCLE = "Cycle: "
 SHOCK_PROMPT = "Pay life so it enters untapped? "  # followed by the land's name
@@ -141,6 +142,7 @@ class Permanent:
     reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
     attacked_turn: int | None = None  # the last turn it attacked
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
+    prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
 
 
 @dataclass(frozen=True)
@@ -502,6 +504,9 @@ class Game:
                     actions.append(PLAY_EXILE + card.name)
             elif (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card):
                 actions.append(CAST_EXILE + card.name)
+        for spell in _unique([p.card.prepare for p in seat.battlefield if p.prepared and p.card.prepare]):
+            if (sorcery_timing or _instant_speed(spell)) and self._can_cast(seat, spell):
+                actions.append(CAST_PREPARED + spell.name)
         for card in _unique(seat.hand):
             if (found := cycling(card)) and self._can_cycle(seat, found[1], found[3]):
                 actions.append(CYCLE + card.name)
@@ -901,6 +906,10 @@ class Game:
         elif action.startswith(CAST_GRAVEYARD):
             card = next(c for c in seat.graveyard if c.name == action.removeprefix(CAST_GRAVEYARD))
             self._cast(seat, card, seat.graveyard, graveyard=graveyard_casts(card)[0])
+        elif action.startswith(CAST_PREPARED):
+            name = action.removeprefix(CAST_PREPARED)
+            permanent = next(p for p in seat.battlefield if p.prepared and p.card.prepare and p.card.prepare.name == name)
+            self._cast(seat, permanent.card.prepare, [permanent.card.prepare], prepared=permanent)
         elif action.startswith(CAST):
             card = next(c for c in seat.hand if c.name == action.removeprefix(CAST))
             self._cast(seat, card, seat.hand)
@@ -1044,7 +1053,7 @@ class Game:
         return targets, labels
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
-              graveyard: GraveyardCast | None = None) -> None:
+              graveyard: GraveyardCast | None = None, prepared: Permanent | None = None) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
         extra = ""
@@ -1066,11 +1075,14 @@ class Game:
         tapped = self._payment(seat, paying, from_command_zone, x, alternative, kicked, extra)
         self._spend_mana(seat, tapped)
         zone.remove(card)
+        if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
+            prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard)
-        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, exile_after=bool(graveyard and graveyard.exile_after))
+        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, exile_after=bool(graveyard and graveyard.exile_after),
+                         is_copy=prepared is not None)
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
-                 "from": "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
+                 "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
                  "targets": labels, "x": x, "tapped": [p.card.name for p in tapped]}
         if kicked:
             event["kicked"] = kicked
@@ -2292,6 +2304,8 @@ class Game:
             number = self._counters_to_add(seat, permanent.card, counter, x if count == "X" else count)
             permanent.counters[counter] = permanent.counters.get(counter, 0) + number
         permanent.owner = permanent.owner or seat
+        if enters_prepared(permanent.card):
+            permanent.prepared = True
         rule = enters_tapped_rule(permanent.card)
         if rule and self._enters_tapped(seat, rule, permanent.card):
             permanent.tapped = True
@@ -2302,6 +2316,12 @@ class Game:
         if saga_chapters(permanent.card):
             self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
+
+    def prepare(self, permanent: Permanent) -> None:
+        """A creature with a prepare spell becomes prepared (nothing happens if it already is)."""
+        if self.on_battlefield(permanent) and permanent.card.prepare and not permanent.prepared:
+            permanent.prepared = True
+            self.broadcast({"event": "prepared", "card": permanent.card.name})
 
     def _become_copy(self, seat: Seat, permanent: Permanent, kind: str, yours: bool) -> None:
         """Clone: choose a permanent on the battlefield and enter as a copy of it. A copy gets the other card's

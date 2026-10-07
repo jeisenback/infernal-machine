@@ -1877,6 +1877,29 @@ class ReturnSelfToHand:
 
 
 @dataclass(frozen=True)
+class BecomePrepared:
+    """ "This creature becomes prepared." While it is, its controller may cast a copy of its spell half (see
+    Game.legal_actions); doing so unprepares it. Only creatures with a prepare spell can become prepared."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.prepare(target)
+
+
+_ENTERS_PREPARED = re.compile(rf"{_SELF} enters prepared\.", re.I)
+
+
+def enters_prepared(card: Card) -> bool:
+    """Whether a prepare creature "enters prepared"."""
+    return card.prepare is not None and any(_ENTERS_PREPARED.fullmatch(line) for line in rules_lines(card))
+
+
+def is_enters_prepared_line(line: str) -> bool:
+    return _ENTERS_PREPARED.fullmatch(line) is not None
+
+
+@dataclass(frozen=True)
 class Goad:
     target: str
 
@@ -2414,6 +2437,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target {_FIGHTER} deals damage equal to its power to target {_FIGHTER}\.", re.I),
      lambda m: [FightFirst(m[1].lower()), Fight(m[2].lower(), one_sided=True)]),
     (re.compile(r"populate\.", re.I), lambda m: Populate()),
+    (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),

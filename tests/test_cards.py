@@ -178,6 +178,14 @@ class BulkSourceTests(unittest.TestCase):
             with self.assertRaises(CardNotFound):
                 source.get("Grizzly Bears")
 
+    def test_a_copy_saved_before_the_format_marker_is_downloaded_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bulk.json"
+            path.write_text(json.dumps({"Lightning Bolt": Card.from_scryfall(BOLT).to_dict()}))
+            BulkSource(path, http=self.http, download=self.download).get("Lightning Bolt")
+            self.assertEqual(len(self.requests), 2)
+            self.assertEqual(json.loads(path.read_text())["format"], BulkSource.FORMAT)
+
     def test_stale_file_is_refreshed_and_kept_if_offline(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "bulk.json"

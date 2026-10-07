@@ -34,6 +34,7 @@ class Card:
     commander_legal: bool = True
     scryfall_id: str | None = None
     back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
+    prepare: "Card | None" = None  # a prepare card's spell half, which a prepared creature can cast a copy of
 
     @classmethod
     def from_scryfall(cls, data: dict) -> "Card":
@@ -51,6 +52,15 @@ class Card:
                            produced_mana=_face_mana(back_face, tuple(data.get("produced_mana", []))),
                            commander_legal=data.get("legalities", {}).get("commander") == "legal",
                            scryfall_id=data.get("id"))
+        prepare = None
+        if data.get("layout") == "prepare" and len(data.get("card_faces", [])) == 2:
+            spell = data["card_faces"][1]
+            prepare = cls(name=spell["name"], mana_cost=spell.get("mana_cost", ""),
+                          cmc=_mana_value(spell.get("mana_cost", "")), type_line=spell.get("type_line", ""),
+                          oracle_text=spell.get("oracle_text", ""), colors=_cost_colors(spell.get("mana_cost", "")),
+                          color_identity=tuple(data.get("color_identity", [])),
+                          commander_legal=data.get("legalities", {}).get("commander") == "legal",
+                          scryfall_id=data.get("id"))
         return cls(
             name=data["name"],
             mana_cost=face.get("mana_cost", ""),
@@ -66,16 +76,31 @@ class Card:
             commander_legal=data.get("legalities", {}).get("commander") == "legal",
             scryfall_id=data.get("id"),
             back=back,
+            prepare=prepare,
         )
 
     @classmethod
     def from_dict(cls, data: dict) -> "Card":
         tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity", "produced_mana")}
         back = cls.from_dict(data["back"]) if data.get("back") else None
-        return cls(**{**data, **tuples, "back": back})
+        prepare = cls.from_dict(data["prepare"]) if data.get("prepare") else None
+        return cls(**{**data, **tuples, "back": back, "prepare": prepare})
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def _mana_value(cost: str) -> float:
+    """The mana value of a mana cost ("{2}{W}" is 3; X counts as 0)."""
+    total = 0
+    for symbol in re.findall(r"\{([^}]+)\}", cost):
+        total += int(symbol) if symbol.isdigit() else 2 if symbol.startswith("2/") else 0 if symbol == "X" else 1
+    return float(total)
+
+
+def _cost_colors(cost: str) -> tuple[str, ...]:
+    """The colors in a mana cost, in WUBRG order (what a face with no color of its own is)."""
+    return tuple(c for c in "WUBRG" if re.search(rf"[{{/]{c}[}}/]", cost))
 
 
 def _face_mana(face: dict, produced: tuple[str, ...]) -> tuple[str, ...]:
@@ -236,6 +261,8 @@ class BulkSource:
     reused until it is `max_age_days` old. After that every lookup is offline.
     """
 
+    FORMAT = 2  # bumped when Card gains fields, so a copy saved earlier is downloaded again
+
     def __init__(self, path: str | Path, max_age_days: float = 7.0, base_url: str = "https://api.scryfall.com",
                  user_agent: str = "infernal-machine/0.1", http: HttpFn = _urlopen_json,
                  download: Callable[[urllib.request.Request], list[dict]] = _download_jsonl):
@@ -267,13 +294,13 @@ class BulkSource:
         data = self._request(self.download, entry["jsonl_download_uri"])
         cards = [Card.from_scryfall(d) for d in data if d.get("layout") not in _NON_CARD_LAYOUTS]
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps({card.name: card.to_dict() for card in cards}))
+        self.path.write_text(json.dumps({"format": self.FORMAT, "cards": {card.name: card.to_dict() for card in cards}}))
         self._index = _name_index(cards)
         return len(cards)
 
     def _load(self) -> dict[str, Card]:
         if self._index is None:
-            if not self.path.exists() or time.time() - self.path.stat().st_mtime > self.max_age_days * 86400:
+            if not self.path.exists() or time.time() - self.path.stat().st_mtime > self.max_age_days * 86400                     or json.loads(self.path.read_text()).get("format") != self.FORMAT:
                 try:
                     self.refresh()
                 except (OSError, LookupError):
@@ -281,6 +308,7 @@ class BulkSource:
                         raise  # no copy to fall back on
             if self._index is None:
                 raw = json.loads(self.path.read_text())
+                raw = raw.get("cards", raw)  # a copy from before the format marker is just the cards
                 self._index = _name_index(Card.from_dict(value) for value in raw.values())
         return self._index
 

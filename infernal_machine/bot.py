@@ -12,7 +12,7 @@ from .cards import Card, Deck
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT
 from .undercity import HELPS_ITS_TARGET
-from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, PLAY_EXILE, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
+from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PLAY_EXILE, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
@@ -55,6 +55,7 @@ class BotPlayer:
     def __init__(self, name: str, deck: Deck):
         self.name = name
         self._cards = {c.name: c for c in deck.commanders + deck.main}
+        self._cards.update({c.prepare.name: c.prepare for c in list(self._cards.values()) if c.prepare})  # the spell halves
         self._hand: list[Card] = []
         self._mulligans = 0
         self._seat: int | None = None
@@ -131,7 +132,7 @@ class BotPlayer:
             if option.startswith(CAST_COMMANDER):
                 return i
         casts = [i for i, option in enumerate(options)
-                 if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE)) and not _is_ritual(self._cards.get(_cast_name(option)))]
+                 if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)) and not _is_ritual(self._cards.get(_cast_name(option)))]
         if casts:
             return max(casts, key=lambda i: self._cards[_cast_name(options[i])].cmc)
         for i, option in enumerate(options):
@@ -161,7 +162,7 @@ class BotPlayer:
 
 def _cast_name(option: str) -> str:
     """The card in a "Cast: ..." or "Cast from graveyard: ..." action."""
-    return option.removeprefix(CAST).removeprefix(CAST_GRAVEYARD).removeprefix(CAST_EXILE)
+    return option.removeprefix(CAST).removeprefix(CAST_GRAVEYARD).removeprefix(CAST_EXILE).removeprefix(CAST_PREPARED)
 
 
 def _is_ritual(card: Card | None) -> bool:
