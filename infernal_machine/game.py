@@ -1568,25 +1568,52 @@ class Game:
         if restriction.keyword and self.has_keyword(permanent, restriction.keyword) != restriction.keyword_wanted:
             return False
         if restriction.stat:
-            value = self.power(permanent) if restriction.stat == "power" else self.toughness(permanent)
-            if value is None or "Creature" not in permanent.card.type_line:
-                return False
+            if restriction.stat == "mana_value":
+                value = permanent.card.cmc
+            else:
+                value = self.power(permanent) if restriction.stat == "power" else self.toughness(permanent)
+                if value is None or "Creature" not in permanent.card.type_line:
+                    return False
             if (restriction.at_least is not None and value < restriction.at_least) or \
                     (restriction.at_most is not None and value > restriction.at_most):
                 return False
         if restriction.color and (restriction.color in permanent.card.colors) == restriction.other_color:
             return False
+        card = permanent.card
+        if ((restriction.token is not None and _is_token(card) != restriction.token)
+                or (restriction.legendary is not None and ("Legendary" in card.type_line) != restriction.legendary)
+                or (restriction.basic is not None and ("Basic" in card.type_line) != restriction.basic)
+                or (restriction.tapped is not None and permanent.tapped != restriction.tapped)
+                or (restriction.has_type and restriction.has_type not in card.type_line)):
+            return False
+        if restriction.exclude is not None and self._spared(permanent, restriction.exclude):
+            return False
         return True
 
-    def destroy_all(self, permanents: list[Permanent], no_regen: bool = False) -> None:
+    def _spared(self, permanent: Permanent, spared: MassFilter) -> bool:
+        """Whether an "except for ..." filter describes this permanent (so it is left alone)."""
+        return self._passes(permanent, spared)
+
+    def destroy_all(self, permanents: list[Permanent], no_regen: bool = False, gives: tuple[int, Card] | None = None) -> None:
         """Destroy them all at once; indestructible ones survive, and so do ones with a regeneration shield
-        unless they "can't be regenerated"."""
+        unless they "can't be regenerated". `gives`: each controller then gets tokens for each one destroyed."""
         doomed = [p for p in permanents if not self.has_keyword(p, "indestructible")
                   and (no_regen or not self._regenerated(p))]
         self._leave_together([(p, "destroyed") for p in doomed])
+        self._give_back(doomed, gives)
 
-    def exile_all(self, permanents: list[Permanent]) -> None:
+    def exile_all(self, permanents: list[Permanent], gives: tuple[int, Card] | None = None) -> None:
         self._leave_together([(p, "exiled") for p in permanents], destination="exile")
+        self._give_back(permanents, gives)
+
+    def _give_back(self, gone: list[Permanent], gives: tuple[int, Card] | None) -> None:
+        """"For each creature destroyed this way, its controller creates a token": for each one that left."""
+        if gives is None:
+            return
+        count, token = gives
+        for permanent in gone:
+            if permanent.last_controller is not None and not self.on_battlefield(permanent):
+                self.create_tokens(permanent.last_controller, token, count)
 
     def return_to_hand(self, permanent: Permanent) -> None:
         """Bounce: a permanent goes to its owner's hand (a token just stops existing)."""
@@ -1643,11 +1670,21 @@ class Game:
                         **({"card": found.name} if reveal else {})}, skip=seat)
         seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": to, "card": found.name})
 
-    def sacrifice(self, seat: Seat, kind: str = "creature") -> None:
-        """`seat` chooses one of its permanents of `kind` (a creature, artifact, land, ...) and sacrifices it
-        (no targeting, so hexproof and indestructible don't help)."""
+    def sacrifice(self, seat: Seat, kind: str = "creature", count: int | None = 1, greatest: bool = False) -> None:
+        """`seat` chooses `count` of its permanents of `kind` (a creature, artifact, land, ...) and sacrifices them
+        (all of them if `count` is None); with `greatest`, only a creature with the greatest power among its creatures
+        can be chosen. No targeting, so hexproof and indestructible don't help."""
         options = [p for p in seat.battlefield if _permanent_matches(kind, p.card)]
-        if options:
+        if count is None:
+            self._leave_together([(p, "sacrificed") for p in options])
+            return
+        for _ in range(count):
+            options = [p for p in options if self.on_battlefield(p)]
+            if greatest and options:
+                top = max(self.power(p) for p in options)
+                options = [p for p in options if self.power(p) == top]
+            if not options:
+                return
             prompt = SACRIFICE_PROMPT if kind == "creature" else f"Choose a {kind} to sacrifice"
             choice = options[seat.player.choose(prompt, [self.label(p) for p in options])]
             self._leave_together([(choice, "sacrificed")])
