@@ -522,15 +522,32 @@ def _signed(text: str) -> int:
 
 _COLOR_NAMES = "white|blue|black|red|green"
 _COLOR_LETTER = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
-_PROT = (rf"protection from (?:{_COLOR_NAMES})(?:(?:, and |, | and )(?:from )?(?:{_COLOR_NAMES}))*")
+_PROTECTION_FROM = (_COLOR_NAMES + "|everything|all colors|monocolored|multicolored|creatures|artifacts|enchantments|instants"
+                    "|sorceries|planeswalkers")
+_PROT = (rf"protection from (?:{_PROTECTION_FROM})(?:(?:, and |, | and )(?:from )?(?:{_PROTECTION_FROM}))*")
+_WARD_MANA = r"(?:\{\d+\}|\{[WUBRGC]\})+"
 PROTECTION = re.compile(_PROT, re.I)  # "protection from red", "protection from red and from blue"
-_KW = rf"(?:{_PROT}|[a-z]+(?: [a-z]+)?)"  # one keyword
+_KW = rf"(?:{_PROT}|ward {_WARD_MANA}|[a-z]+(?: [a-z]+)?)"  # one keyword
 
 
 def _protection_keywords(text: str) -> frozenset[str]:
     """ "protection from red and from blue" -> {"protection from red", "protection from blue"}"""
-    return frozenset(f"protection from {color.lower()}"
-                     for m in PROTECTION.finditer(text) for color in re.findall(_COLOR_NAMES, m[0], re.I))
+    return frozenset(f"protection from {what.lower()}"
+                     for m in PROTECTION.finditer(text) for what in re.findall(_PROTECTION_FROM, m[0], re.I))
+
+
+# What a source can be protected against: its color letters, its card types, and whether it is mono- or multicolored.
+_PROTECTION_TOKENS = {"everything": "everything", "monocolored": "monocolored", "multicolored": "multicolored",
+                      "creatures": "creature", "artifacts": "artifact", "enchantments": "enchantment",
+                      "instants": "instant", "sorceries": "sorcery", "planeswalkers": "planeswalker"}
+
+
+def protection_tokens(keyword: str) -> frozenset[str]:
+    """ "protection from red" -> {"R"}, "protection from creatures" -> {"creature"}, "protection from all colors" -> WUBRG"""
+    what = keyword.removeprefix("protection from ").lower()
+    if what == "all colors":
+        return frozenset(_COLOR_LETTER.values())
+    return frozenset({_COLOR_LETTER.get(what) or _PROTECTION_TOKENS[what]})
 
 
 def _keyword_list(text: str) -> frozenset[str]:
@@ -542,26 +559,42 @@ def _keyword_list(text: str) -> frozenset[str]:
 
 @lru_cache(maxsize=None)
 def printed_protection(card: Card) -> frozenset[str]:
-    """The colors (as letters) a card has protection from by its own keyword line, such as
+    """What a card has protection from (color letters, card types, "everything") by its own keyword line, such as
     "Flying, protection from red and from blue". An ability that gives protection to something
     else ("Equipped creature has protection from red") doesn't count."""
     letters: set[str] = set()
     for line in rules_lines(card):
         if PROTECTION.search(line) and re.fullmatch(rf"{_KW}(?:, {_KW})*", line, re.I):
-            letters.update(_COLOR_LETTER[kw.rsplit(" ", 1)[1]] for kw in _protection_keywords(line))
+            for keyword in _protection_keywords(line):
+                letters |= protection_tokens(keyword)
     return frozenset(letters)
 
 
-_WARD = re.compile(r"(?:^|, )ward ((?:\{\d+\}|\{[WUBRGC]\})+)(?:,|$)", re.I)
+_WARD = re.compile(rf"(?:^|, )ward ({_WARD_MANA})(?:,|$)", re.I)
+_WARD_DASH = re.compile(r"ward\u2014(.+?)\.?", re.I)  # "Ward\u2014Pay 3 life."
+
+
+def ward_fields(cost: str) -> dict[str, Any] | None:
+    """A ward cost as the fields of an activated ability's cost: only mana, life, discarding and sacrificing."""
+    fields = _cost_fields(cost[:1].upper() + cost[1:])  # the report reads lowercased text
+    if fields is None or fields.get("tap") or fields.get("sacrifice") or fields.get("exile_graveyard"):
+        return None
+    return fields
 
 
 def ward_cost(card: Card) -> str | None:
-    """The mana cost of "Ward {2}" (other ward costs, like paying life, aren't supported), or None."""
-    return next((m[1] for line in rules_lines(card) if (m := _WARD.search(line))), None)
+    """The cost of ward: "{2}" for "Ward {2}", or "Pay 3 life" for "Ward\u2014Pay 3 life." (or None)."""
+    for line in rules_lines(card):
+        if m := _WARD.search(line):
+            return m[1]
+        if (m := _WARD_DASH.fullmatch(line)) and ward_fields(m[1]) is not None:
+            return m[1]
+    return None
 
 
 def is_ward_line(text: str) -> bool:
-    return re.fullmatch(r"ward (?:\{\d+\}|\{[WUBRGC]\})+", text, re.I) is not None
+    return (re.fullmatch(rf"ward {_WARD_MANA}", text, re.I) is not None
+            or ((m := _WARD_DASH.fullmatch(text)) is not None and ward_fields(m[1]) is not None))
 
 
 @dataclass(frozen=True)
@@ -573,6 +606,18 @@ class Pump:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.modify_until_end_of_turn(target, self.modifier)
+
+
+@dataclass(frozen=True)
+class GrantProtection:
+    """ "Target creature you control gains protection from the color of your choice until end of turn." (Mother of Runes,
+    Gods Willing); the controller picks the color as it resolves. With no target it is the source itself."""
+    target: str | None = None
+    uses_source: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.grant_protection_of_choice(target, controller)
 
 
 @dataclass(frozen=True)
@@ -2186,6 +2231,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]))),
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
      lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),
+    (re.compile(rf"(?i:target) {_PERMANENT_KIND} gains protection from the color of your choice until end of turn\."),
+     lambda m: GrantProtection(m[1].lower())),
+    (re.compile(rf"(?i:{_SELF}) gains protection from the color of your choice until end of turn\."),
+     lambda m: GrantProtection(uses_source=True)),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} gets? {_PT_X} until end of turn\."),
      lambda m: _pump_x(m[2], m[3], m[4], m[5], m[1].lower())),

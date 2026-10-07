@@ -23,6 +23,14 @@ class Modifier:
     set_pt: tuple[int, int] | None = None  # "becomes a 4/4": its base power and toughness (counters and bonuses still apply)
 
 
+def source_qualities(card) -> frozenset[str]:
+    """What protection can be from about a source: its color letters, its card types in lowercase ("creature",
+    "instant"), and "monocolored", "multicolored" or "colorless"."""
+    types = {word.lower() for word in card.type_line.partition("\u2014")[0].split()}
+    kind = "colorless" if not card.colors else "multicolored" if len(card.colors) > 1 else "monocolored"
+    return frozenset(card.colors) | types | {kind}
+
+
 def _number(value: str | None) -> int | None:
     return int(value) if value and value.lstrip("-").isdigit() else None
 
