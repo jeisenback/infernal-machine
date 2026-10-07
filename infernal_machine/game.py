@@ -986,17 +986,22 @@ class Game:
         "Another target ..." can't be `source` itself, and nothing with protection from `colors` (the
         colors of the spell or source) can be chosen."""
         targets, labels = [], []
+        chosen: dict[str, set[int]] = {}  # kind -> which of its options were already chosen ("up to two target ...")
         for effect in effects or []:
             kind = target_kind(effect)
             if not kind:
                 continue
-            options = [o for o in self.target_options(kind, seat, colors)
-                       if not (getattr(effect, "another", False) and o[1] is source)]
+            taken = chosen.setdefault(kind, set())
+            options = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors))
+                       if not (getattr(effect, "another", False) and o[1] is source)
+                       and not (getattr(effect, "distinct", False) and i in taken)]
             if getattr(effect, "optional_target", False):  # "up to one target": it can be left out
-                options.append((NO_TARGET, None))
+                options.append((-1, (NO_TARGET, None)))
             if not options:
                 return None
-            label, target = options[seat.player.choose(TARGET_PROMPT + source_name, [o[0] for o in options])]
+            index, (label, target) = options[seat.player.choose(TARGET_PROMPT + source_name, [o[1][0] for o in options])]
+            if index >= 0:
+                taken.add(index)
             targets.append(target)
             labels.append(label)
         return targets, labels
@@ -1376,12 +1381,16 @@ class Game:
                         and not (whose == "you" and i.controller is not caster)]
             return options
         kind, controller = _split_controller(kind)
+        state, _, base = kind.partition(" ") if kind.split(" ")[0] in ("tapped", "untapped", "attacking") else ("", "", kind)
         for seat in self.live_seats():
             if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
                 continue
             for n, permanent in enumerate(seat.battlefield):
                 card = permanent.card
-                if not _permanent_matches(kind, card) or self.has_keyword(permanent, "shroud"):
+                if not _permanent_matches(base, card) or self.has_keyword(permanent, "shroud"):
+                    continue
+                if ((state == "tapped" and not permanent.tapped) or (state == "untapped" and permanent.tapped)
+                        or (state == "attacking" and not any(a.attacker is permanent for a in self.combat.attacks))):
                     continue
                 if self.has_keyword(permanent, "hexproof") and seat is not caster:
                     continue
@@ -2221,6 +2230,8 @@ class Game:
         for permanent, _ in leaving:
             owner = permanent.last_controller
             owner.battlefield = [p for p in owner.battlefield if p is not permanent]
+        left = {id(permanent) for permanent, _ in leaving}  # an attacker that leaves is removed from combat
+        self.combat.attacks = [a for a in self.combat.attacks if id(a.attacker) not in left]
         gone = [(permanent, permanent.last_controller) for permanent, _ in leaving]
         for permanent, reason in leaving:
             self.broadcast({"event": reason, "seat": permanent.last_controller.index, "card": permanent.card.name})
@@ -2522,6 +2533,10 @@ def _permanent_matches(kind: str, card: Card) -> bool:
         return True
     if kind == "nonland permanent":
         return not is_land(card)
+    if kind.endswith(" token"):  # "creature token"
+        return _is_token(card) and _permanent_matches(kind.removesuffix(" token"), card)
+    if kind.startswith("nontoken "):
+        return not _is_token(card) and _permanent_matches(kind.removeprefix("nontoken "), card)
     return any(t.capitalize() in card.type_line for t in kind.split(" or ") if t != "player")
 
 

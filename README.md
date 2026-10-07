@@ -490,12 +490,17 @@ winner = game.play()
   graveyard ("Return target legendary creature card from your graveyard to your hand"). "Return ... to the
   battlefield tapped" is supported. Land searches also cover "a nonbasic land card" and "up to two Forest (or
   Mountain or Forest) cards" onto the battlefield, tapped or not. "Your opponents control" works in "Return all
-  creatures your opponents control to their owners' hands" and in destroy and exile all. Still missing: choosing
-  several targets at once ("Return up to two target creatures"), "target creature token", tribal tutors
-  ("Elf card") and any card type not listed.
+  creatures your opponents control to their owners' hands" and in destroy and exile all. Tribal cards work too: a
+  capitalized subtype before "card" ("an Elf card", "target Goblin card from your graveyard"), but only a single
+  word (not "Time Lord"). Cards in a graveyard are offered by name, so two copies of a card are one choice.
 - **Targets:** "another target ..." (bounce, destroy, exile) can't be the source itself, and "up to one target ..."
-  (bounce) adds a "No target" choice at the end of the list; the spell can be cast even when there is nothing to
-  target. Bots take a real target when there is one.
+  (bounce, destroy, exile) adds a "No target" choice at the end of the list; the spell can be cast even when there
+  is nothing to target. Bots take a real target when there is one.
+  - **"Up to two (three, four) target creatures"** (also artifacts, enchantments, permanents, nonland permanents,
+    lands, creature tokens, and creature cards in your graveyard) for bounce, destroy and exile: one target prompt
+    per target, each with "No target", and a target already chosen can't be chosen again by the same effect.
+  - **More kinds of target:** "creature token", "nontoken creature", "tapped / untapped / attacking creature" and
+    "land", each also with "you control" / "an opponent controls".
 - **Mass effects:** nothing is targeted, so hexproof doesn't help. A restriction ("with flying", "with power 4 or
   greater", "nonblack") is checked when the effect resolves, using the permanent's current keywords and stats, so
   a creature that was given flying until end of turn counts. Only the keywords the engine knows are accepted; "with a

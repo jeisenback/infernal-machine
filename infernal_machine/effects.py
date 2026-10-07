@@ -142,6 +142,8 @@ class Destroy:
     target: str
     another: bool = False  # "destroy another target ...": not the source itself
     no_regen: bool = False  # "It can't be regenerated."
+    optional_target: bool = False  # "destroy up to two target ...": each target may be left out
+    distinct: bool = False  # ... and may not repeat an earlier target of the same effect
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -227,6 +229,8 @@ class PlayExiled:
 class Exile:
     target: str
     another: bool = False  # "exile another target ...": not the source itself
+    optional_target: bool = False
+    distinct: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -1297,6 +1301,7 @@ class ReturnToHand:
     target: str
     another: bool = False  # "Return another target creature ...": not the source itself
     optional_target: bool = False  # "Return up to one target creature ...": the target may be left out
+    distinct: bool = False  # "Return up to two target creatures ...": the second can't be the first again
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -1317,6 +1322,8 @@ class ReturnFromGraveyard:
     target: str  # "graveyard:<card type>:<yours|any>"
     to: str  # "hand" or "battlefield"
     tapped: bool = False  # "... to the battlefield tapped"
+    optional_target: bool = False  # "Return up to two target creature cards ...": each may be left out
+    distinct: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -2049,11 +2056,14 @@ def _land_types(text: str) -> tuple[str, ...]:
 
 
 _MANA_VALUE = r"(?: with mana value \d+(?: or less| or greater)?)?"
-_SUBTYPE_CARDS = "aura or equipment|aura|equipment|vehicle|saga"  # an Aura card, an Equipment card, ...
+_SUBTYPE_WORD = r"(?-i:[A-Z][a-z]+)"  # a creature type or other subtype, capitalized: "an Elf card", "a Dragon card"
+_SUBTYPE_CARDS = "aura or equipment|aura|equipment|vehicle|saga|" + _SUBTYPE_WORD
 _CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|artifact|enchantment|land|permanent"
               rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
 _SEARCH_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|land|artifact|enchantment|planeswalker"
                 rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
+_CARDS_PLURAL = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|artifact|enchantment|land|permanent"
+                 rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?cards{_MANA_VALUE})")
 _CARD_PHRASE = re.compile(r"(?:(.+?) )?card(?: with mana value (\d+)(?: (or less|or greater))?)?")
 
 
@@ -2077,8 +2087,22 @@ class FetchBasicLand:
         game.fetch_basic_land(controller)
 
 
-_PERMANENT_KIND = (r"((?:creature|artifact|enchantment|planeswalker|nonland permanent|permanent|artifact or enchantment"
+_PERMANENT_KIND = (r"((?:creature token|nontoken creature|attacking creature|tapped creature|untapped creature|creature|artifact"
+                   r"|enchantment|planeswalker|nonland permanent|permanent|land|artifact or enchantment"
                    r"|creature or planeswalker)(?: an opponent controls| you don't control| you control)?)")
+# "up to two target creatures": the plural kinds, and the singular they stand for
+_PLURAL_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments": "enchantment",
+                 "planeswalkers": "planeswalker", "permanents": "permanent", "nonland permanents": "nonland permanent",
+                 "creature tokens": "creature token", "lands": "land", "artifacts or enchantments": "artifact or enchantment"}
+_PLURAL_KIND = (r"(creature tokens|nonland permanents|artifacts or enchantments|creatures|artifacts|enchantments|planeswalkers"
+                r"|permanents|lands)( an opponent controls| you don't control| you control)?")
+_UP_TO = r"up to (two|three|four)"
+
+
+def _up_to(cls: type, m: re.Match, **fixed: Any) -> list:
+    """"... up to two target creatures ..." is two effects with one optional, distinct target each."""
+    kind = _PLURAL_KINDS[m[2].lower()] + (m[3] or "")
+    return [cls(kind, optional_target=True, distinct=n > 0, **fixed) for n in range(_count(m[1]))]
 _DAMAGE_KIND = r"(any target|target creature|target player|target creature or planeswalker|target player or planeswalker)"
 
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
@@ -2089,9 +2113,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
     (re.compile(rf"destroy (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[2].lower(), bool(m[1]))),
+    (re.compile(rf"destroy {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Destroy, m)),
+    (re.compile(rf"destroy up to one target {_PERMANENT_KIND}\.", re.I),
+     lambda m: Destroy(m[1].lower(), optional_target=True)),
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[2].lower(), bool(m[1]))),
+    (re.compile(rf"exile {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Exile, m)),
+    (re.compile(rf"exile up to one target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower(), optional_target=True)),
     (re.compile(r"exile target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell", exile=True)),
     (re.compile(r"if that spell is countered this way, exile it instead of putting it into its owner's graveyard\.", re.I),
@@ -2116,7 +2145,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (player|opponent) loses {_N} life\.", re.I), lambda m: TargetLoseLife(_count(m[2]), m[1].lower())),
     (re.compile(rf"return (another |up to one )?target {_PERMANENT_KIND} to its owner's hand\.", re.I),
      lambda m: ReturnToHand(m[2].lower(), (m[1] or "").lower() == "another ", (m[1] or "").lower() == "up to one ")),
+    (re.compile(rf"return {_UP_TO} target {_PLURAL_KIND} to their owners' hands\.", re.I), lambda m: _up_to(ReturnToHand, m)),
     (re.compile(rf"return all {_MASS} to their owners' hands\.", re.I), lambda m: ReturnAllToHand(_mass_kind(m))),
+    (re.compile(rf"return {_UP_TO} target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),
+     lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand",
+                                    optional_target=True, distinct=n > 0) for n in range(_count(m[1]))]),
     (re.compile(rf"return target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand")),
     (re.compile(rf"(?:return|put) target {_CARD_TYPE} from (your|a) graveyard (?:to|onto) the battlefield( tapped)?"
