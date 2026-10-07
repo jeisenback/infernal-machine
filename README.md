@@ -312,9 +312,14 @@ winner = game.play()
     You choose the land and it can be itself; bots return the newest land.
   - Cycling {N}: an ability you can use from your hand at instant speed. Pay, discard the card, draw.
     Basic landcycling {N} and Plainscycling / Islandcycling / Swampcycling / Mountaincycling / Forestcycling {N}
-    fetch a land to your hand instead (basic land, or any land with that type). Costs other than mana aren't supported.
-  - Not yet: bouncelands, Pathways (double-faced), filter lands, City of Brass and Mana Confluence,
-    Ancient Tomb, lands that make several mana.
+    fetch a land to your hand instead (basic land, or any land with that type). The cost can be mana or "Pay N life"
+    (offered only if it leaves you above 0 life).
+  - Filter lands ("{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}."): paid like a Signet, so one Swamp becomes two white,
+    two black or one of each. A filter land can't pay for its own ability.
+  - Exotic Orchard ("any color that a land an opponent controls could produce") and Reflecting Pool ("any type that
+    a land you control could produce", colorless included): they read the other lands' mana, and a land of this
+    kind adds nothing to another's, so two never feed each other. With nothing to read they make no mana.
+  - Not yet: Pathways (double-faced cards aren't supported).
 - **Equipment and Auras:** "Equip {N}" is an activated ability at sorcery speed that targets a creature you
   control (re-equipping moves the Equipment). An Aura chooses what it enchants when cast, and goes to the
   graveyard instead of entering if that target is gone when it resolves. Attached permanents change the

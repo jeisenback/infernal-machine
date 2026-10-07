@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reflected_mana,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -501,8 +501,7 @@ class Game:
             elif (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card):
                 actions.append(CAST_EXILE + card.name)
         for card in _unique(seat.hand):
-            cost = cycling_cost(card)
-            if cost and self._pay_cost(seat, parse_cost(cost)) is not None:
+            if (found := cycling(card)) and self._can_cycle(seat, found[1], found[3]):
                 actions.append(CYCLE + card.name)
         actions += list(self._activations(seat, sorcery_timing))
         return actions
@@ -683,12 +682,27 @@ class Game:
                     continue
                 # Command Tower makes only the colors of your commander, whatever the card data lists.
                 types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
+                if reflect := reflected_mana(card):
+                    types = self._reflected_types(seat, *reflect)
+                    if not types:
+                        continue
                 lands.append(ManaSource(permanent, _snowy(permanent, types), pain, damage))
             elif not (permanent.sick and "Creature" in card.type_line):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
                 for mana in mana_ability(card, seat.color_identity) or []:
                     bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage))
         return pooled + abilities + lands + sacrifices
+
+    def _reflected_types(self, seat: Seat, opponents: bool, colorless: bool) -> frozenset[str]:
+        """What Exotic Orchard / Reflecting Pool can make: the mana types the lands of the opponents (or your other
+        lands) could produce. Lands that copy this kind of ability add nothing, so there is no loop."""
+        owners = [s for s in self.live_seats() if (s is not seat) == opponents] if opponents else [seat]
+        types: set[str] = set()
+        for owner in owners:
+            for land in owner.battlefield:
+                if is_land(land.card) and not reflected_mana(land.card):
+                    types |= set(land.card.produced_mana)
+        return frozenset(types if colorless else types - {"C"})
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
                  alternative: AlternativeCost | None = None, kicked: int = 0, extra: str = "") -> list[Permanent] | None:
@@ -897,12 +911,18 @@ class Game:
             if until is not None and card in seat.exile:
                 seat.exile_play.append((card, until))
 
+    def _can_cycle(self, seat: Seat, cost: str, life: int) -> bool:
+        """Cycling costs mana, or life you can spare (never down to 0)."""
+        return life < seat.life if life else self._pay_cost(seat, parse_cost(cost)) is not None
+
     def _cycle(self, seat: Seat, card: Card) -> None:
         """Cycling: pay the cost, discard the card, and draw a card when the ability resolves."""
-        word, cost, effects = cycling(card)
-        tapped = self._pay_cost(seat, parse_cost(cost))
+        word, cost, effects, life = cycling(card)
+        tapped = self._pay_cost(seat, parse_cost(cost)) if cost else []
         self._spend_mana(seat, tapped)
-        ability = ActivatedAbility(f"{word} {cost}", effects, mana_cost=cost)
+        if life:
+            self.change_life(seat, -life)
+        ability = ActivatedAbility(f"{word} {cost}" if cost else f"{word}\u2014Pay {life} life.", effects, mana_cost=cost, life=life)
         self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cycling"})
         self._move_card(seat, card, "graveyard")
         self.stack.append(StackItem(card, seat, list(effects), [], ability))
