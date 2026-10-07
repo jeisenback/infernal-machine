@@ -201,3 +201,48 @@ class FarewellTests(unittest.TestCase):
                 effect.resolve(game, a, None)
         self.assertEqual((survivors(b), b.graveyard), (["Relic"], []))
         self.assertEqual(sorted(c.name for c in b.exile), ["Big", "Small"])
+
+
+GREEN = make("Green", 2, 2, cmc=2.0)
+GREEN = Card(name="Green", mana_cost="{G}", cmc=1.0, type_line="Creature — Test", power="2", toughness="2", colors=("G",))
+GOLD = Card(name="Gold", mana_cost="{R}{G}", cmc=2.0, type_line="Creature — Test", power="2", toughness="2", colors=("R", "G"))
+
+
+class ColorConditionTests(unittest.TestCase):
+    def test_one_or_more_colors(self):
+        game = wipe("Exile all nonland permanents that are one or more colors.", GREEN, GOLD, RELIC, SHRINE)
+        self.assertEqual(survivors(game.seats[1]), ["Relic", "Shrine"])
+
+    def test_colorless(self):
+        game = wipe("Destroy all creatures that are colorless.", GREEN, SMALL)
+        self.assertEqual(survivors(game.seats[1]), ["Green"])
+
+    def test_multicolored_and_monocolored(self):
+        game = wipe("Destroy all creatures that are multicolored.", GREEN, GOLD)
+        self.assertEqual(survivors(game.seats[1]), ["Green"])
+        game = wipe("Destroy all creatures that are monocolored.", GREEN, GOLD, SMALL)
+        self.assertEqual(survivors(game.seats[1]), ["Gold", "Small"])
+
+
+class StatefulSacrificeTests(unittest.TestCase):
+    def test_an_attacking_creature(self):
+        from infernal_machine.combat import Attack
+        game, players = table3()
+        a, b, _ = game.seats
+        attacker, idle = Permanent(SMALL), Permanent(BIG)
+        b.battlefield = [idle, attacker]  # the idle one first, so the default choice would be wrong
+        game.combat.attacks = [Attack(attacker, b, a)]
+        spell_effects(sorcery("Each opponent sacrifices an attacking creature."))[0].resolve(game, a, None)
+        self.assertEqual(b.battlefield, [idle])
+
+    def test_nothing_attacking_means_nothing_sacrificed(self):
+        game = wipe("Each opponent sacrifices an attacking creature.", SMALL, BIG)
+        self.assertEqual(survivors(game.seats[1]), ["Big", "Small"])
+
+    def test_a_tapped_creature(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        tapped, untapped = Permanent(SMALL, tapped=True), Permanent(BIG)
+        b.battlefield = [untapped, tapped]  # the untapped one first, so the default choice would be wrong
+        spell_effects(sorcery("Each player sacrifices a tapped creature."))[0].resolve(game, a, None)
+        self.assertEqual(b.battlefield, [untapped])

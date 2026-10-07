@@ -1586,9 +1586,20 @@ class Game:
                 or (restriction.tapped is not None and permanent.tapped != restriction.tapped)
                 or (restriction.has_type and restriction.has_type not in card.type_line)):
             return False
+        if restriction.colors_are:
+            count = len(card.colors)
+            if not {"one or more colors": count >= 1, "colorless": count == 0, "multicolored": count >= 2,
+                    "monocolored": count == 1}[restriction.colors_are]:
+                return False
         if restriction.exclude is not None and self._spared(permanent, restriction.exclude):
             return False
         return True
+
+    def _in_state(self, permanent: Permanent, state: str) -> bool:
+        """Whether a permanent is "attacking", "tapped" or "untapped" (any permanent, if no state is asked for)."""
+        if state == "attacking":
+            return any(a.attacker is permanent for a in self.combat.attacks)
+        return {"tapped": permanent.tapped, "untapped": not permanent.tapped}.get(state, True)
 
     def _spared(self, permanent: Permanent, spared: MassFilter) -> bool:
         """Whether an "except for ..." filter describes this permanent (so it is left alone)."""
@@ -1674,7 +1685,9 @@ class Game:
         """`seat` chooses `count` of its permanents of `kind` (a creature, artifact, land, ...) and sacrifices them
         (all of them if `count` is None); with `greatest`, only a creature with the greatest power among its creatures
         can be chosen. No targeting, so hexproof and indestructible don't help."""
-        options = [p for p in seat.battlefield if _permanent_matches(kind, p.card)]
+        state = kind.split(" ")[0] if kind.split(" ")[0] in ("attacking", "tapped", "untapped") else ""
+        base = kind.removeprefix(state + " ") if state else kind
+        options = [p for p in seat.battlefield if _permanent_matches(base, p.card) and self._in_state(p, state)]
         if count is None:
             self._leave_together([(p, "sacrificed") for p in options])
             return

@@ -1102,6 +1102,7 @@ class MassFilter:
     tapped: bool | None = None  # "tapped creatures" / "untapped"
     has_type: str | None = None  # "artifact creatures": a card type it must have
     exclude: "MassFilter | None" = None  # "... except for artifact creatures": what is spared
+    colors_are: str | None = None  # "that are one or more colors" / "colorless" / "multicolored" / "monocolored"
 
 
 @dataclass(frozen=True)
@@ -1291,7 +1292,8 @@ def _mass_kind(m: re.Match) -> str:
     return _MASS_KINDS[m[1].lower()] + (m[2] or "").replace(" your opponents control", " an opponent controls")
 
 
-_SACRIFICE_KIND = r"(creature|artifact or enchantment|artifact|enchantment|land|nonland permanent|permanent)"
+_SACRIFICE_KIND = (r"(attacking creature|tapped creature|untapped creature|creature|artifact or enchantment|artifact"
+                   r"|enchantment|land|nonland permanent|permanent)")
 _FIGHTER = r"(creature(?: you control| you don't control| an opponent controls)?)"
 _MASS_KEYWORDS = (r"(?:flying|reach|trample|haste|vigilance|menace|deathtouch|lifelink|first strike|double strike"
                   r"|defender|indestructible|hexproof)")
@@ -1300,24 +1302,25 @@ _COLOR_ADJECTIVE = r"(?:(non)?(white|blue|black|red|green|token|legendary|basic|
 _STAT_RESTRICTION = re.compile(r"with (power|toughness|mana value) (\d+) or (greater|less)")
 _EXCEPT = (r"(?: except(?: for)? ((?:(?:artifact|enchantment|legendary|white|blue|black|red|green) )?"
            rf"(?:creatures|lands|permanents|tokens)(?: with {_MASS_KEYWORDS})?))?")
+_THAT_ARE = r"(?: that are (one or more colors|colorless|multicolored|monocolored))?"
 
 
 # The same, with an optional color adjective before and "with flying" etc. after (destroy and exile only).
 _MASS_NOUN = (r"(artifacts and enchantments|creatures and planeswalkers|nonland permanents|creature tokens|creatures|artifacts"
               r"|enchantments|planeswalkers|lands)")
-_MASS_FILTERED = rf"{_COLOR_ADJECTIVE}{_MASS_NOUN}(?: {_RESTRICTION})?( you don't control| you control| an opponent controls| your opponents control)?{_EXCEPT}"
+_MASS_FILTERED = rf"{_COLOR_ADJECTIVE}{_MASS_NOUN}(?: {_RESTRICTION})?( you don't control| you control| an opponent controls| your opponents control)?{_EXCEPT}{_THAT_ARE}"
 
 
 def _mass_effect(cls: type, m: re.Match) -> Any:
     kind = _MASS_KINDS[m[3].lower()] + (m[5] or "").replace(" your opponents control", " an opponent controls")
-    return cls(kind, _mass_filter(m[1], m[2], m[4], tokens=m[3].lower() == "creature tokens", spared=m[6]))
+    return cls(kind, _mass_filter(m[1], m[2], m[4], tokens=m[3].lower() == "creature tokens", spared=m[6], colors_are=m[7]))
 
 
 _TRAITS = {"token": "token", "legendary": "legendary", "basic": "basic", "tapped": "tapped", "untapped": "tapped"}
 
 
 def _mass_filter(non: str | None, color: str | None, restriction: str | None, tokens: bool = False,
-                 spared: str | None = None) -> MassFilter | None:
+                 spared: str | None = None, colors_are: str | None = None) -> MassFilter | None:
     """The filter for an optional adjective ("nonblack", "nontoken", "legendary", "tapped"), an optional "with ..." /
     "without ..." phrase, "creature tokens", and an optional "except for ..." (what is left alone)."""
     fields: dict[str, Any] = {}
@@ -1335,6 +1338,8 @@ def _mass_filter(non: str | None, color: str | None, restriction: str | None, to
             fields.update(keyword=restriction.lower().split(" ", 1)[1], keyword_wanted=restriction.lower().startswith("with "))
     if spared:
         fields["exclude"] = _spared_filter(spared.lower())
+    if colors_are:
+        fields["colors_are"] = colors_are.lower()
     return MassFilter(**fields) if fields else None
 
 

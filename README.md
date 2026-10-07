@@ -522,8 +522,9 @@ winner = game.play()
     control" (they choose among the tied greatest), and "Sacrifice all creatures you control." With fewer
     than asked, they sacrifice what they have.
   - **Also:** "deals N damage to each creature your opponents control" and "All creatures get -2/-2 until end of turn."
-    Farewell works as a plain modal spell ("Choose one or more" with "Exile all graveyards"). Not built: "one or more colors"
-    and other conditions that aren't in the list above, and tapped or attacking sacrifices.
+    Farewell works as a plain modal spell ("Choose one or more" with "Exile all graveyards"). "That are one or more colors / colorless / multicolored / monocolored" works in destroy and exile all ("Exile all
+    nonland permanents that are one or more colors"), and so do "an attacking / tapped / untapped creature" in the
+    sacrifice effects. Not built: other "that are ..." conditions.
 - **Regeneration:** "Regenerate target creature.", "{B}: Regenerate this creature." and "Regenerate each creature you
   control." give a shield that lasts until end of turn (several stack). The next time the creature would be
   destroyed, by a destroy effect or by lethal damage or deathtouch, it is tapped, loses all its damage and leaves
