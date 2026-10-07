@@ -583,6 +583,8 @@ def ward_fields(cost: str) -> dict[str, Any] | None:
     fields = _cost_fields(cost[:1].upper() + cost[1:])  # the report reads lowercased text
     if fields is None or fields.get("tap") or fields.get("sacrifice") or fields.get("exile_graveyard"):
         return None
+    if fields.get("discard", 0) > 1 or fields.get("sacrifice_count", 1) > 1:  # ward pays one card or permanent
+        return None
     return fields
 
 
@@ -1035,6 +1037,24 @@ def _animate(m: re.Match, target: str | None, offset: int = 0) -> Animate:
     return Animate(int(power), int(toughness), tuple(_COLOR_WORDS[c] for c in re.findall(_COLOR, colors or "")),
                    subtypes or "", artifact is not None, _keyword_list(keywords) if keywords else frozenset(),
                    target, uses_source=target is None)
+
+
+def _merge_reveal_top(effects: list) -> list | None:
+    """The three sentences of Thrasios's ability become one RevealTop; a step without the others isn't understood."""
+    merged: list = []
+    i = 0
+    while i < len(effects):
+        effect = effects[i]
+        if isinstance(effect, RevealTopStep):
+            steps = effects[i:i + 3]
+            if [getattr(e, "kind", None) for e in steps] != ["reveal", "land", "otherwise"]:
+                return None
+            merged.append(RevealTop(steps[0].scry, steps[1].tapped))
+            i += 3
+            continue
+        merged.append(effect)
+        i += 1
+    return merged
 
 
 def _merge_wipe_gift(effects: list) -> list | None:
@@ -1499,6 +1519,28 @@ class Scry:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.scry(controller, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class RevealTop:
+    """ "Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield tapped.
+    Otherwise, draw a card." (Thrasios). Only built by _merge_reveal_top."""
+    scry: int
+    tapped: bool
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.reveal_top_land_or_draw(controller, self.scry, self.tapped)
+
+
+@dataclass(frozen=True)
+class RevealTopStep:
+    """One sentence of RevealTop; alone it isn't understood. kind: "reveal" (with scry), "land" or "otherwise"."""
+    kind: str
+    scry: int = 0
+    tapped: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone reveal-the-top step is never built")
 
 
 @dataclass(frozen=True)
@@ -2278,6 +2320,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"then shuffle\.", re.I),
      lambda m: SearchForLands(1, _land_types(m[1]), 1, bool(m[2]), False)),
     (re.compile(rf"scry {_N}\.", re.I), lambda m: Scry(_count(m[1]))),
+    (re.compile(rf"scry {_N}, then reveal the top card of your library\.", re.I),
+     lambda m: RevealTopStep("reveal", _count(m[1]))),
+    (re.compile(r"if it's a land card, put it onto the battlefield( tapped)?\.", re.I),
+     lambda m: RevealTopStep("land", tapped=bool(m[1]))),
+    (re.compile(r"otherwise, draw a card\.", re.I), lambda m: RevealTopStep("otherwise")),
     (re.compile(rf"surveil {_N}\.", re.I), lambda m: Surveil(_count(m[1]))),
     (re.compile(rf"look at the top (?:{_N} cards?|card) of your library\.", re.I),
      lambda m: LookAtTop(_count(m[1] or "one"))),
@@ -2594,7 +2641,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile, _merge_wipe_gift):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile, _merge_wipe_gift, _merge_reveal_top):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
@@ -3009,8 +3056,9 @@ class ActivatedAbility:
     once_per_turn: bool = False  # "Activate only once each turn."
     sacrifice_other: str | None = None  # "Sacrifice a creature": the kind ("creature", "artifact or creature", ...)
     sacrifice_another: bool = False  # "Sacrifice another creature": not the source itself
-    discard: bool = False  # "Discard a card"
-    exile_graveyard: bool = False  # "Exile a card from your graveyard"
+    sacrifice_count: int = 1  # "Sacrifice two creatures"
+    discard: int = 0  # "Discard a card": how many
+    exile_graveyard: int = 0  # "Exile a card from your graveyard": how many
     crew: int = 0  # "Crew N": tap untapped creatures you control with total power N or more
 
 
@@ -3019,7 +3067,11 @@ _ACTIVATED = re.compile(r"([^:\"]+): (.+)")
 _MANA_PART = re.compile(r"(\{(?:\d+|X|S|[WUBRGC]|[WUBRGC]/[WUBRGCP]|2/[WUBRGC])\})+")
 _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?) (creature|artifact|land|enchantment|permanent|artifact or creature)")
+_CARDS = r"(an?|two|three|four)"
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature)s?")
+_DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
+_EXILE_COST = re.compile(rf"Exile {_CARDS} cards? from your graveyard")
+_NUMBER = {"a": 1, "an": 1, "two": 2, "three": 3, "four": 4}
 _LOYALTY = re.compile(r"([+\u2212-]?)(\d+)")
 _SORCERY_ONLY = "Activate only as a sorcery."
 _ONCE_EACH_TURN = "Activate only once each turn."
@@ -3061,11 +3113,11 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
         elif (m := _PAY_LIFE.fullmatch(part)) and m[1] != "X":
             fields["life"] = _count(m[1])
         elif m := _SACRIFICE_OTHER.fullmatch(part):
-            fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another")
-        elif part == "Discard a card":
-            fields["discard"] = True
-        elif part == "Exile a card from your graveyard":
-            fields["exile_graveyard"] = True
+            fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another", sacrifice_count=_NUMBER.get(m[1], 1))
+        elif m := _DISCARD_COST.fullmatch(part):
+            fields["discard"] = _NUMBER[m[1]]
+        elif m := _EXILE_COST.fullmatch(part):
+            fields["exile_graveyard"] = _NUMBER[m[1]]
         else:
             return None
     return fields
