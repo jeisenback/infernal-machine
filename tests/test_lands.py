@@ -2,7 +2,7 @@ import unittest
 
 from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
-from infernal_machine.effects import (EntersTapped, cycling_cost, enters_tapped_rule, is_identity_mana_land, mana_ability,
+from infernal_machine.effects import (EntersTapped, cycling, enters_tapped_rule, is_identity_mana_land, mana_ability,
                                       mana_pain)
 from infernal_machine.game import CAST, CYCLE, PASS, PLAY_LAND, SHOCK_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
@@ -58,8 +58,8 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(mana_pain(PAIN), (frozenset("GU"), 1))
         self.assertEqual(mana_ability(TALISMAN, frozenset()), [frozenset("CUB")])
         self.assertTrue(is_identity_mana_land(TOWER))
-        self.assertEqual((cycling_cost(TRIOME), cycling_cost(FOREST)), ("{3}", None))
-        self.assertIsNone(cycling_cost(Card(name="x", oracle_text="Cycling\u2014Pay 2 life.")))
+        self.assertEqual((cycling(TRIOME)[1], cycling(FOREST)), ("{3}", None))
+        self.assertEqual(cycling(Card(name="x", oracle_text="Cycling\u2014Pay 2 life."))[1:4:2], ("", 2))
 
     def test_report(self):
         for card in (TEMPLE, CHECK, FAST, SLOW, BOND, SHOCK, PAIN, TALISMAN, TOWER, TRIOME):

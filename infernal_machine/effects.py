@@ -2021,15 +2021,15 @@ def is_enters_tapped_line(line: str) -> bool:
     return any(pattern.fullmatch(line) for pattern, _ in _ENTERS_TAPPED)
 
 
-_CYCLING = re.compile(r"(Cycling|Basic landcycling|(?:Plains|Island|Swamp|Mountain|Forest)cycling) "
-                      r"((?:\{\d+\}|\{[WUBRGC]\})+)")
+_CYCLING = re.compile(r"(Cycling|Basic landcycling|(?:Plains|Island|Swamp|Mountain|Forest)cycling)"
+                      r"(?: ((?:\{\d+\}|\{[WUBRGC]\})+)|\u2014Pay (\d+) life\.?)")
 _CYCLING_LAND_TYPES = {"plainscycling": "Plains", "islandcycling": "Island", "swampcycling": "Swamp",
                        "mountaincycling": "Mountain", "forestcycling": "Forest"}
 
 
-def cycling(card: Card) -> tuple[str, str, tuple] | None:
-    """A card's cycling: (its name, like "Forestcycling", the mana cost, what the ability does when it resolves).
-    Plain cycling draws a card; basic landcycling and Forestcycling-style abilities fetch a land to your hand."""
+def cycling(card: Card) -> tuple[str, str, tuple, int] | None:
+    """A card's cycling: (its name, like "Forestcycling", the mana cost, what the ability does when it resolves,
+    the life it costs instead of mana). Plain cycling draws a card; basic landcycling and Forestcycling-style abilities fetch a land to your hand."""
     for line in rules_lines(card):
         if m := _CYCLING.fullmatch(line):
             word = m[1]
@@ -2039,14 +2039,8 @@ def cycling(card: Card) -> tuple[str, str, tuple] | None:
                 effects = (SearchForLands(1, (), 0, False, True),)
             else:
                 effects = (SearchForLands(1, (_CYCLING_LAND_TYPES[word.lower()],), 0, False, True),)
-            return word, m[2], effects
+            return word, m[2] or "", effects, int(m[3] or 0)
     return None
-
-
-def cycling_cost(card: Card) -> str | None:
-    """The mana cost from "Cycling {2}" or "Forestcycling {1}" (only mana costs are supported), or None."""
-    found = cycling(card)
-    return found[1] if found else None
 
 
 def is_cycling_line(line: str) -> bool:
@@ -3197,6 +3191,7 @@ _PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add one mana of any color\
 
 def is_mana_ability(line: str) -> bool:
     return (any(p.fullmatch(line) for p in _MANA_PATTERNS) or _FILTER.fullmatch(line) is not None
+            or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))
 
 
@@ -3210,6 +3205,18 @@ def mana_pain(card: Card) -> tuple[frozenset[str], int] | None:
             return frozenset(re.findall(r"[WUBRGC]", m[1])), _count(m[2])
         if m := _TAPPED_PAIN.fullmatch(line):  # every color it makes hurts
             return frozenset("WUBRGC"), _count(m[1])
+    return None
+
+
+_REFLECT = re.compile(r"\{T\}: Add one mana of any (color|type) that a land (an opponent controls|you control) could produce\.")
+
+
+def reflected_mana(card: Card) -> tuple[bool, bool] | None:
+    """Exotic Orchard ("... any color that a land an opponent controls could produce") and Reflecting Pool ("... any
+    type that a land you control could produce"): (looks at opponents' lands, colorless counts), or None."""
+    for line in rules_lines(card):
+        if m := _REFLECT.fullmatch(line):
+            return m[2] == "an opponent controls", m[1] == "type"
     return None
 
 
@@ -3234,7 +3241,9 @@ def is_identity_mana_land(card: Card) -> bool:
     return "Land" in card.type_line and any(_ADD_IDENTITY.fullmatch(line) for line in rules_lines(card))
 
 
-_FILTER = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add ((?:\{[WUBRGC]\})+)\.")
+_FILTER = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\}|\{[WUBRG]/[WUBRG]\})+), \{T\}: Add ((?:\{[WUBRGC]\})+)\.")
+# A filter land: "{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}." Two mana, each of either color.
+_FILTER_LAND = re.compile(r"(\{[WUBRG]/[WUBRG]\}), \{T\}: Add \{([WUBRG])\}\{\2\}, \{\2\}\{([WUBRG])\}, or \{\3\}\{\3\}\.")
 
 
 def filter_mana_ability(card: Card) -> tuple[str, list[frozenset[str]]] | None:
@@ -3243,6 +3252,8 @@ def filter_mana_ability(card: Card) -> tuple[str, list[frozenset[str]]] | None:
     for line in rules_lines(card):
         if m := _FILTER.fullmatch(line):
             return m[1], [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2])]
+        if m := _FILTER_LAND.fullmatch(line):
+            return m[1], [frozenset((m[2], m[3]))] * 2
     return None
 
 
