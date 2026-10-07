@@ -1059,6 +1059,8 @@ class Game:
             return sum(_has_type(p.card, amount.what) for s in self.live_seats() for p in s.battlefield)
         if kind == "you_control":
             return sum(_has_type(p.card, amount.what) for p in controller.battlefield)
+        if kind == "graveyard":
+            return sum(_card_matches(amount.what, c) for c in controller.graveyard)
         if kind == "half_life":
             return max(0, controller.life) // 2 if amount.what == "down" else (max(0, controller.life) + 1) // 2
         if kind == "life_gained":
@@ -1643,6 +1645,17 @@ class Game:
         permanent.counters[counter] = permanent.counters.get(counter, 0) + count
         self.broadcast({"event": "counters", "card": permanent.card.name, "counter": counter,
                         "added": count, "total": permanent.counters[counter]})
+
+    def remove_counters(self, permanent: Permanent, counter: str | None, count: int | None) -> None:
+        """Remove `count` counters of one kind (all of them if None), or every counter if `counter` is None."""
+        for kind in [counter] if counter else list(permanent.counters):
+            removed = min(permanent.counters.get(kind, 0), permanent.counters.get(kind, 0) if count is None else count)
+            if removed:
+                permanent.counters[kind] -= removed
+                if not permanent.counters[kind]:
+                    del permanent.counters[kind]
+                self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
+                                "added": -removed, "total": permanent.counters.get(kind, 0)})
 
     def create_tokens(self, seat: Seat, token: Card, count: int) -> None:
         for _ in range(count * self._factor(seat, "tokens")):
