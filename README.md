@@ -319,7 +319,9 @@ winner = game.play()
   - Exotic Orchard ("any color that a land an opponent controls could produce") and Reflecting Pool ("any type that
     a land you control could produce", colorless included): they read the other lands' mana, and a land of this
     kind adds nothing to another's, so two never feed each other. With nothing to read they make no mana.
-  - Not yet: Pathways (double-faced cards aren't supported).
+  - Pathways (modal double-faced lands): the card shows both faces' names, and "Play land" is offered once for
+    each face. The face you play is the permanent and makes only its own color. This applies to a land back face
+    of any modal double-faced card; other double-faced cards use their front face only.
 - **Equipment and Auras:** "Equip {N}" is an activated ability at sorcery speed that targets a creature you
   control (re-equipping moves the Equipment). An Aura chooses what it enchants when cast, and goes to the
   graveyard instead of entering if that target is gone when it resolves. Attached permanents change the

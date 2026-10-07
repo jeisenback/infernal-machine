@@ -32,11 +32,24 @@ class Card:
     produced_mana: tuple[str, ...] = ()
     commander_legal: bool = True
     scryfall_id: str | None = None
+    back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
 
     @classmethod
     def from_scryfall(cls, data: dict) -> "Card":
         # Double-faced cards keep their rules text on the faces; use the front face.
         face = data["card_faces"][0] if "card_faces" in data and "oracle_text" not in data else data
+        back = None
+        produced = tuple(data.get("produced_mana", []))
+        if data.get("layout") == "modal_dfc" and len(data.get("card_faces", [])) == 2:
+            produced = _face_mana(face, produced)
+            back_face = data["card_faces"][1]
+            if "Land" in back_face.get("type_line", ""):
+                back = cls(name=back_face["name"], type_line=back_face["type_line"],
+                           oracle_text=back_face.get("oracle_text", ""),
+                           color_identity=tuple(data.get("color_identity", [])),
+                           produced_mana=_face_mana(back_face, tuple(data.get("produced_mana", []))),
+                           commander_legal=data.get("legalities", {}).get("commander") == "legal",
+                           scryfall_id=data.get("id"))
         return cls(
             name=data["name"],
             mana_cost=face.get("mana_cost", ""),
@@ -48,18 +61,27 @@ class Card:
             toughness=face.get("toughness"),
             loyalty=face.get("loyalty"),
             color_identity=tuple(data.get("color_identity", [])),
-            produced_mana=tuple(data.get("produced_mana", [])),
+            produced_mana=produced,
             commander_legal=data.get("legalities", {}).get("commander") == "legal",
             scryfall_id=data.get("id"),
+            back=back,
         )
 
     @classmethod
     def from_dict(cls, data: dict) -> "Card":
         tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity", "produced_mana")}
-        return cls(**{**data, **tuples})
+        back = cls.from_dict(data["back"]) if data.get("back") else None
+        return cls(**{**data, **tuples, "back": back})
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def _face_mana(face: dict, produced: tuple[str, ...]) -> tuple[str, ...]:
+    """The mana one face of a double-faced land makes: the symbols in its "{T}: Add {G}." text, among the card's."""
+    runs = re.findall(r"Add ((?:\{[WUBRGC]\})+)", face.get("oracle_text", ""))
+    symbols = {symbol for run in runs for symbol in re.findall(r"[WUBRGC]", run)}
+    return tuple(m for m in produced if m in symbols) if symbols else produced
 
 
 _REMINDER = re.compile(r"\s*\([^)]*\)")
