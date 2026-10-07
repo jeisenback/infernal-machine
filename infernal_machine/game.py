@@ -15,7 +15,7 @@ import random
 import re
 from itertools import combinations
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword
@@ -54,6 +54,8 @@ PLAY_LAND = "Play land: "
 CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
+CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
+PLAY_EXILE = "Play land from exile: "
 CYCLE = "Cycle: "
 SHOCK_PROMPT = "Pay life so it enters untapped? "  # followed by the land's name
 ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
@@ -216,6 +218,7 @@ class Seat:
     library: list[Card] = field(default_factory=list)
     hand: list[Card] = field(default_factory=list)
     battlefield: list[Permanent] = field(default_factory=list)
+    exile_play: list[tuple[Card, int]] = field(default_factory=list)  # exiled cards its owner may play, and the last turn they can
     undercity_room: str | None = None  # where this player's venture marker is, if they are in the Undercity
     mana_pool: list[frozenset[str]] = field(default_factory=list)  # mana added by rituals, gone at the end of the step
     graveyard: list[Card] = field(default_factory=list)
@@ -269,6 +272,7 @@ class Game:
         self.regular = 0  # the seat whose regular turn it is (or was, during an extra turn)
         self.monarch: Seat | None = None
         self.initiative: Seat | None = None
+        self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
@@ -386,6 +390,11 @@ class Game:
             if not (self.turn == 1 and not self.multiplayer):
                 self.draw(seat, 1)
         elif self.step in ("upkeep", "end"):
+            if self.step == "end":  # "at the beginning of the next end step"
+                due = [what for turn, what in self.at_end_step if turn <= self.turn]
+                self.at_end_step = [(turn, what) for turn, what in self.at_end_step if turn > self.turn]
+                for what in due:
+                    what()
             for permanent in list(seat.battlefield):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
             for other in self.live_seats():  # "At the beginning of each upkeep / end step"
@@ -484,6 +493,12 @@ class Game:
             for cast in graveyard_casts(card)[:1]:
                 if not is_land(card) and (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card, graveyard=cast):
                     actions.append(CAST_GRAVEYARD + card.name)
+        for card in _unique([c for c, until in seat.exile_play if self.turn <= until and c in seat.exile]):
+            if is_land(card):
+                if sorcery_timing and seat.lands_played < 1:
+                    actions.append(PLAY_EXILE + card.name)
+            elif (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card):
+                actions.append(CAST_EXILE + card.name)
         for card in _unique(seat.hand):
             cost = cycling_cost(card)
             if cost and self._pay_cost(seat, parse_cost(cost)) is not None:
@@ -544,6 +559,34 @@ class Game:
             vehicle.original = vehicle.card
             vehicle.card = dataclasses.replace(vehicle.card, type_line=vehicle.card.type_line.replace("Artifact", "Artifact Creature", 1))
             self.broadcast({"event": "became_creature", "card": vehicle.card.name})
+
+    def animate(self, permanent: Permanent, power: int, toughness: int, colors: tuple[str, ...], subtypes: str,
+                artifact: bool, keywords: frozenset[str]) -> None:
+        """"Until end of turn, this land becomes a 3/3 green Ape creature with trample. It's still a land.": it keeps
+        its other types and gains Creature (and Artifact); the card comes back at end of turn (like a crewed Vehicle)."""
+        base = permanent.original or permanent.card
+        permanent.original = base
+        types = base.type_line.partition("\u2014")[0].split()
+        for added in (["Artifact"] if artifact and "Artifact" not in types else []) + ["Creature"]:
+            if added not in types:
+                types.append(added)
+        type_line = " ".join(types) + (f" \u2014 {subtypes}" if subtypes else "")
+        permanent.card = dataclasses.replace(base, type_line=type_line, power=str(power), toughness=str(toughness),
+                                             colors=colors or base.colors)
+        if keywords:
+            permanent.until_end_of_turn.append(Modifier(0, 0, keywords))
+        self.broadcast({"event": "became_creature", "card": permanent.card.name, "power": power, "toughness": toughness})
+
+    def move_counters(self, source: Permanent, destination: Permanent, counter: str, count: int | None) -> None:
+        """Move up to `count` counters (all of them if None) from one permanent to another. They are moved, not put
+        on it, so nothing that doubles counters applies."""
+        moved = min(source.counters.get(counter, 0), source.counters.get(counter, 0) if count is None else count)
+        if not moved:
+            return
+        self.remove_counters(source, counter, moved)
+        destination.counters[counter] = destination.counters.get(counter, 0) + moved
+        self.broadcast({"event": "counters", "card": destination.card.name, "counter": counter,
+                        "added": moved, "total": destination.counters[counter]})
 
     def _pay_card_costs(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> None:
         """Pay an activated ability's "Sacrifice a creature", "Discard a card" and "Exile a card from your
@@ -796,9 +839,19 @@ class Game:
     def _perform(self, seat: Seat, action: str) -> None:
         if action.startswith(PLAY_LAND):
             card = _take(seat.hand, action.removeprefix(PLAY_LAND))
-            self._enter(seat, Permanent(card))
+            self._enter(seat, Permanent(card, sick=True))  # a land that becomes a creature can't attack the turn it came in
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name})
+        elif action.startswith(PLAY_EXILE):
+            card = _take(seat.exile, action.removeprefix(PLAY_EXILE))
+            self._used_exile_permission(seat, card)
+            self._enter(seat, Permanent(card, sick=True))
+            seat.lands_played += 1
+            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
+        elif action.startswith(CAST_EXILE):
+            card = next(c for c in seat.exile if c.name == action.removeprefix(CAST_EXILE))
+            self._used_exile_permission(seat, card)
+            self._cast(seat, card, seat.exile)
         elif action.startswith(CYCLE):
             self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
         elif action.startswith(CAST_COMMANDER):
@@ -816,6 +869,24 @@ class Game:
             sorcery_timing = seat.index == self.active and self.step in ("main1", "main2") and not self.stack
             permanent, ability = self._activations(seat, sorcery_timing)[action]
             self._activate(seat, permanent, ability)
+
+    def _used_exile_permission(self, seat: Seat, card: Card) -> None:
+        seat.exile_play = [(c, until) for c, until in seat.exile_play if c != card] + \
+                          [(c, until) for c, until in seat.exile_play if c == card][1:]
+
+    def exile_top(self, seat: Seat, count: int, play: str | None) -> None:
+        """Exile the top `count` cards of the library; `play` is None, "this turn" or "next turn" (until the end of
+        their controller's next turn): the cards may then be played from exile until that turn ends."""
+        seats = len(self.seats)
+        until = (None if play is None else self.turn if play == "this turn"
+                 else self.turn + ((seat.index - self.active) % seats or seats))  # the end of their next turn
+        exiled = [seat.library.pop(0) for _ in range(min(count, len(seat.library)))]
+        self.broadcast({"event": "exiled_from_library", "seat": seat.index, "cards": [c.name for c in exiled],
+                        "may_play": play is not None})
+        for card in exiled:
+            self._move_card(seat, card, "exile")
+            if until is not None and card in seat.exile:
+                seat.exile_play.append((card, until))
 
     def _cycle(self, seat: Seat, card: Card) -> None:
         """Cycling: pay the cost, discard the card, and draw a card when the ability resolves."""
@@ -1085,6 +1156,8 @@ class Game:
             return sum(_has_type(p.card, amount.what) for s in self.live_seats() for p in s.battlefield)
         if kind == "you_control":
             return sum(_has_type(p.card, amount.what) for p in controller.battlefield)
+        if kind == "graveyard":
+            return sum(_card_matches(amount.what, c) for c in controller.graveyard)
         if kind == "half_life":
             return max(0, controller.life) // 2 if amount.what == "down" else (max(0, controller.life) + 1) // 2
         if kind == "life_gained":
@@ -1675,6 +1748,17 @@ class Game:
         self.broadcast({"event": "counters", "card": permanent.card.name, "counter": counter,
                         "added": count, "total": permanent.counters[counter]})
 
+    def remove_counters(self, permanent: Permanent, counter: str | None, count: int | None) -> None:
+        """Remove `count` counters of one kind (all of them if None), or every counter if `counter` is None."""
+        for kind in [counter] if counter else list(permanent.counters):
+            removed = min(permanent.counters.get(kind, 0), permanent.counters.get(kind, 0) if count is None else count)
+            if removed:
+                permanent.counters[kind] -= removed
+                if not permanent.counters[kind]:
+                    del permanent.counters[kind]
+                self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
+                                "added": -removed, "total": permanent.counters.get(kind, 0)})
+
     def create_tokens(self, seat: Seat, token: Card, count: int) -> None:
         for _ in range(count * self._factor(seat, "tokens")):
             self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
@@ -1695,13 +1779,40 @@ class Game:
         if source is not None and not _is_token(card) and len(owner.exile) > before:  # not sent to the command zone
             source.linked_exile.append((owner, card))
 
-    def _return_from_exile(self, seat: Seat, card: Card) -> None:
-        """A card exiled "until" comes back as a new permanent under its owner's control."""
-        if seat.lost or card not in seat.exile:
+    def flicker(self, target: Permanent, controller: Seat, when: str, to: str, under_owner: bool) -> None:
+        """Exile `target`, then return it to the battlefield (or its owner's hand) right away (`when` is "now") or as the
+        next end step begins ("end_step"). A token is gone for good; it comes back under `controller`'s control if
+        the card says "under your control", otherwise under its owner's."""
+        owner = target.owner or self.controller_of(target)
+        card, before = target.card, len(owner.exile)
+        self.exile(target)
+        if _is_token(card) or len(owner.exile) <= before:  # a token ceases to exist; a commander went to the command zone
             return
-        seat.exile.remove(card)
+
+        def bring_back() -> None:
+            if card not in owner.exile:
+                return
+            if to == "hand":
+                owner.exile.remove(card)
+                owner.hand.append(card)
+                self.broadcast({"event": "returned_from_exile", "seat": owner.index, "card": card.name, "to": "hand"})
+            else:
+                self._return_from_exile(owner if under_owner else controller, card, owner)
+
+        if when == "now":
+            bring_back()
+        else:
+            fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+            self.at_end_step.append((fire_turn, bring_back))
+
+    def _return_from_exile(self, seat: Seat, card: Card, owner: Seat | None = None) -> None:
+        """A card exiled "until" comes back as a new permanent under its owner's control."""
+        holder = owner or seat  # the exile zone it is in belongs to its owner, who may not be the one it returns to
+        if seat.lost or card not in holder.exile:
+            return
+        holder.exile.remove(card)
         self.broadcast({"event": "returned_from_exile", "seat": seat.index, "card": card.name})
-        self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=seat))
+        self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=holder))
 
     def exile_graveyard(self, seat: Seat) -> None:
         cards, seat.graveyard = seat.graveyard, []
@@ -1711,12 +1822,12 @@ class Game:
         if cards:
             self._left_graveyard(seat)
 
-    def counter(self, item: StackItem) -> None:
+    def counter(self, item: StackItem, exile: bool = False) -> None:
         self.stack.remove(item)
         self.broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name,
                         "ability": _shown(item.ability.text, item.card) if item.ability else None})
         if not item.ability and not item.is_copy:  # countering an ability doesn't touch its source; a copy just ends
-            self._move_card(item.controller, item.card, "exile" if item.exile_after else "graveyard")
+            self._move_card(item.controller, item.card, "exile" if exile or item.exile_after else "graveyard")
 
     def _check_ward(self, item: StackItem) -> None:
         """Whenever a permanent with ward becomes the target of an opponent's spell or ability, a ward trigger

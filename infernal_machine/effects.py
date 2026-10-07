@@ -161,10 +161,66 @@ class WardCounter:
 @dataclass(frozen=True)
 class Counter:
     target: str = "spell"
+    exile: bool = False  # "exile it instead of putting it into its owner's graveyard"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.counter(target)
+            game.counter(target, self.exile)
+
+
+@dataclass(frozen=True)
+class ExileInstead:
+    """ "If that spell is countered this way, exile it instead of putting it into its owner's graveyard." Only ever the
+    end of a Counter (see _merge_exile)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone 'exile it instead' is never built")
+
+
+@dataclass(frozen=True)
+class Flicker:
+    """Exile a permanent and bring it back: right away ("now") or as the next end step begins ("end_step"), to the
+    battlefield or its owner's hand. `under_owner`: "under its owner's control" (otherwise under yours)."""
+    target: str
+    when: str = "now"
+    to: str = "battlefield"
+    under_owner: bool = True
+    another: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.flicker(target, controller, self.when, self.to, self.under_owner)
+
+
+@dataclass(frozen=True)
+class ReturnLater:
+    """ "Return it to the battlefield under its owner's control at the beginning of the next end step." Only ever the
+    end of an Exile (see _merge_exile)."""
+    to: str
+    under_owner: bool
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone delayed return is never built")
+
+
+@dataclass(frozen=True)
+class ExileTop:
+    """ "Exile the top two cards of your library. Until the end of your next turn, you may play those cards." (`play` is
+    None, "this turn" or "next turn")"""
+    count: int | str
+    play: str | None = None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_top(controller, game.amount(self.count), self.play)
+
+
+@dataclass(frozen=True)
+class PlayExiled:
+    """ "You may play it this turn." Only ever the end of an ExileTop (see _merge_exile)."""
+    until: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone permission to play exiled cards is never built")
 
 
 @dataclass(frozen=True)
@@ -308,6 +364,80 @@ class PutCounters:
 
 
 @dataclass(frozen=True)
+class RemoveCounters:
+    """ "Remove a +1/+1 counter from target creature." / "Remove all counters from target permanent." (count None: all;
+    counter None: of every kind)"""
+    count: int | str | None
+    counter: str | None
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.remove_counters(target, self.counter, None if self.count is None else game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class MoveCountersFrom:
+    """The first target of "Move a +1/+1 counter from target creature onto another target creature." """
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.carried = target
+
+
+@dataclass(frozen=True)
+class MoveCountersOnto:
+    """The second target: the counters (up to `count`, or all if None) move from the first target to this one."""
+    count: int | None
+    counter: str
+    target: str
+    another: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        first = game.resolving_item.carried if game.resolving_item is not None else None
+        if first is not None and target is not None and first is not target:
+            game.move_counters(first, target, self.counter, self.count)
+
+
+@dataclass(frozen=True)
+class DoubleCounters:
+    """ "Double the number of +1/+1 counters on each creature you control." """
+    counter: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in list(controller.battlefield):
+            if "Creature" in permanent.card.type_line and permanent.counters.get(self.counter):
+                game.put_counters(permanent, self.counter, permanent.counters[self.counter])
+
+
+@dataclass(frozen=True)
+class Animate:
+    """ "Until end of turn, this land becomes a 3/3 green Ape creature with trample. It's still a land." (the source:
+    uses_source) or "Target land you control becomes ..." (target)."""
+    power: int
+    toughness: int
+    colors: tuple[str, ...]
+    subtypes: str
+    artifact: bool
+    keywords: frozenset[str]
+    target: str | None = None
+    uses_source: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.animate(target, self.power, self.toughness, self.colors, self.subtypes, self.artifact, self.keywords)
+
+
+@dataclass(frozen=True)
+class StillALand:
+    """ "It's still a land." Only ever the end of an Animate (see _merge_animate)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone 'still a land' is never built")
+
+
+@dataclass(frozen=True)
 class OnSubject:
     """A watching trigger's effect on "it": the permanent that set it off, not the ability's source."""
     inner: Any
@@ -351,7 +481,7 @@ class PutCountersOnSource:
             game.put_counters(target, self.counter, game.amount(self.count))
 
 
-_COUNTER = r"([+\-\u2212]1/[+\-\u2212]1) counters?"
+_COUNTER = r"([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters?"  # "+1/+1", or a named one ("charge")
 
 
 def _counter_name(text: str) -> str:
@@ -459,17 +589,36 @@ class PumpSource:
 @dataclass(frozen=True)
 class PumpEach:
     """ "Creatures you control get +3/+3 and gain trample until end of turn." Affects only the
-    creatures there when it resolves (CR 611.2c)."""
+    creatures there when it resolves (CR 611.2c). `opponents`: "Creatures your opponents control get -1/-1"."""
     modifier: Modifier
+    opponents: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in list(controller.battlefield):
-            if "Creature" in permanent.card.type_line:
-                game.modify_until_end_of_turn(permanent, self.modifier)
+        seats = game.opponents(controller) if self.opponents else [controller]
+        for seat in seats:
+            for permanent in list(seat.battlefield):
+                if "Creature" in permanent.card.type_line:
+                    game.modify_until_end_of_turn(permanent, self.modifier)
+
+
+@dataclass(frozen=True)
+class PumpX:
+    """ "Target creature gets +X/+X until end of turn." (X from "for each ..." or "where X is ..."): `power` and
+    `toughness` are the multiples of X (1, 0 or -1)."""
+    power: int
+    toughness: int
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            x = game.amount("X")
+            game.modify_until_end_of_turn(target, Modifier(self.power * x, self.toughness * x))
 
 
 _PT = r"([+\-\u2212]\d+)/([+\-\u2212]\d+)"
+_PT_X = r"([+\-\u2212])(\d*X|0)/([+\-\u2212])(\d*X|0)"  # multiples of X: "+X/+X", "+2X/+2X", "-X/-0", "+0/+X"
 _KEYWORDS = rf"({_KW}(?:(?:,? and |, ){_KW})*)"
+_KEYWORDS_BARE = rf"{_KW}(?:(?:,? and |, ){_KW})*"
 # "gets +3/+3", "gets +2/+0 and gains trample", "gains flying" (one or both parts), then "until end of turn."
 _CHANGE = rf"(?:gets? {_PT}(?: and gains? {_KEYWORDS})?|gains? {_KEYWORDS}) until end of turn\."
 
@@ -495,6 +644,7 @@ _AFFECTED = r"(?:(Other) )?(?:([A-Z][\w'-]*) )?[Cc]reatures you control"
 _STATIC = re.compile(rf"{_AFFECTED} (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
 
 
+_CANT = re.compile(rf"{_SELF} can't (attack or block|attack|block)\.", re.I)
 _SELF_STATIC = re.compile(rf"{_SELF} (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS})\.", re.I)
 _AS_LONG_AS_FIRST = re.compile(r"As long as (.+?), (.+\.)")
 _AS_LONG_AS_LAST = re.compile(r"(.+?) as long as (.+)\.")
@@ -520,6 +670,9 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                 continue
         if m := _STATIC.fullmatch(sentence):
             buffs.append(StaticBuff(_modifier(m, 3), m[1] is not None, m[2], line, condition=condition))
+        elif m := _CANT.fullmatch(sentence):  # "This creature can't block." (a token's, for one)
+            keywords = {"attack": {CANT_ATTACK}, "block": {CANT_BLOCK}}.get(m[1].lower(), {CANT_ATTACK, CANT_BLOCK})
+            buffs.append(StaticBuff(Modifier(0, 0, frozenset(keywords)), False, None, line, self_only=True, condition=condition))
         elif condition and (m := _SELF_STATIC.fullmatch(sentence)):  # unconditional ones would just be printed text
             buffs.append(StaticBuff(_modifier(m, 1), False, None, line, self_only=True, condition=condition))
     return tuple(buffs)
@@ -698,6 +851,31 @@ class Populate:
 
 
 @dataclass(frozen=True)
+class EachCreatesTokens:
+    """ "Each opponent creates a 1/1 white Spirit creature token with flying." / "Each player creates a Treasure token." """
+    count: int
+    token: Card
+    who: str  # "each opponent" or "each player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            if self.who == "each player" or seat is not controller:
+                game.create_tokens(seat, self.token, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class TargetCreatesTokens:
+    """ "Target opponent creates a Treasure token." """
+    count: int
+    token: Card
+    target: str  # "player" or "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.create_tokens(target, self.token, game.amount(self.count))
+
+
+@dataclass(frozen=True)
 class TargetControllerCreatesTokens:
     """Beast Within: "Its controller creates a 3/3 green Beast creature token." """
     count: int
@@ -753,6 +931,46 @@ def _is_ability(card: Card, line: str) -> bool:
     """Whether `line` of `card`'s rules text is an ability we understand."""
     known = {a.text for a in (*triggered_abilities(card), *activated_abilities(card), *static_abilities(card))}
     return line in known or is_mana_ability(line)
+
+
+_ANIMATED = (r"(\d+)/(\d+)(?: ((?:white|blue|black|red|green)(?:(?:,? and |, )(?:white|blue|black|red|green))*))?"
+             r"(?: ((?:[A-Z][\w'-]*)(?: [A-Z][\w'-]*)*))?( artifact)? creature(?: with (all creature types|"
+             + _KEYWORDS_BARE + r"))?")
+
+
+def _animate(m: re.Match, target: str | None, offset: int = 0) -> Animate:
+    power, toughness, colors, subtypes, artifact, keywords = m.group(*range(offset + 1, offset + 7))
+    keywords = None if keywords == "all creature types" else keywords
+    return Animate(int(power), int(toughness), tuple(_COLOR_WORDS[c] for c in re.findall(_COLOR, colors or "")),
+                   subtypes or "", artifact is not None, _keyword_list(keywords) if keywords else frozenset(),
+                   target, uses_source=target is None)
+
+
+def _merge_animate(effects: list) -> list | None:
+    """"... becomes a 2/2 creature. It's still a land." is one Animate; the second sentence alone isn't understood."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, StillALand):
+            if not (merged and isinstance(merged[-1], Animate)):
+                return None
+            continue
+        merged.append(effect)
+    return merged
+
+
+def _create_for_others(m: re.Match) -> Any:
+    parsed = _token(m[2] + '."' if m[3] else m[2])
+    if parsed is None:
+        return None
+    who = m[1].lower()
+    return EachCreatesTokens(*parsed, who) if who.startswith("each") else TargetCreatesTokens(*parsed, who)
+
+
+def _pump_x(sp: str, px: str, st: str, tx: str, target: str) -> PumpX:
+    """+X/+X, -X/-X, +2X/+2X, ... as multiples of X (a plain +0/+0 never gets here: the ordinary pump reads it first)."""
+    def multiple(sign: str, part: str) -> int:
+        return 0 if part == "0" else (-1 if sign in ("-", "\u2212") else 1) * int(part.removesuffix("X") or 1)
+    return PumpX(multiple(sp, px), multiple(st, tx), target)
 
 
 def _create(m: re.Match, follows: bool) -> Any:
@@ -864,8 +1082,10 @@ class Amount:
 
 _AMOUNTS = [
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
-    (re.compile(r"(?:the number of )?\+1/\+1 counters? on (?:it|this creature|CARDNAME)", re.I),
-     lambda m: Amount("source_counters", "+1/+1")),
+    (re.compile(r"(?:the number of )?([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters? on (?:it|this creature|this artifact|CARDNAME)",
+                re.I), lambda m: Amount("source_counters", _counter_name(m[1].lower()))),
+    (re.compile(r"(?:the number of )?(?:(creature|land|artifact|enchantment|instant|sorcery|planeswalker) )?cards? in your graveyard",
+                re.I), lambda m: Amount("graveyard", (m[1] or "card").lower())),
     (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
     (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
     (re.compile(r"half your life total, rounded (down|up)", re.I), lambda m: Amount("half_life", m[1].lower())),
@@ -1769,6 +1989,23 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[2].lower(), bool(m[1]))),
+    (re.compile(r"exile target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
+     lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell", exile=True)),
+    (re.compile(r"if that spell is countered this way, exile it instead of putting it into its owner's graveyard\.", re.I),
+     lambda m: ExileInstead()),
+    (re.compile(rf"exile (another )?target {_PERMANENT_KIND}, then return (?:it|that card) to the battlefield under "
+                r"(your|its owner's) control\.", re.I),
+     lambda m: Flicker(m[2].lower(), under_owner=m[3].lower() != "your", another=bool(m[1]))),
+    (re.compile(r"return (?:it|that card) to the battlefield under (your|its owner's) control at the beginning of the "
+                r"next end step\.", re.I), lambda m: ReturnLater("battlefield", m[1].lower() != "your")),
+    (re.compile(r"return (?:it|that card) to its owner's hand at the beginning of the next end step\.", re.I),
+     lambda m: ReturnLater("hand", True)),
+    (re.compile(rf"exile the top (?:card|{_N} cards) of your library\.", re.I), lambda m: ExileTop(_count(m[1] or "one"))),
+    (re.compile(r"you may play (?:it|that card|those cards|them) this turn\.", re.I), lambda m: PlayExiled("this turn")),
+    (re.compile(r"until (?:the )?end of turn, you may play (?:it|that card|those cards|them)\.", re.I),
+     lambda m: PlayExiled("this turn")),
+    (re.compile(r"until (?:the )?end of your next turn, you may play (?:it|that card|those cards|them)\.", re.I),
+     lambda m: PlayExiled("next turn")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND} until {_SELF} leaves the battlefield\.", re.I),
      lambda m: ExileUntilLeaves(m[2].lower(), bool(m[1]))),
     (re.compile(rf"target (player|opponent) draws {_N} cards?\.", re.I), lambda m: TargetDraw(_count(m[2]), m[1].lower())),
@@ -1838,6 +2075,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile each permanent with the most votes or tied for most votes\.", re.I),
      lambda m: ExileMostVoted()),
     (re.compile(r"for each (\w+) vote, (.+)\.", re.I), lambda m: _vote_outcome("each", m[1], m[2], False)),
+    (re.compile(r"(.+?) for each (\w+) vote and (.+?) for each (\w+) vote\.", re.I),
+     lambda m: _two_vote_outcomes(m[1], m[2], m[3], m[4])),
     (re.compile(r"if (\w+) gets more votes( or the vote is tied)?, (.+)\.", re.I),
      lambda m: _vote_outcome("more", m[1], m[3], bool(m[2]))),
     (re.compile(r"you take the initiative\.", re.I), lambda m: TakeInitiative()),
@@ -1895,6 +2134,32 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
      lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
+    (re.compile(rf"(?i:target) {_PERMANENT_KIND} gets? {_PT_X} until end of turn\."),
+     lambda m: _pump_x(m[2], m[3], m[4], m[5], m[1].lower())),
+    (re.compile(rf"(?i:target) (creature(?: an opponent controls| you control)?) (?i:becomes) an? (\d+)/(\d+)"
+                rf"(?: (?:white|blue|black|red|green|colorless))?(?: [A-Z][\w'-]*)*(?: creature)?(?: with {_KEYWORDS})?"
+                r" until end of turn\."),
+     lambda m: Pump(Modifier(0, 0, _keyword_list(m[4]) if m[4] else frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
+    (re.compile(rf"target (creature(?: an opponent controls| you control)?) has base power and toughness (\d+)/(\d+)"
+                r" until end of turn\.", re.I),
+     lambda m: Pump(Modifier(0, 0, frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
+    (re.compile(rf"(?i:creatures your opponents control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), opponents=True)),
+    (re.compile(rf"move (?:{_N}|all) {_COUNTER} from target (creature) onto another target (creature)\.", re.I),
+     lambda m: [MoveCountersFrom(m[3].lower()), MoveCountersOnto(_count(m[1]) if m[1] else None, _counter_name(m[2]), m[4].lower())]),
+    (re.compile(rf"(?:Until end of turn, )(?:CARDNAME|this land) becomes an? {_ANIMATED}\."), lambda m: _animate(m, None)),
+    (re.compile(rf"(?i:target) (land you control) becomes an? {_ANIMATED} (?i:until end of turn)\."),
+     lambda m: _animate(m, m[1].lower(), 1)),
+    (re.compile(r"it's still an? (land|artifact)\.", re.I), lambda m: StillALand()),
+    (re.compile(rf"remove {_N} {_COUNTER} from target {_PERMANENT_KIND}\.", re.I),
+     lambda m: RemoveCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
+    (re.compile(rf"remove all {_COUNTER} from target {_PERMANENT_KIND}\.", re.I),
+     lambda m: RemoveCounters(None, _counter_name(m[1]), m[2].lower())),
+    (re.compile(rf"remove all counters from target {_PERMANENT_KIND}\.", re.I),
+     lambda m: RemoveCounters(None, None, m[1].lower())),
+    (re.compile(rf"double the number of {_COUNTER} on each creature you control\.", re.I),
+     lambda m: DoubleCounters(_counter_name(m[1]))),
+    (re.compile(r'(each opponent|each player) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
+    (re.compile(r'target (player|opponent) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
     (re.compile(rf"(?i:{_SELF}) {_CHANGE}"), lambda m: PumpSource(_modifier(m, 1))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
@@ -1922,7 +2187,14 @@ _TIMES_X = [
     (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
     (r"\b(creates?) a number of (.+?) tokens\b", r"\1 X \2 tokens"),
     (r"\b(put) (?:a|one) (\+1/\+1) counter\b", r"\1 X \2 counters"),
+    (r"\b(gets?) ([+\-\u2212])(\d+)/([+\-\u2212])(\d+)\b",  # "+2/+2" for each: +2X/+2X
+     lambda m: f"{m[1]} {m[2]}{_times(m[3])}/{m[4]}{_times(m[5])}" if (m[3], m[5]) != ("0", "0") else m[0]),
 ]
+
+
+def _times(number: str) -> str:
+    """A number as a multiple of X: 0 -> "0", 1 -> "X", 2 -> "2X"."""
+    return "0" if number == "0" else "X" if number == "1" else f"{number}X"
 
 
 def _times_x(text: str) -> tuple[str, int]:
@@ -1963,6 +2235,29 @@ def _template(sentence: str) -> Any:
     return None
 
 
+def _merge_exile(effects: list) -> list | None:
+    """Counter + "exile it instead" is one Counter(exile); Exile + "return it at the beginning of the next end step" is
+    one Flicker; ExileTop + "you may play it" is one ExileTop(play). A leftover second half isn't understood."""
+    merged: list = []
+    for effect in effects:
+        before = merged[-1] if merged else None
+        if isinstance(effect, ExileInstead):
+            if not isinstance(before, Counter):
+                return None
+            merged[-1] = dataclasses.replace(before, exile=True)
+        elif isinstance(effect, ReturnLater):
+            if not isinstance(before, Exile):
+                return None
+            merged[-1] = Flicker(before.target, "end_step", effect.to, effect.under_owner, before.another)
+        elif isinstance(effect, PlayExiled):
+            if not isinstance(before, ExileTop) or before.play:
+                return None
+            merged[-1] = dataclasses.replace(before, play=effect.until)
+        else:
+            merged.append(effect)
+    return merged
+
+
 def _merge_hand_discard(effects: list) -> list | None:
     """"Target opponent reveals their hand. You choose a nonland card from it. That player discards that card." becomes
     one TargetChooseDiscard; any one of the three sentences alone isn't understood."""
@@ -1992,6 +2287,16 @@ def _vote_outcome(kind: str, option: str, text: str, tie: bool) -> VoteOutcome |
                           for e in effects):
         return None
     return VoteOutcome(kind, option.lower(), tuple(effects), tie)
+
+
+def _two_vote_outcomes(first: str, first_option: str, second: str, second_option: str) -> list | None:
+    """"Each opponent sacrifices a creature for each death vote and discards a card for each taxes vote." The second
+    part has no subject of its own: it shares the first's ("each opponent")."""
+    subject = re.match(r"(each opponent|each player|you) ", first, re.I)
+    if subject and not re.match(r"(each opponent|each player|you) ", second, re.I):
+        second = f"{subject[1]} {second}"
+    outcomes = [_vote_outcome("each", first_option, first, False), _vote_outcome("each", second_option, second, False)]
+    return None if None in outcomes else outcomes
 
 
 def _merge_votes(effects: list) -> list | None:
@@ -2034,7 +2339,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
