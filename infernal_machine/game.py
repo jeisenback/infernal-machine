@@ -1194,6 +1194,11 @@ class Game:
                                                       type_line=" ".join(w for w in head.split() if w != "Creature") + f" {dash}{tail}".rstrip())
             self.broadcast({"event": "attached", "card": attachment.card.name, "to": creature.card.name})
 
+    def untap_all(self, seat: Seat, kind: str) -> None:
+        for permanent in seat.battlefield:
+            if _permanent_matches(kind, permanent.card):
+                permanent.tapped = False
+
     def detach(self, attachment: Permanent) -> None:
         """An Equipment stops being attached; a Reconfigure creature becomes a creature again."""
         attachment.attached_to = None

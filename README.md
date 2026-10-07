@@ -203,6 +203,9 @@ winner = game.play()
 | Take an extra turn after this one. / Target player takes an extra turn after this one. | Time Walk, Time Warp |
 | After this (main) phase, there is an additional combat phase (followed by an additional main phase). | Relentless Assault |
 | Untap all creatures that attacked this turn. / Untap all creatures you control. | Aggravated Assault |
+| Untap target land (permanent, creature, ...). / Untap another target creature. / Untap up to two target lands. | Vigor Mortis-style, Mind Over Matter-style |
+| Untap all lands (artifacts, permanents, enchantments) you control. | Rewind-style |
+| Untap it. / Untap this creature. (in "Whenever this creature attacks, untap it", or "equipped creature ... untap it") | Vigilance-style |
 | You become the monarch. | Palace Jailer |
 | You take the initiative. | Caves of Chaos Adventurer |
 | Goad target creature. / Goad all creatures you don't control. | Disrupt Decorum |

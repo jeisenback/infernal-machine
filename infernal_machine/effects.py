@@ -1728,6 +1728,38 @@ class UntapCreatures:
 
 
 @dataclass(frozen=True)
+class Untap:
+    """ "Untap target land." """
+    target: str
+    another: bool = False
+    optional_target: bool = False  # "Untap up to two target lands"
+    distinct: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.tapped = False
+
+
+@dataclass(frozen=True)
+class UntapSource:
+    """ "Untap it" / "Untap this creature": the ability's source (or, in a watching trigger, the permanent that set it off)."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.tapped = False
+
+
+@dataclass(frozen=True)
+class UntapAll:
+    """ "Untap all lands you control." """
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.untap_all(controller, self.kind)
+
+
+@dataclass(frozen=True)
 class TapAll:
     """ "Tap all creatures your opponents control." """
 
@@ -2390,6 +2422,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 re.I), lambda m: ExtraCombat(bool(m[1]))),
     (re.compile(r"untap all creatures that attacked this turn\.", re.I), lambda m: UntapCreatures("attacked")),
     (re.compile(r"untap all creatures you control\.", re.I), lambda m: UntapCreatures("yours")),
+    (re.compile(r"untap all (artifacts|lands|permanents|enchantments) you control\.", re.I),
+     lambda m: UntapAll(_PLURAL_KINDS[m[1].lower()])),
+    (re.compile(rf"untap (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Untap(m[2].lower(), bool(m[1]))),
+    (re.compile(rf"untap up to one target {_PERMANENT_KIND}\.", re.I), lambda m: Untap(m[1].lower(), optional_target=True)),
+    (re.compile(rf"untap {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Untap, m)),
+    (re.compile(rf"untap (?:it|{_SELF})\.", re.I), lambda m: UntapSource()),
     (re.compile(r"goad target (creature)\.", re.I), lambda m: Goad(m[1].lower())),
     (re.compile(r"goad (?:all creatures you don't control|each creature your opponents control)\.", re.I),
      lambda m: GoadAll()),
