@@ -533,11 +533,9 @@ class Game:
             return False
         if ability.life > seat.life:  # CR 119.4
             return False
-        if ability.discard and not seat.hand:
+        if len(seat.hand) < ability.discard or len(seat.graveyard) < ability.exile_graveyard:
             return False
-        if ability.exile_graveyard and not seat.graveyard:
-            return False
-        if ability.sacrifice_other and not self._sacrifice_choices(seat, permanent, ability):
+        if ability.sacrifice_other and len(self._sacrifice_choices(seat, permanent, ability)) < ability.sacrifice_count:
             return False
         if ability.crew and (permanent.original is not None
                              or any(i.source is permanent and getattr(i.ability, "crew", 0) for i in self.stack)  # already crewing
@@ -602,21 +600,24 @@ class Game:
                 member = options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])]
                 member.tapped = True
                 crewed += self.power(member)
-        if ability.discard:
+        for _ in range(ability.discard):
             card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT + name, [c.name for c in seat.hand])]
             seat.hand.remove(card)
             self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
             self._move_card(seat, card, "graveyard")
-        if ability.exile_graveyard:
+        for _ in range(ability.exile_graveyard):
             card = seat.graveyard[seat.player.choose(EXILE_COST_PROMPT + name, [c.name for c in seat.graveyard])]
             seat.graveyard.remove(card)
             self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
             self._move_card(seat, card, "exile")
+        if ability.exile_graveyard:
             self._left_graveyard(seat)
-        if ability.sacrifice_other:
-            options = self._sacrifice_choices(seat, source, ability)
-            choice = options[seat.player.choose(SACRIFICE_COST_PROMPT + name, [self.label(p) for p in options])]
-            self._leave_together([(choice, "sacrificed")])
+        chosen = []
+        for _ in range(ability.sacrifice_count if ability.sacrifice_other else 0):
+            options = [p for p in self._sacrifice_choices(seat, source, ability) if p not in chosen]
+            chosen.append(options[seat.player.choose(SACRIFICE_COST_PROMPT + name, [self.label(p) for p in options])])
+        if chosen:
+            self._leave_together([(p, "sacrificed") for p in chosen])
 
     def _ability_payment(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility,
                          x: int = 0) -> list[Permanent] | None:
@@ -2029,6 +2030,21 @@ class Game:
         if not (to_battlefield or to_hand):
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
         self._searched(seat)
+
+    def reveal_top_land_or_draw(self, seat: Seat, scry: int, tapped: bool) -> None:
+        """Scry, then reveal the top card: a land goes onto the battlefield, anything else is drawn."""
+        self.scry(seat, scry)
+        if not seat.library:
+            seat.drew_from_empty = True  # nothing to reveal, so the "otherwise" draw comes up empty
+            return
+        card = seat.library[0]
+        self.broadcast({"event": "revealed", "seat": seat.index, "card": card.name})
+        if "Land" in card.type_line:
+            seat.library.pop(0)
+            self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": tapped})
+            self._enter(seat, Permanent(card, tapped=tapped))
+        else:
+            self.draw(seat, 1)
 
     def scry(self, seat: Seat, count: int) -> None:
         """Look at the top `count` cards and put any of them on the bottom; the rest stay on top in

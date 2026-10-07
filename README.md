@@ -629,7 +629,10 @@ winner = game.play()
   - Card costs ("Sacrifice a creature", "Discard a card", "Exile a card from your graveyard") are paid when you
     activate, and the ability isn't offered unless you can pay. You can sacrifice only your own permanents; the
     source itself counts unless it says "another". Bots don't use abilities that cost their own cards. Costs
-    that name several cards ("sacrifice two creatures") aren't supported.
+    can name two to four cards ("Sacrifice two creatures", "Discard two cards", "Exile three cards from your
+    graveyard"); ward costs still pay one card.
+  - "Scry N, then reveal the top card of your library. If it's a land card, put it onto the battlefield
+    (tapped). Otherwise, draw a card." (Thrasios, Triton Hero) is understood as a whole or not at all.
 
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.

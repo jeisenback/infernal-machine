@@ -2,7 +2,7 @@ import unittest
 
 from infernal_machine.bot import _limited_cost
 from infernal_machine.cards import Card
-from infernal_machine.effects import activated_abilities
+from infernal_machine.effects import activated_abilities, ward_fields
 from infernal_machine.game import ACTIVATE, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR, creature
@@ -35,7 +35,7 @@ class ParseTests(unittest.TestCase):
 
     def test_discard_and_exile(self):
         (looter,) = activated_abilities(LOOTER)
-        self.assertEqual((looter.discard, looter.mana_cost), (True, "{1}"))
+        self.assertEqual((looter.discard, looter.mana_cost), (1, "{1}"))
         (grave,) = activated_abilities(GRAVE)
         self.assertTrue(grave.exile_graveyard)
 
@@ -43,10 +43,16 @@ class ParseTests(unittest.TestCase):
         for card in (ALTAR, OTHER, LOOTER, GRAVE):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
-    def test_other_amounts_are_still_unsupported(self):
-        for text in ("Sacrifice two creatures: Draw a card.", "Discard two cards: Draw a card.",
-                     "Exile two cards from your graveyard: Draw a card."):
-            self.assertEqual(activated_abilities(Card(name="x", oracle_text=text)), (), text)
+    def test_several_cards_parse(self):
+        (two,) = activated_abilities(Card(name="x", oracle_text="Sacrifice two creatures: Draw a card."))
+        self.assertEqual((two.sacrifice_other, two.sacrifice_count), ("creature", 2))
+        (discard,) = activated_abilities(Card(name="x", oracle_text="Discard two cards: Draw a card."))
+        self.assertEqual(discard.discard, 2)
+        (exile,) = activated_abilities(Card(name="x", oracle_text="Exile three cards from your graveyard: Draw a card."))
+        self.assertEqual(exile.exile_graveyard, 3)
+
+    def test_a_cost_of_several_cards_is_not_a_ward_cost(self):
+        self.assertEqual(ward_fields("discard two cards"), None)
 
 
 class SacrificeTests(unittest.TestCase):
@@ -145,3 +151,43 @@ class BotTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SeveralCardsTests(unittest.TestCase):
+    def test_sacrificing_two_creatures(self):
+        altar = Card(name="Altar", type_line="Artifact", oracle_text="Sacrifice two creatures: Draw a card.")
+        game, _, _ = table(pick(ACTIVATE))
+        a = game.seats[0]
+        a.battlefield = [Permanent(altar), Permanent(BEAR), Permanent(BEAR)]
+        settle(game)
+        self.assertEqual([p.card.name for p in a.battlefield], ["Altar"])
+        self.assertEqual((len(a.graveyard), len(a.hand)), (2, 1))
+
+    def test_one_creature_is_not_enough_for_two(self):
+        altar = Card(name="Altar", type_line="Artifact", oracle_text="Sacrifice two creatures: Draw a card.")
+        game, _, _ = table(pick(ACTIVATE))
+        a = game.seats[0]
+        a.battlefield = [Permanent(altar), Permanent(BEAR)]
+        self.assertEqual(activations(game, a, "Altar"), [])
+
+    def test_discarding_two_cards(self):
+        card = Card(name="Rummager", type_line="Artifact", oracle_text="Discard two cards: You gain 3 life.")
+        game, _, _ = table(pick(ACTIVATE))
+        a = game.seats[0]
+        a.battlefield = [Permanent(card)]
+        a.hand = [SPARE]
+        self.assertEqual(activations(game, a, "Rummager"), [])
+        a.hand = [SPARE, SPARE, SPARE]
+        settle(game)
+        self.assertEqual((len(a.hand), len(a.graveyard), a.life), (1, 2, 43))
+
+    def test_exiling_two_cards_from_the_graveyard(self):
+        card = Card(name="Crypt", type_line="Artifact", oracle_text="Exile two cards from your graveyard: You gain 3 life.")
+        game, _, _ = table(pick(ACTIVATE))
+        a = game.seats[0]
+        a.battlefield = [Permanent(card)]
+        a.graveyard = [SPARE]
+        self.assertEqual(activations(game, a, "Crypt"), [])
+        a.graveyard = [SPARE, SPARE, SPARE]
+        settle(game)
+        self.assertEqual((len(a.graveyard), len(a.exile), a.life), (1, 2, 43))
