@@ -671,7 +671,7 @@ winner = game.play()
 python -m infernal_machine.report deck.txt
 ```
 
-The report fetches the deck from Scryfall (caching cards in `.cache/cards.json`) and prints:
+The report looks the deck up in Scryfall's bulk data (downloaded to `.cache/oracle_bulk.json` on first use) and prints:
 - how many cards are fully playable,
 - the missing pieces grouped by kind, such as activated abilities, tokens or exile, with the most-affected kind first,
 - every rules-text line the engine doesn't understand yet.
