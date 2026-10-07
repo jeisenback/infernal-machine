@@ -175,7 +175,12 @@ winner = game.play()
 | Exile target player's graveyard. | Tormod's Crypt |
 | Exile (another) target nonland permanent ... until this enchantment leaves the battlefield. | Banishing Light |
 | Exile another target ...; When this leaves the battlefield, return the exiled card to the battlefield under its owner's control. | Oblivion Ring, Fiend Hunter |
-| Choose one / two / three / one or both / one or more — • mode • mode ... | charms and commands |
+| Exile target creature (you control), then return it to the battlefield under its owner's (your) control. / ... Return it to the battlefield (or its owner's hand) at the beginning of the next end step. | Cloudshift, Flickerwisp |
+| Exile target spell. / Counter target spell. If that spell is countered this way, exile it instead ... | Dissipate |
+| Exile the top N cards of your library. You may play it (them) this turn. / Until the end of your next turn, you may play those cards. | Light Up the Stage |
+| Choose one / two / three / one or both / one or more — • mode • mode ... (also in "When ..., choose one —" and "{T}: Choose one —") | charms and commands, Charming Prince |
+| Entwine {cost} / Escalate {cost} (mana costs only) | Tooth and Nail |
+| Tap all creatures your opponents control. | Cryptic Command |
 | Target player (or opponent) draws N cards / gains N life / loses N life. | |
 | Exile target card from a graveyard. | |
 | Return target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation |
@@ -197,7 +202,7 @@ winner = game.play()
 | Goad target creature. / Goad all creatures you don't control. | Disrupt Decorum |
 | Whenever an opponent casts a spell / draws a card, (you may) draw a card / create a Treasure token unless that player pays {N}. | Rhystic Study, Mystic Remora, Smothering Tithe |
 | Whenever you become the monarch, ... / Whenever an opponent becomes the monarch, ... | |
-| Starting with you, each player votes for X or Y. For each X vote, ... / If X gets more votes (or the vote is tied), ... | Tivit, Plea for Power |
+| Starting with you, each player votes for X or Y. For each X vote, ... / If X gets more votes (or the vote is tied), ... | Tivit, Plea for Power, Capital Punishment |
 | Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes. | Council's Judgment |
 | Investigate. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
@@ -233,6 +238,8 @@ winner = game.play()
 | Target creature becomes a 4/4 Dragon until end of turn. / has base power and toughness 0/1 until end of turn. | |
 | Put N <kind> counters on target <permanent>. / Remove N (all) <kind> counters from target <permanent>. / Remove all counters from target <permanent>. | |
 | Double the number of +1/+1 counters on each creature you control. | |
+| Move a (or all) +1/+1 counter(s) from target creature onto another target creature. | Bioshift |
+| Until end of turn, this land becomes a P/T (color) (Subtype) (artifact) creature (with keywords). It's still a land. / Target land you control becomes a ... | Mutavault, Treetop Village |
 | Each opponent (or player) creates a token. / Target opponent creates a token. | |
 | Creatures you control get +N/+N and gain trample until end of turn. | Overrun |
 | This creature gets +1/+0 until end of turn. (as an activated ability) | Shivan Dragon |
@@ -243,7 +250,7 @@ winner = game.play()
   when the effect resolves. Supported: its (or this creature's) power, using its last known power if it has left the
   battlefield; counters of any kind on it ("charge counters on this artifact"); cards (or <type> cards) in your graveyard; the number of <type> you control; creatures on the battlefield; the amount of life
   you gained this turn; half your life total, rounded down or up; spells you've cast this turn; the greatest mana value among instant and sorcery spells you've
-  cast this turn; opponents. "For each" multiplies drawing, life, tokens, +1/+1 counters and a +1/+1, -1/-1, +1/+0 or +0/+1 pump (a bigger multiple like "+2/+2 for each" isn't understood) ("create a 1/1 Saproling
+  cast this turn; opponents. "For each" multiplies drawing, life, tokens, +1/+1 counters and a pump ("+2/+2 until end of turn for each creature you control") ("create a 1/1 Saproling
   token for each +1/+1 counter on this creature"). A sentence a template already understands is never rewritten.
   "An X/X ... token" gets its size when it's created (Rootha, Mastering the Moment).
 - **Target restrictions:** destroy and exile targets can say "an opponent controls",
@@ -251,10 +258,18 @@ winner = game.play()
 - **Counters:** +1/+1 and -1/-1 counters change power and toughness. Matching +1/+1 and -1/-1
   counters cancel out. Other kinds ("charge", "time") are only counted. "Put N <kind> counters on target <permanent>",
   "Remove N <kind> counters from target ...", "Remove all (<kind>) counters from target ..." and "Double the number of
-  +1/+1 counters on each creature you control" work. Moving a counter from one permanent to another isn't built.
+  +1/+1 counters on each creature you control" work. "Move a (or all) <kind> counter(s) from target creature onto
+  another target creature" moves up to that many; moved counters aren't "put", so Doubling Season doesn't double them.
+  "Move any number of" isn't built.
 - **Setting power and toughness:** "Target creature becomes a 4/4 (color) (Subtype) (creature) (with flying) until end of
   turn" and "has base power and toughness 0/1 until end of turn" set the base; counters and bonuses still add to it,
-  whatever order they came in. Its types, subtypes and colors don't change (so a land can't be animated this way yet).
+  whatever order they came in. Its types, subtypes and colors don't change.
+- **Animating lands:** "Until end of turn, this land becomes a 3/3 green Ape creature with trample. It's still a land."
+  (Mutavault, Blinkmoth Nexus, Treetop Village, Celestial Colonnade) and "Target land you control becomes a 3/3
+  Elemental creature with haste until end of turn. It's still a land." The permanent keeps its types and gains
+  Creature (and Artifact), the stated subtypes, colors, power and toughness, and keywords; "with all creature types"
+  adds no subtype. It goes back to a plain card at end of turn. A land is summoning sick the turn it comes in, so it
+  can't attack or use {T} abilities if animated that turn. Bots never activate these abilities.
 - **Tokens for other players:** "Each opponent (or player) creates ..." and "Target opponent creates ...". A token
   with "This creature can't block / attack / attack or block." gets that restriction.
 - **Static abilities:** "(Other) (Elf) creatures you control get +1/+1 (and have flying)" and
@@ -372,10 +387,31 @@ winner = game.play()
   (summoning sick, without counters or attachments, and its "enters" abilities happen again). Tokens exiled this way
   are gone for good, and a commander that went to the command zone instead isn't returned. If the source has left
   by the time the exile ability resolves, nothing is exiled. "Another target" can't be the source itself.
+- **Flicker and delayed returns:** "Exile target creature you control, then return it to the battlefield under its
+  owner's (or your) control" (Cloudshift, Ephemerate) brings it back at once; "Exile target creature. Return it to the
+  battlefield under its owner's control at the beginning of the next end step" (Flickerwisp's "another target
+  permanent" too) or "...to its owner's hand at the beginning of the next end step" waits. It comes back as a new
+  object with no counters, summoning sick, and its enters triggers happen again. A token is gone for good. Cast
+  during the end step itself, the card waits for the next turn's end step.
+- **Exiling a spell:** "Exile target (kind of) spell." and "Counter target spell. If that spell is countered this way,
+  exile it instead of putting it into its owner's graveyard." The spell goes to its owner's exile, not the graveyard.
+- **Exile, then play it:** "Exile the top card (or N cards) of your library. You may play it this turn" and
+  "...Until the end of your next turn, you may play those cards." The cards sit in exile and show up as "Cast from
+  exile: ..." and "Play land from exile: ..." until the permission ends (a land uses your land drop; each card can
+  be played once). "Your next turn" is the next turn that comes round to you in normal order. Without "you may play",
+  "Exile the top N cards" just exiles them. Bots play exiled cards like cards in hand.
 - **Modal spells:** you choose the modes as you cast. Only modes that have a legal target are offered, a mode can't
   be chosen twice, and "one or both" / "one or more" let you stop with "Done choosing modes" once you have enough.
-  Chosen modes happen in the order printed. If any mode isn't supported (or the card has entwine or escalate), the
-  whole card is unsupported, and the report lists the mode.
+  Chosen modes happen in the order printed. If any mode isn't supported, the whole card is unsupported, and the
+  report lists the mode.
+  - **Entwine {cost}:** offered (yes or no) when every mode has a target and the extra cost can be paid; paying it
+    does all the modes. **Escalate {cost}:** each mode beyond the first adds the cost, and a mode that would cost
+    more than the caster has isn't offered. Only mana costs are understood ("Escalate\u2014Discard a card" leaves
+    the card unsupported). Bots always entwine when they can, and keep adding modes while they can pay.
+  - **Modal triggers and abilities** ("When this creature enters, choose one \u2014", "{T}: Choose one \u2014"): the
+    modes are chosen when the ability goes on the stack, before its targets. It isn't put on the stack if no
+    mode has a legal target (and can't be activated at all). One mode that isn't understood leaves the whole
+    ability unsupported.
 - **Zones:** bounced permanents go to their owner's hand, and tokens stop existing. A commander headed for the
   hand can go to the command zone instead. Cards keep their owner: a creature you reanimate from an opponent's
   graveyard enters under your control, but goes back to their graveyard when it dies. Graveyard targets are
@@ -404,8 +440,9 @@ winner = game.play()
     "If X gets more votes [or the vote is tied], ..." (Plea for Power), or "Exile each permanent with the most votes
     or tied for most votes". The vote goes round in turn order starting with the caster, and every vote is public.
     Only outcomes that need no target are understood, and a vote with no outcome is ignored with its card. Bots
-    vote against an opponent's permanent, and for the first word otherwise. Not built: outcomes that scale a
-    per-opponent effect ("Each opponent discards a card for each taxes vote"), since there is no discard effect yet.
+    vote against an opponent's permanent, and for the first word otherwise. Capital Punishment's two-part
+    outcome ("Each opponent sacrifices a creature for each death vote and discards a card for each taxes vote") is
+    two per-vote outcomes; the second part takes the first's subject if it has none.
   - An additional combat phase goes right after the current phase (after combat ends, if it comes from inside
     combat), with an additional main phase after it if the card says so. Cast before combat, it simply gives
     you two combats, and creatures tapped in the first can't attack in the second.
