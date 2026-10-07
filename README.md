@@ -509,6 +509,21 @@ winner = game.play()
   creature watching for deaths triggers for every other creature that died with it, and a creature with
   "Whenever this creature or another creature dies" sees itself go too. The same is true when several
   creatures die to damage at once. A player chooses their own creature to sacrifice, in turn order.
+  - **More restrictions:** "with mana value N or less / greater" (any permanent, not just creatures), "nontoken",
+    "creature tokens", "legendary", "tapped" / "untapped", "nonbasic" (lands), plus the existing keywords, power,
+    toughness and color. **"Except":** "except (for) artifact (enchantment, legendary, white, ...) creatures",
+    "except (for) creatures with flying" and "except for tokens" leave those alone. "Your opponents control" works
+    in all of them.
+  - **Wipes that give something back:** "Destroy all creatures. For each creature destroyed this way, its controller
+    creates a 1/1 white Spirit creature token." (also for exile): a token per creature that really left, to its
+    last controller; an indestructible survivor gives nothing.
+  - **Sacrifice:** "Each player (opponent) sacrifices two lands", "...a nonland permanent", "...an artifact or
+    enchantment", "...all creatures they control", "...a creature with the greatest power among creatures they
+    control" (they choose among the tied greatest), and "Sacrifice all creatures you control." With fewer
+    than asked, they sacrifice what they have.
+  - **Also:** "deals N damage to each creature your opponents control" and "All creatures get -2/-2 until end of turn."
+    Not built: choosing what survives from a list of cards (Farewell-like text that isn't a plain modal), "one or
+    more colors" and other conditions that aren't in the list above, and tapped or attacking sacrifices.
 - **Regeneration:** "Regenerate target creature.", "{B}: Regenerate this creature." and "Regenerate each creature you
   control." give a shield that lasts until end of turn (several stack). The next time the creature would be
   destroyed, by a destroy effect or by lethal damage or deathtouch, it is tapped, loses all its damage and leaves

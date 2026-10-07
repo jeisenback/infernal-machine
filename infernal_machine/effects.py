@@ -641,9 +641,10 @@ class PumpEach:
     creatures there when it resolves (CR 611.2c). `opponents`: "Creatures your opponents control get -1/-1"."""
     modifier: Modifier
     opponents: bool = False
+    everyone: bool = False  # "All creatures get -2/-2 until end of turn."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        seats = game.opponents(controller) if self.opponents else [controller]
+        seats = game.live_seats() if self.everyone else game.opponents(controller) if self.opponents else [controller]
         for seat in seats:
             for permanent in list(seat.battlefield):
                 if "Creature" in permanent.card.type_line:
@@ -1036,6 +1037,20 @@ def _animate(m: re.Match, target: str | None, offset: int = 0) -> Animate:
                    target, uses_source=target is None)
 
 
+def _merge_wipe_gift(effects: list) -> list | None:
+    """"Destroy all creatures. For each creature destroyed this way, its controller creates a token." is one DestroyAll
+    with `gives`; the second sentence alone isn't understood."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, GiveBack):
+            if not (merged and isinstance(merged[-1], (DestroyAll, ExileAll))):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], gives=(effect.count, effect.token))
+        else:
+            merged.append(effect)
+    return merged
+
+
 def _merge_animate(effects: list) -> list | None:
     """"... becomes a 2/2 creature. It's still a land." is one Animate; the second sentence alone isn't understood."""
     merged: list = []
@@ -1081,6 +1096,12 @@ class MassFilter:
     at_most: int | None = None  # "with toughness 2 or less"
     color: str | None = None  # a color letter
     other_color: bool = False  # "nonblack": every one that isn't that color
+    token: bool | None = None  # True: "creature tokens"; False: "nontoken creatures"
+    legendary: bool | None = None  # "legendary creatures" / "nonlegendary"
+    basic: bool | None = None  # "nonbasic lands"
+    tapped: bool | None = None  # "tapped creatures" / "untapped"
+    has_type: str | None = None  # "artifact creatures": a card type it must have
+    exclude: "MassFilter | None" = None  # "... except for artifact creatures": what is spared
 
 
 @dataclass(frozen=True)
@@ -1089,18 +1110,31 @@ class DestroyAll:
     kind: str  # "creature", "artifact or enchantment", "creature you don't control", ...
     restriction: MassFilter | None = None  # "... with flying"
     no_regen: bool = False  # "They can't be regenerated."
+    gives: "tuple[int, Card] | None" = None  # "For each creature destroyed this way, its controller creates a 1/1 token"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen)
+        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen, self.gives)
 
 
 @dataclass(frozen=True)
 class ExileAll:
     kind: str
     restriction: MassFilter | None = None
+    gives: "tuple[int, Card] | None" = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_all(game.mass_targets(self.kind, controller, self.restriction))
+        game.exile_all(game.mass_targets(self.kind, controller, self.restriction), self.gives)
+
+
+@dataclass(frozen=True)
+class GiveBack:
+    """ "For each creature destroyed this way, its controller creates a 1/1 white Spirit creature token." Only ever the
+    end of a DestroyAll or ExileAll (see _merge_wipe_gift)."""
+    count: int
+    token: Card
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone give-back is never built")
 
 
 @dataclass(frozen=True)
@@ -1215,12 +1249,23 @@ class SacrificeCreature:
 class EachSacrifices:
     """ "Each opponent sacrifices a creature." / "Each player sacrifices a land." """
     who: str  # "opponent" or "player"
-    kind: str = "creature"  # "creature", "artifact", "enchantment", "land" or "permanent"
+    kind: str = "creature"  # "creature", "artifact", "enchantment", "land", "permanent", "nonland permanent", ...
+    count: int | str | None = 1  # "two lands"; None: "all creatures they control"
+    greatest: bool = False  # "a creature with the greatest power among creatures they control"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for seat in game.turn_order_from_active():
             if self.who == "player" or seat is not controller:
-                game.sacrifice(seat, self.kind)
+                game.sacrifice(seat, self.kind, None if self.count is None else game.amount(self.count), self.greatest)
+
+
+@dataclass(frozen=True)
+class SacrificeAll:
+    """ "Sacrifice all creatures you control." """
+    kind: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.sacrifice(controller, self.kind, None)
 
 
 @dataclass(frozen=True)
@@ -1234,7 +1279,7 @@ class TargetSacrifices:
             game.sacrifice(target, self.kind)
 
 
-_MASS_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments": "enchantment",
+_MASS_KINDS = {"creatures": "creature", "creature tokens": "creature", "artifacts": "artifact", "enchantments": "enchantment",
                "planeswalkers": "planeswalker", "lands": "land", "nonland permanents": "nonland permanent",
                "artifacts and enchantments": "artifact or enchantment",
                "creatures and planeswalkers": "creature or planeswalker"}
@@ -1246,39 +1291,87 @@ def _mass_kind(m: re.Match) -> str:
     return _MASS_KINDS[m[1].lower()] + (m[2] or "").replace(" your opponents control", " an opponent controls")
 
 
-_SACRIFICE_KIND = r"(creature|artifact|enchantment|land|permanent)"
+_SACRIFICE_KIND = r"(creature|artifact or enchantment|artifact|enchantment|land|nonland permanent|permanent)"
 _FIGHTER = r"(creature(?: you control| you don't control| an opponent controls)?)"
 _MASS_KEYWORDS = (r"(?:flying|reach|trample|haste|vigilance|menace|deathtouch|lifelink|first strike|double strike"
                   r"|defender|indestructible|hexproof)")
-_RESTRICTION = rf"(with (?:power|toughness) \d+ or (?:greater|less)|with {_MASS_KEYWORDS}|without {_MASS_KEYWORDS})"
-_COLOR_ADJECTIVE = r"(?:(non)?(white|blue|black|red|green) )?"
-_STAT_RESTRICTION = re.compile(r"with (power|toughness) (\d+) or (greater|less)")
+_RESTRICTION = rf"(with (?:power|toughness|mana value) \d+ or (?:greater|less)|with {_MASS_KEYWORDS}|without {_MASS_KEYWORDS})"
+_COLOR_ADJECTIVE = r"(?:(non)?(white|blue|black|red|green|token|legendary|basic|tapped|untapped) )?"
+_STAT_RESTRICTION = re.compile(r"with (power|toughness|mana value) (\d+) or (greater|less)")
+_EXCEPT = (r"(?: except(?: for)? ((?:(?:artifact|enchantment|legendary|white|blue|black|red|green) )?"
+           rf"(?:creatures|lands|permanents|tokens)(?: with {_MASS_KEYWORDS})?))?")
 
 
 # The same, with an optional color adjective before and "with flying" etc. after (destroy and exile only).
-_MASS_NOUN = (r"(artifacts and enchantments|creatures and planeswalkers|nonland permanents|creatures|artifacts"
+_MASS_NOUN = (r"(artifacts and enchantments|creatures and planeswalkers|nonland permanents|creature tokens|creatures|artifacts"
               r"|enchantments|planeswalkers|lands)")
-_MASS_FILTERED = rf"{_COLOR_ADJECTIVE}{_MASS_NOUN}(?: {_RESTRICTION})?( you don't control| you control| an opponent controls| your opponents control)?"
+_MASS_FILTERED = rf"{_COLOR_ADJECTIVE}{_MASS_NOUN}(?: {_RESTRICTION})?( you don't control| you control| an opponent controls| your opponents control)?{_EXCEPT}"
 
 
 def _mass_effect(cls: type, m: re.Match) -> Any:
     kind = _MASS_KINDS[m[3].lower()] + (m[5] or "").replace(" your opponents control", " an opponent controls")
-    return cls(kind, _mass_filter(m[1], m[2], m[4]))
+    return cls(kind, _mass_filter(m[1], m[2], m[4], tokens=m[3].lower() == "creature tokens", spared=m[6]))
 
 
+_TRAITS = {"token": "token", "legendary": "legendary", "basic": "basic", "tapped": "tapped", "untapped": "tapped"}
 
 
-def _mass_filter(non: str | None, color: str | None, restriction: str | None) -> MassFilter | None:
-    """The filter for an optional color adjective ("nonblack") and an optional "with ..." / "without ..." phrase."""
+def _mass_filter(non: str | None, color: str | None, restriction: str | None, tokens: bool = False,
+                 spared: str | None = None) -> MassFilter | None:
+    """The filter for an optional adjective ("nonblack", "nontoken", "legendary", "tapped"), an optional "with ..." /
+    "without ..." phrase, "creature tokens", and an optional "except for ..." (what is left alone)."""
     fields: dict[str, Any] = {}
-    if color:
+    if color and color.lower() in _COLOR_WORDS:
         fields.update(color=_COLOR_WORDS[color.lower()], other_color=bool(non))
+    elif color:
+        wanted = not non and color.lower() != "untapped"
+        fields[_TRAITS[color.lower()]] = wanted
+    if tokens:
+        fields["token"] = True
     if restriction:
         if m := _STAT_RESTRICTION.fullmatch(restriction.lower()):
-            fields.update(stat=m[1], **{"at_least" if m[3] == "greater" else "at_most": int(m[2])})
+            fields.update(stat=m[1].replace(" ", "_"), **{"at_least" if m[3] == "greater" else "at_most": int(m[2])})
         else:
             fields.update(keyword=restriction.lower().split(" ", 1)[1], keyword_wanted=restriction.lower().startswith("with "))
+    if spared:
+        fields["exclude"] = _spared_filter(spared.lower())
     return MassFilter(**fields) if fields else None
+
+
+def _spared_filter(text: str) -> MassFilter:
+    """What an "except for ..." leaves alone: "artifact creatures", "legendary creatures", "white creatures", "tokens",
+    "creatures with flying"."""
+    fields: dict[str, Any] = {}
+    head, _, keyword = text.partition(" with ")
+    if keyword:
+        fields.update(keyword=keyword, keyword_wanted=True)
+    first = head.split(" ")[0]
+    if first in _COLOR_WORDS:
+        fields.update(color=_COLOR_WORDS[first])
+    elif first == "legendary":
+        fields["legendary"] = True
+    elif first in ("artifact", "enchantment"):
+        fields["has_type"] = first.capitalize()
+    elif head == "tokens":
+        fields["token"] = True
+    return MassFilter(**fields)
+
+
+_SACRIFICE_PLURAL = r"(creatures|artifacts or enchantments|artifacts|enchantments|lands|nonland permanents|permanents)"
+_PLURAL_SACRIFICE = {"creatures": "creature", "artifacts or enchantments": "artifact or enchantment",
+                     "artifacts": "artifact", "enchantments": "enchantment", "lands": "land",
+                     "nonland permanents": "nonland permanent", "permanents": "permanent"}
+
+
+class _GiftMatch:
+    """A token specification and whether its quoted ability's closing quote was there (see _create)."""
+    def __init__(self, spec: str, quote: str):
+        self.spec, self.quote = spec, quote
+
+
+def _gift(m: _GiftMatch) -> Any:
+    parsed = _token(m.spec + '."' if m.quote else m.spec)
+    return GiveBack(*parsed) if parsed else None
 
 
 def _damage_each(m: re.Match) -> DamageEach | None:
@@ -1288,7 +1381,7 @@ def _damage_each(m: re.Match) -> DamageEach | None:
     for part in (m[2].lower(), (m[4] or "").lower()):
         if part == "creature":
             creatures = "all"
-        elif part == "creature you don't control":
+        elif part in ("creature you don't control", "creature your opponents control"):
             creatures = "opponents"
         elif part:
             players = "all" if part == "player" else "opponents"
@@ -2261,10 +2354,19 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"regenerate {_SELF}\.", re.I), lambda m: RegenerateSource()),
     (re.compile(r"regenerate each creature you control\.", re.I), lambda m: RegenerateEach()),
     (re.compile(rf"exile all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(ExileAll, m)),
-    (re.compile(rf"{_SELF} deals {_N} damage to each (creature you don't control|creature|opponent|player)"
+    (re.compile(rf"{_SELF} deals {_N} damage to each (creature you don't control|creature your opponents control|creature|opponent|player)"
                 rf"(?: {_RESTRICTION})?(?: and each (opponent|player))?\.", re.I), _damage_each),
-    (re.compile(rf"each (opponent|player) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
-     lambda m: EachSacrifices(m[1].lower(), m[2].lower())),
+    (re.compile(rf"each (opponent|player) sacrifices (a|an|one|two|three) {_SACRIFICE_KIND}"
+                r"( with the greatest power among creatures they control)?\.", re.I),
+     lambda m: EachSacrifices(m[1].lower(), m[3].lower(), _count(m[2]), bool(m[4])) if m[4] is None or m[3].lower() == "creature" else None),
+    (re.compile(rf"each (opponent|player) sacrifices (two|three|four|five) {_SACRIFICE_PLURAL}\.", re.I),
+     lambda m: EachSacrifices(m[1].lower(), _PLURAL_SACRIFICE[m[3].lower()], _count(m[2]))),
+    (re.compile(rf"each (opponent|player) sacrifices all {_SACRIFICE_PLURAL} they control\.", re.I),
+     lambda m: EachSacrifices(m[1].lower(), _PLURAL_SACRIFICE[m[2].lower()], None)),
+    (re.compile(rf"sacrifice all {_SACRIFICE_PLURAL} you control\.", re.I),
+     lambda m: SacrificeAll(_PLURAL_SACRIFICE[m[1].lower()])),
+    (re.compile(r"for each (creature|permanent) (?:destroyed|exiled) this way, its controller creates (.+)\.(\"?)", re.I),
+     lambda m: _gift(_GiftMatch(m[2], m[3]))),
     (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),
     (re.compile(r"Let X be (.+)\."), lambda m: DefineX(a) if (a := _amount(m[1])) else None),
     (re.compile(rf"target (player|opponent) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
@@ -2291,6 +2393,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r" until end of turn\.", re.I),
      lambda m: Pump(Modifier(0, 0, frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
     (re.compile(rf"(?i:creatures your opponents control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), opponents=True)),
+    (re.compile(rf"(?i:all creatures) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), everyone=True)),
     (re.compile(rf"move (?:{_N}|all) {_COUNTER} from target (creature) onto another target (creature)\.", re.I),
      lambda m: [MoveCountersFrom(m[3].lower()), MoveCountersOnto(_count(m[1]) if m[1] else None, _counter_name(m[2]), m[4].lower())]),
     (re.compile(rf"(?:Until end of turn, )(?:CARDNAME|this land) becomes an? {_ANIMATED}\."), lambda m: _animate(m, None)),
@@ -2486,7 +2589,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile, _merge_wipe_gift):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
