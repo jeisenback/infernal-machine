@@ -150,8 +150,8 @@ class ModalTests(unittest.TestCase):
         self.assertEqual(spell_effects(Card(name="x", oracle_text="Target player gains 4 life."))[0], TargetGainLife(4, "player"))
 
     def test_unsupported_modes_leave_the_card_unsupported(self):
-        for text in ("Choose one —\n• Destroy target artifact.\n• Tap all creatures your opponents control.",
-                     "Choose one —\n• Draw a card.\n• You gain 1 life.\nEntwine {2}",
+        for text in ("Choose one —\n• Destroy target artifact.\n• Tap all creatures.",
+                     "Choose one —\n• Draw a card.\n• You gain 1 life.\nEntwine\u2014Pay 3 life.",
                      "Choose one —\nDraw a card."):
             self.assertIsNone(spell_effects(Card(name="x", oracle_text=text)), text)
 

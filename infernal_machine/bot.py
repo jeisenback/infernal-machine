@@ -12,7 +12,7 @@ from .cards import Card, Deck
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT
 from .undercity import HELPS_ITS_TARGET
-from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
+from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, PLAY_EXILE, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT)
 
 MIN_LANDS = 2
@@ -125,13 +125,13 @@ class BotPlayer:
         if self._stack and self._stack[-1] == self._seat:
             return options.index(PASS)
         for i, option in enumerate(options):
-            if option.startswith(PLAY_LAND):
+            if option.startswith((PLAY_LAND, PLAY_EXILE)):
                 return i
         for i, option in enumerate(options):
             if option.startswith(CAST_COMMANDER):
                 return i
         casts = [i for i, option in enumerate(options)
-                 if option.startswith((CAST, CAST_GRAVEYARD)) and not _is_ritual(self._cards.get(_cast_name(option)))]
+                 if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE)) and not _is_ritual(self._cards.get(_cast_name(option)))]
         if casts:
             return max(casts, key=lambda i: self._cards[_cast_name(options[i])].cmc)
         for i, option in enumerate(options):
@@ -161,7 +161,7 @@ class BotPlayer:
 
 def _cast_name(option: str) -> str:
     """The card in a "Cast: ..." or "Cast from graveyard: ..." action."""
-    return option.removeprefix(CAST).removeprefix(CAST_GRAVEYARD)
+    return option.removeprefix(CAST).removeprefix(CAST_GRAVEYARD).removeprefix(CAST_EXILE)
 
 
 def _is_ritual(card: Card | None) -> bool:
@@ -184,7 +184,7 @@ def _equip_needed(action: str) -> bool:
     """An "Equip" activation for Equipment that isn't attached to anything yet (once attached, its
     label says "attached to ...", so the bot doesn't equip over and over)."""
     label, text = action.split("): ", 1)
-    return text.startswith("Equip ") and " attached to " not in label
+    return text.startswith(("Equip ", "Equip\u2014")) and " attached to " not in label
 
 
 def _stats(label: str) -> tuple[int, int]:

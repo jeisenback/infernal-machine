@@ -15,7 +15,7 @@ import random
 import re
 from itertools import combinations
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword
@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -54,6 +54,8 @@ PLAY_LAND = "Play land: "
 CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
+CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
+PLAY_EXILE = "Play land from exile: "
 CYCLE = "Cycle: "
 SHOCK_PROMPT = "Pay life so it enters untapped? "  # followed by the land's name
 ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
@@ -81,6 +83,7 @@ SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell
 DISCARD_COST_PROMPT = "Choose a card to discard for "  # followed by the ability's source
 EXILE_COST_PROMPT = "Choose a card to exile from your graveyard for "  # followed by the ability's source
 COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
+ENTWINE_PROMPT = "Pay the entwine cost for "  # followed by the spell's name; options: YES_NO
 KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = "Choose a card to exile from your hand"
@@ -216,6 +219,7 @@ class Seat:
     library: list[Card] = field(default_factory=list)
     hand: list[Card] = field(default_factory=list)
     battlefield: list[Permanent] = field(default_factory=list)
+    exile_play: list[tuple[Card, int]] = field(default_factory=list)  # exiled cards its owner may play, and the last turn they can
     undercity_room: str | None = None  # where this player's venture marker is, if they are in the Undercity
     mana_pool: list[frozenset[str]] = field(default_factory=list)  # mana added by rituals, gone at the end of the step
     graveyard: list[Card] = field(default_factory=list)
@@ -269,6 +273,7 @@ class Game:
         self.regular = 0  # the seat whose regular turn it is (or was, during an extra turn)
         self.monarch: Seat | None = None
         self.initiative: Seat | None = None
+        self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
@@ -386,6 +391,11 @@ class Game:
             if not (self.turn == 1 and not self.multiplayer):
                 self.draw(seat, 1)
         elif self.step in ("upkeep", "end"):
+            if self.step == "end":  # "at the beginning of the next end step"
+                due = [what for turn, what in self.at_end_step if turn <= self.turn]
+                self.at_end_step = [(turn, what) for turn, what in self.at_end_step if turn > self.turn]
+                for what in due:
+                    what()
             for permanent in list(seat.battlefield):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
             for other in self.live_seats():  # "At the beginning of each upkeep / end step"
@@ -484,6 +494,12 @@ class Game:
             for cast in graveyard_casts(card)[:1]:
                 if not is_land(card) and (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card, graveyard=cast):
                     actions.append(CAST_GRAVEYARD + card.name)
+        for card in _unique([c for c, until in seat.exile_play if self.turn <= until and c in seat.exile]):
+            if is_land(card):
+                if sorcery_timing and seat.lands_played < 1:
+                    actions.append(PLAY_EXILE + card.name)
+            elif (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card):
+                actions.append(CAST_EXILE + card.name)
         for card in _unique(seat.hand):
             cost = cycling_cost(card)
             if cost and self._pay_cost(seat, parse_cost(cost)) is not None:
@@ -495,7 +511,9 @@ class Game:
         """Activated abilities `seat` can activate now, keyed by their action text."""
         options = {}
         for permanent in seat.battlefield:
-            for ability in activated_abilities(permanent.card):
+            granted = [a for other in self.seats for attachment in other.battlefield if attachment.attached_to is permanent
+                       for a in granted_abilities(attachment.card)]
+            for ability in [*activated_abilities(permanent.card), *granted]:
                 if self._can_activate(seat, permanent, ability, sorcery_timing):
                     text = ability.text.replace("CARDNAME", permanent.card.name)
                     options[f"{ACTIVATE}{self.label(permanent)}: {text}"] = (permanent, ability)
@@ -527,7 +545,7 @@ class Game:
             return False
         if self._ability_payment(seat, permanent, ability) is None:
             return False
-        return self._targets_exist(seat, ability.effects, source_qualities(card))
+        return self._effects_possible(seat, ability.effects, source_qualities(card))
 
     def _sacrifice_choices(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> list[Permanent]:
         """What `seat` could sacrifice to pay the ability's "Sacrifice a creature" cost."""
@@ -544,6 +562,34 @@ class Game:
             vehicle.original = vehicle.card
             vehicle.card = dataclasses.replace(vehicle.card, type_line=vehicle.card.type_line.replace("Artifact", "Artifact Creature", 1))
             self.broadcast({"event": "became_creature", "card": vehicle.card.name})
+
+    def animate(self, permanent: Permanent, power: int, toughness: int, colors: tuple[str, ...], subtypes: str,
+                artifact: bool, keywords: frozenset[str]) -> None:
+        """"Until end of turn, this land becomes a 3/3 green Ape creature with trample. It's still a land.": it keeps
+        its other types and gains Creature (and Artifact); the card comes back at end of turn (like a crewed Vehicle)."""
+        base = permanent.original or permanent.card
+        permanent.original = base
+        types = base.type_line.partition("\u2014")[0].split()
+        for added in (["Artifact"] if artifact and "Artifact" not in types else []) + ["Creature"]:
+            if added not in types:
+                types.append(added)
+        type_line = " ".join(types) + (f" \u2014 {subtypes}" if subtypes else "")
+        permanent.card = dataclasses.replace(base, type_line=type_line, power=str(power), toughness=str(toughness),
+                                             colors=colors or base.colors)
+        if keywords:
+            permanent.until_end_of_turn.append(Modifier(0, 0, keywords))
+        self.broadcast({"event": "became_creature", "card": permanent.card.name, "power": power, "toughness": toughness})
+
+    def move_counters(self, source: Permanent, destination: Permanent, counter: str, count: int | None) -> None:
+        """Move up to `count` counters (all of them if None) from one permanent to another. They are moved, not put
+        on it, so nothing that doubles counters applies."""
+        moved = min(source.counters.get(counter, 0), source.counters.get(counter, 0) if count is None else count)
+        if not moved:
+            return
+        self.remove_counters(source, counter, moved)
+        destination.counters[counter] = destination.counters.get(counter, 0) + moved
+        self.broadcast({"event": "counters", "card": destination.card.name, "counter": counter,
+                        "added": moved, "total": destination.counters[counter]})
 
     def _pay_card_costs(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> None:
         """Pay an activated ability's "Sacrifice a creature", "Discard a card" and "Exile a card from your
@@ -586,9 +632,7 @@ class Game:
         if not self._cast_ways(seat, card, from_command_zone, graveyard):
             return False
         effects, colors = kicked_effects(_effects(card), 0) or [], source_qualities(card)
-        if effects and isinstance(effects[0], Modal):
-            return sum(self._targets_exist(seat, modes, colors) for modes in effects[0].modes) >= effects[0].min
-        return self._targets_exist(seat, effects, colors)
+        return self._effects_possible(seat, effects, colors)
 
     def _spend_mana(self, seat: Seat, sources: list[Permanent]) -> None:
         """Tap the chosen mana sources; ones whose mana ability sacrifices them (Treasure) are sacrificed,
@@ -628,8 +672,13 @@ class Game:
                     if seat.life >= life_cost:  # Mana Confluence: paying life, which you must have
                         lands.append(ManaSource(permanent, frozenset("WUBRG"), frozenset("WUBRGC"), life_cost, life=True))
                     continue
+                gifted = [mana for other in self.seats for a in other.battlefield if a.attached_to is permanent
+                          for mana in granted_mana(a.card)]  # "Enchanted land has "{T}: Add {G}{G}."": the better of the two
                 if units := land_mana_units(card):  # a bounceland or Ancient Tomb makes several mana in one tap
                     lands.extend(ManaSource(permanent, mana, pain, damage) for mana in units)
+                    continue
+                if len(gifted) > 1:  # more mana than the land's own single one
+                    lands.extend(ManaSource(permanent, mana, pain, damage) for mana in gifted)
                     continue
                 # Command Tower makes only the colors of your commander, whatever the card data lists.
                 types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
@@ -641,7 +690,7 @@ class Game:
         return pooled + abilities + lands + sacrifices
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
-                 alternative: AlternativeCost | None = None, kicked: int = 0) -> list[Permanent] | None:
+                 alternative: AlternativeCost | None = None, kicked: int = 0, extra: str = "") -> list[Permanent] | None:
         """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now. An alternative
         cost replaces the mana cost; commander tax and kicker are added, then cost reductions apply."""
         cost = Cost() if alternative else parse_cost(card.mana_cost)
@@ -651,6 +700,8 @@ class Game:
             cost = cost.plus_generic(self.commander_tax(seat, card))
         for _ in range(kicked):
             cost = cost + parse_cost(kicker_cost(card))
+        if extra:  # entwine, or escalate for each mode beyond the first
+            cost = cost + parse_cost(extra)
         return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card)))
 
     def cost_reduction(self, seat: Seat, card: Card) -> int:
@@ -721,9 +772,9 @@ class Game:
         if life:
             self.change_life(seat, -life)
 
-    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kicked: int) -> int:
+    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kicked: int, extra: str = "") -> int:
         x = 0
-        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1, kicked=kicked) is not None:
+        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1, kicked=kicked, extra=extra) is not None:
             x += 1
         return x
 
@@ -796,9 +847,19 @@ class Game:
     def _perform(self, seat: Seat, action: str) -> None:
         if action.startswith(PLAY_LAND):
             card = _take(seat.hand, action.removeprefix(PLAY_LAND))
-            self._enter(seat, Permanent(card))
+            self._enter(seat, Permanent(card, sick=True))  # a land that becomes a creature can't attack the turn it came in
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name})
+        elif action.startswith(PLAY_EXILE):
+            card = _take(seat.exile, action.removeprefix(PLAY_EXILE))
+            self._used_exile_permission(seat, card)
+            self._enter(seat, Permanent(card, sick=True))
+            seat.lands_played += 1
+            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
+        elif action.startswith(CAST_EXILE):
+            card = next(c for c in seat.exile if c.name == action.removeprefix(CAST_EXILE))
+            self._used_exile_permission(seat, card)
+            self._cast(seat, card, seat.exile)
         elif action.startswith(CYCLE):
             self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
         elif action.startswith(CAST_COMMANDER):
@@ -817,6 +878,24 @@ class Game:
             permanent, ability = self._activations(seat, sorcery_timing)[action]
             self._activate(seat, permanent, ability)
 
+    def _used_exile_permission(self, seat: Seat, card: Card) -> None:
+        seat.exile_play = [(c, until) for c, until in seat.exile_play if c != card] + \
+                          [(c, until) for c, until in seat.exile_play if c == card][1:]
+
+    def exile_top(self, seat: Seat, count: int, play: str | None) -> None:
+        """Exile the top `count` cards of the library; `play` is None, "this turn" or "next turn" (until the end of
+        their controller's next turn): the cards may then be played from exile until that turn ends."""
+        seats = len(self.seats)
+        until = (None if play is None else self.turn if play == "this turn"
+                 else self.turn + ((seat.index - self.active) % seats or seats))  # the end of their next turn
+        exiled = [seat.library.pop(0) for _ in range(min(count, len(seat.library)))]
+        self.broadcast({"event": "exiled_from_library", "seat": seat.index, "cards": [c.name for c in exiled],
+                        "may_play": play is not None})
+        for card in exiled:
+            self._move_card(seat, card, "exile")
+            if until is not None and card in seat.exile:
+                seat.exile_play.append((card, until))
+
     def _cycle(self, seat: Seat, card: Card) -> None:
         """Cycling: pay the cost, discard the card, and draw a card when the ability resolves."""
         word, cost, effects = cycling(card)
@@ -830,7 +909,10 @@ class Game:
                         "targets": [], "tapped": [p.card.name for p in tapped]})
 
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
-        targets, labels = self._choose_targets(seat, ability.effects, permanent.card.name, permanent,
+        effects = list(ability.effects)
+        if effects and isinstance(effects[0], Modal):
+            effects, _ = self._choose_modes(seat, permanent.card, effects[0])
+        targets, labels = self._choose_targets(seat, effects, permanent.card.name, permanent,
                                                source_qualities(permanent.card))
         x = 0
         if ability.mana_cost and parse_cost(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then paid
@@ -849,7 +931,7 @@ class Game:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn
         permanent.activated_turn[ability.text] = self.turn
-        item = StackItem(permanent.card, seat, list(ability.effects), targets, ability, permanent, x=x)
+        item = StackItem(permanent.card, seat, effects, targets, ability, permanent, x=x)
         self.stack.append(item)
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
@@ -858,17 +940,35 @@ class Game:
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
 
+    def _effects_possible(self, seat: Seat, effects, colors: frozenset[str] = frozenset()) -> bool:
+        """Whether the targets exist: for a modal spell or ability, for enough of its modes."""
+        if effects and isinstance(effects[0], Modal):
+            return sum(self._targets_exist(seat, modes, colors) for modes in effects[0].modes) >= effects[0].min
+        return self._targets_exist(seat, effects, colors)
+
     def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset()) -> bool:
         return all(self.target_options(target_kind(e), seat, colors) for e in effects
                    if target_kind(e) and not getattr(e, "optional_target", False))
 
-    def _choose_modes(self, seat: Seat, card: Card, modal: Modal) -> list:
-        """Ask the caster for the modes of a modal spell (only ones with legal targets are offered) and
-        return the chosen modes' effects in printed order."""
+    def _choose_modes(self, seat: Seat, card: Card, modal: Modal, from_command_zone: bool = False,
+                      casting: bool = False) -> tuple[list, str]:
+        """Ask the controller for the modes of a modal spell or ability (only ones with legal targets are offered):
+        the chosen modes' effects in printed order, and any extra mana cost for them. When casting, entwine (all the
+        modes) and escalate (each mode beyond the first) are offered if they can be paid for."""
         colors = source_qualities(card)
         available = [i for i, effects in enumerate(modal.modes) if self._targets_exist(seat, effects, colors)]
+        if len(available) < modal.min:
+            return [], ""
+        entwine, escalate = (entwine_cost(card), escalate_cost(card)) if casting else (None, None)
+        if (entwine and len(available) == len(modal.modes) > 1
+                and self._payment(seat, card, from_command_zone, extra=entwine) is not None
+                and seat.player.choose(ENTWINE_PROMPT + card.name, YES_NO) == 0):
+            return [effect for modes in modal.modes for effect in modes], entwine
         chosen: list[int] = []
         while len(chosen) < modal.max and len(chosen) < len(available):
+            if escalate and chosen and self._payment(seat, card, from_command_zone,
+                                                     extra=escalate * len(chosen)) is None:
+                break  # another mode would cost more than the caster has
             remaining = [i for i in available if i not in chosen]
             options = [_shown(modal.texts[i], card) for i in remaining]
             if len(chosen) >= modal.min:
@@ -877,7 +977,8 @@ class Game:
             if pick == len(remaining):
                 break
             chosen.append(remaining[pick])
-        return [effect for i in sorted(chosen) for effect in modal.modes[i]]
+        extra = escalate * (len(chosen) - 1) if escalate and len(chosen) > 1 else ""
+        return [effect for i in sorted(chosen) for effect in modal.modes[i]], extra
 
     def _choose_targets(self, seat: Seat, effects, source_name: str, source: Permanent | None = None,
                         colors: frozenset[str] = frozenset()) -> tuple[list, list[str]] | None:
@@ -904,8 +1005,9 @@ class Game:
               graveyard: GraveyardCast | None = None) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
+        extra = ""
         if effects and isinstance(effects[0], Modal):
-            effects = self._choose_modes(seat, card, effects[0])
+            effects, extra = self._choose_modes(seat, card, effects[0], from_command_zone, casting=True)
         # Alternative costs and kicker are announced before targets are chosen (CR 601.2b-c).
         ways = self._cast_ways(seat, card, from_command_zone, graveyard)
         alternative = ways[0]
@@ -917,9 +1019,9 @@ class Game:
         targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
         x = 0
         if alternative is None and parse_cost(paying.mana_cost).x:  # casting without paying the mana cost makes X 0
-            options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kicked) + 1)]
+            options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kicked, extra) + 1)]
             x = seat.player.choose(X_PROMPT + card.name, options)
-        tapped = self._payment(seat, paying, from_command_zone, x, alternative, kicked)
+        tapped = self._payment(seat, paying, from_command_zone, x, alternative, kicked, extra)
         self._spend_mana(seat, tapped)
         zone.remove(card)
         self._pay_extras(seat, card, alternative, graveyard)
@@ -930,6 +1032,8 @@ class Game:
                  "targets": labels, "x": x, "tapped": [p.card.name for p in tapped]}
         if kicked:
             event["kicked"] = kicked
+        if extra:
+            event["extra_cost"] = extra
         if alternative:
             event["alternative"] = alternative.text
         self.broadcast(event)
@@ -1026,6 +1130,16 @@ class Game:
         self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
         self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked))
         self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
+
+    def return_to_hand_from_graveyard(self, card: Card) -> None:
+        """Put `card` from whichever graveyard it is in into its hand (it may already be gone)."""
+        for seat in self.seats:
+            if any(c is card for c in seat.graveyard):
+                seat.graveyard = [c for c in seat.graveyard if c is not card]
+                seat.hand.append(card)
+                self.broadcast({"event": "returned_to_hand", "seat": seat.index, "card": card.name})
+                self._left_graveyard(seat)
+                return
 
     def attach(self, attachment: Permanent, creature: Permanent) -> None:
         """Attach an Equipment to a creature (moving it if it was on another)."""
@@ -1220,12 +1334,17 @@ class Game:
             seat = trigger.controller
             if seat.lost:
                 continue
-            chosen = self._choose_targets(seat, trigger.ability.effects, trigger.source.name, trigger.permanent,
+            effects = list(trigger.ability.effects)
+            if effects and isinstance(effects[0], Modal):  # "When this enters, choose one —": modes, then targets
+                effects, _ = self._choose_modes(seat, trigger.source, effects[0])
+                if not effects:
+                    continue
+            chosen = self._choose_targets(seat, effects, trigger.source.name, trigger.permanent,
                                           source_qualities(trigger.source))
             if chosen is None:
                 continue
             targets, labels = chosen
-            item = StackItem(trigger.source, seat, list(trigger.ability.effects), targets, trigger.ability,
+            item = StackItem(trigger.source, seat, effects, targets, trigger.ability,
                              trigger.permanent, x=trigger.x, subject=trigger.subject, player=trigger.player)
             self.stack.append(item)
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
@@ -1369,6 +1488,10 @@ class Game:
                     self.become_monarch(controller)
                 if target is self.initiative and controller is not target:  # CR 725.2
                     self.take_initiative(controller)
+                for holder in self.live_seats():  # "Whenever equipped (enchanted) creature deals combat damage to a player"
+                    for attachment in list(holder.battlefield):
+                        if attachment.attached_to is source:
+                            self.trigger("host_combat_damage", attachment, holder)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
@@ -1682,13 +1805,40 @@ class Game:
         if source is not None and not _is_token(card) and len(owner.exile) > before:  # not sent to the command zone
             source.linked_exile.append((owner, card))
 
-    def _return_from_exile(self, seat: Seat, card: Card) -> None:
-        """A card exiled "until" comes back as a new permanent under its owner's control."""
-        if seat.lost or card not in seat.exile:
+    def flicker(self, target: Permanent, controller: Seat, when: str, to: str, under_owner: bool) -> None:
+        """Exile `target`, then return it to the battlefield (or its owner's hand) right away (`when` is "now") or as the
+        next end step begins ("end_step"). A token is gone for good; it comes back under `controller`'s control if
+        the card says "under your control", otherwise under its owner's."""
+        owner = target.owner or self.controller_of(target)
+        card, before = target.card, len(owner.exile)
+        self.exile(target)
+        if _is_token(card) or len(owner.exile) <= before:  # a token ceases to exist; a commander went to the command zone
             return
-        seat.exile.remove(card)
+
+        def bring_back() -> None:
+            if card not in owner.exile:
+                return
+            if to == "hand":
+                owner.exile.remove(card)
+                owner.hand.append(card)
+                self.broadcast({"event": "returned_from_exile", "seat": owner.index, "card": card.name, "to": "hand"})
+            else:
+                self._return_from_exile(owner if under_owner else controller, card, owner)
+
+        if when == "now":
+            bring_back()
+        else:
+            fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+            self.at_end_step.append((fire_turn, bring_back))
+
+    def _return_from_exile(self, seat: Seat, card: Card, owner: Seat | None = None) -> None:
+        """A card exiled "until" comes back as a new permanent under its owner's control."""
+        holder = owner or seat  # the exile zone it is in belongs to its owner, who may not be the one it returns to
+        if seat.lost or card not in holder.exile:
+            return
+        holder.exile.remove(card)
         self.broadcast({"event": "returned_from_exile", "seat": seat.index, "card": card.name})
-        self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=seat))
+        self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=holder))
 
     def exile_graveyard(self, seat: Seat) -> None:
         cards, seat.graveyard = seat.graveyard, []
@@ -1698,12 +1848,12 @@ class Game:
         if cards:
             self._left_graveyard(seat)
 
-    def counter(self, item: StackItem) -> None:
+    def counter(self, item: StackItem, exile: bool = False) -> None:
         self.stack.remove(item)
         self.broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name,
                         "ability": _shown(item.ability.text, item.card) if item.ability else None})
         if not item.ability and not item.is_copy:  # countering an ability doesn't touch its source; a copy just ends
-            self._move_card(item.controller, item.card, "exile" if item.exile_after else "graveyard")
+            self._move_card(item.controller, item.card, "exile" if exile or item.exile_after else "graveyard")
 
     def _check_ward(self, item: StackItem) -> None:
         """Whenever a permanent with ward becomes the target of an opponent's spell or ability, a ward trigger
@@ -2090,6 +2240,8 @@ class Game:
                     self.trigger("other_sacrifice", watcher, watcher_seat)
         for permanent, _ in leaving:
             controller = permanent.last_controller
+            if destination == "graveyard" and not _is_token(permanent.card):  # Rancor: "put into a graveyard from the battlefield"
+                self.trigger("put_into_graveyard", permanent, controller)
             if destination == "graveyard" and "Creature" in permanent.card.type_line:
                 self.trigger("dies", permanent, controller)
                 for attachment, attachment_seat in everyone:  # "When enchanted creature dies"

@@ -47,7 +47,25 @@ def _rules_text(card: Card) -> str:
     front = card.name.split(" // ")[0]
     for name in dict.fromkeys((card.name, front, front.split(",")[0])):
         text = re.sub(rf"(?<!\w){re.escape(name)}(?!\w)", "CARDNAME", text)
-    return text
+    return _join_modes(text)
+
+
+# "When this creature enters, choose one —" and "{T}: Choose one —" are followed by their modes on separate lines.
+_MODAL_LEAD = re.compile(r".+[,:] choose (?:one or both|one or more|one|two|three) \u2014", re.I)
+
+
+def _join_modes(text: str) -> str:
+    """Put the modes of a modal triggered or activated ability on its own line, so it is one ability like any other
+    ("When ... enters, choose one — \u2022 Scry 2. \u2022 You gain 3 life."). A modal spell keeps its lines."""
+    lines: list[str] = []
+    joining = False
+    for line in text.splitlines():
+        if joining and line.strip().startswith("\u2022 "):
+            lines[-1] += " " + line.strip()
+            continue
+        joining = _MODAL_LEAD.fullmatch(line.strip()) is not None
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def rules_lines(card: Card) -> list[str]:
@@ -143,10 +161,66 @@ class WardCounter:
 @dataclass(frozen=True)
 class Counter:
     target: str = "spell"
+    exile: bool = False  # "exile it instead of putting it into its owner's graveyard"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.counter(target)
+            game.counter(target, self.exile)
+
+
+@dataclass(frozen=True)
+class ExileInstead:
+    """ "If that spell is countered this way, exile it instead of putting it into its owner's graveyard." Only ever the
+    end of a Counter (see _merge_exile)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone 'exile it instead' is never built")
+
+
+@dataclass(frozen=True)
+class Flicker:
+    """Exile a permanent and bring it back: right away ("now") or as the next end step begins ("end_step"), to the
+    battlefield or its owner's hand. `under_owner`: "under its owner's control" (otherwise under yours)."""
+    target: str
+    when: str = "now"
+    to: str = "battlefield"
+    under_owner: bool = True
+    another: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.flicker(target, controller, self.when, self.to, self.under_owner)
+
+
+@dataclass(frozen=True)
+class ReturnLater:
+    """ "Return it to the battlefield under its owner's control at the beginning of the next end step." Only ever the
+    end of an Exile (see _merge_exile)."""
+    to: str
+    under_owner: bool
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone delayed return is never built")
+
+
+@dataclass(frozen=True)
+class ExileTop:
+    """ "Exile the top two cards of your library. Until the end of your next turn, you may play those cards." (`play` is
+    None, "this turn" or "next turn")"""
+    count: int | str
+    play: str | None = None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_top(controller, game.amount(self.count), self.play)
+
+
+@dataclass(frozen=True)
+class PlayExiled:
+    """ "You may play it this turn." Only ever the end of an ExileTop (see _merge_exile)."""
+    until: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone permission to play exiled cards is never built")
 
 
 @dataclass(frozen=True)
@@ -238,6 +312,17 @@ def _parse_modal(how: str, lines: list[str]) -> list | None:
     return [Modal(low, high, tuple(modes), tuple(texts))] if len(modes) >= max(low, 1) else None
 
 
+_MODAL_INLINE = re.compile(r"choose (one or both|one or more|one|two|three) \u2014 (\u2022 .+)", re.I)
+
+
+def _parse_modal_inline(text: str) -> list | None:
+    """The modes of a modal triggered or activated ability, joined onto its line (see _join_modes), or None if
+    the text isn't one."""
+    if not (m := _MODAL_INLINE.fullmatch(text)):
+        return None
+    return _parse_modal(m[1].lower(), ["\u2022 " + part for part in m[2].removeprefix("\u2022 ").split(" \u2022 ")])
+
+
 @dataclass(frozen=True)
 class ExileGraveyard:
     target: str = "player"
@@ -292,6 +377,30 @@ class RemoveCounters:
 
 
 @dataclass(frozen=True)
+class MoveCountersFrom:
+    """The first target of "Move a +1/+1 counter from target creature onto another target creature." """
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.carried = target
+
+
+@dataclass(frozen=True)
+class MoveCountersOnto:
+    """The second target: the counters (up to `count`, or all if None) move from the first target to this one."""
+    count: int | None
+    counter: str
+    target: str
+    another: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        first = game.resolving_item.carried if game.resolving_item is not None else None
+        if first is not None and target is not None and first is not target:
+            game.move_counters(first, target, self.counter, self.count)
+
+
+@dataclass(frozen=True)
 class DoubleCounters:
     """ "Double the number of +1/+1 counters on each creature you control." """
     counter: str
@@ -300,6 +409,32 @@ class DoubleCounters:
         for permanent in list(controller.battlefield):
             if "Creature" in permanent.card.type_line and permanent.counters.get(self.counter):
                 game.put_counters(permanent, self.counter, permanent.counters[self.counter])
+
+
+@dataclass(frozen=True)
+class Animate:
+    """ "Until end of turn, this land becomes a 3/3 green Ape creature with trample. It's still a land." (the source:
+    uses_source) or "Target land you control becomes ..." (target)."""
+    power: int
+    toughness: int
+    colors: tuple[str, ...]
+    subtypes: str
+    artifact: bool
+    keywords: frozenset[str]
+    target: str | None = None
+    uses_source: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.animate(target, self.power, self.toughness, self.colors, self.subtypes, self.artifact, self.keywords)
+
+
+@dataclass(frozen=True)
+class StillALand:
+    """ "It's still a land." Only ever the end of an Animate (see _merge_animate)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone 'still a land' is never built")
 
 
 @dataclass(frozen=True)
@@ -526,8 +661,9 @@ class PumpX:
 
 
 _PT = r"([+\-\u2212]\d+)/([+\-\u2212]\d+)"
-_PT_X = r"([+\-\u2212])(X|0)/([+\-\u2212])(X|0)"  # at least one X: "+X/+X", "-X/-0", "+0/+X"
+_PT_X = r"([+\-\u2212])(\d*X|0)/([+\-\u2212])(\d*X|0)"  # multiples of X: "+X/+X", "+2X/+2X", "-X/-0", "+0/+X"
 _KEYWORDS = rf"({_KW}(?:(?:,? and |, ){_KW})*)"
+_KEYWORDS_BARE = rf"{_KW}(?:(?:,? and |, ){_KW})*"
 # "gets +3/+3", "gets +2/+0 and gains trample", "gains flying" (one or both parts), then "until end of turn."
 _CHANGE = rf"(?:gets? {_PT}(?: and gains? {_KEYWORDS})?|gains? {_KEYWORDS}) until end of turn\."
 
@@ -609,6 +745,17 @@ class AttachAura:
 _EQUIP = re.compile(r"Equip ((?:\{\d+\}|\{[WUBRGC]\})+)")
 _ENCHANT = re.compile(r"Enchant ((?:land|creature|artifact|enchantment|planeswalker|permanent|nonland permanent)"
                       r"(?: an opponent controls| you control)?)", re.I)
+
+
+_EQUIP_OTHER = re.compile(r"Equip\u2014(.+)\.")
+
+
+def _equip_other_cost(card: Card) -> ActivatedAbility | None:
+    """ "Equip\u2014Pay 3 life." / "Equip\u2014Sacrifice a creature." / "Equip\u2014Discard a card.": an equip cost that isn't plain mana."""
+    for line in rules_lines(card):
+        if (m := _EQUIP_OTHER.fullmatch(line)) and (fields := _cost_fields(m[1])):
+            return ActivatedAbility(line, (Attach(),), sorcery_speed=True, **fields)
+    return None
 
 
 def equip_cost(card: Card) -> str | None:
@@ -699,6 +846,36 @@ class AttachedBuff:
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
                        r"|can't attack or block)\.")
 CANT_ATTACK, CANT_BLOCK = "can't attack", "can't block"  # pseudo-keywords, so combat can ask has_keyword
+
+
+_GRANT = re.compile(r'(?:Equipped|Enchanted) (?:creature|land|permanent) has "(.+)"\.?')  # the quote's own full stop is inside it
+
+
+def is_granting_line(line: str) -> bool:
+    """ "Enchanted creature has "{T}: Draw a card."" where the quoted ability is one we understand."""
+    return (m := _GRANT.fullmatch(line)) is not None and (
+        is_mana_ability(m[1]) or (a := _ACTIVATED.fullmatch(m[1])) is not None
+        and _parse_activated(m[1], a[1], a[2], False) is not None)
+
+
+@lru_cache(maxsize=None)
+def granted_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
+    """The activated abilities an Aura or Equipment gives what it is attached to ("Enchanted creature has "{T}: Draw a
+    card."")."""
+    found = []
+    for line in rules_lines(card):
+        if (m := _GRANT.fullmatch(line)) and not is_mana_ability(m[1]) and (a := _ACTIVATED.fullmatch(m[1])):
+            if ability := _parse_activated(m[1], a[1], a[2], False):
+                found.append(ability)
+    return tuple(found)
+
+
+def granted_mana(card: Card) -> list[frozenset[str]]:
+    """The mana an Aura gives a land it enchants ("Enchanted land has "{T}: Add {G}{G}."")."""
+    for line in rules_lines(card):
+        if (m := _GRANT.fullmatch(line)) and any(p.fullmatch(m[1]) for p in (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY)):
+            return _mana_from_line(m[1], frozenset()) or []
+    return []
 
 
 @lru_cache(maxsize=None)
@@ -842,6 +1019,31 @@ def _is_ability(card: Card, line: str) -> bool:
     return line in known or is_mana_ability(line)
 
 
+_ANIMATED = (r"(\d+)/(\d+)(?: ((?:white|blue|black|red|green)(?:(?:,? and |, )(?:white|blue|black|red|green))*))?"
+             r"(?: ((?:[A-Z][\w'-]*)(?: [A-Z][\w'-]*)*))?( artifact)? creature(?: with (all creature types|"
+             + _KEYWORDS_BARE + r"))?")
+
+
+def _animate(m: re.Match, target: str | None, offset: int = 0) -> Animate:
+    power, toughness, colors, subtypes, artifact, keywords = m.group(*range(offset + 1, offset + 7))
+    keywords = None if keywords == "all creature types" else keywords
+    return Animate(int(power), int(toughness), tuple(_COLOR_WORDS[c] for c in re.findall(_COLOR, colors or "")),
+                   subtypes or "", artifact is not None, _keyword_list(keywords) if keywords else frozenset(),
+                   target, uses_source=target is None)
+
+
+def _merge_animate(effects: list) -> list | None:
+    """"... becomes a 2/2 creature. It's still a land." is one Animate; the second sentence alone isn't understood."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, StillALand):
+            if not (merged and isinstance(merged[-1], Animate)):
+                return None
+            continue
+        merged.append(effect)
+    return merged
+
+
 def _create_for_others(m: re.Match) -> Any:
     parsed = _token(m[2] + '."' if m[3] else m[2])
     if parsed is None:
@@ -851,9 +1053,10 @@ def _create_for_others(m: re.Match) -> Any:
 
 
 def _pump_x(sp: str, px: str, st: str, tx: str, target: str) -> PumpX:
-    """+X/+X, -X/-X, +X/+0, ... as multiples of X (a plain +0/+0 never gets here: the ordinary pump reads it first)."""
-    sign = lambda s, v: 0 if v == "0" else (-1 if s in ("-", "\u2212") else 1)
-    return PumpX(sign(sp, px), sign(st, tx), target)
+    """+X/+X, -X/-X, +2X/+2X, ... as multiples of X (a plain +0/+0 never gets here: the ordinary pump reads it first)."""
+    def multiple(sign: str, part: str) -> int:
+        return 0 if part == "0" else (-1 if sign in ("-", "\u2212") else 1) * int(part.removesuffix("X") or 1)
+    return PumpX(multiple(sp, px), multiple(st, tx), target)
 
 
 def _create(m: re.Match, follows: bool) -> Any:
@@ -1354,6 +1557,17 @@ class UntapCreatures:
 
 
 @dataclass(frozen=True)
+class TapAll:
+    """ "Tap all creatures your opponents control." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.opponents(controller):
+            for permanent in seat.battlefield:
+                if "Creature" in permanent.card.type_line:
+                    permanent.tapped = True
+
+
+@dataclass(frozen=True)
 class BecomeMonarch:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.become_monarch(controller)
@@ -1431,6 +1645,17 @@ class ThroneOfTheDeadThree:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.throne_of_the_dead_three(controller)
+
+
+@dataclass(frozen=True)
+class ReturnSelfToHand:
+    """Rancor: "When this Aura is put into a graveyard from the battlefield, return it to its owner's hand." (and "When
+    enchanted creature dies, return this Aura ..."). It is already in the graveyard when this resolves."""
+    uses_dead_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.return_to_hand_from_graveyard(target.card)
 
 
 @dataclass(frozen=True)
@@ -1704,6 +1929,8 @@ _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life a
                     r"from your hand rather than pay this spell's mana cost\.")
 _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
                          rf"creature|permanent)|(discard a card)|pay (?!X ){_N} life)\.")  # "pay X life" (Toxic Deluge) isn't supported
+_ENTWINE = re.compile(r"Entwine ((?:\{[^}]+\})+)")
+_ESCALATE = re.compile(r"Escalate ((?:\{[^}]+\})+)")  # "Escalate\u2014Discard a card." (a cost that isn't mana) isn't supported
 _FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
 _ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four|five|six) other cards? from your graveyard\.")
 _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery) )?spells "
@@ -1713,6 +1940,16 @@ _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|nonc
 def kicker_cost(card: Card) -> str | None:
     """The mana cost from "Kicker {1}{U}" or "Multikicker {1}{G}" (only mana costs are supported), or None."""
     return next((m[1] for line in rules_lines(card) if (m := _KICKER.fullmatch(line))), None)
+
+
+def entwine_cost(card: Card) -> str | None:
+    """The mana cost from "Entwine {2}": pay it to choose all the modes of a modal spell."""
+    return next((m[1] for line in rules_lines(card) if (m := _ENTWINE.fullmatch(line))), None)
+
+
+def escalate_cost(card: Card) -> str | None:
+    """The mana cost from "Escalate {1}": pay it for each mode chosen beyond the first."""
+    return next((m[1] for line in rules_lines(card) if (m := _ESCALATE.fullmatch(line))), None)
 
 
 def is_multikicker(card: Card) -> bool:
@@ -1772,7 +2009,7 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE))
+    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE))
 
 
 def is_cost_reduction_line(line: str) -> bool:
@@ -1849,6 +2086,23 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[2].lower(), bool(m[1]))),
+    (re.compile(r"exile target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
+     lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell", exile=True)),
+    (re.compile(r"if that spell is countered this way, exile it instead of putting it into its owner's graveyard\.", re.I),
+     lambda m: ExileInstead()),
+    (re.compile(rf"exile (another )?target {_PERMANENT_KIND}, then return (?:it|that card) to the battlefield under "
+                r"(your|its owner's) control\.", re.I),
+     lambda m: Flicker(m[2].lower(), under_owner=m[3].lower() != "your", another=bool(m[1]))),
+    (re.compile(r"return (?:it|that card) to the battlefield under (your|its owner's) control at the beginning of the "
+                r"next end step\.", re.I), lambda m: ReturnLater("battlefield", m[1].lower() != "your")),
+    (re.compile(r"return (?:it|that card) to its owner's hand at the beginning of the next end step\.", re.I),
+     lambda m: ReturnLater("hand", True)),
+    (re.compile(rf"exile the top (?:card|{_N} cards) of your library\.", re.I), lambda m: ExileTop(_count(m[1] or "one"))),
+    (re.compile(r"you may play (?:it|that card|those cards|them) this turn\.", re.I), lambda m: PlayExiled("this turn")),
+    (re.compile(r"until (?:the )?end of turn, you may play (?:it|that card|those cards|them)\.", re.I),
+     lambda m: PlayExiled("this turn")),
+    (re.compile(r"until (?:the )?end of your next turn, you may play (?:it|that card|those cards|them)\.", re.I),
+     lambda m: PlayExiled("next turn")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND} until {_SELF} leaves the battlefield\.", re.I),
      lambda m: ExileUntilLeaves(m[2].lower(), bool(m[1]))),
     (re.compile(rf"target (player|opponent) draws {_N} cards?\.", re.I), lambda m: TargetDraw(_count(m[2]), m[1].lower())),
@@ -1909,6 +2163,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
+    (re.compile(rf"return {_SELF} to its owner's hand\.", re.I), lambda m: ReturnSelfToHand()),
+    (re.compile(r"tap all creatures your opponents control\.", re.I), lambda m: TapAll()),
     (re.compile(r"investigate\.", re.I), lambda m: CreateTokens(1, CLUE)),
     (re.compile(rf"{_VOTE_PREFIX}starting with you, each player votes for (\w+) or (\w+)\.", re.I),
      lambda m: VoteStart((m[1].lower(), m[2].lower()))),
@@ -1917,6 +2173,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile each permanent with the most votes or tied for most votes\.", re.I),
      lambda m: ExileMostVoted()),
     (re.compile(r"for each (\w+) vote, (.+)\.", re.I), lambda m: _vote_outcome("each", m[1], m[2], False)),
+    (re.compile(r"(.+?) for each (\w+) vote and (.+?) for each (\w+) vote\.", re.I),
+     lambda m: _two_vote_outcomes(m[1], m[2], m[3], m[4])),
     (re.compile(r"if (\w+) gets more votes( or the vote is tied)?, (.+)\.", re.I),
      lambda m: _vote_outcome("more", m[1], m[3], bool(m[2]))),
     (re.compile(r"you take the initiative\.", re.I), lambda m: TakeInitiative()),
@@ -1988,6 +2246,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r" until end of turn\.", re.I),
      lambda m: Pump(Modifier(0, 0, frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
     (re.compile(rf"(?i:creatures your opponents control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), opponents=True)),
+    (re.compile(rf"move (?:{_N}|all) {_COUNTER} from target (creature) onto another target (creature)\.", re.I),
+     lambda m: [MoveCountersFrom(m[3].lower()), MoveCountersOnto(_count(m[1]) if m[1] else None, _counter_name(m[2]), m[4].lower())]),
+    (re.compile(rf"(?:Until end of turn, )(?:CARDNAME|this land) becomes an? {_ANIMATED}\."), lambda m: _animate(m, None)),
+    (re.compile(rf"(?i:target) (land you control) becomes an? {_ANIMATED} (?i:until end of turn)\."),
+     lambda m: _animate(m, m[1].lower(), 1)),
+    (re.compile(r"it's still an? (land|artifact)\.", re.I), lambda m: StillALand()),
     (re.compile(rf"remove {_N} {_COUNTER} from target {_PERMANENT_KIND}\.", re.I),
      lambda m: RemoveCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
     (re.compile(rf"remove all {_COUNTER} from target {_PERMANENT_KIND}\.", re.I),
@@ -2025,9 +2289,14 @@ _TIMES_X = [
     (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
     (r"\b(creates?) a number of (.+?) tokens\b", r"\1 X \2 tokens"),
     (r"\b(put) (?:a|one) (\+1/\+1) counter\b", r"\1 X \2 counters"),
-    (r"\b(gets?) ([+\-\u2212])([01])/([+\-\u2212])([01])\b",
-     lambda m: f"{m[1]} {m[2]}{'X' if m[3] == '1' else '0'}/{m[4]}{'X' if m[5] == '1' else '0'}" if "1" in (m[3], m[5]) else m[0]),
+    (r"\b(gets?) ([+\-\u2212])(\d+)/([+\-\u2212])(\d+)\b",  # "+2/+2" for each: +2X/+2X
+     lambda m: f"{m[1]} {m[2]}{_times(m[3])}/{m[4]}{_times(m[5])}" if (m[3], m[5]) != ("0", "0") else m[0]),
 ]
+
+
+def _times(number: str) -> str:
+    """A number as a multiple of X: 0 -> "0", 1 -> "X", 2 -> "2X"."""
+    return "0" if number == "0" else "X" if number == "1" else f"{number}X"
 
 
 def _times_x(text: str) -> tuple[str, int]:
@@ -2068,6 +2337,29 @@ def _template(sentence: str) -> Any:
     return None
 
 
+def _merge_exile(effects: list) -> list | None:
+    """Counter + "exile it instead" is one Counter(exile); Exile + "return it at the beginning of the next end step" is
+    one Flicker; ExileTop + "you may play it" is one ExileTop(play). A leftover second half isn't understood."""
+    merged: list = []
+    for effect in effects:
+        before = merged[-1] if merged else None
+        if isinstance(effect, ExileInstead):
+            if not isinstance(before, Counter):
+                return None
+            merged[-1] = dataclasses.replace(before, exile=True)
+        elif isinstance(effect, ReturnLater):
+            if not isinstance(before, Exile):
+                return None
+            merged[-1] = Flicker(before.target, "end_step", effect.to, effect.under_owner, before.another)
+        elif isinstance(effect, PlayExiled):
+            if not isinstance(before, ExileTop) or before.play:
+                return None
+            merged[-1] = dataclasses.replace(before, play=effect.until)
+        else:
+            merged.append(effect)
+    return merged
+
+
 def _merge_hand_discard(effects: list) -> list | None:
     """"Target opponent reveals their hand. You choose a nonland card from it. That player discards that card." becomes
     one TargetChooseDiscard; any one of the three sentences alone isn't understood."""
@@ -2097,6 +2389,16 @@ def _vote_outcome(kind: str, option: str, text: str, tie: bool) -> VoteOutcome |
                           for e in effects):
         return None
     return VoteOutcome(kind, option.lower(), tuple(effects), tie)
+
+
+def _two_vote_outcomes(first: str, first_option: str, second: str, second_option: str) -> list | None:
+    """"Each opponent sacrifices a creature for each death vote and discards a card for each taxes vote." The second
+    part has no subject of its own: it shares the first's ("each opponent")."""
+    subject = re.match(r"(each opponent|each player|you) ", first, re.I)
+    if subject and not re.match(r"(each opponent|each player|you) ", second, re.I):
+        second = f"{subject[1]} {second}"
+    outcomes = [_vote_outcome("each", first_option, first, False), _vote_outcome("each", second_option, second, False)]
+    return None if None in outcomes else outcomes
 
 
 def _merge_votes(effects: list) -> list | None:
@@ -2139,7 +2441,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
@@ -2320,7 +2622,9 @@ _TRIGGERS = {
     "graveyard_leave": re.compile(r"Whenever one or more cards leave your graveyard, (.+)", re.I),
     "any_sacrifice": re.compile(r"Whenever a player sacrifices a permanent, (.+)", re.I),
     "other_sacrifice": re.compile(r"Whenever a player sacrifices another permanent, (.+)", re.I),
-    "host_dies": re.compile(r"When(?:ever)? enchanted creature dies, (.+)", re.I),
+    "host_dies": re.compile(r"When(?:ever)? (?:enchanted|equipped) creature dies, (.+)", re.I),
+    "host_combat_damage": re.compile(r"Whenever (?:enchanted|equipped) creature deals combat damage to a player, (.+)", re.I),
+    "put_into_graveyard": re.compile(rf"When {_SELF} is put into a graveyard from the battlefield, (.+)", re.I),
     "first_life_loss": re.compile(r"Whenever you lose life for the first time each turn, (.+)", re.I),
 }
 TRIGGER_EVENTS = tuple(_TRIGGERS)
@@ -2444,6 +2748,8 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
         condition = _condition(text)
         if condition is None:
             return None, False, False, None
+    if _MODAL_INLINE.fullmatch(rest):
+        return _parse_modal_inline(rest), False, False, condition
     once = rest.endswith(_TRIGGERS_ONCE)
     rest = rest.removesuffix(_TRIGGERS_ONCE)
     optional = rest.lower().startswith("you may ")
@@ -2571,6 +2877,8 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
             abilities.append(ability)
     if cost := equip_cost(card):
         abilities.append(ActivatedAbility(f"Equip {cost}", (Attach(),), mana_cost=cost, sorcery_speed=True))
+    elif (other := _equip_other_cost(card)) is not None:
+        abilities.append(other)
     return tuple(abilities)
 
 
@@ -2607,6 +2915,9 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
         return None
     else:
         fields.update(paid)
+    if _MODAL_INLINE.fullmatch(effect):
+        effects = _parse_modal_inline(effect)
+        return ActivatedAbility(line, tuple(effects), **fields) if effects else None
     sentences = _split_sentences(effect)
     if _SORCERY_ONLY in sentences:
         fields["sorcery_speed"] = True
