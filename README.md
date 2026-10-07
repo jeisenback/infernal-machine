@@ -197,7 +197,7 @@ winner = game.play()
 | Goad target creature. / Goad all creatures you don't control. | Disrupt Decorum |
 | Whenever an opponent casts a spell / draws a card, (you may) draw a card / create a Treasure token unless that player pays {N}. | Rhystic Study, Mystic Remora, Smothering Tithe |
 | Whenever you become the monarch, ... / Whenever an opponent becomes the monarch, ... | |
-| Starting with you, each player votes for X or Y. For each X vote, ... / If X gets more votes (or the vote is tied), ... | Tivit, Plea for Power |
+| Starting with you, each player votes for X or Y. For each X vote, ... / If X gets more votes (or the vote is tied), ... | Tivit, Plea for Power, Capital Punishment |
 | Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes. | Council's Judgment |
 | Investigate. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
@@ -376,8 +376,9 @@ winner = game.play()
     "If X gets more votes [or the vote is tied], ..." (Plea for Power), or "Exile each permanent with the most votes
     or tied for most votes". The vote goes round in turn order starting with the caster, and every vote is public.
     Only outcomes that need no target are understood, and a vote with no outcome is ignored with its card. Bots
-    vote against an opponent's permanent, and for the first word otherwise. Not built: outcomes that scale a
-    per-opponent effect ("Each opponent discards a card for each taxes vote"), since there is no discard effect yet.
+    vote against an opponent's permanent, and for the first word otherwise. Capital Punishment's two-part
+    outcome ("Each opponent sacrifices a creature for each death vote and discards a card for each taxes vote") is
+    two per-vote outcomes; the second part takes the first's subject if it has none.
   - An additional combat phase goes right after the current phase (after combat ends, if it comes from inside
     combat), with an additional main phase after it if the card says so. Cast before combat, it simply gives
     you two combats, and creatures tapped in the first can't attack in the second.

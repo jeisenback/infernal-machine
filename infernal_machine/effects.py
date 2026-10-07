@@ -1785,6 +1785,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile each permanent with the most votes or tied for most votes\.", re.I),
      lambda m: ExileMostVoted()),
     (re.compile(r"for each (\w+) vote, (.+)\.", re.I), lambda m: _vote_outcome("each", m[1], m[2], False)),
+    (re.compile(r"(.+?) for each (\w+) vote and (.+?) for each (\w+) vote\.", re.I),
+     lambda m: _two_vote_outcomes(m[1], m[2], m[3], m[4])),
     (re.compile(r"if (\w+) gets more votes( or the vote is tied)?, (.+)\.", re.I),
      lambda m: _vote_outcome("more", m[1], m[3], bool(m[2]))),
     (re.compile(r"you take the initiative\.", re.I), lambda m: TakeInitiative()),
@@ -1939,6 +1941,16 @@ def _vote_outcome(kind: str, option: str, text: str, tie: bool) -> VoteOutcome |
                           for e in effects):
         return None
     return VoteOutcome(kind, option.lower(), tuple(effects), tie)
+
+
+def _two_vote_outcomes(first: str, first_option: str, second: str, second_option: str) -> list | None:
+    """"Each opponent sacrifices a creature for each death vote and discards a card for each taxes vote." The second
+    part has no subject of its own: it shares the first's ("each opponent")."""
+    subject = re.match(r"(each opponent|each player|you) ", first, re.I)
+    if subject and not re.match(r"(each opponent|each player|you) ", second, re.I):
+        second = f"{subject[1]} {second}"
+    outcomes = [_vote_outcome("each", first_option, first, False), _vote_outcome("each", second_option, second, False)]
+    return None if None in outcomes else outcomes
 
 
 def _merge_votes(effects: list) -> list | None:

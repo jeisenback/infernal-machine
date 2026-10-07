@@ -141,3 +141,41 @@ class VoteToExileTests(unittest.TestCase):
         options = ["Bear 2/2 (seat 1, #1)", "Ogre 3/3 (seat 2, #1)"]
         self.assertEqual(bot.choose(VOTE_PROMPT + "Council's Judgment", options), 1)
         self.assertEqual(bot.choose(VOTE_PROMPT + "Plea for Power", ["time", "knowledge"]), 0)
+
+
+CAPITAL_PUNISHMENT = Card(
+    name="Capital Punishment", mana_cost="{3}{B}{B}", type_line="Sorcery",
+    oracle_text="Council's dilemma — Starting with you, each player votes for death or taxes. Each opponent sacrifices a "
+                "creature for each death vote and discards a card for each taxes vote.")
+
+
+class PerVoteEffectsTests(unittest.TestCase):
+    def test_parse(self):
+        [vote] = spell_effects(CAPITAL_PUNISHMENT)
+        self.assertEqual([(o.kind, o.option) for o in vote.outcomes], [("each", "death"), ("each", "taxes")])
+        self.assertEqual(unsupported_lines(CAPITAL_PUNISHMENT), [])
+
+    def test_an_outcome_that_isnt_understood_spoils_the_card(self):
+        card = Card(name="Odd", mana_cost="{B}", type_line="Sorcery",
+                    oracle_text="Starting with you, each player votes for death or taxes. Each opponent sacrifices a creature "
+                                "for each death vote and flies away for each taxes vote.")
+        self.assertIsNone(spell_effects(card))
+
+    def test_each_opponent_loses_a_creature_per_death_vote_and_a_card_per_taxes_vote(self):
+        game, _ = table3(*seat_votes([0], [0], [1]))  # death, death, taxes
+        a, b, c = game.seats
+        for seat in (b, c):
+            seat.battlefield = [Permanent(BEAR) for _ in range(3)]
+            seat.hand = [BEAR, BEAR, BEAR]
+        a.battlefield, a.hand = [Permanent(BEAR)], [BEAR]
+        spell_effects(CAPITAL_PUNISHMENT)[0].resolve(game, a, None)
+        self.assertEqual([len(s.battlefield) for s in game.seats], [1, 1, 1])  # two death votes: two creatures each
+        self.assertEqual([len(s.hand) for s in game.seats], [1, 2, 2])  # one taxes vote: one card each
+        self.assertEqual(len(a.graveyard), 0)
+
+    def test_an_opponent_with_nothing_to_lose_loses_nothing(self):
+        game, _ = table3(*seat_votes([0], [0], [0]))
+        a, b, c = game.seats
+        b.battlefield, c.battlefield = [Permanent(BEAR)], []
+        spell_effects(CAPITAL_PUNISHMENT)[0].resolve(game, a, None)
+        self.assertEqual((len(b.battlefield), len(c.battlefield)), (0, 0))
