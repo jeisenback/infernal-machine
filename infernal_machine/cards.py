@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import re
 import time
@@ -215,6 +216,90 @@ class CachedSource:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         data = {key: card.to_dict() for key, card in self._cards.items()}
         self.path.write_text(json.dumps(data, indent=2, sort_keys=True))
+
+
+def _download_jsonl(request: urllib.request.Request) -> list[dict]:
+    """A gzipped JSON-lines file, which is how Scryfall serves its bulk data."""
+    with urllib.request.urlopen(request, timeout=300) as response, gzip.open(response, "rt", encoding="utf-8") as lines:
+        return [json.loads(line) for line in lines if line.strip()]
+
+
+# Bulk-data layouts that aren't cards a deck can hold.
+_NON_CARD_LAYOUTS = {"token", "double_faced_token", "emblem", "art_series", "vanguard", "scheme", "planar",
+                     "augment", "host"}
+
+
+class BulkSource:
+    """Looks cards up in Scryfall's "Oracle Cards" bulk file instead of calling the API per card.
+
+    The file (one entry per card, about 25 MB gzipped) is downloaded once, converted to a slim JSON file at `path`, and
+    reused until it is `max_age_days` old. After that every lookup is offline.
+    """
+
+    def __init__(self, path: str | Path, max_age_days: float = 7.0, base_url: str = "https://api.scryfall.com",
+                 user_agent: str = "infernal-machine/0.1", http: HttpFn = _urlopen_json,
+                 download: Callable[[urllib.request.Request], list[dict]] = _download_jsonl):
+        self.path = Path(path)
+        self.max_age_days = max_age_days
+        self.base_url = base_url
+        self.user_agent = user_agent
+        self.http = http
+        self.download = download
+        self._index: dict[str, Card] | None = None
+
+    def get(self, name: str) -> Card:
+        return self.get_many([name])[name]
+
+    def get_many(self, names: Iterable[str]) -> dict[str, Card]:
+        index = self._load()
+        wanted = list(dict.fromkeys(names))
+        missing = [n for n in wanted if n.lower() not in index]
+        if missing:
+            raise CardNotFound(", ".join(missing))
+        return {n: index[n.lower()] for n in wanted}
+
+    def refresh(self) -> int:
+        """Download the bulk file now, replacing the saved copy. Returns how many cards it holds."""
+        listing = self._request(self.http, f"{self.base_url}/bulk-data")
+        entry = next((e for e in listing["data"] if e["type"] == "oracle_cards"), None)
+        if entry is None:
+            raise LookupError("Scryfall's bulk-data list has no oracle_cards file")
+        data = self._request(self.download, entry["jsonl_download_uri"])
+        cards = [Card.from_scryfall(d) for d in data if d.get("layout") not in _NON_CARD_LAYOUTS]
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps({card.name: card.to_dict() for card in cards}))
+        self._index = _name_index(cards)
+        return len(cards)
+
+    def _load(self) -> dict[str, Card]:
+        if self._index is None:
+            if not self.path.exists() or time.time() - self.path.stat().st_mtime > self.max_age_days * 86400:
+                try:
+                    self.refresh()
+                except (OSError, LookupError):
+                    if not self.path.exists():
+                        raise  # no copy to fall back on
+            if self._index is None:
+                raw = json.loads(self.path.read_text())
+                self._index = _name_index(Card.from_dict(value) for value in raw.values())
+        return self._index
+
+    def _request(self, send: Callable, url: str):
+        return send(urllib.request.Request(url, headers={"User-Agent": self.user_agent, "Accept": "*/*"}))
+
+
+def _name_index(cards: Iterable[Card]) -> dict[str, Card]:
+    """Cards by lowercase full name, plus each face of a split or double-faced card ("Fire", "Ice", "Fire // Ice")."""
+    cards = list(cards)
+    index: dict[str, Card] = {}
+    for card in cards:
+        index[card.name.lower()] = card
+    for position in (0, 1, 2):  # front faces first, so "Fire" is "Fire // Ice", not "Start // Fire"
+        for card in cards:
+            parts = card.name.split(" // ")
+            if position < len(parts):
+                index.setdefault(parts[position].lower(), card)
+    return index
 
 
 _DECK_LINE = re.compile(r"^(\d+)x?\s+(.+?)(?:\s+\([A-Z0-9]+\)\s*[^\s*]*)?$")

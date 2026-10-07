@@ -1,11 +1,13 @@
 import io
 import json
+import os
 import tempfile
 import unittest
 import urllib.error
 from pathlib import Path
 
 from infernal_machine.cards import (
+    BulkSource,
     CachedSource,
     Card,
     CardNotFound,
@@ -134,6 +136,62 @@ class CachedSourceTests(unittest.TestCase):
             fresh = CachedSource(ScryfallSource(http=http, min_interval=0), path)
             self.assertEqual(fresh.get("LIGHTNING BOLT").name, "Lightning Bolt")
         self.assertEqual(len(http.requests), 1)
+
+
+class BulkSourceTests(unittest.TestCase):
+    TOKEN = {"id": "t", "name": "Grizzly Bears", "layout": "token", "type_line": "Token Creature"}
+
+    def setUp(self):
+        self.requests = []
+        fire_ice = {"id": "fi", "name": "Fire // Ice", "layout": "split", "cmc": 4.0,
+                    "card_faces": [{"name": "Fire", "mana_cost": "{1}{R}", "type_line": "Instant", "oracle_text": "x"},
+                                   {"name": "Ice", "mana_cost": "{1}{U}", "type_line": "Instant", "oracle_text": "y"}]}
+
+        def http(request):
+            self.requests.append(request.full_url)
+            return {"data": [{"type": "default_cards", "jsonl_download_uri": "https://x/default"},
+                             {"type": "oracle_cards", "jsonl_download_uri": "https://x/oracle"}]}
+
+        def download(request):
+            self.requests.append(request.full_url)
+            start_fire = {"id": "sf", "name": "Start // Fire", "layout": "split",
+                          "card_faces": [{"name": "Start", "type_line": "Sorcery"}, {"name": "Fire", "type_line": "Sorcery"}]}
+            return [BOLT, self.TOKEN, start_fire, fire_ice]
+
+        self.http = http
+        self.download = download
+
+    def test_downloads_once_then_serves_from_disk(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bulk.json"
+            first = BulkSource(path, http=self.http, download=self.download)
+            self.assertEqual(first.get("lightning bolt").name, "Lightning Bolt")
+            self.assertEqual(self.requests, ["https://api.scryfall.com/bulk-data", "https://x/oracle"])
+            second = BulkSource(path, http=self.http, download=self.download)
+            self.assertEqual(second.get("Lightning Bolt").mana_cost, "{R}")
+            self.assertEqual(len(self.requests), 2)
+
+    def test_finds_faces_and_skips_tokens(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = BulkSource(Path(tmp) / "bulk.json", http=self.http, download=self.download)
+            self.assertEqual(source.get("Fire").name, "Fire // Ice")
+            with self.assertRaises(CardNotFound):
+                source.get("Grizzly Bears")
+
+    def test_stale_file_is_refreshed_and_kept_if_offline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bulk.json"
+            BulkSource(path, http=self.http, download=self.download).get("Lightning Bolt")
+            old = path.stat().st_mtime - 30 * 86400
+            os.utime(path, (old, old))
+            BulkSource(path, http=self.http, download=self.download).get("Lightning Bolt")
+            self.assertEqual(len(self.requests), 4)
+            os.utime(path, (old, old))
+
+            def offline(request):
+                raise urllib.error.URLError("down")
+
+            self.assertEqual(BulkSource(path, http=offline, download=offline).get("Lightning Bolt").name, "Lightning Bolt")
 
 
 class DecklistTests(unittest.TestCase):

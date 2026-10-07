@@ -125,13 +125,14 @@ def format_report(reports: list[CardReport]) -> str:
 
 
 def main(argv: list[str]) -> int:
-    from .cards import CachedSource, ScryfallSource, load_deck
+    from .cards import BulkSource, load_deck
 
+    sys.stdout.reconfigure(encoding="utf-8")  # card text has characters like − that the Windows console can't print
     if len(argv) != 2:
         print("usage: python -m infernal_machine.report DECKLIST", file=sys.stderr)
         return 2
     with open(argv[1]) as f:
-        deck = load_deck(f.read(), CachedSource(ScryfallSource(), ".cache/cards.json"))
+        deck = load_deck(f.read(), BulkSource(".cache/oracle_bulk.json"))
     print(format_report(deck_report(deck)))
     return 0
 

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from .bot import BotPlayer
-from .cards import CachedSource, CardNotFound, CardSource, Deck, ScryfallSource, load_deck
+from .cards import BulkSource, CachedSource, CardNotFound, CardSource, Deck, ScryfallSource, load_deck
 from .commander import deck_problems
 from .game import Game
 from .tcp import Disconnected, TcpPlayer, listen
@@ -156,6 +156,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, help="make shuffles repeatable")
     parser.add_argument("--max-turns", type=int, default=300)
     parser.add_argument("--cache", default=".cache/cards.json", help="where fetched cards are saved")
+    parser.add_argument("--bulk", metavar="FILE", help="look cards up in Scryfall's bulk Oracle Cards data, "
+                        "downloaded to FILE and refreshed weekly, instead of calling the API per card")
     parser.add_argument("--no-check", action="store_true", help="don't require decks to be legal Commander decks")
     args = parser.parse_args(argv)
     if args.bots and not args.bot_deck:
@@ -165,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
 
     bot_texts = [Path(p).read_text() for p in args.bot_deck]
     bot_decks = [bot_texts[i % len(bot_texts)] for i in range(args.bots)]
-    source = CachedSource(ScryfallSource(), args.cache)
+    source = BulkSource(args.bulk) if args.bulk else CachedSource(ScryfallSource(), args.cache)
     server = listen(args.host, args.port)
     print(f"Listening on {args.host}:{server.getsockname()[1]}")
     try:
