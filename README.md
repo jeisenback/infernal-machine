@@ -205,6 +205,10 @@ winner = game.play()
 | Draw N cards, then discard N cards. / Each player discards their hand, then draws N cards. / Each player draws N cards. | Faithless Looting, Wheel of Fortune |
 | Target player reveals their hand. You choose a (nonland / noncreature, nonland / ... with mana value N or less) card from it. That player discards that card. | Thoughtseize, Duress, Inquisition of Kozilek |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
+| Equip—Pay N life. / Sacrifice a creature. / Discard a card. | Blood-style equipment |
+| Whenever equipped (enchanted) creature dies / deals combat damage to a player, ... | Sword of Feast and Famine-style |
+| When this is put into a graveyard from the battlefield, return it to its owner's hand. | Rancor |
+| Enchanted (equipped) creature (land) has "{T}: ..." | Enchanted land has "{T}: Add {G}{G}." |
 | Equipped creature gets +N/+N and has keywords. / Enchanted creature gets +N/+N and has keywords. | |
 | Enchant creature / land / ... (Auras) | |
 | Enchanted creature can't attack or block. | Pacifism |
@@ -300,8 +304,19 @@ winner = game.play()
   creature's power, toughness and keywords, so granted haste, hexproof or shroud work as usual (shroud stops
   even the controller's equip). Equipment stays on the battlefield, unattached, when its creature leaves;
   an Aura goes to the graveyard. Labels show attachments ("Sword attached to Bear (seat 0, #1)").
-  "Can't attack or block" is supported through Auras. Other equip costs (like "Equip legendary creature {3}")
-  and Auras on lands with special abilities aren't supported yet.
+  "Can't attack or block" is supported through Auras.
+  - **Other equip costs:** "Equip—Pay 3 life.", "Equip—Sacrifice a creature.", "Equip—Discard a card." are paid like any
+    ability cost. "Equip legendary creature {3}" (a restriction on what it can equip) isn't supported.
+  - **Triggers on what is attached:** "Whenever equipped (or enchanted) creature dies / deals combat damage to a
+    player, ..." (the Equipment's or Aura's controller gets the trigger). "When this Aura is put into a graveyard
+    from the battlefield, return it to its owner's hand" (Rancor) works for any permanent, and so does "When
+    enchanted creature dies, return this Aura to its owner's hand": it comes back from the graveyard it is in.
+    Exiled, it isn't returned.
+  - **Granting abilities:** "Enchanted (or equipped) creature has "{T}: Draw a card."" lets that creature activate it
+    (a summoning-sick one can't use {T}). "Enchanted land has "{T}: Add {G}{G}."" makes the land tap for that mana
+    instead of its own single mana. A quoted ability that isn't understood leaves the card unsupported.
+  - **Not built:** Reconfigure, Fortify and Fortifications, "Whenever this Equipment becomes attached", Wild
+    Growth-style "whenever enchanted land is tapped for mana", and an equip bonus that scales ("+1/+1 for each").
 - **Replacement effects:** statics that change what would happen, read from a permanent on the battlefield.
   - Rest in Peace: "If a card or token would be put into a graveyard from anywhere, exile it instead." (Leyline of the
     Void: only an opponent's cards.) Every route to a graveyard is covered: spells, dying, discarding, milling, cycling.
