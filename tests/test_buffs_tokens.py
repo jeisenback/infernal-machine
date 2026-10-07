@@ -94,8 +94,9 @@ class ScalingBuffTests(unittest.TestCase):
         self.assertEqual((pump.power, pump.toughness), (1, 0))
         self.assertIsInstance(pump, PumpX)
 
-    def test_a_bigger_multiple_is_not_understood(self):
-        self.assertIsNone(spell_effects(spell("S", "Target creature gets +2/+2 until end of turn for each creature you control.")))
+    def test_a_bigger_multiple(self):
+        [define, pump] = spell_effects(spell("S", "Target creature gets +2/+2 until end of turn for each creature you control."))
+        self.assertEqual((pump.power, pump.toughness), (2, 2))
 
 
 class CounterTests(unittest.TestCase):

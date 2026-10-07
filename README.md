@@ -229,6 +229,8 @@ winner = game.play()
 | Target creature becomes a 4/4 Dragon until end of turn. / has base power and toughness 0/1 until end of turn. | |
 | Put N <kind> counters on target <permanent>. / Remove N (all) <kind> counters from target <permanent>. / Remove all counters from target <permanent>. | |
 | Double the number of +1/+1 counters on each creature you control. | |
+| Move a (or all) +1/+1 counter(s) from target creature onto another target creature. | Bioshift |
+| Until end of turn, this land becomes a P/T (color) (Subtype) (artifact) creature (with keywords). It's still a land. / Target land you control becomes a ... | Mutavault, Treetop Village |
 | Each opponent (or player) creates a token. / Target opponent creates a token. | |
 | Creatures you control get +N/+N and gain trample until end of turn. | Overrun |
 | This creature gets +1/+0 until end of turn. (as an activated ability) | Shivan Dragon |
@@ -239,7 +241,7 @@ winner = game.play()
   when the effect resolves. Supported: its (or this creature's) power, using its last known power if it has left the
   battlefield; counters of any kind on it ("charge counters on this artifact"); cards (or <type> cards) in your graveyard; the number of <type> you control; creatures on the battlefield; the amount of life
   you gained this turn; half your life total, rounded down or up; spells you've cast this turn; the greatest mana value among instant and sorcery spells you've
-  cast this turn; opponents. "For each" multiplies drawing, life, tokens, +1/+1 counters and a +1/+1, -1/-1, +1/+0 or +0/+1 pump (a bigger multiple like "+2/+2 for each" isn't understood) ("create a 1/1 Saproling
+  cast this turn; opponents. "For each" multiplies drawing, life, tokens, +1/+1 counters and a pump ("+2/+2 until end of turn for each creature you control") ("create a 1/1 Saproling
   token for each +1/+1 counter on this creature"). A sentence a template already understands is never rewritten.
   "An X/X ... token" gets its size when it's created (Rootha, Mastering the Moment).
 - **Target restrictions:** destroy and exile targets can say "an opponent controls",
@@ -247,10 +249,18 @@ winner = game.play()
 - **Counters:** +1/+1 and -1/-1 counters change power and toughness. Matching +1/+1 and -1/-1
   counters cancel out. Other kinds ("charge", "time") are only counted. "Put N <kind> counters on target <permanent>",
   "Remove N <kind> counters from target ...", "Remove all (<kind>) counters from target ..." and "Double the number of
-  +1/+1 counters on each creature you control" work. Moving a counter from one permanent to another isn't built.
+  +1/+1 counters on each creature you control" work. "Move a (or all) <kind> counter(s) from target creature onto
+  another target creature" moves up to that many; moved counters aren't "put", so Doubling Season doesn't double them.
+  "Move any number of" isn't built.
 - **Setting power and toughness:** "Target creature becomes a 4/4 (color) (Subtype) (creature) (with flying) until end of
   turn" and "has base power and toughness 0/1 until end of turn" set the base; counters and bonuses still add to it,
-  whatever order they came in. Its types, subtypes and colors don't change (so a land can't be animated this way yet).
+  whatever order they came in. Its types, subtypes and colors don't change.
+- **Animating lands:** "Until end of turn, this land becomes a 3/3 green Ape creature with trample. It's still a land."
+  (Mutavault, Blinkmoth Nexus, Treetop Village, Celestial Colonnade) and "Target land you control becomes a 3/3
+  Elemental creature with haste until end of turn. It's still a land." The permanent keeps its types and gains
+  Creature (and Artifact), the stated subtypes, colors, power and toughness, and keywords; "with all creature types"
+  adds no subtype. It goes back to a plain card at end of turn. A land is summoning sick the turn it comes in, so it
+  can't attack or use {T} abilities if animated that turn. Bots never activate these abilities.
 - **Tokens for other players:** "Each opponent (or player) creates ..." and "Target opponent creates ...". A token
   with "This creature can't block / attack / attack or block." gets that restriction.
 - **Static abilities:** "(Other) (Elf) creatures you control get +1/+1 (and have flying)" and

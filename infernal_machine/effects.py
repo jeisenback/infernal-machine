@@ -292,6 +292,30 @@ class RemoveCounters:
 
 
 @dataclass(frozen=True)
+class MoveCountersFrom:
+    """The first target of "Move a +1/+1 counter from target creature onto another target creature." """
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.carried = target
+
+
+@dataclass(frozen=True)
+class MoveCountersOnto:
+    """The second target: the counters (up to `count`, or all if None) move from the first target to this one."""
+    count: int | None
+    counter: str
+    target: str
+    another: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        first = game.resolving_item.carried if game.resolving_item is not None else None
+        if first is not None and target is not None and first is not target:
+            game.move_counters(first, target, self.counter, self.count)
+
+
+@dataclass(frozen=True)
 class DoubleCounters:
     """ "Double the number of +1/+1 counters on each creature you control." """
     counter: str
@@ -300,6 +324,32 @@ class DoubleCounters:
         for permanent in list(controller.battlefield):
             if "Creature" in permanent.card.type_line and permanent.counters.get(self.counter):
                 game.put_counters(permanent, self.counter, permanent.counters[self.counter])
+
+
+@dataclass(frozen=True)
+class Animate:
+    """ "Until end of turn, this land becomes a 3/3 green Ape creature with trample. It's still a land." (the source:
+    uses_source) or "Target land you control becomes ..." (target)."""
+    power: int
+    toughness: int
+    colors: tuple[str, ...]
+    subtypes: str
+    artifact: bool
+    keywords: frozenset[str]
+    target: str | None = None
+    uses_source: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.animate(target, self.power, self.toughness, self.colors, self.subtypes, self.artifact, self.keywords)
+
+
+@dataclass(frozen=True)
+class StillALand:
+    """ "It's still a land." Only ever the end of an Animate (see _merge_animate)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone 'still a land' is never built")
 
 
 @dataclass(frozen=True)
@@ -481,8 +531,9 @@ class PumpX:
 
 
 _PT = r"([+\-\u2212]\d+)/([+\-\u2212]\d+)"
-_PT_X = r"([+\-\u2212])(X|0)/([+\-\u2212])(X|0)"  # at least one X: "+X/+X", "-X/-0", "+0/+X"
+_PT_X = r"([+\-\u2212])(\d*X|0)/([+\-\u2212])(\d*X|0)"  # multiples of X: "+X/+X", "+2X/+2X", "-X/-0", "+0/+X"
 _KEYWORDS = rf"({_KW}(?:(?:,? and |, ){_KW})*)"
+_KEYWORDS_BARE = rf"{_KW}(?:(?:,? and |, ){_KW})*"
 # "gets +3/+3", "gets +2/+0 and gains trample", "gains flying" (one or both parts), then "until end of turn."
 _CHANGE = rf"(?:gets? {_PT}(?: and gains? {_KEYWORDS})?|gains? {_KEYWORDS}) until end of turn\."
 
@@ -797,6 +848,31 @@ def _is_ability(card: Card, line: str) -> bool:
     return line in known or is_mana_ability(line)
 
 
+_ANIMATED = (r"(\d+)/(\d+)(?: ((?:white|blue|black|red|green)(?:(?:,? and |, )(?:white|blue|black|red|green))*))?"
+             r"(?: ((?:[A-Z][\w'-]*)(?: [A-Z][\w'-]*)*))?( artifact)? creature(?: with (all creature types|"
+             + _KEYWORDS_BARE + r"))?")
+
+
+def _animate(m: re.Match, target: str | None, offset: int = 0) -> Animate:
+    power, toughness, colors, subtypes, artifact, keywords = m.group(*range(offset + 1, offset + 7))
+    keywords = None if keywords == "all creature types" else keywords
+    return Animate(int(power), int(toughness), tuple(_COLOR_WORDS[c] for c in re.findall(_COLOR, colors or "")),
+                   subtypes or "", artifact is not None, _keyword_list(keywords) if keywords else frozenset(),
+                   target, uses_source=target is None)
+
+
+def _merge_animate(effects: list) -> list | None:
+    """"... becomes a 2/2 creature. It's still a land." is one Animate; the second sentence alone isn't understood."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, StillALand):
+            if not (merged and isinstance(merged[-1], Animate)):
+                return None
+            continue
+        merged.append(effect)
+    return merged
+
+
 def _create_for_others(m: re.Match) -> Any:
     parsed = _token(m[2] + '."' if m[3] else m[2])
     if parsed is None:
@@ -806,9 +882,10 @@ def _create_for_others(m: re.Match) -> Any:
 
 
 def _pump_x(sp: str, px: str, st: str, tx: str, target: str) -> PumpX:
-    """+X/+X, -X/-X, +X/+0, ... as multiples of X (a plain +0/+0 never gets here: the ordinary pump reads it first)."""
-    sign = lambda s, v: 0 if v == "0" else (-1 if s in ("-", "\u2212") else 1)
-    return PumpX(sign(sp, px), sign(st, tx), target)
+    """+X/+X, -X/-X, +2X/+2X, ... as multiples of X (a plain +0/+0 never gets here: the ordinary pump reads it first)."""
+    def multiple(sign: str, part: str) -> int:
+        return 0 if part == "0" else (-1 if sign in ("-", "\u2212") else 1) * int(part.removesuffix("X") or 1)
+    return PumpX(multiple(sp, px), multiple(st, tx), target)
 
 
 def _create(m: re.Match, follows: bool) -> Any:
@@ -1939,6 +2016,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r" until end of turn\.", re.I),
      lambda m: Pump(Modifier(0, 0, frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
     (re.compile(rf"(?i:creatures your opponents control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), opponents=True)),
+    (re.compile(rf"move (?:{_N}|all) {_COUNTER} from target (creature) onto another target (creature)\.", re.I),
+     lambda m: [MoveCountersFrom(m[3].lower()), MoveCountersOnto(_count(m[1]) if m[1] else None, _counter_name(m[2]), m[4].lower())]),
+    (re.compile(rf"(?:Until end of turn, )(?:CARDNAME|this land) becomes an? {_ANIMATED}\."), lambda m: _animate(m, None)),
+    (re.compile(rf"(?i:target) (land you control) becomes an? {_ANIMATED} (?i:until end of turn)\."),
+     lambda m: _animate(m, m[1].lower(), 1)),
+    (re.compile(r"it's still an? (land|artifact)\.", re.I), lambda m: StillALand()),
     (re.compile(rf"remove {_N} {_COUNTER} from target {_PERMANENT_KIND}\.", re.I),
      lambda m: RemoveCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
     (re.compile(rf"remove all {_COUNTER} from target {_PERMANENT_KIND}\.", re.I),
@@ -1976,9 +2059,14 @@ _TIMES_X = [
     (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
     (r"\b(creates?) a number of (.+?) tokens\b", r"\1 X \2 tokens"),
     (r"\b(put) (?:a|one) (\+1/\+1) counter\b", r"\1 X \2 counters"),
-    (r"\b(gets?) ([+\-\u2212])([01])/([+\-\u2212])([01])\b",
-     lambda m: f"{m[1]} {m[2]}{'X' if m[3] == '1' else '0'}/{m[4]}{'X' if m[5] == '1' else '0'}" if "1" in (m[3], m[5]) else m[0]),
+    (r"\b(gets?) ([+\-\u2212])(\d+)/([+\-\u2212])(\d+)\b",  # "+2/+2" for each: +2X/+2X
+     lambda m: f"{m[1]} {m[2]}{_times(m[3])}/{m[4]}{_times(m[5])}" if (m[3], m[5]) != ("0", "0") else m[0]),
 ]
+
+
+def _times(number: str) -> str:
+    """A number as a multiple of X: 0 -> "0", 1 -> "X", 2 -> "2X"."""
+    return "0" if number == "0" else "X" if number == "1" else f"{number}X"
 
 
 def _times_x(text: str) -> tuple[str, int]:
@@ -2090,7 +2178,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None

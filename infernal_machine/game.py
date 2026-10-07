@@ -544,6 +544,34 @@ class Game:
             vehicle.card = dataclasses.replace(vehicle.card, type_line=vehicle.card.type_line.replace("Artifact", "Artifact Creature", 1))
             self.broadcast({"event": "became_creature", "card": vehicle.card.name})
 
+    def animate(self, permanent: Permanent, power: int, toughness: int, colors: tuple[str, ...], subtypes: str,
+                artifact: bool, keywords: frozenset[str]) -> None:
+        """"Until end of turn, this land becomes a 3/3 green Ape creature with trample. It's still a land.": it keeps
+        its other types and gains Creature (and Artifact); the card comes back at end of turn (like a crewed Vehicle)."""
+        base = permanent.original or permanent.card
+        permanent.original = base
+        types = base.type_line.partition("\u2014")[0].split()
+        for added in (["Artifact"] if artifact and "Artifact" not in types else []) + ["Creature"]:
+            if added not in types:
+                types.append(added)
+        type_line = " ".join(types) + (f" \u2014 {subtypes}" if subtypes else "")
+        permanent.card = dataclasses.replace(base, type_line=type_line, power=str(power), toughness=str(toughness),
+                                             colors=colors or base.colors)
+        if keywords:
+            permanent.until_end_of_turn.append(Modifier(0, 0, keywords))
+        self.broadcast({"event": "became_creature", "card": permanent.card.name, "power": power, "toughness": toughness})
+
+    def move_counters(self, source: Permanent, destination: Permanent, counter: str, count: int | None) -> None:
+        """Move up to `count` counters (all of them if None) from one permanent to another. They are moved, not put
+        on it, so nothing that doubles counters applies."""
+        moved = min(source.counters.get(counter, 0), source.counters.get(counter, 0) if count is None else count)
+        if not moved:
+            return
+        self.remove_counters(source, counter, moved)
+        destination.counters[counter] = destination.counters.get(counter, 0) + moved
+        self.broadcast({"event": "counters", "card": destination.card.name, "counter": counter,
+                        "added": moved, "total": destination.counters[counter]})
+
     def _pay_card_costs(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> None:
         """Pay an activated ability's "Sacrifice a creature", "Discard a card" and "Exile a card from your
         graveyard" costs (CR 602.2b)."""
@@ -795,7 +823,7 @@ class Game:
     def _perform(self, seat: Seat, action: str) -> None:
         if action.startswith(PLAY_LAND):
             card = _take(seat.hand, action.removeprefix(PLAY_LAND))
-            self._enter(seat, Permanent(card))
+            self._enter(seat, Permanent(card, sick=True))  # a land that becomes a creature can't attack the turn it came in
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name})
         elif action.startswith(CYCLE):
