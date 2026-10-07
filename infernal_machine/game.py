@@ -1097,7 +1097,7 @@ class Game:
             event["alternative"] = alternative.text
         self.broadcast(event)
         seat.cast_log.append((self.turn, card))
-        self._observe("cast", card, seat, x=x)
+        self._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared)
         self._check_ward(item)
 
     def _choose_kicks(self, seat: Seat, card: Card, effects: list | None, from_command_zone: bool,
@@ -1388,20 +1388,25 @@ class Game:
         return matching >= condition.count if kind == "control_at_least" else matching == 0
 
     def _observe(self, event: str, card: Card, seat: Seat, subject: Permanent | None = None,
-                 extra: list[tuple[Permanent, Seat]] = (), x: int = 0) -> None:
+                 extra: list[tuple[Permanent, Seat]] = (), x: int = 0, from_hand: bool = False) -> None:
         """Trigger abilities that watch for `event` happening to `card` (controlled by `seat`):
         "Whenever another creature enters", landfall, "whenever a creature dies",
         "whenever you cast a spell". `extra` adds watchers that just left the battlefield
-        and still "look back in time" (CR 603.10a)."""
+        and still "look back in time" (CR 603.10a). Event "copy" is a spell being copied, which only a
+        "cast or copy" watcher (magecraft) notices."""
         watchers = [(p, s) for s in self.live_seats() for p in s.battlefield] + list(extra)
         for watcher, watcher_seat in watchers:
             for ability in triggered_abilities(watcher.card):
                 watch = ability.watch
-                if not watch or ability.event != event:
+                if not watch or ability.event != ("cast" if event == "copy" else event):
+                    continue
+                if event == "copy" and not watch.with_copy:
+                    continue
+                if event in ("cast", "copy") and (card.cmc < watch.mv_at_least or (watch.from_hand and not from_hand)):
                     continue
                 if watch.other and subject is watcher:
                     continue
-                if event == "cast":
+                if event in ("cast", "copy"):
                     if watch.caster == "you" and watcher_seat is not seat:
                         continue
                     if watch.caster == "opponent" and watcher_seat is seat:
@@ -2381,6 +2386,7 @@ class Game:
             targets = chosen[0]
         self.stack.append(StackItem(item.card, controller, item.effects, targets, x=item.x, kicked=item.kicked, is_copy=True))
         self.broadcast({"event": "copied_spell", "seat": controller.index, "card": item.card.name})
+        self._observe("copy", item.card, controller)
 
     def _enters_tapped(self, seat: Seat, rule: EntersTapped, card: Card) -> bool:
         """Whether a permanent entering under `seat`'s control enters tapped, given the lands it sees
