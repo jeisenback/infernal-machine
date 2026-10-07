@@ -734,10 +734,21 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
 class Attach:
     """Equip: attach the Equipment that made this ability to the target creature."""
     target: str = "creature you control"
+    another: bool = False  # Reconfigure: not the Equipment creature itself
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and game.resolving_source is not None:
             game.attach(game.resolving_source, target)
+
+
+@dataclass(frozen=True)
+class Unattach:
+    """Reconfigure's second ability: unattach this Equipment, which makes it a creature again."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.detach(target)
 
 
 @dataclass(frozen=True)
@@ -763,6 +774,18 @@ def _equip_other_cost(card: Card) -> ActivatedAbility | None:
         if (m := _EQUIP_OTHER.fullmatch(line)) and (fields := _cost_fields(m[1])):
             return ActivatedAbility(line, (Attach(),), sorcery_speed=True, **fields)
     return None
+
+
+_RECONFIGURE = re.compile(r"Reconfigure ((?:\{\d+\}|\{[WUBRGC]\})+)")
+
+
+def reconfigure_cost(card: Card) -> str | None:
+    """The mana cost from "Reconfigure {2}", or None."""
+    return next((m[1] for line in rules_lines(card) if (m := _RECONFIGURE.fullmatch(line))), None)
+
+
+def is_reconfigure_line(line: str) -> bool:
+    return _RECONFIGURE.fullmatch(line) is not None
 
 
 def equip_cost(card: Card) -> str | None:
@@ -2854,7 +2877,10 @@ _WATCHES = {
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
 # Triggers about some other creature: there "it" and "that creature" mean that creature, not the source.
-_OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat_damage", "token_combat_damage"}
+_OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat_damage", "token_combat_damage",
+                  "host_attacks", "host_combat_damage"}
+# The creature is already gone when it dies, so "it" there has nothing to point at (the line isn't understood).
+_HOST_GONE = {"host_dies"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
 _PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
                   "opponent_discard", "opponent_search"}
@@ -3025,7 +3051,7 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
             match = pattern.fullmatch(bare)
             if not match:
                 continue
-            if event in _OBJECT_EVENTS or event in _PLAYER_EVENTS:
+            if event in _OBJECT_EVENTS or event in _PLAYER_EVENTS or event in _HOST_GONE:
                 effects, optional, once, condition = _event_body(match[1], event in _OBJECT_EVENTS,
                                                                  event in _PLAYER_EVENTS)
             else:
@@ -3054,6 +3080,7 @@ class ActivatedAbility:
     discard: int = 0  # "Discard a card": how many
     exile_graveyard: int = 0  # "Exile a card from your graveyard": how many
     crew: int = 0  # "Crew N": tap untapped creatures you control with total power N or more
+    reconfigure: str = ""  # "attach" (only with another creature to attach to) or "unattach" (only while attached)
 
 
 _CREW = re.compile(r"Crew (\d+)")
@@ -3091,6 +3118,11 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
         abilities.append(ActivatedAbility(f"Equip {cost}", (Attach(),), mana_cost=cost, sorcery_speed=True))
     elif (other := _equip_other_cost(card)) is not None:
         abilities.append(other)
+    if cost := reconfigure_cost(card):
+        abilities.append(ActivatedAbility(f"Reconfigure {cost}", (Attach(another=True),), mana_cost=cost,
+                                          sorcery_speed=True, reconfigure="attach"))
+        abilities.append(ActivatedAbility(f"Reconfigure {cost} (unattach)", (Unattach(),), mana_cost=cost,
+                                          sorcery_speed=True, reconfigure="unattach"))
     return tuple(abilities)
 
 
