@@ -4,6 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import activated_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR
 from tests.test_effects import lands, table
 from tests.test_trigger_subjects import attack_first_opponent
@@ -89,10 +90,7 @@ class ReconfigureTests(unittest.TestCase):
 
 GROW = Card(name="Frost Blade", mana_cost="{1}", type_line="Artifact — Equipment",
             oracle_text="Equipped creature gets +1/+1.\nWhenever equipped creature attacks, put a +1/+1 counter on it.\nEquip {1}")
-RETURN = Card(name="Lifeline", mana_cost="{1}", type_line="Artifact — Equipment",
-              oracle_text="Whenever equipped creature dies, return it to its owner's hand.\nEquip {1}")
-
-
+RETURN = REAL["Deathrender"]
 class HostSubjectTests(unittest.TestCase):
     def test_it_means_the_equipped_creature(self):
         game, _, _ = table(attack_first_opponent)

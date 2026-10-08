@@ -25,8 +25,8 @@ from tests.real import DATA, REAL  # noqa: F401  (REAL is imported from here by 
 
 class SupportTests(unittest.TestCase):
     def test_every_real_text_is_understood(self):
-        for name, card in REAL.items():
-            self.assertEqual(unsupported_lines(card), [], name)
+        for entry in DATA["cards"]:  # not "unsupported_cards": those are there to test what the report lists
+            self.assertEqual(unsupported_lines(REAL[entry["name"]]), [], entry["name"])
 
 
 class WordingTests(unittest.TestCase):

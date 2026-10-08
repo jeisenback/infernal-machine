@@ -1425,7 +1425,86 @@
    "colors": [
     "U"
    ]
+  },
+  {
+   "name": "Abbot of Keral Keep",
+   "mana_cost": "{1}{R}",
+   "type_line": "Creature — Human Monk",
+   "oracle_text": "Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)\nWhen this creature enters, exile the top card of your library. Until end of turn, you may play that card.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Ivy Elemental",
+   "mana_cost": "{X}{G}",
+   "type_line": "Creature — Elemental",
+   "oracle_text": "This creature enters with X +1/+1 counters on it.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Spike Feeder",
+   "mana_cost": "{1}{G}{G}",
+   "type_line": "Creature — Spike",
+   "oracle_text": "This creature enters with two +1/+1 counters on it.\n{2}, Remove a +1/+1 counter from this creature: Put a +1/+1 counter on target creature.\nRemove a +1/+1 counter from this creature: You gain 2 life.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Summon: G.F. Ifrit",
+   "mana_cost": "{2}{R}",
+   "type_line": "Enchantment Creature — Saga Demon",
+   "oracle_text": "(As this Saga enters and after your draw step, add a lore counter. Sacrifice after IV.)\nI, II — You may discard a card. If you do, draw a card.\nIII, IV — Add {R}.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Knights of the Black Rose",
+   "mana_cost": "{3}{W}{B}",
+   "type_line": "Creature — Human Knight",
+   "oracle_text": "When this creature enters, you become the monarch.\nWhenever an opponent becomes the monarch, if you were the monarch as the turn began, that player loses 2 life and you gain 2 life.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "B",
+    "W"
+   ]
   }
  ],
- "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."
+ "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
+ "unsupported_cards": [
+  {
+   "name": "Deathrender",
+   "mana_cost": "{4}",
+   "type_line": "Artifact — Equipment",
+   "oracle_text": "Equipped creature gets +2/+2.\nWhenever equipped creature dies, you may put a creature card from your hand onto the battlefield and attach this Equipment to it.\nEquip {2}",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Shabraz, the Skyshark",
+   "mana_cost": "{3}{W}{U}",
+   "type_line": "Legendary Creature — Shark Bird",
+   "oracle_text": "Partner with Brallin, Skyshark Rider\nFlying\nWhenever you draw a card, put a +1/+1 counter on Shabraz and you gain 1 life.\n{W/U}: Target Human gains flying until end of turn.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "U",
+    "W"
+   ]
+  }
+ ]
 }

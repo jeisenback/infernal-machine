@@ -1,5 +1,6 @@
 import unittest
 
+from tests.real import REAL
 from infernal_machine.cards import Card, Deck
 from infernal_machine.report import category, deck_report, format_report, unsupported_lines
 
@@ -12,10 +13,7 @@ SWORDS = Card(name="Swords to Plowshares", mana_cost="{W}", type_line="Instant",
               oracle_text="Exile target creature. Its controller gains life equal to its power.")
 MIND_STONE = Card(name="Mind Stone", mana_cost="{2}", type_line="Artifact",
                   oracle_text="{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.")
-DELVER = Card(name="Dungeon Delver", mana_cost="{G}{U}", type_line="Legendary Creature — Merfolk Wizard",  # invented: no real card says this
-                oracle_text="{4}: Venture into the dungeon.\nPartner (You can have two commanders if both have partner.)")
-
-
+DELVER = REAL["Shabraz, the Skyshark"]
 class UnsupportedLinesTests(unittest.TestCase):
     def test_fully_playable(self):
         for card in (FOREST, SOL_RING, BOLT, MIND_STONE):
@@ -23,11 +21,11 @@ class UnsupportedLinesTests(unittest.TestCase):
 
     def test_lists_only_what_is_missing(self):
         self.assertEqual(unsupported_lines(SLOW_SAGE), ["Banding"])
-        self.assertEqual(unsupported_lines(DELVER), ["{4}: Venture into the dungeon."])  # partner is a deckbuilding line
+        self.assertEqual(unsupported_lines(DELVER), ["{W/U}: Target Human gains flying until end of turn."])  # partner is a deckbuilding line
         self.assertEqual(unsupported_lines(Card(name="x", mana_cost="{Q}", type_line="Creature")), ["mana cost {Q}"])
 
     def test_categories(self):
-        self.assertEqual(category("{4}: Venture into the dungeon."), "activated abilities")
+        self.assertEqual(category("{W/U}: Target Human gains flying until end of turn."), "activated abilities")
         self.assertEqual(category("+1: Draw a card."), "activated abilities")
         self.assertEqual(category("When CARDNAME enters, venture into the dungeon."), "triggers (the trigger or its effect)")
         self.assertEqual(category("Create a 1/1 white Soldier creature token."), "tokens")
@@ -44,8 +42,8 @@ class ReportTests(unittest.TestCase):
         deck = Deck([DELVER], [FOREST] * 3 + [BOLT, SWORDS, MIND_STONE], [])
         text = format_report(deck_report(deck))
         self.assertIn("Fully playable: 6/7 cards", text)  # Swords to Plowshares is playable now
-        self.assertIn("activated abilities (1): Dungeon Delver", text)
-        self.assertIn("Dungeon Delver: {4}: Venture into the dungeon.", text)
+        self.assertIn("activated abilities (1): Shabraz, the Skyshark", text)
+        self.assertIn("Shabraz, the Skyshark: {W/U}: Target Human gains flying until end of turn.", text)
 
 
 if __name__ == "__main__":

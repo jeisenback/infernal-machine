@@ -24,8 +24,7 @@ YAROK = Card(name="Yarok", mana_cost="{2}{B}{G}{U}", type_line="Legendary Creatu
 SOLDIER = Card(name="Soldier", type_line="Token Creature — Soldier", power="1", toughness="1")
 HEALER = creature("Healer", 2, 2, "When CARDNAME enters, you gain 1 life.")
 SHRINE = Card(name="Shrine", mana_cost="{1}", type_line="Enchantment", oracle_text="When CARDNAME enters, you gain 1 life.")
-HYDRA = Card(name="Hydra", mana_cost="{2}", type_line="Creature — Hydra", power="0", toughness="0",
-             oracle_text="CARDNAME enters with two +1/+1 counters on it.")
+HYDRA = REAL["Spike Feeder"]
 MARTYR = creature("Martyr", 1, 1, "When CARDNAME dies, you gain 1 life.")
 
 

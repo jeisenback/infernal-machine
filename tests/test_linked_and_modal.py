@@ -15,7 +15,6 @@ from tests.test_triggers import MULLDRIFTER
 OBLIVION_RING = REAL["Oblivion Ring"]
 BANISHING_LIGHT = REAL["Banishing Light"]
 FIEND_HUNTER = REAL["Fiend Hunter"]
-SMASH = Card(name="Smash", mana_cost="{R}", type_line="Instant", oracle_text="Destroy target artifact.")
 RELIC = Card(name="Relic", type_line="Artifact")
 CHOOSE_ONE = Card(name="Charm", mana_cost="{1}{U}", type_line="Instant",
                   oracle_text="Choose one —\n• Destroy target artifact.\n• Target player draws a card.\n• You gain 3 life.")

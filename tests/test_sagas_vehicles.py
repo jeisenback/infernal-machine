@@ -4,6 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import BecomeCreature, activated_abilities, saga_chapters
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, OGRE
 from tests.test_effects import lands, pick, table
 
@@ -13,8 +14,7 @@ WAGON = Card(name="Wagon", mana_cost="{2}", type_line="Artifact — Vehicle", po
              oracle_text="Crew 3")
 SAGA = Card(name="Tale", mana_cost="{2}", type_line="Enchantment — Saga",
             oracle_text="I — You gain 1 life.\nII — You gain 2 life.\nIII — You gain 3 life.")
-LOOTING = Card(name="Study", mana_cost="{1}", type_line="Enchantment — Saga",
-               oracle_text="I, II — Draw a card.\nIII — You gain 5 life.")
+LOOTING = REAL["Summon: G.F. Ifrit"]
 BROKEN = Card(name="Odd", mana_cost="{1}", type_line="Enchantment — Saga",
               oracle_text="I — You gain 1 life.\nII — Exchange control of two target creatures.")
 
@@ -126,7 +126,7 @@ class SagaTests(unittest.TestCase):
         chapters = saga_chapters(SAGA)
         self.assertEqual(sorted(chapters), [1, 2, 3])
         self.assertEqual(unsupported_lines(SAGA), [])
-        self.assertEqual(sorted(saga_chapters(LOOTING)), [1, 2, 3])
+        self.assertEqual(sorted(saga_chapters(LOOTING)), [1, 2, 3, 4])
 
     def test_a_chapter_we_cannot_play_means_no_chapters(self):
         self.assertEqual(saga_chapters(BROKEN), {})
@@ -170,13 +170,14 @@ class SagaTests(unittest.TestCase):
         game, _, _ = table()
         a = game.seats[0]
         saga = Permanent(LOOTING)
+        a.hand, a.library = [BEAR, BEAR, BEAR], [BEAR] * 3
         game._enter(a, saga)
         settle(game)
-        self.assertEqual(len(a.hand), 1)
+        self.assertEqual(len(a.graveyard), 1)  # chapter I: discard a card, then draw one
         game.step = "main1"
         game._turn_based_actions(a)
         settle(game)
-        self.assertEqual(len(a.hand), 2)
+        self.assertEqual(len(a.graveyard), 2)  # chapter II is the same ability
 
     def test_only_the_controllers_turn_adds_counters(self):
         game, _, _ = table()

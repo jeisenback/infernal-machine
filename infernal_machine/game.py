@@ -308,6 +308,7 @@ class Game:
         self._plan_index = 0
         self.regular = 0  # the seat whose regular turn it is (or was, during an extra turn)
         self.monarch: Seat | None = None
+        self.monarch_at_turn_start: Seat | None = None  # who was the monarch as this turn began
         self.initiative: Seat | None = None
         self.graveyarded_turn, self.graveyarded_count = 0, 0  # permanents put into a graveyard this turn (Gravestorm)
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
@@ -392,6 +393,7 @@ class Game:
 
     def _take_turn(self, seat: Seat) -> None:
         seat.lands_played = 0
+        self.monarch_at_turn_start = self.monarch
         self.broadcast({"event": "turn", "turn": self.turn, "seat": seat.index})
         over = lambda: self.winner() is not None or seat.lost
         self._plan, index = list(STEPS), 0
@@ -1547,6 +1549,8 @@ class Game:
             return self.active == seat.index
         if kind == "monarch":
             return self.monarch is seat
+        if kind == "monarch_at_turn_start":
+            return self.monarch_at_turn_start is seat
         if kind == "hand_at_least":
             return len(seat.hand) >= condition.count
         if kind == "hand_none":
