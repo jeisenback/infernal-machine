@@ -202,9 +202,9 @@ winner = game.play()
 | Exile another target ...; When this leaves the battlefield, return the exiled card to the battlefield under its owner's control. | Oblivion Ring, Fiend Hunter |
 | Exile target creature (you control), then return it to the battlefield under its owner's (your) control. / ... Return it to the battlefield (or its owner's hand) at the beginning of the next end step. | Cloudshift, Flickerwisp |
 | Exile target spell. / Counter target spell. If that spell is countered this way, exile it instead ... | Dissipate |
-| Exile the top N cards of your library. You may play it (them) this turn. / Until the end of your next turn, you may play those cards. | Light Up the Stage |
-| Choose one / two / three / one or both / one or more — • mode • mode ... (also in "When ..., choose one —" and "{T}: Choose one —") | charms and commands, Charming Prince |
-| Entwine {cost} / Escalate {cost} (mana costs only) | Tooth and Nail |
+| Exile the top N cards of your library. You may play it (them) this turn. / Until the end of your next turn, you may play those cards. | Reckless Impulse |
+| Choose one / two / three / one or both / one or more — • mode • mode ... (also in "When ..., choose one —" and "{T}: Choose one —") | charms and commands, Cleanup Crew |
+| Entwine {cost} / Escalate {cost} (mana costs only) | Barbed Lightning (entwine), Blessed Alliance (escalate) |
 | Tap all creatures your opponents control. | Cryptic Command |
 | Target player (or opponent) draws N cards / gains N life / loses N life. | |
 | Exile target card from a graveyard. | |
@@ -227,18 +227,18 @@ winner = game.play()
 | Untap target land (permanent, creature, ...). / Untap another target creature. / Untap up to two target lands. | |
 | Untap all lands (artifacts, permanents, enchantments) you control. | |
 | Untap it. / Untap this creature. (in "Whenever this creature attacks, untap it", or "equipped creature ... untap it") | |
-| You become the monarch. | Palace Jailer |
-| You take the initiative. | Caves of Chaos Adventurer |
+| You become the monarch. | Thorn of the Black Rose |
+| You take the initiative. | Underdark Explorer |
 | Goad target creature. / Goad all creatures you don't control. | Disrupt Decorum |
 | Whenever an opponent casts a spell / draws a card, (you may) draw a card / create a Treasure token unless that player pays {N}. | Rhystic Study, Mystic Remora, Smothering Tithe |
 | Whenever you become the monarch, ... / Whenever an opponent becomes the monarch, ... | |
-| Starting with you, each player votes for X or Y. For each X vote, ... / If X gets more votes (or the vote is tied), ... | Tivit, Plea for Power, Capital Punishment |
+| Starting with you, each player votes for X or Y. For each X vote, ... / If X gets more votes (or the vote is tied), ... | Tivit, Seller of Secrets; Plea for Power; Capital Punishment |
 | Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes. | Council's Judgment |
 | Investigate. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
-| Discard N cards (at random). / Discard your hand. / Target player (or opponent) discards N cards (at random). / Each opponent (or player) discards N cards or their hand. | Mind Rot, Hymn to Tourach, Windfall |
+| Discard N cards (at random). / Discard your hand. / Target player (or opponent) discards N cards (at random). / Each opponent (or player) discards N cards or their hand. | Mind Rot, Hymn to Tourach |
 | Draw N cards, then discard N cards. / Each player discards their hand, then draws N cards. / Each player draws N cards. | Faithless Looting, Wheel of Fortune |
-| Target player reveals their hand. You choose a (nonland / noncreature, nonland / ... with mana value N or less) card from it. That player discards that card. | Thoughtseize, Duress, Inquisition of Kozilek |
+| Target player reveals their hand. You choose a (nonland / noncreature, nonland / ... with mana value N or less) card from it. That player discards that card. | Thoughtseize, Duress |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
 | Equip—Pay N life. / Sacrifice a creature. / Discard a card. | Blood-style equipment |
 | Whenever equipped (enchanted) creature dies / deals combat damage to a player, ... | Sword of Feast and Famine-style |
@@ -268,7 +268,7 @@ winner = game.play()
 | Target creature becomes a 4/4 Dragon until end of turn. / has base power and toughness 0/1 until end of turn. | |
 | Put N <kind> counters on target <permanent>. / Remove N (all) <kind> counters from target <permanent>. / Remove all counters from target <permanent>. | |
 | Double the number of +1/+1 counters on each creature you control. | |
-| Move a (or all) +1/+1 counter(s) from target creature onto another target creature. | Bioshift |
+| Move a (or all) +1/+1 counter(s) from target creature onto another target creature. | |
 | Until end of turn, this land becomes a P/T (color) (Subtype) (artifact) creature (with keywords). It's still a land. / Target land you control becomes a ... | Mutavault, Treetop Village |
 | Each opponent (or player) creates a token. / Target opponent creates a token. | |
 | Creatures you control get +N/+N and gain trample until end of turn. | Overrun |
