@@ -3558,10 +3558,13 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
 
 
 _TAP = r"\{T\}(, Sacrifice (?:CARDNAME|this (?:artifact|creature|permanent|land)))?: Add "  # group 1: sacrifice
-_ADD_SYMBOLS = re.compile(_TAP + r"((?:\{[WUBRGC]\})+)\.")
-_ADD_EITHER = re.compile(_TAP + r"\{([WUBRGC])\} or \{([WUBRGC])\}\.")
-_ADD_ANY = re.compile(_TAP + r"one mana of any color\.")
-_ADD_IDENTITY = re.compile(_TAP + r"one mana of any color in your commander's color identity\.")
+# Each may end with "Activate only if <condition>." (Temple of the False God, Spire of Industry): that is always the
+# last group of the match, None when it is absent.
+_IF_TAIL = r"(?: Activate only if (.+)\.)?"
+_ADD_SYMBOLS = re.compile(_TAP + r"((?:\{[WUBRGC]\})+)\." + _IF_TAIL)
+_ADD_EITHER = re.compile(_TAP + r"\{([WUBRGC])\} or \{([WUBRGC])\}\." + _IF_TAIL)
+_ADD_ANY = re.compile(_TAP + r"one mana of any color\." + _IF_TAIL)
+_ADD_IDENTITY = re.compile(_TAP + r"one mana of any color in your commander's color identity\." + _IF_TAIL)
 
 
 def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
@@ -3588,9 +3591,25 @@ def mana_ability_sacrifices(card: Card) -> bool:
     return bool(line and any((m := p.fullmatch(line)) and m[1] for p in _MANA_PATTERNS))
 
 
+def _mana_match(line: str) -> re.Match | None:
+    """The match of a plain "{T}: Add ..." line, unless its "Activate only if" condition isn't understood."""
+    for pattern in _MANA_PATTERNS:
+        if (m := pattern.fullmatch(line)) and (m.group(pattern.groups) is None or _condition(m.group(pattern.groups))):
+            return m
+    return None
+
+
 def _mana_line(card: Card) -> str | None:
     """The card's plain "{T}: Add ..." line (Signet-style lines are filter_mana_ability's)."""
-    return next((line for line in rules_lines(card) if any(p.fullmatch(line) for p in _MANA_PATTERNS)), None)
+    return next((line for line in rules_lines(card) if _mana_match(line)), None)
+
+
+def mana_condition(card: Card) -> "Condition | None":
+    """The "Activate only if ..." condition on the card's plain mana ability, if it has one."""
+    line = _mana_line(card)
+    m = _mana_match(line) if line else None
+    text = m.group(m.re.groups) if m else None
+    return _condition(text) if text else None
 
 
 _MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY, _ADD_IDENTITY)
@@ -3604,8 +3623,8 @@ _PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add (one mana of any color
 
 
 def is_mana_ability(line: str) -> bool:
-    return (any(p.fullmatch(line) for p in _MANA_PATTERNS) or _FILTER.fullmatch(line) is not None
-            or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
+    return (_mana_match(line) is not None or _FILTER.fullmatch(line) is not None
+            or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))
 
 
@@ -3664,6 +3683,7 @@ def is_identity_mana_land(card: Card) -> bool:
 
 
 _FILTER = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\}|\{[WUBRG]/[WUBRG]\})+), \{T\}: Add ((?:\{[WUBRGC]\})+)\.")
+_FILTER_ANY = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add one mana of any color\.")  # Hall of Oracles
 # A filter land: "{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}." Two mana, each of either color.
 _FILTER_LAND = re.compile(r"(\{[WUBRG]/[WUBRG]\}), \{T\}: Add \{([WUBRG])\}\{\2\}, \{\2\}\{([WUBRG])\}, or \{\3\}\{\3\}\.")
 
@@ -3674,6 +3694,8 @@ def filter_mana_ability(card: Card) -> tuple[str, list[frozenset[str]]] | None:
     for line in rules_lines(card):
         if m := _FILTER.fullmatch(line):
             return m[1], [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2])]
+        if m := _FILTER_ANY.fullmatch(line):
+            return m[1], [frozenset("WUBRG")]
         if m := _FILTER_LAND.fullmatch(line):
             return m[1], [frozenset((m[2], m[3]))] * 2
     return None
