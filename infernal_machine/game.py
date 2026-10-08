@@ -218,6 +218,7 @@ class StackItem:
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
     player: "Seat | None" = None  # for a watching trigger: the player whose action set it off ("that player")
+    sacrificed_power: int = 0  # for an ability: the power of the creature sacrificed to pay for it
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
 
 
@@ -308,6 +309,7 @@ class Game:
         self.graveyarded_turn, self.graveyarded_count = 0, 0  # permanents put into a graveyard this turn (Gravestorm)
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
+        self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
@@ -677,6 +679,7 @@ class Game:
         for _ in range(ability.sacrifice_count if ability.sacrifice_other else 0):
             options = [p for p in self._sacrifice_choices(seat, source, ability) if p not in chosen]
             chosen.append(options[seat.player.choose(SACRIFICE_COST_PROMPT + name, [self.label(p) for p in options])])
+        self.cost_sacrificed_power = sum(self.power(p) for p in chosen)
         if chosen:
             self._leave_together([(p, "sacrificed") for p in chosen])
 
@@ -1064,7 +1067,8 @@ class Game:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn
         permanent.activated_turn[ability.text] = self.turn
-        item = StackItem(permanent.card, seat, effects, targets, ability, permanent, x=x)
+        item = StackItem(permanent.card, seat, effects, targets, ability, permanent, x=x,
+                         sacrificed_power=self.cost_sacrificed_power)
         self.stack.append(item)
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
@@ -1389,6 +1393,8 @@ class Game:
             if source is None:
                 return 0
             return self.power(source) if self.on_battlefield(source) else source.last_power  # last known (CR 608.2h)
+        if kind == "sacrificed_power":  # the creature sacrificed to pay this ability's cost
+            return self.resolving_item.sacrificed_power if self.resolving_item else 0
         if kind == "source_counters":
             return source.counters.get(amount.what, 0) if source else 0
         if kind == "on_battlefield":

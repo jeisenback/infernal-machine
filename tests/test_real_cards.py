@@ -4,10 +4,11 @@ import unittest
 from dataclasses import replace
 
 from infernal_machine.cards import Card
+from infernal_machine.effects import activated_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.game import OPENING_PROMPT
 from tests.test_combat import BEAR
-from tests.test_effects import table
+from tests.test_effects import lands, table
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 from tests.real import REAL
@@ -52,3 +53,17 @@ class LeylineOfTheVoidTests(unittest.TestCase):
         game = self.setup_game(lambda prompt, options: 1 if prompt.startswith(OPENING_PROMPT) else 0)
         for seat in game.seats:
             self.assertEqual((len(seat.battlefield), len(seat.hand)), (0, 7))
+
+
+class DinaTests(unittest.TestCase):
+    def test_sacrificing_a_creature_gives_dina_its_power(self):
+        game, _ = table3()
+        a = game.seats[0]
+        dina = Permanent(REAL["Dina, Soul Steeper"])
+        ogre = Permanent(replace(BEAR, name="Ogre", power="4", toughness="4"))
+        a.battlefield = [dina, ogre, *lands(1)]
+        [ability] = [x for x in activated_abilities(dina.card) if x.sacrifice_other]
+        game._activate(a, dina, ability)
+        run_stack(game)
+        self.assertEqual(game.power(dina), 1 + 4)
+        self.assertNotIn(ogre, a.battlefield)

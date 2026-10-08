@@ -768,6 +768,19 @@ class PumpSource:
 
 
 @dataclass(frozen=True)
+class PumpSourceX:
+    """ "This creature gets +X/+0 until end of turn." (X from "where X is ..."): multiples of X, like PumpX."""
+    power: int
+    toughness: int
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            x = game.amount("X")
+            game.modify_until_end_of_turn(target, Modifier(self.power * x, self.toughness * x))
+
+
+@dataclass(frozen=True)
 class PumpEach:
     """ "Creatures you control get +3/+3 and gain trample until end of turn." Affects only the
     creatures there when it resolves (CR 611.2c). `opponents`: "Creatures your opponents control get -1/-1"."""
@@ -1477,6 +1490,7 @@ class Amount:
 
 _AMOUNTS = [
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
+    (re.compile(r"the sacrificed creature's power", re.I), lambda m: Amount("sacrificed_power")),
     (re.compile(r"(?:the number of )?([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters? on (?:it|this creature|this artifact|CARDNAME)",
                 re.I), lambda m: Amount("source_counters", _counter_name(m[1].lower()))),
     (re.compile(r"(?:the number of )?(?:(creature|land|artifact|enchantment|instant|sorcery|planeswalker) )?cards? in your graveyard",
@@ -3158,6 +3172,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'(each opponent|each player) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
     (re.compile(r'target (player|opponent) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
     (re.compile(rf"(?i:{_SELF}) {_CHANGE}"), lambda m: PumpSource(_modifier(m, 1))),
+    (re.compile(rf"(?i:{_SELF}) gets? {_PT_X} until end of turn\."),
+     lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
     (re.compile(r'(?i:its controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
