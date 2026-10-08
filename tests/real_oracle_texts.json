@@ -482,6 +482,39 @@
     "G",
     "W"
    ]
+  },
+  {
+   "name": "Leyline of the Void",
+   "mana_cost": "{2}{B}{B}",
+   "type_line": "Enchantment",
+   "oracle_text": "If this card is in your opening hand, you may begin the game with it on the battlefield.\nIf a card would be put into an opponent's graveyard from anywhere, exile it instead.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Panharmonicon",
+   "mana_cost": "{4}",
+   "type_line": "Artifact",
+   "oracle_text": "If an artifact or creature entering causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Yarok, the Desecrated",
+   "mana_cost": "{2}{B}{G}{U}",
+   "type_line": "Legendary Creature — Elemental Horror",
+   "oracle_text": "Deathtouch, lifelink\nIf a permanent entering causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time.",
+   "power": "3",
+   "toughness": "5",
+   "colors": [
+    "B",
+    "G",
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."

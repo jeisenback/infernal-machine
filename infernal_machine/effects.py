@@ -983,7 +983,7 @@ _DOUBLE_COUNTERS_OLD = ("If an effect would put one or more counters on a perman
                         "many of those counters instead.")  # the wording before the Oracle update
 _PLUS_ONE_COUNTERS = ("If one or more +1/+1 counters would be put on a creature you control, that many plus one "
                       "+1/+1 counters are put on it instead.")
-_EXTRA_TRIGGER = re.compile(r"If (an artifact or creature|a permanent) entering the battlefield causes a triggered "
+_EXTRA_TRIGGER = re.compile(r"If (an artifact or creature|a permanent) entering(?: the battlefield)? causes a triggered "
                             r"ability of a permanent you control to trigger, that ability triggers an additional time\.")
 
 
@@ -3704,6 +3704,18 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
 
 _RETURN_EXILED = re.compile(rf"When(?:ever)? {_SELF} leaves the battlefield, return the exiled card to the "
                             r"battlefield under its owner's control\.", re.I)
+
+
+_OPENING_HAND = "If this card is in your opening hand, you may begin the game with it on the battlefield."
+
+
+def is_opening_hand_line(line: str) -> bool:
+    """Leyline of the Void: the card may start the game on the battlefield (the game offers it after the mulligans)."""
+    return line == _OPENING_HAND
+
+
+def begins_on_battlefield(card: Card) -> bool:
+    return any(is_opening_hand_line(line) for line in rules_lines(card))
 
 
 def is_return_exiled_line(line: str) -> bool:

@@ -5,7 +5,9 @@ from dataclasses import replace
 
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
+from infernal_machine.game import OPENING_PROMPT
 from tests.test_combat import BEAR
+from tests.test_effects import table
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 from tests.real import REAL
@@ -33,3 +35,20 @@ class GoodFortuneUnicornTests(unittest.TestCase):
         game._enter(a, bear)
         run_stack(game)
         self.assertEqual(bear.counters, {"+1/+1": 1})
+
+
+class LeylineOfTheVoidTests(unittest.TestCase):
+    def setup_game(self, policy=None):
+        game, a, b = table(policy, policy, library=(REAL["Leyline of the Void"],) * 20)
+        game.setup()
+        return game
+
+    def test_it_may_begin_the_game_on_the_battlefield(self):
+        game = self.setup_game()
+        for seat in game.seats:
+            self.assertEqual((len(seat.battlefield), len(seat.hand)), (7, 0))
+
+    def test_the_player_may_keep_it_in_hand(self):
+        game = self.setup_game(lambda prompt, options: 1 if prompt.startswith(OPENING_PROMPT) else 0)
+        for seat in game.seats:
+            self.assertEqual((len(seat.battlefield), len(seat.hand)), (0, 7))

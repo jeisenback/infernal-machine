@@ -26,7 +26,7 @@ from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, Altern
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
-                      no_max_hand_size,
+                      no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
@@ -67,6 +67,7 @@ ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
 COMMANDER_TAX = 2  # CR 903.8
 PERMANENT_TYPES = ("Artifact", "Battle", "Creature", "Enchantment", "Land", "Planeswalker")
 KEEP_PROMPT = "Keep this hand?"
+OPENING_PROMPT = "Begin the game with this on the battlefield: "  # followed by the card's name
 BOTTOM_PROMPT = "Put a card on the bottom of your library"
 DISCARD_PROMPT = "Discard down to hand size"
 DISCARD_CARD_PROMPT = "Choose a card to discard"  # options are card names
@@ -337,6 +338,11 @@ class Game:
         self.broadcast({"event": "starting_player", "seat": self.active})
         for seat in self._turn_order(self.active):
             self._mulligan(seat)
+        for seat in self._turn_order(self.active):  # CR 103.6: Leyline-style cards may start on the battlefield
+            for card in [c for c in seat.hand if begins_on_battlefield(c)]:
+                if seat.player.choose(f"{OPENING_PROMPT}{card.name}?", ["Yes", "No"]) == 0:
+                    seat.hand.remove(card)
+                    self._enter(seat, Permanent(card))
 
     def _mulligan(self, seat: Seat) -> None:
         """London mulligan (CR 103.5); the first one is free in multiplayer (103.5c)."""
