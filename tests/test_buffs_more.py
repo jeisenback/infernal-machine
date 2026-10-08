@@ -1,7 +1,7 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (MOVE_COUNTERS_PROMPT, Animate, MoveCountersFrom, MoveCountersOnto, PumpX, activated_abilities,
+from infernal_machine.effects import (MOVE_COUNTERS_PROMPT, Animate, MoveCountersFrom, PumpX, activated_abilities,
                                       spell_effects)
 from infernal_machine.game import ACTIVATE, CAST, PASS, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines

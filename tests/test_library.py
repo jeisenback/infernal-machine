@@ -6,7 +6,7 @@ from infernal_machine.game import (CAST, KEEP_ON_TOP, LOOK_PROMPT, NONE_TAKEN, O
                                    SEARCH_LAND_PROMPT, SURVEIL_PROMPT, Permanent)
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_effects import BEAR, BOLT, FOREST, lands, pick, table
+from tests.test_effects import BEAR, BOLT, FOREST, lands, pick
 from tests.test_exile import COMMANDER
 from tests.test_mass_effects import table3
 from tests.test_watch_triggers import COURSER

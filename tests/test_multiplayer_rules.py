@@ -6,8 +6,8 @@ from infernal_machine.effects import (BecomeMonarch, ExtraCombat, ExtraTurn, Goa
 from infernal_machine.game import CAST, STEPS, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, creature
-from tests.test_effects import FOREST, lands, pick, table
+from tests.test_combat import BEAR
+from tests.test_effects import lands, pick, table
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 

@@ -2,8 +2,7 @@ import unittest
 
 from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
-from infernal_machine.effects import (Discard, DiscardHandsDrawGreatest, EachDraw, TargetChooseDiscard, TargetDiscard, spell_effects,
-                                      triggered_abilities)
+from infernal_machine.effects import (Discard, DiscardHandsDrawGreatest, EachDraw, TargetChooseDiscard, TargetDiscard, spell_effects)
 from infernal_machine.game import CAST, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL

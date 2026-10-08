@@ -1,7 +1,7 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import Replacements, replacement_effects, spell_effects
+from infernal_machine.effects import Replacements, replacement_effects
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
