@@ -767,11 +767,19 @@ stats = goldfish(deck, games=5000, turns=5)
 
 - **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
   It chooses the largest X it can afford, sacrifices its weakest creature, and tutors for its most expensive card.
-  It pays life for shocklands only while above 10 life, takes the first mode of a modal spell, and always pays ward. It always keeps cards on top when scrying or surveilling. It equips Equipment once (not repeatedly), puts helpful Auras on its own creatures, and Pacifism-style ones on
-  opponents'. It doesn't judge whether a board
-  wipe helps it, so it will cast Wrath of God while ahead.
+  It pays life for shocklands only while above 10 life. It equips Equipment once (not repeatedly), puts helpful
+  Auras on its own creatures, and Pacifism-style ones on opponents'.
+  It watches the board (the snapshot TCP players get) for a few judgments:
+  - Scry and surveil: it keeps a land on top until it has 6 lands (in play and in hand), and a spell it can cast
+    within a turn; the rest go to the bottom (or the graveyard).
+  - Modes: it picks the mode that does the most (removal, then cards, tokens, buffs and life), and stops choosing
+    when only modes that cost it (life, discards, sacrifices) are left.
+  - Wipes: it casts one that hits everyone's creatures only when opponents have more creatures than it does.
+    One-sided wipes are always fine.
+  - Cycling: it cycles lands once it has 6, and spells that cost more than 2 above what it has.
+  - Ward: it always pays, since the spell is already paid for and it's only asked when it can afford the cost.
   It plays a land whenever it can, then casts its commander if it can,
-  then its most expensive affordable spell, and otherwise passes.
+  then its most expensive affordable spell, then cycles, and otherwise passes.
   After casting, it activates abilities that tap, sacrifice, or use loyalty.
   It targets opponents' things when it can, never responds to its own spell,
   and always returns its commander to the command zone. In combat it attacks the opponent

@@ -10,14 +10,16 @@ from typing import Sequence
 from .analysis import is_land
 from .cards import Card, Deck
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
-from .effects import RETURN_LAND_PROMPT
+from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
 from .undercity import HELPS_ITS_TARGET
 from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PLAY_EXILE, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
+                   CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
+LAND_GOAL = 6  # lands (in play and in hand) the bot wants before it stops keeping more
 
 
 def keep_hand(hand: list[Card], mulligans: int = 0) -> bool:
@@ -48,7 +50,15 @@ class BotPlayer:
     In combat it attacks the opponent with the lowest life with every creature
     that has power, blocks when its blocker survives, and chump-blocks the
     biggest attacker once its life is at CHUMP_LIFE or below.
+
+    It watches the board (the same snapshot TCP players get) for a few judgments: scry and surveil keep a land on
+    top until it has LAND_GOAL lands and a spell it can cast soon, and send the rest away; it casts a wipe only
+    when opponents have more creatures than it does; it cycles extra lands and spells it can't cast soon; and it
+    picks the modes that do the most (removal, then cards and tokens). It always pays ward: the spell is already
+    paid for, and the game only asks when it can afford it.
     """
+
+    wants_state = True  # the game sends the board before each priority decision
 
     CHUMP_LIFE = 10
 
@@ -61,6 +71,7 @@ class BotPlayer:
         self._seat: int | None = None
         self._stack: list[int] = []  # seat of each spell on the stack, bottom first
         self._life: dict[int, int] = {}
+        self._state: dict | None = None  # the latest board snapshot
 
     def notify(self, event: dict) -> None:
         kind = event.get("event")
@@ -73,6 +84,8 @@ class BotPlayer:
                 self._seat = event["seat"]
         elif kind == "life":
             self._life[event["seat"]] = event["life"]
+        elif kind == "state":
+            self._state = event
         elif kind in ("cast", "trigger", "activate"):
             self._stack.append(event["seat"])
         elif kind in ("resolve", "fizzle") and self._stack:
@@ -117,6 +130,14 @@ class BotPlayer:
             return max(taken, key=lambda i: self._cards[options[i]].cmc if options[i] in self._cards else 0)
         if prompt == SACRIFICE_PROMPT or prompt.startswith(SACRIFICE_COST_PROMPT):
             return min(range(len(options)), key=lambda i: sum(_stats(options[i])))  # its weakest creature
+        if prompt.startswith((SCRY_PROMPT, SURVEIL_PROMPT)):
+            card = self._cards.get(prompt.split(": ", 1)[1])
+            return 0 if card is None or self._wants_on_top(card) else 1  # 1: to the bottom, or the graveyard
+        if prompt.startswith(MODE_PROMPT):
+            modes = [option for option in options if option != DONE_MODES]
+            scores = [_mode_score(mode) for mode in modes]
+            best = max(range(len(modes)), key=scores.__getitem__)
+            return options.index(DONE_MODES) if DONE_MODES in options and scores[best] <= 0 else best
         if prompt.startswith(TARGET_PROMPT):
             mine = [i for i, option in enumerate(options) if _seat_of(option) == self._seat]
             theirs = [i for i, option in enumerate(options) if _seat_of(option) != self._seat]
@@ -134,14 +155,46 @@ class BotPlayer:
             if option.startswith(CAST_COMMANDER):
                 return i
         casts = [i for i, option in enumerate(options)
-                 if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)) and not _is_ritual(self._cards.get(_cast_name(option)))]
+                 if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)) and not _is_ritual(self._cards.get(_cast_name(option)))
+                 and not self._unhelpful_wipe(self._cards.get(_cast_name(option)))]
         if casts:
             return max(casts, key=lambda i: self._cards[_cast_name(options[i])].cmc)
+        for i, option in enumerate(options):
+            if option.startswith(CYCLE) and self._cycle_away(self._cards.get(option.removeprefix(CYCLE))):
+                return i
         for i, option in enumerate(options):
             if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)):
                 return i
         return options.index(PASS)
 
+
+    def _my_seat(self) -> dict | None:
+        return next((s for s in (self._state or {}).get("seats", []) if s["seat"] == self._seat), None)
+
+    def _lands(self) -> int:
+        """Lands the bot has in play and in hand."""
+        mine = self._my_seat()
+        in_play = sum("Land" in p["type"] for p in mine["battlefield"]) if mine else 0
+        in_hand = sum(is_land(self._cards[name]) for name in (self._state or {}).get("hand", []) if name in self._cards)
+        return in_play + in_hand
+
+    def _creatures(self, mine: bool) -> int:
+        return sum("Creature" in p["type"] for s in (self._state or {}).get("seats", [])
+                   if (s["seat"] == self._seat) == mine and not s["lost"] for p in s["battlefield"])
+
+    def _wants_on_top(self, card: Card) -> bool:
+        """For scry and surveil: a land while it's short of lands, or a spell it can cast soon."""
+        return self._lands() < LAND_GOAL if is_land(card) else card.cmc <= self._lands() + 1
+
+    def _cycle_away(self, card: Card | None) -> bool:
+        """Cycle a land once it has enough, or a spell it won't be able to cast for a while."""
+        if card is None:
+            return False
+        return self._lands() >= LAND_GOAL if is_land(card) else card.cmc > self._lands() + 2
+
+    def _unhelpful_wipe(self, card: Card | None) -> bool:
+        """A wipe that hits everyone's creatures is only worth it when opponents have more of them."""
+        return card is not None and _is_wipe(card) and self._creatures(mine=False) <= self._creatures(mine=True)
 
     def _is_buff_aura(self, name: str) -> bool:
         """An Aura that helps its target, as opposed to a Pacifism-style one that hurts it."""
@@ -160,6 +213,27 @@ class BotPlayer:
         if self._life.get(self._seat, 0) <= self.CHUMP_LIFE:
             return max(powers, key=powers.get)
         return 0
+
+
+_MODE_GOOD = ("destroy", "exile", "counter target", "damage", "return target")  # removal and interaction
+_MODE_USEFUL = ("draw", "create", "counter on", "gets +", "gain")
+_MODE_BAD = ("you lose", "you discard", "you sacrifice")
+
+
+def _mode_score(text: str) -> int:
+    """How much the bot wants a mode: removal most, then cards, tokens and buffs; costs to itself count against it."""
+    text = text.lower()
+    return (3 * any(w in text for w in _MODE_GOOD) + 2 * any(w in text for w in _MODE_USEFUL)
+            - 3 * any(w in text for w in _MODE_BAD))
+
+
+def _is_wipe(card: Card) -> bool:
+    """A spell that destroys, exiles, bounces or damages every creature, its controller's too."""
+    def everyone(kind: str) -> bool:
+        return (("creature" in kind or "permanent" in kind)
+                and not kind.endswith(("you don't control", "an opponent controls", "your opponents control")))
+    return any((isinstance(e, (DestroyAll, ExileAll, ReturnAllToHand)) and everyone(e.kind))
+               or (isinstance(e, DamageEach) and e.creatures == "all") for e in spell_effects(card) or [])
 
 
 def _cast_name(option: str) -> str:
