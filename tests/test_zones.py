@@ -22,7 +22,7 @@ ZOMBIFY = Card(name="Zombify", mana_cost="{3}{B}", type_line="Sorcery",
 REANIMATE = REAL["Reanimate"]
 REGROWTH = Card(name="Regrowth", mana_cost="{1}{G}", type_line="Sorcery",
                 oracle_text="Return target card from your graveyard to your hand.")
-BOG = Card(name="Cleanse", mana_cost="{G}", type_line="Instant", oracle_text="Exile target card from a graveyard.")
+BOG = REAL["Purify the Grave"]
 DEMONIC = Card(name="Demonic Tutor", mana_cost="{1}{B}", type_line="Sorcery",
                oracle_text="Search your library for a card, put that card into your hand, then shuffle.")
 WORLDLY = REAL["Worldly Tutor"]

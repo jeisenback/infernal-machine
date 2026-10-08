@@ -6,11 +6,11 @@ from infernal_machine.effects import (Fight, FightFirst, Proliferate, ReturnWith
                                       triggered_abilities)
 from infernal_machine.game import CAST, DONE, PROLIFERATE_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, OGRE, creature
 from tests.test_effects import FOREST, lands, pick, table
 
-FIGHT = Card(name="Fight", mana_cost="{1}{G}", type_line="Sorcery",
-             oracle_text="Target creature you control fights target creature you don't control.")
+FIGHT = REAL["Prey Upon"]
 BITE = Card(name="Bite", mana_cost="{1}{G}", type_line="Sorcery",
             oracle_text="Target creature you control deals damage equal to its power to target creature you don't control.")
 GROW = Card(name="Grow", mana_cost="{G}", type_line="Sorcery", oracle_text="Proliferate.")

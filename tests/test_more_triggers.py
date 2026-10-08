@@ -65,7 +65,7 @@ ZIMONE = creature("Zimone", 1, 1, "Whenever you cast your first spell with {X} i
                   "counters on this creature.")
 NEV = creature("Nev", 1, 1, "Whenever you cast your first spell with {X} in its mana cost each turn, put X +1/+1 "
                "counters on this creature.")
-BLAZE = Card(name="Blaze", mana_cost="{X}{R}", type_line="Sorcery", colors=("R",), oracle_text="Draw X cards.")
+BLAZE = REAL["Mind Spring"]
 RETRIEVER = Card(name="Retriever", mana_cost="{R}", type_line="Enchantment",
                  oracle_text="At the beginning of each end step, if a card left your graveyard this turn, you gain 1 life.")
 EMERIA = Card(name="Emeria", type_line="Land",

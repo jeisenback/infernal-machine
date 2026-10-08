@@ -36,9 +36,7 @@ RITES = Card(name="Village Rites", mana_cost="{B}", type_line="Instant", colors=
              oracle_text="As an additional cost to cast this spell, sacrifice a creature.\nDraw two cards.")
 THRILL = Card(name="Thrill of Possibility", mana_cost="{1}{R}", type_line="Instant", colors=("R",),
               oracle_text="As an additional cost to cast this spell, discard a card.\nDraw two cards.")
-BARGAIN = Card(name="Bargain", mana_cost="{B}", type_line="Sorcery", colors=("B",),
-               oracle_text="As an additional cost to cast this spell, pay 3 life.\nDraw two cards.")
-
+BARGAIN = REAL["Withering Boon"]
 KAVU = REAL["Untamed Kavu"]
 JOSU = REAL["Josu Vess, Lich Knight"]
 KICKED_BOLT = Card(name="Kicked Bolt", mana_cost="{U}", type_line="Instant", colors=("U",),
@@ -558,13 +556,13 @@ class AdditionalCostTests(unittest.TestCase):
     def test_pay_life(self):
         game, _, _ = table(pick(CAST + BARGAIN.name))
         seat = game.seats[0]
+        game.stack.append(StackItem(BEAR, game.seats[1], []))  # a creature spell for the counterspell to target
         seat.hand = [BARGAIN]
-        seat.library = [OPT, OPT]
-        seat.battlefield = battlefield(SWAMP)
+        seat.battlefield = battlefield(SWAMP, SWAMP)
         game._priority_round(seat)
         self.assertEqual(seat.life, 37)
         seat.life, seat.hand = 2, [BARGAIN]
-        seat.battlefield = battlefield(SWAMP)
+        seat.battlefield = battlefield(SWAMP, SWAMP)
         self.assertNotIn(CAST + BARGAIN.name, game.legal_actions(seat))
 
 

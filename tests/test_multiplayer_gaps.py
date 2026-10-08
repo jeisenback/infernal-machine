@@ -4,6 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import GoadAll, UnlessPays, spell_effects, triggered_abilities
 from infernal_machine.game import Permanent, UNLESS_PROMPT
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, creature
 from tests.test_effects import FOREST, lands, table
 from tests.test_mass_effects import table3
@@ -17,8 +18,7 @@ SPITE = Card(name="Spite", mana_cost="{2}", type_line="Enchantment",
              oracle_text="Whenever an opponent becomes the monarch, you gain 3 life.")
 RHYSTIC = Card(name="Rhystic Study", mana_cost="{2}{U}", type_line="Enchantment",
                oracle_text="Whenever an opponent casts a spell, you may draw a card unless that player pays {1}.")
-TITHE = Card(name="Smothering Tithe", mana_cost="{3}{W}", type_line="Enchantment",
-             oracle_text="Whenever an opponent draws a card, create a Treasure token unless that player pays {2}.")
+TITHE = REAL["Smothering Tithe"]
 SPELL = Card(name="Spell", mana_cost="{1}", type_line="Sorcery", oracle_text="Draw a card.")
 
 

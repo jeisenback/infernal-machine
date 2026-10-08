@@ -21,7 +21,7 @@ def creature(name, power, toughness, colors, text=""):
 
 BOLT = Card(name="Lightning Bolt", mana_cost="{R}", type_line="Instant", colors=("R",),
             oracle_text="Lightning Bolt deals 3 damage to any target.")
-DOOM = Card(name="Doom", mana_cost="{R}", type_line="Instant", colors=("R",), oracle_text="Destroy target creature.")
+DOOM = REAL["Fell"]
 PYROCLASM = Card(name="Pyroclasm", mana_cost="{1}{R}", type_line="Sorcery", colors=("R",),
                  oracle_text="Pyroclasm deals 2 damage to each creature.")
 KNIGHT = creature("Knight", 3, 3, "W", "Protection from red")

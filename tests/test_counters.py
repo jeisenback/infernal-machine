@@ -12,8 +12,7 @@ GROWTH = REAL["Soldier On"]
 WITHER = Card(name="Wither", mana_cost="{B}", type_line="Instant",
               oracle_text="Put two −1/−1 counters on target creature an opponent controls.")
 RALLY = REAL["Basri's Solidarity"]
-HYDRA = Card(name="Hydra", mana_cost="{G}", type_line="Creature — Hydra", power="0", toughness="0",
-             oracle_text="Trample\nThis creature enters with three +1/+1 counters on it.")
+HYDRA = REAL["Faithful Watchdog"]
 BRUTE = Card(name="Brute", mana_cost="{1}", type_line="Creature — Ogre", power="2", toughness="2",
              oracle_text="Whenever this creature attacks, put a +1/+1 counter on it.")
 
@@ -65,7 +64,7 @@ class CounterTests(unittest.TestCase):
     def test_enters_with_counters(self):
         game, _, _ = table(pick(CAST))
         game.seats[0].hand = [HYDRA]
-        game.seats[0].battlefield = lands(1)
+        game.seats[0].battlefield = lands(2)
         game._priority_round(game.seats[0])
         hydra = game.seats[0].battlefield[-1]
         self.assertEqual((power(hydra), toughness(hydra)), (3, 3))  # a 0/0 that survives

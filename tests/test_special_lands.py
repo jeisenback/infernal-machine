@@ -14,8 +14,7 @@ CITY = REAL["City of Brass"]
 CONFLUENCE = Card(name="Mana Confluence", type_line="Land", produced_mana=("W", "U", "B", "R", "G"),
                   oracle_text="{T}, Pay 1 life: Add one mana of any color.")
 GARDEN = Card(name="Temple Garden", type_line="Land — Forest Plains", produced_mana=("G", "W"))
-SPROUT = Card(name="Sprout", mana_cost="{3}{G}", type_line="Creature — Plant", power="2", toughness="2",
-              oracle_text="Forestcycling {1}")
+SPROUT = REAL["Generous Ent"]
 SEEKER = REAL["Ash Barrens"]
 SPELL = Card(name="Spell", mana_cost="{2}", type_line="Sorcery", oracle_text="Draw a card.")
 
@@ -126,7 +125,7 @@ class LandcyclingTests(unittest.TestCase):
         seat.library = [GARDEN, Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))]
         game._priority_round(seat)
         self.assertEqual([c.name for c in seat.hand], ["Temple Garden"])
-        self.assertEqual([c.name for c in seat.graveyard], ["Sprout"])
+        self.assertEqual([c.name for c in seat.graveyard], ["Generous Ent"])
 
     def test_basic_landcycling_wants_a_basic_land(self):
         game, _, _ = table(pick(CYCLE))
@@ -142,9 +141,9 @@ class LandcyclingTests(unittest.TestCase):
         game, _, _ = table()
         seat = game.seats[0]
         seat.hand = [SPROUT]
-        self.assertNotIn(CYCLE + "Sprout", game.legal_actions(seat))
+        self.assertNotIn(CYCLE + "Generous Ent", game.legal_actions(seat))
         seat.battlefield = lands(1, FOREST)
-        self.assertIn(CYCLE + "Sprout", game.legal_actions(seat))
+        self.assertIn(CYCLE + "Generous Ent", game.legal_actions(seat))
 
 
 if __name__ == "__main__":

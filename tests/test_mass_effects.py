@@ -22,7 +22,7 @@ FLARE = REAL["Steam Blast"]
 ARMAGEDDON = Card(name="Armageddon", mana_cost="{3}{W}", type_line="Sorcery", oracle_text="Destroy all lands.")
 PURGE = REAL["Plague Wind"]
 BANISH = Card(name="Banish All", mana_cost="{4}{W}", type_line="Sorcery", oracle_text="Exile all creatures.")
-EDICT = Card(name="Diabolic Edict", mana_cost="{1}{B}", type_line="Instant", oracle_text="Target opponent sacrifices a creature.")
+EDICT = REAL["Cruel Edict"]
 TRIBUTE = Card(name="Tribute", mana_cost="{1}{B}", type_line="Sorcery", oracle_text="Each opponent sacrifices a creature.")
 SWEEP = Card(name="Fleshbag", mana_cost="{1}{B}", type_line="Sorcery", oracle_text="Each player sacrifices a creature.")
 

@@ -1,7 +1,7 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import Mill, Scry, SearchForLands, Surveil, TargetMill, spell_effects, triggered_abilities
+from infernal_machine.effects import Draw, Mill, Scry, SearchForLands, Surveil, TargetMill, spell_effects, triggered_abilities
 from infernal_machine.game import (CAST, KEEP_ON_TOP, LOOK_PROMPT, NONE_TAKEN, ORDER_TOP_PROMPT, PUT_IN_GRAVEYARD, SCRY_PROMPT, SEARCH_LAND_HAND_PROMPT,
                                    SEARCH_LAND_PROMPT, SURVEIL_PROMPT, Permanent)
 from infernal_machine.report import unsupported_lines
@@ -26,7 +26,7 @@ EXPLOSIVE = Card(name="Explosive Vegetation", mana_cost="{3}{G}", type_line="Sor
                  oracle_text="Search your library for up to two basic land cards, put them onto the battlefield tapped, "
                              "then shuffle.")
 OPT = REAL["Preordain"]
-SURVEIL = Card(name="Consider", mana_cost="{U}", type_line="Instant", oracle_text="Surveil 2.")
+SURVEIL = REAL["Curate"]
 MILL = REAL["Brain Freeze"]
 DREDGE = Card(name="Glimpse", mana_cost="{U}", type_line="Sorcery", oracle_text="Mill three cards.")
 TIDE = Card(name="Tide", mana_cost="{U}", type_line="Sorcery", oracle_text="Each opponent mills 2 cards.")
@@ -53,7 +53,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(spell_effects(NATURES_LORE), [SearchForLands(1, ("Forest",), 1, False, False)])
         self.assertEqual(spell_effects(EXPLOSIVE), [SearchForLands(2, (), 2, True, False)])
         self.assertEqual(spell_effects(OPT), [Scry(2), spell_effects(Card(name="d", oracle_text="Draw a card."))[0]])
-        self.assertEqual(spell_effects(SURVEIL), [Surveil(2)])
+        self.assertEqual(spell_effects(SURVEIL), [Surveil(2), Draw(1)])
         self.assertEqual(spell_effects(MILL)[0], TargetMill(3, "player"))
         self.assertEqual(spell_effects(DREDGE), [Mill(3, "you")])
         self.assertEqual(spell_effects(TIDE), [Mill(2, "each opponent")])
@@ -176,11 +176,11 @@ class ScryAndSurveilTests(unittest.TestCase):
         game, players = table3(choices(1, 0))
         seat = game.seats[0]
         seat.hand = [SURVEIL]
-        seat.battlefield = lands(1)
+        seat.battlefield = lands(2)
         seat.library = [BOLT, BEAR, FOREST]
         game._priority_round(seat)
         self.assertEqual(([c.name for c in seat.library], [c.name for c in seat.graveyard][:1]),
-                         (["Grizzly Bears", "Forest"], ["Lightning Bolt"]))
+                         (["Forest"], ["Lightning Bolt"]))  # the Bear stayed on top, then Curate drew it
         event = next(e for e in players[2].events if e["event"] == "surveil")
         self.assertEqual(event["graveyard"], ["Lightning Bolt"])
         options = next(o for p, o in players[0].prompts if p.startswith(SURVEIL_PROMPT))
@@ -268,10 +268,10 @@ class ReorderAndImpulseTests(unittest.TestCase):
         game, _ = table3(choices(0, 0, 1))
         seat = game.seats[0]
         seat.hand = [SURVEIL]
-        seat.battlefield = lands(1)
+        seat.battlefield = lands(2)
         seat.library = [BOLT, BEAR, FOREST]
         game._priority_round(seat)
-        self.assertEqual([c.name for c in seat.library], ["Grizzly Bears", "Lightning Bolt", "Forest"])
+        self.assertEqual([c.name for c in seat.library], ["Lightning Bolt", "Forest"])  # Bear, Bolt in that order; Curate drew the Bear
 
     def test_look_at_four_takes_one_and_bottoms_the_rest(self):
         game, players = table3(choices(1))
