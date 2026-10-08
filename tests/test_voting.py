@@ -2,7 +2,7 @@ import unittest
 
 from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
-from infernal_machine.effects import Vote, VoteToExile, spell_effects, triggered_abilities
+from infernal_machine.effects import Vote, VoteToExile, spell_effects, triggered_abilities, ward_cost
 from infernal_machine.game import VOTE_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR, creature
@@ -15,9 +15,9 @@ PLEA = Card(name="Plea for Power", mana_cost="{3}{U}", type_line="Sorcery",
                         "three cards.")
 TIVIT = Card(name="Tivit, Seller of Secrets", mana_cost="{3}{W}{U}{B}", type_line="Legendary Creature — Sphinx",
              power="6", toughness="6",
-             oracle_text="Flying\nCouncil's dilemma — When Tivit, Seller of Secrets enters, starting with you, each player "
-                         "votes for evidence or bribery. For each evidence vote, investigate. For each bribery vote, create "
-                         "a Treasure token.")
+             oracle_text="Flying, ward {3}\nCouncil's dilemma — Whenever Tivit, Seller of Secrets enters or deals combat "
+                         "damage to a player, starting with you, each player votes for evidence or bribery. For each "
+                         "evidence vote, investigate. For each bribery vote, create a Treasure token.")
 JUDGMENT = Card(name="Council's Judgment", mana_cost="{1}{W}{W}", type_line="Sorcery",
                 oracle_text="Will of the council — Starting with you, each player votes for a nonland permanent you don't "
                             "control. Exile each permanent with the most votes or tied for most votes.")
@@ -73,6 +73,11 @@ class VoteTests(unittest.TestCase):
         a.library = [FOREST] * 5
         spell_effects(PLEA)[0].resolve(game, a, None)
         self.assertEqual((game.extra_turns, len(a.hand)), ([], 3))
+
+    def test_tivit_votes_on_entering_and_on_combat_damage(self):
+        events = sorted(a.event for a in triggered_abilities(TIVIT))
+        self.assertEqual(events, ["combat_damage_to_player", "enters"])
+        self.assertEqual(ward_cost(TIVIT), "{3}")
 
     def test_voting_starts_with_the_caster_and_is_public(self):
         game, players = table3(lambda prompt, options: 0)
