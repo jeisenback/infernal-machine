@@ -78,12 +78,12 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(additional_costs(THRILL), [AdditionalCost(discard=True)])
         self.assertEqual(additional_costs(BARGAIN), [AdditionalCost(life=3)])
 
-    def test_pay_x_life_is_not_supported(self):
+    def test_pay_x_life(self):
         deluge = Card(name="Toxic Deluge", mana_cost="{2}{B}", type_line="Sorcery", colors=("B",),
                       oracle_text="As an additional cost to cast this spell, pay X life.\n"
                                   "All creatures get -X/-X until end of turn.")
-        self.assertEqual(additional_costs(deluge), [])
-        self.assertIn("As an additional cost to cast this spell, pay X life.", unsupported_lines(deluge))
+        self.assertEqual(additional_costs(deluge), [AdditionalCost(life_x=True)])
+        self.assertEqual(unsupported_lines(deluge), [])
         game, _, _ = table()
         game.seats[0].hand = [deluge]
         game.seats[0].battlefield = battlefield(SWAMP, SWAMP, SWAMP)

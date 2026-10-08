@@ -746,6 +746,24 @@ class PumpEach:
 
 
 @dataclass(frozen=True)
+class PumpEachX:
+    """ "All creatures get -X/-X until end of turn." (Toxic Deluge) / "Creatures you control get +X/+X ...": `power` and
+    `toughness` are multiples of X."""
+    power: int
+    toughness: int
+    opponents: bool = False
+    everyone: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        x = game.amount("X")
+        seats = game.live_seats() if self.everyone else game.opponents(controller) if self.opponents else [controller]
+        for seat in seats:
+            for permanent in list(seat.battlefield):
+                if "Creature" in permanent.card.type_line:
+                    game.modify_until_end_of_turn(permanent, Modifier(self.power * x, self.toughness * x))
+
+
+@dataclass(frozen=True)
 class PumpX:
     """ "Target creature gets +X/+X until end of turn." (X from "for each ..." or "where X is ..."): `power` and
     `toughness` are the multiples of X (1, 0 or -1)."""
@@ -1263,6 +1281,12 @@ def _pump_x(sp: str, px: str, st: str, tx: str, target: str) -> PumpX:
     return PumpX(multiple(sp, px), multiple(st, tx), target)
 
 
+def _pump_each_x(m: re.Match) -> PumpEachX:
+    who = m[1].lower()
+    inner = _pump_x(m[2], m[3], m[4], m[5], "creature")
+    return PumpEachX(inner.power, inner.toughness, opponents=who.endswith("opponents control"), everyone=who == "all creatures")
+
+
 def _create(m: re.Match, follows: bool) -> Any:
     parsed = _token(m[1] + '."' if m[2] else m[1])  # a quoted ability's own full stop comes before its closing quote
     if parsed is None:
@@ -1278,7 +1302,7 @@ class MassFilter:
     keyword_wanted: bool = True  # False: "without flying"
     stat: str | None = None  # "power" or "toughness"
     at_least: int | None = None  # "with power 4 or greater"
-    at_most: int | None = None  # "with toughness 2 or less"
+    at_most: "int | str | None" = None  # "with toughness 2 or less"; "X" is the X of the spell or ability
     color: str | None = None  # a color letter
     other_color: bool = False  # "nonblack": every one that isn't that color
     token: bool | None = None  # True: "creature tokens"; False: "nontoken creatures"
@@ -2412,6 +2436,7 @@ class AdditionalCost:
     sacrifice: str | None = None  # the kind of permanent: "creature", "artifact or creature", ...
     discard: bool = False
     life: int = 0
+    life_x: bool = False  # "pay X life" (Toxic Deluge): X is chosen as the spell is cast
 
 
 _KICKER = re.compile(r"(?:Multik|K)icker ((?:\{\d+\}|\{[WUBRGC]\})+)")
@@ -2419,7 +2444,7 @@ _FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast thi
 _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life and )?exile an? ({_COLOR_NAMES}) card "
                     r"from your hand rather than pay this spell's mana cost\.")
 _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
-                         rf"creature|permanent)|(discard a card)|pay (?!X ){_N} life)\.")  # "pay X life" (Toxic Deluge) isn't supported
+                         rf"creature|permanent)|(discard a card)|pay {_N} life)\.")
 _ENTWINE = re.compile(r"Entwine ((?:\{[^}]+\})+)")
 _ESCALATE = re.compile(r"Escalate ((?:\{[^}]+\})+)")  # "Escalate\u2014Discard a card." (a cost that isn't mana) isn't supported
 _FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
@@ -2507,7 +2532,9 @@ def additional_costs(card: Card) -> list[AdditionalCost]:
     costs = []
     for line in rules_lines(card):
         if m := _ADDITIONAL.fullmatch(line):
-            costs.append(AdditionalCost(sacrifice=m[1], discard=bool(m[2]), life=_count(m[3]) if m[3] else 0))
+            life_x = (m[3] or "").upper() == "X"
+            costs.append(AdditionalCost(sacrifice=m[1], discard=bool(m[2]), life=0 if life_x or not m[3] else _count(m[3]),
+                                        life_x=life_x))
     return costs
 
 
@@ -2638,6 +2665,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
     (re.compile(rf"destroy (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[2].lower(), bool(m[1]))),
     (re.compile(rf"destroy each {_PERMANENT_KIND}\.", re.I), lambda m: DestroyAll(m[1].lower())),
+    (re.compile(r"destroy each artifact, creature, and enchantment with mana value X or less\.", re.I),
+     lambda m: DestroyAll("artifact or creature or enchantment", MassFilter(stat="mana_value", at_most="X"))),
     (re.compile(rf"exile each {_PERMANENT_KIND}\.", re.I), lambda m: ExileAll(m[1].lower())),
     (re.compile(rf"return each {_PERMANENT_KIND} to its owner's hand\.", re.I), lambda m: ReturnAllToHand(m[1].lower())),
     (re.compile(rf"destroy {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Destroy, m)),
@@ -2869,6 +2898,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (creature(?: an opponent controls| you control)?) has base power and toughness (\d+)/(\d+)"
                 r" until end of turn\.", re.I),
      lambda m: Pump(Modifier(0, 0, frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
+    (re.compile(rf"(?i:(all creatures|creatures you control|creatures your opponents control)) get {_PT_X} until end of turn\."),
+     lambda m: _pump_each_x(m)),
     (re.compile(rf"(?i:creatures your opponents control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), opponents=True)),
     (re.compile(rf"(?i:all creatures) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), everyone=True)),
     (re.compile(rf"move (?:{_N}|all) {_COUNTER} from target (creature) onto another target (creature)\.", re.I),

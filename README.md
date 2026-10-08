@@ -148,6 +148,10 @@ winner = game.play()
     or creature / a land / a permanent", "discard a card" or "pay N life". They're paid after mana, so a creature
     that tapped for mana can still be sacrificed. Effects that read the paid cost ("the sacrificed creature's
     power") aren't supported.
+    "Pay X life" (Toxic Deluge) is chosen as you cast: any amount that leaves you with at least 1 life, and the
+    spell's X is that amount ("All creatures get -X/-X until end of turn"; also "Creatures you control get +X/+X" and
+    "Creatures your opponents control get -X/-X"). The bot pays up to 3. "{X}, Sacrifice this enchantment: Destroy each
+    artifact, creature, and enchantment with mana value X or less." (Pernicious Deed) takes its X from the activation.
 - **Commander tax:** your commander costs {2} more for each earlier cast from the command zone.
   When your commander would go to the graveyard, you choose whether it goes back to the command zone instead.
 - **The stack:** spells go on the stack and resolve last in, first out once everyone passes in a row.
