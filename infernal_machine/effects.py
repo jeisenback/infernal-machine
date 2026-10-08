@@ -164,10 +164,44 @@ class WardCounter:
 class Counter:
     target: str = "spell"
     exile: bool = False  # "exile it instead of putting it into its owner's graveyard"
+    delayed_mana: bool = False  # Mana Drain: at your next main phase, add {C} equal to that spell's mana value
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
+            if self.delayed_mana:
+                controller.delayed_mana += int(target.card.cmc) + target.x
             game.counter(target, self.exile)
+
+
+@dataclass(frozen=True)
+class _DelayedMana:
+    """Mana Drain's second sentence (see _merge_exile)."""
+
+
+@dataclass(frozen=True)
+class ChaosWarp:
+    """ "The owner of target permanent shuffles it into their library, then reveals the top card of their library. If it's
+    a permanent card, they put it onto the battlefield." """
+    target: str = "permanent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.chaos_warp(target)
+
+
+@dataclass(frozen=True)
+class _ChaosPut:
+    """Chaos Warp's second sentence (see _merge_mana_drain)."""
+
+
+@dataclass(frozen=True)
+class PutSourceOnLibraryTop:
+    """Sensei's Divining Top: "... then put this artifact on top of its owner's library." """
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.put_on_library_top(target)
 
 
 @dataclass(frozen=True)
@@ -2473,6 +2507,21 @@ def is_multikicker(card: Card) -> bool:
     return any(line.startswith("Multikicker ") and _KICKER.fullmatch(line) for line in rules_lines(card))
 
 
+_CUMULATIVE_UPKEEP = re.compile(r"Cumulative upkeep ((?:\{[^}]+\})+)")
+
+
+def cumulative_upkeep(card: Card) -> str | None:
+    """Mystic Remora: the mana to pay for each age counter at the beginning of your upkeep, or None."""
+    for line in rules_lines(card):
+        if m := _CUMULATIVE_UPKEEP.fullmatch(line):
+            return m[1]
+    return None
+
+
+def is_cumulative_upkeep_line(line: str) -> bool:
+    return _CUMULATIVE_UPKEEP.fullmatch(line) is not None
+
+
 _EVOKE = re.compile(r"Evoke ((?:\{[^}]+\})+)")
 _OVERLOAD = re.compile(r"Overload ((?:\{[^}]+\})+)")
 
@@ -2681,6 +2730,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell", exile=True)),
     (re.compile(r"if that spell is countered this way, exile it instead of putting it into its owner's graveyard\.", re.I),
      lambda m: ExileInstead()),
+    (re.compile(r"at the beginning of your next main phase, add an amount of \{C\} equal to that spell's mana value\.", re.I),
+     lambda m: _DelayedMana()),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}, then return (?:it|that card) to the battlefield under "
                 r"(your|its owner's) control\.", re.I),
      lambda m: Flicker(m[2].lower(), under_owner=m[3].lower() != "your", another=bool(m[1]))),
@@ -2745,6 +2796,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"search your library for an? {_LAND_TYPES} card, put (?:it|that card) onto the battlefield( tapped)?, "
                 r"then shuffle\.", re.I),
      lambda m: SearchForLands(1, _land_types(m[1]), 1, bool(m[2]), False)),
+    (re.compile(r"the owner of target permanent shuffles it into their library, then reveals the top card of their library\.",
+                re.I), lambda m: ChaosWarp()),
+    (re.compile(r"if it's a permanent card, they put it onto the battlefield\.", re.I), lambda m: _ChaosPut()),
+    (re.compile(rf"draw a card, then put {_SELF} on top of its owner's library\.", re.I),
+     lambda m: [Draw(1), PutSourceOnLibraryTop()]),
     (re.compile(rf"scry {_N}\.", re.I), lambda m: Scry(_count(m[1]))),
     (re.compile(rf"scry {_N}, then draw (?:a card|{_N} cards)\.", re.I),
      lambda m: [Scry(_count(m[1])), Draw(_count(m[2] or "a"))]),
@@ -2996,6 +3052,23 @@ def _template(sentence: str) -> Any:
     return None
 
 
+def _merge_mana_drain(effects: list) -> list | None:
+    """Mana Drain's second sentence belongs to the Counter before it, and Chaos Warp's to its ChaosWarp; alone they
+    aren't understood."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, _ChaosPut):
+            if not (merged and isinstance(merged[-1], ChaosWarp)):
+                return None
+        elif isinstance(effect, _DelayedMana):
+            if not (merged and isinstance(merged[-1], Counter)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], delayed_mana=True)
+        else:
+            merged.append(effect)
+    return merged
+
+
 def _merge_exile(effects: list) -> list | None:
     """Counter + "exile it instead" is one Counter(exile); Exile + "return it at the beginning of the next end step" is
     one Flicker; ExileTop + "you may play it" is one ExileTop(play). A leftover second half isn't understood."""
@@ -3144,7 +3217,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
