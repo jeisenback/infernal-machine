@@ -26,7 +26,7 @@ EXPLOSIVE = Card(name="Explosive Vegetation", mana_cost="{3}{G}", type_line="Sor
                              "then shuffle.")
 OPT = Card(name="Preordain", mana_cost="{U}", type_line="Sorcery", oracle_text="Scry 2.\nDraw a card.")
 SURVEIL = Card(name="Consider", mana_cost="{U}", type_line="Instant", oracle_text="Surveil 2.")
-MILL = Card(name="Mind Funeral", mana_cost="{1}{U}", type_line="Sorcery", oracle_text="Target opponent mills 3 cards.")
+MILL = Card(name="Test Mind Funeral", mana_cost="{1}{U}", type_line="Sorcery", oracle_text="Target opponent mills 3 cards.")
 DREDGE = Card(name="Glimpse", mana_cost="{U}", type_line="Sorcery", oracle_text="Mill three cards.")
 TIDE = Card(name="Tide", mana_cost="{U}", type_line="Sorcery", oracle_text="Each opponent mills 2 cards.")
 WIZARD = Card(name="Wizard", mana_cost="{U}", type_line="Creature — Wizard", power="1", toughness="1",

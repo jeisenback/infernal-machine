@@ -13,7 +13,7 @@ from tests.test_real_oracle import REAL
 
 TOP = Card(name="Sensei's Divining Top", mana_cost="{1}", type_line="Artifact",
            oracle_text="{1}: Look at the top three cards of your library, then put them back in any order.")
-FLOCKING = Card(name="Furygale Flocking", mana_cost="{8}{R}{R}", type_line="Sorcery",
+FLOCKING = Card(name="Test Furygale Flocking", mana_cost="{8}{R}{R}", type_line="Sorcery",
                 oracle_text="This spell costs {1} less to cast for each instant and sorcery card in your graveyard.\n"
                             "Draw a card.")
 BOLT = Card(name="Bolt", mana_cost="{R}", type_line="Instant", oracle_text="Draw a card.")

@@ -15,7 +15,7 @@ CRYPT = Card(name="Tormod's Crypt", mana_cost="{0}", type_line="Artifact",
              oracle_text="{T}, Sacrifice Tormod's Crypt: Exile target player's graveyard.")
 BANISHER = Card(name="Banisher", mana_cost="{2}{W}", type_line="Creature — Human", power="2", toughness="2",
                 oracle_text="When this creature enters, exile target nonland permanent an opponent controls.")
-EXORCIST = Card(name="Exorcist", mana_cost="{W}", type_line="Instant",
+EXORCIST = Card(name="Test Exorcist", mana_cost="{W}", type_line="Instant",
                 oracle_text="Exile target artifact or enchantment you control.")
 OGRE = Card(name="Ogre", mana_cost="{3}", type_line="Creature — Ogre", power="3", toughness="3")
 COMMANDER = Card(name="Omnath", mana_cost="{G}", type_line="Legendary Creature — Elemental", power="4", toughness="4")

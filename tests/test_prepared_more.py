@@ -19,7 +19,7 @@ WAYPOINT = Card(name="Skycoach Waypoint", type_line="Land",
 ARENA = Card(name="Hexhaven Dueling Arena", type_line="Land",
              oracle_text="{T}: Add {C}.\n{2}, {T}: Target creature that attacked this turn becomes prepared. Activate "
                          "only as a sorcery.\n{4}, {T}: Target creature becomes prepared.")
-CODIE = Card(name="Codie, Ravenous Codex", mana_cost="{3}", type_line="Legendary Artifact Creature — Book Construct",
+CODIE = Card(name="Test Codie, Ravenous Codex", mana_cost="{3}", type_line="Legendary Artifact Creature — Book Construct",
              oracle_text="{W}{U}{B}{R}{G}, {T}: Each creature you control becomes prepared.")
 SHAPER = Card(name="Paradox Shaper // Quick Study", mana_cost="{1}", type_line="Creature — Octopus Wizard",
               oracle_text="At the beginning of your upkeep, if this creature isn't prepared, it becomes prepared.",

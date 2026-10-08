@@ -13,11 +13,11 @@ WATCHMAN = Card(name="Watchman", mana_cost="{W}", type_line="Enchantment",
                 oracle_text="At the beginning of each end step, you gain 1 life.")
 DRUMMER = Card(name="Drummer", mana_cost="{R}", type_line="Enchantment",
                oracle_text="At the beginning of combat on your turn, you gain 1 life.")
-DINA = Card(name="Dina, Soul Steeper", mana_cost="{B}{G}", type_line="Legendary Creature — Dryad Druid",
+DINA = Card(name="Test Dina, Soul Steeper", mana_cost="{B}{G}", type_line="Legendary Creature — Dryad Druid",
             power="1", toughness="3", oracle_text="Whenever you gain life, each opponent loses 1 life.")
 MOURNER = Card(name="Mourner", mana_cost="{B}", type_line="Enchantment",
                oracle_text="Whenever you lose life, draw a card.")
-ABOMINATION = creature("Abomination", 4, 3, "Whenever you sacrifice a creature, draw a card.")
+ABOMINATION = creature("Test Abomination", 4, 3, "Whenever you sacrifice a creature, draw a card.")
 HARNESS = Card(name="Harness", mana_cost="{1}", type_line="Artifact — Equipment",
                oracle_text="When this Equipment enters, draw a card.\nEquip {1}")
 TREASURE = Card(name="Treasure", type_line="Token Artifact — Treasure",

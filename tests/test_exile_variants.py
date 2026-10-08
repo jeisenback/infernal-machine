@@ -18,12 +18,12 @@ def spell(name, text, kind="Instant", cost="{U}"):
 EXILE_SPELL = spell("Spell Eater", "Exile target spell.")
 DISSIPATE = spell("Dissipate", "Counter target spell. If that spell is countered this way, exile it instead of putting it "
                               "into its owner's graveyard.")
-LIGHT = spell("Light Up the Stage", "Exile the top two cards of your library. Until the end of your next turn, you may play "
+LIGHT = spell("Test Light Up the Stage", "Exile the top two cards of your library. Until the end of your next turn, you may play "
                                     "those cards.", "Sorcery")
 IMPULSE = spell("Impulse", "Exile the top card of your library. You may play it this turn.", "Sorcery")
 CLOUDSHIFT = spell("Cloudshift", "Exile target creature you control, then return that card to the battlefield under your "
                                  "control.")
-EPHEMERATE = spell("Ephemerate", "Exile target creature you control, then return it to the battlefield under its owner's "
+EPHEMERATE = spell("Test Ephemerate", "Exile target creature you control, then return it to the battlefield under its owner's "
                                  "control.")
 FLICKER = spell("Flicker Away", "Exile target creature. Return it to the battlefield under its owner's control at the "
                                 "beginning of the next end step.")

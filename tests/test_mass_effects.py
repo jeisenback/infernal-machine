@@ -17,10 +17,10 @@ WRATH = Card(name="Wrath of God", mana_cost="{2}{W}{W}", type_line="Sorcery",
 PYROCLASM = Card(name="Pyroclasm", mana_cost="{1}{R}", type_line="Sorcery",
                  oracle_text="Pyroclasm deals 2 damage to each creature.")
 VORTEX = Card(name="Vortex", mana_cost="{1}{R}", type_line="Sorcery", oracle_text="Vortex deals 3 damage to each opponent.")
-FLARE = Card(name="Flare", mana_cost="{1}{R}", type_line="Sorcery",
-             oracle_text="Flare deals 2 damage to each creature and each player.")
+FLARE = Card(name="Test Flare", mana_cost="{1}{R}", type_line="Sorcery",
+             oracle_text="Test Flare deals 2 damage to each creature and each player.")
 ARMAGEDDON = Card(name="Armageddon", mana_cost="{3}{W}", type_line="Sorcery", oracle_text="Destroy all lands.")
-PURGE = Card(name="Purge", mana_cost="{3}{W}", type_line="Sorcery", oracle_text="Destroy all creatures you don't control.")
+PURGE = Card(name="Test Purge", mana_cost="{3}{W}", type_line="Sorcery", oracle_text="Destroy all creatures you don't control.")
 BANISH = Card(name="Banish All", mana_cost="{4}{W}", type_line="Sorcery", oracle_text="Exile all creatures.")
 EDICT = Card(name="Diabolic Edict", mana_cost="{1}{B}", type_line="Instant", oracle_text="Target opponent sacrifices a creature.")
 TRIBUTE = Card(name="Tribute", mana_cost="{1}{B}", type_line="Sorcery", oracle_text="Each opponent sacrifices a creature.")

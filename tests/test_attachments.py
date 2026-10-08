@@ -19,7 +19,7 @@ PACIFISM = Card(name="Pacifism", mana_cost="{1}{W}", type_line="Enchantment — 
                 oracle_text="Enchant creature\nEnchanted creature can't attack or block.")
 ARMOR = Card(name="Armor", mana_cost="{1}{W}", type_line="Enchantment — Aura",
              oracle_text="Enchant creature you control\nEnchanted creature gets +2/+2 and has vigilance.")
-GROWTH = Card(name="Wild Growth", mana_cost="{G}", type_line="Enchantment — Aura", oracle_text="Enchant land")
+GROWTH = Card(name="Test Wild Growth", mana_cost="{G}", type_line="Enchantment — Aura", oracle_text="Enchant land")
 
 
 def equip(game, seat, name):

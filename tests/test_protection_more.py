@@ -29,7 +29,7 @@ BLUE_ARTIFACT = Card(name="Blue Thing", mana_cost="{2}", type_line="Artifact Cre
                      power="1", toughness="1")
 GOLD_CREATURE = Card(name="Gold", mana_cost="{R}{G}", type_line="Creature — Test", colors=("R", "G"), power="2", toughness="2")
 COLORLESS_ARTIFACT = Card(name="Rock", mana_cost="{1}", type_line="Artifact")
-SORCERY = Card(name="Hex", mana_cost="{B}", type_line="Sorcery", colors=("B",), oracle_text="Destroy target creature.")
+SORCERY = Card(name="Test Hex", mana_cost="{B}", type_line="Sorcery", colors=("B",), oracle_text="Destroy target creature.")
 
 
 class QualityTests(unittest.TestCase):

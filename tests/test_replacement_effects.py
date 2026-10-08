@@ -10,7 +10,7 @@ from tests.test_effects import DIVINATION, lands, pick, table
 RIP = Card(name="Rest in Peace", mana_cost="{1}{W}", type_line="Enchantment",
            oracle_text="When Rest in Peace enters the battlefield, exile all cards from all graveyards.\n"
                        "If a card or token would be put into a graveyard from anywhere, exile it instead.")
-LEYLINE = Card(name="Leyline of the Void", mana_cost="{2}{B}{B}", type_line="Enchantment",
+LEYLINE = Card(name="Test Leyline of the Void", mana_cost="{2}{B}{B}", type_line="Enchantment",
                oracle_text="If a card would be put into an opponent's graveyard from anywhere, exile it instead.")
 SEASON = Card(name="Doubling Season", mana_cost="{4}{G}", type_line="Enchantment",
               oracle_text="If an effect would create one or more tokens under your control, it creates twice that many "
@@ -22,7 +22,7 @@ LIVES = Card(name="Parallel Lives", mana_cost="{3}{G}", type_line="Enchantment",
 SCALES = Card(name="Hardened Scales", mana_cost="{G}", type_line="Enchantment",
               oracle_text="If one or more +1/+1 counters would be put on a creature you control, that many plus one "
                           "+1/+1 counters are put on it instead.")
-PANH = Card(name="Panharmonicon", mana_cost="{4}", type_line="Artifact",
+PANH = Card(name="Test Panharmonicon", mana_cost="{4}", type_line="Artifact",
             oracle_text="If an artifact or creature entering the battlefield causes a triggered ability of a permanent "
                         "you control to trigger, that ability triggers an additional time.")
 YAROK = Card(name="Yarok", mana_cost="{2}{B}{G}{U}", type_line="Legendary Creature — Elemental", power="3", toughness="5",

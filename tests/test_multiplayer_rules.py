@@ -11,8 +11,8 @@ from tests.test_mass_effects import table3
 
 TIME_WALK = Card(name="Time Walk", mana_cost="{1}{U}", type_line="Sorcery", oracle_text="Take an extra turn after this one.")
 ISLAND = Card(name="Island", type_line="Basic Land", produced_mana=("U",))
-PALACE = creature("Palace Jailer", 2, 2, "When CARDNAME enters, you become the monarch.")
-ROPE = Card(name="Rope", mana_cost="{1}{R}", type_line="Sorcery", oracle_text="Goad target creature.")
+PALACE = creature("Test Palace Jailer", 2, 2, "When CARDNAME enters, you become the monarch.")
+ROPE = Card(name="Test Rope", mana_cost="{1}{R}", type_line="Sorcery", oracle_text="Goad target creature.")
 RELENTLESS = Card(name="Relentless Assault", mana_cost="{2}{R}{R}", type_line="Sorcery",
                   oracle_text="Untap all creatures that attacked this turn. After this main phase, there is an "
                               "additional combat phase followed by an additional main phase.")

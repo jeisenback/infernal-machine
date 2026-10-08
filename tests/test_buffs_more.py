@@ -9,22 +9,22 @@ from tests.test_combat import BEAR, OGRE
 from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
 
-SHIFT = Card(name="Bioshift", mana_cost="{U}", type_line="Instant",
+SHIFT = Card(name="Test Bioshift", mana_cost="{U}", type_line="Instant",
              oracle_text="Move a +1/+1 counter from target creature onto another target creature.")
 SHIFT_ALL = Card(name="Shift All", mana_cost="{U}", type_line="Instant",
                  oracle_text="Move all +1/+1 counters from target creature onto another target creature.")
-SCALE = Card(name="Rally", mana_cost="{U}", type_line="Instant",
+SCALE = Card(name="Test Rally", mana_cost="{U}", type_line="Instant",
              oracle_text="Target creature gets +2/+1 until end of turn for each creature you control.")
 TREETOP = Card(name="Treetop Village", type_line="Land",
                oracle_text="{T}: Add {G}.\n{1}{G}: Until end of turn, Treetop Village becomes a 3/3 green Ape creature "
                            "with trample. It's still a land.")
-NEXUS = Card(name="Blinkmoth Nexus", type_line="Land",
-             oracle_text="{T}: Add {C}.\n{1}: Until end of turn, Blinkmoth Nexus becomes a 1/1 Blinkmoth artifact creature "
+NEXUS = Card(name="Test Blinkmoth Nexus", type_line="Land",
+             oracle_text="{T}: Add {C}.\n{1}: Until end of turn, Test Blinkmoth Nexus becomes a 1/1 Blinkmoth artifact creature "
                          "with flying. It's still a land.")
 MUTAVAULT = Card(name="Mutavault", type_line="Land",
                  oracle_text="{T}: Add {C}.\n{1}: Until end of turn, Mutavault becomes a 2/2 creature with all creature "
                              "types. It's still a land.")
-AWAKEN = Card(name="Rouse", mana_cost="{G}", type_line="Instant",
+AWAKEN = Card(name="Test Rouse", mana_cost="{G}", type_line="Instant",
               oracle_text="Target land you control becomes a 3/3 Elemental creature with haste until end of turn. "
                           "It's still a land.")
 

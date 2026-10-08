@@ -19,7 +19,7 @@ ZULAPORT = Card(name="Zulaport", mana_cost="{B}", type_line="Creature — Human"
                 oracle_text="Whenever Zulaport or another creature you control dies, each opponent loses 1 life.")
 MONK = Card(name="Monk", mana_cost="{U}", type_line="Creature — Human Monk", power="1", toughness="1",
             oracle_text="Whenever you cast a noncreature spell, put a +1/+1 counter on each creature you control.")
-CRUSADE = Card(name="Crusade", mana_cost="{W}", type_line="Enchantment",
+CRUSADE = Card(name="Test Crusade", mana_cost="{W}", type_line="Enchantment",
                oracle_text="Whenever another creature you control enters, put a +1/+1 counter on it.")
 
 

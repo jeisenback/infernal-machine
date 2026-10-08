@@ -15,17 +15,17 @@ PASSAGE = Card(name="Rogue's Passage", type_line="Land",
 STEELBANE = Card(name="Steelbane Hydra", mana_cost="{X}{G}", type_line="Creature — Hydra", power="0", toughness="0",
                  oracle_text="This creature enters with X +1/+1 counters on it.\n{2}{G}, Remove a +1/+1 counter from this "
                              "creature: Destroy target artifact or enchantment.")
-BENEVOLENT = Card(name="Benevolent Hydra", mana_cost="{X}{G}", type_line="Creature — Hydra", power="0", toughness="0",
+BENEVOLENT = Card(name="Test Benevolent Hydra", mana_cost="{X}{G}", type_line="Creature — Hydra", power="0", toughness="0",
                   oracle_text="{T}, Remove a +1/+1 counter from this creature: Put a +1/+1 counter on another target "
                               "creature you control.")
-STAFF = Card(name="Staff of the Storyteller", mana_cost="{3}", type_line="Artifact",
+STAFF = Card(name="Test Staff of the Storyteller", mana_cost="{3}", type_line="Artifact",
              oracle_text="{W}, {T}, Remove a story counter from this artifact: Draw a card.")
-GYOME = Card(name="Gyome, Master Chef", mana_cost="{3}{G}", type_line="Legendary Creature — Troll Warlock", power="3", toughness="3",
+GYOME = Card(name="Test Gyome, Master Chef", mana_cost="{3}{G}", type_line="Legendary Creature — Troll Warlock", power="3", toughness="3",
              oracle_text="{1}, Sacrifice a Food: Target creature gains indestructible until end of turn. Tap it.")
 HALL = Card(name="Hall of Oracles", type_line="Land",
             oracle_text="{T}: Put a +1/+1 counter on target creature. Activate only as a sorcery and only if you've cast "
                         "an instant or sorcery spell this turn.")
-MISTVEIL = Card(name="Mistveil Plains", type_line="Land",
+MISTVEIL = Card(name="Test Mistveil Plains", type_line="Land",
                 oracle_text="{W}, {T}: Draw a card. Activate only if you control two or more white permanents.")
 RELIC = Card(name="Relic", type_line="Artifact", oracle_text="")
 IDOL = Card(name="Idol", type_line="Artifact", oracle_text="")

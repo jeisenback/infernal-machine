@@ -17,7 +17,7 @@ LIEGE = creature("Balefire Liege", "Other red creatures you control get +1/+1.\n
                  "Creature — Elemental Knight", ("R", "W"))
 RED_BEAR = creature("Red Bear", colors=("R",))
 GREEN_BEAR = creature("Green Bear", colors=("G",))
-HOFRI = creature("Hofri Ghostforge", "Spirits you control get +1/+1 and have trample and haste.",
+HOFRI = creature("Test Hofri Ghostforge", "Spirits you control get +1/+1 and have trample and haste.",
                  "Legendary Creature — Dwarf Cleric", ("R",))
 SPIRIT = creature("Spirit", types="Token Creature — Spirit", colors=("W",), power="1", toughness="1")
 MOUND = creature("Blight Mound", "Attacking Pests you control get +1/+0 and have menace.", "Creature — Pest", ("B",))
@@ -28,12 +28,12 @@ WIGHT = creature("Wight of the Reliquary", "This creature gets +1/+1 for each cr
                  "Creature — Vampire Skeleton", ("B",), "1", "1")
 SPIRITDANCER = creature("Kor Spiritdancer", "This creature gets +2/+2 for each Aura attached to it.", "Creature — Kor Wizard",
                         ("W",), "0", "2")
-REVERIE = Card(name="Sage's Reverie", type_line="Enchantment — Aura", oracle_text="Enchant creature\nEnchanted creature gets +1/+1 "
+REVERIE = Card(name="Test Sage's Reverie", type_line="Enchantment — Aura", oracle_text="Enchant creature\nEnchanted creature gets +1/+1 "
                "for each Aura you control that's attached to a creature.")
-BLESSING = Card(name="Blessing", type_line="Enchantment — Aura", oracle_text="Enchant creature")
+BLESSING = Card(name="Test Blessing", type_line="Enchantment — Aura", oracle_text="Enchant creature")
 IMPETUS = Card(name="Ghoulish Impetus", type_line="Enchantment — Aura",
                oracle_text="Enchant creature\nEnchanted creature gets +1/+1, has deathtouch, and is goaded.")
-MARTIAL = Card(name="Martial Impetus", type_line="Enchantment — Aura",
+MARTIAL = Card(name="Test Martial Impetus", type_line="Enchantment — Aura",
                oracle_text="Enchant creature\nEnchanted creature gets +1/+1 and is goaded.")
 TRINKET = Card(name="Trinket", type_line="Artifact")
 GRAVE_BEAR = creature("Grave Bear")

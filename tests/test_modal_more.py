@@ -18,12 +18,12 @@ SWEEP = Card(name="Sweep", mana_cost="{1}{B}", type_line="Sorcery",
 STEP_UP = Card(name="Step Up", mana_cost="{U}", type_line="Sorcery",
                oracle_text="Escalate {1}\nChoose one or more —\n• You gain 2 life.\n• Draw a card.\n"
                            "• Each opponent loses 1 life.")
-PRINCE = Card(name="Charming Prince", mana_cost="{2}{W}", type_line="Creature — Human Cleric", power="2", toughness="2",
-              oracle_text="When Charming Prince enters, choose one —\n• You gain 3 life.\n• Draw a card.")
+PRINCE = Card(name="Test Charming Prince", mana_cost="{2}{W}", type_line="Creature — Human Cleric", power="2", toughness="2",
+              oracle_text="When Test Charming Prince enters, choose one —\n• You gain 3 life.\n• Draw a card.")
 HUNTER = Card(name="Cunning Hunter", mana_cost="{2}", type_line="Creature — Elf", power="1", toughness="1",
               oracle_text="When Cunning Hunter enters, choose one —\n• Destroy target artifact.\n"
                           "• Destroy target enchantment.")
-WELL = Card(name="Wishing Well", mana_cost="{2}", type_line="Artifact",
+WELL = Card(name="Test Wishing Well", mana_cost="{2}", type_line="Artifact",
             oracle_text="{T}: Choose one —\n• You gain 2 life.\n• Draw a card.")
 BREAKER = Card(name="Breaker", mana_cost="{2}", type_line="Artifact",
                oracle_text="{T}: Choose one —\n• Destroy target creature.\n• Destroy target enchantment.")

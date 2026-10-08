@@ -10,7 +10,7 @@ from tests.test_mass_effects import table3
 
 PORT = Card(name="Scorched Geyser", type_line="Land", produced_mana=("U", "R"),
             oracle_text="This land enters tapped unless you control two or more basic lands.\n{T}: Add {U} or {R}.")
-ISLANDS = Card(name="Mystic Sanctuary", type_line="Land — Island", produced_mana=("U",),
+ISLANDS = Card(name="Test Mystic Sanctuary", type_line="Land — Island", produced_mana=("U",),
                oracle_text="({T}: Add {U}.)\nThis land enters tapped unless you control three or more other Islands.")
 TURBULENT = Card(name="Turbulent Fen", type_line="Land", produced_mana=("B", "G"),
                  oracle_text="This land enters tapped unless your opponents control eight or more lands.\n"

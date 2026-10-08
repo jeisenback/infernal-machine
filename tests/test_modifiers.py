@@ -14,7 +14,7 @@ WEAKEN = Card(name="Disfigure", mana_cost="{B}", type_line="Instant",
               oracle_text="Target creature gets −2/−2 until end of turn.")
 OVERRUN = Card(name="Overrun", mana_cost="{G}", type_line="Sorcery",
                oracle_text="Creatures you control get +3/+3 and gain trample until end of turn.")
-PROTECT = Card(name="Protect", mana_cost="{G}", type_line="Instant",
+PROTECT = Card(name="Test Protect", mana_cost="{G}", type_line="Instant",
                oracle_text="Target creature you control gains hexproof and indestructible until end of turn.")
 DRAGON = Card(name="Shivan Dragon", mana_cost="{R}", type_line="Creature — Dragon", power="5", toughness="5",
               oracle_text="Flying\n{R}: Shivan Dragon gets +1/+0 until end of turn.")

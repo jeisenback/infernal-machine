@@ -18,14 +18,14 @@ def sorcery(name, text):
 MIND_ROT = sorcery("Mind Rot", "Target player discards two cards.")
 HYMN = sorcery("Hymn", "Target opponent discards two cards at random.")
 SYPHON = sorcery("Syphon", "Each opponent discards a card.")
-WINDFALL = sorcery("Windfall", "Each player discards their hand.")
+WINDFALL = sorcery("Test Windfall", "Each player discards their hand.")
 WHEEL = sorcery("Wheel", "Each player discards their hand, then draws seven cards.")
 LOOTING = sorcery("Looting", "Draw two cards, then discard two cards.")
 DURESS = sorcery("Duress", "Target opponent reveals their hand. You choose a noncreature, nonland card from it. That "
                            "player discards that card.")
 THOUGHTSEIZE = sorcery("Thoughtseize", "Target player reveals their hand. You choose a nonland card from it. That player "
                                        "discards that card. You lose 2 life.")
-INQUISITION = sorcery("Inquisition", "Target player reveals their hand. You choose a nonland card with mana value 3 or "
+INQUISITION = sorcery("Test Inquisition", "Target player reveals their hand. You choose a nonland card with mana value 3 or "
                                      "less from it. That player discards that card.")
 WRAITH = Card(name="Wraith", mana_cost="{B}", type_line="Enchantment",
               oracle_text="Whenever an opponent draws a card, that player discards a card.")

@@ -12,7 +12,7 @@ from tests.test_real_oracle import REAL
 
 LAND = Card(name="Wastes", type_line="Basic Land", produced_mana=("C",))
 BOLT = Card(name="Bolt", mana_cost="{R}", type_line="Instant", oracle_text="Draw a card.")
-BLESSING = Card(name="Blessing", mana_cost="{1}", type_line="Enchantment — Aura", oracle_text="Enchant creature")
+BLESSING = Card(name="Test Blessing", mana_cost="{1}", type_line="Enchantment — Aura", oracle_text="Enchant creature")
 TOKEN = Card(name="Spirit", type_line="Token Creature — Spirit", power="1", toughness="1")
 
 

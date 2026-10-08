@@ -19,7 +19,7 @@ CONFLUENCE = Card(name="Mana Confluence", type_line="Land", produced_mana=("W", 
 GARDEN = Card(name="Temple Garden", type_line="Land — Forest Plains", produced_mana=("G", "W"))
 SPROUT = Card(name="Sprout", mana_cost="{3}{G}", type_line="Creature — Plant", power="2", toughness="2",
               oracle_text="Forestcycling {1}")
-SEEKER = Card(name="Seeker", mana_cost="{3}{G}", type_line="Creature — Elf", power="2", toughness="2",
+SEEKER = Card(name="Test Seeker", mana_cost="{3}{G}", type_line="Creature — Elf", power="2", toughness="2",
               oracle_text="Basic landcycling {1}")
 SPELL = Card(name="Spell", mana_cost="{2}", type_line="Sorcery", oracle_text="Draw a card.")
 
@@ -140,7 +140,7 @@ class LandcyclingTests(unittest.TestCase):
         seat.library = [GARDEN]
         game._priority_round(seat)
         self.assertEqual(seat.hand, [])  # no basic land to find
-        self.assertEqual([c.name for c in seat.graveyard], ["Seeker"])
+        self.assertEqual([c.name for c in seat.graveyard], ["Test Seeker"])
 
     def test_it_is_offered_only_when_affordable(self):
         game, _, _ = table()
