@@ -25,7 +25,8 @@ from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
-                      enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, no_max_hand_size, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
+                      enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count, no_max_hand_size,
+                      self_cost_reduction, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
@@ -112,6 +113,8 @@ KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 LOOT_PROMPT = "Discard a card to draw a card? "
+SHUFFLE_PROMPT = "Shuffle your library? "
+PUT_BACK_PROMPT = "Put which card from your hand on top of your library? "
 WHEEL_PROMPT = "Discard your hand and draw a new hand? "
 TAP_OR_UNTAP_PROMPT = "Tap or untap "  # followed by the creature's name
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
@@ -696,6 +699,11 @@ class Game:
             pain, damage = mana_pain(card) or (frozenset(), 0)
             if (condition := mana_condition(card)) and not self.condition_holds(condition, seat, permanent):
                 continue  # "Activate only if you control five or more lands."
+            if (per := mana_per_count(card)) is not None:  # Gaea's Cradle: as much as you control
+                if not per[0] and not (permanent.sick and "Creature" in card.type_line):
+                    lands.extend(ManaSource(permanent, frozenset(per[1]))
+                                 for _ in range(sum(_has_type(p.card, per[2]) for p in seat.battlefield)))
+                continue
             if is_land(card):
                 if life_cost := mana_life_cost(card):
                     if seat.life > life_cost:  # Mana Confluence: paying life, never down to 0
@@ -750,8 +758,14 @@ class Game:
 
     def cost_reduction(self, seat: Seat, card: Card) -> int:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""
-        return sum(amount for p in seat.battlefield for kind, amount in cost_reductions(p.card)
-                   if _spell_matches(kind, card))
+        reduction = sum(amount for p in seat.battlefield for kind, amount in cost_reductions(p.card)
+                        if _spell_matches(kind, card))
+        if own := self_cost_reduction(card):  # "This spell costs {1} less to cast for each creature on the battlefield."
+            amount, what = own
+            counted = (sum(_has_type(p.card, "creature") for s in self.live_seats() for p in s.battlefield)
+                       if what == "creature" else sum(_card_matches(what, c) for c in seat.graveyard))
+            reduction += amount * counted
+        return reduction
 
     def _cast_ways(self, seat: Seat, card: Card, from_command_zone: bool,
                    graveyard: GraveyardCast | None = None) -> list[AlternativeCost | None]:
@@ -898,6 +912,10 @@ class Game:
             ability = filter_mana_ability(permanent.card)
             if ability:
                 found.append((permanent, parse_cost(ability[0]), ability[1]))
+            elif (per := mana_per_count(permanent.card)) is not None and per[0]:  # Cabal Coffers
+                units = [frozenset(per[1])] * sum(_has_type(p.card, per[2]) for p in seat.battlefield)
+                if units:
+                    found.append((permanent, parse_cost(per[0]), units))
         return found
 
     def _perform(self, seat: Seat, action: str) -> None:
@@ -2262,6 +2280,25 @@ class Game:
         while len(cards) > 1:
             ordered.append(cards.pop(seat.player.choose(ORDER_TOP_PROMPT, [c.name for c in cards])))
         return ordered + cards
+
+    def rearrange_top(self, seat: Seat, count: int, may_shuffle: bool) -> None:
+        """Ponder: look at the top `count` cards, put them back in any order, and maybe shuffle the library."""
+        top = seat.library[:count]
+        del seat.library[:len(top)]
+        seat.library = self._ordered(seat, top) + seat.library
+        self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
+        if may_shuffle and seat.player.choose(SHUFFLE_PROMPT, YES_NO) == 0:
+            self.rng.shuffle(seat.library)
+
+    def put_back_from_hand(self, seat: Seat, count: int) -> None:
+        """Brainstorm: choose cards from your hand and put them on top of your library in the order you choose."""
+        chosen: list[Card] = []
+        for _ in range(min(count, len(seat.hand))):
+            card = seat.hand[seat.player.choose(PUT_BACK_PROMPT, [c.name for c in seat.hand])]
+            seat.hand.remove(card)
+            chosen.append(card)
+        seat.library = self._ordered(seat, chosen) + seat.library
+        self.broadcast({"event": "put_back", "seat": seat.index, "count": len(chosen)})
 
     def look_at_top(self, seat: Seat, count: int, card_type: str | None) -> None:
         """Look at the top `count` cards: take one into the hand (a card of `card_type` if given, and then
