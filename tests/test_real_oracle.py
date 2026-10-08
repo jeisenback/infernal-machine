@@ -103,6 +103,21 @@ class BehaviourTests(unittest.TestCase):
         self.assertEqual(sum(game.vote(a, ["evidence", "bribery"])), 3)
 
 
+class ScryfallDataTests(unittest.TestCase):
+    """Card.from_scryfall on a real Scryfall object (a modal double-faced Pathway), not a hand-made one."""
+
+    def test_a_pathway(self):
+        data = json.loads((Path(__file__).parent / "pathway_scryfall.json").read_text(encoding="utf-8"))
+        card = Card.from_scryfall(data)
+        self.assertEqual((card.name, card.type_line, card.oracle_text), (data["name"], "Land", "{T}: Add {U}."))
+        self.assertEqual(card.produced_mana, ("U",))  # the front face makes only blue
+        self.assertEqual((card.back.name, card.back.type_line, card.back.oracle_text),
+                         ("Lavaglide Pathway", "Land", "{T}: Add {R}."))
+        self.assertEqual(card.back.produced_mana, ("R",))
+        self.assertTrue(card.commander_legal)
+        self.assertEqual(card.color_identity, ("R", "U"))
+
+
 class UndercityTests(unittest.TestCase):
     """Every room's text and exits against the real Undercity dungeon (issue #50)."""
 

@@ -12,7 +12,7 @@ SWORDS = Card(name="Swords to Plowshares", mana_cost="{W}", type_line="Instant",
               oracle_text="Exile target creature. Its controller gains life equal to its power.")
 MIND_STONE = Card(name="Mind Stone", mana_cost="{2}", type_line="Artifact",
                   oracle_text="{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.")
-THRASIOS = Card(name="Thrasios, Triton Hero", mana_cost="{G}{U}", type_line="Legendary Creature — Merfolk Wizard",
+DELVER = Card(name="Dungeon Delver", mana_cost="{G}{U}", type_line="Legendary Creature — Merfolk Wizard",  # invented: no real card says this
                 oracle_text="{4}: Venture into the dungeon.\nPartner (You can have two commanders if both have partner.)")
 
 
@@ -23,7 +23,7 @@ class UnsupportedLinesTests(unittest.TestCase):
 
     def test_lists_only_what_is_missing(self):
         self.assertEqual(unsupported_lines(MULLDRIFTER), ["Evoke {2}{U}"])
-        self.assertEqual(unsupported_lines(THRASIOS), ["{4}: Venture into the dungeon."])  # partner is a deckbuilding line
+        self.assertEqual(unsupported_lines(DELVER), ["{4}: Venture into the dungeon."])  # partner is a deckbuilding line
         self.assertEqual(unsupported_lines(Card(name="x", mana_cost="{Q}", type_line="Creature")), ["mana cost {Q}"])
 
     def test_categories(self):
@@ -41,11 +41,11 @@ class UnsupportedLinesTests(unittest.TestCase):
 
 class ReportTests(unittest.TestCase):
     def test_format(self):
-        deck = Deck([THRASIOS], [FOREST] * 3 + [BOLT, SWORDS, MIND_STONE], [])
+        deck = Deck([DELVER], [FOREST] * 3 + [BOLT, SWORDS, MIND_STONE], [])
         text = format_report(deck_report(deck))
         self.assertIn("Fully playable: 6/7 cards", text)  # Swords to Plowshares is playable now
-        self.assertIn("activated abilities (1): Thrasios, Triton Hero", text)
-        self.assertIn("Thrasios, Triton Hero: {4}: Venture into the dungeon.", text)
+        self.assertIn("activated abilities (1): Dungeon Delver", text)
+        self.assertIn("Dungeon Delver: {4}: Venture into the dungeon.", text)
 
 
 if __name__ == "__main__":

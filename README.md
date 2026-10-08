@@ -604,7 +604,7 @@ winner = game.play()
   | Whenever you draw your second card each turn, ... | |
   | Whenever an opponent sacrifices a creature, ... | |
   | Whenever you discard a card / an opponent discards a card, ... | Megrim |
-  | Whenever an opponent searches their library, ... | Opposition Agent |
+  | Whenever an opponent searches their library, ... | Ob Nixilis, Unshackled (the event; its effect is not built yet) |
   | Whenever a Pest (Elf, token, creature token) you control dies / another Elf you control enters, ... | |
   | Whenever (another) creature (permanent) you control leaves the battlefield, ... | |
   | Whenever a creature enters / dies, ... its controller ... | |

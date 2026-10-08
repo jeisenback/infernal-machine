@@ -203,6 +203,56 @@
    "colors": [
     "G"
    ]
+  },
+  {
+   "name": "Thrasios, Triton Hero",
+   "mana_cost": "{G}{U}",
+   "type_line": "Legendary Creature — Merfolk Wizard",
+   "oracle_text": "{4}: Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield tapped. Otherwise, draw a card.\nPartner (You can have two commanders if both have partner.)",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Megrim",
+   "mana_cost": "{2}{B}",
+   "type_line": "Enchantment",
+   "oracle_text": "Whenever an opponent discards a card, this enchantment deals 2 damage to that player.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Horizon Canopy",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}, Pay 1 life: Add {G} or {W}.\n{1}, {T}, Sacrifice this land: Draw a card.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Exotic Orchard",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Reflecting Pool",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add one mana of any type that a land you control could produce.",
+   "power": null,
+   "toughness": null,
+   "colors": []
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."
