@@ -4,7 +4,7 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.effects import attached_abilities
-from infernal_machine.game import SACRIFICE_COST_PROMPT, Permanent
+from infernal_machine.game import CHOOSE_TYPE_PROMPT, SACRIFICE_COST_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
@@ -77,3 +77,27 @@ class FallenIdealTests(unittest.TestCase):
         game._leave_battlefield(ideal, "destroyed")
         run_stack(game)
         self.assertEqual([c.name for c in a.hand], ["Fallen Ideal"])
+
+
+class PatchworkBannerTests(unittest.TestCase):
+    def test_it_names_the_most_common_type_and_pumps_it(self):
+        game, _ = table3()
+        a = game.seats[0]
+        wolf = Card(name="Wolf", type_line="Creature " + chr(0x2014) + " Wolf", power="2", toughness="2")
+        bear = Card(name="Bear", type_line="Creature " + chr(0x2014) + " Bear", power="2", toughness="2")
+        a.library = [wolf, wolf, wolf, bear]
+        a.battlefield = [Permanent(wolf), Permanent(bear)]
+        banner = Permanent(REAL["Patchwork Banner"])
+        game._enter(a, banner)
+        self.assertEqual(banner.chosen_type, "Wolf")
+        self.assertEqual((game.power(a.battlefield[0]), game.power(a.battlefield[1])), (3, 2))
+
+    def test_the_player_chooses(self):
+        game, players = table3(lambda prompt, options: options.index("Bear") if prompt.startswith(CHOOSE_TYPE_PROMPT) else 0)
+        a = game.seats[0]
+        wolf = Card(name="Wolf", type_line="Creature " + chr(0x2014) + " Wolf", power="2", toughness="2")
+        bear = Card(name="Bear", type_line="Creature " + chr(0x2014) + " Bear", power="2", toughness="2")
+        a.library = [wolf, bear]
+        a.battlefield = [Permanent(bear)]
+        game._enter(a, Permanent(REAL["Patchwork Banner"]))
+        self.assertEqual(game.power(a.battlefield[0]), 3)

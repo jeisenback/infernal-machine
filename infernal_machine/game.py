@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, annihilator_of, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, annihilator_of, chooses_creature_type, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -78,6 +78,7 @@ SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+CHOOSE_TYPE_PROMPT = "Choose a creature type for "  # followed by the card's name; options are the types, most common first
 CLONE_PROMPT = "Choose what to copy for "  # followed by the card's name; the last option is NOT_A_COPY
 NOT_A_COPY = "Don't copy anything"
 CREW_PROMPT = "Choose a creature to tap to crew "  # followed by the Vehicle's name
@@ -160,6 +161,7 @@ class Permanent:
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
     attacked_turn: int | None = None  # the last turn it attacked
+    chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
     prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
@@ -2082,7 +2084,8 @@ class Game:
             for buff in static_abilities(source.card):
                 if owner is not controller and not buff.everyone:
                     continue
-                if (buff.other and source is permanent) or (buff.subtype and buff.subtype not in subtypes):
+                wanted = source.chosen_type if buff.subtype == "chosen" else buff.subtype
+                if (buff.other and source is permanent) or (wanted and wanted not in subtypes) or (buff.subtype == "chosen" and not wanted):
                     continue
                 if buff.self_only and source is not permanent:
                     continue
@@ -2801,6 +2804,8 @@ class Game:
             number = self._counters_to_add(seat, permanent.card, counter, x if count == "X" else count, permanent)
             permanent.counters[counter] = permanent.counters.get(counter, 0) + number
         permanent.owner = permanent.owner or seat
+        if chooses_creature_type(permanent.card):
+            permanent.chosen_type = self._choose_creature_type(seat, permanent.card)
         if enters_prepared(permanent.card):
             permanent.prepared = True
         if echo_cost(permanent.card):
@@ -2823,6 +2828,16 @@ class Game:
         if saga_chapters(permanent.card):
             self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
+
+    def _choose_creature_type(self, seat: Seat, card: Card) -> str:
+        """The creature type `seat` names as `card` enters: one of those in its cards, the most common first."""
+        counts: dict[str, int] = {}
+        for owned in [*seat.library, *seat.hand, *seat.graveyard, *seat.command_zone, *(p.card for p in seat.battlefield)]:
+            if "Creature" in owned.type_line:
+                for kind in owned.type_line.partition("—")[2].split():
+                    counts[kind] = counts.get(kind, 0) + 1
+        options = sorted(counts, key=lambda kind: (-counts[kind], kind)) or ["Human"]
+        return options[seat.player.choose(CHOOSE_TYPE_PROMPT + card.name, options)]
 
     def prepare(self, permanent: Permanent) -> None:
         """A creature with a prepare spell becomes prepared (nothing happens if it already is)."""
