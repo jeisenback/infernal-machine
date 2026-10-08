@@ -160,7 +160,7 @@ winner = game.play()
 | Choose one / two / three / one or both / one or more — • mode • mode ... | charms and commands |
 | Target player (or opponent) draws N cards / gains N life / loses N life. | |
 | Exile target card from a graveyard. | |
-| Return target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation |
+| Return (another) target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation, Rushing River |
 | Return target (creature) card from your graveyard to your hand / to the battlefield. | Raise Dead, Zombify |
 | Put target creature card from a graveyard onto the battlefield under your control. | Reanimate |
 | Search your library for a (creature) card, (reveal it,) put it into your hand, then shuffle. | Demonic Tutor |
@@ -243,7 +243,7 @@ winner = game.play()
   leaves the battlefield for any reason the exiled card comes back under its owner's control as a new permanent
   (summoning sick, without counters or attachments, and its "enters" abilities happen again). Tokens exiled this way
   are gone for good, and a commander that went to the command zone instead isn't returned. If the source has left
-  by the time the exile ability resolves, nothing is exiled. "Another target" can't be the source itself.
+  by the time the exile ability resolves, nothing is exiled. "Another target" can't be the source itself, or a target the same spell or ability already chose.
 - **Modal spells:** you choose the modes as you cast. Only modes that have a legal target are offered, a mode can't
   be chosen twice, and "one or both" / "one or more" let you stop with "Done choosing modes" once you have enough.
   Chosen modes happen in the order printed. If any mode isn't supported (or the card has entwine or escalate), the

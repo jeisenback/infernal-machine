@@ -644,7 +644,14 @@ class Game:
             self._leave_battlefield(permanent, "sacrificed")
 
     def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset()) -> bool:
-        return all(self.target_options(kind, seat, colors) for kind in map(target_kind, effects) if kind)
+        """Whether every targeting effect has a legal target; "another target" needs one besides the
+        targets chosen for earlier effects of the same kind."""
+        kinds = [(kind, getattr(e, "another", False)) for e in effects if (kind := target_kind(e))]
+        for i, (kind, another) in enumerate(kinds):
+            needed = 1 + (sum(k == kind for k, _ in kinds[:i]) if another else 0)
+            if len(self.target_options(kind, seat, colors)) < needed:
+                return False
+        return True
 
     def _choose_modes(self, seat: Seat, card: Card, modal: Modal) -> list:
         """Ask the caster for the modes of a modal spell (only ones with legal targets are offered) and
@@ -666,15 +673,16 @@ class Game:
     def _choose_targets(self, seat: Seat, effects, source_name: str, source: Permanent | None = None,
                         colors: frozenset[str] = frozenset()) -> tuple[list, list[str]] | None:
         """Ask `seat` for a target per targeting effect: (targets, labels), or None if one has no legal target.
-        "Another target ..." can't be `source` itself, and nothing with protection from `colors` (the
-        colors of the spell or source) can be chosen."""
+        "Another target ..." can't be `source` itself or a target already chosen for this spell or ability, and
+        nothing with protection from `colors` (the colors of the spell or source) can be chosen."""
         targets, labels = [], []
         for effect in effects or []:
             kind = target_kind(effect)
             if not kind:
                 continue
             options = [o for o in self.target_options(kind, seat, colors)
-                       if not (getattr(effect, "another", False) and o[1] is source)]
+                       if not (getattr(effect, "another", False)
+                               and (o[1] is source or any(o[1] is t for t in targets)))]
             if not options:
                 return None
             label, target = options[seat.player.choose(TARGET_PROMPT + source_name, [o[0] for o in options])]

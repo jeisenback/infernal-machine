@@ -72,6 +72,11 @@ DISCARD_KICK = Card(name="Discard Kick", mana_cost="{U}", type_line="Instant", c
                     oracle_text="Kicker\u2014Discard a card.\nDraw a card. If this spell was kicked, draw two cards "
                                 "instead.")
 
+RUSHING_RIVER = Card(name="Rushing River", mana_cost="{2}{U}", type_line="Instant", colors=("U",),
+                     oracle_text="Kicker\u2014Sacrifice a land. (You may sacrifice a land in addition to any other "
+                                 "costs as you cast this spell.)\nReturn target nonland permanent to its owner's hand. "
+                                 "If this spell was kicked, return another target nonland permanent to its owner's hand.")
+
 
 class ParseTests(unittest.TestCase):
     def test_cost_reductions(self):
@@ -117,7 +122,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(kicked_effects(spell_effects(BURST), 1), [Damage(4, "any")])
         self.assertEqual(kicked_effects(spell_effects(BURST), 0), [Damage(2, "any")])
         self.assertEqual(kicked_effects(spell_effects(MIGRATION), 1)[0].count, 4)
-        for card in (BURST, MIGRATION, SAC_KICK, LIFE_KICK, DISCARD_KICK):
+        for card in (BURST, MIGRATION, SAC_KICK, LIFE_KICK, DISCARD_KICK, RUSHING_RIVER):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
     def test_instead_must_fit_the_effect_before_it(self):
@@ -415,6 +420,28 @@ class KickerTests(unittest.TestCase):
         game._priority_round(seat)
         self.assertEqual(seat.graveyard, [BEAR, DISCARD_KICK])
         self.assertEqual(seat.hand, [OPT, OPT])
+
+    def test_rushing_river_returns_two_different_permanents(self):
+        game, a, _ = table(pick(CAST + RUSHING_RIVER.name, "Yes", "Grizzly Bears", "Emerald Medallion", "Island"))
+        seat, other = game.seats
+        seat.hand = [RUSHING_RIVER]
+        seat.battlefield = battlefield(ISLAND, ISLAND, ISLAND, ISLAND)
+        other.battlefield = battlefield(BEAR, EMERALD)
+        game._priority_round(seat)
+        self.assertEqual(other.hand, [BEAR, EMERALD])
+        second = [o for p, o in a.prompts if p == TARGET_PROMPT + RUSHING_RIVER.name][1]
+        self.assertFalse(any(o.startswith("Grizzly Bears") for o in second))  # the first target isn't offered again
+        self.assertEqual(len(seat.battlefield), 3)  # one Island was sacrificed
+
+    def test_rushing_river_kicker_needs_two_targets(self):
+        game, a, _ = table(pick(CAST + RUSHING_RIVER.name, "Grizzly Bears"))
+        seat, other = game.seats
+        seat.hand = [RUSHING_RIVER]
+        seat.battlefield = battlefield(ISLAND, ISLAND, ISLAND, ISLAND)
+        other.battlefield = battlefield(BEAR)
+        game._priority_round(seat)
+        self.assertEqual(other.hand, [BEAR])
+        self.assertFalse(any(p == KICKER_PROMPT + RUSHING_RIVER.name for p, _ in a.prompts))
 
     def test_kicked_aura_remembers_it(self):
         game, _, _ = table(pick(CAST + KICKED_AURA.name, "Yes", "Grizzly Bears"))

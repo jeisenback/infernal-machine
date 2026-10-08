@@ -49,9 +49,12 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(spell_effects(WORLDLY), [SearchLibrary("creature", "top", True)])
         self.assertEqual(spell_effects(VAMPIRIC), [SearchLibrary("card", "top", False), LoseLife(2)])
 
+    def test_another_target(self):
+        text = "Return another target creature you control to its owner's hand."
+        self.assertEqual(spell_effects(Card(name="x", oracle_text=text)), [ReturnToHand("creature you control", True)])
+
     def test_variants_that_need_more_are_unsupported(self):
-        for text in ("Return another target creature you control to its owner's hand.",
-                     "Put target creature card from a graveyard onto the battlefield under your control. "
+        for text in ("Put target creature card from a graveyard onto the battlefield under your control. "
                      "You lose life equal to its mana value.",
                      "Search your library for a creature card with mana value 3 or less, put it into your hand, then shuffle."):
             self.assertIsNone(spell_effects(Card(name="x", oracle_text=text)), text)
