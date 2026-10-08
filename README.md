@@ -309,8 +309,10 @@ winner = game.play()
   - Entering tapped: "This land enters tapped" (taplands, gain-lands, temples, triomes), and the conditional
     kinds: checklands ("unless you control an Island or a Swamp"; any land with that land type counts),
     fastlands ("two or fewer other lands"), slowlands ("two or more other lands"), and bond lands
-    ("unless you have two or more opponents", so untapped in a 3+ player game). Fetched and reanimated lands
-    follow the same rules.
+    ("unless you have two or more opponents", so untapped in a 3+ player game), plus "unless you control two or more
+    basic lands", "unless you control three or more other Islands", "unless your opponents control eight or more lands"
+    (their lands added together), and the Snarls ("you may reveal a Mountain or Plains card from your hand"; you are
+    asked, and it enters tapped if you decline or have no such card). Fetched and reanimated lands follow the same rules.
   - Shocklands: you may pay 2 life or the land enters tapped. Life you can't spare (2 or less) isn't offered.
   - Painlands and Talismans: 1 damage when tapped for a colored mana. Colorless mana from them is free, and
     the payer picks painless sources first. Talismans make their colors now (they used to make colorless only).

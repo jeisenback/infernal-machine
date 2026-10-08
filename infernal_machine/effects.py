@@ -2219,7 +2219,9 @@ class TargetMill:
 class EntersTapped:
     """How a permanent (usually a land) may enter tapped. `kind` is one of: "always",
     "unless_land_types" (checklands), "unless_lands_at_most" (fastlands), "unless_lands_at_least"
-    (slowlands), "unless_opponents" (bond lands), "shock" (pay life or it enters tapped)."""
+    (slowlands), "unless_opponents" (bond lands), "unless_basic_lands" (Port-style lands), "unless_land_type_count"
+    ("three or more other Islands"), "unless_opponent_lands" (Turbulent lands), "reveal" (Snarls: reveal a card from your
+    hand or it enters tapped), "shock" (pay life or it enters tapped)."""
     kind: str
     types: tuple[str, ...] = ()
     count: int = 0
@@ -2236,6 +2238,15 @@ _ENTERS_TAPPED = [
                             count=_count(m[1]))),
     (re.compile(rf"{_SELF} enters tapped unless you have {_N} or more opponents\.", re.I),
      lambda m: EntersTapped("unless_opponents", count=_count(m[1]))),
+    (re.compile(rf"{_SELF} enters tapped unless you control {_N} or more basic lands\.", re.I),
+     lambda m: EntersTapped("unless_basic_lands", count=_count(m[1]))),
+    (re.compile(rf"{_SELF} enters tapped unless you control {_N} or more other ({_LAND_TYPE})s?\.", re.I),
+     lambda m: EntersTapped("unless_land_type_count", types=(m[2].capitalize(),), count=_count(m[1]))),
+    (re.compile(rf"{_SELF} enters tapped unless your opponents control {_N} or more lands\.", re.I),
+     lambda m: EntersTapped("unless_opponent_lands", count=_count(m[1]))),
+    (re.compile(rf"As {_SELF} enters, you may reveal an? ({_LAND_TYPE}) or ({_LAND_TYPE}) card from your hand\. "
+                rf"If you don't, {_SELF} enters tapped\.", re.I),
+     lambda m: EntersTapped("reveal", types=(m[1].capitalize(), m[2].capitalize()))),
     (re.compile(rf"As {_SELF} enters, you may pay {_N} life\. If you don't, it enters tapped\.", re.I),
      lambda m: EntersTapped("shock", life=_count(m[1]))),
 ]
