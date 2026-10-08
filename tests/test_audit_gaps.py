@@ -10,7 +10,7 @@ from tests.test_combat import BEAR
 from tests.test_lands import spell
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
-from tests.test_real_oracle import REAL
+from tests.real import REAL
 
 LOTUS, EDGAR = REAL["Gilded Lotus"], REAL["Edgar Markov"]
 VAMPIRE = Card(name="Bat", mana_cost="{B}", type_line="Creature — Vampire", power="1", toughness="1")

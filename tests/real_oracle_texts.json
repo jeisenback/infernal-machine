@@ -459,6 +459,29 @@
     "R",
     "W"
    ]
+  },
+  {
+   "name": "Crusade",
+   "mana_cost": "{W}{W}",
+   "type_line": "Enchantment",
+   "oracle_text": "White creatures get +1/+1.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Good-Fortune Unicorn",
+   "mana_cost": "{1}{G}{W}",
+   "type_line": "Creature — Unicorn",
+   "oracle_text": "Whenever another creature you control enters, put a +1/+1 counter on that creature.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G",
+    "W"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."

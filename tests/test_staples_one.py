@@ -9,7 +9,7 @@ from tests.test_combat import BEAR
 from tests.test_effects import FOREST, lands, pick
 from tests.test_lands import SWAMP, spell
 from tests.test_mass_effects import table3
-from tests.test_real_oracle import REAL
+from tests.real import REAL
 
 TOP = Card(name="Sensei's Divining Top", mana_cost="{1}", type_line="Artifact",
            oracle_text="{1}: Look at the top three cards of your library, then put them back in any order.")

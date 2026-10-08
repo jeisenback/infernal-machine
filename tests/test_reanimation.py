@@ -8,7 +8,7 @@ from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
-from tests.test_real_oracle import REAL
+from tests.real import REAL
 
 ANIMATE = REAL["Animate Dead"]
 KAALIA = REAL["Kaalia of the Vast"]

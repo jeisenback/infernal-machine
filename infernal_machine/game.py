@@ -2025,8 +2025,10 @@ class Game:
         if controller is None or "Creature" not in permanent.card.type_line:
             return mods
         subtypes = permanent.card.type_line.partition("—")[2].split()
-        for source in controller.battlefield:
+        for owner, source in [(s, p) for s in self.seats for p in s.battlefield]:
             for buff in static_abilities(source.card):
+                if owner is not controller and not buff.everyone:
+                    continue
                 if (buff.other and source is permanent) or (buff.subtype and buff.subtype not in subtypes):
                     continue
                 if buff.self_only and source is not permanent:
@@ -2035,7 +2037,7 @@ class Game:
                     continue
                 if buff.attacking and not any(a.attacker is permanent for a in self.combat.attacks):
                     continue
-                if buff.condition and not self.condition_holds(buff.condition, controller, source):
+                if buff.condition and not self.condition_holds(buff.condition, owner, source):
                     continue
                 mods.append(self._scaled(buff.modifier, buff.per, permanent, controller))
         for seat in self.seats:  # Equipment and Auras attached to it

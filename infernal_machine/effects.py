@@ -841,14 +841,16 @@ class StaticBuff:
     color: str | None = None  # "Other red creatures you control": a color letter
     attacking: bool = False  # "Attacking Pests you control": only while they are attacking
     per: tuple[str, str] | None = None  # "... for each artifact you control": (what to count, its type); see Game.modifiers
+    everyone: bool = False  # "White creatures get +1/+1": every player's, not just its controller's
 
 
 _AFFECTED = (r"(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
-             r"|(?:Attacking )?[A-Z][\w'-]*s you control")
+             r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
 _AFFECTED_WHO = re.compile(r"(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
-                  r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control")
+                  r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
+                  r"|(?P<global>White|Blue|Black|Red|Green) creatures")
 _PER = {"artifact you control": ("permanent", "artifact"), "creature card in your graveyard": ("graveyard", "creature"),
         "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", "")}
 _PER_LOWER = {k.lower(): v for k, v in _PER.items()}
@@ -886,8 +888,8 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             who = _AFFECTED_WHO.fullmatch(m[1])
             colors = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
             buffs.append(StaticBuff(_modifier(m, 2), who["other"] is not None, who["sub"] or who["tribe"], line,
-                                    condition=condition, color=colors.get(who["color"] or ""),
-                                    attacking=bool(who["attacking"] or who["attacking2"])))
+                                    condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
+                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"])))
         elif m := _SELF_SCALED.fullmatch(sentence):  # "This creature gets +1/+0 for each artifact you control."
             modifier = Modifier(_signed(m[1]), _signed(m[2]))
             buffs.append(StaticBuff(modifier, False, None, line, self_only=True, condition=condition,

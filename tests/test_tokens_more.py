@@ -14,8 +14,8 @@ def spell(name, text):
 
 PEER_REVIEW = spell("Peer Review", "Create a 2/2 colorless Wizard Soldier creature token named Cadet. Surveil 1.")
 SOUL_TETHER = spell("Soul Tether", "Create a Heartwood token.")
-SCROLLBOOST = spell("Test Scrollboost", "One or two target creatures each get +2/+2 until end of turn.")
-UNWIND = spell("Test Unwind History", "Return target creature an opponent controls with mana value 3 or less to its owner's hand. "
+SCROLLBOOST = spell("Scrollboost", "One or two target creatures each get +2/+2 until end of turn.")
+UNWIND = spell("Unwind History", "Return target creature an opponent controls with mana value 3 or less to its owner's hand. "
                                  "Surveil 1.")
 
 
