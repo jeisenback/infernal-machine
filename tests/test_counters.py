@@ -8,8 +8,7 @@ from tests.real import REAL
 from tests.test_combat import BEAR, attack_all
 from tests.test_effects import BOLT, lands, pick, table
 
-GROWTH = Card(name="Test Growth Spiral", mana_cost="{G}", type_line="Instant",
-              oracle_text="Put two +1/+1 counters on target creature.")
+GROWTH = REAL["Soldier On"]
 WITHER = Card(name="Wither", mana_cost="{B}", type_line="Instant",
               oracle_text="Put two −1/−1 counters on target creature an opponent controls.")
 RALLY = REAL["Basri's Solidarity"]
@@ -30,11 +29,11 @@ class CounterTests(unittest.TestCase):
     def test_put_counters_on_target(self):
         game, _, _ = table(pick(CAST, "Bear"))
         game.seats[0].hand = [GROWTH]
-        game.seats[0].battlefield = lands(1) + [Permanent(BEAR)]
+        game.seats[0].battlefield = lands(3) + [Permanent(BEAR)]
         game._priority_round(game.seats[0])
         bear = game.seats[0].battlefield[-1]
         self.assertEqual(bear.counters, {"+1/+1": 2})
-        self.assertEqual(game.label(bear), "Bear 4/4 (seat 0, #2)")
+        self.assertEqual(game.label(bear), "Bear 4/4 (seat 0, #4)")
 
     def test_minus_counters_kill_and_restrict_targets(self):
         game, _, _ = table(pick(CAST, "Bear"))
