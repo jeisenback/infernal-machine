@@ -22,10 +22,10 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
+from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
-                      cumulative_upkeep, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
+                      cumulative_upkeep, echo_cost, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
@@ -117,6 +117,8 @@ YES_NO = ["Yes", "No"]
 LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
 LOOT_PROMPT = "Discard a card to draw a card? "
 SHUFFLE_PROMPT = "Shuffle your library? "
+CASCADE_PROMPT = "Cast for free (cascade): "  # followed by the card's name; Yes or No
+DELVE_PROMPT = "Exile which card from your graveyard to pay for "  # followed by the spell's name
 UPKEEP_PROMPT = "Pay the cumulative upkeep of "  # followed by the permanent's name; Yes or No (No sacrifices it)
 PUT_BACK_PROMPT = "Put which card from your hand on top of your library? "
 WHEEL_PROMPT = "Discard your hand and draw a new hand? "
@@ -154,6 +156,7 @@ class Permanent:
     attacked_turn: int | None = None  # the last turn it attacked
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
     prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
+    echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
 
 
 @dataclass(frozen=True)
@@ -211,6 +214,7 @@ class StackItem:
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
 
 
+GERM = Card(name="Phyrexian Germ", type_line="Token Creature — Phyrexian Germ", colors=("B",), power="0", toughness="0")
 EVOKE_SACRIFICE = TriggeredAbility("enters", (SacrificeSelf(),), False,
                                    "When this permanent enters, if its evoke cost was paid, sacrifice it.")
 
@@ -756,7 +760,8 @@ class Game:
         return frozenset(types if colorless else types - {"C"})
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
-                 alternative: AlternativeCost | None = None, kicked: int = 0, extra: str = "") -> list[Permanent] | None:
+                 alternative: AlternativeCost | None = None, kicked: int = 0, extra: str = "",
+                 delve: int = 0) -> list[Permanent] | None:
         """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now. An alternative
         cost replaces the mana cost; commander tax and kicker are added, then cost reductions apply."""
         if alternative:
@@ -771,7 +776,7 @@ class Game:
             cost = cost + parse_cost(kicker_cost(card))
         if extra:  # entwine, or escalate for each mode beyond the first
             cost = cost + parse_cost(extra)
-        return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card)))
+        return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card) + delve))
 
     def cost_reduction(self, seat: Seat, card: Card) -> int:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""
@@ -793,8 +798,9 @@ class Game:
             others = len(seat.graveyard) - (card in seat.graveyard)
             return [None] if others >= graveyard.exile and self._payment(seat, paying) is not None else []
         return [way for way in [None, *alternative_costs(card)]
-                if self._can_pay_extras(seat, card, way) and self._payment(seat, card, from_command_zone, alternative=way)
-                is not None]
+                if self._can_pay_extras(seat, card, way)
+                and self._payment(seat, card, from_command_zone, alternative=way,
+                                  delve=self._delve_max(seat, card) if way is None else 0) is not None]
 
     def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None) -> bool:
         """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs,
@@ -1110,14 +1116,14 @@ class Game:
         return targets, labels
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
-              graveyard: GraveyardCast | None = None, prepared: Permanent | None = None) -> None:
+              graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
         extra = ""
         if effects and isinstance(effects[0], Modal):
             effects, extra = self._choose_modes(seat, card, effects[0], from_command_zone, casting=True)
         # Alternative costs and kicker are announced before targets are chosen (CR 601.2b-c).
-        ways = self._cast_ways(seat, card, from_command_zone, graveyard)
+        ways = [AlternativeCost("Cast without paying its mana cost")] if free else self._cast_ways(seat, card, from_command_zone, graveyard)
         alternative = ways[0]
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
@@ -1133,8 +1139,19 @@ class Game:
             x = seat.player.choose(X_PROMPT + card.name, options)
         elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
             x = seat.player.choose(LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
-        tapped = self._payment(seat, paying, from_command_zone, x, alternative, kicked, extra)
+        delve = 0
+        if alternative is None and not graveyard and has_keyword(card, "delve"):  # exile as few cards as will do
+            delve = next(k for k in range(self._delve_max(seat, paying) + 1)
+                         if self._payment(seat, paying, from_command_zone, x, alternative, kicked, extra, delve=k) is not None)
+        tapped = self._payment(seat, paying, from_command_zone, x, alternative, kicked, extra, delve=delve)
         self._spend_mana(seat, tapped)
+        for _ in range(delve):
+            exiled = seat.graveyard[seat.player.choose(DELVE_PROMPT + card.name, [c.name for c in seat.graveyard])]
+            seat.graveyard.remove(exiled)
+            self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": exiled.name, "to": "exile"})
+            self._move_card(seat, exiled, "exile")
+        if delve:
+            self._left_graveyard(seat)
         zone.remove(card)
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
@@ -1153,6 +1170,9 @@ class Game:
             event["alternative"] = alternative.text
         self.broadcast(event)
         seat.cast_log.append((self.turn, card))
+        if has_keyword(card, "cascade") and prepared is None:  # the trigger goes on the stack above the spell
+            ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
+            self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
         self._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared)
         self._check_ward(item)
 
@@ -2307,6 +2327,47 @@ class Game:
             ordered.append(cards.pop(seat.player.choose(ORDER_TOP_PROMPT, [c.name for c in cards])))
         return ordered + cards
 
+    def living_weapon(self, equipment: Permanent) -> None:
+        """Create a 0/0 black Phyrexian Germ token and attach the Equipment to it."""
+        seat = self.controller_of(equipment)
+        if seat is None:
+            return
+        germ = Permanent(GERM, sick=True)
+        self.broadcast({"event": "token_created", "seat": seat.index, "card": GERM.name, "type_line": GERM.type_line,
+                        "power": GERM.power, "toughness": GERM.toughness})
+        self._enter(seat, germ)
+        self.attach(equipment, germ)
+
+    def cascade(self, seat: Seat, value: int) -> None:
+        """Exile cards from the top of the library until a nonland card that costs less than `value` is exiled; the
+        player may cast it for free, and the rest go to the bottom of the library in a random order."""
+        passed: list[Card] = []
+        found = None
+        while seat.library:
+            card = seat.library.pop(0)
+            if not is_land(card) and card.cmc < value:
+                found = card
+                break
+            passed.append(card)
+        self.broadcast({"event": "cascade", "seat": seat.index, "exiled": len(passed) + (found is not None),
+                        **({"card": found.name} if found else {})})
+        if found is not None:
+            seat.exile.append(found)
+            if seat.player.choose(CASCADE_PROMPT + found.name, YES_NO) == 0:
+                self._cast(seat, found, seat.exile, free=True)
+            if found in seat.exile:  # not cast: it goes to the bottom too
+                seat.exile.remove(found)
+                passed.append(found)
+        self.rng.shuffle(passed)
+        seat.library += passed
+
+    def _delve_max(self, seat: Seat, card: Card) -> int:
+        """Delve: how many cards in the graveyard could help pay for `card` (one for each generic mana)."""
+        if not has_keyword(card, "delve"):
+            return 0
+        cost = parse_cost(card.mana_cost)
+        return min(len(seat.graveyard), cost.generic) if cost is not None else 0
+
     def _add_delayed_mana(self, seat: Seat) -> None:
         """Mana Drain: {C} for the spell it countered arrives at the beginning of your next main phase."""
         if seat.delayed_mana:
@@ -2334,6 +2395,14 @@ class Game:
     def _pay_upkeep_costs(self, seat: Seat) -> None:
         """Cumulative upkeep: an age counter, then pay the cost once for each counter or sacrifice the permanent."""
         for permanent in list(seat.battlefield):
+            if permanent.echo_pending and (echo := echo_cost(permanent.card)):  # Echo: pay once, or sacrifice it
+                permanent.echo_pending = False
+                paid = self._pay_cost(seat, parse_cost(echo))
+                if paid is not None and seat.player.choose(UPKEEP_PROMPT + permanent.card.name, YES_NO) == 0:
+                    self._spend_mana(seat, paid)
+                else:
+                    self._leave_battlefield(permanent, "sacrificed")
+                continue
             base = cumulative_upkeep(permanent.card)
             if not base:
                 continue
@@ -2558,6 +2627,8 @@ class Game:
         permanent.owner = permanent.owner or seat
         if enters_prepared(permanent.card):
             permanent.prepared = True
+        if echo_cost(permanent.card):
+            permanent.echo_pending = True
         rule = enters_tapped_rule(permanent.card)
         if rule and self._enters_tapped(seat, rule, permanent.card):
             permanent.tapped = True

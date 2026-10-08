@@ -197,6 +197,10 @@ class Combat:
     def _can_block(self, blocker: Permanent, attacker: Permanent) -> bool:
         if self._has(blocker, CANT_BLOCK) or self._has(attacker, CANT_BE_BLOCKED):
             return False
+        if self._has(attacker, "shadow") != self._has(blocker, "shadow"):  # shadow blocks and is blocked only by shadow
+            return False
+        if self._has(attacker, "skulk") and self.game.power(blocker) > self.game.power(attacker):
+            return False
         if self.game.protected_from(attacker, source_qualities(blocker.card)):  # can't be blocked by those colors
             return False
         if self._has(attacker, "flying"):
