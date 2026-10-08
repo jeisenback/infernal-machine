@@ -604,7 +604,7 @@ class Game:
             return False
         if self._ability_payment(seat, permanent, ability) is None:
             return False
-        return self._effects_possible(seat, ability.effects, source_qualities(card))
+        return self._effects_possible(seat, ability.effects, source_qualities(card), permanent)
 
     def _sacrifice_choices(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> list[Permanent]:
         """What `seat` could sacrifice to pay the ability's "Sacrifice a creature" cost."""
@@ -1047,7 +1047,7 @@ class Game:
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
         effects = list(ability.effects)
         if effects and isinstance(effects[0], Modal):
-            effects, _ = self._choose_modes(seat, permanent.card, effects[0])
+            effects, _ = self._choose_modes(seat, permanent.card, effects[0], source=permanent)
         targets, labels = self._choose_targets(seat, effects, permanent.card.name, permanent,
                                                source_qualities(permanent.card))
         x = 0
@@ -1077,30 +1077,33 @@ class Game:
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
 
-    def _effects_possible(self, seat: Seat, effects, colors: frozenset[str] = frozenset()) -> bool:
+    def _effects_possible(self, seat: Seat, effects, colors: frozenset[str] = frozenset(),
+                          source: Permanent | None = None) -> bool:
         """Whether the targets exist: for a modal spell or ability, for enough of its modes."""
         if effects and isinstance(effects[0], Modal):
-            return sum(self._targets_exist(seat, modes, colors) for modes in effects[0].modes) >= effects[0].min
-        return self._targets_exist(seat, effects, colors)
+            return sum(self._targets_exist(seat, modes, colors, source) for modes in effects[0].modes) >= effects[0].min
+        return self._targets_exist(seat, effects, colors, source)
 
-    def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset()) -> bool:
+    def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset(),
+                       source: Permanent | None = None) -> bool:
         """Whether every targeting effect (but "up to one target") has a legal target; a `distinct` one needs one
-        besides the targets chosen for earlier effects of the same kind."""
-        kinds = [(kind, getattr(e, "distinct", False)) for e in effects
+        besides the targets chosen for earlier effects of the same kind, and an "another" one can't be `source`."""
+        kinds = [(kind, getattr(e, "distinct", False), getattr(e, "another", False)) for e in effects
                  if (kind := target_kind(e)) and not getattr(e, "optional_target", False)]
-        for i, (kind, distinct) in enumerate(kinds):
-            needed = 1 + (sum(k == kind for k, _ in kinds[:i]) if distinct else 0)
-            if len(self.target_options(kind, seat, colors)) < needed:
+        for i, (kind, distinct, another) in enumerate(kinds):
+            needed = 1 + (sum(k == kind for k, _, _ in kinds[:i]) if distinct else 0)
+            options = [o for _, o in self.target_options(kind, seat, colors) if not (another and o is source)]
+            if len(options) < needed:
                 return False
         return True
 
     def _choose_modes(self, seat: Seat, card: Card, modal: Modal, from_command_zone: bool = False,
-                      casting: bool = False) -> tuple[list, str]:
+                      casting: bool = False, source: Permanent | None = None) -> tuple[list, str]:
         """Ask the controller for the modes of a modal spell or ability (only ones with legal targets are offered):
         the chosen modes' effects in printed order, and any extra mana cost for them. When casting, entwine (all the
         modes) and escalate (each mode beyond the first) are offered if they can be paid for."""
         colors = source_qualities(card)
-        available = [i for i, effects in enumerate(modal.modes) if self._targets_exist(seat, effects, colors)]
+        available = [i for i, effects in enumerate(modal.modes) if self._targets_exist(seat, effects, colors, source)]
         if len(available) < modal.min:
             return [], ""
         entwine, escalate = (entwine_cost(card), escalate_cost(card)) if casting else (None, None)
@@ -1609,7 +1612,7 @@ class Game:
                 continue
             effects = list(trigger.ability.effects)
             if effects and isinstance(effects[0], Modal):  # "When this enters, choose one —": modes, then targets
-                effects, _ = self._choose_modes(seat, trigger.source, effects[0])
+                effects, _ = self._choose_modes(seat, trigger.source, effects[0], source=trigger.permanent)
                 if not effects:
                     continue
             chosen = self._choose_targets(seat, effects, trigger.source.name, trigger.permanent,
@@ -1662,6 +1665,8 @@ class Game:
             for n, permanent in enumerate(seat.battlefield):
                 card = permanent.card
                 if not _permanent_matches(base, card) or self.has_keyword(permanent, "shroud"):
+                    continue
+                if controller == "own" and (permanent.owner or seat) is not caster:
                     continue
                 if attacked and permanent.attacked_turn != self.turn:
                     continue
@@ -3172,7 +3177,7 @@ def _instant_speed(card: Card) -> bool:
 def _split_controller(kind: str) -> tuple[str, str | None]:
     """ "creature an opponent controls" -> ("creature", "opponent"); "creature" -> ("creature", None)."""
     for suffix, who in ((" an opponent controls", "opponent"), (" you don't control", "opponent"),
-                        (" you control", "you")):
+                        (" you control", "you"), (" you own", "own")):
         if kind.endswith(suffix):
             return kind.removesuffix(suffix), who
     return kind, None

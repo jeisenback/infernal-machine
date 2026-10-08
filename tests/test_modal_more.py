@@ -5,6 +5,7 @@ from infernal_machine.effects import (Modal, TapAll, activated_abilities, entwin
                                       triggered_abilities)
 from infernal_machine.game import ACTIVATE, CAST, DONE_MODES, ENTWINE_PROMPT, MODE_PROMPT, PASS, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR
 from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
@@ -18,13 +19,11 @@ SWEEP = Card(name="Sweep", mana_cost="{1}{B}", type_line="Sorcery",
 STEP_UP = Card(name="Step Up", mana_cost="{U}", type_line="Sorcery",
                oracle_text="Escalate {1}\nChoose one or more —\n• You gain 2 life.\n• Draw a card.\n"
                            "• Each opponent loses 1 life.")
-PRINCE = Card(name="Test Charming Prince", mana_cost="{2}{W}", type_line="Creature — Human Cleric", power="2", toughness="2",
-              oracle_text="When Test Charming Prince enters, choose one —\n• You gain 3 life.\n• Draw a card.")
+PRINCE = REAL["Charming Prince"]
 HUNTER = Card(name="Cunning Hunter", mana_cost="{2}", type_line="Creature — Elf", power="1", toughness="1",
               oracle_text="When Cunning Hunter enters, choose one —\n• Destroy target artifact.\n"
                           "• Destroy target enchantment.")
-WELL = Card(name="Test Wishing Well", mana_cost="{2}", type_line="Artifact",
-            oracle_text="{T}: Choose one —\n• You gain 2 life.\n• Draw a card.")
+WELL = REAL["Breya's Apprentice"]
 BREAKER = Card(name="Breaker", mana_cost="{2}", type_line="Artifact",
                oracle_text="{T}: Choose one —\n• Destroy target creature.\n• Destroy target enchantment.")
 BADMODE = Card(name="Odd Prince", mana_cost="{2}", type_line="Creature — Human", power="1", toughness="1",
@@ -62,10 +61,10 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(unsupported_lines(card), ["Escalate—Discard a card."])
 
     def test_modal_triggers_and_abilities(self):
-        [enters] = triggered_abilities(PRINCE)
-        self.assertEqual((enters.event, len(enters.effects[0].modes)), ("enters", 2))
+        [enters] = [t for t in triggered_abilities(PRINCE)]
+        self.assertEqual((enters.event, len(enters.effects[0].modes)), ("enters", 3))
         [tap] = activated_abilities(WELL)
-        self.assertTrue(tap.tap and isinstance(tap.effects[0], Modal))
+        self.assertTrue(tap.tap and tap.sacrifice_other == "artifact" and isinstance(tap.effects[0], Modal))
         for card in (PRINCE, HUNTER, WELL, BREAKER):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
@@ -137,9 +136,9 @@ class ModalTriggerTests(unittest.TestCase):
         a.library = [BEAR] * 3
         game._enter(a, Permanent(PRINCE))
         run_stack(game)
-        self.assertEqual((a.life, len(a.hand)), (40, 1))  # the second mode: draw a card
+        self.assertEqual((a.life, len(a.hand)), (43, 0))  # the second mode: gain 3 life
         self.assertEqual(next(o for p, o in players[0].prompts if p.startswith(MODE_PROMPT)),
-                         ["You gain 3 life.", "Draw a card."])
+                         ["Scry 2.", "You gain 3 life."])  # nothing else of its own to exile, so the third isn't offered
 
     def test_modes_without_targets_are_not_offered_and_no_mode_means_no_trigger(self):
         game, players = table3(modes(0))
@@ -159,21 +158,26 @@ class ModalTriggerTests(unittest.TestCase):
         self.assertEqual(game.seats[1].battlefield, [])
 
 
+def pick_relic(options):
+    return next(i for i, o in enumerate(options) if o.startswith("Relic"))
+
+
 class ModalAbilityTests(unittest.TestCase):
-    def activate(self, card, *picks, opponents=()):
+    def activate(self, card, *picks, opponents=(), also=()):
         game, players = table3(lambda prompt, options: (modes(*picks)(prompt, options) if prompt.startswith(MODE_PROMPT)
+                                                       else pick_relic(options) if prompt.startswith("Choose what to sacrifice")
                                                        else next((i for i, o in enumerate(options) if o.startswith(ACTIVATE)),
                                                                  options.index(PASS) if PASS in options else 0)))
         a = game.seats[0]
         well = Permanent(card)
-        a.battlefield, a.library = [well], [BEAR] * 3
+        a.battlefield, a.library = [well, *also], [BEAR] * 3
         game.seats[1].battlefield = list(opponents)
         game._priority_round(a)
         return game, a, well, players
 
     def test_activating_chooses_a_mode(self):
-        game, a, well, _ = self.activate(WELL, 1)
-        self.assertEqual((well.tapped, a.life, len(a.hand)), (True, 40, 1))
+        game, a, well, _ = self.activate(WELL, 1, also=[Permanent(Card(name="Relic", type_line="Artifact"))])
+        self.assertEqual((well.tapped, game.power(well), len(a.battlefield)), (True, 2 + 2, 1))  # the Relic was the cost
 
     def test_it_cannot_be_activated_when_no_mode_has_a_target(self):
         game, a, well, players = self.activate(BREAKER, 0)

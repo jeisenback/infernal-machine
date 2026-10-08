@@ -6,7 +6,7 @@ from dataclasses import replace
 from infernal_machine.cards import Card
 from infernal_machine.effects import activated_abilities
 from infernal_machine.game import Permanent
-from infernal_machine.game import OPENING_PROMPT
+from infernal_machine.game import MODE_PROMPT, OPENING_PROMPT
 from tests.test_combat import BEAR
 from tests.test_effects import lands, table
 from tests.test_mass_effects import table3
@@ -79,3 +79,19 @@ class BlinkmothNexusTests(unittest.TestCase):
         [ability] = [x for x in activated_abilities(nexus.card) if x.tap and x.mana_cost]
         options = [p for _, p in game.target_options("Blinkmoth creature", a)]
         self.assertEqual(options, [moth])
+
+
+class CharmingPrinceTests(unittest.TestCase):
+    def test_the_third_mode_blinks_a_creature_you_own_until_the_end_step(self):
+        game, _ = table3(lambda prompt, options: next((i for i, o in enumerate(options) if o.startswith("Exile another")), 0)
+                         if prompt.startswith(MODE_PROMPT) else 0)
+        a = game.seats[0]
+        bear = Permanent(BEAR)
+        a.battlefield = [bear]
+        game._enter(a, Permanent(REAL["Charming Prince"]))
+        run_stack(game)
+        self.assertEqual([p.card.name for p in a.battlefield], ["Charming Prince"])
+        self.assertEqual(a.exile, [BEAR])
+        game.step = "end"
+        game._turn_based_actions(a)
+        self.assertEqual(sorted(p.card.name for p in a.battlefield), ["Bear", "Charming Prince"])
