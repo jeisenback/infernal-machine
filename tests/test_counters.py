@@ -4,6 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.characteristics import power, toughness
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, attack_all
 from tests.test_effects import BOLT, lands, pick, table
 
@@ -11,7 +12,7 @@ GROWTH = Card(name="Test Growth Spiral", mana_cost="{G}", type_line="Instant",
               oracle_text="Put two +1/+1 counters on target creature.")
 WITHER = Card(name="Wither", mana_cost="{B}", type_line="Instant",
               oracle_text="Put two −1/−1 counters on target creature an opponent controls.")
-RALLY = Card(name="Test Rally", mana_cost="{W}", type_line="Sorcery", oracle_text="Put a +1/+1 counter on each creature you control.")
+RALLY = REAL["Basri's Solidarity"]
 HYDRA = Card(name="Hydra", mana_cost="{G}", type_line="Creature — Hydra", power="0", toughness="0",
              oracle_text="Trample\nThis creature enters with three +1/+1 counters on it.")
 BRUTE = Card(name="Brute", mana_cost="{1}", type_line="Creature — Ogre", power="2", toughness="2",
@@ -59,7 +60,7 @@ class CounterTests(unittest.TestCase):
         game.seats[0].battlefield = lands(1) + [Permanent(BEAR), Permanent(BEAR)]
         game.seats[1].battlefield = [Permanent(BEAR)]
         game._priority_round(game.seats[0])
-        self.assertEqual([p.counters for p in game.seats[0].battlefield[1:]], [{"+1/+1": 1}] * 2)
+        self.assertEqual([p.counters for p in game.seats[0].battlefield[2:]], [{"+1/+1": 1}] * 2)
         self.assertEqual(game.seats[1].battlefield[0].counters, {})
 
     def test_enters_with_counters(self):

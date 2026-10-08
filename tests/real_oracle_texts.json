@@ -536,6 +536,50 @@
    "power": "4",
    "toughness": "3",
    "colors": []
+  },
+  {
+   "name": "Basri's Solidarity",
+   "mana_cost": "{1}{W}",
+   "type_line": "Sorcery",
+   "oracle_text": "Put a +1/+1 counter on each creature you control.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Reckless Impulse",
+   "mana_cost": "{1}{R}",
+   "type_line": "Sorcery",
+   "oracle_text": "Exile the top two cards of your library. Until the end of your next turn, you may play those cards.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Momentary Blink",
+   "mana_cost": "{1}{W}",
+   "type_line": "Instant",
+   "oracle_text": "Exile target creature you control, then return it to the battlefield under its owner's control.\nFlashback {3}{U} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Fell",
+   "mana_cost": "{1}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Destroy target creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."
