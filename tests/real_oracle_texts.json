@@ -19,7 +19,10 @@
    "oracle_text": "This land enters tapped.\n{T}: Add {G}.\n{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (It can deal excess combat damage to the player or planeswalker it's attacking.)",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "G"
+   ]
   },
   {
    "name": "Mutavault",
@@ -28,7 +31,10 @@
    "oracle_text": "{T}: Add {C}.\n{1}: This land becomes a 2/2 creature with all creature types until end of turn. It's still a land.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
   },
   {
    "name": "Threaten",
@@ -191,7 +197,10 @@
    "oracle_text": "You have no maximum hand size.\n{T}: Add {C}.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
   },
   {
    "name": "Rancor",
@@ -234,7 +243,11 @@
    "oracle_text": "{T}, Pay 1 life: Add {G} or {W}.\n{1}, {T}, Sacrifice this land: Draw a card.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "G",
+    "W"
+   ]
   },
   {
    "name": "Exotic Orchard",
@@ -243,7 +256,14 @@
    "oracle_text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "G",
+    "R",
+    "U",
+    "W"
+   ]
   },
   {
    "name": "Reflecting Pool",
@@ -252,7 +272,14 @@
    "oracle_text": "{T}: Add one mana of any type that a land you control could produce.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "G",
+    "R",
+    "U",
+    "W"
+   ]
   },
   {
    "name": "Brainstorm",
@@ -294,7 +321,10 @@
    "oracle_text": "{T}: Add {G} for each creature you control.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "G"
+   ]
   },
   {
    "name": "Cabal Coffers",
@@ -303,7 +333,10 @@
    "oracle_text": "{2}, {T}: Add {B} for each Swamp you control.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "B"
+   ]
   },
   {
    "name": "Elvish Archdruid",
@@ -437,6 +470,461 @@
     "R",
     "W"
    ]
+  },
+  {
+   "name": "Gilded Lotus",
+   "mana_cost": "{5}",
+   "type_line": "Artifact",
+   "oracle_text": "{T}: Add three mana of any one color.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Edgar Markov",
+   "mana_cost": "{3}{R}{W}{B}",
+   "type_line": "Legendary Creature — Vampire Knight",
+   "oracle_text": "Eminence — Whenever you cast another Vampire spell, if Edgar is in the command zone or on the battlefield, create a 1/1 black Vampire creature token.\nFirst strike, haste\nWhenever Edgar attacks, put a +1/+1 counter on each Vampire you control.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "B",
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Crusade",
+   "mana_cost": "{W}{W}",
+   "type_line": "Enchantment",
+   "oracle_text": "White creatures get +1/+1.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Good-Fortune Unicorn",
+   "mana_cost": "{1}{G}{W}",
+   "type_line": "Creature — Unicorn",
+   "oracle_text": "Whenever another creature you control enters, put a +1/+1 counter on that creature.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Leyline of the Void",
+   "mana_cost": "{2}{B}{B}",
+   "type_line": "Enchantment",
+   "oracle_text": "If this card is in your opening hand, you may begin the game with it on the battlefield.\nIf a card would be put into an opponent's graveyard from anywhere, exile it instead.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Panharmonicon",
+   "mana_cost": "{4}",
+   "type_line": "Artifact",
+   "oracle_text": "If an artifact or creature entering causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Yarok, the Desecrated",
+   "mana_cost": "{2}{B}{G}{U}",
+   "type_line": "Legendary Creature — Elemental Horror",
+   "oracle_text": "Deathtouch, lifelink\nIf a permanent entering causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time.",
+   "power": "3",
+   "toughness": "5",
+   "colors": [
+    "B",
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Dina, Soul Steeper",
+   "mana_cost": "{B}{G}",
+   "type_line": "Legendary Creature — Dryad Druid",
+   "oracle_text": "Whenever you gain life, each opponent loses 1 life.\n{1}, Sacrifice another creature: Dina gets +X/+0 until end of turn, where X is the sacrificed creature's power.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Smothering Abomination",
+   "mana_cost": "{2}{B}{B}",
+   "type_line": "Creature — Eldrazi",
+   "oracle_text": "Devoid (This card has no color.)\nFlying\nAt the beginning of your upkeep, sacrifice a creature.\nWhenever you sacrifice a creature, draw a card.",
+   "power": "4",
+   "toughness": "3",
+   "colors": []
+  },
+  {
+   "name": "Basri's Solidarity",
+   "mana_cost": "{1}{W}",
+   "type_line": "Sorcery",
+   "oracle_text": "Put a +1/+1 counter on each creature you control.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Reckless Impulse",
+   "mana_cost": "{1}{R}",
+   "type_line": "Sorcery",
+   "oracle_text": "Exile the top two cards of your library. Until the end of your next turn, you may play those cards.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Momentary Blink",
+   "mana_cost": "{1}{W}",
+   "type_line": "Instant",
+   "oracle_text": "Exile target creature you control, then return it to the battlefield under its owner's control.\nFlashback {3}{U} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Fell",
+   "mana_cost": "{1}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Destroy target creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Steam Blast",
+   "mana_cost": "{2}{R}",
+   "type_line": "Sorcery",
+   "oracle_text": "Steam Blast deals 2 damage to each creature and each player.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Plague Wind",
+   "mana_cost": "{7}{B}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Destroy all creatures you don't control. They can't be regenerated.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Might of the Masses",
+   "mana_cost": "{G}",
+   "type_line": "Instant",
+   "oracle_text": "Target creature gets +1/+1 until end of turn for each creature you control.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Llanowar Loamspeaker",
+   "mana_cost": "{1}{G}",
+   "type_line": "Creature — Elf Druid",
+   "oracle_text": "{T}: Add one mana of any color.\n{T}: Target land you control becomes a 3/3 Elemental creature with haste until end of turn. It's still a land. Activate only as a sorcery.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Blinkmoth Nexus",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{1}: This land becomes a 1/1 Blinkmoth artifact creature with flying until end of turn. It's still a land.\n{1}, {T}: Target Blinkmoth creature gets +1/+1 until end of turn.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
+  },
+  {
+   "name": "Ash Barrens",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\nBasic landcycling {1} ({1}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.)",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
+  },
+  {
+   "name": "Cryptic Serpent",
+   "mana_cost": "{5}{U}{U}",
+   "type_line": "Creature — Serpent",
+   "oracle_text": "This spell costs {1} less to cast for each instant and sorcery card in your graveyard.",
+   "power": "6",
+   "toughness": "5",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Windfall",
+   "mana_cost": "{2}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Each player discards their hand, then draws cards equal to the greatest number of cards a player discarded this way.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Inquisition of Kozilek",
+   "mana_cost": "{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Target player reveals their hand. You choose a nonland card from it with mana value 3 or less. That player discards that card.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Brain Freeze",
+   "mana_cost": "{1}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Target player mills three cards.\nStorm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Loran's Escape",
+   "mana_cost": "{W}",
+   "type_line": "Instant",
+   "oracle_text": "Target artifact or creature gains hexproof and indestructible until end of turn. Scry 1.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Thorn of the Black Rose",
+   "mana_cost": "{3}{B}",
+   "type_line": "Creature — Human Assassin",
+   "oracle_text": "Deathtouch\nWhen this creature enters, you become the monarch.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Jeering Homunculus",
+   "mana_cost": "{1}{U}",
+   "type_line": "Creature — Homunculus",
+   "oracle_text": "When this creature enters, you may goad target creature. (Until your next turn, that creature attacks each combat if able and attacks a player other than you if able.)",
+   "power": "0",
+   "toughness": "4",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Charming Prince",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Human Noble",
+   "oracle_text": "When this creature enters, choose one —\n• Scry 2.\n• You gain 3 life.\n• Exile another target creature you own. Return it to the battlefield under your control at the beginning of the next end step.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Breya's Apprentice",
+   "mana_cost": "{2}{R}",
+   "type_line": "Artifact Creature — Human Artificer",
+   "oracle_text": "When this creature enters, create a 1/1 colorless Thopter artifact creature token with flying.\n{T}, Sacrifice an artifact: Choose one —\n• Exile the top card of your library. Until the end of your next turn, you may play that card.\n• Target creature gets +2/+0 until end of turn.",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Benevolent Hydra",
+   "mana_cost": "{X}{G}{G}",
+   "type_line": "Creature — Hydra",
+   "oracle_text": "This creature enters with X +1/+1 counters on it.\nIf one or more +1/+1 counters would be put on another creature you control, that many plus one +1/+1 counters are put on it instead.\n{T}, Remove a +1/+1 counter from this creature: Put a +1/+1 counter on another target creature you control.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Staff of the Storyteller",
+   "mana_cost": "{1}{W}",
+   "type_line": "Artifact",
+   "oracle_text": "When this artifact enters, create a 1/1 white Spirit creature token with flying.\nWhenever you create one or more creature tokens, put a story counter on this artifact.\n{W}, {T}, Remove a story counter from this artifact: Draw a card.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Gyome, Master Chef",
+   "mana_cost": "{2}{B}{G}",
+   "type_line": "Legendary Creature — Troll Warlock",
+   "oracle_text": "Trample\nAt the beginning of your end step, create a number of Food tokens equal to the number of nontoken creatures you had enter the battlefield under your control this turn.\n{1}, Sacrifice a Food: Target creature gains indestructible until end of turn. Tap it.",
+   "power": "5",
+   "toughness": "3",
+   "colors": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Mistveil Plains",
+   "mana_cost": "",
+   "type_line": "Land — Plains",
+   "oracle_text": "({T}: Add {W}.)\nThis land enters tapped.\n{W}, {T}: Put target card from your graveyard on the bottom of your library. Activate only if you control two or more white permanents.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "W"
+   ]
+  },
+  {
+   "name": "Mystic Sanctuary",
+   "mana_cost": "",
+   "type_line": "Land — Island",
+   "oracle_text": "({T}: Add {U}.)\nThis land enters tapped unless you control three or more other Islands.\nWhen this land enters untapped, you may put target instant or sorcery card from your graveyard on top of your library.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "U"
+   ]
+  },
+  {
+   "name": "Wild Growth",
+   "mana_cost": "{G}",
+   "type_line": "Enchantment — Aura",
+   "oracle_text": "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Sage's Reverie",
+   "mana_cost": "{3}{W}",
+   "type_line": "Enchantment — Aura",
+   "oracle_text": "Enchant creature\nWhen this Aura enters, draw a card for each Aura you control that's attached to a creature.\nEnchanted creature gets +1/+1 for each Aura you control that's attached to a creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Martial Impetus",
+   "mana_cost": "{2}{W}",
+   "type_line": "Enchantment — Aura",
+   "oracle_text": "Enchant creature\nEnchanted creature gets +1/+1 and is goaded. (It attacks each combat if able and attacks a player other than you if able.)\nWhenever enchanted creature attacks, each other creature that's attacking one of your opponents gets +1/+1 until end of turn.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Pacifism",
+   "mana_cost": "{1}{W}",
+   "type_line": "Enchantment — Aura",
+   "oracle_text": "Enchant creature\nEnchanted creature can't attack or block.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Rageblood Shaman",
+   "mana_cost": "{1}{R}{R}",
+   "type_line": "Creature — Minotaur Shaman",
+   "oracle_text": "Trample\nOther Minotaur creatures you control get +1/+1 and have trample.",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Soldier On",
+   "mana_cost": "{2}{W}",
+   "type_line": "Instant",
+   "oracle_text": "Put two +1/+1 counters on target creature. Untap it.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Bioshift",
+   "mana_cost": "{G/U}",
+   "type_line": "Instant",
+   "oracle_text": "Move any number of +1/+1 counters from target creature onto another target creature with the same controller.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Codie, Ravenous Codex",
+   "mana_cost": "{3}",
+   "type_line": "Legendary Artifact Creature — Book Construct",
+   "oracle_text": "Whenever you cast a prepared spell, copy it. You may choose new targets for the copy.\n{W}{U}{B}{R}{G}, {T}: Each creature you control becomes prepared. (Only creatures with prepare spells can become prepared.)",
+   "power": "1",
+   "toughness": "4",
+   "colors": []
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."

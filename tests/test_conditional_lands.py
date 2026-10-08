@@ -4,14 +4,14 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import EntersTapped, enters_tapped_rule
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_effects import FOREST, pick
 from tests.test_lands import SWAMP, enter
 from tests.test_mass_effects import table3
 
 PORT = Card(name="Scorched Geyser", type_line="Land", produced_mana=("U", "R"),
             oracle_text="This land enters tapped unless you control two or more basic lands.\n{T}: Add {U} or {R}.")
-ISLANDS = Card(name="Mystic Sanctuary", type_line="Land — Island", produced_mana=("U",),
-               oracle_text="({T}: Add {U}.)\nThis land enters tapped unless you control three or more other Islands.")
+ISLANDS = REAL["Mystic Sanctuary"]
 TURBULENT = Card(name="Turbulent Fen", type_line="Land", produced_mana=("B", "G"),
                  oracle_text="This land enters tapped unless your opponents control eight or more lands.\n"
                              "{T}: Add {B} or {G}.")

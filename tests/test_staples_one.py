@@ -9,13 +9,11 @@ from tests.test_combat import BEAR
 from tests.test_effects import FOREST, lands, pick
 from tests.test_lands import SWAMP, spell
 from tests.test_mass_effects import table3
-from tests.test_real_oracle import REAL
+from tests.real import REAL
 
 TOP = Card(name="Sensei's Divining Top", mana_cost="{1}", type_line="Artifact",
            oracle_text="{1}: Look at the top three cards of your library, then put them back in any order.")
-FLOCKING = Card(name="Furygale Flocking", mana_cost="{8}{R}{R}", type_line="Sorcery",
-                oracle_text="This spell costs {1} less to cast for each instant and sorcery card in your graveyard.\n"
-                            "Draw a card.")
+FLOCKING = REAL["Cryptic Serpent"]
 BOLT = Card(name="Bolt", mana_cost="{R}", type_line="Instant", oracle_text="Draw a card.")
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
 COUNTED = [Card(name=f"Card {n}", type_line="Sorcery") for n in range(4)]

@@ -5,8 +5,9 @@ from infernal_machine.characteristics import source_qualities
 from infernal_machine.effects import GrantProtection, activated_abilities, printed_protection, protection_tokens, spell_effects, ward_cost
 from infernal_machine.game import ACTIVATE, CAST, PASS, PROTECTION_PROMPT, WARD_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, creature
-from tests.test_effects import lands, pick, table
+from tests.test_effects import lands, pick
 from tests.test_protection_ward import BOLT, GREEN_BEAR, PLAIN, RED_OGRE, table2
 
 IMMORTAL = creature("Immortal", 2, 2, "Protection from everything")
@@ -29,9 +30,7 @@ BLUE_ARTIFACT = Card(name="Blue Thing", mana_cost="{2}", type_line="Artifact Cre
                      power="1", toughness="1")
 GOLD_CREATURE = Card(name="Gold", mana_cost="{R}{G}", type_line="Creature — Test", colors=("R", "G"), power="2", toughness="2")
 COLORLESS_ARTIFACT = Card(name="Rock", mana_cost="{1}", type_line="Artifact")
-SORCERY = Card(name="Hex", mana_cost="{B}", type_line="Sorcery", colors=("B",), oracle_text="Destroy target creature.")
-
-
+SORCERY = REAL["Fell"]
 class QualityTests(unittest.TestCase):
     def test_what_a_source_is(self):
         self.assertEqual(source_qualities(BOLT), {"R", "instant", "monocolored"})

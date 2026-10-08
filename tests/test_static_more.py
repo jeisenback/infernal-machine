@@ -5,6 +5,7 @@ from infernal_machine.combat import Attack
 from infernal_machine.effects import attached_abilities, static_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR
 from tests.test_mass_effects import table3
 
@@ -17,9 +18,8 @@ LIEGE = creature("Balefire Liege", "Other red creatures you control get +1/+1.\n
                  "Creature — Elemental Knight", ("R", "W"))
 RED_BEAR = creature("Red Bear", colors=("R",))
 GREEN_BEAR = creature("Green Bear", colors=("G",))
-HOFRI = creature("Hofri Ghostforge", "Spirits you control get +1/+1 and have trample and haste.",
-                 "Legendary Creature — Dwarf Cleric", ("R",))
-SPIRIT = creature("Spirit", types="Token Creature — Spirit", colors=("W",), power="1", toughness="1")
+SHAMAN = REAL["Rageblood Shaman"]
+MINOTAUR = creature("Minotaur", types="Token Creature — Minotaur", colors=("R",), power="1", toughness="1")
 MOUND = creature("Blight Mound", "Attacking Pests you control get +1/+0 and have menace.", "Creature — Pest", ("B",))
 PEST = creature("Pest", types="Token Creature — Pest", colors=("B", "G"), power="1", toughness="1")
 STORM_KILN = creature("Storm-Kiln Artist", "This creature gets +1/+0 for each artifact you control.",
@@ -28,13 +28,11 @@ WIGHT = creature("Wight of the Reliquary", "This creature gets +1/+1 for each cr
                  "Creature — Vampire Skeleton", ("B",), "1", "1")
 SPIRITDANCER = creature("Kor Spiritdancer", "This creature gets +2/+2 for each Aura attached to it.", "Creature — Kor Wizard",
                         ("W",), "0", "2")
-REVERIE = Card(name="Sage's Reverie", type_line="Enchantment — Aura", oracle_text="Enchant creature\nEnchanted creature gets +1/+1 "
-               "for each Aura you control that's attached to a creature.")
-BLESSING = Card(name="Blessing", type_line="Enchantment — Aura", oracle_text="Enchant creature")
+REVERIE = REAL["Sage's Reverie"]
+BLESSING = REAL["Pacifism"]
 IMPETUS = Card(name="Ghoulish Impetus", type_line="Enchantment — Aura",
                oracle_text="Enchant creature\nEnchanted creature gets +1/+1, has deathtouch, and is goaded.")
-MARTIAL = Card(name="Martial Impetus", type_line="Enchantment — Aura",
-               oracle_text="Enchant creature\nEnchanted creature gets +1/+1 and is goaded.")
+MARTIAL = REAL["Martial Impetus"]
 TRINKET = Card(name="Trinket", type_line="Artifact")
 GRAVE_BEAR = creature("Grave Bear")
 
@@ -44,8 +42,8 @@ class ParseTests(unittest.TestCase):
         red, white = static_abilities(LIEGE)
         self.assertEqual((red.color, red.other, red.modifier.power), ("R", True, 1))
         self.assertEqual(white.color, "W")
-        [spirits] = static_abilities(HOFRI)
-        self.assertEqual((spirits.subtype, spirits.other, spirits.modifier.keywords), ("Spirit", False, frozenset({"trample", "haste"})))
+        [minotaurs] = static_abilities(SHAMAN)
+        self.assertEqual((minotaurs.subtype, minotaurs.other, minotaurs.modifier.keywords), ("Minotaur", True, frozenset({"trample"})))
         [pests] = static_abilities(MOUND)
         self.assertEqual((pests.subtype, pests.attacking, pests.modifier.keywords), ("Pest", True, frozenset({"menace"})))
 
@@ -61,7 +59,7 @@ class ParseTests(unittest.TestCase):
         self.assertTrue(attached_abilities(MARTIAL)[0].goaded)
 
     def test_the_report_no_longer_lists_these_lines(self):
-        for card in (LIEGE, HOFRI, MOUND, STORM_KILN, WIGHT, SPIRITDANCER, REVERIE, IMPETUS, MARTIAL):
+        for card in (LIEGE, SHAMAN, MOUND, STORM_KILN, WIGHT, SPIRITDANCER, REVERIE, IMPETUS, MARTIAL):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
 
@@ -84,11 +82,11 @@ class FilterTests(unittest.TestCase):
     def test_a_tribe_gets_the_bonus_and_keywords(self):
         game, _ = table3()
         a = game.seats[0]
-        spirit, bear = Permanent(SPIRIT), Permanent(BEAR)
-        a.battlefield = [Permanent(HOFRI), spirit, bear]
-        self.assertEqual((game.power(spirit), game.power(bear)), (2, 2))
-        self.assertTrue(game.has_keyword(spirit, "haste"))
-        self.assertFalse(game.has_keyword(bear, "haste"))
+        minotaur, bear = Permanent(MINOTAUR), Permanent(BEAR)
+        a.battlefield = [Permanent(SHAMAN), minotaur, bear]
+        self.assertEqual((game.power(minotaur), game.power(bear)), (2, 2))
+        self.assertTrue(game.has_keyword(minotaur, "trample"))
+        self.assertFalse(game.has_keyword(bear, "trample"))
 
     def test_attacking_pests_only_while_attacking(self):
         game, _ = table3()

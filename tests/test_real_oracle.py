@@ -20,10 +20,7 @@ from tests.test_combat import BEAR
 from tests.test_effects import pick
 from tests.test_mass_effects import table3
 
-DATA = json.loads((Path(__file__).parent / "real_oracle_texts.json").read_text(encoding="utf-8"))
-REAL = {c["name"]: Card(name=c["name"], mana_cost=c["mana_cost"], type_line=c["type_line"], oracle_text=c["oracle_text"],
-                        power=c["power"], toughness=c["toughness"], colors=tuple(c["colors"]))
-        for c in DATA["cards"]}
+from tests.real import DATA, REAL  # noqa: F401  (REAL is imported from here by other tests)
 
 
 class SupportTests(unittest.TestCase):

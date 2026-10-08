@@ -49,7 +49,8 @@ def main() -> int:
         for variable, value in vars(module).items():
             if isinstance(value, Card) and value.oracle_text and value.name.lower() in index:
                 real = index[value.name.lower()]
-                if normal(value.oracle_text) != normal(real.oracle_text):
+                halves = [real.oracle_text] + ([real.prepare.oracle_text] if real.prepare else [])  # a prepare card's spell
+                if all(normal(value.oracle_text) != normal(text) for text in halves):
                     differing.append((value, real, f"{os.path.basename(path)}:{variable}"))
     print(f"{len(differing)} test cards have a real card's name but different text")
     risky = [(t, r, w) for t, r, w in differing if not unsupported_lines(t) and unsupported_lines(r)]

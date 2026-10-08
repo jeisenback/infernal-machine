@@ -1,17 +1,17 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import Replacements, replacement_effects, spell_effects
+from infernal_machine.effects import Replacements, replacement_effects
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, OGRE, creature
 from tests.test_effects import DIVINATION, lands, pick, table
 
 RIP = Card(name="Rest in Peace", mana_cost="{1}{W}", type_line="Enchantment",
            oracle_text="When Rest in Peace enters the battlefield, exile all cards from all graveyards.\n"
                        "If a card or token would be put into a graveyard from anywhere, exile it instead.")
-LEYLINE = Card(name="Leyline of the Void", mana_cost="{2}{B}{B}", type_line="Enchantment",
-               oracle_text="If a card would be put into an opponent's graveyard from anywhere, exile it instead.")
+LEYLINE = REAL["Leyline of the Void"]
 SEASON = Card(name="Doubling Season", mana_cost="{4}{G}", type_line="Enchantment",
               oracle_text="If an effect would create one or more tokens under your control, it creates twice that many "
                           "of those tokens instead.\nIf an effect would put one or more counters on a permanent you "
@@ -22,9 +22,7 @@ LIVES = Card(name="Parallel Lives", mana_cost="{3}{G}", type_line="Enchantment",
 SCALES = Card(name="Hardened Scales", mana_cost="{G}", type_line="Enchantment",
               oracle_text="If one or more +1/+1 counters would be put on a creature you control, that many plus one "
                           "+1/+1 counters are put on it instead.")
-PANH = Card(name="Panharmonicon", mana_cost="{4}", type_line="Artifact",
-            oracle_text="If an artifact or creature entering the battlefield causes a triggered ability of a permanent "
-                        "you control to trigger, that ability triggers an additional time.")
+PANH = REAL["Panharmonicon"]
 YAROK = Card(name="Yarok", mana_cost="{2}{B}{G}{U}", type_line="Legendary Creature — Elemental", power="3", toughness="5",
              oracle_text="If a permanent entering the battlefield causes a triggered ability of a permanent you control "
                          "to trigger, that ability triggers an additional time.")

@@ -2,10 +2,10 @@ import unittest
 
 from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
-from infernal_machine.effects import (Discard, EachDraw, TargetChooseDiscard, TargetDiscard, spell_effects,
-                                      triggered_abilities)
+from infernal_machine.effects import (Discard, DiscardHandsDrawGreatest, EachDraw, TargetChooseDiscard, TargetDiscard, spell_effects)
 from infernal_machine.game import CAST, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_effects import BOLT, FOREST, lands, pick
 from tests.test_combat import BEAR
 from tests.test_mass_effects import table3
@@ -18,15 +18,14 @@ def sorcery(name, text):
 MIND_ROT = sorcery("Mind Rot", "Target player discards two cards.")
 HYMN = sorcery("Hymn", "Target opponent discards two cards at random.")
 SYPHON = sorcery("Syphon", "Each opponent discards a card.")
-WINDFALL = sorcery("Windfall", "Each player discards their hand.")
+WINDFALL = REAL["Windfall"]
 WHEEL = sorcery("Wheel", "Each player discards their hand, then draws seven cards.")
 LOOTING = sorcery("Looting", "Draw two cards, then discard two cards.")
 DURESS = sorcery("Duress", "Target opponent reveals their hand. You choose a noncreature, nonland card from it. That "
                            "player discards that card.")
 THOUGHTSEIZE = sorcery("Thoughtseize", "Target player reveals their hand. You choose a nonland card from it. That player "
                                        "discards that card. You lose 2 life.")
-INQUISITION = sorcery("Inquisition", "Target player reveals their hand. You choose a nonland card with mana value 3 or "
-                                     "less from it. That player discards that card.")
+INQUISITION = REAL["Inquisition of Kozilek"]
 WRAITH = Card(name="Wraith", mana_cost="{B}", type_line="Enchantment",
               oracle_text="Whenever an opponent draws a card, that player discards a card.")
 OGRE = Card(name="Ogre", mana_cost="{2}{R}", cmc=3, type_line="Creature — Ogre", power="3", toughness="3")
@@ -40,7 +39,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(spell_effects(MIND_ROT), [TargetDiscard(2, "player")])
         self.assertEqual(spell_effects(HYMN), [TargetDiscard(2, "opponent", True)])
         self.assertEqual(spell_effects(SYPHON), [Discard(1, "each opponent")])
-        self.assertEqual(spell_effects(WINDFALL), [Discard(None, "each player")])
+        self.assertEqual(spell_effects(WINDFALL), [DiscardHandsDrawGreatest()])
         self.assertEqual(spell_effects(WHEEL), [Discard(None, "each player"), EachDraw(7)])
         self.assertEqual(spell_effects(LOOTING)[1], Discard(2, "you"))
         self.assertEqual(spell_effects(DURESS), [TargetChooseDiscard("opponent", ("creature", "land"), None)])
@@ -101,9 +100,10 @@ class DiscardTests(unittest.TestCase):
         a, b, c = game.seats
         for seat in game.seats:
             seat.hand = [BEAR, BOLT]
+        a.hand = [BEAR, BOLT, BEAR]
         spell_effects(WINDFALL)[0].resolve(game, a, None)
-        self.assertEqual([len(s.hand) for s in game.seats], [0, 0, 0])
-        self.assertEqual([len(s.graveyard) for s in game.seats], [2, 2, 2])
+        self.assertEqual([len(s.hand) for s in game.seats], [3, 3, 3])  # everyone draws the most anyone discarded
+        self.assertEqual([len(s.graveyard) for s in game.seats], [3, 2, 2])
         self.assertFalse([p for p, _ in players[0].prompts if p == DISCARD_CARD_PROMPT])
 
     def test_each_opponent_only(self):

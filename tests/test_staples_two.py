@@ -8,11 +8,11 @@ from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR
 from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
-from tests.test_real_oracle import REAL
+from tests.real import REAL
 
 LAND = Card(name="Wastes", type_line="Basic Land", produced_mana=("C",))
 BOLT = Card(name="Bolt", mana_cost="{R}", type_line="Instant", oracle_text="Draw a card.")
-BLESSING = Card(name="Blessing", mana_cost="{1}", type_line="Enchantment — Aura", oracle_text="Enchant creature")
+BLESSING = REAL["Pacifism"]
 TOKEN = Card(name="Spirit", type_line="Token Creature — Spirit", power="1", toughness="1")
 
 

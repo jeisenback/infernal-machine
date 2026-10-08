@@ -5,6 +5,7 @@ from infernal_machine.cards import Card, Deck
 from infernal_machine.effects import Counter, ExileTop, Flicker, spell_effects, triggered_abilities
 from infernal_machine.game import CAST, CAST_EXILE, PASS, PLAY_EXILE, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, OGRE
 from tests.test_effects import FOREST, lands, pick
 from tests.test_mass_effects import table3
@@ -18,13 +19,11 @@ def spell(name, text, kind="Instant", cost="{U}"):
 EXILE_SPELL = spell("Spell Eater", "Exile target spell.")
 DISSIPATE = spell("Dissipate", "Counter target spell. If that spell is countered this way, exile it instead of putting it "
                               "into its owner's graveyard.")
-LIGHT = spell("Light Up the Stage", "Exile the top two cards of your library. Until the end of your next turn, you may play "
-                                    "those cards.", "Sorcery")
+LIGHT = REAL["Reckless Impulse"]
 IMPULSE = spell("Impulse", "Exile the top card of your library. You may play it this turn.", "Sorcery")
 CLOUDSHIFT = spell("Cloudshift", "Exile target creature you control, then return that card to the battlefield under your "
                                  "control.")
-EPHEMERATE = spell("Ephemerate", "Exile target creature you control, then return it to the battlefield under its owner's "
-                                 "control.")
+EPHEMERATE = REAL["Momentary Blink"]
 FLICKER = spell("Flicker Away", "Exile target creature. Return it to the battlefield under its owner's control at the "
                                 "beginning of the next end step.")
 TO_HAND = spell("Tuck Away", "Exile target creature. Return it to its owner's hand at the beginning of the next end step.")

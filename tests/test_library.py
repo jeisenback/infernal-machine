@@ -5,7 +5,8 @@ from infernal_machine.effects import Mill, Scry, SearchForLands, Surveil, Target
 from infernal_machine.game import (CAST, KEEP_ON_TOP, LOOK_PROMPT, NONE_TAKEN, ORDER_TOP_PROMPT, PUT_IN_GRAVEYARD, SCRY_PROMPT, SEARCH_LAND_HAND_PROMPT,
                                    SEARCH_LAND_PROMPT, SURVEIL_PROMPT, Permanent)
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import BEAR, BOLT, FOREST, lands, pick, table
+from tests.real import REAL
+from tests.test_effects import BEAR, BOLT, FOREST, lands, pick
 from tests.test_exile import COMMANDER
 from tests.test_mass_effects import table3
 from tests.test_watch_triggers import COURSER
@@ -26,7 +27,7 @@ EXPLOSIVE = Card(name="Explosive Vegetation", mana_cost="{3}{G}", type_line="Sor
                              "then shuffle.")
 OPT = Card(name="Preordain", mana_cost="{U}", type_line="Sorcery", oracle_text="Scry 2.\nDraw a card.")
 SURVEIL = Card(name="Consider", mana_cost="{U}", type_line="Instant", oracle_text="Surveil 2.")
-MILL = Card(name="Mind Funeral", mana_cost="{1}{U}", type_line="Sorcery", oracle_text="Target opponent mills 3 cards.")
+MILL = REAL["Brain Freeze"]
 DREDGE = Card(name="Glimpse", mana_cost="{U}", type_line="Sorcery", oracle_text="Mill three cards.")
 TIDE = Card(name="Tide", mana_cost="{U}", type_line="Sorcery", oracle_text="Each opponent mills 2 cards.")
 WIZARD = Card(name="Wizard", mana_cost="{U}", type_line="Creature — Wizard", power="1", toughness="1",
@@ -53,7 +54,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(spell_effects(EXPLOSIVE), [SearchForLands(2, (), 2, True, False)])
         self.assertEqual(spell_effects(OPT), [Scry(2), spell_effects(Card(name="d", oracle_text="Draw a card."))[0]])
         self.assertEqual(spell_effects(SURVEIL), [Surveil(2)])
-        self.assertEqual(spell_effects(MILL), [TargetMill(3, "opponent")])
+        self.assertEqual(spell_effects(MILL)[0], TargetMill(3, "player"))
         self.assertEqual(spell_effects(DREDGE), [Mill(3, "you")])
         self.assertEqual(spell_effects(TIDE), [Mill(2, "each opponent")])
         self.assertEqual(spell_effects(Card(name="Blast", oracle_text="Scry X.")), [Scry("X")])

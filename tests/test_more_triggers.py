@@ -4,6 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import Draw, GainLife, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, attack_all, creature
 from tests.test_effects import table
 
@@ -13,11 +14,10 @@ WATCHMAN = Card(name="Watchman", mana_cost="{W}", type_line="Enchantment",
                 oracle_text="At the beginning of each end step, you gain 1 life.")
 DRUMMER = Card(name="Drummer", mana_cost="{R}", type_line="Enchantment",
                oracle_text="At the beginning of combat on your turn, you gain 1 life.")
-DINA = Card(name="Dina, Soul Steeper", mana_cost="{B}{G}", type_line="Legendary Creature — Dryad Druid",
-            power="1", toughness="3", oracle_text="Whenever you gain life, each opponent loses 1 life.")
+DINA = REAL["Dina, Soul Steeper"]
 MOURNER = Card(name="Mourner", mana_cost="{B}", type_line="Enchantment",
                oracle_text="Whenever you lose life, draw a card.")
-ABOMINATION = creature("Abomination", 4, 3, "Whenever you sacrifice a creature, draw a card.")
+ABOMINATION = REAL["Smothering Abomination"]
 HARNESS = Card(name="Harness", mana_cost="{1}", type_line="Artifact — Equipment",
                oracle_text="When this Equipment enters, draw a card.\nEquip {1}")
 TREASURE = Card(name="Treasure", type_line="Token Artifact — Treasure",
@@ -91,8 +91,7 @@ class ParseTests(unittest.TestCase):
         cases = {DRYAD: "each_upkeep", WATCHMAN: "each_end_step", DRUMMER: "combat", DINA: "gain_life",
                  MOURNER: "lose_life", ABOMINATION: "sacrifice_creature"}
         for card, event in cases.items():
-            [ability] = triggered_abilities(card)
-            self.assertEqual(ability.event, event, card.name)
+            self.assertIn(event, [a.event for a in triggered_abilities(card)], card.name)
         self.assertEqual(triggered_abilities(DRYAD)[0].effects, (GainLife(1),))
 
     def test_aura_equipment_and_class_call_themselves_this(self):
@@ -408,9 +407,11 @@ class OncePerTurnTests(unittest.TestCase):
 
 
 def run_stack(game):
-    game._put_triggers_on_stack()
-    while game.stack:
-        game._resolve(game.stack.pop())
+    """Put the triggers on the stack and resolve everything, including what resolving triggers in turn."""
+    while game.pending or game.stack:
+        game._put_triggers_on_stack()
+        while game.stack:
+            game._resolve(game.stack.pop())
 
 
 class XSpellTests(unittest.TestCase):

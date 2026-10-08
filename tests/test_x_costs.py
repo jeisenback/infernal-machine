@@ -7,7 +7,7 @@ from infernal_machine.game import ACTIVATE, CAST, LIFE_X_PROMPT, Permanent, X_PR
 from infernal_machine.report import unsupported_lines
 from tests.test_effects import lands
 from tests.test_mass_effects import table3
-from tests.test_real_oracle import REAL
+from tests.real import REAL
 
 DELUGE = REAL["Toxic Deluge"]
 DEED = REAL["Pernicious Deed"]

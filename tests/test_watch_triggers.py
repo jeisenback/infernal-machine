@@ -5,6 +5,7 @@ from infernal_machine.game import CAST, PLAY_LAND, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR
 from tests.test_effects import BOLT, DIVINATION, FOREST, MURDER, lands, pick, table
+from tests.real import REAL
 from tests.test_tokens import RAISE
 
 SOUL_WARDEN = Card(name="Soul Warden", mana_cost="{W}", type_line="Creature — Human Cleric", power="1", toughness="1",
@@ -19,8 +20,6 @@ ZULAPORT = Card(name="Zulaport", mana_cost="{B}", type_line="Creature — Human"
                 oracle_text="Whenever Zulaport or another creature you control dies, each opponent loses 1 life.")
 MONK = Card(name="Monk", mana_cost="{U}", type_line="Creature — Human Monk", power="1", toughness="1",
             oracle_text="Whenever you cast a noncreature spell, put a +1/+1 counter on each creature you control.")
-CRUSADE = Card(name="Crusade", mana_cost="{W}", type_line="Enchantment",
-               oracle_text="Whenever another creature you control enters, put a +1/+1 counter on it.")
 
 
 class WatchTriggerTests(unittest.TestCase):
@@ -108,7 +107,7 @@ class WatchTriggerTests(unittest.TestCase):
         self.assertEqual(order, [("cast", "Divination"), ("trigger", "Monk"), ("resolve", "Monk"), ("resolve", "Divination")])
 
     def test_report(self):
-        for card in (SOUL_WARDEN, GUIDE, COURSER, PAWN, ZULAPORT, MONK, CRUSADE):
+        for card in (SOUL_WARDEN, GUIDE, COURSER, PAWN, ZULAPORT, MONK, REAL["Good-Fortune Unicorn"]):
             self.assertEqual(unsupported_lines(card), [], card.name)
         tapper = Card(name="Tapper", type_line="Enchantment", oracle_text="Whenever another creature enters, tap it.")
         self.assertEqual(unsupported_lines(tapper), ["Whenever another creature enters, tap it."])
