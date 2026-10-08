@@ -2888,7 +2888,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
     #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "not_prepared", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
+    #            "gained_life_at_least", "creatures_died", "not_prepared", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
 
@@ -2900,6 +2900,8 @@ def _singular(word: str) -> str:
 _CONDITIONS = [
     (re.compile(r"a card left your graveyard this turn"), lambda m: Condition("graveyard_left")),
     (re.compile(r"you gained life this turn"), lambda m: Condition("gained_life")),
+    (re.compile(rf"you gained {_N} or more life this turn"), lambda m: Condition("gained_life_at_least", _count(m[1]))),
+    (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
     (re.compile(r"you've cast an? (instant or sorcery spell|creature spell|noncreature spell|spell) this turn"),
      lambda m: Condition("cast_this_turn", what=m[1])),
@@ -2936,7 +2938,7 @@ class Watch:
     nontoken: bool = False
     caster: str = "you"  # for casts: "you", "player" (anyone) or "opponent"
     theirs: bool = False  # "an opponent controls"
-    first_each_turn: bool = False  # "your first ... spell each turn"
+    nth_each_turn: int = 0  # "your first / second / third ... spell each turn": 1, 2 or 3
 
 
 _TRIGGERS = {
@@ -2979,6 +2981,10 @@ _TRIGGERS = {
     "host_combat_damage": re.compile(r"Whenever (?:enchanted|equipped) creature deals combat damage to a player, (.+)", re.I),
     "put_into_graveyard": re.compile(rf"When {_SELF} is put into a graveyard from the battlefield, (.+)", re.I),
     "first_life_loss": re.compile(r"Whenever you lose life for the first time each turn, (.+)", re.I),
+    "first_life_gain": re.compile(r"Whenever you gain life for the first time each turn, (.+)", re.I),
+    "opponent_second_draw": re.compile(r"Whenever an opponent draws their second card each turn, (.+)", re.I),
+    "first_main": re.compile(r"At the beginning of your first main phase, (.+)", re.I),
+    "second_main": re.compile(r"At the beginning of your second main phase, (.+)", re.I),
 }
 TRIGGER_EVENTS = tuple(_TRIGGERS)
 
@@ -3003,7 +3009,7 @@ _WATCHES = {
     "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature token|token|creature|{_TRIBE})"
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
     "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? leaves the battlefield, (.+)", re.I),
-    "cast": re.compile(r"Whenever (you cast|a player casts|an opponent casts) (?:an?|(your first)) "
+    "cast": re.compile(r"Whenever (you cast|a player casts|an opponent casts) (?:an?|(?:your|their) (first|second|third)) "
                        r"((?:white|blue|black|red|green) spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost)"
@@ -3017,7 +3023,7 @@ _OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat
 # The creature is already gone when it dies, so "it" there has nothing to point at (the line isn't understood).
 _HOST_GONE = {"host_dies"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
-_PLAYER_EVENTS = {"opponent_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
+_PLAYER_EVENTS = {"opponent_draw", "opponent_second_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
                   "opponent_discard", "opponent_search"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
 _CONTROLLER = r"(?:its|that (?:creature|permanent|land)'s) controller"
@@ -3049,7 +3055,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     line = _ABILITY_WORD.sub("", line)
     if m := _WATCHES["cast"].fullmatch(line):
         caster = {"you cast": "you", "a player casts": "player", "an opponent casts": "opponent"}[m[1].lower()]
-        return "cast", Watch(m[3].lower(), caster=caster, first_each_turn=bool(m[2])), m[4]
+        nth = {"first": 1, "second": 2, "third": 3}.get((m[2] or "").lower(), 0)
+        return "cast", Watch(m[3].lower(), caster=caster, nth_each_turn=nth), m[4]
     for event in ("permanent_enters", "creature_dies", "permanent_leaves"):
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()

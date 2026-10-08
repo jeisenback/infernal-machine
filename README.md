@@ -611,6 +611,10 @@ winner = game.play()
   | Whenever one or more cards leave your graveyard, ... (once per event) | Quintorius, History Chaser |
   | Whenever a player sacrifices a permanent / another permanent, ... | Merchant of Venom |
   | Whenever you lose life for the first time each turn, ... | |
+  | Whenever you gain life for the first time each turn, ... | Leech Collector |
+  | Whenever an opponent draws their second card each turn, ... | Faerie Mastermind |
+  | Whenever you cast your first / second / third spell each turn, ... (and an opponent's "their second spell") | Monologue Tax |
+  | At the beginning of your first / second main phase, ... | Scathing Shadelock |
   | Whenever you cast a (creature / noncreature / instant or sorcery) spell, ... | |
   | Whenever you cast a red (or other color) / Aura / "Aura, Equipment, or Vehicle" / historic spell, ... | Sram, Senior Edificer |
   | Whenever a player / an opponent casts a spell, ... | |
@@ -631,7 +635,10 @@ winner = game.play()
     Supported: "if a card left your graveyard this turn", "if you gained life this turn", "if an opponent
     controls more lands than you", "if you've cast an instant or sorcery spell this turn", "if you control
     seven or more Plains", "if you control no Snakes", "if you control an artifact", "if it's your turn", "if you're
-    the monarch", "if you have no cards in hand". A trigger with any other "if" clause is ignored.
+    the monarch", "if you have no cards in hand", "if you gained 2 or more life this turn", "if two or more creatures
+    died this turn" (any player's), "if there are three or more creature cards in your graveyard", "if a player has one
+    or fewer cards in hand", "if an opponent has more cards in hand than you", "if this creature isn't prepared". A
+    trigger with any other "if" clause is ignored.
   - Paying life counts as losing it. A creature that's sacrificed sees itself go
     ("Whenever you sacrifice a creature" on the creature itself triggers).
   - A trigger whose effect isn't understood is ignored.

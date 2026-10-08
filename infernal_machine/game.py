@@ -276,6 +276,7 @@ class Game:
         self.regular = 0  # the seat whose regular turn it is (or was, during an extra turn)
         self.monarch: Seat | None = None
         self.initiative: Seat | None = None
+        self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
@@ -416,6 +417,8 @@ class Game:
                     self.broadcast({"event": "counters", "card": permanent.card.name, "counter": "lore",
                                     "added": 1, "total": permanent.counters["lore"]})
                     self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
+            for permanent in list(seat.battlefield):
+                self.trigger("first_main", permanent, seat)
         elif self.step == "beginning_of_combat":
             self.combat = Combat(self)
             for permanent in list(seat.battlefield):
@@ -428,6 +431,8 @@ class Game:
             self.combat.deal_damage(first_strike_step=False)
         elif self.step == "main2":
             self.combat = Combat(self)  # CR 511.3: creatures leave combat
+            for permanent in list(seat.battlefield):
+                self.trigger("second_main", permanent, seat)
         elif self.step == "cleanup":
             excess = len(seat.hand) - HAND_SIZE
             for _ in range(max(0, excess)):
@@ -1371,6 +1376,10 @@ class Game:
             return len(seat.hand) >= condition.count
         if kind == "hand_none":
             return not seat.hand
+        if kind == "gained_life_at_least":
+            return seat.life_gained_turn == self.turn and seat.life_gained_amount >= condition.count
+        if kind == "creatures_died":
+            return self.deaths_turn == self.turn and self.deaths_count >= condition.count
         if kind == "not_prepared":
             return source is not None and not source.prepared
         if kind == "graveyard_at_least":
@@ -1409,8 +1418,8 @@ class Game:
                     continue
                 if not _watch_type_matches(watch.kind, card):
                     continue
-                if watch.first_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
-                                                 for turn, c in seat.cast_log) != 1:
+                if watch.nth_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
+                                               for turn, c in seat.cast_log) != watch.nth_each_turn:
                     continue
                 for _ in range(self._trigger_times(watcher_seat, event, card)):
                     self._queue(ability, watcher, watcher_seat, x, subject, seat)
@@ -1553,12 +1562,15 @@ class Game:
                 seat.draw_count += 1
                 if seat.draw_count == 2:
                     self._trigger_each("second_draw", seat)
+                    for opponent in self.opponents(seat):
+                        self._trigger_each("opponent_second_draw", opponent, player=seat)
 
     def change_life(self, seat: Seat, amount: int) -> None:
         seat.life += amount
         self.broadcast({"event": "life", "seat": seat.index, "change": amount, "life": seat.life})
         if amount:  # "Whenever you gain life" / "Whenever you lose life": once per event, not per point
             first_loss = amount < 0 and seat.life_lost_turn != self.turn
+            first_gain = amount > 0 and seat.life_gained_turn != self.turn
             if amount < 0:
                 seat.life_lost_turn = self.turn
             else:
@@ -1570,6 +1582,8 @@ class Game:
                 self.trigger("gain_life" if amount > 0 else "lose_life", permanent, seat)
                 if first_loss:
                     self.trigger("first_life_loss", permanent, seat)
+                if first_gain:
+                    self.trigger("first_life_gain", permanent, seat)
             for opponent in self.opponents(seat):
                 self._trigger_each("opponent_gain_life" if amount > 0 else "opponent_lose_life", opponent, player=seat)
 
@@ -2471,6 +2485,9 @@ class Game:
             if destination == "graveyard" and not _is_token(permanent.card):  # Rancor: "put into a graveyard from the battlefield"
                 self.trigger("put_into_graveyard", permanent, controller)
             if destination == "graveyard" and "Creature" in permanent.card.type_line:
+                if self.deaths_turn != self.turn:
+                    self.deaths_turn, self.deaths_count = self.turn, 0
+                self.deaths_count += 1
                 self.trigger("dies", permanent, controller)
                 for attachment, attachment_seat in everyone:  # "When enchanted creature dies"
                     if attachment.attached_to is permanent:
