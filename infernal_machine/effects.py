@@ -41,11 +41,14 @@ def _rules_text(card: Card) -> str:
     """Oracle text without reminder text, with the card's own name as CARDNAME.
 
     Legendary cards often call themselves by their short name ("Omnath" for
-    "Omnath, Locus of Rage"), and double-faced cards by their front face's name.
+    "Omnath, Locus of Rage", "Kaalia" for "Kaalia of the Vast"), and double-faced cards by their front face's name.
     """
     text = _REMINDER.sub("", card.oracle_text)
     front = card.name.split(" // ")[0]
-    for name in dict.fromkeys((card.name, front, front.split(",")[0])):
+    short = front.split(",")[0]
+    if "," not in front and "Legendary" in card.type_line and " " in front and front.split(" ")[0] not in ("The", "A", "An"):
+        short = front.split(" ")[0]  # "Kaalia" for Kaalia of the Vast, "Edgar" for Edgar Markov
+    for name in dict.fromkeys((card.name, front, front.split(",")[0], short)):
         text = re.sub(rf"(?<!\w){re.escape(name)}(?!\w)", "CARDNAME", text)
     return _join_modes(text)
 
@@ -927,7 +930,8 @@ class AttachAura:
 
 
 _EQUIP = re.compile(r"Equip ((?:\{\d+\}|\{[WUBRGC]\})+)")
-_ENCHANT = re.compile(r"Enchant ((?:land|creature|artifact|enchantment|planeswalker|permanent|nonland permanent)"
+_ENCHANT = re.compile(r"Enchant ((?:land|creature card in a graveyard|creature|artifact|enchantment|planeswalker|permanent"
+                      r"|nonland permanent)"
                       r"(?: an opponent controls| you control)?)", re.I)
 
 
@@ -1032,6 +1036,26 @@ def is_clone_line(line: str) -> bool:
 
 def is_enchant_line(line: str) -> bool:
     return _ENCHANT.fullmatch(line) is not None
+
+
+# Animate Dead and Dance of the Dead: an Aura cast on a creature card in a graveyard, which comes back with the Aura.
+_REANIMATION_AURA = re.compile(
+    r"When (?:this Aura|CARDNAME) enters, if it's on the battlefield, it loses \"enchant creature card in a graveyard\" and "
+    r"gains \"enchant creature put onto the battlefield with (?:this Aura|CARDNAME)\.\" (?:Return|Put) enchanted creature "
+    r"card (?:to|onto) the battlefield( tapped)? under your control and attach (?:this Aura|CARDNAME) to it\. When "
+    r"(?:this Aura|CARDNAME) leaves the battlefield, that creature's controller sacrifices it\.")
+
+
+def reanimation_aura(card: Card) -> tuple[bool] | None:
+    """(enters tapped,) for Animate Dead and its kind; None for any other card."""
+    for line in rules_lines(card):
+        if m := _REANIMATION_AURA.fullmatch(line):
+            return (bool(m[1]),)
+    return None
+
+
+def is_reanimation_aura_line(line: str) -> bool:
+    return _REANIMATION_AURA.fullmatch(line) is not None
 
 
 @dataclass(frozen=True)
@@ -1479,6 +1503,18 @@ class DefineX:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.x_value = game.evaluate(self.amount, controller)
+
+
+@dataclass(frozen=True)
+class PutAttackingFromHand:
+    """Kaalia of the Vast: "put an Angel, Demon, or Dragon creature card from your hand onto the battlefield tapped and
+    attacking that opponent." The opponent is the player the trigger was about."""
+    types: tuple[str, ...]
+    uses_player = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.put_attacking_from_hand(controller, target, self.types)
 
 
 @dataclass(frozen=True)
@@ -2844,6 +2880,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target {_FIGHTER} deals damage equal to its power to target {_FIGHTER}\.", re.I),
      lambda m: [FightFirst(m[1].lower()), Fight(m[2].lower(), one_sided=True)]),
     (re.compile(r"populate\.", re.I), lambda m: Populate()),
+    (re.compile(r"(?i:put) an? ((?:[A-Z][a-z]+(?:, (?:or )?| or ))*[A-Z][a-z]+) (?i:creature card from your hand onto the "
+                r"battlefield tapped and attacking that opponent\.)"),
+     lambda m: PutAttackingFromHand(tuple(re.findall(r"[A-Z][a-z]+", m[1])))),
     (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
     (re.compile(r"each creature you control becomes prepared\.", re.I), lambda m: PrepareEach()),
     (re.compile(r"target (creature(?: that attacked this turn)?) becomes (prepared|unprepared)\.", re.I),
@@ -3382,6 +3421,7 @@ _TRIGGERS = {
     "enters": re.compile(rf"When(?:ever)? {_SELF} enters(?: the battlefield)?, (.+)", re.I),
     "dies": re.compile(rf"When(?:ever)? {_SELF} dies, (.+)", re.I),
     "attacks": re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I),
+    "attacks_player": re.compile(rf"Whenever {_SELF} attacks an opponent, (.+)", re.I),
     "blocks": re.compile(rf"Whenever {_SELF} blocks, (.+)", re.I),
     "ally_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
     "attacked": re.compile(r"Whenever a creature attacks you, (.+)", re.I),

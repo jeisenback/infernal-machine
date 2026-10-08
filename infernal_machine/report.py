@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from .analysis import is_land
 from .cards import Card, Deck
 from .effects import (PROTECTION, activated_abilities, attached_abilities, is_casting_cost_line, is_cost_reduction_line,
-                      is_clone_line, is_replacement_line, is_control_aura_line, is_cycling_line, is_enchant_line, is_granting_line, is_cumulative_upkeep_line, is_enters_prepared_line, is_overload_line, overloaded_effects, is_extra_vote_line, is_no_max_hand_line, is_enters_tapped_line, is_enters_with_counters, is_mana_ability, is_modal_header,
+                      is_clone_line, is_replacement_line, is_control_aura_line, is_cycling_line, is_enchant_line, is_granting_line, is_cumulative_upkeep_line, is_reanimation_aura_line, is_enters_prepared_line, is_overload_line, overloaded_effects, is_extra_vote_line, is_no_max_hand_line, is_enters_tapped_line, is_enters_with_counters, is_mana_ability, is_modal_header,
                       is_return_exiled_line, is_ward_line, line_effects, mode_text, rules_lines, static_abilities,
                       triggered_abilities)
 from .mana import parse_cost
@@ -65,7 +65,7 @@ def unsupported_lines(card: Card) -> list[str]:
     abilities = {a.text for a in triggered_abilities(card) + activated_abilities(card) + static_abilities(card)
                  + attached_abilities(card)}
     for line in rules_lines(card):
-        if is_cumulative_upkeep_line(line):
+        if is_cumulative_upkeep_line(line) or is_reanimation_aura_line(line):
             continue
         if is_overload_line(line):
             if overloaded_effects(card) is None:
