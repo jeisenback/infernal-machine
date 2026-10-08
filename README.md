@@ -322,6 +322,7 @@ winner = game.play()
     used when you can't afford it. The payer picks painless sources first.
   - Bouncelands: "enters tapped" plus "When this land enters, return a land you control to its owner's hand."
     You choose the land and it can be itself; bots return the newest land.
+  - **Prepare cards** (Secrets of Strixhaven, e.g. Eiganjo Dynastorian // Replenish): a creature whose card also has a spell half. "This creature enters prepared" and "... becomes prepared" (from any trigger the engine fires) make it prepared; while it is, you get a "Cast prepared: <spell>" action (with the spell's own timing and cost). It casts a copy of the spell, which ends instead of going to a graveyard, and the creature stops being prepared. The report checks both halves. Not built yet: "becomes unprepared", making other creatures prepared (Hexhaven Dueling Arena, Codie), and the conditions some cards use to become prepared (see #70 and #71).
   - Cycling {N}: an ability you can use from your hand at instant speed. Pay, discard the card, draw.
     Basic landcycling {N} and Plainscycling / Islandcycling / Swampcycling / Mountaincycling / Forestcycling {N}
     fetch a land to your hand instead (basic land, or any land with that type). The cost can be mana or "Pay N life"
