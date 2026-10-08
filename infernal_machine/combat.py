@@ -68,6 +68,8 @@ class Combat:
             self.attacks.append(Attack(permanent, seat, defender, walker=walker))
             permanent.attacked_turn = self.game.turn
             self.game.trigger("attacks", permanent, seat)
+            if walker is None:
+                self.game.trigger("attacks_player", permanent, seat, player=defender)
             self.game._trigger_each("ally_attacks", seat, subject=permanent)
             self.game._trigger_each("attacked_or_walker", defender, subject=permanent)
             if walker is None:
@@ -82,6 +84,12 @@ class Combat:
         if len(self.attacks) >= 2:
             for permanent in list(seat.battlefield):
                 self.game.trigger("attack_with_two", permanent, seat)
+
+    def add_attacker(self, permanent: Permanent, controller: Seat, defender: Seat) -> None:
+        """A creature put onto the battlefield "tapped and attacking": it was never declared as an attacker, so
+        nothing triggers on its attacking."""
+        self.attacks.append(Attack(permanent, controller, defender))
+        permanent.attacked_turn = self.game.turn
 
     def declare_blockers(self) -> None:
         """Each defending player, in turn order, assigns blockers (CR 509.1)."""

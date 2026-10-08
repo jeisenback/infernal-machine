@@ -543,6 +543,13 @@ winner = game.play()
     choose which. **Cascade:** a trigger above the spell exiles cards from your library until a nonland card that costs
     less; you may cast it for free, and the rest go to the bottom in a random order (a cascade spell's X counts as 0 on
     the card but its chosen X counts for the comparison).
+- **Reanimation Auras** (Animate Dead): "Enchant creature card in a graveyard" is cast on a creature card in any
+  graveyard; when it resolves the creature comes back under your control and the Aura is attached to it, and if the
+  Aura leaves the battlefield the creature is sacrificed. The tapped version (Dance of the Dead) is understood
+  too, but its other lines are not. Necromancy (it becomes an Aura as it enters) is not built.
+- **Kaalia of the Vast:** "Whenever this creature attacks an opponent, you may put an Angel, Demon, or Dragon creature
+  card from your hand onto the battlefield tapped and attacking that opponent." It attacks the same player and
+  triggers nothing for attacking. A legendary card's short name ("Kaalia", "Edgar") is read as the card itself.
 - **Cumulative upkeep {1}** (Mystic Remora): at your upkeep it gets an age counter and you pay the cost once for each
   counter, or sacrifice it. You are asked if you can pay. Mana costs only; "Cumulative upkeep—Pay 1 life" is not built.
 - **Reordering the library:** "Look at the top three cards of your library, then put them back in any order. You may
