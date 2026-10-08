@@ -25,7 +25,7 @@ from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
-                      enters_prepared, enters_with_counters, graveyard_casts, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
+                      enters_prepared, enters_with_counters, graveyard_casts, mana_condition, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
@@ -687,6 +687,8 @@ class Game:
                 continue
             card = permanent.card
             pain, damage = mana_pain(card) or (frozenset(), 0)
+            if (condition := mana_condition(card)) and not self.condition_holds(condition, seat, permanent):
+                continue  # "Activate only if you control five or more lands."
             if is_land(card):
                 if life_cost := mana_life_cost(card):
                     if seat.life > life_cost:  # Mana Confluence: paying life, never down to 0
@@ -853,10 +855,14 @@ class Game:
         pool = list(sources)
         used: list[tuple[ManaSource, frozenset[str] | None]] = []
         for permanent, activation, units in ordered:
-            paid: dict[int, frozenset[str]] = {}
-            chosen = pay(activation, [s.types for s in pool], paid)
-            if chosen is None:
+            # Its own cost is paid by other permanents: a filter can't tap for mana to pay for its own ability.
+            available = [i for i, s in enumerate(pool) if s.permanent is not permanent]
+            paid_here: dict[int, frozenset[str]] = {}
+            chosen_here = pay(activation, [pool[i].types for i in available], paid_here)
+            if chosen_here is None:
                 return None
+            chosen = [available[j] for j in chosen_here]
+            paid = {available[j]: symbol for j, symbol in paid_here.items()}
             used += [(pool[i], paid.get(i)) for i in chosen]
             pool = [s for i, s in enumerate(pool) if i not in chosen] + [ManaSource(permanent, mana) for mana in units]
         paid = {}

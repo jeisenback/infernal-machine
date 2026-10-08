@@ -327,6 +327,10 @@ winner = game.play()
     Basic landcycling {N} and Plainscycling / Islandcycling / Swampcycling / Mountaincycling / Forestcycling {N}
     fetch a land to your hand instead (basic land, or any land with that type). The cost can be mana or "Pay N life"
     (offered only if it leaves you above 0 life).
+  - Mana abilities that end with "Activate only if <condition>." (Temple of the False God, Mox Jasper) make mana only
+    while the condition holds, checked each time you pay. "{1}, {T}: Add one mana of any color." (Hall of Oracles) works
+    like a Signet. A filter or Signet can no longer tap for mana to pay for its own cost (a land with a plain
+    {T}: Add {C} could before).
   - Filter lands ("{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}."): paid like a Signet, so one Swamp becomes two white,
     two black or one of each. A filter land can't pay for its own ability.
   - Exotic Orchard ("any color that a land an opponent controls could produce") and Reflecting Pool ("any type that
