@@ -669,7 +669,7 @@ _PROTECTION_FROM = (_COLOR_NAMES + "|everything|all colors|monocolored|multicolo
 _PROT = (rf"protection from (?:{_PROTECTION_FROM})(?:(?:, and |, | and )(?:from )?(?:{_PROTECTION_FROM}))*")
 _WARD_MANA = r"(?:\{\d+\}|\{[WUBRGC]\})+"
 PROTECTION = re.compile(_PROT, re.I)  # "protection from red", "protection from red and from blue"
-_KW = rf"(?:{_PROT}|ward {_WARD_MANA}|[a-z]+(?: [a-z]+)?)"  # one keyword
+_KW = rf"(?:{_PROT}|ward {_WARD_MANA}|annihilator \d+|[a-z]+(?: [a-z]+)?)"  # one keyword
 
 
 def _protection_keywords(text: str) -> frozenset[str]:
@@ -788,6 +788,26 @@ class PumpSourceX:
         if target is not None:
             x = game.amount("X")
             game.modify_until_end_of_turn(target, Modifier(self.power * x, self.toughness * x))
+
+
+_ANNIHILATOR = re.compile(r"Annihilator (\d+)", re.I)
+
+
+def annihilator_of(card: Card) -> int:
+    """The N of the card's own "Annihilator N" keyword lines."""
+    return sum(int(m[1]) for line in rules_lines(card) for part in line.split(", ") if (m := _ANNIHILATOR.fullmatch(part)))
+
+
+@dataclass(frozen=True)
+class Annihilate:
+    """Annihilator N: "Whenever this creature attacks, defending player sacrifices N permanents." The defending player
+    is the player the trigger was about."""
+    count: int
+    uses_player = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.sacrifice(target, "permanent", self.count)
 
 
 @dataclass(frozen=True)

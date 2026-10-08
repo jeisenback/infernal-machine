@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, annihilator_of, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -2129,6 +2129,11 @@ class Game:
     def has_keyword(self, permanent: Permanent, keyword: str) -> bool:
         """Printed or granted ("gains flying until end of turn", "Creatures you control have haste")."""
         return has_keyword(permanent.card, keyword) or any(keyword in m.keywords for m in self.modifiers(permanent))
+
+    def annihilator(self, permanent: Permanent) -> int:
+        """N of the creature's Annihilator N, printed or granted (Eldrazi Conscription); they add up."""
+        granted = [int(k.split()[1]) for m in self.modifiers(permanent) for k in m.keywords if k.startswith("annihilator ")]
+        return annihilator_of(permanent.card) + sum(granted)
 
     def modify_until_end_of_turn(self, permanent: Permanent, modifier: Modifier) -> None:
         permanent.until_end_of_turn.append(modifier)
