@@ -120,6 +120,7 @@ class AnimateTests(unittest.TestCase):
 
     def test_a_land_that_just_came_in_cannot_attack(self):
         game, a, land = self.activate(TREETOP, 2)
+        land.tapped = False  # it may have tapped for its own {G}
         self.assertTrue(game.combat._can_attack(land))  # it has been there since the turn began
         land.sick = True
         self.assertFalse(game.combat._can_attack(land))
