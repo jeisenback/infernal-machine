@@ -1,7 +1,7 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (Exile, ExileUntilLeaves, Modal, TargetDraw, TargetGainLife, TargetLoseLife,
+from infernal_machine.effects import (Exile, ExileUntilLeaves, TargetDraw, TargetGainLife, TargetLoseLife,
                                       spell_effects, triggered_abilities)
 from infernal_machine.game import CAST, DONE_MODES, MODE_PROMPT, PASS, Permanent
 from infernal_machine.report import unsupported_lines

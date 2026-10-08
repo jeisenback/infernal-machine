@@ -1,11 +1,11 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import Damage, Draw, GainLife, triggered_abilities
+from infernal_machine.effects import Damage, Draw, triggered_abilities
 from infernal_machine.game import CAST, Permanent
 from tests.real import REAL
-from tests.test_combat import BEAR, attack_all, creature
-from tests.test_effects import BOLT, COUNTERSPELL, RAINBOW, lands, pick, table
+from tests.test_combat import attack_all, creature
+from tests.test_effects import BOLT, COUNTERSPELL, lands, pick, table
 
 MULLDRIFTER = REAL["Mulldrifter"]
 MAYBE = Card(name="Maybe Elf", mana_cost="{G}", type_line="Creature — Elf", power="1", toughness="1",

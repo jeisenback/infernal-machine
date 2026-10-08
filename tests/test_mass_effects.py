@@ -1,7 +1,7 @@
 import unittest
 
 from infernal_machine.cards import Card, Deck
-from infernal_machine.effects import (CannotRegenerate, DamageEach, DestroyAll, EachSacrifices, ExileAll,
+from infernal_machine.effects import (DamageEach, DestroyAll, EachSacrifices, ExileAll,
                                       TargetSacrifices, spell_effects)
 from infernal_machine.game import CAST, COMMAND_ZONE_PROMPT, SACRIFICE_PROMPT, Game, Permanent
 from infernal_machine.report import unsupported_lines

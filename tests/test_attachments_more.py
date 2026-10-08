@@ -3,12 +3,12 @@ import unittest
 from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
 from infernal_machine.effects import ReturnSelfToHand, activated_abilities, granted_abilities, granted_mana, triggered_abilities
-from infernal_machine.game import ACTIVATE, CAST, PASS, Permanent
+from infernal_machine.game import PASS, Permanent
 from infernal_machine.mana import parse_cost
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
-from tests.test_effects import FOREST, lands, pick
+from tests.test_effects import FOREST
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 

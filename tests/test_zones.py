@@ -6,7 +6,7 @@ from infernal_machine.effects import (ExileFromGraveyard, LoseLife, LoseLifeEqua
 from infernal_machine.game import (CAST, COMMAND_ZONE_PROMPT, PASS, SEARCH_CARD_PROMPT, GraveyardTarget, Permanent)
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_effects import BEAR, BOLT, DARKSTEEL, FOREST, SOL_RING, lands, pick, table
+from tests.test_effects import BEAR, BOLT, FOREST, SOL_RING, lands, pick, table
 from tests.test_exile import COMMANDER, OGRE
 from tests.test_mass_effects import table3
 from tests.test_tokens import RAISE

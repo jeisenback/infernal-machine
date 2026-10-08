@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (Animate, Condition, Draw, GainControl, LoseLife, LoseLifeEqualToManaValue, Scry,
+from infernal_machine.effects import (Animate, Condition, Draw, LoseLife, LoseLifeEqualToManaValue, Scry,
                                       UnlessPays, activated_abilities, clone_kind, extra_votes, no_max_hand_size,
                                       replacement_effects, spell_effects, triggered_abilities)
 from infernal_machine.game import HAND_SIZE, Permanent

@@ -5,7 +5,7 @@ from infernal_machine.effects import GoadAll, UnlessPays, spell_effects, trigger
 from infernal_machine.game import Permanent, UNLESS_PROMPT
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, creature
+from tests.test_combat import BEAR
 from tests.test_effects import FOREST, lands, table
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
