@@ -25,7 +25,7 @@ from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
-                      cumulative_upkeep, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
+                      cumulative_upkeep, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
@@ -116,6 +116,7 @@ MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
 LOOT_PROMPT = "Discard a card to draw a card? "
+PUT_ATTACKING_PROMPT = "Put which creature card onto the battlefield attacking? "
 SHUFFLE_PROMPT = "Shuffle your library? "
 UPKEEP_PROMPT = "Pay the cumulative upkeep of "  # followed by the permanent's name; Yes or No (No sacrifices it)
 PUT_BACK_PROMPT = "Put which card from your hand on top of your library? "
@@ -1245,6 +1246,16 @@ class Game:
             self.broadcast({"event": "fizzle", "seat": seat.index, "card": card.name})
             self._move_card(seat, card, "graveyard")
             return
+        if (reanimation := reanimation_aura(card)) is not None:  # Animate Dead: the creature comes back, the Aura on it
+            self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
+            self.return_from_graveyard(target, seat, "battlefield", tapped=reanimation[0])
+            creature = next((p for p in reversed(seat.battlefield) if p.card is target.card), None)
+            if creature is None:  # it could not come back (it was exiled instead, say): the Aura has nothing to enchant
+                self._move_card(seat, card, "graveyard")
+                return
+            self._enter(seat, Permanent(card, sick=True, attached_to=creature, kicked=item.kicked))
+            self.broadcast({"event": "attached", "card": card.name, "to": creature.card.name})
+            return
         self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
         self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked))
         self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
@@ -1526,6 +1537,8 @@ class Game:
         """Legal targets of `kind` for a spell or ability `caster` controls, as (label, object). `colors` are the
         colors of the source: a permanent with protection from one of them can't be chosen."""
         options: list[tuple[str, Any]] = []
+        if kind == "creature card in a graveyard":  # Animate Dead is cast on one
+            kind = "graveyard:creature:any"
         if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|any>"
             _, card_type, whose = kind.split(":")
             for seat in self.live_seats():
@@ -2307,6 +2320,18 @@ class Game:
             ordered.append(cards.pop(seat.player.choose(ORDER_TOP_PROMPT, [c.name for c in cards])))
         return ordered + cards
 
+    def put_attacking_from_hand(self, seat: Seat, defender: Seat, types: tuple[str, ...]) -> None:
+        """Kaalia of the Vast: a creature card of one of `types` from the hand enters tapped and attacking `defender`."""
+        options = [c for c in _unique(seat.hand) if "Creature" in c.type_line and any(t in c.type_line for t in types)]
+        if not options or self.combat is None:
+            return
+        card = options[seat.player.choose(PUT_ATTACKING_PROMPT, [c.name for c in options])]
+        seat.hand.remove(card)
+        entering = Permanent(card, sick=True, tapped=True, loyalty=_starting_loyalty(card))
+        self._enter(seat, entering)
+        self.combat.add_attacker(entering, seat, defender)
+        self.broadcast({"event": "attack", "seat": seat.index, "card": card.name, "defender": defender.index})
+
     def _add_delayed_mana(self, seat: Seat) -> None:
         """Mana Drain: {C} for the spell it countered arrives at the beginning of your next main phase."""
         if seat.delayed_mana:
@@ -2698,6 +2723,10 @@ class Game:
                 permanent.card, permanent.original = permanent.original, None
             if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)
                 self._move_card(permanent.owner or controller, permanent.card, destination)
+        for permanent, _ in leaving:  # Animate Dead leaves: "that creature's controller sacrifices it"
+            host = permanent.attached_to
+            if reanimation_aura(permanent.card) is not None and host is not None and self.on_battlefield(host):
+                self._leave_battlefield(host, "sacrificed")
         for permanent, _ in leaving:  # whatever they were holding in exile comes back
             held, permanent.linked_exile = permanent.linked_exile, []
             for seat, card in held:
