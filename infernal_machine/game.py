@@ -113,6 +113,7 @@ NONE_TAKEN = "Take none"
 KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom", "Put into your graveyard"
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
+LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
 LOOT_PROMPT = "Discard a card to draw a card? "
 SHUFFLE_PROMPT = "Shuffle your library? "
 PUT_BACK_PROMPT = "Put which card from your hand on top of your library? "
@@ -810,7 +811,7 @@ class Game:
         return not alternative.exile_color or any(alternative.exile_color in c.colors for c in others)
 
     def _pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None,
-                    graveyard: GraveyardCast | None = None) -> None:
+                    graveyard: GraveyardCast | None = None, x: int = 0) -> None:
         """Pay the non-mana costs of casting `card`, which has already left its zone."""
         for _ in range(graveyard.exile if graveyard else 0):  # Escape: exile other cards from the graveyard
             exiled = seat.graveyard[seat.player.choose(ESCAPE_PROMPT, [c.name for c in seat.graveyard])]
@@ -835,7 +836,8 @@ class Game:
                 options = [p for p in seat.battlefield if _permanent_matches(extra.sacrifice, p.card)]
                 choice = options[seat.player.choose(SACRIFICE_COST_PROMPT + card.name, [self.label(p) for p in options])]
                 self._leave_together([(choice, "sacrificed")])
-        life = sum(c.life for c in additional_costs(card)) + (alternative.life if alternative else 0)
+        life = (sum(c.life for c in additional_costs(card)) + (alternative.life if alternative else 0)
+                + (x if any(c.life_x for c in additional_costs(card)) else 0))
         if life:
             self.change_life(seat, -life)
 
@@ -1122,12 +1124,14 @@ class Game:
         if alternative is None and parse_cost(paying.mana_cost).x:  # casting without paying the mana cost makes X 0
             options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kicked, extra) + 1)]
             x = seat.player.choose(X_PROMPT + card.name, options)
+        elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
+            x = seat.player.choose(LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
         tapped = self._payment(seat, paying, from_command_zone, x, alternative, kicked, extra)
         self._spend_mana(seat, tapped)
         zone.remove(card)
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
-        self._pay_extras(seat, card, alternative, graveyard)
+        self._pay_extras(seat, card, alternative, graveyard, x)
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, exile_after=bool(graveyard and graveyard.exile_after),
                          is_copy=prepared is not None, evoked=bool(alternative and alternative.evoke))
         self.stack.append(item)
@@ -1740,8 +1744,9 @@ class Game:
                 value = self.power(permanent) if restriction.stat == "power" else self.toughness(permanent)
                 if value is None or "Creature" not in permanent.card.type_line:
                     return False
+            at_most = self.x_value if restriction.at_most == "X" else restriction.at_most
             if (restriction.at_least is not None and value < restriction.at_least) or \
-                    (restriction.at_most is not None and value > restriction.at_most):
+                    (at_most is not None and value > at_most):
                 return False
         if restriction.color and (restriction.color in permanent.card.colors) == restriction.other_color:
             return False
