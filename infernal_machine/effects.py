@@ -2178,6 +2178,32 @@ class Impulse:
 
 
 @dataclass(frozen=True)
+class PutBackTop:
+    """ "Look at the top three cards of your library, then put them back in any order. (You may shuffle.)" """
+    count: int
+    shuffle: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.rearrange_top(controller, game.amount(self.count), self.shuffle)
+
+
+@dataclass(frozen=True)
+class DrawThenPutBack:
+    """Brainstorm: "Draw three cards, then put two cards from your hand on top of your library in any order." """
+    draw: int
+    put: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.draw(controller, self.draw)
+        game.put_back_from_hand(controller, self.put)
+
+
+@dataclass(frozen=True)
+class _MayShuffle:
+    """ "You may shuffle." after putting cards back (see _merge_put_back)."""
+
+
+@dataclass(frozen=True)
 class Surveil:
     count: int | str
 
@@ -2461,11 +2487,25 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE))
+    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE,
+                                           _PER_REDUCTION))
+
+
+_PER_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast for each "
+                            r"(creature on the battlefield|instant and sorcery card in your graveyard)\.")
+
+
+def self_cost_reduction(card: Card) -> tuple[int, str] | None:
+    """Blasphemous Act: "This spell costs {1} less to cast for each creature on the battlefield." (how much each,
+    what is counted: "creature" on the battlefield or "instant or sorcery" card in your graveyard)."""
+    for line in rules_lines(card):
+        if m := _PER_REDUCTION.fullmatch(line):
+            return int(m[1]), "creature" if m[2].startswith("creature") else "instant or sorcery"
+    return None
 
 
 def is_cost_reduction_line(line: str) -> bool:
-    return _REDUCTION.fullmatch(line) is not None
+    return _REDUCTION.fullmatch(line) is not None or _PER_REDUCTION.fullmatch(line) is not None
 
 
 @dataclass(frozen=True)
@@ -2645,6 +2685,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RevealTopStep("land", tapped=bool(m[1]))),
     (re.compile(r"otherwise, draw a card\.", re.I), lambda m: RevealTopStep("otherwise")),
     (re.compile(rf"surveil {_N}\.", re.I), lambda m: Surveil(_count(m[1]))),
+    (re.compile(rf"look at the top {_N} cards of your library, then put them back in any order\.", re.I),
+     lambda m: PutBackTop(_count(m[1]))),
+    (re.compile(r"you may shuffle\.", re.I), lambda m: _MayShuffle()),
+    (re.compile(rf"draw {_N} cards, then put {_N} cards from your hand on top of your library in any order\.", re.I),
+     lambda m: DrawThenPutBack(_count(m[1]), _count(m[2]))),
     (re.compile(rf"look at the top (?:{_N} cards?|card) of your library\.", re.I),
      lambda m: LookAtTop(_count(m[1] or "one"))),
     (re.compile(r"put one of them into your hand and the rest on the bottom of your library in any order\.", re.I),
@@ -2925,6 +2970,19 @@ def _merge_hand_discard(effects: list) -> list | None:
     return merged
 
 
+def _merge_put_back(effects: list) -> list | None:
+    """"... put them back in any order. You may shuffle." is one effect; "You may shuffle." alone isn't understood."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, _MayShuffle):
+            if not (merged and isinstance(merged[-1], PutBackTop)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], shuffle=True)
+        else:
+            merged.append(effect)
+    return merged
+
+
 def _merge_loot(effects: list) -> list | None:
     """"You may discard a card. If you do, draw a card." is one effect; either sentence alone isn't understood."""
     merged: list = []
@@ -3015,7 +3073,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
@@ -3660,7 +3718,8 @@ _PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add (one mana of any color
 
 
 def is_mana_ability(line: str) -> bool:
-    return (_mana_match(line) is not None or _FILTER.fullmatch(line) is not None
+    return (_mana_match(line) is not None or _PER_COUNT.fullmatch(line) is not None
+            or _FILTER.fullmatch(line) is not None
             or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))
 
@@ -3720,6 +3779,19 @@ def is_identity_mana_land(card: Card) -> bool:
 
 
 _FILTER = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\}|\{[WUBRG]/[WUBRG]\})+), \{T\}: Add ((?:\{[WUBRGC]\})+)\.")
+# Gaea's Cradle, Cabal Coffers, Elvish Archdruid: "{T}: Add {G} for each creature you control." (maybe with a mana cost)
+_PER_COUNT = re.compile(r"(?:((?:\{\d+\}|\{[WUBRGC]\})+), )?\{T\}: Add \{([WUBRGC])\} for each ([A-Za-z]+) you control\.")
+
+
+def mana_per_count(card: Card) -> tuple[str, str, str] | None:
+    """(the mana it costs, '' if none; the color it makes; what it counts) for a "Add {G} for each creature you
+    control" ability."""
+    for line in rules_lines(card):
+        if m := _PER_COUNT.fullmatch(line):
+            return m[1] or "", m[2], m[3]
+    return None
+
+
 _FILTER_ANY = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add one mana of any color\.")  # Hall of Oracles
 # A filter land: "{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}." Two mana, each of either color.
 _FILTER_LAND = re.compile(r"(\{[WUBRG]/[WUBRG]\}), \{T\}: Add \{([WUBRG])\}\{\2\}, \{\2\}\{([WUBRG])\}, or \{\3\}\{\3\}\.")

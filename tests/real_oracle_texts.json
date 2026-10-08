@@ -253,6 +253,68 @@
    "power": null,
    "toughness": null,
    "colors": []
+  },
+  {
+   "name": "Brainstorm",
+   "mana_cost": "{U}",
+   "type_line": "Instant",
+   "oracle_text": "Draw three cards, then put two cards from your hand on top of your library in any order.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Ponder",
+   "mana_cost": "{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Look at the top three cards of your library, then put them back in any order. You may shuffle.\nDraw a card.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Blasphemous Act",
+   "mana_cost": "{8}{R}",
+   "type_line": "Sorcery",
+   "oracle_text": "This spell costs {1} less to cast for each creature on the battlefield.\nBlasphemous Act deals 13 damage to each creature.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Gaea's Cradle",
+   "mana_cost": "",
+   "type_line": "Legendary Land",
+   "oracle_text": "{T}: Add {G} for each creature you control.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Cabal Coffers",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{2}, {T}: Add {B} for each Swamp you control.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Elvish Archdruid",
+   "mana_cost": "{1}{G}{G}",
+   "type_line": "Creature — Elf Druid",
+   "oracle_text": "Other Elf creatures you control get +1/+1.\n{T}: Add {G} for each Elf you control.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."

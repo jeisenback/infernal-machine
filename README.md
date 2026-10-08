@@ -119,6 +119,8 @@ winner = game.play()
   - Cost reducers: "Green spells you cast cost {1} less to cast." (Medallions), for a color, "creature",
     "artifact", "enchantment", "noncreature", "instant and sorcery", or all spells. Only generic mana is
     reduced, including commander tax and kicker.
+  - A spell can reduce its own cost: "This spell costs {1} less to cast for each creature on the battlefield."
+    (Blasphemous Act, any player's creatures) or "... for each instant and sorcery card in your graveyard".
   - Alternative costs: "If you control a commander, you may cast this spell without paying its mana cost."
     (Fierce Guardianship, Deadly Rollick) and "(If it's not your turn,) you may (pay N life and) exile a blue card
     from your hand rather than pay this spell's mana cost." (Force of Will, Force of Negation). When more than
@@ -338,6 +340,9 @@ winner = game.play()
     while the condition holds, checked each time you pay. "{1}, {T}: Add one mana of any color." (Hall of Oracles) works
     like a Signet. A filter or Signet can no longer tap for mana to pay for its own cost (a land with a plain
     {T}: Add {C} could before).
+  - "{T}: Add {G} for each creature you control" (Gaea's Cradle, Elvish Archdruid) and "{2}, {T}: Add {B} for each Swamp
+    you control" (Cabal Coffers): the amount is worked out each time you pay. Coffers' {2} is paid first, so it is only
+    worth it with enough Swamps (the payment picks the first mana that fits).
   - Filter lands ("{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}."): paid like a Signet, so one Swamp becomes two white,
     two black or one of each. A filter land can't pay for its own ability.
   - Exotic Orchard ("any color that a land an opponent controls could produce") and Reflecting Pool ("any type that
@@ -514,6 +519,9 @@ winner = game.play()
   (a land if more than half the hand is lands, otherwise the most expensive spell), and take the most expensive
   card they can see; cards from an opponent's hand they don't know count as worth nothing. Not understood: "Discard
   a card, then ..." followed by anything but a draw, "whenever you discard", madness, and discarding "that many".
+- **Reordering the library:** "Look at the top three cards of your library, then put them back in any order. You may
+  shuffle." (Ponder, Sensei's Divining Top's first ability) and "Draw three cards, then put two cards from your hand on
+  top of your library in any order." (Brainstorm). You choose the order; the first card you pick goes on top.
 - **Look at the top N (impulse effects):** "Look at the top four cards of your library. Put one of them into
   your hand and the rest on the bottom of your library in any order." and "Look at the top five cards... You may
   reveal a creature card from among them and put it into your hand. Put the rest on the bottom..." are understood
