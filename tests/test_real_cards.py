@@ -5,7 +5,7 @@ from dataclasses import replace
 
 from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
-from infernal_machine.effects import activated_abilities
+from infernal_machine.effects import activated_abilities, spell_effects
 from infernal_machine.game import Permanent
 from infernal_machine.game import MODE_PROMPT, OPENING_PROMPT
 from tests.test_combat import BEAR
@@ -209,3 +209,16 @@ class MartialImpetusTests(unittest.TestCase):
         game.trigger("host_attacks", a.battlefield[2], a, host)
         run_stack(game)
         self.assertEqual((game.power(host), game.power(friend)), (3, 3))  # +1/+1 from the Aura itself, and from the trigger
+
+
+class BioshiftTests(unittest.TestCase):
+    def test_the_second_creature_has_the_same_controller_as_the_first(self):
+        game, players = table3()
+        a, b, _ = game.seats
+        mine, also_mine, theirs = Permanent(BEAR), Permanent(BEAR), Permanent(BEAR)
+        a.battlefield, b.battlefield = [mine, also_mine], [theirs]
+        targets, _ = game._choose_targets(a, spell_effects(REAL["Bioshift"]), "Bioshift")
+        self.assertIs(targets[0], mine)
+        options = [o for p, o in players[0].prompts if p.startswith("Choose a target")][1]
+        self.assertEqual(len(options), 1)  # only the other Bear it controls, not the opponent's
+        self.assertIs(targets[1], also_mine)

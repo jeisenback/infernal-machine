@@ -12,6 +12,7 @@ from .cards import Card, Deck
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
 from .undercity import HELPS_ITS_TARGET
+from .effects import MOVE_COUNTERS_PROMPT
 from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PLAY_EXILE, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, REPLICATE_PROMPT)
@@ -121,6 +122,8 @@ class BotPlayer:
             return sizes.index(max(sizes)) if sizes and max(sizes) > 0 else len(options) - 1
         if prompt.startswith(VOTE_PROMPT) and all(_seat_of(o) is not None for o in options):
             return next((i for i, o in enumerate(options) if _seat_of(o) != self._seat), 0)  # vote against an opponent's
+        if prompt.startswith(MOVE_COUNTERS_PROMPT):  # moves them all
+            return len(options) - 1
         if prompt == PROLIFERATE_PROMPT:  # add counters to its own permanents, and never to an opponent's
             mine = [i for i, option in enumerate(options[:-1]) if _seat_of(option) == self._seat]
             return mine[0] if mine else len(options) - 1

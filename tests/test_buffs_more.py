@@ -1,7 +1,7 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (Animate, MoveCountersFrom, MoveCountersOnto, PumpX, activated_abilities,
+from infernal_machine.effects import (MOVE_COUNTERS_PROMPT, Animate, MoveCountersFrom, MoveCountersOnto, PumpX, activated_abilities,
                                       spell_effects)
 from infernal_machine.game import ACTIVATE, CAST, PASS, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
@@ -10,8 +10,7 @@ from tests.test_combat import BEAR, OGRE
 from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
 
-SHIFT = Card(name="Test Bioshift", mana_cost="{U}", type_line="Instant",
-             oracle_text="Move a +1/+1 counter from target creature onto another target creature.")
+SHIFT = REAL["Bioshift"]
 SHIFT_ALL = Card(name="Shift All", mana_cost="{U}", type_line="Instant",
                  oracle_text="Move all +1/+1 counters from target creature onto another target creature.")
 SCALE = REAL["Might of the Masses"]
@@ -23,11 +22,12 @@ MUTAVAULT = Card(name="Mutavault", type_line="Land",
                  oracle_text="{T}: Add {C}.\n{1}: Until end of turn, Mutavault becomes a 2/2 creature with all creature "
                              "types. It's still a land.")
 AWAKEN = REAL["Llanowar Loamspeaker"]
-def targets(*indexes):
-    """Cast the first spell, answering each target prompt with the next index."""
+def targets(*indexes, move=0):
+    """Cast the first spell, answering each target prompt with the next index and "move how many" with `move`."""
     wanted = iter(indexes)
     base = pick(CAST)
-    return lambda prompt, options: next(wanted, 0) if prompt.startswith(TARGET_PROMPT) else base(prompt, options)
+    return lambda prompt, options: (next(wanted, 0) if prompt.startswith(TARGET_PROMPT)
+                                    else move if prompt.startswith(MOVE_COUNTERS_PROMPT) else base(prompt, options))
 
 
 class ScaledPumpTests(unittest.TestCase):
@@ -46,8 +46,8 @@ class ScaledPumpTests(unittest.TestCase):
 
 
 class MoveCountersTests(unittest.TestCase):
-    def setup(self, card, source_counters, target_counters=None):
-        game, _ = table3(targets(0, 1))
+    def setup(self, card, source_counters, target_counters=None, move=1):
+        game, _ = table3(targets(0, 0, move=move))
         a = game.seats[0]
         source, destination = Permanent(BEAR, counters=dict(source_counters)), Permanent(OGRE, counters=dict(target_counters or {}))
         a.hand, a.battlefield = [card], lands(1) + [source, destination]
@@ -56,7 +56,8 @@ class MoveCountersTests(unittest.TestCase):
 
     def test_parse(self):
         [first, second] = spell_effects(SHIFT)
-        self.assertEqual((first, second.count, second.counter), (MoveCountersFrom("creature"), 1, "+1/+1"))
+        self.assertEqual((first, second.count, second.counter, second.same_controller),
+                         (MoveCountersFrom("creature"), "any", "+1/+1", True))
         self.assertEqual(spell_effects(SHIFT_ALL)[1].count, None)
         self.assertEqual(unsupported_lines(SHIFT), [])
 
@@ -72,13 +73,13 @@ class MoveCountersTests(unittest.TestCase):
         source, destination = self.setup(SHIFT, {})
         self.assertEqual((source.counters, destination.counters), ({}, {}))
 
-    def test_the_same_creature_twice_does_nothing(self):
+    def test_it_needs_a_second_creature(self):
         game, _ = table3(targets(0, 0))
         a = game.seats[0]
         only = Permanent(BEAR, counters={"+1/+1": 2})
-        a.hand, a.battlefield = [SHIFT], lands(1) + [only, Permanent(OGRE)]
+        a.hand, a.battlefield = [SHIFT], lands(1) + [only]
         game._priority_round(a)
-        self.assertEqual(only.counters, {"+1/+1": 2})
+        self.assertEqual((only.counters, a.hand), ({"+1/+1": 2}, [SHIFT]))  # the same creature can't be both targets
 
 
 class AnimateTests(unittest.TestCase):

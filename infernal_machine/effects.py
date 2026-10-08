@@ -517,18 +517,28 @@ class MoveCountersFrom:
             game.resolving_item.carried = target
 
 
+MOVE_COUNTERS_PROMPT = "Move how many "  # followed by the counter's name; options are "0", "1", ...
+
+
 @dataclass(frozen=True)
 class MoveCountersOnto:
     """The second target: the counters (up to `count`, or all if None) move from the first target to this one."""
-    count: int | None
+    count: int | str | None  # a number, None for all of them, or "any" for a number the controller chooses
     counter: str
     target: str
     another: bool = True
+    same_controller: bool = False  # "... with the same controller": the second creature is under the first one's controller
+    distinct: bool = True  # "another target": not the creature the counters come from
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         first = game.resolving_item.carried if game.resolving_item is not None else None
         if first is not None and target is not None and first is not target:
-            game.move_counters(first, target, self.counter, self.count)
+            count = self.count
+            if count == "any":
+                have = first.counters.get(self.counter, 0)
+                count = controller.player.choose(f"{MOVE_COUNTERS_PROMPT}{self.counter} counters",
+                                                 [str(n) for n in range(have + 1)])
+            game.move_counters(first, target, self.counter, count)
 
 
 @dataclass(frozen=True)
@@ -3211,8 +3221,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _pump_each_x(m)),
     (re.compile(rf"(?i:creatures your opponents control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), opponents=True)),
     (re.compile(rf"(?i:all creatures) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), everyone=True)),
-    (re.compile(rf"move (?:{_N}|all) {_COUNTER} from target (creature) onto another target (creature)\.", re.I),
-     lambda m: [MoveCountersFrom(m[3].lower()), MoveCountersOnto(_count(m[1]) if m[1] else None, _counter_name(m[2]), m[4].lower())]),
+    (re.compile(rf"move (?:{_N}|all|any number of) {_COUNTER} from target (creature) onto another target (creature)"
+                r"( with the same controller)?\.", re.I),
+     lambda m: [MoveCountersFrom(m[3].lower()),
+                MoveCountersOnto("any" if m[0].lower().startswith("move any number") else _count(m[1]) if m[1] else None,
+                                 _counter_name(m[2]), m[4].lower(), same_controller=bool(m[5]))]),
     (re.compile(rf"(?:Until end of turn, )(?:CARDNAME|this land) becomes an? {_ANIMATED}\."), lambda m: _animate(m, None)),
     (re.compile(rf"(?i:CARDNAME|this land) becomes an? {_ANIMATED} (?i:until end of turn)\."), lambda m: _animate(m, None)),
     (re.compile(rf"(?i:target) (land you control) becomes an? {_ANIMATED} (?i:until end of turn)\."),
