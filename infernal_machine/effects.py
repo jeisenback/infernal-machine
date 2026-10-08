@@ -1506,6 +1506,19 @@ class DefineX:
 
 
 @dataclass(frozen=True)
+class CopySpellTimes:
+    """Replicate, Storm and Gravestorm: "When you cast this spell, copy it" `count` times. The spell the ability came from
+    is `carried`; the copies may have new targets."""
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        original = game.resolving_item.carried if game.resolving_item else None
+        for _ in range(self.count):
+            if original is not None:
+                game.copy_spell(original, controller, new_targets=True)
+
+
+@dataclass(frozen=True)
 class LivingWeapon:
     """Living weapon: "When this Equipment enters, create a 0/0 black Phyrexian Germ creature token, then attach this to it." """
     uses_source = True
@@ -2578,6 +2591,48 @@ def is_multikicker(card: Card) -> bool:
     return any(line.startswith("Multikicker ") and _KICKER.fullmatch(line) for line in rules_lines(card))
 
 
+_DEVOUR = re.compile(r"Devour (\d+)")
+_REPLICATE = re.compile(r"Replicate ((?:\{[^}]+\})+)")
+_AFFINITY = re.compile(r"Affinity for ([a-z]+?)s?")
+_STORM_LIKE = re.compile(r"(Storm|Gravestorm)")
+
+
+def devour(card: Card) -> int:
+    """Devour N: as it enters you may sacrifice creatures; it enters with N +1/+1 counters for each. 0 if it has none."""
+    for line in rules_lines(card):
+        if m := _DEVOUR.fullmatch(line):
+            return int(m[1])
+    return 0
+
+
+def replicate_cost(card: Card) -> str | None:
+    for line in rules_lines(card):
+        if m := _REPLICATE.fullmatch(line):
+            return m[1]
+    return None
+
+
+def affinity_for(card: Card) -> str | None:
+    """Affinity for planeswalkers: costs {1} less for each planeswalker you control ("planeswalker")."""
+    for line in rules_lines(card):
+        if m := _AFFINITY.fullmatch(line):
+            return m[1]
+    return None
+
+
+def storm_kind(card: Card) -> str | None:
+    """"storm" or "gravestorm" for a spell that copies itself when cast."""
+    for line in rules_lines(card):
+        if m := _STORM_LIKE.fullmatch(line):
+            return m[1].lower()
+    return None
+
+
+def is_cast_keyword_line(line: str) -> bool:
+    """Replicate, Storm, Gravestorm, Affinity and Devour lines: rules the game applies itself."""
+    return any(p.fullmatch(line) for p in (_DEVOUR, _REPLICATE, _AFFINITY, _STORM_LIKE))
+
+
 _ECHO = re.compile(r"Echo ((?:\{[^}]+\})+)")
 
 
@@ -2690,7 +2745,8 @@ _SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid)(?:, (?:Delve|Cascade|Dev
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE,
-                                           _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS))
+                                           _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
+                                           _AFFINITY))
 
 
 _PER_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast for each "
@@ -3446,7 +3502,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
     #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
 
@@ -3475,6 +3531,7 @@ _CONDITIONS = [
     (re.compile(r"you have no cards in hand"), lambda m: Condition("hand_none")),
     (re.compile(rf"(?:{_SELF}|he|she) was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?"),
      lambda m: Condition("kicked", what=m[1] or "")),
+    (re.compile(r"you have the city's blessing"), lambda m: Condition("citys_blessing")),
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
     (re.compile(rf"there are {_N} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
      lambda m: Condition("graveyard_at_least", _count(m[1]), m[2].replace(" and/or ", " or "))),
