@@ -138,9 +138,18 @@ class Combat:
             for blocker in blockers:
                 if self._deals_damage_now(blocker, first_strike_step):
                     hits.append((blocker, attacker, max(0, self.game.power(blocker))))
+        hit_players: dict[tuple[int, int], tuple[Seat, list[Permanent]]] = {}  # (hitter, player hit) -> who did it
         for source, target, amount in hits:
             if amount > 0:
+                hitter = self.game.controller_of(source)
                 self.game.damage(target, amount, source=source, combat=True)
+                if hitter is not None and not hasattr(target, "card"):  # a player, not a permanent
+                    hit_players.setdefault((hitter.index, target.index), (hitter, []))[1].append(source)
+        for hitter, sources in hit_players.values():  # "Whenever one or more creatures you control deal combat damage ..."
+            for permanent in list(hitter.battlefield):
+                self.game.trigger("creatures_combat_damage", permanent, hitter, subject=sources[0])
+                if any(s.card.type_line.startswith("Token") for s in sources):
+                    self.game.trigger("tokens_combat_damage", permanent, hitter, subject=sources[0])
 
     def _assign(self, attacker: Permanent, controller: Seat, blockers: list[Permanent], defender: Seat | Permanent | None,
                 amount: int) -> list[tuple[Permanent, Seat | Permanent, int]]:

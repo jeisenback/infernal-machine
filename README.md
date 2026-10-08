@@ -611,6 +611,9 @@ winner = game.play()
   | Whenever one or more cards leave your graveyard, ... (once per event) | Quintorius, History Chaser |
   | Whenever a player sacrifices a permanent / another permanent, ... | Merchant of Venom |
   | Whenever you lose life for the first time each turn, ... | |
+  | Whenever you cast or copy an instant or sorcery spell, ... (Magecraft) | Archmage Emeritus |
+  | Whenever you cast an instant or sorcery spell with mana value 5 or greater (from your hand), ... | Dirgur Focusmage |
+  | Whenever one or more creatures (creature tokens) you control deal combat damage to a player, ... (once per player hit) | Striding Shotcaller |
   | Whenever you gain life for the first time each turn, ... | Leech Collector |
   | Whenever an opponent draws their second card each turn, ... | Faerie Mastermind |
   | Whenever you cast your first / second / third spell each turn, ... (and an opponent's "their second spell") | Monologue Tax |

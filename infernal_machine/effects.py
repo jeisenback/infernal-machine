@@ -2939,6 +2939,9 @@ class Watch:
     caster: str = "you"  # for casts: "you", "player" (anyone) or "opponent"
     theirs: bool = False  # "an opponent controls"
     nth_each_turn: int = 0  # "your first / second / third ... spell each turn": 1, 2 or 3
+    with_copy: bool = False  # "cast or copy" (magecraft)
+    mv_at_least: int = 0  # "a spell with mana value 5 or greater"
+    from_hand: bool = False  # "... from your hand"
 
 
 _TRIGGERS = {
@@ -2981,6 +2984,10 @@ _TRIGGERS = {
     "host_combat_damage": re.compile(r"Whenever (?:enchanted|equipped) creature deals combat damage to a player, (.+)", re.I),
     "put_into_graveyard": re.compile(rf"When {_SELF} is put into a graveyard from the battlefield, (.+)", re.I),
     "first_life_loss": re.compile(r"Whenever you lose life for the first time each turn, (.+)", re.I),
+    "creatures_combat_damage": re.compile(r"Whenever one or more creatures you control deal combat damage to a player, (.+)",
+                                          re.I),
+    "tokens_combat_damage": re.compile(r"Whenever one or more creature tokens you control deal combat damage to a player, "
+                                       r"(.+)", re.I),
     "first_life_gain": re.compile(r"Whenever you gain life for the first time each turn, (.+)", re.I),
     "opponent_second_draw": re.compile(r"Whenever an opponent draws their second card each turn, (.+)", re.I),
     "first_main": re.compile(r"At the beginning of your first main phase, (.+)", re.I),
@@ -3009,11 +3016,11 @@ _WATCHES = {
     "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature token|token|creature|{_TRIBE})"
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
     "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? leaves the battlefield, (.+)", re.I),
-    "cast": re.compile(r"Whenever (you cast|a player casts|an opponent casts) (?:an?|(?:your|their) (first|second|third)) "
+    "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:an?|(?:your|their) (first|second|third)) "
                        r"((?:white|blue|black|red|green) spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost)"
-                       r"(?(2) each turn), (.+)", re.I),
+                       r"(?: with mana value (\d+) or greater)?( from your hand)?(?(2) each turn), (.+)", re.I),
 }
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
@@ -3054,9 +3061,12 @@ _AURA_RETURNS = [
 def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     line = _ABILITY_WORD.sub("", line)
     if m := _WATCHES["cast"].fullmatch(line):
-        caster = {"you cast": "you", "a player casts": "player", "an opponent casts": "opponent"}[m[1].lower()]
+        caster = {"you cast or copy": "you", "you cast": "you", "a player casts": "player",
+                  "an opponent casts": "opponent"}[m[1].lower()]
         nth = {"first": 1, "second": 2, "third": 3}.get((m[2] or "").lower(), 0)
-        return "cast", Watch(m[3].lower(), caster=caster, nth_each_turn=nth), m[4]
+        watch = Watch(m[3].lower(), caster=caster, nth_each_turn=nth, with_copy=m[1].lower() == "you cast or copy",
+                      mv_at_least=int(m[4] or 0), from_hand=bool(m[5]))
+        return "cast", watch, m[6]
     for event in ("permanent_enters", "creature_dies", "permanent_leaves"):
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()
