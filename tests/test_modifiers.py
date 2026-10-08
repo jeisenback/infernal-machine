@@ -4,6 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.characteristics import Modifier
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, attack_all
 from tests.test_effects import BOLT, MURDER, lands, pick, table
 
@@ -14,8 +15,7 @@ WEAKEN = Card(name="Disfigure", mana_cost="{B}", type_line="Instant",
               oracle_text="Target creature gets −2/−2 until end of turn.")
 OVERRUN = Card(name="Overrun", mana_cost="{G}", type_line="Sorcery",
                oracle_text="Creatures you control get +3/+3 and gain trample until end of turn.")
-PROTECT = Card(name="Test Protect", mana_cost="{G}", type_line="Instant",
-               oracle_text="Target creature you control gains hexproof and indestructible until end of turn.")
+PROTECT = REAL["Loran's Escape"]
 DRAGON = Card(name="Shivan Dragon", mana_cost="{R}", type_line="Creature — Dragon", power="5", toughness="5",
               oracle_text="Flying\n{R}: Shivan Dragon gets +1/+0 until end of turn.")
 ANTHEM = Card(name="Glorious Anthem", mana_cost="{W}", type_line="Enchantment", oracle_text="Creatures you control get +1/+1.")

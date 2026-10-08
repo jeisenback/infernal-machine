@@ -2,17 +2,19 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.effects import (BecomeMonarch, ExtraCombat, ExtraTurn, Goad, TargetExtraTurn, UntapCreatures,
-                                      spell_effects)
+                                      spell_effects, triggered_abilities)
 from infernal_machine.game import CAST, STEPS, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, creature
 from tests.test_effects import FOREST, lands, pick, table
 from tests.test_mass_effects import table3
+from tests.test_more_triggers import run_stack
 
 TIME_WALK = Card(name="Time Walk", mana_cost="{1}{U}", type_line="Sorcery", oracle_text="Take an extra turn after this one.")
 ISLAND = Card(name="Island", type_line="Basic Land", produced_mana=("U",))
-PALACE = creature("Test Palace Jailer", 2, 2, "When CARDNAME enters, you become the monarch.")
-ROPE = Card(name="Test Rope", mana_cost="{1}{R}", type_line="Sorcery", oracle_text="Goad target creature.")
+PALACE = REAL["Thorn of the Black Rose"]
+ROPE = REAL["Jeering Homunculus"]
 RELENTLESS = Card(name="Relentless Assault", mana_cost="{2}{R}{R}", type_line="Sorcery",
                   oracle_text="Untap all creatures that attacked this turn. After this main phase, there is an "
                               "additional combat phase followed by an additional main phase.")
@@ -71,7 +73,7 @@ class MonarchTests(unittest.TestCase):
         game, _, _ = table(pick(CAST))
         seat = game.seats[0]
         seat.hand = [PALACE]
-        seat.battlefield = lands(2, FOREST)
+        seat.battlefield = lands(4)
         game._priority_round(seat)
         self.assertIs(game.monarch, seat)
 
@@ -107,7 +109,8 @@ class MonarchTests(unittest.TestCase):
 
 class GoadTests(unittest.TestCase):
     def test_parse(self):
-        self.assertEqual(spell_effects(ROPE), [Goad("creature")])
+        [goad] = triggered_abilities(ROPE)
+        self.assertEqual((goad.event, goad.effects, goad.optional), ("enters", (Goad("creature"),), True))
 
     def test_a_goaded_creature_attacks_even_if_its_controller_would_not(self):
         game, _, _ = table()
@@ -149,13 +152,14 @@ class GoadTests(unittest.TestCase):
         self.assertIsNone(bear.goaded_by)
 
     def test_casting_goad(self):
-        game, _ = table3(pick(CAST))
+        game, _ = table3(pick(CAST, "Bear"))
         a, b, c = game.seats
         target = Permanent(BEAR)
         b.battlefield = [target]
         a.hand = [ROPE]
-        a.battlefield = lands(2, Card(name="Mountain", type_line="Basic Land", produced_mana=("R",)))
+        a.battlefield = lands(2)
         game._priority_round(a)
+        run_stack(game)
         self.assertIs(target.goaded_by, a)
 
 

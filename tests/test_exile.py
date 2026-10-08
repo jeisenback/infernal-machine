@@ -15,8 +15,6 @@ CRYPT = Card(name="Tormod's Crypt", mana_cost="{0}", type_line="Artifact",
              oracle_text="{T}, Sacrifice Tormod's Crypt: Exile target player's graveyard.")
 BANISHER = Card(name="Banisher", mana_cost="{2}{W}", type_line="Creature — Human", power="2", toughness="2",
                 oracle_text="When this creature enters, exile target nonland permanent an opponent controls.")
-EXORCIST = Card(name="Test Exorcist", mana_cost="{W}", type_line="Instant",
-                oracle_text="Exile target artifact or enchantment you control.")
 OGRE = Card(name="Ogre", mana_cost="{3}", type_line="Creature — Ogre", power="3", toughness="3")
 COMMANDER = Card(name="Omnath", mana_cost="{G}", type_line="Legendary Creature — Elemental", power="4", toughness="4")
 
@@ -105,7 +103,6 @@ class ExileTests(unittest.TestCase):
         mine, theirs = Permanent(Card(name="Relic", type_line="Artifact")), Permanent(Card(name="Relic", type_line="Artifact"))
         game.seats[0].battlefield = [mine] + lands(1)
         game.seats[1].battlefield = [theirs]
-        game.seats[0].hand = [EXORCIST]
         self.assertEqual([t for _, t in game.target_options("artifact or enchantment you control", game.seats[0])], [mine])
 
 
