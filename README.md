@@ -293,6 +293,11 @@ winner = game.play()
     Conditions: you control a/N or more <type>, you control no <type>, it's your turn, you're the monarch,
     you have no cards in hand, you have N or more cards in hand, plus the graveyard, life, lands and cast
     conditions listed under triggers. A line with any other condition is ignored.
+  - Who it affects can be a color ("Other red creatures you control"), a tribe in the plural ("Spirits you control"),
+    or attackers only ("Attacking Pests you control"). Bonuses can scale: "This creature gets +1/+0 for each artifact
+    you control", "... for each creature card in your graveyard", "+2/+2 for each Aura attached to it", and on an Aura
+    "Enchanted creature gets +1/+1 for each Aura you control that's attached to a creature". "Enchanted creature gets
+    +1/+1 and is goaded" goads it for as long as the Aura stays (the Aura's controller is the goader).
 - **Current power, toughness and keywords:** printed values plus counters, static abilities and
   "until end of turn" effects. They count everywhere: combat, damage, targeting (granted hexproof),
   destroy (granted indestructible), state checks, and the labels players see ("Bear 4/4").

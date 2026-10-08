@@ -50,7 +50,7 @@ class Combat:
             if not self._can_attack(permanent):
                 continue
             walker = None
-            if goader := permanent.goaded_by:  # must attack, and not the goader if there's anyone else
+            if goader := self.game.goader_of(permanent):  # must attack, and not the goader if there's anyone else
                 targets = [o for o in opponents if o is not goader] or opponents
                 defender = targets[0] if len(targets) == 1 else targets[seat.player.choose(
                     ATTACK_PROMPT + self.game.label(permanent), [f"Attack Player: {o.name} (seat {o.index})" for o in targets])]

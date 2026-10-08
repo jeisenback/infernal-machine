@@ -1877,14 +1877,46 @@ class Game:
                     continue
                 if buff.self_only and source is not permanent:
                     continue
+                if buff.color and buff.color not in permanent.card.colors:
+                    continue
+                if buff.attacking and not any(a.attacker is permanent for a in self.combat.attacks):
+                    continue
                 if buff.condition and not self.condition_holds(buff.condition, controller, source):
                     continue
-                mods.append(buff.modifier)
+                mods.append(self._scaled(buff.modifier, buff.per, permanent, controller))
         for seat in self.seats:  # Equipment and Auras attached to it
             for attachment in seat.battlefield:
                 if attachment.attached_to is permanent:
-                    mods.extend(buff.modifier for buff in attached_abilities(attachment.card))
+                    mods.extend(self._scaled(buff.modifier, buff.per, permanent, controller)
+                                for buff in attached_abilities(attachment.card))
         return mods
+
+    def _scaled(self, modifier: Modifier, per: tuple[str, str] | None, permanent: Permanent, controller: Seat) -> Modifier:
+        """A "for each ..." bonus times how many there are right now."""
+        if per is None:
+            return modifier
+        what, kind = per
+        if what == "permanent":
+            count = sum(_has_type(p.card, kind) for p in controller.battlefield)
+        elif what == "graveyard":
+            count = sum(_card_matches(kind, c) for c in controller.graveyard)
+        elif what == "auras_on_it":
+            count = sum(1 for s in self.seats for p in s.battlefield
+                        if p.attached_to is permanent and "Aura" in p.card.type_line)
+        else:  # "auras_on_creatures": Auras you control that are attached to a creature
+            count = sum(1 for p in controller.battlefield if "Aura" in p.card.type_line and p.attached_to is not None
+                        and "Creature" in p.attached_to.card.type_line)
+        return Modifier(modifier.power * count, modifier.toughness * count, modifier.keywords)
+
+    def goader_of(self, permanent: Permanent) -> Seat | None:
+        """Who is goading this creature: the player who goaded it, or the controller of an Aura that says it is goaded."""
+        if permanent.goaded_by:
+            return permanent.goaded_by
+        for seat in self.seats:
+            for attachment in seat.battlefield:
+                if attachment.attached_to is permanent and any(b.goaded for b in attached_abilities(attachment.card)):
+                    return seat
+        return None
 
     def power(self, permanent: Permanent) -> int:
         return characteristics.power(permanent, self.modifiers(permanent))
