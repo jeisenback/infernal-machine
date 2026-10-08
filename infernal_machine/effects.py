@@ -697,6 +697,8 @@ class Pump:
     """ "Target creature gets +3/+3 (and gains trample) until end of turn." """
     modifier: Modifier
     target: str
+    optional_target: bool = False  # "One or two target creatures each get ...": the second may be left out
+    distinct: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -1099,14 +1101,17 @@ TREASURE = Card(name="Treasure", type_line="Token Artifact — Treasure",
 CLUE = Card(name="Clue", type_line="Token Artifact — Clue", oracle_text="{2}, Sacrifice this artifact: Draw a card.")
 FOOD = Card(name="Food", type_line="Token Artifact — Food",
             oracle_text="{2}, {T}, Sacrifice this artifact: You gain 3 life.")
-_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD}
+HEARTWOOD = Card(name="Heartwood", type_line="Token Artifact — Heartwood", oracle_text="{T}: Add {R} or {G}.",
+                 colors=("R", "G"))
+_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "heartwood": HEARTWOOD}
 _COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 _COLOR = r"(?:white|blue|black|red|green)"
 _CREATURE_TOKEN = re.compile(
     rf"{_N} (\d+|X)/(\d+|X) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact )?"
-    r"creature tokens?(?: with (?:([a-z ,]+?)(?:,? and |, |$))?(?:\"(.+)\")?)?"  # keywords and/or a quoted ability
+    r"creature tokens?(?: named ([A-Z][\w'-]*))?"  # "named Cadet"
+    r"(?: with (?:([a-z ,]+?)(?:,? and |, |$))?(?:\"(.+)\")?)?"  # keywords and/or a quoted ability
 )
-_NAMED_TOKEN = re.compile(rf"(?i:{_N}) (Treasure|Clue|Food) tokens?")
+_NAMED_TOKEN = re.compile(rf"(?i:{_N}) (Treasure|Clue|Food|Heartwood) tokens?")
 
 
 def _token(spec: str) -> tuple[int, Card] | None:
@@ -1116,13 +1121,13 @@ def _token(spec: str) -> tuple[int, Card] | None:
     m = _CREATURE_TOKEN.fullmatch(spec)
     if not m:
         return None
-    count, power, toughness, colors, subtypes, artifact, keywords, quoted = m.groups()
+    count, power, toughness, colors, subtypes, artifact, named, keywords, quoted = m.groups()
     keyword_line = ""
     if keywords:
         words = [w.strip() for w in re.split(r",? and |, ", keywords) if w.strip()]
         keyword_line = ", ".join(words).capitalize()
     card = Card(
-        name=subtypes.strip(),
+        name=named or subtypes.strip(),
         type_line=f"Token {'Artifact ' if artifact else ''}Creature — {subtypes.strip()}",
         oracle_text="\n".join(line for line in (keyword_line, quoted) if line),
         colors=tuple(_COLOR_WORDS[c] for c in re.findall(_COLOR, colors)),
@@ -2450,7 +2455,8 @@ class FetchBasicLand:
 
 _PERMANENT_KIND = (r"((?:creature token|nontoken creature|attacking creature|tapped creature|untapped creature|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment"
-                   r"|creature or planeswalker)(?: an opponent controls| you don't control| you control)?)")
+                   r"|creature or planeswalker)(?: an opponent controls| you don't control| you control)?"
+                   r"(?: with mana value \d+ or (?:less|greater))?)")
 # "up to two target creatures": the plural kinds, and the singular they stand for
 _PLURAL_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments": "enchantment",
                  "planeswalkers": "planeswalker", "permanents": "permanent", "nonland permanents": "nonland permanent",
@@ -2677,6 +2683,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:{_SELF}) gains protection from the color of your choice until end of turn\."),
      lambda m: GrantProtection(uses_source=True)),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
+    (re.compile(rf"(?i:one or two target creatures each) {_CHANGE}"),
+     lambda m: [Pump(_modifier(m, 1), "creature"), Pump(_modifier(m, 1), "creature", optional_target=True, distinct=True)]),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} gets? {_PT_X} until end of turn\."),
      lambda m: _pump_x(m[2], m[3], m[4], m[5], m[1].lower())),
     (re.compile(rf"(?i:target) (creature(?: an opponent controls| you control)?) (?i:becomes) an? (\d+)/(\d+)"
