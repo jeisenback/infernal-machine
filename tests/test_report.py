@@ -6,7 +6,7 @@ from infernal_machine.report import category, deck_report, format_report, unsupp
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", oracle_text="({T}: Add {G}.)", produced_mana=("G",))
 SOL_RING = Card(name="Sol Ring", mana_cost="{1}", type_line="Artifact", oracle_text="{T}: Add {C}{C}.")
 SLOW_SAGE = Card(name="Slow Sage", mana_cost="{4}{U}", type_line="Creature — Elemental",  # invented: a keyword the engine lacks
-                  oracle_text="Flying\nCumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent.)")
+                  oracle_text="Flying\nBanding (Any creatures with banding, and up to one without, can attack in a group.)")
 BOLT = Card(name="Lightning Bolt", mana_cost="{R}", type_line="Instant", oracle_text="Lightning Bolt deals 3 damage to any target.")
 SWORDS = Card(name="Swords to Plowshares", mana_cost="{W}", type_line="Instant",
               oracle_text="Exile target creature. Its controller gains life equal to its power.")
@@ -22,7 +22,7 @@ class UnsupportedLinesTests(unittest.TestCase):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
     def test_lists_only_what_is_missing(self):
-        self.assertEqual(unsupported_lines(SLOW_SAGE), ["Cumulative upkeep {1}"])
+        self.assertEqual(unsupported_lines(SLOW_SAGE), ["Banding"])
         self.assertEqual(unsupported_lines(DELVER), ["{4}: Venture into the dungeon."])  # partner is a deckbuilding line
         self.assertEqual(unsupported_lines(Card(name="x", mana_cost="{Q}", type_line="Creature")), ["mana cost {Q}"])
 

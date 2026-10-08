@@ -25,7 +25,8 @@ from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
-                      enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count, no_max_hand_size,
+                      cumulative_upkeep, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
+                      no_max_hand_size,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
@@ -116,6 +117,7 @@ YES_NO = ["Yes", "No"]
 LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
 LOOT_PROMPT = "Discard a card to draw a card? "
 SHUFFLE_PROMPT = "Shuffle your library? "
+UPKEEP_PROMPT = "Pay the cumulative upkeep of "  # followed by the permanent's name; Yes or No (No sacrifices it)
 PUT_BACK_PROMPT = "Put which card from your hand on top of your library? "
 WHEEL_PROMPT = "Discard your hand and draw a new hand? "
 TAP_OR_UNTAP_PROMPT = "Tap or untap "  # followed by the creature's name
@@ -252,6 +254,7 @@ class Seat:
     life_lost_turn: int | None = None  # the last turn this player lost life
     life_gained_turn: int | None = None
     life_gained_amount: int = 0  # how much life this player gained on life_gained_turn
+    delayed_mana: int = 0  # {C} to add at the beginning of this player's next main phase (Mana Drain)
     graveyard_left_turn: int | None = None  # the last turn a card left this player's graveyard
     cast_log: list[tuple[int, Card]] = field(default_factory=list)  # (turn, spell) for every spell cast
     drew_from_empty: bool = False
@@ -414,6 +417,8 @@ class Game:
                 self.at_end_step = [(turn, what) for turn, what in self.at_end_step if turn > self.turn]
                 for what in due:
                     what()
+            if self.step == "upkeep":
+                self._pay_upkeep_costs(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
             for other in self.live_seats():  # "At the beginning of each upkeep / end step"
@@ -431,6 +436,7 @@ class Game:
                     self.broadcast({"event": "counters", "card": permanent.card.name, "counter": "lore",
                                     "added": 1, "total": permanent.counters["lore"]})
                     self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
+            self._add_delayed_mana(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("first_main", permanent, seat)
         elif self.step == "beginning_of_combat":
@@ -445,6 +451,7 @@ class Game:
             self.combat.deal_damage(first_strike_step=False)
         elif self.step == "main2":
             self.combat = Combat(self)  # CR 511.3: creatures leave combat
+            self._add_delayed_mana(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("second_main", permanent, seat)
         elif self.step == "cleanup":
@@ -2300,6 +2307,46 @@ class Game:
             ordered.append(cards.pop(seat.player.choose(ORDER_TOP_PROMPT, [c.name for c in cards])))
         return ordered + cards
 
+    def _add_delayed_mana(self, seat: Seat) -> None:
+        """Mana Drain: {C} for the spell it countered arrives at the beginning of your next main phase."""
+        if seat.delayed_mana:
+            self.add_mana(seat, (frozenset("C"),) * seat.delayed_mana)
+            seat.delayed_mana = 0
+
+    def put_on_library_top(self, permanent: Permanent) -> None:
+        """Sensei's Divining Top: the permanent goes on top of its owner's library (a token just ceases to exist)."""
+        self._leave_together([(permanent, "returned")], destination="library_top")
+
+    def chaos_warp(self, permanent: Permanent) -> None:
+        """Its owner shuffles it into their library, reveals the top card and puts it onto the battlefield if it is a
+        permanent card (an Aura stays on top: it would have nothing to enchant)."""
+        owner = permanent.owner or self.controller_of(permanent)
+        self._leave_together([(permanent, "returned")], destination="library")
+        self.rng.shuffle(owner.library)
+        if not owner.library:
+            return
+        top = owner.library[0]
+        self.broadcast({"event": "revealed", "seat": owner.index, "card": top.name})
+        if _is_permanent(top) and not aura_kind(top):
+            owner.library.pop(0)
+            self._enter(owner, Permanent(top, sick=True, loyalty=_starting_loyalty(top)))
+
+    def _pay_upkeep_costs(self, seat: Seat) -> None:
+        """Cumulative upkeep: an age counter, then pay the cost once for each counter or sacrifice the permanent."""
+        for permanent in list(seat.battlefield):
+            base = cumulative_upkeep(permanent.card)
+            if not base:
+                continue
+            permanent.counters["age"] = permanent.counters.get("age", 0) + 1
+            cost = parse_cost(base * permanent.counters["age"])
+            tapped = self._pay_cost(seat, cost) if cost is not None else None
+            if tapped is not None and seat.player.choose(UPKEEP_PROMPT + permanent.card.name, YES_NO) == 0:
+                self._spend_mana(seat, tapped)
+                self.broadcast({"event": "upkeep_paid", "seat": seat.index, "card": permanent.card.name,
+                                "age": permanent.counters["age"]})
+            else:
+                self._leave_battlefield(permanent, "sacrificed")
+
     def rearrange_top(self, seat: Seat, count: int, may_shuffle: bool) -> None:
         """Ponder: look at the top `count` cards, put them back in any order, and maybe shuffle the library."""
         top = seat.library[:count]
@@ -2711,7 +2758,10 @@ class Game:
                 seat.command_zone.append(card)
                 self.broadcast({"event": "to_command_zone", "seat": seat.index, "card": card.name})
                 return
-        {"exile": seat.exile, "hand": seat.hand, "graveyard": seat.graveyard}[zone].append(card)
+        if zone == "library_top":
+            seat.library.insert(0, card)
+            return
+        {"exile": seat.exile, "hand": seat.hand, "graveyard": seat.graveyard, "library": seat.library}[zone].append(card)
 
     def _check_state(self) -> None:
         """State-based actions (CR 704.5): losing the game, lethal damage, zero toughness or loyalty."""

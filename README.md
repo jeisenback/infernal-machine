@@ -528,6 +528,13 @@ winner = game.play()
   (a land if more than half the hand is lands, otherwise the most expensive spell), and take the most expensive
   card they can see; cards from an opponent's hand they don't know count as worth nothing. Not understood: "Discard
   a card, then ..." followed by anything but a draw, "whenever you discard", madness, and discarding "that many".
+- **Library and mana tricks:** Chaos Warp ("The owner of target permanent shuffles it into their library, then reveals the top
+  card. If it's a permanent card, they put it onto the battlefield": the owner shuffles and reveals, a token just
+  vanishes, an Aura stays on top), Sensei's Divining Top ("{T}: Draw a card, then put this artifact on top of its
+  owner's library"), and Mana Drain (the {C} equal to the countered spell's mana value, X included, arrives at the
+  beginning of your next main phase and is lost at the end of it).
+- **Cumulative upkeep {1}** (Mystic Remora): at your upkeep it gets an age counter and you pay the cost once for each
+  counter, or sacrifice it. You are asked if you can pay. Mana costs only; "Cumulative upkeep—Pay 1 life" is not built.
 - **Reordering the library:** "Look at the top three cards of your library, then put them back in any order. You may
   shuffle." (Ponder, Sensei's Divining Top's first ability) and "Draw three cards, then put two cards from your hand on
   top of your library in any order." (Brainstorm). You choose the order; the first card you pick goes on top.
