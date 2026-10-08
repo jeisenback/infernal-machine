@@ -18,13 +18,11 @@ STEELBANE = Card(name="Steelbane Hydra", mana_cost="{X}{G}", type_line="Creature
                              "creature: Destroy target artifact or enchantment.")
 BENEVOLENT = REAL["Benevolent Hydra"]
 STAFF = REAL["Staff of the Storyteller"]
-GYOME = Card(name="Test Gyome, Master Chef", mana_cost="{3}{G}", type_line="Legendary Creature — Troll Warlock", power="3", toughness="3",
-             oracle_text="{1}, Sacrifice a Food: Target creature gains indestructible until end of turn. Tap it.")
+GYOME = REAL["Gyome, Master Chef"]
 HALL = Card(name="Hall of Oracles", type_line="Land",
             oracle_text="{T}: Put a +1/+1 counter on target creature. Activate only as a sorcery and only if you've cast "
                         "an instant or sorcery spell this turn.")
-MISTVEIL = Card(name="Test Mistveil Plains", type_line="Land",
-                oracle_text="{W}, {T}: Draw a card. Activate only if you control two or more white permanents.")
+MISTVEIL = REAL["Mistveil Plains"]
 RELIC = Card(name="Relic", type_line="Artifact", oracle_text="")
 IDOL = Card(name="Idol", type_line="Artifact", oracle_text="")
 SHRINE = Card(name="Shrine", type_line="Enchantment", oracle_text="")
@@ -165,11 +163,11 @@ class ActivationConditionTests(unittest.TestCase):
     def test_white_permanents(self):
         game, _ = table3()
         a = game.seats[0]
-        a.library = [BEAR] * 3
+        a.graveyard = [BEAR]
         a.battlefield = [Permanent(MISTVEIL), Permanent(WHITE_BEAR), *lands(1)]
-        self.assertEqual(activation(game, a, "Draw a card"), [])
+        self.assertEqual(activation(game, a, "Put target card"), [])
         a.battlefield.append(Permanent(WHITE_BEAR))
-        self.assertEqual(len(activation(game, a, "Draw a card")), 1)
+        self.assertEqual(len(activation(game, a, "Put target card")), 1)
 
 
 if __name__ == "__main__":

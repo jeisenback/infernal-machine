@@ -1496,6 +1496,8 @@ class Amount:
 _AMOUNTS = [
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
     (re.compile(r"the sacrificed creature's power", re.I), lambda m: Amount("sacrificed_power")),
+    (re.compile(r"the number of nontoken creatures you had enter the battlefield under your control this turn", re.I),
+     lambda m: Amount("creatures_entered")),
     (re.compile(r"(?:the number of )?([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters? on (?:it|this creature|this artifact|CARDNAME)",
                 re.I), lambda m: Amount("source_counters", _counter_name(m[1].lower()))),
     (re.compile(r"(?:the number of )?(?:(creature|land|artifact|enchantment|instant|sorcery|planeswalker) )?cards? in your graveyard",
@@ -2986,6 +2988,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(?: under your control)?\.", re.I),
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours" if m[2].lower() == "your" else "any"), "battlefield",
                                    bool(m[3]))),
+    (re.compile(rf"put target {_CARD_TYPE} from your graveyard on (the bottom|top) of your library\.", re.I),
+     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "library_bottom" if m[2].lower() == "the bottom" else "library_top")),
     (re.compile(rf"exile target {_CARD_TYPE} from a graveyard\.", re.I),
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"))),
     (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal it, )?(?:put (?:it|that card) into your hand, "
@@ -3248,6 +3252,8 @@ def _clauses(sentence: str) -> list[str]:
     sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
     "You create" add nothing."""
     sentence = sentence.replace(" of their choice.", ".")
+    if m := re.fullmatch(r"Create a number of (.+?) tokens? equal to (.+)\.", sentence, re.I):  # Gyome's Food
+        return [f"Let X be {m[2]}.", f"Create X {m[1]} tokens."] if _amount(m[2]) else [sentence]
     if m := re.fullmatch(r"(.+), where X is (.+)\.", sentence):
         return [f"Let X be {m[2]}."] + _clauses(m[1] + ".") if _amount(m[2]) else [sentence]
     if m := re.fullmatch(r"(.+) (?:equal to|for each) (.+)\.", sentence):
@@ -3615,6 +3621,7 @@ _TRIGGERS = {
     "ally_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
     "attacked": re.compile(r"Whenever a creature attacks you, (.+)", re.I),
     "attacked_or_walker": re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),
+    "enters_untapped": re.compile(rf"When {_SELF} enters untapped, (.+)", re.I),
     "tokens_created": re.compile(r"Whenever you create one or more creature tokens, (.+)", re.I),
     "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),

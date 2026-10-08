@@ -264,6 +264,8 @@ class Seat:
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
+    creatures_entered_turn: int | None = None  # the turn `creatures_entered` counts for
+    creatures_entered: int = 0  # nontoken creatures that entered under this player's control that turn
     life_gained_turn: int | None = None
     life_gained_amount: int = 0  # how much life this player gained on life_gained_turn
     delayed_mana: int = 0  # {C} to add at the beginning of this player's next main phase (Mana Drain)
@@ -1396,6 +1398,8 @@ class Game:
             if source is None:
                 return 0
             return self.power(source) if self.on_battlefield(source) else source.last_power  # last known (CR 608.2h)
+        if kind == "creatures_entered":  # nontoken creatures that entered under your control this turn
+            return controller.creatures_entered if controller.creatures_entered_turn == self.turn else 0
         if kind == "sacrificed_power":  # the creature sacrificed to pay this ability's cost
             return self.resolving_item.sacrificed_power if self.resolving_item else 0
         if kind == "source_counters":
@@ -1933,6 +1937,8 @@ class Game:
         self._left_graveyard(seat)
         if to == "hand":
             seat.hand.append(card)
+        elif to in ("library_top", "library_bottom"):
+            seat.library.insert(0, card) if to == "library_top" else seat.library.append(card)
         else:
             self._enter(controller, Permanent(card, sick=True, tapped=tapped, loyalty=_starting_loyalty(card), owner=seat))
 
@@ -2772,7 +2778,13 @@ class Game:
         if saga_chapters(permanent.card):  # a Saga arrives with a lore counter, which triggers chapter I
             permanent.counters["lore"] = permanent.counters.get("lore", 0) + 1
         seat.battlefield.append(permanent)
+        if "Creature" in permanent.card.type_line and not _is_token(permanent.card):
+            if seat.creatures_entered_turn != self.turn:
+                seat.creatures_entered_turn, seat.creatures_entered = self.turn, 0
+            seat.creatures_entered += 1
         self.trigger("enters", permanent, seat)
+        if not permanent.tapped:
+            self.trigger("enters_untapped", permanent, seat)
         if saga_chapters(permanent.card):
             self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)

@@ -122,3 +122,53 @@ class StaffOfTheStorytellerTests(unittest.TestCase):
         game.create_tokens(a, Card(name="Treasure", type_line="Token Artifact — Treasure"), 1)
         run_stack(game)
         self.assertEqual(staff.counters, {"story": 2})
+
+
+class MistveilPlainsTests(unittest.TestCase):
+    def test_a_card_from_the_graveyard_goes_to_the_bottom_of_the_library(self):
+        game, _ = table3()
+        a = game.seats[0]
+        white = replace(BEAR, colors=("W",))
+        a.battlefield = [Permanent(REAL["Mistveil Plains"]), Permanent(white), Permanent(white), *lands(1)]
+        a.graveyard, a.library = [BEAR], [Card(name="Top"), Card(name="Bottom")]
+        [ability] = [x for x in activated_abilities(REAL["Mistveil Plains"]) if x.tap and x.mana_cost]
+        game._activate(a, a.battlefield[0], ability)
+        run_stack(game)
+        self.assertEqual(([c.name for c in a.library], a.graveyard), (["Top", "Bottom", "Bear"], []))
+
+
+class MysticSanctuaryTests(unittest.TestCase):
+    def test_entering_untapped_puts_a_spell_from_the_graveyard_on_top(self):
+        game, _ = table3()
+        a = game.seats[0]
+        bolt = Card(name="Bolt", mana_cost="{R}", type_line="Instant", oracle_text="Draw a card.")
+        a.battlefield = [Permanent(Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",)))] * 3
+        a.graveyard, a.library = [BEAR, bolt], [Card(name="Top")]
+        game._enter(a, Permanent(REAL["Mystic Sanctuary"]))
+        run_stack(game)
+        self.assertEqual(([c.name for c in a.library], a.graveyard), (["Bolt", "Top"], [BEAR]))
+
+    def test_entering_tapped_does_nothing(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.graveyard, a.library = [Card(name="Bolt", type_line="Instant")], []
+        land = Permanent(REAL["Mystic Sanctuary"])
+        land.tapped = True  # the game taps it as it enters; here that is stated by hand
+        game._enter(a, land)
+        run_stack(game)
+        self.assertEqual(a.library, [])
+
+
+class GyomeTests(unittest.TestCase):
+    def test_the_end_step_makes_a_food_for_each_nontoken_creature_that_entered(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield = [Permanent(REAL["Gyome, Master Chef"])]
+        game.turn = 5
+        for creature in (BEAR, BEAR):
+            game._enter(a, Permanent(creature))
+        game.create_tokens(a, Card(name="Soldier", type_line="Token Creature — Soldier", power="1", toughness="1"), 2)
+        run_stack(game)
+        game._trigger_each("end_step", a)
+        run_stack(game)
+        self.assertEqual(sum(p.card.name == "Food" for p in a.battlefield), 2)

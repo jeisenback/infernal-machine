@@ -19,7 +19,10 @@
    "oracle_text": "This land enters tapped.\n{T}: Add {G}.\n{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (It can deal excess combat damage to the player or planeswalker it's attacking.)",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "G"
+   ]
   },
   {
    "name": "Mutavault",
@@ -28,7 +31,10 @@
    "oracle_text": "{T}: Add {C}.\n{1}: This land becomes a 2/2 creature with all creature types until end of turn. It's still a land.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
   },
   {
    "name": "Threaten",
@@ -191,7 +197,10 @@
    "oracle_text": "You have no maximum hand size.\n{T}: Add {C}.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
   },
   {
    "name": "Rancor",
@@ -234,7 +243,11 @@
    "oracle_text": "{T}, Pay 1 life: Add {G} or {W}.\n{1}, {T}, Sacrifice this land: Draw a card.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "G",
+    "W"
+   ]
   },
   {
    "name": "Exotic Orchard",
@@ -243,7 +256,14 @@
    "oracle_text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "G",
+    "R",
+    "U",
+    "W"
+   ]
   },
   {
    "name": "Reflecting Pool",
@@ -252,7 +272,14 @@
    "oracle_text": "{T}: Add one mana of any type that a land you control could produce.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "G",
+    "R",
+    "U",
+    "W"
+   ]
   },
   {
    "name": "Brainstorm",
@@ -294,7 +321,10 @@
    "oracle_text": "{T}: Add {G} for each creature you control.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "G"
+   ]
   },
   {
    "name": "Cabal Coffers",
@@ -303,7 +333,10 @@
    "oracle_text": "{2}, {T}: Add {B} for each Swamp you control.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "B"
+   ]
   },
   {
    "name": "Elvish Archdruid",
@@ -632,7 +665,10 @@
    "oracle_text": "{T}: Add {C}.\n{1}: This land becomes a 1/1 Blinkmoth artifact creature with flying until end of turn. It's still a land.\n{1}, {T}: Target Blinkmoth creature gets +1/+1 until end of turn.",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
   },
   {
    "name": "Ash Barrens",
@@ -641,7 +677,10 @@
    "oracle_text": "{T}: Add {C}.\nBasic landcycling {1} ({1}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.)",
    "power": null,
    "toughness": null,
-   "colors": []
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
   },
   {
    "name": "Cryptic Serpent",
@@ -762,6 +801,42 @@
    "toughness": null,
    "colors": [
     "W"
+   ]
+  },
+  {
+   "name": "Gyome, Master Chef",
+   "mana_cost": "{2}{B}{G}",
+   "type_line": "Legendary Creature — Troll Warlock",
+   "oracle_text": "Trample\nAt the beginning of your end step, create a number of Food tokens equal to the number of nontoken creatures you had enter the battlefield under your control this turn.\n{1}, Sacrifice a Food: Target creature gains indestructible until end of turn. Tap it.",
+   "power": "5",
+   "toughness": "3",
+   "colors": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Mistveil Plains",
+   "mana_cost": "",
+   "type_line": "Land — Plains",
+   "oracle_text": "({T}: Add {W}.)\nThis land enters tapped.\n{W}, {T}: Put target card from your graveyard on the bottom of your library. Activate only if you control two or more white permanents.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "W"
+   ]
+  },
+  {
+   "name": "Mystic Sanctuary",
+   "mana_cost": "",
+   "type_line": "Land — Island",
+   "oracle_text": "({T}: Add {U}.)\nThis land enters tapped unless you control three or more other Islands.\nWhen this land enters untapped, you may put target instant or sorcery card from your graveyard on top of your library.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "U"
    ]
   }
  ],
