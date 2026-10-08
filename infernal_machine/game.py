@@ -3195,6 +3195,8 @@ def _permanent_matches(kind: str, card: Card) -> bool:
         return _is_token(card) and _permanent_matches(kind.removesuffix(" token"), card)
     if kind.startswith("nontoken "):
         return not _is_token(card) and _permanent_matches(kind.removeprefix("nontoken "), card)
+    if kind.endswith(" creature") and " " not in kind.removesuffix(" creature"):  # "Blinkmoth creature"
+        return "Creature" in card.type_line and kind.removesuffix(" creature").capitalize() in card.type_line.partition("—")[2].split()
     return any(t.capitalize() in card.type_line for t in kind.split(" or ") if t != "player")
 
 

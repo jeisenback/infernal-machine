@@ -5,6 +5,7 @@ from infernal_machine.effects import (Animate, MoveCountersFrom, MoveCountersOnt
                                       spell_effects)
 from infernal_machine.game import ACTIVATE, CAST, PASS, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, OGRE
 from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
@@ -13,22 +14,15 @@ SHIFT = Card(name="Test Bioshift", mana_cost="{U}", type_line="Instant",
              oracle_text="Move a +1/+1 counter from target creature onto another target creature.")
 SHIFT_ALL = Card(name="Shift All", mana_cost="{U}", type_line="Instant",
                  oracle_text="Move all +1/+1 counters from target creature onto another target creature.")
-SCALE = Card(name="Test Rally", mana_cost="{U}", type_line="Instant",
-             oracle_text="Target creature gets +2/+1 until end of turn for each creature you control.")
+SCALE = REAL["Might of the Masses"]
 TREETOP = Card(name="Treetop Village", type_line="Land",
                oracle_text="{T}: Add {G}.\n{1}{G}: Until end of turn, Treetop Village becomes a 3/3 green Ape creature "
                            "with trample. It's still a land.")
-NEXUS = Card(name="Test Blinkmoth Nexus", type_line="Land",
-             oracle_text="{T}: Add {C}.\n{1}: Until end of turn, Test Blinkmoth Nexus becomes a 1/1 Blinkmoth artifact creature "
-                         "with flying. It's still a land.")
+NEXUS = REAL["Blinkmoth Nexus"]
 MUTAVAULT = Card(name="Mutavault", type_line="Land",
                  oracle_text="{T}: Add {C}.\n{1}: Until end of turn, Mutavault becomes a 2/2 creature with all creature "
                              "types. It's still a land.")
-AWAKEN = Card(name="Test Rouse", mana_cost="{G}", type_line="Instant",
-              oracle_text="Target land you control becomes a 3/3 Elemental creature with haste until end of turn. "
-                          "It's still a land.")
-
-
+AWAKEN = REAL["Llanowar Loamspeaker"]
 def targets(*indexes):
     """Cast the first spell, answering each target prompt with the next index."""
     wanted = iter(indexes)
@@ -39,16 +33,16 @@ def targets(*indexes):
 class ScaledPumpTests(unittest.TestCase):
     def test_parse(self):
         [_, pump] = spell_effects(SCALE)
-        self.assertEqual((pump.power, pump.toughness), (2, 1))
+        self.assertEqual((pump.power, pump.toughness), (1, 1))
         self.assertIsInstance(pump, PumpX)
 
-    def test_a_bigger_multiple(self):
+    def test_it_scales_with_the_creatures_you_control(self):
         game, _ = table3(pick(CAST))
         a = game.seats[0]
         bear = Permanent(BEAR)
         a.hand, a.battlefield = [SCALE], lands(1) + [bear, Permanent(BEAR), Permanent(BEAR)]
         game._priority_round(a)
-        self.assertEqual((game.power(bear), game.toughness(bear)), (2 + 6, 2 + 3))
+        self.assertEqual((game.power(bear), game.toughness(bear)), (2 + 3, 2 + 3))
 
 
 class MoveCountersTests(unittest.TestCase):
@@ -142,10 +136,11 @@ class AnimateTests(unittest.TestCase):
 
     def test_targeted(self):
         self.assertEqual(unsupported_lines(AWAKEN), [])
-        game, _ = table3(pick(CAST))
+        game, _ = table3(lambda prompt, options: next((i for i, o in enumerate(options) if o.startswith(ACTIVATE)
+                                                       and "becomes" in o), options.index(PASS) if PASS in options else 0))
         a = game.seats[0]
         land = Permanent(Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",)))
-        a.hand, a.battlefield = [AWAKEN], [land] + lands(1)
+        a.battlefield = [Permanent(AWAKEN), land]
         game._priority_round(a)
         self.assertEqual((land.card.type_line, game.power(land), game.has_keyword(land, "haste")),
                          ("Basic Land Creature — Elemental", 3, True))

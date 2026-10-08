@@ -5,6 +5,7 @@ from infernal_machine.effects import (CannotRegenerate, DamageEach, DestroyAll, 
                                       TargetSacrifices, spell_effects)
 from infernal_machine.game import CAST, COMMAND_ZONE_PROMPT, SACRIFICE_PROMPT, Game, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_effects import BEAR, DARKSTEEL, FOREST, SOL_RING, lands, pick, table
 from tests.test_exile import COMMANDER, OGRE
 from tests.test_game import ScriptedPlayer
@@ -17,10 +18,9 @@ WRATH = Card(name="Wrath of God", mana_cost="{2}{W}{W}", type_line="Sorcery",
 PYROCLASM = Card(name="Pyroclasm", mana_cost="{1}{R}", type_line="Sorcery",
                  oracle_text="Pyroclasm deals 2 damage to each creature.")
 VORTEX = Card(name="Vortex", mana_cost="{1}{R}", type_line="Sorcery", oracle_text="Vortex deals 3 damage to each opponent.")
-FLARE = Card(name="Test Flare", mana_cost="{1}{R}", type_line="Sorcery",
-             oracle_text="Test Flare deals 2 damage to each creature and each player.")
+FLARE = REAL["Steam Blast"]
 ARMAGEDDON = Card(name="Armageddon", mana_cost="{3}{W}", type_line="Sorcery", oracle_text="Destroy all lands.")
-PURGE = Card(name="Test Purge", mana_cost="{3}{W}", type_line="Sorcery", oracle_text="Destroy all creatures you don't control.")
+PURGE = REAL["Plague Wind"]
 BANISH = Card(name="Banish All", mana_cost="{4}{W}", type_line="Sorcery", oracle_text="Exile all creatures.")
 EDICT = Card(name="Diabolic Edict", mana_cost="{1}{B}", type_line="Instant", oracle_text="Target opponent sacrifices a creature.")
 TRIBUTE = Card(name="Tribute", mana_cost="{1}{B}", type_line="Sorcery", oracle_text="Each opponent sacrifices a creature.")
@@ -45,7 +45,7 @@ class ParseTests(unittest.TestCase):
     def test_templates(self):
         self.assertEqual(spell_effects(WRATH), [DestroyAll("creature", no_regen=True)])
         self.assertEqual(spell_effects(ARMAGEDDON), [DestroyAll("land")])
-        self.assertEqual(spell_effects(PURGE), [DestroyAll("creature you don't control")])
+        self.assertEqual(spell_effects(PURGE), [DestroyAll("creature you don't control", no_regen=True)])
         self.assertEqual(spell_effects(BANISH), [ExileAll("creature")])
         self.assertEqual(spell_effects(PYROCLASM), [DamageEach(2, "all", None)])
         self.assertEqual(spell_effects(VORTEX), [DamageEach(3, None, "opponents")])
@@ -95,7 +95,7 @@ class DestroyAllTests(unittest.TestCase):
     def test_qualifier_only_hits_the_other_players(self):
         game, _, _ = table(pick(CAST))
         game.seats[0].hand = [PURGE]
-        game.seats[0].battlefield = lands(4) + [Permanent(BEAR)]
+        game.seats[0].battlefield = lands(9) + [Permanent(BEAR)]
         game.seats[1].battlefield = [Permanent(OGRE)]
         game._priority_round(game.seats[0])
         self.assertEqual((names(game.seats[0])[-1], game.seats[1].battlefield), ("Grizzly Bears", []))
@@ -157,11 +157,11 @@ class DamageEachTests(unittest.TestCase):
     def test_each_creature_and_each_player(self):
         game, _ = table3(pick(CAST))
         game.seats[0].hand = [FLARE]
-        game.seats[0].battlefield = lands(2) + [Permanent(BEAR)]
+        game.seats[0].battlefield = lands(3) + [Permanent(BEAR)]
         game.seats[1].battlefield = [Permanent(OGRE)]
         game._priority_round(game.seats[0])
         self.assertEqual([s.life for s in game.seats], [38, 38, 38])
-        self.assertEqual(names(game.seats[0]), ["City of Brass"] * 2)  # the 2/2 Bear died
+        self.assertEqual(names(game.seats[0]), ["City of Brass"] * 3)  # the 2/2 Bear died
         self.assertEqual(names(game.seats[1]), ["Ogre"])  # the 3/3 survived with damage
 
 

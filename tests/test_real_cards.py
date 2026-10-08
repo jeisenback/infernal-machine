@@ -67,3 +67,15 @@ class DinaTests(unittest.TestCase):
         run_stack(game)
         self.assertEqual(game.power(dina), 1 + 4)
         self.assertNotIn(ogre, a.battlefield)
+
+
+class BlinkmothNexusTests(unittest.TestCase):
+    def test_it_pumps_a_blinkmoth_and_only_a_blinkmoth(self):
+        game, _ = table3()
+        a = game.seats[0]
+        nexus = Permanent(REAL["Blinkmoth Nexus"])
+        moth = Permanent(Card(name="Moth", type_line="Artifact Creature — Blinkmoth", power="1", toughness="1"))
+        a.battlefield = [nexus, moth, Permanent(BEAR), *lands(1)]
+        [ability] = [x for x in activated_abilities(nexus.card) if x.tap and x.mana_cost]
+        options = [p for _, p in game.target_options("Blinkmoth creature", a)]
+        self.assertEqual(options, [moth])
