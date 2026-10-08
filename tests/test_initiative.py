@@ -29,6 +29,22 @@ def route(*rooms):
 
 
 class RoomTests(unittest.TestCase):
+    def test_the_exits_are_the_printed_ones(self):
+        # The Undercity as printed: 1-2-3-2-1 rooms, twelve connections (checked against the card, issue 50).
+        exits = {name: set(room.leads_to) for name, room in ROOMS.items()}
+        self.assertEqual(exits, {
+            "Secret Entrance": {"Forge", "Lost Well"},
+            "Forge": {"Trap!", "Arena"},
+            "Lost Well": {"Arena", "Stash"},
+            "Trap!": {"Archives"},
+            "Arena": {"Archives", "Catacombs"},
+            "Stash": {"Catacombs"},
+            "Archives": {"Throne of the Dead Three"},
+            "Catacombs": {"Throne of the Dead Three"},
+            "Throne of the Dead Three": set(),
+        })
+        self.assertEqual(sum(len(room) for room in exits.values()), 12)
+
     def test_every_room_is_understood(self):
         from infernal_machine.effects import line_effects
         for name, room in ROOMS.items():
