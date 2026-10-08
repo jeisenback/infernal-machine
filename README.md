@@ -315,6 +315,13 @@ winner = game.play()
     you control", "... for each creature card in your graveyard", "+2/+2 for each Aura attached to it", and on an Aura
     "Enchanted creature gets +1/+1 for each Aura you control that's attached to a creature". "Enchanted creature gets
     +1/+1 and is goaded" goads it for as long as the Aura stays (the Aura's controller is the goader).
+    "White creatures get +1/+1" (Crusade) affects every player's creatures. An Aura can give keywords, including
+    "annihilator 2" (Eldrazi Conscription: when it attacks, the defending player sacrifices two permanents), a quoted
+    ability (Fallen Ideal) and an extra creature type (Angelic Destiny: "is an Angel in addition"; lords see it).
+    "As this enters, choose a creature type" (Patchwork Banner) names the most common type in your cards unless you
+    choose; "Creatures you control of the chosen type get +1/+1" follows. "... for each time you've cast your
+    commander from the command zone" scales a tribe (Vanguard of the Restless, which also returns from the
+    graveyard when a Spirit enters if you pay {2}{W}). Veyran makes your instant and sorcery triggers happen twice.
 - **Current power, toughness and keywords:** printed values plus counters, static abilities and
   "until end of turn" effects. They count everywhere: combat, damage, targeting (granted hexproof),
   destroy (granted indestructible), state checks, and the labels players see ("Bear 4/4").
