@@ -1140,7 +1140,8 @@ CANT_ATTACK, CANT_BLOCK = "can't attack", "can't block"  # pseudo-keywords, so c
 CANT_BE_BLOCKED = "can't be blocked"
 
 
-_GRANT = re.compile(r'(?:Equipped|Enchanted) (?:creature|land|permanent) has "(.+)"\.?')  # the quote's own full stop is inside it
+_GRANT = re.compile(rf'(?:Equipped|Enchanted) (?:creature|land|permanent) has (?:{_KEYWORDS_BARE} and )?"(.+)"\.?')
+_ATTACHED_AND_GRANT = re.compile(rf'(?:Equipped|Enchanted) creature has ({_KEYWORDS}) and ".+"\.?')  # Fallen Ideal  # the quote's own full stop is inside it
 
 
 def is_granting_line(line: str) -> bool:
@@ -1193,6 +1194,8 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             else:
                 modifier = _modifier(m, 1)
             buffs.append(AttachedBuff(modifier, line))
+        elif m := _ATTACHED_AND_GRANT.fullmatch(line):  # the keywords; granted_abilities has the quoted ability
+            buffs.append(AttachedBuff(Modifier(keywords=_keyword_list(m[1])), line))
         elif m := _ATTACHED_TYPED.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[3])), line, subtype=m[4]))
         elif m := _ATTACHED_GOADED.fullmatch(line):

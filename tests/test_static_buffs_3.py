@@ -4,7 +4,7 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.effects import attached_abilities
-from infernal_machine.game import Permanent
+from infernal_machine.game import SACRIFICE_COST_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
@@ -57,3 +57,23 @@ class AngelicDestinyTests(unittest.TestCase):
         self.assertEqual((game.has_keyword(bear, "flying"), game.has_keyword(bear, "first strike")), (True, True))
         self.assertIn("Angel", game.subtypes(bear))
         self.assertEqual(game.power(a.battlefield[1]), 1 + 1)  # the lord itself is an Angel too
+
+
+class FallenIdealTests(unittest.TestCase):
+    def test_flying_a_sacrifice_ability_and_it_returns_to_hand(self):
+        def policy(prompt, options):  # sacrifice the last creature listed, the spare Bear
+            return len(options) - 1 if prompt.startswith(SACRIFICE_COST_PROMPT) else pick("Activate")(prompt, options)
+        game, _ = table3(policy)
+        a = game.seats[0]
+        bear, fodder = Permanent(BEAR), Permanent(BEAR)
+        ideal = Permanent(REAL["Fallen Ideal"], attached_to=bear)
+        a.battlefield = [bear, fodder, ideal]
+        self.assertTrue(game.has_keyword(bear, "flying"))
+        [action] = [x for x in game._activations(a, True) if "Sacrifice a creature" in x]
+        game._perform(a, action)
+        run_stack(game)
+        self.assertEqual((game.power(bear), game.toughness(bear)), (2 + 2, 2 + 1))
+        self.assertEqual(len(a.battlefield) - 1, 1)  # one Bear was the cost
+        game._leave_battlefield(ideal, "destroyed")
+        run_stack(game)
+        self.assertEqual([c.name for c in a.hand], ["Fallen Ideal"])
