@@ -110,6 +110,9 @@ NONE_TAKEN = "Take none"
 KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom", "Put into your graveyard"
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
+LOOT_PROMPT = "Discard a card to draw a card? "
+WHEEL_PROMPT = "Discard your hand and draw a new hand? "
+TAP_OR_UNTAP_PROMPT = "Tap or untap "  # followed by the creature's name
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
 
 
@@ -2335,6 +2338,24 @@ class Game:
         for card in binned:
             self._move_card(seat, card, "graveyard")
 
+    def may_loot(self, seat: Seat) -> None:
+        """ "You may discard a card. If you do, draw a card." """
+        if seat.hand and seat.player.choose(LOOT_PROMPT, YES_NO) == 0:
+            self.discard(seat, 1)
+            self.draw(seat, 1)
+
+    def may_wheel(self, count: int) -> None:
+        """ "Each player may discard their hand and draw seven cards." """
+        for seat in self.turn_order_from_active():
+            if seat.player.choose(WHEEL_PROMPT, YES_NO) == 0:
+                self.discard(seat, None)
+                self.draw(seat, count)
+
+    def tap_or_untap(self, seat: Seat, target: Permanent) -> None:
+        pick = seat.player.choose(TAP_OR_UNTAP_PROMPT + target.card.name, ["Tap", "Untap", "Neither"])
+        if pick < 2:
+            target.tapped = pick == 0
+
     def discard(self, seat: Seat, count: int | None, random: bool = False) -> None:
         """Discard `count` cards (the whole hand if None); the player chooses which unless it says "at random"."""
         for _ in range(len(seat.hand) if count is None else min(count, len(seat.hand))):
@@ -2778,6 +2799,8 @@ def _permanent_matches(kind: str, card: Card) -> bool:
         return True
     if kind == "nonland permanent":
         return not is_land(card)
+    if kind == "nonbasic land":
+        return "Land" in card.type_line and "Basic" not in card.type_line
     if kind.endswith(" token"):  # "creature token"
         return _is_token(card) and _permanent_matches(kind.removesuffix(" token"), card)
     if kind.startswith("nontoken "):

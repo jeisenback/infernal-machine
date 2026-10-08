@@ -259,6 +259,95 @@ class TargetDraw:
 
 
 @dataclass(frozen=True)
+class TargetDrawLose:
+    """ "Target player draws N cards and loses N life." """
+    draws: int | str
+    loses: int | str
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.draw(target, game.amount(self.draws))
+            game.change_life(target, -game.amount(self.loses))
+
+
+@dataclass(frozen=True)
+class YouAndTargetDraw:
+    """ "You and target opponent each draw three cards." """
+    count: int | str
+    target: str = "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.draw(controller, game.amount(self.count))
+        if target is not None:
+            game.draw(target, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class EachPlayerLosesLife:
+    amount: int | str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            game.change_life(seat, -game.amount(self.amount))
+
+
+@dataclass(frozen=True)
+class Drain:
+    """ "Each opponent loses X life. You gain life equal to the life lost this way." """
+    amount: int | str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        lost = 0
+        for seat in game.opponents(controller):
+            game.change_life(seat, -game.amount(self.amount))
+            lost += game.amount(self.amount)
+        game.change_life(controller, lost)
+
+
+@dataclass(frozen=True)
+class MayDiscardThenDraw:
+    """ "You may discard a card. If you do, draw a card." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.may_loot(controller)
+
+
+@dataclass(frozen=True)
+class EachMayWheel:
+    """ "Each player may discard their hand and draw seven cards." """
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.may_wheel(self.count)
+
+
+@dataclass(frozen=True)
+class TapOrUntap:
+    """ "You may tap or untap target creature." """
+    target: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.tap_or_untap(controller, target)
+
+
+@dataclass(frozen=True)
+class _MayDiscard:
+    """Half of "You may discard a card. If you do, draw a card." (see _merge_loot)."""
+
+
+@dataclass(frozen=True)
+class _IfYouDoDraw:
+    """The other half."""
+
+
+@dataclass(frozen=True)
+class _GainLifeLost:
+    """ "You gain life equal to the life lost this way." (see _merge_drain) """
+
+
+@dataclass(frozen=True)
 class TargetGainLife:
     amount: int | str
     target: str = "player"
@@ -2360,7 +2449,7 @@ class FetchBasicLand:
 
 
 _PERMANENT_KIND = (r"((?:creature token|nontoken creature|attacking creature|tapped creature|untapped creature|creature|artifact"
-                   r"|enchantment|planeswalker|nonland permanent|permanent|land|artifact or enchantment"
+                   r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment"
                    r"|creature or planeswalker)(?: an opponent controls| you don't control| you control)?)")
 # "up to two target creatures": the plural kinds, and the singular they stand for
 _PLURAL_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments": "enchantment",
@@ -2375,7 +2464,8 @@ def _up_to(cls: type, m: re.Match, **fixed: Any) -> list:
     """"... up to two target creatures ..." is two effects with one optional, distinct target each."""
     kind = _PLURAL_KINDS[m[2].lower()] + (m[3] or "")
     return [cls(kind, optional_target=True, distinct=n > 0, **fixed) for n in range(_count(m[1]))]
-_DAMAGE_KIND = r"(any target|target creature|target player|target creature or planeswalker|target player or planeswalker)"
+_DAMAGE_KIND = (r"(any target|target creature|target player|target opponent|target creature or planeswalker"
+                r"|target player or planeswalker)")
 
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if this spell was kicked, (.+)", re.I), _kicked),
@@ -2413,6 +2503,16 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND} until {_SELF} leaves the battlefield\.", re.I),
      lambda m: ExileUntilLeaves(m[2].lower(), bool(m[1]))),
     (re.compile(rf"target (player|opponent) draws {_N} cards?\.", re.I), lambda m: TargetDraw(_count(m[2]), m[1].lower())),
+    (re.compile(rf"target (player|opponent) draws {_N} cards? and loses {_N} life\.", re.I),
+     lambda m: TargetDrawLose(_count(m[2]), _count(m[3]), m[1].lower())),
+    (re.compile(rf"you and target opponent each draw {_N} cards?\.", re.I), lambda m: YouAndTargetDraw(_count(m[1]))),
+    (re.compile(rf"each player loses {_N} life\.", re.I), lambda m: EachPlayerLosesLife(_count(m[1]))),
+    (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
+    (re.compile(r"if you do, draw a card\.", re.I), lambda m: _IfYouDoDraw()),
+    (re.compile(r"you gain life equal to the life lost this way\.", re.I), lambda m: _GainLifeLost()),
+    (re.compile(r"each player may discard their hand and draw (seven) cards\.", re.I),
+     lambda m: EachMayWheel(_count(m[1]))),
+    (re.compile(r"you may tap or untap target creature\.", re.I), lambda m: TapOrUntap()),
     (re.compile(rf"target (player|opponent) gains {_N} life\.", re.I), lambda m: TargetGainLife(_count(m[2]), m[1].lower())),
     (re.compile(rf"target (player|opponent) loses {_N} life\.", re.I), lambda m: TargetLoseLife(_count(m[2]), m[1].lower())),
     (re.compile(rf"return (another |up to one )?target {_PERMANENT_KIND} to its owner's hand\.", re.I),
@@ -2726,6 +2826,37 @@ def _merge_hand_discard(effects: list) -> list | None:
     return merged
 
 
+def _merge_loot(effects: list) -> list | None:
+    """"You may discard a card. If you do, draw a card." is one effect; either sentence alone isn't understood."""
+    merged: list = []
+    i = 0
+    while i < len(effects):
+        if isinstance(effects[i], _MayDiscard):
+            if not (i + 1 < len(effects) and isinstance(effects[i + 1], _IfYouDoDraw)):
+                return None
+            merged.append(MayDiscardThenDraw())
+            i += 2
+            continue
+        if isinstance(effects[i], _IfYouDoDraw):
+            return None
+        merged.append(effects[i])
+        i += 1
+    return merged
+
+
+def _merge_drain(effects: list) -> list | None:
+    """"Each opponent loses X life. You gain life equal to the life lost this way." is one effect."""
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, _GainLifeLost):
+            if not (merged and isinstance(merged[-1], OpponentsLoseLife)):
+                return None
+            merged[-1] = Drain(merged[-1].amount)
+        else:
+            merged.append(effect)
+    return merged
+
+
 def _vote_outcome(kind: str, option: str, text: str, tie: bool) -> VoteOutcome | None:
     """What a vote does, read from the sentence's own clause; only for effects that need no target."""
     effects = _parse(_split_sentences(text[:1].upper() + text[1:] + "."))
@@ -2785,7 +2916,7 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_exile, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
