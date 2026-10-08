@@ -1495,6 +1495,8 @@ class Game:
     def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None) -> bool:
         """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`."""
         kind = condition.kind
+        if kind == "eminence":  # the watcher is only looked for on the battlefield and in the command zone
+            return True
         if kind == "kicked":  # "if it was kicked (with its {R} kicker)"
             return source is not None and bool(source.kicked) and (not condition.what or condition.what in source.kickers)
         if kind == "graveyard_left":
@@ -1544,11 +1546,18 @@ class Game:
         and still "look back in time" (CR 603.10a). Event "copy" is a spell being copied, which only a
         "cast or copy" watcher (magecraft) notices."""
         watchers = [(p, s) for s in self.live_seats() for p in s.battlefield] + list(extra)
-        for watcher, watcher_seat in watchers:
+        # Eminence abilities (Edgar Markov) also work from the command zone, where a card is no Permanent.
+        eminent = [(Permanent(c), s) for s in self.live_seats() for c in s.command_zone]
+        for watcher, watcher_seat in watchers + eminent:
+            in_command_zone = any(watcher is p for p, _ in eminent)
             for ability in triggered_abilities(watcher.card):
                 watch = ability.watch
                 if not watch or ability.event != ("cast" if event == "copy" else event):
                     continue
+                if in_command_zone and not ability.text.startswith("Eminence"):
+                    continue
+                if watch.other and event in ("cast", "copy") and card is watcher.card:
+                    continue  # "another" spell: not the one that has this ability
                 if event == "copy" and not watch.with_copy:
                     continue
                 if event in ("cast", "copy") and (card.cmc < watch.mv_at_least or (watch.from_hand and not from_hand)):

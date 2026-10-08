@@ -437,6 +437,28 @@
     "R",
     "W"
    ]
+  },
+  {
+   "name": "Gilded Lotus",
+   "mana_cost": "{5}",
+   "type_line": "Artifact",
+   "oracle_text": "{T}: Add three mana of any one color.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Edgar Markov",
+   "mana_cost": "{3}{R}{W}{B}",
+   "type_line": "Legendary Creature — Vampire Knight",
+   "oracle_text": "Eminence — Whenever you cast another Vampire spell, if Edgar is in the command zone or on the battlefield, create a 1/1 black Vampire creature token.\nFirst strike, haste\nWhenever Edgar attacks, put a +1/+1 counter on each Vampire you control.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "B",
+    "R",
+    "W"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."

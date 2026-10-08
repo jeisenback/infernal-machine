@@ -590,13 +590,14 @@ class OnPlayer:
 
 @dataclass(frozen=True)
 class PutCountersOnEach:
-    """ "Put a +1/+1 counter on each creature you control." """
+    """ "Put a +1/+1 counter on each creature you control." (or each Vampire you control: `kind`) """
     count: int
     counter: str
+    kind: str = ""  # a creature type, "" for every creature
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for permanent in list(controller.battlefield):
-            if "Creature" in permanent.card.type_line:
+            if "Creature" in permanent.card.type_line and self.kind in permanent.card.type_line:
                 game.put_counters(permanent, self.counter, game.amount(self.count))
 
 
@@ -3111,8 +3112,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
     (re.compile(rf"put {_N} {_COUNTER} on another target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower(), another=True)),
-    (re.compile(rf"put {_N} {_COUNTER} on each creature you control\.", re.I),
-     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]))),
+    (re.compile(rf"put {_N} {_COUNTER} on each (creature|(?-i:[A-Z][a-z]+)) you control\.", re.I),
+     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), "" if m[3].lower() == "creature" else m[3])),
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
      lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} gains protection from the color of your choice until end of turn\."),
@@ -3533,6 +3534,8 @@ _CONDITIONS = [
      lambda m: Condition("kicked", what=m[1] or "")),
     (re.compile(r"you have the city's blessing"), lambda m: Condition("citys_blessing")),
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
+    # Eminence: the ability only works from those two zones, which is where the game looks for it.
+    (re.compile(rf"{_SELF} is in the command zone or on the battlefield"), lambda m: Condition("eminence")),
     (re.compile(rf"there are {_N} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
      lambda m: Condition("graveyard_at_least", _count(m[1]), m[2].replace(" and/or ", " or "))),
     (re.compile(rf"a player has {_N} or fewer cards in hand"), lambda m: Condition("any_hand_at_most", _count(m[1]))),
@@ -3635,11 +3638,12 @@ _WATCHES = {
     "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature token|token|creature|{_TRIBE})"
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
     "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? leaves the battlefield, (.+)", re.I),
-    "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:an?|(?:your|their) (first|second|third)) "
+    "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:(an?|another)|(?:your|their) (first|second|third)) "
                        r"((?:white|blue|black|red|green) spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
-                       r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost)"
-                       r"(?: with mana value (\d+) or greater)?( from your hand)?(?(2) each turn), (.+)", re.I),
+                       r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost"
+                       r"|(?-i:[A-Z][a-z]+) spell)"  # a creature type: "another Vampire spell"
+                       r"(?: with mana value (\d+) or greater)?( from your hand)?(?(3) each turn), (.+)", re.I),
 }
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
@@ -3682,10 +3686,10 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     if m := _WATCHES["cast"].fullmatch(line):
         caster = {"you cast or copy": "you", "you cast": "you", "a player casts": "player",
                   "an opponent casts": "opponent"}[m[1].lower()]
-        nth = {"first": 1, "second": 2, "third": 3}.get((m[2] or "").lower(), 0)
-        watch = Watch(m[3].lower(), caster=caster, nth_each_turn=nth, with_copy=m[1].lower() == "you cast or copy",
-                      mv_at_least=int(m[4] or 0), from_hand=bool(m[5]))
-        return "cast", watch, m[6]
+        nth = {"first": 1, "second": 2, "third": 3}.get((m[3] or "").lower(), 0)
+        watch = Watch(m[4].lower(), other=(m[2] or "").lower() == "another", caster=caster, nth_each_turn=nth,
+                      with_copy=m[1].lower() == "you cast or copy", mv_at_least=int(m[5] or 0), from_hand=bool(m[6]))
+        return "cast", watch, m[7]
     for event in ("permanent_enters", "creature_dies", "permanent_leaves"):
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()
@@ -3994,6 +3998,10 @@ _ADD_SYMBOLS = re.compile(_TAP + r"((?:\{[WUBRGC]\})+)\." + _IF_TAIL)
 _ADD_EITHER = re.compile(_TAP + r"\{([WUBRGC])\} or \{([WUBRGC])\}\." + _IF_TAIL)
 _ADD_ANY = re.compile(_TAP + r"one mana of any color\." + _IF_TAIL)
 _ADD_IDENTITY = re.compile(_TAP + r"one mana of any color in your commander's color identity\." + _IF_TAIL)
+# Gilded Lotus. The engine keeps one option set per mana, so the three are chosen independently: auto-pay may spend
+# them as different colors, which the card does not allow.
+_ADD_ANY_N = re.compile(_TAP + r"(two|three|four|five) mana of any one color\." + _IF_TAIL)
+_ANY_N = {"two": 2, "three": 3, "four": 4, "five": 5}
 
 
 def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
@@ -4041,7 +4049,7 @@ def mana_condition(card: Card) -> "Condition | None":
     return _condition(text) if text else None
 
 
-_MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY, _ADD_IDENTITY)
+_MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY, _ADD_IDENTITY, _ADD_ANY_N)
 _PAIN = re.compile(rf"\{{T\}}: Add \{{([WUBRGC])\}} or \{{([WUBRGC])\}}\. {_SELF} deals {_N} damage to you\.", re.I)
 # Ancient Tomb: two mana, and the damage is dealt once however much of it is used.
 _PAIN_MULTI = re.compile(rf"\{{T\}}: Add ((?:\{{[WUBRGC]\}}){{2,}})\. {_SELF} deals {_N} damage to you\.", re.I)
@@ -4151,4 +4159,6 @@ def _mana_from_line(line: str, commander_identity: frozenset[str]) -> list[froze
         return [frozenset((m[2], m[3]))]
     if _ADD_ANY.fullmatch(line):
         return [frozenset("WUBRG")]
+    if m := _ADD_ANY_N.fullmatch(line):
+        return [frozenset("WUBRG")] * _ANY_N[m[2]]
     return [commander_identity] if commander_identity else None
