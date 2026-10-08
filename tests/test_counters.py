@@ -57,7 +57,7 @@ class CounterTests(unittest.TestCase):
     def test_counters_on_each_creature_you_control(self):
         game, _, _ = table(pick(CAST))
         game.seats[0].hand = [RALLY]
-        game.seats[0].battlefield = lands(1) + [Permanent(BEAR), Permanent(BEAR)]
+        game.seats[0].battlefield = lands(2) + [Permanent(BEAR), Permanent(BEAR)]
         game.seats[1].battlefield = [Permanent(BEAR)]
         game._priority_round(game.seats[0])
         self.assertEqual([p.counters for p in game.seats[0].battlefield[2:]], [{"+1/+1": 1}] * 2)
