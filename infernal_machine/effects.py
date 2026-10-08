@@ -1600,6 +1600,21 @@ DEMONSTRATE_OPPONENT_PROMPT = "Choose an opponent to also copy "  # followed by 
 
 
 @dataclass(frozen=True)
+class Backup:
+    """Backup N: "When this creature enters, put N +1/+1 counters on target creature. If that's another creature, it
+    gains the following abilities until end of turn." `granted` is the rest of the card's rules text."""
+    count: int
+    granted: str
+    target: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.put_counters(target, "+1/+1", self.count)
+            if target is not game.resolving_source:
+                game.grant_abilities(target, self.granted)
+
+
+@dataclass(frozen=True)
 class Demonstrate:
     """Demonstrate: "When you cast this spell, you may copy it. If you do, choose an opponent to also copy it." The
     spell cast is `carried`; each copy's controller chooses new targets."""
@@ -3008,6 +3023,9 @@ def _up_to(cls: type, m: re.Match, **fixed: Any) -> list:
 _DAMAGE_KIND = (r"(any target|target creature|target player|target opponent|target creature or planeswalker"
                 r"|target player or planeswalker)")
 
+_RETURN_UP_TO_POWER = re.compile(r"return target nonland permanent card with mana value X or less from your graveyard to the "
+                                 r"battlefield, where X is (?:this creature's|CARDNAME's|its) power\.", re.I)
+
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
     (re.compile(rf"if this spell was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?, (.+)", re.I), _kicked),
@@ -3134,6 +3152,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
+    (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. Exile that "
                 r"card and put the rest on the bottom of your library in a random order\. You may cast the exiled card "
@@ -3352,6 +3371,8 @@ def _clauses(sentence: str) -> list[str]:
     sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
     "You create" add nothing."""
     sentence = sentence.replace(" of their choice.", ".")
+    if _RETURN_UP_TO_POWER.fullmatch(sentence):  # one effect: X is looked at when the target is chosen
+        return [sentence]
     if m := re.fullmatch(r"Create a number of (.+?) tokens? equal to (.+)\.", sentence, re.I):  # Gyome's Food
         return [f"Let X be {m[2]}.", f"Create X {m[1]} tokens."] if _amount(m[2]) else [sentence]
     if m := re.fullmatch(r"(.+), where X is (.+)\.", sentence):
@@ -3898,6 +3919,10 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     abilities = _triggered_abilities(card)
     for number, (effects, line) in saga_chapters(card).items():  # a lore counter makes the chapter trigger
         abilities.append(TriggeredAbility(f"chapter_{number}", effects, False, line))
+    lines = rules_lines(card)
+    for number, line in enumerate(lines):  # Backup N gives the abilities written below it
+        if m := _BACKUP.fullmatch(line):
+            abilities.append(TriggeredAbility("enters", (Backup(int(m[1]), "\n".join(lines[number + 1:])),), False, line))
     for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard
         words = {word.strip().lower() for word in line.split(",")}
         if "prowess" in words:  # whenever you cast a noncreature spell, this gets +1/+1 until end of turn
@@ -3920,6 +3945,7 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
 
 
 _TRIGGERS_ONCE = " This ability triggers only once each turn."
+_BACKUP = re.compile(r"Backup (\d+)")
 
 
 def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]:

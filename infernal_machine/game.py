@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, Demonstrate, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, Demonstrate, Backup, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -1112,7 +1112,8 @@ class Game:
                  if (kind := target_kind(e)) and not getattr(e, "optional_target", False)]
         for i, (kind, distinct, another) in enumerate(kinds):
             needed = 1 + (sum(k == kind for k, _, _ in kinds[:i]) if distinct else 0)
-            options = [o for _, o in self.target_options(kind, seat, colors) if not (another and o is source)]
+            options = [o for _, o in self.target_options(self._fixed_kind(kind, source), seat, colors)
+                       if not (another and o is source)]
             if len(options) < needed:
                 return False
         return True
@@ -1158,6 +1159,7 @@ class Game:
             kind = target_kind(effect)
             if not kind:
                 continue
+            kind = self._fixed_kind(kind, source)
             taken = chosen.setdefault(kind, set())
             options = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors))
                        if not (getattr(effect, "another", False) and o[1] is source)
@@ -1466,7 +1468,8 @@ class Game:
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
         colors = source_qualities(item.card)
-        legal = [(t is None and getattr(e, "optional_target", False)) or self.is_legal_target(target_kind(e), t, seat, colors)
+        legal = [(t is None and getattr(e, "optional_target", False))
+                 or self.is_legal_target(self._fixed_kind(target_kind(e), item.source), t, seat, colors)
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
         about = {"seat": seat.index, "card": item.card.name}
         if item.ability:
@@ -2228,6 +2231,20 @@ class Game:
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": dead.card.name, "to": "battlefield"})
         self._left_graveyard(seat)
         self._enter(seat, Permanent(dead.card, sick=True, loyalty=_starting_loyalty(dead.card), counters={counter: 1}))
+
+    def grant_abilities(self, permanent: Permanent, text: str) -> None:
+        """The permanent gains the abilities written in `text` until end of turn (Backup); like a crewed Vehicle, its
+        card is replaced and comes back at end of turn."""
+        permanent.original = permanent.original or permanent.card
+        permanent.card = dataclasses.replace(permanent.card, oracle_text=permanent.card.oracle_text + "\n" + text)
+        self.broadcast({"event": "gained_abilities", "card": permanent.card.name, "text": text})
+
+    def _fixed_kind(self, kind: str, source: Permanent | None) -> str:
+        """A target kind with "mv<=power" turned into the source creature's power right now."""
+        if "mv<=power" in kind and source is not None:
+            power = self.power(source) if self.on_battlefield(source) else source.last_power
+            return kind.replace("mv<=power", f"mv<={max(power, 0)}")
+        return kind
 
     def put_counters(self, permanent: Permanent, counter: str, count: int) -> None:
         holder = self.controller_of(permanent)
@@ -3176,6 +3193,8 @@ def _card_matches(kind: str, card: Card) -> bool:
         return True
     if kind == "permanent":
         return _is_permanent(card)
+    if kind == "nonland permanent":
+        return _is_permanent(card) and not is_land(card)
     if kind == "basic land":
         return "Basic" in card.type_line and "Land" in card.type_line
     if kind == "nonbasic land":

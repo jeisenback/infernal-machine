@@ -4,7 +4,7 @@ import unittest
 from dataclasses import replace
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import DEMONSTRATE_PROMPT, graveyard_casts
+from infernal_machine.effects import DEMONSTRATE_PROMPT, graveyard_casts, triggered_abilities
 from infernal_machine.game import CAST, CAST_GRAVEYARD, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
@@ -76,3 +76,45 @@ class DemonstrateTests(unittest.TestCase):
         game._priority_round(a)
         run_stack(game)
         self.assertEqual(len(a.hand), 1)  # Study came from the library for free and drew a card
+
+
+class BackupTests(unittest.TestCase):
+    def enter(self, policy=None):
+        game, _ = table3(policy)
+        a = game.seats[0]
+        bear = Permanent(BEAR)
+        a.battlefield = [bear]
+        scalelord = Permanent(REAL["Guardian Scalelord"])
+        game._enter(a, scalelord)
+        run_stack(game)
+        return game, a, bear, scalelord
+
+    def test_the_card_is_understood(self):
+        self.assertEqual(unsupported_lines(REAL["Guardian Scalelord"]), [])
+
+    def test_another_creature_gets_the_counter_and_the_abilities_until_end_of_turn(self):
+        game, a, bear, scalelord = self.enter(lambda prompt, options: next((i for i, o in enumerate(options) if o.startswith("Bear")), 0))
+        self.assertEqual(bear.counters, {"+1/+1": 1})
+        self.assertTrue(game.has_keyword(bear, "flying"))
+        self.assertTrue(any(t.event == "attacks" for t in triggered_abilities(bear.card)))
+        game.step = "cleanup"
+        game._turn_based_actions(a)
+        self.assertEqual(bear.counters, {"+1/+1": 1})  # the counter stays
+        self.assertFalse(game.has_keyword(bear, "flying"))
+
+    def test_the_backup_creature_itself_just_gets_the_counter(self):
+        game, a, bear, scalelord = self.enter(lambda prompt, options: next((i for i, o in enumerate(options) if o.startswith("Guardian")), 0))
+        self.assertEqual((scalelord.counters, bear.counters), ({"+1/+1": 1}, {}))
+        self.assertEqual(scalelord.card, REAL["Guardian Scalelord"])  # nothing was added to its own text
+
+    def test_attacking_returns_a_permanent_up_to_its_power(self):
+        game, _ = table3()
+        a = game.seats[0]
+        cheap = Card(name="Cheap Relic", mana_cost="{3}", cmc=3.0, type_line="Artifact")
+        dear = Card(name="Dear Relic", mana_cost="{6}", cmc=6.0, type_line="Artifact")
+        scalelord = Permanent(REAL["Guardian Scalelord"])  # power 3
+        a.battlefield, a.graveyard = [scalelord], [dear, cheap, FOREST]
+        game.trigger("attacks", scalelord, a)
+        run_stack(game)
+        self.assertEqual(sorted(p.card.name for p in a.battlefield), ["Cheap Relic", "Guardian Scalelord"])
+        self.assertEqual(sorted(c.name for c in a.graveyard), ["Dear Relic", "Forest"])
