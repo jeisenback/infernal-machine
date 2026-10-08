@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (Animate, Condition, Draw, GainControl, LoseLife, LoseLifeEqualToManaValue, Scry,
+from infernal_machine.effects import (Animate, Condition, Draw, LoseLife, LoseLifeEqualToManaValue, Scry,
                                       UnlessPays, activated_abilities, clone_kind, extra_votes, no_max_hand_size,
                                       replacement_effects, spell_effects, triggered_abilities)
 from infernal_machine.game import HAND_SIZE, Permanent
@@ -25,8 +25,8 @@ from tests.real import DATA, REAL  # noqa: F401  (REAL is imported from here by 
 
 class SupportTests(unittest.TestCase):
     def test_every_real_text_is_understood(self):
-        for name, card in REAL.items():
-            self.assertEqual(unsupported_lines(card), [], name)
+        for entry in DATA["cards"]:  # not "unsupported_cards": those are there to test what the report lists
+            self.assertEqual(unsupported_lines(REAL[entry["name"]]), [], entry["name"])
 
 
 class WordingTests(unittest.TestCase):

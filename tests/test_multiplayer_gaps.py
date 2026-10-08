@@ -4,7 +4,8 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import GoadAll, UnlessPays, spell_effects, triggered_abilities
 from infernal_machine.game import Permanent, UNLESS_PROMPT
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, creature
+from tests.real import REAL
+from tests.test_combat import BEAR
 from tests.test_effects import FOREST, lands, table
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
@@ -13,12 +14,10 @@ DISRUPT = Card(name="Disrupt Decorum", mana_cost="{2}{R}", type_line="Sorcery",
                oracle_text="Goad all creatures you don't control.")
 QUEEN = Card(name="Queen", mana_cost="{2}", type_line="Enchantment",
              oracle_text="Whenever you become the monarch, draw a card.")
-SPITE = Card(name="Spite", mana_cost="{2}", type_line="Enchantment",
-             oracle_text="Whenever an opponent becomes the monarch, you gain 3 life.")
+SPITE = REAL["Knights of the Black Rose"]
 RHYSTIC = Card(name="Rhystic Study", mana_cost="{2}{U}", type_line="Enchantment",
                oracle_text="Whenever an opponent casts a spell, you may draw a card unless that player pays {1}.")
-TITHE = Card(name="Smothering Tithe", mana_cost="{3}{W}", type_line="Enchantment",
-             oracle_text="Whenever an opponent draws a card, create a Treasure token unless that player pays {2}.")
+TITHE = REAL["Smothering Tithe"]
 SPELL = Card(name="Spell", mana_cost="{1}", type_line="Sorcery", oracle_text="Draw a card.")
 
 
@@ -39,7 +38,7 @@ class GoadAllTests(unittest.TestCase):
 class MonarchTriggerTests(unittest.TestCase):
     def test_parse(self):
         self.assertEqual([t.event for t in triggered_abilities(QUEEN)], ["become_monarch"])
-        self.assertEqual([t.event for t in triggered_abilities(SPITE)], ["opponent_become_monarch"])
+        self.assertIn("opponent_become_monarch", [t.event for t in triggered_abilities(SPITE)])
         self.assertEqual(unsupported_lines(QUEEN) + unsupported_lines(SPITE), [])
 
     def test_becoming_the_monarch_triggers_you_only(self):
@@ -55,10 +54,19 @@ class MonarchTriggerTests(unittest.TestCase):
         game, _ = table3()
         a, b, c = game.seats
         a.battlefield = [Permanent(SPITE)]
-        game.become_monarch(b)
-        game.become_monarch(a)  # not an opponent of itself
+        game.monarch = game.monarch_at_turn_start = a
+        game.become_monarch(b)  # a was the monarch as the turn began
         run_stack(game)
-        self.assertEqual(a.life, 43)
+        self.assertEqual((a.life, b.life), (42, 38))
+
+    def test_not_the_monarch_when_the_turn_began_does_nothing(self):
+        game, _ = table3()
+        a, b, c = game.seats
+        a.battlefield = [Permanent(SPITE)]
+        game.become_monarch(a)  # during the turn, not at its start
+        game.become_monarch(b)
+        run_stack(game)
+        self.assertEqual((a.life, b.life), (40, 40))
 
     def test_already_the_monarch_does_not_trigger_again(self):
         game, _ = table3()

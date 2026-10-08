@@ -4,6 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import filter_mana_ability, spell_effects
 from infernal_machine.game import CAST, PASS, X_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_effects import FOREST, lands, pick, table
 
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))
@@ -11,8 +12,7 @@ SIGNET = Card(name="Azorius Signet", mana_cost="{2}", type_line="Artifact", orac
 SWAN = Card(name="White Card", mana_cost="{W}{W}", type_line="Sorcery", oracle_text="You gain 2 life.")
 FIREBALL = Card(name="Blaze", mana_cost="{X}{R}", type_line="Sorcery", oracle_text="Blaze deals X damage to any target.")
 STROKE = Card(name="Stroke", mana_cost="{X}{U}", type_line="Instant", oracle_text="Draw X cards.")
-HYDRA = Card(name="Hydra", mana_cost="{X}{G}", type_line="Creature — Hydra", power="0", toughness="0",
-             oracle_text="This creature enters with X +1/+1 counters on it.")
+HYDRA = REAL["Ivy Elemental"]
 RAINBOW = Card(name="City of Brass", type_line="Land", produced_mana=tuple("WUBRG"))
 
 

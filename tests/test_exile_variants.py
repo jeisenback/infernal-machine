@@ -20,16 +20,14 @@ EXILE_SPELL = spell("Spell Eater", "Exile target spell.")
 DISSIPATE = spell("Dissipate", "Counter target spell. If that spell is countered this way, exile it instead of putting it "
                               "into its owner's graveyard.")
 LIGHT = REAL["Reckless Impulse"]
-IMPULSE = spell("Impulse", "Exile the top card of your library. You may play it this turn.", "Sorcery")
+IMPULSE = REAL["Abbot of Keral Keep"]
 CLOUDSHIFT = spell("Cloudshift", "Exile target creature you control, then return that card to the battlefield under your "
                                  "control.")
 EPHEMERATE = REAL["Momentary Blink"]
 FLICKER = spell("Flicker Away", "Exile target creature. Return it to the battlefield under its owner's control at the "
                                 "beginning of the next end step.")
 TO_HAND = spell("Tuck Away", "Exile target creature. Return it to its owner's hand at the beginning of the next end step.")
-FLICKERWISP = Card(name="Flickerwisp", mana_cost="{1}{W}{W}", type_line="Creature — Elemental", power="3", toughness="1",
-                   oracle_text="Flying\nWhen Flickerwisp enters, exile another target permanent. Return that card to the "
-                               "battlefield under its owner's control at the beginning of the next end step.")
+FLICKERWISP = REAL["Flickerwisp"]
 HOPPER = Card(name="Hopper", mana_cost="{1}", type_line="Creature — Test", power="1", toughness="1",
               oracle_text="When Hopper enters, you gain 2 life.")
 
@@ -42,7 +40,8 @@ class ParseTests(unittest.TestCase):
 
     def test_exile_then_play(self):
         self.assertEqual(spell_effects(LIGHT), [ExileTop(2, "next turn")])
-        self.assertEqual(spell_effects(IMPULSE), [ExileTop(1, "this turn")])
+        [etb] = [a for a in triggered_abilities(IMPULSE) if a.event == "enters"]
+        self.assertEqual(etb.effects, (ExileTop(1, "this turn"),))
         self.assertEqual(spell_effects(spell("Mill", "Exile the top three cards of your library.", "Sorcery")), [ExileTop(3)])
 
     def test_flickers(self):
@@ -220,8 +219,8 @@ class ExileThenPlayTests(unittest.TestCase):
         game, _ = table3(pick(CAST))
         a = game.seats[0]
         a.library = [BEAR, OGRE]
-        a.hand, a.battlefield = [IMPULSE], lands(1)
-        game._priority_round(a)
+        game._enter(a, Permanent(IMPULSE))
+        run_stack(game)
         self.assertEqual(([c.name for c in a.exile], [e[0].name for e in a.exile_play]), (["Bear"], ["Bear"]))
 
     def test_bots_play_exiled_cards(self):

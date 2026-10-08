@@ -925,7 +925,627 @@
    "power": "1",
    "toughness": "4",
    "colors": []
+  },
+  {
+   "name": "Prodigal Sorcerer",
+   "mana_cost": "{2}{U}",
+   "type_line": "Creature — Human Wizard Sorcerer",
+   "oracle_text": "{T}: This creature deals 1 damage to any target.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Hall of Oracles",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.\n{T}: Put a +1/+1 counter on target creature. Activate only as a sorcery and only if you've cast an instant or sorcery spell this turn.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "C",
+    "G",
+    "R",
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Lifeblood Hydra",
+   "mana_cost": "{X}{G}{G}{G}",
+   "type_line": "Creature — Hydra",
+   "oracle_text": "Trample\nThis creature enters with X +1/+1 counters on it.\nWhen this creature dies, you gain life and draw cards equal to its power.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Mycoloth",
+   "mana_cost": "{3}{G}{G}",
+   "type_line": "Creature — Fungus",
+   "oracle_text": "Devour 2 (As this creature enters, you may sacrifice any number of creatures. It enters with twice that many +1/+1 counters on it.)\nAt the beginning of your upkeep, create a 1/1 green Saproling creature token for each +1/+1 counter on this creature.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Hangarback Walker",
+   "mana_cost": "{X}{X}",
+   "type_line": "Artifact Creature — Construct",
+   "oracle_text": "This creature enters with X +1/+1 counters on it.\nWhen this creature dies, create a 1/1 colorless Thopter artifact creature token with flying for each +1/+1 counter on this creature.\n{1}, {T}: Put a +1/+1 counter on this creature.",
+   "power": "0",
+   "toughness": "0",
+   "colors": []
+  },
+  {
+   "name": "Changing Loyalty",
+   "mana_cost": "{1}{B}",
+   "type_line": "Enchantment — Aura",
+   "oracle_text": "Flash\nReplicate {2} (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies. Copies become tokens.)\nEnchant creature\nWhen enchanted creature dies, return it to the battlefield under your control.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Ghoulish Impetus",
+   "mana_cost": "{2}{B}",
+   "type_line": "Enchantment — Aura",
+   "oracle_text": "Enchant creature\nEnchanted creature gets +1/+1, has deathtouch, and is goaded. (It attacks each combat if able and attacks a player other than you if able.)\nWhen enchanted creature dies, return this card to the battlefield at the beginning of the next end step.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Scorched Geyser",
+   "mana_cost": "",
+   "type_line": "Land — Island Mountain",
+   "oracle_text": "({T}: Add {U} or {R}.)\nThis land enters tapped unless you control two or more basic lands.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "R",
+    "U"
+   ]
+  },
+  {
+   "name": "Turbulent Fen",
+   "mana_cost": "",
+   "type_line": "Land — Swamp Forest",
+   "oracle_text": "({T}: Add {B} or {G}.)\nThis land enters tapped unless your opponents control eight or more lands.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Force of Negation",
+   "mana_cost": "{1}{U}{U}",
+   "type_line": "Instant",
+   "oracle_text": "If it's not your turn, you may exile a blue card from your hand rather than pay this spell's mana cost.\nCounter target noncreature spell. If that spell is countered this way, exile it instead of putting it into its owner's graveyard.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Untamed Kavu",
+   "mana_cost": "{1}{G}",
+   "type_line": "Creature — Kavu",
+   "oracle_text": "Kicker {3} (You may pay an additional {3} as you cast this spell.)\nVigilance, trample\nIf this creature was kicked, it enters with three +1/+1 counters on it.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Gnarlid Pack",
+   "mana_cost": "{1}{G}",
+   "type_line": "Creature — Beast",
+   "oracle_text": "Multikicker {1}{G} (You may pay an additional {1}{G} any number of times as you cast this spell.)\nThis creature enters with a +1/+1 counter on it for each time it was kicked.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Tormod's Crypt",
+   "mana_cost": "{0}",
+   "type_line": "Artifact",
+   "oracle_text": "{T}, Sacrifice this artifact: Exile target player's graveyard.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Flickerwisp",
+   "mana_cost": "{1}{W}{W}",
+   "type_line": "Creature — Elemental",
+   "oracle_text": "Flying\nWhen this creature enters, exile another target permanent. Return that card to the battlefield under its owner's control at the beginning of the next end step.",
+   "power": "3",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Oblivion Ring",
+   "mana_cost": "{2}{W}",
+   "type_line": "Enchantment",
+   "oracle_text": "When this enchantment enters, exile another target nonland permanent.\nWhen this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Banishing Light",
+   "mana_cost": "{2}{W}",
+   "type_line": "Enchantment",
+   "oracle_text": "When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Fiend Hunter",
+   "mana_cost": "{1}{W}{W}",
+   "type_line": "Creature — Human Cleric",
+   "oracle_text": "When this creature enters, you may exile another target creature.\nWhen this creature leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Shivan Dragon",
+   "mana_cost": "{4}{R}{R}",
+   "type_line": "Creature — Dragon",
+   "oracle_text": "Flying\n{R}: This creature gets +1/+0 until end of turn.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Aggravated Assault",
+   "mana_cost": "{2}{R}",
+   "type_line": "Enchantment",
+   "oracle_text": "{3}{R}{R}: Untap all creatures you control. After this main phase, there is an additional combat phase followed by an additional main phase. Activate only as a sorcery.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Gods Willing",
+   "mana_cost": "{W}",
+   "type_line": "Instant",
+   "oracle_text": "Target creature you control gains protection from the color of your choice until end of turn. (It can't be blocked, targeted, dealt damage, enchanted, or equipped by anything of that color.)\nScry 1.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Sword of Fire and Ice",
+   "mana_cost": "{3}",
+   "type_line": "Artifact — Equipment",
+   "oracle_text": "Equipped creature gets +2/+2 and has protection from red and from blue.\nWhenever equipped creature deals combat damage to a player, this Equipment deals 2 damage to any target and you draw a card.\nEquip {2}",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Rest in Peace",
+   "mana_cost": "{1}{W}",
+   "type_line": "Enchantment",
+   "oracle_text": "When this enchantment enters, exile all graveyards.\nIf a card or token would be put into a graveyard from anywhere, exile it instead.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Ancient Tomb",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {C}{C}. This land deals 2 damage to you.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "C"
+   ]
+  },
+  {
+   "name": "Dimir Aqueduct",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {U}{B}.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "U"
+   ]
+  },
+  {
+   "name": "City of Brass",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "Whenever this land becomes tapped, it deals 1 damage to you.\n{T}: Add one mana of any color.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "B",
+    "G",
+    "R",
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Balefire Liege",
+   "mana_cost": "{2}{R/W}{R/W}{R/W}",
+   "type_line": "Creature — Spirit Horror",
+   "oracle_text": "Other red creatures you control get +1/+1.\nOther white creatures you control get +1/+1.\nWhenever you cast a red spell, this creature deals 3 damage to target player or planeswalker.\nWhenever you cast a white spell, you gain 3 life.",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Blight Mound",
+   "mana_cost": "{2}{B}",
+   "type_line": "Enchantment",
+   "oracle_text": "Attacking Pests you control get +1/+0 and have menace.\nWhenever a nontoken creature you control dies, create a 1/1 black and green Pest creature token with \"When this token dies, you gain 1 life.\"",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Storm-Kiln Artist",
+   "mana_cost": "{3}{R}",
+   "type_line": "Creature — Dwarf Shaman",
+   "oracle_text": "This creature gets +1/+0 for each artifact you control.\nMagecraft — Whenever you cast or copy an instant or sorcery spell, create a Treasure token. (It's an artifact with \"{T}, Sacrifice this token: Add one mana of any color.\")",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Wight of the Reliquary",
+   "mana_cost": "{B}{G}",
+   "type_line": "Creature — Zombie Knight",
+   "oracle_text": "Vigilance\nThis creature gets +1/+1 for each creature card in your graveyard.\n{T}, Sacrifice another creature: Search your library for a land card, put it onto the battlefield tapped, then shuffle.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Kor Spiritdancer",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Kor Wizard",
+   "oracle_text": "This creature gets +2/+2 for each Aura attached to it.\nWhenever you cast an Aura spell, you may draw a card.",
+   "power": "0",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Capital Punishment",
+   "mana_cost": "{4}{B}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Council's dilemma — Starting with you, each player votes for death or taxes. Each opponent sacrifices a creature of their choice for each death vote and discards a card for each taxes vote.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Merchant of Venom",
+   "mana_cost": "{3}{B}",
+   "type_line": "Creature — Cat Warlock",
+   "oracle_text": "Menace\nWhen this creature enters, each player sacrifices a creature of their choice.\nWhenever a player sacrifices a permanent, put a +1/+1 counter on this creature.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Monologue Tax",
+   "mana_cost": "{2}{W}",
+   "type_line": "Enchantment",
+   "oracle_text": "Whenever an opponent casts their second spell each turn, you create a Treasure token.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Worldly Tutor",
+   "mana_cost": "{G}",
+   "type_line": "Instant",
+   "oracle_text": "Search your library for a creature card, reveal it, then shuffle and put the card on top.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Withering Boon",
+   "mana_cost": "{1}{B}",
+   "type_line": "Instant",
+   "oracle_text": "As an additional cost to cast this spell, pay 3 life.\nCounter target creature spell.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Faithful Watchdog",
+   "mana_cost": "{G}{W}",
+   "type_line": "Creature — Dog",
+   "oracle_text": "Vigilance\nThis creature enters with three +1/+1 counters on it.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Prey Upon",
+   "mana_cost": "{G}",
+   "type_line": "Sorcery",
+   "oracle_text": "Target creature you control fights target creature you don't control. (Each deals damage equal to its power to the other.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Dazzling Lights",
+   "mana_cost": "{U}",
+   "type_line": "Instant",
+   "oracle_text": "Target creature gets -3/-0 until end of turn.\nSurveil 2. (Look at the top two cards of your library, then put any number of them into your graveyard and the rest on top of your library in any order.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Cruel Edict",
+   "mana_cost": "{1}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Target opponent sacrifices a creature of their choice.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Mind Spring",
+   "mana_cost": "{X}{U}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Draw X cards.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Purify the Grave",
+   "mana_cost": "{W}",
+   "type_line": "Instant",
+   "oracle_text": "Exile target card from a graveyard.\nFlashback {W} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Omnath, Locus of Rage",
+   "mana_cost": "{3}{R}{R}{G}{G}",
+   "type_line": "Legendary Creature — Elemental",
+   "oracle_text": "Landfall — Whenever a land you control enters, create a 5/5 red and green Elemental creature token.\nWhenever Omnath or another Elemental you control dies, Omnath deals 3 damage to any target.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Generous Ent",
+   "mana_cost": "{5}{G}",
+   "type_line": "Creature — Treefolk",
+   "oracle_text": "Reach\nWhen this creature enters, create a Food token. (It's an artifact with \"{2}, {T}, Sacrifice this token: You gain 3 life.\")\nForestcycling {1} ({1}, Discard this card: Search your library for a Forest card, reveal it, put it into your hand, then shuffle.)",
+   "power": "5",
+   "toughness": "7",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Curate",
+   "mana_cost": "{1}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Surveil 2. (Look at the top two cards of your library, then put any number of them into your graveyard and the rest on top of your library in any order.)\nDraw a card.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Abbot of Keral Keep",
+   "mana_cost": "{1}{R}",
+   "type_line": "Creature — Human Monk",
+   "oracle_text": "Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)\nWhen this creature enters, exile the top card of your library. Until end of turn, you may play that card.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Ivy Elemental",
+   "mana_cost": "{X}{G}",
+   "type_line": "Creature — Elemental",
+   "oracle_text": "This creature enters with X +1/+1 counters on it.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Spike Feeder",
+   "mana_cost": "{1}{G}{G}",
+   "type_line": "Creature — Spike",
+   "oracle_text": "This creature enters with two +1/+1 counters on it.\n{2}, Remove a +1/+1 counter from this creature: Put a +1/+1 counter on target creature.\nRemove a +1/+1 counter from this creature: You gain 2 life.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Summon: G.F. Ifrit",
+   "mana_cost": "{2}{R}",
+   "type_line": "Enchantment Creature — Saga Demon",
+   "oracle_text": "(As this Saga enters and after your draw step, add a lore counter. Sacrifice after IV.)\nI, II — You may discard a card. If you do, draw a card.\nIII, IV — Add {R}.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Knights of the Black Rose",
+   "mana_cost": "{3}{W}{B}",
+   "type_line": "Creature — Human Knight",
+   "oracle_text": "When this creature enters, you become the monarch.\nWhenever an opponent becomes the monarch, if you were the monarch as the turn began, that player loses 2 life and you gain 2 life.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Hallway Heckler // Vicious Verse",
+   "mana_cost": "{2}{R}",
+   "type_line": "Creature — Elemental Sorcerer",
+   "oracle_text": "This creature enters prepared. (While it's prepared, you may cast a copy of its spell. Doing so unprepares it.)\n{T}, Discard a card: Draw a card.",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ],
+   "prepare": {
+    "name": "Vicious Verse",
+    "mana_cost": "{B/R}",
+    "type_line": "Sorcery",
+    "oracle_text": "Vicious Verse deals 1 damage to target opponent.",
+    "colors": [
+     "B",
+     "R"
+    ]
+   }
+  },
+  {
+   "name": "Elite Interceptor // Rejoinder",
+   "mana_cost": "{W}",
+   "type_line": "Creature — Human Wizard",
+   "oracle_text": "This creature enters prepared. (While it's prepared, you may cast a copy of its spell. Doing so unprepares it.)",
+   "power": "1",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ],
+   "prepare": {
+    "name": "Rejoinder",
+    "mana_cost": "{1}{W}",
+    "type_line": "Sorcery",
+    "oracle_text": "You may tap or untap target creature.\nDraw a card.",
+    "colors": [
+     "W"
+    ]
+   }
   }
  ],
- "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."
+ "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
+ "unsupported_cards": [
+  {
+   "name": "Deathrender",
+   "mana_cost": "{4}",
+   "type_line": "Artifact — Equipment",
+   "oracle_text": "Equipped creature gets +2/+2.\nWhenever equipped creature dies, you may put a creature card from your hand onto the battlefield and attach this Equipment to it.\nEquip {2}",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Shabraz, the Skyshark",
+   "mana_cost": "{3}{W}{U}",
+   "type_line": "Legendary Creature — Shark Bird",
+   "oracle_text": "Partner with Brallin, Skyshark Rider\nFlying\nWhenever you draw a card, put a +1/+1 counter on Shabraz and you gain 1 life.\n{W/U}: Target Human gains flying until end of turn.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "U",
+    "W"
+   ]
+  }
+ ]
 }

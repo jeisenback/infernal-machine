@@ -9,6 +9,7 @@ from infernal_machine.effects import (AdditionalCost, AlternativeCost, Damage, D
 from infernal_machine.game import (CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, MULTIKICKER_PROMPT,
                                    SACRIFICE_COST_PROMPT, TARGET_PROMPT, Game, Permanent, StackItem)
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_effects import pick, table
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
@@ -26,9 +27,7 @@ ROLLICK = Card(name="Deadly Rollick", mana_cost="{3}{B}", type_line="Instant", c
 FORCE = Card(name="Force of Will", mana_cost="{3}{U}{U}", type_line="Instant", colors=("U",),
              oracle_text="You may pay 1 life and exile a blue card from your hand rather than pay this spell's mana "
                          "cost.\nCounter target spell.")
-NEGATION = Card(name="Force of Negation", mana_cost="{1}{U}{U}", type_line="Instant", colors=("U",),
-                oracle_text="If it's not your turn, you may exile a blue card from your hand rather than pay this "
-                            "spell's mana cost.\nCounter target noncreature spell.")
+NEGATION = REAL["Force of Negation"]
 OPT = Card(name="Opt", mana_cost="{U}", type_line="Instant", colors=("U",), oracle_text="Scry 1.\nDraw a card.")
 ROIL = Card(name="Into the Roil", mana_cost="{1}{U}", type_line="Instant", colors=("U",),
             oracle_text="Kicker {1}{U} (You may pay an additional {1}{U} as you cast this spell.)\n"
@@ -37,24 +36,14 @@ RITES = Card(name="Village Rites", mana_cost="{B}", type_line="Instant", colors=
              oracle_text="As an additional cost to cast this spell, sacrifice a creature.\nDraw two cards.")
 THRILL = Card(name="Thrill of Possibility", mana_cost="{1}{R}", type_line="Instant", colors=("R",),
               oracle_text="As an additional cost to cast this spell, discard a card.\nDraw two cards.")
-BARGAIN = Card(name="Bargain", mana_cost="{B}", type_line="Sorcery", colors=("B",),
-               oracle_text="As an additional cost to cast this spell, pay 3 life.\nDraw two cards.")
-
-KAVU = Card(name="Untamed Kavu", mana_cost="{1}{G}", type_line="Creature — Kavu", colors=("G",), power="2",
-            toughness="2", oracle_text="Vigilance, trample\nKicker {3} (You may pay an additional {3} as you cast "
-            "this spell.)\nIf Untamed Kavu was kicked, it enters with three +1/+1 counters on it.")
-JOSU = Card(name="Josu Vess, Lich Knight", mana_cost="{2}{B}{B}", type_line="Legendary Creature — Zombie Knight",
-            colors=("B",), power="4", toughness="5",
-            oracle_text="Kicker {5}{B}\nMenace\nWhen Josu Vess enters, if it was kicked, create eight 2/2 black "
-                        "Zombie Knight creature tokens with menace.")
-
+BARGAIN = REAL["Withering Boon"]
+KAVU = REAL["Untamed Kavu"]
+JOSU = REAL["Josu Vess, Lich Knight"]
 KICKED_BOLT = Card(name="Kicked Bolt", mana_cost="{U}", type_line="Instant", colors=("U",),
                    oracle_text="Kicker {U}\nDraw a card. If this spell was kicked, it deals 2 damage to any target.")
 KICKED_SHATTER = Card(name="Kicked Shatter", mana_cost="{U}", type_line="Instant", colors=("U",),
                       oracle_text="Kicker {U}\nDraw a card. If this spell was kicked, destroy target artifact.")
-GNARLID = Card(name="Gnarlid Pack", mana_cost="{1}{G}", type_line="Creature — Beast", colors=("G",), power="2",
-               toughness="2", oracle_text="Multikicker {1}{G} (You may pay an additional {1}{G} any number of times "
-               "as you cast this spell.)\nGnarlid Pack enters with a +1/+1 counter on it for each time it was kicked.")
+GNARLID = REAL["Gnarlid Pack"]
 KICKED_AURA = Card(name="Kicked Aura", mana_cost="{G}", type_line="Enchantment — Aura", colors=("G",),
                    oracle_text="Kicker {G}\nEnchant creature\nWhen Kicked Aura enters, if it was kicked, draw a card.")
 
@@ -567,13 +556,13 @@ class AdditionalCostTests(unittest.TestCase):
     def test_pay_life(self):
         game, _, _ = table(pick(CAST + BARGAIN.name))
         seat = game.seats[0]
+        game.stack.append(StackItem(BEAR, game.seats[1], []))  # a creature spell for the counterspell to target
         seat.hand = [BARGAIN]
-        seat.library = [OPT, OPT]
-        seat.battlefield = battlefield(SWAMP)
+        seat.battlefield = battlefield(SWAMP, SWAMP)
         game._priority_round(seat)
         self.assertEqual(seat.life, 37)
         seat.life, seat.hand = 2, [BARGAIN]
-        seat.battlefield = battlefield(SWAMP)
+        seat.battlefield = battlefield(SWAMP, SWAMP)
         self.assertNotIn(CAST + BARGAIN.name, game.legal_actions(seat))
 
 

@@ -1,7 +1,7 @@
 import unittest
 
 from infernal_machine.cards import Card, Deck
-from infernal_machine.effects import (CannotRegenerate, DamageEach, DestroyAll, EachSacrifices, ExileAll,
+from infernal_machine.effects import (DamageEach, DestroyAll, EachSacrifices, ExileAll,
                                       TargetSacrifices, spell_effects)
 from infernal_machine.game import CAST, COMMAND_ZONE_PROMPT, SACRIFICE_PROMPT, Game, Permanent
 from infernal_machine.report import unsupported_lines
@@ -22,7 +22,7 @@ FLARE = REAL["Steam Blast"]
 ARMAGEDDON = Card(name="Armageddon", mana_cost="{3}{W}", type_line="Sorcery", oracle_text="Destroy all lands.")
 PURGE = REAL["Plague Wind"]
 BANISH = Card(name="Banish All", mana_cost="{4}{W}", type_line="Sorcery", oracle_text="Exile all creatures.")
-EDICT = Card(name="Diabolic Edict", mana_cost="{1}{B}", type_line="Instant", oracle_text="Target opponent sacrifices a creature.")
+EDICT = REAL["Cruel Edict"]
 TRIBUTE = Card(name="Tribute", mana_cost="{1}{B}", type_line="Sorcery", oracle_text="Each opponent sacrifices a creature.")
 SWEEP = Card(name="Fleshbag", mana_cost="{1}{B}", type_line="Sorcery", oracle_text="Each player sacrifices a creature.")
 

@@ -7,6 +7,7 @@ from infernal_machine.client import Narrator
 from infernal_machine.effects import GrantProtection, Pump, attached_abilities, printed_protection, spell_effects, ward_cost
 from infernal_machine.game import ACTIVATE, CAST, WARD_PROMPT, Game, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import attack_all
 from tests.test_effects import lands, pick, table
 
@@ -20,7 +21,7 @@ def creature(name, power, toughness, colors, text=""):
 
 BOLT = Card(name="Lightning Bolt", mana_cost="{R}", type_line="Instant", colors=("R",),
             oracle_text="Lightning Bolt deals 3 damage to any target.")
-DOOM = Card(name="Doom", mana_cost="{R}", type_line="Instant", colors=("R",), oracle_text="Destroy target creature.")
+DOOM = REAL["Fell"]
 PYROCLASM = Card(name="Pyroclasm", mana_cost="{1}{R}", type_line="Sorcery", colors=("R",),
                  oracle_text="Pyroclasm deals 2 damage to each creature.")
 KNIGHT = creature("Knight", 3, 3, "W", "Protection from red")
@@ -30,16 +31,12 @@ RED_GOBLIN = creature("Red Goblin", 1, 1, "R")
 GREEN_BEAR = creature("Green Bear", 2, 2, "G")
 PLAIN = creature("Plain Bear", 2, 2, "G")
 WARDED = creature("Warded Bear", 2, 2, "G", "Ward {2}")
-SWORD = Card(name="Sword of Fire and Ice", mana_cost="{3}", type_line="Artifact — Equipment",
-             oracle_text="Equipped creature gets +2/+2 and has protection from red and from blue.\nEquip {2}")
+SWORD = REAL["Sword of Fire and Ice"]
 RED_AURA = Card(name="Red Aura", mana_cost="{R}", type_line="Enchantment — Aura", colors=("R",),
                 oracle_text="Enchant creature\nEnchanted creature gets +1/+0.")
 RED_EQUIPMENT = Card(name="Red Blade", mana_cost="{1}", type_line="Artifact — Equipment", colors=("R",),
                      oracle_text="Equipped creature gets +1/+1.\nEquip {1}")
-SORCERER = Card(name="Prodigal Sorcerer", mana_cost="{2}{U}", type_line="Creature — Human Wizard", power="1", toughness="1",
-                oracle_text="{T}: Prodigal Sorcerer deals 1 damage to any target.")
-
-
+SORCERER = REAL["Prodigal Sorcerer"]
 def table2(*policies):
     """table() with the players in a list, like table3()."""
     game, a, b = table(*policies)

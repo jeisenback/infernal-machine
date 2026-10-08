@@ -22,9 +22,7 @@ COMBO_WARD = creature("Combo Ward", 2, 2, "Ward—{1}, Pay 2 life.")
 LORD = creature("Warding Lord", 2, 2, "Other creatures you control have ward {1}.")
 MOTHER = Card(name="Mother of Runes", mana_cost="{W}", type_line="Creature — Human Cleric", power="1", toughness="1",
               oracle_text="{T}: Target creature you control gains protection from the color of your choice until end of turn.")
-GODS_WILLING = Card(name="Gods Willing", mana_cost="{W}", type_line="Instant", colors=("W",),
-                    oracle_text="Target creature you control gains protection from the color of your choice until end of "
-                                "turn. Scry 1.")
+GODS_WILLING = REAL["Gods Willing"]
 SELF_SHIELD = creature("Pro Self", 1, 1, "{W}: CARDNAME gains protection from the color of your choice until end of turn.")
 BLUE_ARTIFACT = Card(name="Blue Thing", mana_cost="{2}", type_line="Artifact Creature — Construct", colors=("U",),
                      power="1", toughness="1")

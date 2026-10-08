@@ -1,10 +1,11 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (Damage, Destroy, Drain, EachMayWheel, EachPlayerLosesLife, MayDiscardThenDraw,
-                                      OpponentsLoseLife, TapOrUntap, TargetDrawLose, YouAndTargetDraw, spell_effects)
+from infernal_machine.effects import (Damage, Destroy, Draw, Drain, EachMayWheel, EachPlayerLosesLife, MayDiscardThenDraw,
+                                      TapOrUntap, TargetDrawLose, YouAndTargetDraw, spell_effects)
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR
 from tests.test_effects import pick
 from tests.test_mass_effects import table3
@@ -17,15 +18,15 @@ def spell(name, text, kind="Sorcery"):
 CRAVING = spell("Ancestral Craving", "Target player draws three cards and loses 3 life.")
 RENDEZVOUS = spell("Secret Rendezvous", "You and target opponent each draw three cards.")
 EDIT = spell("Vandal's Edit", "Draw two cards. Each player loses 2 life.")
-VERSE = spell("Vicious Verse", "CARDNAME deals 1 damage to target opponent.")
+VERSE = REAL["Hallway Heckler // Vicious Verse"].prepare  # the spell half
 VOLLEY = spell("Rocket Volley", "Destroy target nonbasic land.")
 ACT = spell("Improvised Act", "You may discard a card. If you do, draw a card.")
-REJOINDER = spell("Rejoinder", "You may tap or untap target creature.", "Instant")
+REJOINDER = REAL["Elite Interceptor // Rejoinder"].prepare
 FORTUNE = spell("Arc of Fortune", "Each player may discard their hand and draw seven cards.")
 SANGUINE = spell("Exsanguinate", "Each opponent loses X life. You gain life equal to the life lost this way.")
 STRAY = spell("Stray", "You gain life equal to the life lost this way.")
 HALF_A_LOOT = spell("Half", "You may discard a card.")
-TOWER = Card(name="Reliquary Tower", type_line="Land", oracle_text="You have no maximum hand size.")
+TOWER = REAL["Reliquary Tower"]
 BASIC = Card(name="Forest", type_line="Basic Land — Forest")
 PORT = Card(name="Rugged Port", type_line="Land", oracle_text="{T}: Add {C}.")
 
@@ -37,7 +38,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(spell_effects(VERSE), [Damage(1, "opponent")])
         self.assertEqual(spell_effects(VOLLEY), [Destroy("nonbasic land")])
         self.assertEqual(spell_effects(ACT), [MayDiscardThenDraw()])
-        self.assertEqual(spell_effects(REJOINDER), [TapOrUntap()])
+        self.assertEqual(spell_effects(REJOINDER), [TapOrUntap(), Draw(1)])
         self.assertEqual(spell_effects(FORTUNE), [EachMayWheel(7)])
         self.assertEqual(spell_effects(SANGUINE), [Drain("X")])
         self.assertEqual(spell_effects(EDIT)[1], EachPlayerLosesLife(2))

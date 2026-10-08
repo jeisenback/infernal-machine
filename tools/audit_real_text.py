@@ -47,7 +47,8 @@ def main() -> int:
     for path in sorted(glob.glob("tests/test_*.py")):
         module = importlib.import_module("tests." + os.path.basename(path)[:-3])
         for variable, value in vars(module).items():
-            if isinstance(value, Card) and value.oracle_text and value.name.lower() in index:
+            if (isinstance(value, Card) and value.oracle_text and value.name.lower() in index
+                    and not value.type_line.startswith("Token")):  # tokens are not cards: a name may match another card
                 real = index[value.name.lower()]
                 halves = [real.oracle_text] + ([real.prepare.oracle_text] if real.prepare else [])  # a prepare card's spell
                 if all(normal(value.oracle_text) != normal(text) for text in halves):

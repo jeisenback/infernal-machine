@@ -19,9 +19,7 @@ STEELBANE = Card(name="Steelbane Hydra", mana_cost="{X}{G}", type_line="Creature
 BENEVOLENT = REAL["Benevolent Hydra"]
 STAFF = REAL["Staff of the Storyteller"]
 GYOME = REAL["Gyome, Master Chef"]
-HALL = Card(name="Hall of Oracles", type_line="Land",
-            oracle_text="{T}: Put a +1/+1 counter on target creature. Activate only as a sorcery and only if you've cast "
-                        "an instant or sorcery spell this turn.")
+HALL = REAL["Hall of Oracles"]
 MISTVEIL = REAL["Mistveil Plains"]
 RELIC = Card(name="Relic", type_line="Artifact", oracle_text="")
 IDOL = Card(name="Idol", type_line="Artifact", oracle_text="")

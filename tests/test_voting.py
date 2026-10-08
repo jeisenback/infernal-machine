@@ -5,6 +5,7 @@ from infernal_machine.cards import Card, Deck
 from infernal_machine.effects import Vote, VoteToExile, spell_effects, triggered_abilities, ward_cost
 from infernal_machine.game import VOTE_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, creature
 from tests.test_effects import FOREST
 from tests.test_mass_effects import table3
@@ -13,11 +14,7 @@ PLEA = Card(name="Plea for Power", mana_cost="{3}{U}", type_line="Sorcery",
             oracle_text="Will of the council — Starting with you, each player votes for time or knowledge. If time gets more "
                         "votes, take an extra turn after this one. If knowledge gets more votes or the vote is tied, draw "
                         "three cards.")
-TIVIT = Card(name="Tivit, Seller of Secrets", mana_cost="{3}{W}{U}{B}", type_line="Legendary Creature — Sphinx",
-             power="6", toughness="6",
-             oracle_text="Flying, ward {3}\nCouncil's dilemma — Whenever Tivit, Seller of Secrets enters or deals combat "
-                         "damage to a player, starting with you, each player votes for evidence or bribery. For each "
-                         "evidence vote, investigate. For each bribery vote, create a Treasure token.")
+TIVIT = REAL["Tivit, Seller of Secrets"]
 JUDGMENT = Card(name="Council's Judgment", mana_cost="{1}{W}{W}", type_line="Sorcery",
                 oracle_text="Will of the council — Starting with you, each player votes for a nonland permanent you don't "
                             "control. Exile each permanent with the most votes or tied for most votes.")
@@ -148,12 +145,7 @@ class VoteToExileTests(unittest.TestCase):
         self.assertEqual(bot.choose(VOTE_PROMPT + "Plea for Power", ["time", "knowledge"]), 0)
 
 
-CAPITAL_PUNISHMENT = Card(
-    name="Capital Punishment", mana_cost="{3}{B}{B}", type_line="Sorcery",
-    oracle_text="Council's dilemma — Starting with you, each player votes for death or taxes. Each opponent sacrifices a "
-                "creature for each death vote and discards a card for each taxes vote.")
-
-
+CAPITAL_PUNISHMENT = REAL["Capital Punishment"]
 class PerVoteEffectsTests(unittest.TestCase):
     def test_parse(self):
         [vote] = spell_effects(CAPITAL_PUNISHMENT)

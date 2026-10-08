@@ -4,6 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import CLUE, TREASURE, CreateTokens, TargetControllerCreatesTokens, spell_effects
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import attack_all
 from tests.test_effects import BOLT, FOREST, lands, pick, table
 
@@ -11,8 +12,7 @@ RAISE = Card(name="Raise the Alarm", mana_cost="{1}{W}", type_line="Instant",
              oracle_text="Create two 1/1 white Soldier creature tokens.")
 BEAST_WITHIN = Card(name="Beast Within", mana_cost="{2}{G}", type_line="Instant",
                     oracle_text="Destroy target permanent. Its controller creates a 3/3 green Beast creature token.")
-SMOTHERING = Card(name="Smothering Tithe", mana_cost="{3}{W}", type_line="Enchantment",
-                  oracle_text="At the beginning of your upkeep, create a Treasure token.")
+SMOTHERING = REAL["Smothering Tithe"]
 INVESTIGATOR = Card(name="Investigator", mana_cost="{1}{U}", type_line="Creature — Human", power="1", toughness="1",
                     oracle_text="When this creature enters, create a Clue token.")
 OGRE = Card(name="Ogre", mana_cost="{3}", type_line="Creature — Ogre", power="3", toughness="3")
@@ -105,16 +105,14 @@ class TokenTests(unittest.TestCase):
         game._priority_round(seat)
         self.assertIn("Treasure", [p.card.name for p in seat.battlefield])
 
-    def test_clue_and_upkeep_treasure(self):
+    def test_a_clue_is_cracked_for_a_card(self):
         game, _, _ = table(pick(ACTIVATE))
         seat = game.seats[0]
-        seat.battlefield = [Permanent(SMOTHERING)] + lands(2)
+        seat.battlefield = lands(2)
         game.create_tokens(seat, CLUE, 1)
         game.turn = 3
         game._take_turn(seat)
-        names = [p.card.name for p in seat.battlefield]
-        self.assertIn("Treasure", names)  # made in upkeep
-        self.assertNotIn("Clue", names)  # cracked for a card
+        self.assertNotIn("Clue", [p.card.name for p in seat.battlefield])  # cracked for a card
         self.assertEqual(len(seat.hand), 2)  # draw step + Clue
 
     def test_enters_trigger_makes_a_token(self):

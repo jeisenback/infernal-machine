@@ -16,11 +16,9 @@ WEAKEN = Card(name="Disfigure", mana_cost="{B}", type_line="Instant",
 OVERRUN = Card(name="Overrun", mana_cost="{G}", type_line="Sorcery",
                oracle_text="Creatures you control get +3/+3 and gain trample until end of turn.")
 PROTECT = REAL["Loran's Escape"]
-DRAGON = Card(name="Shivan Dragon", mana_cost="{R}", type_line="Creature — Dragon", power="5", toughness="5",
-              oracle_text="Flying\n{R}: Shivan Dragon gets +1/+0 until end of turn.")
+DRAGON = REAL["Shivan Dragon"]
 ANTHEM = Card(name="Glorious Anthem", mana_cost="{W}", type_line="Enchantment", oracle_text="Creatures you control get +1/+1.")
-LORD = Card(name="Elvish Archdruid", mana_cost="{G}", type_line="Creature — Elf Druid", power="2", toughness="2",
-            oracle_text="Other Elf creatures you control get +1/+1.")
+LORD = REAL["Elvish Archdruid"]
 ELF = Card(name="Elf", mana_cost="{G}", type_line="Creature — Elf Warrior", power="1", toughness="1")
 HASTE = Card(name="Fervor", mana_cost="{R}", type_line="Enchantment", oracle_text="Creatures you control have haste.")
 

@@ -4,6 +4,7 @@ from infernal_machine.cards import Card, Deck
 from infernal_machine.effects import (Counter, Damage, Destroy, Draw, FetchBasicLand, GainLife,
                                       OpponentsLoseLife, mana_ability, spell_effects)
 from infernal_machine.game import CAST, CAST_COMMANDER, COMMAND_ZONE_PROMPT, PASS, Game, Permanent
+from tests.real import REAL
 from tests.test_game import ScriptedPlayer
 
 RAINBOW = Card(name="City of Brass", type_line="Land", produced_mana=tuple("WUBRG"))
@@ -13,8 +14,7 @@ BOLT = Card(name="Lightning Bolt", mana_cost="{R}", type_line="Instant",
 DIVINATION = Card(name="Divination", mana_cost="{2}{U}", type_line="Sorcery", oracle_text="Draw two cards.")
 COUNTERSPELL = Card(name="Counterspell", mana_cost="{U}{U}", type_line="Instant", oracle_text="Counter target spell.")
 MURDER = Card(name="Murder", mana_cost="{1}{B}{B}", type_line="Instant", oracle_text="Destroy target creature.")
-RAMPANT = Card(name="Rampant Growth", mana_cost="{1}{G}", type_line="Sorcery",
-               oracle_text="Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.")
+RAMPANT = REAL["Rampant Growth"]
 WEIRD = Card(name="Weird Spell", mana_cost="{U}", type_line="Instant", oracle_text="Exchange control of two target creatures.")
 SOL_RING = Card(name="Sol Ring", mana_cost="{1}", type_line="Artifact", oracle_text="{T}: Add {C}{C}.")
 ELVES = Card(name="Llanowar Elves", mana_cost="{G}", type_line="Creature — Elf Druid",

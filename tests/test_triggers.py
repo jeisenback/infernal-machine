@@ -1,13 +1,13 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import Damage, Draw, GainLife, triggered_abilities
+from infernal_machine.effects import Damage, Draw, triggered_abilities
 from infernal_machine.game import CAST, Permanent
-from tests.test_combat import BEAR, attack_all, creature
-from tests.test_effects import BOLT, COUNTERSPELL, RAINBOW, lands, pick, table
+from tests.real import REAL
+from tests.test_combat import attack_all, creature
+from tests.test_effects import BOLT, COUNTERSPELL, lands, pick, table
 
-MULLDRIFTER = Card(name="Mulldrifter", mana_cost="{4}{U}", type_line="Creature — Elemental", power="2",
-                   toughness="2", oracle_text="Flying\nWhen Mulldrifter enters, draw two cards.")
+MULLDRIFTER = REAL["Mulldrifter"]
 MAYBE = Card(name="Maybe Elf", mana_cost="{G}", type_line="Creature — Elf", power="1", toughness="1",
              oracle_text="When this creature enters, you may draw a card.")
 PINGER = Card(name="Flametongue", mana_cost="{R}", type_line="Creature — Kavu", power="4", toughness="2",
@@ -18,10 +18,7 @@ RAIDER = creature("Raider", 2, 2, "Whenever this creature attacks, each opponent
 NINJA = creature("Ninja", 1, 1, "Whenever this creature deals combat damage to a player, draw a card.")
 FARMER = Card(name="Farmer", mana_cost="{1}", type_line="Artifact",
               oracle_text="At the beginning of your upkeep, you gain 1 life.\nAt the beginning of your end step, draw a card.")
-OMNATH = Card(name="Omnath, Locus of Rage", mana_cost="{G}", type_line="Legendary Creature — Elemental",
-              power="5", toughness="5", oracle_text="When Omnath enters, draw a card.")
-
-
+OMNATH = REAL["Omnath, Locus of Rage"]
 class ParseTests(unittest.TestCase):
     def test_events_and_effects(self):
         [etb] = triggered_abilities(MULLDRIFTER)
@@ -30,7 +27,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(triggered_abilities(PINGER)[0].effects, (Damage(4, "creature"),))
         self.assertEqual(triggered_abilities(MARTYR)[0].event, "dies")
         self.assertEqual([a.event for a in triggered_abilities(FARMER)], ["upkeep", "end_step"])
-        self.assertEqual(triggered_abilities(OMNATH)[0].effects, (Draw(1),))  # short legendary name
+        self.assertEqual(triggered_abilities(OMNATH)[1].effects, (Damage(3, "any"),))  # short legendary name
 
     def test_unsupported_effects_are_left_out(self):
         card = Card(name="x", oracle_text="When this creature enters, venture into the dungeon.")

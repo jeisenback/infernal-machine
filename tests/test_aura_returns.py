@@ -4,6 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import ReturnAuraToBattlefield, ReturnDeadToBattlefield, ReturnSelfToHand, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
@@ -12,12 +13,8 @@ ANGELIC_DESTINY = Card(name="Angelic Destiny", mana_cost="{2}{W}{W}", type_line=
                        oracle_text="Enchant creature\nEnchanted creature gets +4/+4, has flying and first strike, and is "
                                    "an Angel in addition to its other types.\nWhen enchanted creature dies, return this "
                                    "card to its owner's hand.")
-CHANGING_LOYALTY = Card(name="Changing Loyalty", mana_cost="{3}{U}", type_line="Enchantment — Aura",
-                        oracle_text="Flash\nEnchant creature\nWhen enchanted creature dies, return it to the battlefield "
-                                    "under your control.")
-GHOULISH_IMPETUS = Card(name="Ghoulish Impetus", mana_cost="{1}{B}", type_line="Enchantment — Aura",
-                        oracle_text="Enchant creature\nWhen enchanted creature dies, return this card to the battlefield "
-                                    "at the beginning of the next end step.")
+CHANGING_LOYALTY = REAL["Changing Loyalty"]
+GHOULISH_IMPETUS = REAL["Ghoulish Impetus"]
 GIFT = Card(name="Gift of Immortality", mana_cost="{2}{W}", type_line="Enchantment — Aura",
             oracle_text="Enchant creature\nWhen enchanted creature dies, return that card to the battlefield under its "
                         "owner's control. Return this card to the battlefield attached to that creature at the beginning "

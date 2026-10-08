@@ -3637,6 +3637,7 @@ _CONDITIONS = [
      lambda m: Condition("kicked", what=m[1] or "")),
     (re.compile(r"you have the city's blessing"), lambda m: Condition("citys_blessing")),
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
+    (re.compile(r"you were the monarch as the turn began"), lambda m: Condition("monarch_at_turn_start")),
     # Eminence: the ability only works from those two zones, which is where the game looks for it.
     (re.compile(rf"{_SELF} is in the command zone or on the battlefield"), lambda m: Condition("eminence")),
     (re.compile(rf"there are {_N} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
@@ -3933,9 +3934,12 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     if copies_spell and not subject_ok:
         return effects, optional, once, condition
     if about_player:
-        if not all(getattr(e, "target", None) in ("player", "opponent", "any") for e in effects):
+        aimed = [getattr(e, "target", None) in ("player", "opponent", "any") for e in effects]
+        # An effect not about "that player" (Knights of the Black Rose: "... and you gain 2 life") may share the line.
+        if not any(aimed) or any(not a and (target_kind(e) or uses_player(e) or uses_subject(e))
+                                 for a, e in zip(aimed, effects)):
             return None, False, False, None
-        effects = [OnPlayer(e) for e in effects]
+        effects = [OnPlayer(e) if a else e for a, e in zip(aimed, effects)]
     elif about_subject:
         if not all(uses_source(e) for e in effects):
             return None, False, False, None

@@ -20,10 +20,7 @@ RELENTLESS = Card(name="Relentless Assault", mana_cost="{2}{R}{R}", type_line="S
                               "additional combat phase followed by an additional main phase.")
 TIME_WARP = Card(name="Time Warp", mana_cost="{3}{U}{U}", type_line="Sorcery",
                  oracle_text="Target player takes an extra turn after this one.")
-AGGRAVATED = Card(name="Aggravated Assault", mana_cost="{2}{R}", type_line="Enchantment",
-                  oracle_text="{3}{R}{R}: Untap all creatures you control. After this main phase, there is an "
-                              "additional combat phase followed by an additional main phase. "
-                              "Activate only once each turn.")
+AGGRAVATED = REAL["Aggravated Assault"]
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land", produced_mana=("R",))
 ARCHERS = Card(name="Archers", mana_cost="{2}", type_line="Enchantment",
                oracle_text="Whenever a creature attacks you or a planeswalker you control, you gain 1 life.")

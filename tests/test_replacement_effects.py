@@ -8,14 +8,9 @@ from tests.real import REAL
 from tests.test_combat import BEAR, OGRE, creature
 from tests.test_effects import DIVINATION, lands, pick, table
 
-RIP = Card(name="Rest in Peace", mana_cost="{1}{W}", type_line="Enchantment",
-           oracle_text="When Rest in Peace enters the battlefield, exile all cards from all graveyards.\n"
-                       "If a card or token would be put into a graveyard from anywhere, exile it instead.")
+RIP = REAL["Rest in Peace"]
 LEYLINE = REAL["Leyline of the Void"]
-SEASON = Card(name="Doubling Season", mana_cost="{4}{G}", type_line="Enchantment",
-              oracle_text="If an effect would create one or more tokens under your control, it creates twice that many "
-                          "of those tokens instead.\nIf an effect would put one or more counters on a permanent you "
-                          "control, it puts twice that many of those counters instead.")
+SEASON = REAL["Doubling Season"]
 LIVES = Card(name="Parallel Lives", mana_cost="{3}{G}", type_line="Enchantment",
              oracle_text="If an effect would create one or more tokens under your control, it creates twice that many "
                          "of those tokens instead.")
@@ -29,8 +24,7 @@ YAROK = Card(name="Yarok", mana_cost="{2}{B}{G}{U}", type_line="Legendary Creatu
 SOLDIER = Card(name="Soldier", type_line="Token Creature — Soldier", power="1", toughness="1")
 HEALER = creature("Healer", 2, 2, "When CARDNAME enters, you gain 1 life.")
 SHRINE = Card(name="Shrine", mana_cost="{1}", type_line="Enchantment", oracle_text="When CARDNAME enters, you gain 1 life.")
-HYDRA = Card(name="Hydra", mana_cost="{2}", type_line="Creature — Hydra", power="0", toughness="0",
-             oracle_text="CARDNAME enters with two +1/+1 counters on it.")
+HYDRA = REAL["Spike Feeder"]
 MARTYR = creature("Martyr", 1, 1, "When CARDNAME dies, you gain 1 life.")
 
 

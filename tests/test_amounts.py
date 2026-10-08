@@ -4,15 +4,13 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import line_effects, spell_effects, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, creature
 from tests.test_effects import table
 
-LIFEBLOOD = creature("Lifeblood Hydra", 4, 4, "When this creature dies, you gain life and draw cards equal to its power.")
-MYCOLOTH = creature("Mycoloth", 0, 0, "At the beginning of your upkeep, create a 1/1 green Saproling creature token for "
-                                     "each +1/+1 counter on this creature.")
-HANGARBACK = Card(name="Hangarback Walker", mana_cost="{X}{X}", type_line="Artifact Creature — Construct", power="0",
-                  toughness="0", oracle_text="When this creature dies, create a 1/1 colorless Thopter artifact creature "
-                                             "token with flying for each +1/+1 counter on this creature.")
+LIFEBLOOD = REAL["Lifeblood Hydra"]
+MYCOLOTH = REAL["Mycoloth"]
+HANGARBACK = REAL["Hangarback Walker"]
 ERIETTE = creature("Eriette", 2, 4, "At the beginning of your end step, each opponent loses X life and you gain X life, "
                                     "where X is the number of Auras you control.")
 DAEMOGOTH = creature("Daemogoth", 6, 6, "At the beginning of your end step, each opponent loses X life, where X is the "
@@ -64,7 +62,7 @@ class AmountTests(unittest.TestCase):
         a.library = [BEAR] * 10
         game.destroy(hydra)
         game._priority_round(a)
-        self.assertEqual((a.life, len(a.hand)), (46, 6))
+        self.assertEqual((a.life, len(a.hand)), (42, 2))  # */* with two counters: 2 life and 2 cards
 
     def test_for_each_counter_on_this_creature(self):
         game, _, _ = table()

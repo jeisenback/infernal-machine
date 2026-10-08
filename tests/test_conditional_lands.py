@@ -9,12 +9,9 @@ from tests.test_effects import FOREST, pick
 from tests.test_lands import SWAMP, enter
 from tests.test_mass_effects import table3
 
-PORT = Card(name="Scorched Geyser", type_line="Land", produced_mana=("U", "R"),
-            oracle_text="This land enters tapped unless you control two or more basic lands.\n{T}: Add {U} or {R}.")
+PORT = REAL["Scorched Geyser"]
 ISLANDS = REAL["Mystic Sanctuary"]
-TURBULENT = Card(name="Turbulent Fen", type_line="Land", produced_mana=("B", "G"),
-                 oracle_text="This land enters tapped unless your opponents control eight or more lands.\n"
-                             "{T}: Add {B} or {G}.")
+TURBULENT = REAL["Turbulent Fen"]
 SNARL = Card(name="Furycalm Snarl", type_line="Land", produced_mana=("R", "W"),
              oracle_text="As this land enters, you may reveal a Mountain or Plains card from your hand. If you don't, "
                          "this land enters tapped.\n{T}: Add {R} or {W}.")

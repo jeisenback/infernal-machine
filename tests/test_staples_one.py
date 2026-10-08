@@ -11,8 +11,7 @@ from tests.test_lands import SWAMP, spell
 from tests.test_mass_effects import table3
 from tests.real import REAL
 
-TOP = Card(name="Sensei's Divining Top", mana_cost="{1}", type_line="Artifact",
-           oracle_text="{1}: Look at the top three cards of your library, then put them back in any order.")
+TOP = REAL["Sensei's Divining Top"]
 FLOCKING = REAL["Cryptic Serpent"]
 BOLT = Card(name="Bolt", mana_cost="{R}", type_line="Instant", oracle_text="Draw a card.")
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
@@ -32,7 +31,7 @@ class ParseTests(unittest.TestCase):
         self.assertIsNone(spell_effects(Card(name="x", type_line="Sorcery", oracle_text="You may shuffle.")))
 
     def test_tops_first_ability(self):
-        [ability] = activated_abilities(TOP)
+        ability = activated_abilities(TOP)[0]
         self.assertEqual((ability.mana_cost, ability.effects), ("{1}", (PutBackTop(3),)))
 
     def test_cost_reductions(self):

@@ -1,28 +1,20 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (Exile, ExileUntilLeaves, Modal, TargetDraw, TargetGainLife, TargetLoseLife,
+from infernal_machine.effects import (Exile, ExileUntilLeaves, TargetDraw, TargetGainLife, TargetLoseLife,
                                       spell_effects, triggered_abilities)
 from infernal_machine.game import CAST, DONE_MODES, MODE_PROMPT, PASS, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_effects import lands, pick, table
 from tests.test_exile import COMMANDER, OGRE
 from tests.test_mass_effects import table3
 from tests.test_tokens import RAISE
 from tests.test_triggers import MULLDRIFTER
 
-OBLIVION_RING = Card(name="Oblivion Ring", mana_cost="{2}{W}", type_line="Enchantment",
-                     oracle_text="When Oblivion Ring enters the battlefield, exile another target nonland permanent.\n"
-                                 "When Oblivion Ring leaves the battlefield, return the exiled card to the battlefield "
-                                 "under its owner's control.")
-BANISHING_LIGHT = Card(name="Banishing Light", mana_cost="{2}{W}", type_line="Enchantment",
-                       oracle_text="When Banishing Light enters the battlefield, exile target nonland permanent an "
-                                   "opponent controls until Banishing Light leaves the battlefield.")
-FIEND_HUNTER = Card(name="Fiend Hunter", mana_cost="{1}{W}{W}", type_line="Creature — Human Cleric", power="1", toughness="3",
-                    oracle_text="When Fiend Hunter enters the battlefield, you may exile another target creature.\n"
-                                "When Fiend Hunter leaves the battlefield, return the exiled card to the battlefield "
-                                "under its owner's control.")
-SMASH = Card(name="Smash", mana_cost="{R}", type_line="Instant", oracle_text="Destroy target artifact.")
+OBLIVION_RING = REAL["Oblivion Ring"]
+BANISHING_LIGHT = REAL["Banishing Light"]
+FIEND_HUNTER = REAL["Fiend Hunter"]
 RELIC = Card(name="Relic", type_line="Artifact")
 CHOOSE_ONE = Card(name="Charm", mana_cost="{1}{U}", type_line="Instant",
                   oracle_text="Choose one —\n• Destroy target artifact.\n• Target player draws a card.\n• You gain 3 life.")
