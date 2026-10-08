@@ -14,7 +14,7 @@ from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, Retur
 from .undercity import HELPS_ITS_TARGET
 from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PLAY_EXILE, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
-                   MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT)
+                   MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, REPLICATE_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
@@ -108,6 +108,10 @@ class BotPlayer:
             return self._block(prompt, options)
         if prompt.startswith(SHOCK_PROMPT):
             return 0 if self._life.get(self._seat, 0) > 10 else 1  # pay life only while healthy
+        if prompt.startswith(DEVOUR_PROMPT):  # the bot keeps its creatures
+            return len(options) - 1
+        if prompt.startswith(REPLICATE_PROMPT):
+            return len(options) - 1
         if prompt.startswith(LIFE_X_PROMPT):  # paying life for X: some, not everything
             return min(len(options) - 1, 3)
         if prompt.startswith((X_PROMPT, MULTIKICKER_PROMPT)):

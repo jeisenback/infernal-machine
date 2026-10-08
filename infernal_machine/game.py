@@ -25,7 +25,7 @@ from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
-                      cumulative_upkeep, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
+                      affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
@@ -118,6 +118,9 @@ LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; op
 LOOT_PROMPT = "Discard a card to draw a card? "
 PUT_ATTACKING_PROMPT = "Put which creature card onto the battlefield attacking? "
 SHUFFLE_PROMPT = "Shuffle your library? "
+DEVOUR_PROMPT = "Devour: sacrifice which creature to "  # followed by the creature's name; the last option is DEVOUR_DONE
+DEVOUR_DONE = "Done"
+REPLICATE_PROMPT = "Choose how many times to replicate "  # followed by the spell's name; options are "0", "1", ...
 CASCADE_PROMPT = "Cast for free (cascade): "  # followed by the card's name; Yes or No
 DELVE_PROMPT = "Exile which card from your graveyard to pay for "  # followed by the spell's name
 UPKEEP_PROMPT = "Pay the cumulative upkeep of "  # followed by the permanent's name; Yes or No (No sacrifices it)
@@ -262,6 +265,7 @@ class Seat:
     life_gained_turn: int | None = None
     life_gained_amount: int = 0  # how much life this player gained on life_gained_turn
     delayed_mana: int = 0  # {C} to add at the beginning of this player's next main phase (Mana Drain)
+    citys_blessing: bool = False  # Ascend: ten permanents, for the rest of the game
     graveyard_left_turn: int | None = None  # the last turn a card left this player's graveyard
     cast_log: list[tuple[int, Card]] = field(default_factory=list)  # (turn, spell) for every spell cast
     drew_from_empty: bool = False
@@ -300,6 +304,7 @@ class Game:
         self.regular = 0  # the seat whose regular turn it is (or was, during an extra turn)
         self.monarch: Seat | None = None
         self.initiative: Seat | None = None
+        self.graveyarded_turn, self.graveyarded_count = 0, 0  # permanents put into a graveyard this turn (Gravestorm)
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.x_value = 0  # X of the spell resolving right now
@@ -785,6 +790,8 @@ class Game:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""
         reduction = sum(amount for p in seat.battlefield for kind, amount in cost_reductions(p.card)
                         if _spell_matches(kind, card))
+        if (kind := affinity_for(card)) is not None:  # Affinity for planeswalkers
+            reduction += sum(_has_type(p.card, kind) for p in seat.battlefield)
         if own := self_cost_reduction(card):  # "This spell costs {1} less to cast for each creature on the battlefield."
             amount, what = own
             counted = (sum(_has_type(p.card, "creature") for s in self.live_seats() for p in s.battlefield)
@@ -1149,6 +1156,9 @@ class Game:
         if alternative and alternative.overload:  # every "target" is "each": no targets
             effects = overloaded_effects(card) or effects
         kicked, kickers = (0, ()) if graveyard else self._choose_kicks(seat, card, effects, from_command_zone, alternative)
+        replicated = 0 if graveyard or prepared is not None else self._choose_replicate(seat, card, from_command_zone, kickers, extra, alternative)
+        if replicated:
+            extra += replicate_cost(card) * replicated
         effects = kicked_effects(effects, kicked, kickers)
         targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
         x = 0
@@ -1188,6 +1198,13 @@ class Game:
             event["alternative"] = alternative.text
         self.broadcast(event)
         seat.cast_log.append((self.turn, card))
+        copies = replicated or 0
+        if (storm := storm_kind(card)) is not None and prepared is None:
+            before = [t for s in self.seats for t, _ in s.cast_log if t == self.turn]  # spells cast before this one
+            copies += (len(before) - 1) if storm == "storm" else (self.graveyarded_count if self.graveyarded_turn == self.turn else 0)
+        if copies and prepared is None:  # Replicate, Storm, Gravestorm: a trigger above the spell copies it
+            ability = TriggeredAbility("cast", (CopySpellTimes(copies),), False, "Copy this spell")
+            self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         if has_keyword(card, "cascade") and prepared is None:  # the trigger goes on the stack above the spell
             ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
@@ -1294,8 +1311,11 @@ class Game:
         target = item.targets[0] if item.targets else None
         if target is None or not self.is_legal_target(aura_kind(card), target, seat, source_qualities(card)):
             self.broadcast({"event": "fizzle", "seat": seat.index, "card": card.name})
-            self._move_card(seat, card, "graveyard")
+            if not item.is_copy:
+                self._move_card(seat, card, "graveyard")
             return
+        if item.is_copy:  # a copy of an Aura spell becomes a token Aura
+            card = dataclasses.replace(card, type_line="Token " + card.type_line.removeprefix("Token "))
         if (reanimation := reanimation_aura(card)) is not None:  # Animate Dead: the creature comes back, the Aura on it
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
             self.return_from_graveyard(target, seat, "battlefield", tapped=reanimation[0])
@@ -1503,6 +1523,8 @@ class Game:
             return seat.life_gained_turn == self.turn and seat.life_gained_amount >= condition.count
         if kind == "creatures_died":
             return self.deaths_turn == self.turn and self.deaths_count >= condition.count
+        if kind == "citys_blessing":
+            return seat.citys_blessing
         if kind == "not_prepared":
             return source is not None and not source.prepared
         if kind == "graveyard_at_least":
@@ -2370,6 +2392,34 @@ class Game:
             ordered.append(cards.pop(seat.player.choose(ORDER_TOP_PROMPT, [c.name for c in cards])))
         return ordered + cards
 
+    def _devour(self, seat: Seat, permanent: Permanent) -> None:
+        """Devour N: sacrifice any number of other creatures as it enters; it gets N +1/+1 counters for each."""
+        eaten = 0
+        while True:
+            options = [p for p in seat.battlefield if "Creature" in p.card.type_line and p is not permanent]
+            if not options:
+                break
+            pick = seat.player.choose(DEVOUR_PROMPT + permanent.card.name, [self.label(p) for p in options] + [DEVOUR_DONE])
+            if pick == len(options):
+                break
+            self._leave_together([(options[pick], "sacrificed")])
+            eaten += 1
+        if eaten:
+            permanent.counters[PLUS] = permanent.counters.get(PLUS, 0) + eaten * devour(permanent.card)
+            self.broadcast({"event": "devoured", "seat": seat.index, "card": permanent.card.name, "creatures": eaten})
+
+    def _choose_replicate(self, seat: Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str,
+                          alternative: AlternativeCost | None) -> int:
+        """Replicate {cost}: how many times to pay it (any affordable number)."""
+        cost = replicate_cost(card)
+        if cost is None:
+            return 0
+        most = 0
+        while (most < MAX_X and self._payment(seat, card, from_command_zone, alternative=alternative, kickers=kickers,
+                                              extra=extra + cost * (most + 1)) is not None):
+            most += 1
+        return seat.player.choose(REPLICATE_PROMPT + card.name, [str(n) for n in range(most + 1)]) if most else 0
+
     def living_weapon(self, equipment: Permanent) -> None:
         """Create a 0/0 black Phyrexian Germ token and attach the Equipment to it."""
         seat = self.controller_of(equipment)
@@ -2684,6 +2734,8 @@ class Game:
             permanent.prepared = True
         if echo_cost(permanent.card):
             permanent.echo_pending = True
+        if devour(permanent.card):
+            self._devour(seat, permanent)
         rule = enters_tapped_rule(permanent.card)
         if rule and self._enters_tapped(seat, rule, permanent.card):
             permanent.tapped = True
@@ -2805,6 +2857,10 @@ class Game:
                     self.trigger("other_sacrifice", watcher, watcher_seat)
         for permanent, _ in leaving:
             controller = permanent.last_controller
+            if destination == "graveyard":
+                if self.graveyarded_turn != self.turn:
+                    self.graveyarded_turn, self.graveyarded_count = self.turn, 0
+                self.graveyarded_count += 1
             if destination == "graveyard" and not _is_token(permanent.card):  # Rancor: "put into a graveyard from the battlefield"
                 self.trigger("put_into_graveyard", permanent, controller)
             if destination == "graveyard" and "Creature" in permanent.card.type_line:
@@ -2899,6 +2955,10 @@ class Game:
         while True:
             changed = False
             for seat in self.live_seats():
+                if (not seat.citys_blessing and len(seat.battlefield) >= 10
+                        and any(has_keyword(p.card, "ascend") for p in seat.battlefield)):
+                    seat.citys_blessing = True
+                    self.broadcast({"event": "citys_blessing", "seat": seat.index})
                 reason = ("life" if seat.life <= 0
                           else "empty_library" if seat.drew_from_empty
                           else "commander_damage" if any(d >= COMMANDER_DAMAGE_LIMIT for d in seat.commander_damage.values())

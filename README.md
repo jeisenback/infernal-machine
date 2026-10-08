@@ -549,6 +549,15 @@ winner = game.play()
     choose which. **Cascade:** a trigger above the spell exiles cards from your library until a nonland card that costs
     less; you may cast it for free, and the rest go to the bottom in a random order (a cascade spell's X counts as 0 on
     the card but its chosen X counts for the comparison).
+  - **Devour N:** as it enters you may sacrifice any number of other creatures (asked one at a time, then Done); it
+    gets N +1/+1 counters for each. The bot never devours.
+  - **Replicate {cost}:** you choose how many times to pay when you cast (any affordable number); a trigger above the
+    spell makes that many copies, each with new targets. A copy of an Aura spell becomes a token Aura. **Storm** (a copy
+    for each spell cast before it this turn, by anyone) and **Gravestorm** (a copy for each permanent put into a
+    graveyard this turn) use the same trigger.
+  - **Ascend:** with ten or more permanents you get the city's blessing for the rest of the game, if you control a
+    permanent with Ascend ("as long as you have the city's blessing" works in static abilities).
+  - **Affinity for <type>s:** costs {1} less for each of that type you control.
 - **Reanimation Auras** (Animate Dead): "Enchant creature card in a graveyard" is cast on a creature card in any
   graveyard; when it resolves the creature comes back under your control and the Aura is attached to it, and if the
   Aura leaves the battlefield the creature is sacrificed. The tapped version (Dance of the Dead) is understood
