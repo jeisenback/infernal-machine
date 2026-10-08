@@ -2391,6 +2391,21 @@ class Discard:
 
 
 @dataclass(frozen=True)
+class DiscardHandsDrawGreatest:
+    """Windfall: "Each player discards their hand, then draws cards equal to the greatest number of cards a player
+    discarded this way." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        seats = game.turn_order_from_active()
+        discarded = {seat.index: len(seat.hand) for seat in seats}
+        for seat in seats:
+            game.discard(seat, None)
+        most = max(discarded.values(), default=0)
+        for seat in seats:
+            game.draw(seat, most)
+
+
+@dataclass(frozen=True)
 class TargetDiscard:
     """ "Target player (or opponent) discards two cards." """
     count: int | str
@@ -3085,6 +3100,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (player|opponent) discards {_N} cards?( at random)?\.", re.I),
      lambda m: TargetDiscard(_count(m[2]), m[1].lower(), bool(m[3]))),
     (re.compile(rf"each player draws {_N} cards?\.", re.I), lambda m: EachDraw(_count(m[1]))),
+    (re.compile(r"each player discards their hand, then draws cards equal to the greatest number of cards a player "
+                r"discarded this way\.", re.I), lambda m: DiscardHandsDrawGreatest()),
     (re.compile(rf"each player discards their hand, then draws {_N} cards?\.", re.I),
      lambda m: [Discard(None, "each player"), EachDraw(_count(m[1]))]),
     (re.compile(rf"draw {_N} cards?, then discard {_N} cards?\.", re.I),
@@ -3092,9 +3109,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"discard {_N} cards?, then draw {_N} cards?\.", re.I),
      lambda m: [Discard(_count(m[1]), "you"), Draw(_count(m[2]))]),
     (re.compile(r"target (player|opponent) reveals their hand\.", re.I), lambda m: RevealHand(m[1].lower())),
-    (re.compile(r"you choose an? ((?:non[a-z]+(?:, non[a-z]+)*) )?card(?: with mana value (\d+) or less)? from it\.", re.I),
+    (re.compile(r"you choose an? ((?:non[a-z]+(?:, non[a-z]+)*) )?card(?: with mana value (\d+) or less)? from it"
+                r"(?: with mana value (\d+) or less)?\.", re.I),
      lambda m: ChooseFromHand(tuple(w.strip(",") for w in m[1].lower().replace("non", "").split()) if m[1] else (),
-                              int(m[2]) if m[2] else None)),
+                              int(m[2] or m[3]) if m[2] or m[3] else None)),
     (re.compile(r"that player discards that card\.", re.I), lambda m: DiscardChosen()),
     (re.compile(rf"each (opponent|player) mills {_N} cards?\.", re.I),
      lambda m: Mill(_count(m[2]), "each " + m[1].lower())),
