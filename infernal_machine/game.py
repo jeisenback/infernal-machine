@@ -23,7 +23,7 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Condition, TriggeredAbility, WardCounter,
-                      activated_abilities, additional_costs, alternative_costs, cost_reductions, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      activated_abilities, additional_costs, alternative_costs, cost_reductions, is_multikicker, kicked_effects, kicker_cost, kicker_other_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, is_identity_mana_land, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_source)
@@ -470,8 +470,9 @@ class Game:
             return None
         if from_command_zone:
             cost = cost.plus_generic(self.commander_tax(seat, card))
-        for _ in range(kicked):
-            cost = cost + parse_cost(kicker_cost(card))
+        if kicker := kicker_cost(card):
+            for _ in range(kicked):
+                cost = cost + parse_cost(kicker)
         return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card)))
 
     def cost_reduction(self, seat: Seat, card: Card) -> int:
@@ -485,19 +486,26 @@ class Game:
                 if self._can_pay_extras(seat, card, way) and self._payment(seat, card, from_command_zone, alternative=way)
                 is not None]
 
-    def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None) -> bool:
-        """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs,
-        and `alternative`'s condition, life and card to exile."""
-        extras = additional_costs(card)
+    def _extra_costs(self, card: Card, kicked: int) -> list:
+        """The non-mana costs of casting `card`: its additional costs, plus a non-mana kicker cost if kicked."""
+        kicker = kicker_other_cost(card) if kicked else None
+        return additional_costs(card) + ([kicker] if kicker else [])
+
+    def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0) -> bool:
+        """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs, a non-mana
+        kicker cost, and `alternative`'s condition, life and card to exile."""
+        extras = self._extra_costs(card, kicked)
         others = list(seat.hand)
         if card in others:
             others.remove(card)
         if sum(c.life for c in extras) + (alternative.life if alternative else 0) > seat.life:  # CR 119.4
             return False
-        if any(c.discard for c in extras) and not others:
+        if sum(c.discard for c in extras) > len(others):
             return False
-        if any(c.sacrifice and not any(_permanent_matches(c.sacrifice, p.card) for p in seat.battlefield) for c in extras):
-            return False
+        for kind in {c.sacrifice for c in extras if c.sacrifice}:
+            needed = sum(c.sacrifice == kind for c in extras)
+            if sum(_permanent_matches(kind, p.card) for p in seat.battlefield) < needed:
+                return False
         if alternative is None:
             return True
         if alternative.commander and not any(p.card.name in (p.owner or seat).commander_names for p in seat.battlefield):
@@ -506,7 +514,7 @@ class Game:
             return False
         return not alternative.exile_color or any(alternative.exile_color in c.colors for c in others)
 
-    def _pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None) -> None:
+    def _pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0) -> None:
         """Pay the non-mana costs of casting `card`, which has already left its zone."""
         if alternative and alternative.exile_color:
             options = [c for c in seat.hand if alternative.exile_color in c.colors]
@@ -514,7 +522,8 @@ class Game:
             seat.hand.remove(exiled)
             self.broadcast({"event": "exiled_from_hand", "seat": seat.index, "card": exiled.name})
             self._move_card(seat, exiled, "exile")
-        for extra in additional_costs(card):
+        extras = self._extra_costs(card, kicked)
+        for extra in extras:
             if extra.discard:
                 discarded = seat.hand[seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])]
                 seat.hand.remove(discarded)
@@ -524,7 +533,7 @@ class Game:
                 options = [p for p in seat.battlefield if _permanent_matches(extra.sacrifice, p.card)]
                 choice = options[seat.player.choose(SACRIFICE_COST_PROMPT + card.name, [self.label(p) for p in options])]
                 self._leave_together([(choice, "sacrificed")])
-        life = sum(c.life for c in additional_costs(card)) + (alternative.life if alternative else 0)
+        life = sum(c.life for c in extras) + (alternative.life if alternative else 0)
         if life:
             self.change_life(seat, -life)
 
@@ -693,7 +702,7 @@ class Game:
         tapped = self._payment(seat, card, from_command_zone, x, alternative, kicked)
         self._spend_mana(seat, tapped)
         zone.remove(card)
-        self._pay_extras(seat, card, alternative)
+        self._pay_extras(seat, card, alternative, kicked)
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked)
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
@@ -712,12 +721,13 @@ class Game:
                       alternative: AlternativeCost | None) -> int:
         """Ask how many times to pay the kicker cost: yes or no, or any affordable number for multikicker.
         Kicking is only offered when the kicked spell's targets exist."""
-        if kicker_cost(card) is None:
+        if kicker_cost(card) is None and kicker_other_cost(card) is None:
             return 0
         if not self._targets_exist(seat, kicked_effects(effects, 1) or [], frozenset(card.colors)):
             return 0
         most = 0
         while (most < (MAX_X if is_multikicker(card) else 1)
+               and self._can_pay_extras(seat, card, alternative, most + 1)
                and self._payment(seat, card, from_command_zone, alternative=alternative, kicked=most + 1) is not None):
             most += 1
         if not most:

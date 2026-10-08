@@ -112,8 +112,12 @@ winner = game.play()
     targets exist). A kicked permanent (Auras too) remembers it: "If this creature was kicked, it enters with
     N +1/+1 counters on it." and "When this creature enters, if it was kicked, ..." (Untamed Kavu, Josu Vess).
   - Multikicker {N}: the caster chooses how many times to pay it, and "... enters with a +1/+1 counter on it for
-    each time it was kicked." counts them (Gnarlid Pack). "Instead" wordings and non-mana kicker costs aren't
-    supported.
+    each time it was kicked." counts them (Gnarlid Pack).
+  - Kicked "instead" wordings change the effect just before them: "it deals N damage instead" (Burst Lightning),
+    "create N of those tokens instead" (Saproling Migration) and "draw N cards instead".
+  - Kicker costs that aren't mana: "Kicker—Sacrifice a land / a creature / ...", "Kicker—Discard a card." and
+    "Kicker—Pay N life." are paid like additional costs, and only offered when they can be paid. Two kicker costs
+    on one card ("Kicker {1}{B} and/or {1}{R}") aren't supported.
   - Additional costs: "As an additional cost to cast this spell, sacrifice a creature / an artifact / an artifact
     or creature / a land / a permanent", "discard a card" or "pay N life". They're paid after mana, so a creature
     that tapped for mana can still be sacrificed. Effects that read the paid cost ("the sacrificed creature's

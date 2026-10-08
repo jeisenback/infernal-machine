@@ -2,9 +2,9 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.client import Narrator
-from infernal_machine.effects import (AdditionalCost, AlternativeCost, Damage, Draw, IfKicked, ReturnToHand,
-                                      additional_costs, alternative_costs, cost_reductions, is_multikicker, kicker_cost,
-                                      spell_effects)
+from infernal_machine.effects import (AdditionalCost, AlternativeCost, Damage, Draw, IfKicked, KickedInstead,
+                                      ReturnToHand, additional_costs, alternative_costs, cost_reductions,
+                                      is_multikicker, kicked_effects, kicker_cost, kicker_other_cost, spell_effects)
 from infernal_machine.game import (CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, MULTIKICKER_PROMPT,
                                    SACRIFICE_COST_PROMPT, TARGET_PROMPT, Game, Permanent, StackItem)
 from infernal_machine.report import unsupported_lines
@@ -57,6 +57,21 @@ GNARLID = Card(name="Gnarlid Pack", mana_cost="{1}{G}", type_line="Creature — 
 KICKED_AURA = Card(name="Kicked Aura", mana_cost="{G}", type_line="Enchantment — Aura", colors=("G",),
                    oracle_text="Kicker {G}\nEnchant creature\nWhen Kicked Aura enters, if it was kicked, draw a card.")
 
+MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
+BURST = Card(name="Burst Lightning", mana_cost="{R}", type_line="Instant", colors=("R",),
+             oracle_text="Kicker {4} (You may pay an additional {4} as you cast this spell.)\nBurst Lightning deals 2 "
+                         "damage to any target. If this spell was kicked, it deals 4 damage instead.")
+MIGRATION = Card(name="Saproling Migration", mana_cost="{1}{G}", type_line="Sorcery", colors=("G",),
+                 oracle_text="Kicker {4}\nCreate two 1/1 green Saproling creature tokens. If this spell was kicked, "
+                             "create four of those tokens instead.")
+SAC_KICK = Card(name="Land Kick", mana_cost="{U}", type_line="Instant", colors=("U",),
+                oracle_text="Kicker\u2014Sacrifice a land.\nDraw a card. If this spell was kicked, draw two cards instead.")
+LIFE_KICK = Card(name="Life Kick", mana_cost="{U}", type_line="Instant", colors=("U",),
+                 oracle_text="Kicker\u2014Pay 3 life.\nDraw a card. If this spell was kicked, draw two cards instead.")
+DISCARD_KICK = Card(name="Discard Kick", mana_cost="{U}", type_line="Instant", colors=("U",),
+                    oracle_text="Kicker\u2014Discard a card.\nDraw a card. If this spell was kicked, draw two cards "
+                                "instead.")
+
 
 class ParseTests(unittest.TestCase):
     def test_cost_reductions(self):
@@ -96,6 +111,25 @@ class ParseTests(unittest.TestCase):
 
     def test_kicked_effects_can_target(self):
         self.assertEqual(spell_effects(KICKED_BOLT), [Draw(1), IfKicked(Damage(2, "any"))])
+
+    def test_kicked_instead(self):
+        self.assertEqual(spell_effects(BURST), [Damage(2, "any"), KickedInstead("amount", 4)])
+        self.assertEqual(kicked_effects(spell_effects(BURST), 1), [Damage(4, "any")])
+        self.assertEqual(kicked_effects(spell_effects(BURST), 0), [Damage(2, "any")])
+        self.assertEqual(kicked_effects(spell_effects(MIGRATION), 1)[0].count, 4)
+        for card in (BURST, MIGRATION, SAC_KICK, LIFE_KICK, DISCARD_KICK):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_instead_must_fit_the_effect_before_it(self):
+        card = Card(name="Odd", type_line="Instant", oracle_text="Kicker {1}\nYou gain 2 life. If this spell was "
+                    "kicked, create four of those tokens instead.")
+        self.assertIsNone(spell_effects(card))
+
+    def test_non_mana_kicker_costs(self):
+        self.assertEqual(kicker_other_cost(SAC_KICK), AdditionalCost(sacrifice="land"))
+        self.assertEqual(kicker_other_cost(LIFE_KICK), AdditionalCost(life=3))
+        self.assertEqual(kicker_other_cost(DISCARD_KICK), AdditionalCost(discard=True))
+        self.assertIsNone(kicker_cost(SAC_KICK))
 
     def test_multikicker(self):
         self.assertEqual(kicker_cost(GNARLID), "{1}{G}")
@@ -323,6 +357,64 @@ class KickerTests(unittest.TestCase):
         pack = next(p for p in seat.battlefield if p.card is GNARLID)
         self.assertEqual((pack.kicked, pack.counters), (2, {"+1/+1": 2}))
         self.assertEqual(next(e for e in a.events if e["event"] == "cast")["kicked"], 2)
+
+    def test_burst_lightning(self):
+        for answer, life in (("Yes", 36), ("No", 38)):
+            game, _, _ = table(pick(CAST + BURST.name, answer, "Player: B"))
+            seat, other = game.seats
+            seat.hand = [BURST]
+            seat.battlefield = battlefield(*[MOUNTAIN] * 5)
+            game._priority_round(seat)
+            self.assertEqual(other.life, life, answer)
+
+    def test_saproling_migration(self):
+        for answer, tokens in (("Yes", 4), ("No", 2)):
+            game, _, _ = table(pick(CAST + MIGRATION.name, answer))
+            seat = game.seats[0]
+            seat.hand = [MIGRATION]
+            seat.battlefield = battlefield(*[FOREST] * 6)
+            game._priority_round(seat)
+            self.assertEqual(sum(p.card.name == "Saproling" for p in seat.battlefield), tokens, answer)
+
+    def test_sacrifice_kicker(self):
+        game, _, _ = table(pick(CAST + SAC_KICK.name, "Yes", "Island"))
+        seat = game.seats[0]
+        seat.hand, seat.library = [SAC_KICK], [OPT, OPT]
+        seat.battlefield = battlefield(ISLAND)
+        game._priority_round(seat)
+        self.assertEqual(seat.battlefield, [])  # the Island tapped for mana, then was sacrificed
+        self.assertEqual(seat.graveyard, [ISLAND, SAC_KICK])
+        self.assertEqual(seat.hand, [OPT, OPT])
+
+    def test_life_kicker_needs_the_life(self):
+        game, a, _ = table(pick(CAST + LIFE_KICK.name, "Yes"))
+        seat = game.seats[0]
+        seat.hand, seat.library = [LIFE_KICK], [OPT, OPT]
+        seat.battlefield = battlefield(ISLAND)
+        game._priority_round(seat)
+        self.assertEqual((seat.life, len(seat.hand)), (37, 2))
+        game, a, _ = table(pick(CAST + LIFE_KICK.name, "Yes"))
+        seat = game.seats[0]
+        seat.life, seat.hand, seat.library = 2, [LIFE_KICK], [OPT, OPT]
+        seat.battlefield = battlefield(ISLAND)
+        game._priority_round(seat)
+        self.assertEqual((seat.life, len(seat.hand)), (2, 1))
+        self.assertFalse(any(p == KICKER_PROMPT + LIFE_KICK.name for p, _ in a.prompts))
+
+    def test_discard_kicker_needs_another_card(self):
+        game, a, _ = table(pick(CAST + DISCARD_KICK.name))
+        seat = game.seats[0]
+        seat.hand, seat.library = [DISCARD_KICK], [OPT]
+        seat.battlefield = battlefield(ISLAND)
+        game._priority_round(seat)
+        self.assertFalse(any(p == KICKER_PROMPT + DISCARD_KICK.name for p, _ in a.prompts))
+        game, _, _ = table(pick(CAST + DISCARD_KICK.name, "Yes", "Grizzly Bears"))
+        seat = game.seats[0]
+        seat.hand, seat.library = [DISCARD_KICK, BEAR], [OPT, OPT]
+        seat.battlefield = battlefield(ISLAND)
+        game._priority_round(seat)
+        self.assertEqual(seat.graveyard, [BEAR, DISCARD_KICK])
+        self.assertEqual(seat.hand, [OPT, OPT])
 
     def test_kicked_aura_remembers_it(self):
         game, _, _ = table(pick(CAST + KICKED_AURA.name, "Yes", "Grizzly Bears"))
