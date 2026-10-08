@@ -4,8 +4,8 @@ import unittest
 from dataclasses import replace
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import DEMONSTRATE_PROMPT, graveyard_casts, triggered_abilities
-from infernal_machine.game import CAST, CAST_GRAVEYARD, ENCORE, Permanent
+from infernal_machine.effects import DEMONSTRATE_PROMPT, alternative_costs, graveyard_casts, triggered_abilities
+from infernal_machine.game import CAST, CAST_GRAVEYARD, COST_PROMPT, ENCORE, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
@@ -151,3 +151,55 @@ class EncoreTests(unittest.TestCase):
         game, a, b, c, angel = self.setup_encore()
         a.battlefield = lands(7)
         self.assertNotIn(ENCORE + "Angel of Indemnity", game.legal_actions(a))
+
+
+class BestowTests(unittest.TestCase):
+    EIDOLON = REAL["Eidolon of Countless Battles"]
+
+    def cast_bestowed(self, bear):
+        def policy(prompt, options):
+            if prompt.startswith(COST_PROMPT):
+                return next(i for i, o in enumerate(options) if o.startswith("Bestow"))
+            return pick(CAST)(prompt, options)
+        game, _ = table3(policy)
+        a = game.seats[0]
+        a.hand, a.battlefield = [self.EIDOLON], [bear, *lands(4)]
+        game._priority_round(a)
+        run_stack(game)
+        return game, a
+
+    def test_the_card_is_understood(self):
+        self.assertEqual(unsupported_lines(self.EIDOLON), [])
+        self.assertEqual([c.bestow for c in alternative_costs(self.EIDOLON)], [True])
+
+    def test_bestowed_it_is_an_aura_that_pumps_the_creature(self):
+        bear = Permanent(BEAR)
+        game, a = self.cast_bestowed(bear)
+        [aura] = [p for p in a.battlefield if p.card.name == self.EIDOLON.name]
+        self.assertIs(aura.attached_to, bear)
+        self.assertNotIn("Creature", aura.card.type_line)
+        self.assertEqual((game.power(bear), game.toughness(bear)), (2 + 2, 2 + 2))  # one creature, one Aura
+
+    def test_it_becomes_a_creature_when_its_creature_leaves(self):
+        bear = Permanent(BEAR)
+        game, a = self.cast_bestowed(bear)
+        game.destroy(bear)
+        game._check_state()
+        [eidolon] = [p for p in a.battlefield if p.card.name == self.EIDOLON.name]
+        self.assertEqual((eidolon.card, eidolon.attached_to), (self.EIDOLON, None))
+        self.assertEqual((game.power(eidolon), game.toughness(eidolon)), (1, 1))  # itself is the one creature
+
+    def test_cast_normally_it_is_a_creature(self):
+        game, _ = table3(pick(CAST))
+        a = game.seats[0]
+        a.hand, a.battlefield = [self.EIDOLON], lands(3)
+        game._priority_round(a)
+        run_stack(game)
+        [eidolon] = [p for p in a.battlefield if p.card.name == self.EIDOLON.name]
+        self.assertEqual((game.power(eidolon), eidolon.attached_to), (1, None))
+
+    def test_without_a_creature_there_is_no_bestow(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.hand, a.battlefield = [self.EIDOLON], lands(4)
+        self.assertEqual([w.bestow for w in game._cast_ways(a, self.EIDOLON, False) if w], [])

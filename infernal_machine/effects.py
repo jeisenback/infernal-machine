@@ -892,11 +892,15 @@ _AFFECTED_WHO = re.compile(r"(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
-_PER = {"artifact you control": ("permanent", "artifact"), "creature card in your graveyard": ("graveyard", "creature"),
+_PER = {"artifact you control": ("permanent", "artifact"), "creature you control": ("permanent", "creature"),
+        "Aura you control": ("permanent", "Aura"), "creature card in your graveyard": ("graveyard", "creature"),
         "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", "")}
 _PER_LOWER = {k.lower(): v for k, v in _PER.items()}
 _PER_WORDS = "|".join(re.escape(k) for k in _PER)
 _SELF_SCALED = re.compile(rf"{_SELF} gets {_PT} for each ({_PER_WORDS})\.", re.I)
+# Eidolon of Countless Battles: both the creature and the one it enchants, for two counts added together.
+_BOTH_SCALED = re.compile(rf"This creature and enchanted creature each get {_PT} for each creature you control and {_PT} "
+                          r"for each Aura you control\.")
 _ATTACHED_SCALED = re.compile(rf"Enchanted creature gets {_PT} for each ({_PER_WORDS})\.")
 _ATTACHED_GOADED = re.compile(rf"Enchanted creature gets {_PT}(?:, has ({_KW}),)? and is goaded\.")
 
@@ -931,6 +935,9 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             buffs.append(StaticBuff(_modifier(m, 2), who["other"] is not None, who["sub"] or who["tribe"], line,
                                     condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
                                     attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"])))
+        elif m := _BOTH_SCALED.fullmatch(sentence):
+            buffs.append(StaticBuff(Modifier(_signed(m[1]), _signed(m[2])), False, None, line, self_only=True, per=_PER["creature you control"]))
+            buffs.append(StaticBuff(Modifier(_signed(m[3]), _signed(m[4])), False, None, line, self_only=True, per=_PER["Aura you control"]))
         elif m := _SELF_SCALED.fullmatch(sentence):  # "This creature gets +1/+0 for each artifact you control."
             modifier = Modifier(_signed(m[1]), _signed(m[2]))
             buffs.append(StaticBuff(modifier, False, None, line, self_only=True, condition=condition,
@@ -1178,6 +1185,9 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
         elif m := _ATTACHED_GOADED.fullmatch(line):
             keywords = _keyword_list(m[3]) if m[3] else frozenset()
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), keywords), line, goaded=True))
+        elif m := _BOTH_SCALED.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2])), line, per=_PER["creature you control"]))
+            buffs.append(AttachedBuff(Modifier(_signed(m[3]), _signed(m[4])), line, per=_PER["Aura you control"]))
         elif m := _ATTACHED_SCALED.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2])), line, per=_PER[m[3]]))
     return tuple(buffs)
@@ -2672,6 +2682,7 @@ class AlternativeCost:
     mana_cost: str = ""  # an alternative cost that is mana ("Evoke {2}{U}", "Overload {6}{U}"), paid instead of the mana cost
     evoke: bool = False  # the creature is sacrificed when it enters
     overload: bool = False  # every "target" in the spell becomes "each"
+    bestow: bool = False  # cast as an Aura spell with enchant creature
 
 
 @dataclass(frozen=True)
@@ -2696,7 +2707,13 @@ _ENTWINE = re.compile(r"Entwine ((?:\{[^}]+\})+)")
 _ESCALATE = re.compile(r"Escalate ((?:\{[^}]+\})+)")  # "Escalate\u2014Discard a card." (a cost that isn't mana) isn't supported
 _FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
 _RETRACE = re.compile(r"Retrace")
+_BESTOW = re.compile(r"Bestow ((?:\{[^}]+\})+)")
 _ENCORE = re.compile(r"Encore ((?:\{[^}]+\})+)")
+
+
+def bestow_aura(card: Card) -> Card:
+    """The card as it is while a bestow spell or an Aura permanent: an Aura with enchant creature, not a creature."""
+    return dataclasses.replace(card, type_line="Enchantment " + chr(0x2014) + " Aura", oracle_text=card.oracle_text + chr(10) + "Enchant creature")
 
 
 def encore_cost(card: Card) -> str | None:
@@ -2838,6 +2855,9 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
             if overloaded_effects(card):
                 costs.append(AlternativeCost(f"Overload {m[1]}", mana_cost=m[1], overload=True))
             continue
+        if m := _BESTOW.fullmatch(line):
+            costs.append(AlternativeCost(f"Bestow {m[1]}", mana_cost=m[1], bestow=True))
+            continue
         if _FREE_WITH_COMMANDER.fullmatch(line):
             costs.append(AlternativeCost("Cast without paying its mana cost", commander=True))
         elif m := _PITCH.fullmatch(line):
@@ -2895,7 +2915,7 @@ _SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate)(?:, (?:Delve
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY))
 
