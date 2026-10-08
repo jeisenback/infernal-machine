@@ -838,7 +838,8 @@ class AdditionalCost:
     life: int = 0
 
 
-_KICKER = re.compile(r"(?:Multik|K)icker ((?:\{\d+\}|\{[WUBRGC]\})+)")
+_MANA_SYMBOLS = r"(?:\{\d+\}|\{[WUBRGC]\})+"
+_KICKER = re.compile(rf"(?:Multik|K)icker ({_MANA_SYMBOLS})(?: and/or ({_MANA_SYMBOLS}))?")
 _KICKER_OTHER = re.compile(rf"Kicker\u2014(?:Sacrifice an? (creature|artifact|land|artifact or creature|permanent)"
                            rf"|(Discard a card)|Pay (?!X ){_N} life)\.")
 _FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast this spell without paying its mana cost\.")
@@ -850,9 +851,13 @@ _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|nonc
                         r"you cast cost \{(\d+)\} less to cast\.", re.I)
 
 
-def kicker_cost(card: Card) -> str | None:
-    """The mana cost from "Kicker {1}{U}" or "Multikicker {1}{G}" (only mana costs are supported), or None."""
-    return next((m[1] for line in rules_lines(card) if (m := _KICKER.fullmatch(line))), None)
+def kicker_costs(card: Card) -> tuple[str, ...]:
+    """The mana kicker costs: one for "Kicker {1}{U}" or "Multikicker {1}{G}", two for "Kicker {R} and/or {W}",
+    none if there's no kicker or it isn't mana."""
+    for line in rules_lines(card):
+        if m := _KICKER.fullmatch(line):
+            return tuple(cost for cost in m.groups() if cost)
+    return ()
 
 
 def kicker_other_cost(card: Card) -> AdditionalCost | None:
@@ -910,8 +915,10 @@ def is_cost_reduction_line(line: str) -> bool:
 
 @dataclass(frozen=True)
 class IfKicked:
-    """"If this spell was kicked, draw a card.": the effect happens only if the kicker cost was paid."""
+    """"If this spell was kicked, draw a card.": the effect happens only if the kicker cost was paid.
+    `kicker` names one of two kicker costs: "If this spell was kicked with its {1}{B} kicker, ..." """
     effect: Any
+    kicker: str = ""
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if game.resolving_item is not None and game.resolving_item.kicked:
@@ -934,11 +941,12 @@ _KICKED_INSTEAD = [
 
 
 def _kicked(m: re.Match) -> IfKicked | None:
-    effects = _parse([m[1][:1].upper() + m[1][1:]])
-    return IfKicked(effects[0]) if effects else None
+    kicker, rest = m[1] or "", m[2]
+    effects = _parse([rest[:1].upper() + rest[1:]])
+    return IfKicked(effects[0], kicker) if effects else None
 
 
-def kicked_effects(effects: list | None, kicked: int) -> list | None:
+def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] = ()) -> list | None:
     """A spell's effects once it's known whether it was kicked: "If this spell was kicked, ..." effects
     become plain effects, or are dropped. This happens before targets are chosen, so kicked effects can target."""
     if effects is None:
@@ -949,7 +957,7 @@ def kicked_effects(effects: list | None, kicked: int) -> list | None:
             if kicked:
                 result[-1] = replace(result[-1], **{effect.field: effect.value})
         elif isinstance(effect, IfKicked):
-            if kicked:
+            if kicked and (not effect.kicker or effect.kicker in kickers):
                 result.append(effect.effect)
         else:
             result.append(effect)
@@ -982,7 +990,7 @@ _DAMAGE_KIND = r"(any target|target creature|target player|target creature or pl
 
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
-    (re.compile(r"if this spell was kicked, (.+)", re.I), _kicked),
+    (re.compile(rf"if this spell was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?, (.+)", re.I), _kicked),
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
     (re.compile(rf"you gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
@@ -1118,7 +1126,7 @@ _CONDITIONS = [
     (re.compile(rf"you control {_N} or more ([A-Za-z]+)"),
      lambda m: Condition("control_at_least", _count(m[1]), _singular(m[2]))),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
-    (re.compile(rf"{_SELF} was kicked"), lambda m: Condition("kicked")),
+    (re.compile(rf"{_SELF} was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?"), lambda m: Condition("kicked", what=m[1] or "")),
 ]
 
 

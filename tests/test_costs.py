@@ -2,9 +2,10 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.client import Narrator
-from infernal_machine.effects import (AdditionalCost, AlternativeCost, Damage, Draw, IfKicked, KickedInstead,
+from infernal_machine.effects import (AdditionalCost, AlternativeCost, Damage, Draw, GainLife, IfKicked, KickedInstead,
+                                      OpponentsLoseLife,
                                       ReturnToHand, additional_costs, alternative_costs, cost_reductions,
-                                      is_multikicker, kicked_effects, kicker_cost, kicker_other_cost, spell_effects)
+                                      is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, spell_effects)
 from infernal_machine.game import (CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, MULTIKICKER_PROMPT,
                                    SACRIFICE_COST_PROMPT, TARGET_PROMPT, Game, Permanent, StackItem)
 from infernal_machine.report import unsupported_lines
@@ -77,6 +78,30 @@ RUSHING_RIVER = Card(name="Rushing River", mana_cost="{2}{U}", type_line="Instan
                                  "costs as you cast this spell.)\nReturn target nonland permanent to its owner's hand. "
                                  "If this spell was kicked, return another target nonland permanent to its owner's hand.")
 
+PLAINS = Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",))
+BATTLEMAGE = Card(name="Thornscape Battlemage", mana_cost="{2}{G}", type_line="Creature — Elf Wizard", colors=("G",),
+                  power="2", toughness="2",
+                  oracle_text="Kicker {R} and/or {W} (You may pay an additional {R} and/or {W} as you cast this "
+                              "spell.)\nWhen this creature enters, if it was kicked with its {R} kicker, it deals 2 "
+                              "damage to any target.\nWhen this creature enters, if it was kicked with its {W} kicker, "
+                              "destroy target artifact.")
+SPLIT_SPELL = Card(name="Split Kick", mana_cost="{U}", type_line="Sorcery", colors=("U",),
+                   oracle_text="Kicker {1}{B} and/or {1}{R}\nDraw a card. If this spell was kicked with its {1}{B} "
+                               "kicker, you gain 3 life. If this spell was kicked with its {1}{R} kicker, each "
+                               "opponent loses 3 life.")
+
+
+def kick(*costs, then=()):
+    """Policy: pay exactly the kicker costs named in `costs` (from prompts like "Pay the kicker cost for X ({R})"),
+    otherwise behave like pick(*then)."""
+    fallback = pick(*then)
+
+    def policy(prompt, options):
+        if prompt.startswith(KICKER_PROMPT):
+            return 0 if any(prompt.endswith(f"({c})") for c in costs) else 1
+        return fallback(prompt, options)
+    return policy
+
 
 class ParseTests(unittest.TestCase):
     def test_cost_reductions(self):
@@ -111,7 +136,7 @@ class ParseTests(unittest.TestCase):
 
     def test_casting_cost_lines_are_not_effects(self):
         self.assertEqual(spell_effects(RITES), [Draw(2)])
-        self.assertEqual(kicker_cost(ROIL), "{1}{U}")
+        self.assertEqual(kicker_costs(ROIL), ("{1}{U}",))
         self.assertEqual(spell_effects(ROIL), [ReturnToHand("nonland permanent"), IfKicked(Draw(1))])
 
     def test_kicked_effects_can_target(self):
@@ -134,10 +159,20 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(kicker_other_cost(SAC_KICK), AdditionalCost(sacrifice="land"))
         self.assertEqual(kicker_other_cost(LIFE_KICK), AdditionalCost(life=3))
         self.assertEqual(kicker_other_cost(DISCARD_KICK), AdditionalCost(discard=True))
-        self.assertIsNone(kicker_cost(SAC_KICK))
+        self.assertEqual(kicker_costs(SAC_KICK), ())
+
+    def test_two_kicker_costs(self):
+        self.assertEqual(kicker_costs(BATTLEMAGE), ("{R}", "{W}"))
+        self.assertFalse(is_multikicker(BATTLEMAGE))
+        effects = spell_effects(SPLIT_SPELL)
+        self.assertEqual(kicked_effects(effects, 1, ("{1}{B}",)), [Draw(1), GainLife(3)])
+        self.assertEqual(kicked_effects(effects, 2, ("{1}{B}", "{1}{R}")), [Draw(1), GainLife(3), OpponentsLoseLife(3)])
+        self.assertEqual(kicked_effects(effects, 0), [Draw(1)])
+        for card in (BATTLEMAGE, SPLIT_SPELL):
+            self.assertEqual(unsupported_lines(card), [], card.name)
 
     def test_multikicker(self):
-        self.assertEqual(kicker_cost(GNARLID), "{1}{G}")
+        self.assertEqual(kicker_costs(GNARLID), ("{1}{G}",))
         self.assertTrue(is_multikicker(GNARLID))
         self.assertFalse(is_multikicker(ROIL))
         self.assertEqual(unsupported_lines(GNARLID), [])
@@ -442,6 +477,49 @@ class KickerTests(unittest.TestCase):
         game._priority_round(seat)
         self.assertEqual(other.hand, [BEAR])
         self.assertFalse(any(p == KICKER_PROMPT + RUSHING_RIVER.name for p, _ in a.prompts))
+
+    def test_battlemage_with_one_kicker(self):
+        game, a, _ = table(kick("{R}", then=(CAST + BATTLEMAGE.name, "Player: B")))
+        seat, other = game.seats
+        seat.hand = [BATTLEMAGE]
+        seat.battlefield = battlefield(FOREST, FOREST, FOREST, MOUNTAIN, PLAINS)
+        other.battlefield = battlefield(EMERALD)
+        game._priority_round(seat)
+        self.assertEqual(other.life, 38)
+        self.assertEqual([p.card for p in other.battlefield], [EMERALD])
+        battlemage = next(p for p in seat.battlefield if p.card is BATTLEMAGE)
+        self.assertEqual(battlemage.kickers, ("{R}",))
+        prompts = [p for p, _ in a.prompts if p.startswith(KICKER_PROMPT)]
+        self.assertEqual(prompts, [KICKER_PROMPT + "Thornscape Battlemage ({R})",
+                                   KICKER_PROMPT + "Thornscape Battlemage ({W})"])
+
+    def test_battlemage_with_both_kickers(self):
+        game, _, _ = table(kick("{R}", "{W}", then=(CAST + BATTLEMAGE.name, "Player: B", "Emerald")))
+        seat, other = game.seats
+        seat.hand = [BATTLEMAGE]
+        seat.battlefield = battlefield(FOREST, FOREST, FOREST, MOUNTAIN, PLAINS)
+        other.battlefield = battlefield(EMERALD)
+        game._priority_round(seat)
+        self.assertEqual(other.life, 38)
+        self.assertEqual(other.battlefield, [])
+
+    def test_second_kicker_only_offered_when_affordable(self):
+        game, a, _ = table(kick("{R}", "{W}", then=(CAST + BATTLEMAGE.name, "Player: B")))
+        seat, other = game.seats
+        seat.hand = [BATTLEMAGE]
+        seat.battlefield = battlefield(FOREST, FOREST, FOREST, MOUNTAIN)
+        game._priority_round(seat)
+        self.assertEqual([p for p, _ in a.prompts if p.startswith(KICKER_PROMPT)],
+                         [KICKER_PROMPT + "Thornscape Battlemage ({R})"])
+        self.assertEqual(other.life, 38)
+
+    def test_spell_effect_for_a_named_kicker(self):
+        game, _, _ = table(kick("{1}{R}", then=(CAST + SPLIT_SPELL.name,)))
+        seat, other = game.seats
+        seat.hand, seat.library = [SPLIT_SPELL], [OPT]
+        seat.battlefield = battlefield(ISLAND, MOUNTAIN, MOUNTAIN, ISLAND, ISLAND)
+        game._priority_round(seat)
+        self.assertEqual((seat.life, other.life, seat.hand), (40, 37, [OPT]))
 
     def test_kicked_aura_remembers_it(self):
         game, _, _ = table(pick(CAST + KICKED_AURA.name, "Yes", "Grizzly Bears"))

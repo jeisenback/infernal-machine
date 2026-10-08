@@ -116,8 +116,10 @@ winner = game.play()
   - Kicked "instead" wordings change the effect just before them: "it deals N damage instead" (Burst Lightning),
     "create N of those tokens instead" (Saproling Migration) and "draw N cards instead".
   - Kicker costs that aren't mana: "Kicker—Sacrifice a land / a creature / ...", "Kicker—Discard a card." and
-    "Kicker—Pay N life." are paid like additional costs, and only offered when they can be paid. Two kicker costs
-    on one card ("Kicker {1}{B} and/or {1}{R}") aren't supported.
+    "Kicker—Pay N life." are paid like additional costs, and only offered when they can be paid.
+  - Two kicker costs ("Kicker {R} and/or {W}"): each is offered separately, when it can be paid, and
+    "if it was kicked with its {R} kicker" / "If this spell was kicked with its {1}{B} kicker, ..." check that
+    specific cost (Thornscape Battlemage).
   - Additional costs: "As an additional cost to cast this spell, sacrifice a creature / an artifact / an artifact
     or creature / a land / a permanent", "discard a card" or "pay N life". They're paid after mana, so a creature
     that tapped for mana can still be sacrificed. Effects that read the paid cost ("the sacrificed creature's

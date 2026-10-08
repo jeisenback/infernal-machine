@@ -23,7 +23,7 @@ from .characteristics import MINUS, PLUS, Modifier
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Condition, TriggeredAbility, WardCounter,
-                      activated_abilities, additional_costs, alternative_costs, cost_reductions, is_multikicker, kicked_effects, kicker_cost, kicker_other_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
+                      activated_abilities, additional_costs, alternative_costs, cost_reductions, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, cycling_cost, enters_tapped_rule,
                       enters_with_counters, is_identity_mana_land, mana_pain, printed_protection, ward_cost,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_source)
@@ -68,7 +68,7 @@ X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1"
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
 SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
 COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
-KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
+KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name (and " (cost)" with two kickers); YES_NO
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = "Choose a card to exile from your hand"
 WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
@@ -106,6 +106,7 @@ class Permanent:
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
+    kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
 
 
 @dataclass(frozen=True)
@@ -145,6 +146,7 @@ class StackItem:
     source: "Permanent | None" = None  # the ability's source, for effects on "it"
     x: int = 0  # the value chosen for X when it was cast
     kicked: int = 0  # how many times the kicker cost was paid
+    kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
 
 
@@ -462,7 +464,7 @@ class Game:
         return abilities + lands + sacrifices
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
-                 alternative: AlternativeCost | None = None, kicked: int = 0) -> list[Permanent] | None:
+                 alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = ()) -> list[Permanent] | None:
         """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now. An alternative
         cost replaces the mana cost; commander tax and kicker are added, then cost reductions apply."""
         cost = Cost() if alternative else parse_cost(card.mana_cost)
@@ -470,9 +472,8 @@ class Game:
             return None
         if from_command_zone:
             cost = cost.plus_generic(self.commander_tax(seat, card))
-        if kicker := kicker_cost(card):
-            for _ in range(kicked):
-                cost = cost + parse_cost(kicker)
+        for kicker in kickers:
+            cost = cost + parse_cost(kicker)
         return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card)))
 
     def cost_reduction(self, seat: Seat, card: Card) -> int:
@@ -537,9 +538,9 @@ class Game:
         if life:
             self.change_life(seat, -life)
 
-    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kicked: int) -> int:
+    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...]) -> int:
         x = 0
-        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1, kicked=kicked) is not None:
+        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1, kickers=kickers) is not None:
             x += 1
         return x
 
@@ -700,18 +701,18 @@ class Game:
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
             alternative = ways[seat.player.choose(COST_PROMPT + card.name, options)]
-        kicked = self._choose_kicks(seat, card, effects, from_command_zone, alternative)
-        effects = kicked_effects(effects, kicked)
+        kicked, kickers = self._choose_kicks(seat, card, effects, from_command_zone, alternative)
+        effects = kicked_effects(effects, kicked, kickers)
         targets, labels = self._choose_targets(seat, effects, card.name, colors=frozenset(card.colors))
         x = 0
         if alternative is None and parse_cost(card.mana_cost).x:  # casting without paying the mana cost makes X 0
-            options = [str(n) for n in range(self._max_x(seat, card, from_command_zone, kicked) + 1)]
+            options = [str(n) for n in range(self._max_x(seat, card, from_command_zone, kickers) + 1)]
             x = seat.player.choose(X_PROMPT + card.name, options)
-        tapped = self._payment(seat, card, from_command_zone, x, alternative, kicked)
+        tapped = self._payment(seat, card, from_command_zone, x, alternative, kickers)
         self._spend_mana(seat, tapped)
         zone.remove(card)
         self._pay_extras(seat, card, alternative, kicked)
-        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked)
+        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers)
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "command_zone" if from_command_zone else "hand",
@@ -726,23 +727,35 @@ class Game:
         self._check_ward(item)
 
     def _choose_kicks(self, seat: Seat, card: Card, effects: list | None, from_command_zone: bool,
-                      alternative: AlternativeCost | None) -> int:
-        """Ask how many times to pay the kicker cost: yes or no, or any affordable number for multikicker.
-        Kicking is only offered when the kicked spell's targets exist."""
-        if kicker_cost(card) is None and kicker_other_cost(card) is None:
-            return 0
-        if not self._targets_exist(seat, kicked_effects(effects, 1) or [], frozenset(card.colors)):
-            return 0
-        most = 0
-        while (most < (MAX_X if is_multikicker(card) else 1)
-               and self._can_pay_extras(seat, card, alternative, most + 1)
-               and self._payment(seat, card, from_command_zone, alternative=alternative, kicked=most + 1) is not None):
-            most += 1
-        if not most:
-            return 0
+                      alternative: AlternativeCost | None) -> tuple[int, tuple[str, ...]]:
+        """Ask which kicker costs to pay: yes or no, any affordable number for multikicker, or each of two kicker
+        costs. Returns (times kicked, mana kicker costs paid). A kick is only offered when it can be paid and the
+        spell's kicked targets exist."""
+        costs = kicker_costs(card)
+        if not costs and kicker_other_cost(card) is None:
+            return 0, ()
+
+        def possible(kickers: tuple[str, ...], kicked: int) -> bool:
+            return (self._targets_exist(seat, kicked_effects(effects, kicked, kickers) or [], frozenset(card.colors))
+                    and self._can_pay_extras(seat, card, alternative, kicked)
+                    and self._payment(seat, card, from_command_zone, alternative=alternative, kickers=kickers) is not None)
+
         if is_multikicker(card):
-            return seat.player.choose(MULTIKICKER_PROMPT + card.name, [str(n) for n in range(most + 1)])
-        return 1 if seat.player.choose(KICKER_PROMPT + card.name, YES_NO) == 0 else 0
+            most = 0
+            while most < MAX_X and possible(costs * (most + 1), most + 1):
+                most += 1
+            times = seat.player.choose(MULTIKICKER_PROMPT + card.name, [str(n) for n in range(most + 1)]) if most else 0
+            return times, costs * times
+        if len(costs) == 2:
+            chosen: tuple[str, ...] = ()
+            for cost in costs:
+                if (possible(chosen + (cost,), len(chosen) + 1)
+                        and seat.player.choose(f"{KICKER_PROMPT}{card.name} ({cost})", YES_NO) == 0):
+                    chosen += (cost,)
+            return len(chosen), chosen
+        if possible(costs, 1) and seat.player.choose(KICKER_PROMPT + card.name, YES_NO) == 0:
+            return 1, costs
+        return 0, ()
 
     # --- what players see ----------------------------------------------------
 
@@ -791,7 +804,8 @@ class Game:
             return
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked), x=item.x)
+            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked,
+                                        kickers=item.kickers), x=item.x)
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
@@ -810,7 +824,7 @@ class Game:
             self._move_card(seat, card, "graveyard")
             return
         self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-        self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked))
+        self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked, kickers=item.kickers))
         self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
 
     def attach(self, attachment: Permanent, creature: Permanent) -> None:
@@ -893,8 +907,8 @@ class Game:
     def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None) -> bool:
         """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`."""
         kind = condition.kind
-        if kind == "kicked":
-            return source is not None and source.kicked
+        if kind == "kicked":  # "if it was kicked (with its {R} kicker)"
+            return source is not None and bool(source.kicked) and (not condition.what or condition.what in source.kickers)
         if kind == "graveyard_left":
             return seat.graveyard_left_turn == self.turn
         if kind == "gained_life":
