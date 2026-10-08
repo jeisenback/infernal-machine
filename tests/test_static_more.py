@@ -5,6 +5,7 @@ from infernal_machine.combat import Attack
 from infernal_machine.effects import attached_abilities, static_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR
 from tests.test_mass_effects import table3
 
@@ -28,13 +29,11 @@ WIGHT = creature("Wight of the Reliquary", "This creature gets +1/+1 for each cr
                  "Creature — Vampire Skeleton", ("B",), "1", "1")
 SPIRITDANCER = creature("Kor Spiritdancer", "This creature gets +2/+2 for each Aura attached to it.", "Creature — Kor Wizard",
                         ("W",), "0", "2")
-REVERIE = Card(name="Test Sage's Reverie", type_line="Enchantment — Aura", oracle_text="Enchant creature\nEnchanted creature gets +1/+1 "
-               "for each Aura you control that's attached to a creature.")
-BLESSING = Card(name="Test Blessing", type_line="Enchantment — Aura", oracle_text="Enchant creature")
+REVERIE = REAL["Sage's Reverie"]
+BLESSING = REAL["Pacifism"]
 IMPETUS = Card(name="Ghoulish Impetus", type_line="Enchantment — Aura",
                oracle_text="Enchant creature\nEnchanted creature gets +1/+1, has deathtouch, and is goaded.")
-MARTIAL = Card(name="Test Martial Impetus", type_line="Enchantment — Aura",
-               oracle_text="Enchant creature\nEnchanted creature gets +1/+1 and is goaded.")
+MARTIAL = REAL["Martial Impetus"]
 TRINKET = Card(name="Trinket", type_line="Artifact")
 GRAVE_BEAR = creature("Grave Bear")
 

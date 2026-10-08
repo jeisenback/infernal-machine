@@ -4,6 +4,7 @@ import unittest
 from dataclasses import replace
 
 from infernal_machine.cards import Card
+from infernal_machine.combat import Attack
 from infernal_machine.effects import activated_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.game import MODE_PROMPT, OPENING_PROMPT
@@ -172,3 +173,39 @@ class GyomeTests(unittest.TestCase):
         game._trigger_each("end_step", a)
         run_stack(game)
         self.assertEqual(sum(p.card.name == "Food" for p in a.battlefield), 2)
+
+
+class WildGrowthTests(unittest.TestCase):
+    def test_the_enchanted_land_makes_an_extra_green_mana(self):
+        game, _ = table3()
+        a = game.seats[0]
+        plains = Permanent(Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",)))
+        a.battlefield = [plains]
+        self.assertIsNone(game._payment(a, Card(name="Two", mana_cost="{W}{G}", type_line="Sorcery")))
+        a.battlefield.append(Permanent(REAL["Wild Growth"], attached_to=plains))
+        self.assertIsNotNone(game._payment(a, Card(name="Two", mana_cost="{W}{G}", type_line="Sorcery")))
+        self.assertIsNone(game._payment(a, Card(name="Three", mana_cost="{W}{G}{G}", type_line="Sorcery")))
+
+
+class SagesReverieTests(unittest.TestCase):
+    def test_it_draws_a_card_for_each_aura_attached_to_a_creature(self):
+        game, _ = table3()
+        a = game.seats[0]
+        bear = Permanent(BEAR)
+        a.battlefield = [bear, Permanent(REAL["Pacifism"], attached_to=bear)]
+        a.library = [BEAR] * 5
+        game._enter(a, Permanent(REAL["Sage's Reverie"], attached_to=bear))
+        run_stack(game)
+        self.assertEqual(len(a.hand), 2)
+
+
+class MartialImpetusTests(unittest.TestCase):
+    def test_the_other_attackers_get_a_bonus(self):
+        game, _ = table3()
+        a, b, c = game.seats
+        host, friend = Permanent(BEAR), Permanent(BEAR)
+        a.battlefield = [host, friend, Permanent(REAL["Martial Impetus"], attached_to=host)]
+        game.combat.attacks = [Attack(host, a, b), Attack(friend, a, c)]
+        game.trigger("host_attacks", a.battlefield[2], a, host)
+        run_stack(game)
+        self.assertEqual((game.power(host), game.power(friend)), (3, 3))  # +1/+1 from the Aura itself, and from the trigger

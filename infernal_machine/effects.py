@@ -797,6 +797,19 @@ class PumpEach:
 
 
 @dataclass(frozen=True)
+class PumpOtherAttackers:
+    """Martial Impetus: "Each other creature that's attacking one of your opponents gets +1/+1 until end of turn." The
+    creature that set the trigger off is the one left out."""
+    modifier: Modifier
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        for attack in list(game.combat.attacks):
+            if attack.attacker is not (item.subject if item else None) and attack.defender is not controller:
+                game.modify_until_end_of_turn(attack.attacker, self.modifier)
+
+
+@dataclass(frozen=True)
 class PumpEachX:
     """ "All creatures get -X/-X until end of turn." (Toxic Deluge) / "Creatures you control get +X/+X ...": `power` and
     `toughness` are multiples of X."""
@@ -1122,6 +1135,19 @@ def granted_mana(card: Card) -> list[frozenset[str]]:
         if (m := _GRANT.fullmatch(line)) and any(p.fullmatch(m[1]) for p in (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY)):
             return _mana_from_line(m[1], frozenset()) or []
     return []
+
+
+_ADDITIONAL_MANA = re.compile(r"Whenever enchanted land is tapped for mana, its controller adds an additional "
+                              r"(?:\{([WUBRG])\}|one mana of any color)\.")
+
+
+def additional_land_mana(card: Card) -> list[frozenset[str]]:
+    """Wild Growth and Fertile Ground: the extra mana the enchanted land makes whenever it is tapped for mana."""
+    return [frozenset(m[1] or "WUBRG") for line in rules_lines(card) if (m := _ADDITIONAL_MANA.fullmatch(line))]
+
+
+def is_additional_mana_line(line: str) -> bool:
+    return _ADDITIONAL_MANA.fullmatch(line) is not None
 
 
 @lru_cache(maxsize=None)
@@ -1496,6 +1522,8 @@ class Amount:
 _AMOUNTS = [
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
     (re.compile(r"the sacrificed creature's power", re.I), lambda m: Amount("sacrificed_power")),
+    (re.compile(r"(?:the number of )?Auras? you control that's attached to a creature", re.I),
+     lambda m: Amount("auras_on_creatures")),
     (re.compile(r"the number of nontoken creatures you had enter the battlefield under your control this turn", re.I),
      lambda m: Amount("creatures_entered")),
     (re.compile(r"(?:the number of )?([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters? on (?:it|this creature|this artifact|CARDNAME)",
@@ -3166,6 +3194,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
     (re.compile(rf"target {_PERMANENT_KIND} can't be blocked this turn\.", re.I),
      lambda m: Pump(Modifier(keywords=frozenset({CANT_BE_BLOCKED})), m[1].lower())),
+    (re.compile(rf"(?i:each other creature that's attacking one of your opponents) {_CHANGE}"),
+     lambda m: PumpOtherAttackers(_modifier(m, 1))),
     (re.compile(rf"(?i:one or two target creatures each) {_CHANGE}"),
      lambda m: [Pump(_modifier(m, 1), "creature"), Pump(_modifier(m, 1), "creature", optional_target=True, distinct=True)]),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} gets? {_PT_X} until end of turn\."),

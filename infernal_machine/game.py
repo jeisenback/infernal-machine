@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -748,11 +748,13 @@ class Game:
                     continue
                 gifted = [mana for other in self.seats for a in other.battlefield if a.attached_to is permanent
                           for mana in granted_mana(a.card)]  # "Enchanted land has "{T}: Add {G}{G}."": the better of the two
+                extra = [ManaSource(permanent, mana, pain, damage) for other in self.seats for a in other.battlefield
+                         if a.attached_to is permanent for mana in additional_land_mana(a.card)]  # Wild Growth
                 if units := land_mana_units(card):  # a bounceland or Ancient Tomb makes several mana in one tap
-                    lands.extend(ManaSource(permanent, mana, pain, damage) for mana in units)
+                    lands.extend([ManaSource(permanent, mana, pain, damage) for mana in units] + extra)
                     continue
                 if len(gifted) > 1:  # more mana than the land's own single one
-                    lands.extend(ManaSource(permanent, mana, pain, damage) for mana in gifted)
+                    lands.extend([ManaSource(permanent, mana, pain, damage) for mana in gifted] + extra)
                     continue
                 # Command Tower makes only the colors of your commander, whatever the card data lists.
                 types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
@@ -760,7 +762,7 @@ class Game:
                     types = self._reflected_types(seat, *reflect)
                     if not types:
                         continue
-                lands.append(ManaSource(permanent, _snowy(permanent, types), pain, damage))
+                lands.extend([ManaSource(permanent, _snowy(permanent, types), pain, damage)] + extra)
             elif not (permanent.sick and "Creature" in card.type_line):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
                 for mana in mana_ability(card, seat.color_identity) or []:
@@ -1398,6 +1400,9 @@ class Game:
             if source is None:
                 return 0
             return self.power(source) if self.on_battlefield(source) else source.last_power  # last known (CR 608.2h)
+        if kind == "auras_on_creatures":
+            return sum(1 for p in controller.battlefield if "Aura" in p.card.type_line and p.attached_to is not None
+                       and "Creature" in p.attached_to.card.type_line)
         if kind == "creatures_entered":  # nontoken creatures that entered under your control this turn
             return controller.creatures_entered if controller.creatures_entered_turn == self.turn else 0
         if kind == "sacrificed_power":  # the creature sacrificed to pay this ability's cost

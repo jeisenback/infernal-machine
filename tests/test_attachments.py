@@ -5,6 +5,7 @@ from infernal_machine.cards import Card, Deck
 from infernal_machine.effects import attached_abilities, aura_kind, equip_cost
 from infernal_machine.game import ACTIVATE, CAST, PASS, TARGET_PROMPT, Game, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, attack_all
 from tests.test_effects import FOREST, lands, pick, table
 from tests.test_exile import OGRE
@@ -19,9 +20,7 @@ PACIFISM = Card(name="Pacifism", mana_cost="{1}{W}", type_line="Enchantment — 
                 oracle_text="Enchant creature\nEnchanted creature can't attack or block.")
 ARMOR = Card(name="Armor", mana_cost="{1}{W}", type_line="Enchantment — Aura",
              oracle_text="Enchant creature you control\nEnchanted creature gets +2/+2 and has vigilance.")
-GROWTH = Card(name="Test Wild Growth", mana_cost="{G}", type_line="Enchantment — Aura", oracle_text="Enchant land")
-
-
+GROWTH = REAL["Wild Growth"]
 def equip(game, seat, name):
     return [a for a in game.legal_actions(seat) if a.startswith(ACTIVATE) and name in a and "Equip" in a]
 
