@@ -661,9 +661,13 @@ winner = game.play()
   | Sacrifice a creature / another creature / an artifact (land, enchantment, permanent) | "Sacrifice a creature: Draw a card." |
   | Discard a card | "{1}, Discard a card: Draw a card." |
   | Exile a card from your graveyard | "{1}, Exile a card from your graveyard: You gain 1 life." |
+  | Remove a counter from this (+1/+1 or a named one) | "{2}{G}, Remove a +1/+1 counter from this creature: Destroy target artifact or enchantment." |
+  | Sacrifice a Food / Treasure / Clue | "{1}, Sacrifice a Food: Target creature gains indestructible until end of turn. Tap it." |
 
   - They can be activated whenever you have priority, unless they say "Activate only as a sorcery".
     "Activate only once each turn" is respected.
+    "Activate only if <condition>" (and "... as a sorcery and only if ...") uses the same conditions as triggers,
+    plus "you control two or more white permanents". "Target creature can't be blocked this turn" is understood.
   - Loyalty abilities: one per planeswalker per turn, at sorcery speed, and loyalty can't go below 0.
   - Creatures can't use {T} abilities the turn they arrive (unless they have haste).
   - A permanent can't tap itself for mana to pay for its own {T} or sacrifice ability.

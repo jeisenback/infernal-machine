@@ -551,6 +551,10 @@ class Game:
             return False
         if ability.sacrifice_other and len(self._sacrifice_choices(seat, permanent, ability)) < ability.sacrifice_count:
             return False
+        if ability.remove_counter and not permanent.counters.get(ability.remove_counter, 0):
+            return False
+        if ability.condition and not self.condition_holds(ability.condition, seat, permanent):
+            return False
         if ability.reconfigure == "unattach" and permanent.attached_to is None:
             return False
         if ability.reconfigure == "attach" and not any(p is not permanent and "Creature" in p.card.type_line
@@ -631,6 +635,8 @@ class Game:
             self._move_card(seat, card, "exile")
         if ability.exile_graveyard:
             self._left_graveyard(seat)
+        if ability.remove_counter:
+            self.remove_counters(source, ability.remove_counter, 1)
         chosen = []
         for _ in range(ability.sacrifice_count if ability.sacrifice_other else 0):
             options = [p for p in self._sacrifice_choices(seat, source, ability) if p not in chosen]
@@ -1379,6 +1385,9 @@ class Game:
             return len(seat.hand) >= condition.count
         if kind == "hand_none":
             return not seat.hand
+        if kind == "control_color_at_least":
+            letter = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[condition.what]
+            return sum(letter in p.card.colors for p in seat.battlefield) >= condition.count
         if kind == "gained_life_at_least":
             return seat.life_gained_turn == self.turn and seat.life_gained_amount >= condition.count
         if kind == "creatures_died":
