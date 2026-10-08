@@ -1900,6 +1900,31 @@ def is_enters_prepared_line(line: str) -> bool:
 
 
 @dataclass(frozen=True)
+class ReturnDeadToBattlefield:
+    """Changing Loyalty and Gift of Immortality: "When enchanted creature dies, return it / that card to the battlefield
+    under your / its owner's control." It is already in the graveyard when this resolves."""
+    under_owner: bool
+    uses_dead_subject = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.return_dead_to_battlefield(target, controller, self.under_owner)
+
+
+@dataclass(frozen=True)
+class ReturnAuraToBattlefield:
+    """Screams from Within, Ghoulish Impetus and Gift of Immortality: "When enchanted creature dies, return this card
+    [from your graveyard] to the battlefield [attached to that creature] [at the beginning of the next end step]." """
+    when: str = "now"  # or "end_step"
+    to_host: bool = False  # it comes back attached to the creature that died (which came back first); otherwise you choose
+    uses_dead_both = True  # resolves with (the Aura, the creature that died)
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.return_aura(target[0], controller, self.when, target[1] if self.to_host else None)
+
+
+@dataclass(frozen=True)
 class Goad:
     target: str
 
@@ -2441,7 +2466,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
-    (re.compile(rf"return {_SELF} to its owner's hand\.", re.I), lambda m: ReturnSelfToHand()),
+    (re.compile(rf"return (?:{_SELF}|this card) to its owner's hand\.", re.I), lambda m: ReturnSelfToHand()),
     (re.compile(r"tap all creatures your opponents control\.", re.I), lambda m: TapAll()),
     (re.compile(r"investigate\.", re.I), lambda m: CreateTokens(1, CLUE)),
     (re.compile(rf"{_VOTE_PREFIX}starting with you, each player votes for (\w+) or (\w+)\.", re.I),
@@ -2977,6 +3002,20 @@ _PLAYER_PRONOUNS = [
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
 
 
+# What an Aura says when its creature dies, in terms of "it" (the creature, already gone) and "this card" (the Aura).
+_AURA_RETURNS = [
+    (re.compile(r"return it to the battlefield under your control\.", re.I),
+     lambda: [ReturnDeadToBattlefield(under_owner=False)]),
+    (re.compile(r"return that card to the battlefield under its owner's control\. Return this card to the battlefield "
+                r"attached to that creature at the beginning of the next end step\.", re.I),
+     lambda: [ReturnDeadToBattlefield(under_owner=True), ReturnAuraToBattlefield("end_step", to_host=True)]),
+    (re.compile(r"return this card to the battlefield at the beginning of the next end step\.", re.I),
+     lambda: [ReturnAuraToBattlefield("end_step")]),
+    (re.compile(r"return this card from your graveyard to the battlefield\.", re.I),
+     lambda: [ReturnAuraToBattlefield("now")]),
+]
+
+
 def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     line = _ABILITY_WORD.sub("", line)
     if m := _WATCHES["cast"].fullmatch(line):
@@ -3132,7 +3171,11 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
             match = pattern.fullmatch(bare)
             if not match:
                 continue
-            if event in _OBJECT_EVENTS or event in _PLAYER_EVENTS or event in _HOST_GONE:
+            aura_return = next((build() for pattern, build in _AURA_RETURNS if event == "host_dies"
+                                and pattern.fullmatch(match[1])), None)
+            if aura_return is not None:
+                effects, optional, once, condition = aura_return, False, False, None
+            elif event in _OBJECT_EVENTS or event in _PLAYER_EVENTS or event in _HOST_GONE:
                 effects, optional, once, condition = _event_body(match[1], event in _OBJECT_EVENTS,
                                                                  event in _PLAYER_EVENTS)
             else:

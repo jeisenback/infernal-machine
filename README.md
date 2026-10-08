@@ -348,7 +348,10 @@ winner = game.play()
     player, ..." (the Equipment's or Aura's controller gets the trigger). "When this Aura is put into a graveyard
     from the battlefield, return it to its owner's hand" (Rancor) works for any permanent, and so does "When
     enchanted creature dies, return this Aura to its owner's hand": it comes back from the graveyard it is in.
-    Exiled, it isn't returned.
+    Exiled, it isn't returned. Other Aura returns on "When enchanted creature dies" work too: "return it to the
+    battlefield under your control" (Changing Loyalty), "return this card from your graveyard to the battlefield"
+    (Screams from Within) and "... at the beginning of the next end step" (Ghoulish Impetus) with you choosing what
+    it enchants (it stays in the graveyard if nothing is legal), and Gift of Immortality's creature-then-Aura pair.
   - **Granting abilities:** "Enchanted (or equipped) creature has "{T}: Draw a card."" lets that creature activate it
     (a summoning-sick one can't use {T}). "Enchanted land has "{T}: Add {G}{G}."" makes the land tap for that mana
     instead of its own single mana. A quoted ability that isn't understood leaves the card unsupported.

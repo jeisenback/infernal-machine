@@ -1297,6 +1297,10 @@ class Game:
                 target = item.player if item.player and not item.player.lost else None
             elif uses_subject(effect):
                 target = item.subject if item.subject and self.on_battlefield(item.subject) else None
+            elif getattr(effect, "uses_dead_subject", False):
+                target = item.subject  # "When enchanted creature dies, return it ...": the creature has already left
+            elif getattr(effect, "uses_dead_both", False):
+                target = (item.source, item.subject) if item.source else None
             elif getattr(effect, "uses_dead_source", False):
                 target = item.source  # persist and undying: the creature has already left the battlefield
             elif uses_source(effect):
@@ -1722,6 +1726,46 @@ class Game:
             seat.hand.append(card)
         else:
             self._enter(controller, Permanent(card, sick=True, tapped=tapped, loyalty=_starting_loyalty(card), owner=seat))
+
+    def _graveyard_of(self, card: Card) -> Seat | None:
+        return next((s for s in self.seats if any(c is card for c in s.graveyard)), None)
+
+    def return_dead_to_battlefield(self, dead: Permanent, controller: Seat, under_owner: bool) -> None:
+        """A creature that just died comes back from its owner's graveyard, under `controller`'s control unless
+        `under_owner`."""
+        holder = self._graveyard_of(dead.card)
+        if holder is not None:
+            self.return_from_graveyard(GraveyardTarget(dead.card, holder), holder if under_owner else controller,
+                                       "battlefield")
+
+    def return_aura(self, source: Permanent, controller: Seat, when: str, host: Permanent | None) -> None:
+        """An Aura in a graveyard comes back to the battlefield, right away ("now") or as the next end step begins.
+        It enters attached to what `controller` chooses, or to `host` (the creature that died, if it is back)."""
+        card = source.card
+
+        def bring_back() -> None:
+            holder = self._graveyard_of(card)
+            if holder is None or controller.lost:
+                return
+            if host is not None:  # the creature came back as a new object
+                options = [("", p) for s in self.live_seats() for p in s.battlefield if p.card is host.card]
+            else:
+                options = self.target_options(aura_kind(card) or "creature", controller, source_qualities(card))
+            if not options:
+                return  # nothing to enchant: it stays in the graveyard
+            pick = controller.player.choose(f"Enchant which permanent with {card.name}? ", [name for name, _ in options])                 if len(options) > 1 else 0
+            target = options[pick][1]
+            holder.graveyard = [c for c in holder.graveyard if c is not card]
+            self.broadcast({"event": "left_graveyard", "seat": holder.index, "card": card.name, "to": "battlefield"})
+            self._left_graveyard(holder)
+            self._enter(controller, Permanent(card, sick=True, attached_to=target, owner=holder))
+            self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
+
+        if when == "now":
+            bring_back()
+        else:
+            fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+            self.at_end_step.append((fire_turn, bring_back))
 
     def exile_from_graveyard(self, target: GraveyardTarget) -> None:
         seat, card = target.seat, target.card
@@ -2414,7 +2458,7 @@ class Game:
                 self.trigger("dies", permanent, controller)
                 for attachment, attachment_seat in everyone:  # "When enchanted creature dies"
                     if attachment.attached_to is permanent:
-                        self.trigger("host_dies", attachment, attachment_seat)
+                        self.trigger("host_dies", attachment, attachment_seat, subject=permanent)
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
             self._observe("permanent_leaves", permanent.card, controller, subject=permanent, extra=gone)
             if permanent.real_card is not None:  # a Clone goes to the graveyard as itself
