@@ -95,3 +95,14 @@ class CharmingPrinceTests(unittest.TestCase):
         game.step = "end"
         game._turn_based_actions(a)
         self.assertEqual(sorted(p.card.name for p in a.battlefield), ["Bear", "Charming Prince"])
+
+
+class BenevolentHydraTests(unittest.TestCase):
+    def test_other_creatures_get_one_more_counter_but_not_the_hydra(self):
+        game, _ = table3()
+        a = game.seats[0]
+        hydra, bear = Permanent(REAL["Benevolent Hydra"]), Permanent(BEAR)
+        a.battlefield = [hydra, bear]
+        game.put_counters(bear, "+1/+1", 1)
+        game.put_counters(hydra, "+1/+1", 1)
+        self.assertEqual((bear.counters, hydra.counters), ({"+1/+1": 2}, {"+1/+1": 1}))

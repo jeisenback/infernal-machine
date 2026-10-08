@@ -994,6 +994,8 @@ _DOUBLE_COUNTERS = ("If an effect would put one or more counters on a permanent 
                     "of those counters on that permanent instead.")
 _DOUBLE_COUNTERS_OLD = ("If an effect would put one or more counters on a permanent you control, it puts twice that "
                         "many of those counters instead.")  # the wording before the Oracle update
+_PLUS_ONE_OTHERS = ("If one or more +1/+1 counters would be put on another creature you control, that many plus one "
+                    "+1/+1 counters are put on it instead.")
 _PLUS_ONE_COUNTERS = ("If one or more +1/+1 counters would be put on a creature you control, that many plus one "
                       "+1/+1 counters are put on it instead.")
 _EXTRA_TRIGGER = re.compile(r"If (an artifact or creature|a permanent) entering(?: the battlefield)? causes a triggered "
@@ -1007,6 +1009,7 @@ class Replacements:
     tokens: int = 1  # how many times as many tokens its controller creates
     counters: int = 1  # how many times as many counters go on its controller's permanents
     plus_one: int = 0  # extra +1/+1 counters on its controller's creatures
+    plus_one_others: int = 0  # the same, but not on the permanent itself (Benevolent Hydra)
     extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice
 
 
@@ -1024,6 +1027,8 @@ def replacement_effects(card: Card) -> Replacements:
             found["counters"] = found.get("counters", 1) * 2
         elif line == _PLUS_ONE_COUNTERS:
             found["plus_one"] = found.get("plus_one", 0) + 1
+        elif line == _PLUS_ONE_OTHERS:
+            found["plus_one_others"] = found.get("plus_one_others", 0) + 1
         elif m := _EXTRA_TRIGGER.fullmatch(line):
             found["extra_trigger"] = m[1].removeprefix("an ").removeprefix("a ")
     return Replacements(**found)
@@ -1031,7 +1036,7 @@ def replacement_effects(card: Card) -> Replacements:
 
 def is_replacement_line(line: str) -> bool:
     return (line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
-                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
+                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
 
 
 _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy of "

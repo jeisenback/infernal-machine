@@ -5,6 +5,7 @@ from infernal_machine.characteristics import Modifier
 from infernal_machine.effects import (CANT_BE_BLOCKED, Condition, FOOD, PutCounters, TapThat, activated_abilities)
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR
 from tests.test_effects import lands
 from tests.test_mass_effects import table3
@@ -15,9 +16,7 @@ PASSAGE = Card(name="Rogue's Passage", type_line="Land",
 STEELBANE = Card(name="Steelbane Hydra", mana_cost="{X}{G}", type_line="Creature — Hydra", power="0", toughness="0",
                  oracle_text="This creature enters with X +1/+1 counters on it.\n{2}{G}, Remove a +1/+1 counter from this "
                              "creature: Destroy target artifact or enchantment.")
-BENEVOLENT = Card(name="Test Benevolent Hydra", mana_cost="{X}{G}", type_line="Creature — Hydra", power="0", toughness="0",
-                  oracle_text="{T}, Remove a +1/+1 counter from this creature: Put a +1/+1 counter on another target "
-                              "creature you control.")
+BENEVOLENT = REAL["Benevolent Hydra"]
 STAFF = Card(name="Test Staff of the Storyteller", mana_cost="{3}", type_line="Artifact",
              oracle_text="{W}, {T}, Remove a story counter from this artifact: Draw a card.")
 GYOME = Card(name="Test Gyome, Master Chef", mana_cost="{3}{G}", type_line="Legendary Creature — Troll Warlock", power="3", toughness="3",
@@ -134,7 +133,7 @@ class RemoveCounterTests(unittest.TestCase):
         hydra, other = Permanent(BENEVOLENT, counters={"+1/+1": 1}), Permanent(BEAR)
         a.battlefield = [hydra, other]
         activate(game, a, "Put a +1/+1 counter")
-        self.assertEqual((hydra.counters.get("+1/+1", 0), other.counters["+1/+1"]), (0, 1))
+        self.assertEqual((hydra.counters.get("+1/+1", 0), other.counters["+1/+1"]), (0, 2))  # the Hydra adds one more
 
 
 class SacrificeFoodTests(unittest.TestCase):

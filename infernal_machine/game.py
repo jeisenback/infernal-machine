@@ -2192,7 +2192,7 @@ class Game:
     def put_counters(self, permanent: Permanent, counter: str, count: int) -> None:
         holder = self.controller_of(permanent)
         if holder is not None:
-            count = self._counters_to_add(holder, permanent.card, counter, count)
+            count = self._counters_to_add(holder, permanent.card, counter, count, permanent)
         permanent.counters[counter] = permanent.counters.get(counter, 0) + count
         self.broadcast({"event": "counters", "card": permanent.card.name, "counter": counter,
                         "added": count, "total": permanent.counters[counter]})
@@ -2755,7 +2755,7 @@ class Game:
         if clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
             self._become_copy(seat, permanent, *clone)
         for counter, count in enters_with_counters(permanent.card, permanent.kicked).items():  # CR 614.1c: it arrives with them
-            number = self._counters_to_add(seat, permanent.card, counter, x if count == "X" else count)
+            number = self._counters_to_add(seat, permanent.card, counter, x if count == "X" else count, permanent)
             permanent.counters[counter] = permanent.counters.get(counter, 0) + number
         permanent.owner = permanent.owner or seat
         if enters_prepared(permanent.card):
@@ -2943,11 +2943,14 @@ class Game:
             factor *= getattr(replacement_effects(permanent.card), attribute)
         return factor
 
-    def _counters_to_add(self, seat: Seat, card: Card, counter: str, count: int) -> int:
-        """Counters going onto a permanent `seat` controls: +1/+1 counters get Hardened Scales' extra one first,
-        then Doubling Season doubles."""
+    def _counters_to_add(self, seat: Seat, card: Card, counter: str, count: int,
+                         receiver: Permanent | None = None) -> int:
+        """Counters going onto a permanent `seat` controls: +1/+1 counters get Hardened Scales' extra one first
+        (Benevolent Hydra's only for other creatures), then Doubling Season doubles."""
         if counter == "+1/+1" and "Creature" in card.type_line:
-            count += sum(replacement_effects(p.card).plus_one for p in seat.battlefield)
+            for p in seat.battlefield:
+                replacements = replacement_effects(p.card)
+                count += replacements.plus_one + (replacements.plus_one_others if p is not receiver else 0)
         return count * self._factor(seat, "counters")
 
     def _trigger_times(self, controller: Seat, event: str, entering: Card | None) -> int:
