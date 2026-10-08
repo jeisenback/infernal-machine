@@ -2216,6 +2216,8 @@ class Game:
             self._enter(seat, made)
             if counters:
                 self.put_counters(made, counters[1], counters[0])
+        if count and "Creature" in token.type_line:  # once for the whole batch: "one or more creature tokens"
+            self._trigger_each("tokens_created", seat)
 
     def exile(self, permanent: Permanent) -> None:
         self._leave_battlefield(permanent, "exiled", destination="exile")

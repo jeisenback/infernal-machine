@@ -17,8 +17,7 @@ STEELBANE = Card(name="Steelbane Hydra", mana_cost="{X}{G}", type_line="Creature
                  oracle_text="This creature enters with X +1/+1 counters on it.\n{2}{G}, Remove a +1/+1 counter from this "
                              "creature: Destroy target artifact or enchantment.")
 BENEVOLENT = REAL["Benevolent Hydra"]
-STAFF = Card(name="Test Staff of the Storyteller", mana_cost="{3}", type_line="Artifact",
-             oracle_text="{W}, {T}, Remove a story counter from this artifact: Draw a card.")
+STAFF = REAL["Staff of the Storyteller"]
 GYOME = Card(name="Test Gyome, Master Chef", mana_cost="{3}{G}", type_line="Legendary Creature — Troll Warlock", power="3", toughness="3",
              oracle_text="{1}, Sacrifice a Food: Target creature gains indestructible until end of turn. Tap it.")
 HALL = Card(name="Hall of Oracles", type_line="Land",

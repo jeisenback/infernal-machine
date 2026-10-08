@@ -3615,6 +3615,7 @@ _TRIGGERS = {
     "ally_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
     "attacked": re.compile(r"Whenever a creature attacks you, (.+)", re.I),
     "attacked_or_walker": re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),
+    "tokens_created": re.compile(r"Whenever you create one or more creature tokens, (.+)", re.I),
     "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
     "opponent_gain_life": re.compile(r"Whenever an opponent gains life, (.+)", re.I),

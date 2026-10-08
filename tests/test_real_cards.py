@@ -106,3 +106,19 @@ class BenevolentHydraTests(unittest.TestCase):
         game.put_counters(bear, "+1/+1", 1)
         game.put_counters(hydra, "+1/+1", 1)
         self.assertEqual((bear.counters, hydra.counters), ({"+1/+1": 2}, {"+1/+1": 1}))
+
+
+class StaffOfTheStorytellerTests(unittest.TestCase):
+    def test_creating_creature_tokens_adds_a_story_counter(self):
+        game, _ = table3()
+        a = game.seats[0]
+        staff = Permanent(REAL["Staff of the Storyteller"])
+        game._enter(a, staff)  # its own Spirit token is the first one
+        run_stack(game)
+        self.assertEqual(staff.counters, {"story": 1})
+        game.create_tokens(a, Card(name="Soldier", type_line="Token Creature — Soldier", power="1", toughness="1"), 3)
+        run_stack(game)
+        self.assertEqual(staff.counters, {"story": 2})  # once for the whole batch
+        game.create_tokens(a, Card(name="Treasure", type_line="Token Artifact — Treasure"), 1)
+        run_stack(game)
+        self.assertEqual(staff.counters, {"story": 2})

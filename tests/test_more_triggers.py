@@ -407,9 +407,11 @@ class OncePerTurnTests(unittest.TestCase):
 
 
 def run_stack(game):
-    game._put_triggers_on_stack()
-    while game.stack:
-        game._resolve(game.stack.pop())
+    """Put the triggers on the stack and resolve everything, including what resolving triggers in turn."""
+    while game.pending or game.stack:
+        game._put_triggers_on_stack()
+        while game.stack:
+            game._resolve(game.stack.pop())
 
 
 class XSpellTests(unittest.TestCase):
