@@ -25,7 +25,7 @@ from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
-                      enters_prepared, enters_with_counters, graveyard_casts, mana_condition, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
+                      enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, no_max_hand_size, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
@@ -438,7 +438,7 @@ class Game:
             for permanent in list(seat.battlefield):
                 self.trigger("second_main", permanent, seat)
         elif self.step == "cleanup":
-            excess = len(seat.hand) - HAND_SIZE
+            excess = 0 if any(no_max_hand_size(p.card) for p in seat.battlefield) else len(seat.hand) - HAND_SIZE
             for _ in range(max(0, excess)):
                 i = seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])
                 card = seat.hand.pop(i)
@@ -2358,9 +2358,10 @@ class Game:
         for seat in self._turn_order(starter.index):
             if seat.lost:
                 continue
-            choice = seat.player.choose(VOTE_PROMPT + source, options)
-            counts[choice] += 1
-            self.broadcast({"event": "vote", "seat": seat.index, "choice": options[choice]})
+            for _ in range(1 + sum(extra_votes(p.card) for p in seat.battlefield)):  # "you may vote an additional time"
+                choice = seat.player.choose(VOTE_PROMPT + source, options)
+                counts[choice] += 1
+                self.broadcast({"event": "vote", "seat": seat.index, "choice": options[choice]})
         return counts
 
     def vote_to_exile(self, starter: Seat) -> None:
@@ -2858,6 +2859,10 @@ def _split_controller(kind: str) -> tuple[str, str | None]:
 
 
 def _permanent_matches(kind: str, card: Card) -> bool:
+    if m := re.fullmatch(r"non(white|blue|black|red|green|artifact) (.+)", kind):  # "nonblack creature"
+        has = "Artifact" in card.type_line if m[1] == "artifact" else {
+            "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[m[1]] in card.colors
+        return not has and _permanent_matches(m[2], card)
     if kind == "any":
         return "Creature" in card.type_line or "Planeswalker" in card.type_line
     if kind == "permanent":
