@@ -25,7 +25,7 @@ NATURES_LORE = Card(name="Nature's Lore", mana_cost="{1}{G}", type_line="Sorcery
 EXPLOSIVE = Card(name="Explosive Vegetation", mana_cost="{3}{G}", type_line="Sorcery",
                  oracle_text="Search your library for up to two basic land cards, put them onto the battlefield tapped, "
                              "then shuffle.")
-OPT = Card(name="Preordain", mana_cost="{U}", type_line="Sorcery", oracle_text="Scry 2.\nDraw a card.")
+OPT = REAL["Preordain"]
 SURVEIL = Card(name="Consider", mana_cost="{U}", type_line="Instant", oracle_text="Surveil 2.")
 MILL = REAL["Brain Freeze"]
 DREDGE = Card(name="Glimpse", mana_cost="{U}", type_line="Sorcery", oracle_text="Mill three cards.")

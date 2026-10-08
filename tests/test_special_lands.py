@@ -8,13 +8,9 @@ from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_effects import FOREST, lands, pick, table
 
-TOMB = Card(name="Ancient Tomb", type_line="Land", produced_mana=("C",),
-            oracle_text="{T}: Add {C}{C}. Ancient Tomb deals 2 damage to you.")
-AQUEDUCT = Card(name="Dimir Aqueduct", type_line="Land", produced_mana=("U", "B"),
-                oracle_text="Dimir Aqueduct enters tapped.\nWhen Dimir Aqueduct enters, return a land you control to its "
-                            "owner's hand.\n{T}: Add {U}{B}.")
-CITY = Card(name="City of Brass", type_line="Land", produced_mana=("W", "U", "B", "R", "G"),
-            oracle_text="Whenever City of Brass becomes tapped, it deals 1 damage to you.\n{T}: Add one mana of any color.")
+TOMB = REAL["Ancient Tomb"]
+AQUEDUCT = REAL["Dimir Aqueduct"]
+CITY = REAL["City of Brass"]
 CONFLUENCE = Card(name="Mana Confluence", type_line="Land", produced_mana=("W", "U", "B", "R", "G"),
                   oracle_text="{T}, Pay 1 life: Add one mana of any color.")
 GARDEN = Card(name="Temple Garden", type_line="Land — Forest Plains", produced_mana=("G", "W"))

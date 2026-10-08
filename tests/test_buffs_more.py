@@ -14,13 +14,9 @@ SHIFT = REAL["Bioshift"]
 SHIFT_ALL = Card(name="Shift All", mana_cost="{U}", type_line="Instant",
                  oracle_text="Move all +1/+1 counters from target creature onto another target creature.")
 SCALE = REAL["Might of the Masses"]
-TREETOP = Card(name="Treetop Village", type_line="Land",
-               oracle_text="{T}: Add {G}.\n{1}{G}: Until end of turn, Treetop Village becomes a 3/3 green Ape creature "
-                           "with trample. It's still a land.")
+TREETOP = REAL["Treetop Village"]
 NEXUS = REAL["Blinkmoth Nexus"]
-MUTAVAULT = Card(name="Mutavault", type_line="Land",
-                 oracle_text="{T}: Add {C}.\n{1}: Until end of turn, Mutavault becomes a 2/2 creature with all creature "
-                             "types. It's still a land.")
+MUTAVAULT = REAL["Mutavault"]
 AWAKEN = REAL["Llanowar Loamspeaker"]
 def targets(*indexes, move=0):
     """Cast the first spell, answering each target prompt with the next index and "move how many" with `move`."""
@@ -97,12 +93,12 @@ class AnimateTests(unittest.TestCase):
                                                        and "becomes" in o), options.index(PASS) if PASS in options else 0))
         a = game.seats[0]
         land = Permanent(card)
-        a.battlefield = [land] + lands(mana)
+        a.battlefield = lands(mana) + [land]  # the land itself is last, so it is not what pays for its own ability
         game._priority_round(a)
         return game, a, land
 
     def test_it_becomes_a_creature_with_its_keywords(self):
-        game, a, land = self.activate(TREETOP, 3)
+        game, a, land = self.activate(TREETOP, 2)
         self.assertEqual((land.card.type_line, game.power(land), game.toughness(land)),
                          ("Land Creature — Ape", 3, 3))
         self.assertTrue(game.has_keyword(land, "trample"))
@@ -115,7 +111,7 @@ class AnimateTests(unittest.TestCase):
         self.assertEqual((land.card.type_line, land.card.colors), ("Land Creature", ()))
 
     def test_it_is_a_land_again_at_end_of_turn(self):
-        game, a, land = self.activate(TREETOP, 3)
+        game, a, land = self.activate(TREETOP, 2)
         game.step = "end"
         game._turn_based_actions(a)  # not yet: end of turn is cleanup
         game.step = "cleanup"
@@ -123,7 +119,7 @@ class AnimateTests(unittest.TestCase):
         self.assertEqual((land.card.type_line, land.card.power, land.until_end_of_turn), ("Land", None, []))
 
     def test_a_land_that_just_came_in_cannot_attack(self):
-        game, a, land = self.activate(TREETOP, 3)
+        game, a, land = self.activate(TREETOP, 2)
         self.assertTrue(game.combat._can_attack(land))  # it has been there since the turn began
         land.sick = True
         self.assertFalse(game.combat._can_attack(land))

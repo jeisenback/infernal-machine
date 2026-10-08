@@ -5,6 +5,7 @@ from infernal_machine.effects import (Draw, EachSacrifices, GainLife, LoseLife, 
                                       TargetLoseLife, line_effects, spell_effects, triggered_abilities)
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, creature
 from tests.test_effects import lands, pick, table
 
@@ -16,13 +17,9 @@ MOLDERVINE = Card(name="Moldervine Reclamation", mana_cost="{3}{B}{G}", type_lin
                   oracle_text="Whenever a creature you control dies, you gain 1 life and draw a card.")
 NIGHTS_WHISPER = Card(name="Night's Whisper", mana_cost="{1}{B}", type_line="Sorcery", colors=("B",),
                       oracle_text="You draw two cards and lose 2 life.")
-MERCHANT = creature("Merchant of Venom", 2, 2, "When this creature enters, each player sacrifices a creature of their "
-                                              "choice.")
-ABOMINATION = creature("Smothering Abomination", 4, 3, "At the beginning of your upkeep, sacrifice a creature.")
-TAX = Card(name="Monologue Tax", mana_cost="{2}{W}", type_line="Enchantment",
-           oracle_text="Whenever an opponent casts a spell, you create a Treasure token.")
-
-
+MERCHANT = REAL["Merchant of Venom"]
+ABOMINATION = REAL["Smothering Abomination"]
+TAX = REAL["Monologue Tax"]
 class ParseTests(unittest.TestCase):
     def test_and_you_gain_life(self):
         self.assertEqual(triggered_abilities(BLOOD_ARTIST)[0].effects, (TargetLoseLife(1, "player"), GainLife(1)))

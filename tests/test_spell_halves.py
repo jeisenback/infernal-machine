@@ -5,6 +5,7 @@ from infernal_machine.effects import (Damage, Destroy, Drain, EachMayWheel, Each
                                       OpponentsLoseLife, TapOrUntap, TargetDrawLose, YouAndTargetDraw, spell_effects)
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR
 from tests.test_effects import pick
 from tests.test_mass_effects import table3
@@ -25,7 +26,7 @@ FORTUNE = spell("Arc of Fortune", "Each player may discard their hand and draw s
 SANGUINE = spell("Exsanguinate", "Each opponent loses X life. You gain life equal to the life lost this way.")
 STRAY = spell("Stray", "You gain life equal to the life lost this way.")
 HALF_A_LOOT = spell("Half", "You may discard a card.")
-TOWER = Card(name="Reliquary Tower", type_line="Land", oracle_text="You have no maximum hand size.")
+TOWER = REAL["Reliquary Tower"]
 BASIC = Card(name="Forest", type_line="Basic Land — Forest")
 PORT = Card(name="Rugged Port", type_line="Land", oracle_text="{T}: Add {C}.")
 

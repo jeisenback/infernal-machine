@@ -759,6 +759,11 @@ class Game:
                     continue
                 # Command Tower makes only the colors of your commander, whatever the card data lists.
                 types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
+                if filter_mana_ability(card) is not None:  # Hall of Oracles: the colors cost {1}; alone it makes {C}
+                    plain = mana_ability(card, seat.color_identity)
+                    types = frozenset().union(*plain) if plain else frozenset()
+                    if not types:
+                        continue
                 if reflect := reflected_mana(card):
                     types = self._reflected_types(seat, *reflect)
                     if not types:

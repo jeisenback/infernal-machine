@@ -14,24 +14,19 @@ def creature(name, text="", types="Creature — Bear", colors=(), power="2", tou
     return Card(name=name, type_line=types, oracle_text=text, colors=colors, power=power, toughness=toughness)
 
 
-LIEGE = creature("Balefire Liege", "Other red creatures you control get +1/+1.\nOther white creatures you control get +1/+1.",
-                 "Creature — Elemental Knight", ("R", "W"))
+LIEGE = REAL["Balefire Liege"]
 RED_BEAR = creature("Red Bear", colors=("R",))
 GREEN_BEAR = creature("Green Bear", colors=("G",))
 SHAMAN = REAL["Rageblood Shaman"]
 MINOTAUR = creature("Minotaur", types="Token Creature — Minotaur", colors=("R",), power="1", toughness="1")
-MOUND = creature("Blight Mound", "Attacking Pests you control get +1/+0 and have menace.", "Creature — Pest", ("B",))
+MOUND = REAL["Blight Mound"]
 PEST = creature("Pest", types="Token Creature — Pest", colors=("B", "G"), power="1", toughness="1")
-STORM_KILN = creature("Storm-Kiln Artist", "This creature gets +1/+0 for each artifact you control.",
-                      "Creature — Dwarf Shaman", ("R",), "2", "2")
-WIGHT = creature("Wight of the Reliquary", "This creature gets +1/+1 for each creature card in your graveyard.",
-                 "Creature — Vampire Skeleton", ("B",), "1", "1")
-SPIRITDANCER = creature("Kor Spiritdancer", "This creature gets +2/+2 for each Aura attached to it.", "Creature — Kor Wizard",
-                        ("W",), "0", "2")
+STORM_KILN = REAL["Storm-Kiln Artist"]
+WIGHT = REAL["Wight of the Reliquary"]
+SPIRITDANCER = REAL["Kor Spiritdancer"]
 REVERIE = REAL["Sage's Reverie"]
 BLESSING = REAL["Pacifism"]
-IMPETUS = Card(name="Ghoulish Impetus", type_line="Enchantment — Aura",
-               oracle_text="Enchant creature\nEnchanted creature gets +1/+1, has deathtouch, and is goaded.")
+IMPETUS = REAL["Ghoulish Impetus"]
 MARTIAL = REAL["Martial Impetus"]
 TRINKET = Card(name="Trinket", type_line="Artifact")
 GRAVE_BEAR = creature("Grave Bear")
@@ -115,7 +110,7 @@ class ScalingTests(unittest.TestCase):
         wight = Permanent(WIGHT)
         a.battlefield = [wight]
         a.graveyard = [GRAVE_BEAR, GRAVE_BEAR, TRINKET]
-        self.assertEqual((game.power(wight), game.toughness(wight)), (3, 3))
+        self.assertEqual((game.power(wight), game.toughness(wight)), (4, 4))  # a 2/2 with two creature cards
 
     def test_per_aura_attached_to_it(self):
         game, _ = table3()

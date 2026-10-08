@@ -3,11 +3,11 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.effects import Damage, Draw, GainLife, triggered_abilities
 from infernal_machine.game import CAST, Permanent
+from tests.real import REAL
 from tests.test_combat import BEAR, attack_all, creature
 from tests.test_effects import BOLT, COUNTERSPELL, RAINBOW, lands, pick, table
 
-MULLDRIFTER = Card(name="Mulldrifter", mana_cost="{4}{U}", type_line="Creature — Elemental", power="2",
-                   toughness="2", oracle_text="Flying\nWhen Mulldrifter enters, draw two cards.")
+MULLDRIFTER = REAL["Mulldrifter"]
 MAYBE = Card(name="Maybe Elf", mana_cost="{G}", type_line="Creature — Elf", power="1", toughness="1",
              oracle_text="When this creature enters, you may draw a card.")
 PINGER = Card(name="Flametongue", mana_cost="{R}", type_line="Creature — Kavu", power="4", toughness="2",

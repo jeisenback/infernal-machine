@@ -6,6 +6,7 @@ from infernal_machine.effects import ReturnSelfToHand, activated_abilities, gran
 from infernal_machine.game import ACTIVATE, CAST, PASS, Permanent
 from infernal_machine.mana import parse_cost
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR
 from tests.test_effects import FOREST, lands, pick
 from tests.test_mass_effects import table3
@@ -20,9 +21,7 @@ LIFE_SWORD = Card(name="Sword of Life", mana_cost="{3}", type_line="Artifact —
                               "you gain 3 life.\nEquip {2}")
 HEIRLOOM = Card(name="Heirloom", mana_cost="{1}", type_line="Artifact — Equipment",
                 oracle_text="Whenever equipped creature dies, draw a card.\nEquip {1}")
-RANCOR = Card(name="Rancor", mana_cost="{G}", type_line="Enchantment — Aura",
-              oracle_text="Enchant creature\nEnchanted creature gets +2/+0 and has trample.\nWhen Rancor is put into a "
-                          "graveyard from the battlefield, return Rancor to its owner's hand.")
+RANCOR = REAL["Rancor"]
 LOYALTY = Card(name="Loyal Aura", mana_cost="{1}", type_line="Enchantment — Aura",
                oracle_text="Enchant creature\nEnchanted creature gets +1/+1.\nWhen enchanted creature dies, return Loyal "
                            "Aura to its owner's hand.")

@@ -3,12 +3,12 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.effects import Damage, Draw, activated_abilities
 from infernal_machine.game import ACTIVATE, Permanent
+from tests.real import REAL
 from tests.test_effects import COUNTERSPELL, FOREST, lands, pick, table
 
 MIND_STONE = Card(name="Mind Stone", mana_cost="{2}", type_line="Artifact",
                   oracle_text="{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.")
-SORCERER = Card(name="Prodigal Sorcerer", mana_cost="{2}{U}", type_line="Creature — Human Wizard", power="1",
-                toughness="1", oracle_text="{T}: Prodigal Sorcerer deals 1 damage to any target.")
+SORCERER = REAL["Prodigal Sorcerer"]
 WALKER = Card(name="Walker", mana_cost="{3}", type_line="Legendary Planeswalker — Test", loyalty="3",
               oracle_text="+1: Draw a card.\n−3: Destroy target creature.")
 SHRINE = Card(name="Shrine", mana_cost="{1}", type_line="Artifact",

@@ -27,9 +27,7 @@ EPHEMERATE = REAL["Momentary Blink"]
 FLICKER = spell("Flicker Away", "Exile target creature. Return it to the battlefield under its owner's control at the "
                                 "beginning of the next end step.")
 TO_HAND = spell("Tuck Away", "Exile target creature. Return it to its owner's hand at the beginning of the next end step.")
-FLICKERWISP = Card(name="Flickerwisp", mana_cost="{1}{W}{W}", type_line="Creature — Elemental", power="3", toughness="1",
-                   oracle_text="Flying\nWhen Flickerwisp enters, exile another target permanent. Return that card to the "
-                               "battlefield under its owner's control at the beginning of the next end step.")
+FLICKERWISP = REAL["Flickerwisp"]
 HOPPER = Card(name="Hopper", mana_cost="{1}", type_line="Creature — Test", power="1", toughness="1",
               oracle_text="When Hopper enters, you gain 2 life.")
 

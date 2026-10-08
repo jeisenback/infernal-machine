@@ -6,12 +6,11 @@ from infernal_machine.combat import Attack
 from infernal_machine.effects import GainControl, aura_controls, spell_effects
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, OGRE
 from tests.test_effects import FOREST, lands, pick, table
 
-THREATEN = Card(name="Threaten", mana_cost="{2}{R}", type_line="Sorcery",
-                oracle_text="Gain control of target creature until end of turn. Untap that creature. "
-                            "It gains haste until end of turn.")
+THREATEN = REAL["Threaten"]
 MIND = Card(name="Mind Steal", mana_cost="{2}", type_line="Sorcery", oracle_text="Gain control of target creature.")
 CONTROL_MAGIC = Card(name="Control Magic", mana_cost="{2}", type_line="Enchantment — Aura",
                      oracle_text="Enchant creature\nYou control enchanted creature.")

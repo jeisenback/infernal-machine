@@ -1,33 +1,31 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (ExileFromGraveyard, LoseLife, ReturnAllToHand, ReturnFromGraveyard,
+from infernal_machine.effects import (ExileFromGraveyard, LoseLife, LoseLifeEqualToManaValue, ReturnAllToHand, ReturnFromGraveyard,
                                       ReturnToHand, SearchLibrary, spell_effects)
 from infernal_machine.game import (CAST, COMMAND_ZONE_PROMPT, PASS, SEARCH_CARD_PROMPT, GraveyardTarget, Permanent)
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_effects import BEAR, BOLT, DARKSTEEL, FOREST, SOL_RING, lands, pick, table
 from tests.test_exile import COMMANDER, OGRE
 from tests.test_mass_effects import table3
 from tests.test_tokens import RAISE
 from tests.test_triggers import MULLDRIFTER
 
-RIFT = Card(name="Cyclonic Rift", mana_cost="{1}{U}", type_line="Instant",
-            oracle_text="Return target nonland permanent you don't control to its owner's hand.")
+RIFT = REAL["Cyclonic Rift"]
 EVACUATION = Card(name="Evacuation", mana_cost="{3}{U}{U}", type_line="Instant",
                   oracle_text="Return all creatures to their owners' hands.")
 RAISE_DEAD = Card(name="Raise Dead", mana_cost="{B}", type_line="Sorcery",
                   oracle_text="Return target creature card from your graveyard to your hand.")
 ZOMBIFY = Card(name="Zombify", mana_cost="{3}{B}", type_line="Sorcery",
                oracle_text="Return target creature card from your graveyard to the battlefield.")
-REANIMATE = Card(name="Reanimate", mana_cost="{B}", type_line="Sorcery",
-                 oracle_text="Put target creature card from a graveyard onto the battlefield under your control.")
+REANIMATE = REAL["Reanimate"]
 REGROWTH = Card(name="Regrowth", mana_cost="{1}{G}", type_line="Sorcery",
                 oracle_text="Return target card from your graveyard to your hand.")
 BOG = Card(name="Cleanse", mana_cost="{G}", type_line="Instant", oracle_text="Exile target card from a graveyard.")
 DEMONIC = Card(name="Demonic Tutor", mana_cost="{1}{B}", type_line="Sorcery",
                oracle_text="Search your library for a card, put that card into your hand, then shuffle.")
-WORLDLY = Card(name="Worldly Tutor", mana_cost="{G}", type_line="Instant",
-               oracle_text="Search your library for a creature card, reveal it, then shuffle and put that card on top.")
+WORLDLY = REAL["Worldly Tutor"]
 VAMPIRIC = Card(name="Vampiric Tutor", mana_cost="{B}", type_line="Instant",
                 oracle_text="Search your library for a card, then shuffle and put that card on top. You lose 2 life.")
 
@@ -43,7 +41,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(spell_effects(RAISE_DEAD), [ReturnFromGraveyard("graveyard:creature:yours", "hand")])
         self.assertEqual(spell_effects(REGROWTH), [ReturnFromGraveyard("graveyard:card:yours", "hand")])
         self.assertEqual(spell_effects(ZOMBIFY), [ReturnFromGraveyard("graveyard:creature:yours", "battlefield")])
-        self.assertEqual(spell_effects(REANIMATE), [ReturnFromGraveyard("graveyard:creature:any", "battlefield")])
+        self.assertEqual(spell_effects(REANIMATE), [ReturnFromGraveyard("graveyard:creature:any", "battlefield"), LoseLifeEqualToManaValue()])
         self.assertEqual(spell_effects(BOG), [ExileFromGraveyard("graveyard:card:any")])
         self.assertEqual(spell_effects(DEMONIC), [SearchLibrary("card", "hand", False)])
         self.assertEqual(spell_effects(WORLDLY), [SearchLibrary("creature", "top", True)])

@@ -5,11 +5,11 @@ from infernal_machine.cards import Card, Deck
 from infernal_machine.effects import CopySpell, clone_kind, spell_effects
 from infernal_machine.game import CAST, CLONE_PROMPT, NOT_A_COPY, StackItem, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.real import REAL
 from tests.test_combat import BEAR, OGRE, creature
 from tests.test_effects import BOLT, DIVINATION, FOREST, lands, pick, table
 
-CLONE = Card(name="Clone", mana_cost="{3}{U}", type_line="Creature — Shapeshifter", power="0", toughness="0", cmc=4.0,
-             oracle_text="You may have Clone enter the battlefield as a copy of any creature on the battlefield.")
+CLONE = REAL["Clone"]
 MIRROR = Card(name="Mirror", mana_cost="{2}{U}", type_line="Creature — Shapeshifter", power="0", toughness="0",
               oracle_text="You may have Mirror enter the battlefield as a copy of a creature you control.")
 HEALER = creature("Healer", 2, 2, "When CARDNAME enters, you gain 2 life.")
