@@ -76,8 +76,13 @@ def rules_lines(card: Card) -> list[str]:
     return [line.strip() for line in _rules_text(card).splitlines() if line.strip()]
 
 
+_WHOLE_LINE = re.compile(r"Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*", re.I)
+
+
 def _split_sentences(text: str) -> list[str]:
-    return [s.strip() for line in text.splitlines() for s in re.split(r"(?<=\.)\s+", line) if s.strip()]
+    """The sentences of each line; a few effects (Creative Technique's) are one template across several sentences."""
+    return [s.strip() for line in text.splitlines()
+            for s in ([line] if _WHOLE_LINE.fullmatch(line.strip()) else re.split(r"(?<=\.)\s+", line)) if s.strip()]
 
 
 def target_kind(effect: Any) -> str | None:
@@ -1590,6 +1595,38 @@ class LivingWeapon:
             game.living_weapon(target)
 
 
+DEMONSTRATE_PROMPT = "Copy it with demonstrate? "  # followed by the spell's name; options are YES_NO
+DEMONSTRATE_OPPONENT_PROMPT = "Choose an opponent to also copy "  # followed by the spell's name
+
+
+@dataclass(frozen=True)
+class Demonstrate:
+    """Demonstrate: "When you cast this spell, you may copy it. If you do, choose an opponent to also copy it." The
+    spell cast is `carried`; each copy's controller chooses new targets."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        spell = game.resolving_item.carried if game.resolving_item is not None else None
+        if spell is None or controller.player.choose(DEMONSTRATE_PROMPT + spell.card.name, ["Yes", "No"]) != 0:
+            return
+        game.copy_spell(spell, controller, new_targets=True)
+        opponents = game.opponents(controller)
+        if opponents:
+            pick = controller.player.choose(DEMONSTRATE_OPPONENT_PROMPT + spell.card.name,
+                                            [f"Player: {o.name} (seat {o.index})" for o in opponents])
+            game.copy_spell(spell, opponents[pick], new_targets=True)
+
+
+@dataclass(frozen=True)
+class ShuffleRevealCast:
+    """Creative Technique: "Shuffle your library, then reveal cards from the top of it until you reveal a nonland card.
+    Exile that card and put the rest on the bottom of your library in a random order. You may cast the exiled card
+    without paying its mana cost." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.rng.shuffle(controller.library)
+        game.cascade(controller, None)
+
+
 @dataclass(frozen=True)
 class Cascade:
     """Cascade: exile cards from the top of your library until you exile a nonland card that costs less than `value`;
@@ -2643,6 +2680,7 @@ _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifi
 _ENTWINE = re.compile(r"Entwine ((?:\{[^}]+\})+)")
 _ESCALATE = re.compile(r"Escalate ((?:\{[^}]+\})+)")  # "Escalate\u2014Discard a card." (a cost that isn't mana) isn't supported
 _FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
+_RETRACE = re.compile(r"Retrace")
 _ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four|five|six) other cards? from your graveyard\.")
 _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery) )?spells "
                         r"you cast cost \{(\d+)\} less to cast\.", re.I)
@@ -2795,6 +2833,7 @@ class GraveyardCast:
     cost: str  # the mana cost to pay instead of the card's own
     exile: int = 0  # other cards to exile from the graveyard (Escape)
     exile_after: bool = False  # exile it instead of putting it in the graveyard when it leaves the stack (Flashback)
+    discard_land: bool = False  # Retrace: discard a land card in addition to the cost
 
 
 def graveyard_casts(card: Card) -> list[GraveyardCast]:
@@ -2804,6 +2843,8 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
             found.append(GraveyardCast("Flashback", m[1], exile_after=True))
         elif m := _ESCAPE.fullmatch(line):
             found.append(GraveyardCast("Escape", m[1], exile=_count(m[2])))
+        elif _RETRACE.fullmatch(line):
+            found.append(GraveyardCast("Retrace", card.mana_cost, discard_land=True))
     return found
 
 
@@ -2828,12 +2869,12 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
     return found
 
 
-_SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid)(?:, (?:Delve|Cascade|Devoid))*")  # rules for casting, not effects
+_SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate)(?:, (?:Delve|Cascade|Devoid|Demonstrate))*")  # rules for casting, not effects
 
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY))
 
@@ -3094,6 +3135,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
+    (re.compile(r"shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. Exile that "
+                r"card and put the rest on the bottom of your library in a random order\. You may cast the exiled card "
+                r"without paying its mana cost\.", re.I), lambda m: ShuffleRevealCast()),
     (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
      lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),

@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, Demonstrate, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -827,6 +827,8 @@ class Game:
         if graveyard:
             paying = dataclasses.replace(card, mana_cost=graveyard.cost)
             others = len(seat.graveyard) - (card in seat.graveyard)
+            if graveyard.discard_land and not any(is_land(c) for c in seat.hand):
+                return []
             return [None] if others >= graveyard.exile and self._payment(seat, paying) is not None else []
         return [way for way in [None, *alternative_costs(card)]
                 if self._can_pay_extras(seat, card, way)
@@ -871,6 +873,12 @@ class Game:
             self._move_card(seat, exiled, "exile")
         if graveyard and graveyard.exile:
             self._left_graveyard(seat)
+        if graveyard and graveyard.discard_land:  # Retrace
+            lands = [c for c in seat.hand if is_land(c)]
+            discarded = lands[seat.player.choose(DISCARD_PROMPT, [c.name for c in lands])]
+            seat.hand.remove(discarded)
+            self.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
+            self._move_card(seat, discarded, "graveyard")
         if alternative and alternative.exile_color:
             options = [c for c in seat.hand if alternative.exile_color in c.colors]
             exiled = options[seat.player.choose(PITCH_PROMPT, [c.name for c in options])]
@@ -1231,6 +1239,9 @@ class Game:
             copies += (len(before) - 1) if storm == "storm" else (self.graveyarded_count if self.graveyarded_turn == self.turn else 0)
         if copies and prepared is None:  # Replicate, Storm, Gravestorm: a trigger above the spell copies it
             ability = TriggeredAbility("cast", (CopySpellTimes(copies),), False, "Copy this spell")
+            self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
+        if has_keyword(card, "demonstrate") and prepared is None:
+            ability = TriggeredAbility("cast", (Demonstrate(),), False, "Demonstrate")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         if has_keyword(card, "cascade") and prepared is None:  # the trigger goes on the stack above the spell
             ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
@@ -2490,14 +2501,14 @@ class Game:
         self._enter(seat, germ)
         self.attach(equipment, germ)
 
-    def cascade(self, seat: Seat, value: int) -> None:
+    def cascade(self, seat: Seat, value: int | None) -> None:
         """Exile cards from the top of the library until a nonland card that costs less than `value` is exiled; the
         player may cast it for free, and the rest go to the bottom of the library in a random order."""
         passed: list[Card] = []
         found = None
         while seat.library:
             card = seat.library.pop(0)
-            if not is_land(card) and card.cmc < value:
+            if not is_land(card) and (value is None or card.cmc < value):
                 found = card
                 break
             passed.append(card)
