@@ -1628,7 +1628,7 @@ class Game:
                 if watch.nth_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
                                                for turn, c in seat.cast_log) != watch.nth_each_turn:
                     continue
-                for _ in range(self._trigger_times(watcher_seat, event, card)):
+                for _ in range(self._trigger_times(watcher_seat, event, card, seat)):
                     self._queue(ability, watcher, watcher_seat, x, subject, seat, spell)
 
     def _put_triggers_on_stack(self) -> None:
@@ -3029,9 +3029,13 @@ class Game:
                 count += replacements.plus_one + (replacements.plus_one_others if p is not receiver else 0)
         return count * self._factor(seat, "counters")
 
-    def _trigger_times(self, controller: Seat, event: str, entering: Card | None) -> int:
+    def _trigger_times(self, controller: Seat, event: str, entering: Card | None, cause: Seat | None = None) -> int:
         """How many times an ability of `controller`'s triggers: once, plus once more for each Panharmonicon when an
-        artifact or creature (or any permanent, for Yarok) is entering the battlefield."""
+        artifact or creature (or any permanent, for Yarok) is entering the battlefield, and for each Veyran when
+        `controller` casts or copies an instant or sorcery spell."""
+        if event in ("cast", "copy") and entering is not None and cause is controller \
+                and ("Instant" in entering.type_line or "Sorcery" in entering.type_line):
+            return 1 + sum(replacement_effects(p.card).extra_trigger == "spell" for p in controller.battlefield)
         if event not in ("enters", "permanent_enters") or entering is None:
             return 1
         extra = 0

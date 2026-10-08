@@ -1074,7 +1074,8 @@ class Replacements:
     counters: int = 1  # how many times as many counters go on its controller's permanents
     plus_one: int = 0  # extra +1/+1 counters on its controller's creatures
     plus_one_others: int = 0  # the same, but not on the permanent itself (Benevolent Hydra)
-    extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice
+    extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice;
+    #                                    "spell": casting or copying an instant or sorcery does
 
 
 @lru_cache(maxsize=None)
@@ -1095,11 +1096,18 @@ def replacement_effects(card: Card) -> Replacements:
             found["plus_one_others"] = found.get("plus_one_others", 0) + 1
         elif m := _EXTRA_TRIGGER.fullmatch(line):
             found["extra_trigger"] = m[1].removeprefix("an ").removeprefix("a ")
+        elif _EXTRA_TRIGGER_SPELL.fullmatch(line):
+            found["extra_trigger"] = "spell"
     return Replacements(**found)
 
 
+# Veyran, Voice of Duality (the card's own wording has "you casting").
+_EXTRA_TRIGGER_SPELL = re.compile(r"If you casting or copying an instant or sorcery spell causes a triggered ability of a "
+                                  r"permanent you control to trigger, that ability triggers an additional time\.")
+
+
 def is_replacement_line(line: str) -> bool:
-    return (line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (_EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
 
 

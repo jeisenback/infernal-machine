@@ -141,3 +141,34 @@ class VanguardOfTheRestlessTests(unittest.TestCase):
         game._enter(a, Permanent(BEAR))
         run_stack(game)
         self.assertEqual(a.graveyard, [self.VANGUARD])
+
+
+class VeyranTests(unittest.TestCase):
+    VEYRAN = REAL["Veyran, Voice of Duality"]
+    STUDY = Card(name="Study", mana_cost="{1}", type_line="Instant", oracle_text="Draw a card.")
+
+    def cast(self, game, seat, card):
+        seat.cast_log.append((game.turn, card))
+        game._observe("cast", card, seat)
+        run_stack(game)
+
+    def test_it_is_understood(self):
+        self.assertEqual(unsupported_lines(self.VEYRAN), [])
+
+    def test_magecraft_triggers_twice_for_an_instant_you_cast(self):
+        game, _ = table3()
+        a = game.seats[0]
+        veyran = Permanent(self.VEYRAN)
+        a.battlefield = [veyran]
+        self.cast(game, a, self.STUDY)
+        self.assertEqual((game.power(veyran), game.toughness(veyran)), (2 + 2, 2 + 2))
+
+    def test_a_creature_spell_or_an_opponents_spell_does_not_double(self):
+        game, _ = table3()
+        a, b, _c = game.seats
+        veyran = Permanent(self.VEYRAN)
+        a.battlefield = [veyran]
+        self.cast(game, a, BEAR)
+        self.assertEqual(game.power(veyran), 2)  # not an instant or sorcery: no magecraft at all
+        self.cast(game, b, self.STUDY)
+        self.assertEqual(game.power(veyran), 2)  # magecraft only watches your own spells
