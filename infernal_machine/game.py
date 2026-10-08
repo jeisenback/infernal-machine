@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size,
                       overloaded_effects, SacrificeSelf,
@@ -150,6 +150,7 @@ class Permanent:
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
+    kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
     regeneration: int = 0  # regeneration shields, which last until end of turn
     real_card: "Card | None" = None  # a Clone's own card, while it is a copy of something else
     control_origin: "Seat | None" = None  # who controlled it before a control-change effect took it
@@ -209,6 +210,7 @@ class StackItem:
     source: "Permanent | None" = None  # the ability's source, for effects on "it"
     x: int = 0  # the value chosen for X when it was cast
     kicked: int = 0  # how many times the kicker cost was paid
+    kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
     is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
@@ -766,7 +768,7 @@ class Game:
         return frozenset(types if colorless else types - {"C"})
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
-                 alternative: AlternativeCost | None = None, kicked: int = 0, extra: str = "",
+                 alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",
                  delve: int = 0) -> list[Permanent] | None:
         """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now. An alternative
         cost replaces the mana cost; commander tax and kicker are added, then cost reductions apply."""
@@ -778,8 +780,8 @@ class Game:
             return None
         if from_command_zone:
             cost = cost.plus_generic(self.commander_tax(seat, card))
-        for _ in range(kicked):
-            cost = cost + parse_cost(kicker_cost(card))
+        for kicker in kickers:
+            cost = cost + parse_cost(kicker)
         if extra:  # entwine, or escalate for each mode beyond the first
             cost = cost + parse_cost(extra)
         return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card) + delve))
@@ -810,19 +812,26 @@ class Game:
                 and self._payment(seat, card, from_command_zone, alternative=way,
                                   delve=self._delve_max(seat, card) if way is None else 0) is not None]
 
-    def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None) -> bool:
-        """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs,
-        and `alternative`'s condition, life and card to exile."""
-        extras = additional_costs(card)
+    def _extra_costs(self, card: Card, kicked: int) -> list:
+        """The non-mana costs of casting `card`: its additional costs, plus a non-mana kicker cost if kicked."""
+        kicker = kicker_other_cost(card) if kicked else None
+        return additional_costs(card) + ([kicker] if kicker else [])
+
+    def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0) -> bool:
+        """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs, a non-mana
+        kicker cost, and `alternative`'s condition, life and card to exile."""
+        extras = self._extra_costs(card, kicked)
         others = list(seat.hand)
         if card in others:
             others.remove(card)
         if sum(c.life for c in extras) + (alternative.life if alternative else 0) > seat.life:  # CR 119.4
             return False
-        if any(c.discard for c in extras) and not others:
+        if sum(c.discard for c in extras) > len(others):
             return False
-        if any(c.sacrifice and not any(_permanent_matches(c.sacrifice, p.card) for p in seat.battlefield) for c in extras):
-            return False
+        for kind in {c.sacrifice for c in extras if c.sacrifice}:
+            needed = sum(c.sacrifice == kind for c in extras)
+            if sum(_permanent_matches(kind, p.card) for p in seat.battlefield) < needed:
+                return False
         if alternative is None:
             return True
         if alternative.commander and not any(p.card.name in (p.owner or seat).commander_names for p in seat.battlefield):
@@ -832,7 +841,7 @@ class Game:
         return not alternative.exile_color or any(alternative.exile_color in c.colors for c in others)
 
     def _pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None,
-                    graveyard: GraveyardCast | None = None, x: int = 0) -> None:
+                    graveyard: GraveyardCast | None = None, x: int = 0, kicked: int = 0) -> None:
         """Pay the non-mana costs of casting `card`, which has already left its zone."""
         for _ in range(graveyard.exile if graveyard else 0):  # Escape: exile other cards from the graveyard
             exiled = seat.graveyard[seat.player.choose(ESCAPE_PROMPT, [c.name for c in seat.graveyard])]
@@ -847,7 +856,8 @@ class Game:
             seat.hand.remove(exiled)
             self.broadcast({"event": "exiled_from_hand", "seat": seat.index, "card": exiled.name})
             self._move_card(seat, exiled, "exile")
-        for extra in additional_costs(card):
+        extras = self._extra_costs(card, kicked)
+        for extra in extras:
             if extra.discard:
                 discarded = seat.hand[seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])]
                 seat.hand.remove(discarded)
@@ -857,14 +867,14 @@ class Game:
                 options = [p for p in seat.battlefield if _permanent_matches(extra.sacrifice, p.card)]
                 choice = options[seat.player.choose(SACRIFICE_COST_PROMPT + card.name, [self.label(p) for p in options])]
                 self._leave_together([(choice, "sacrificed")])
-        life = (sum(c.life for c in additional_costs(card)) + (alternative.life if alternative else 0)
+        life = (sum(c.life for c in extras) + (alternative.life if alternative else 0)
                 + (x if any(c.life_x for c in additional_costs(card)) else 0))
         if life:
             self.change_life(seat, -life)
 
-    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kicked: int, extra: str = "") -> int:
+    def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str = "") -> int:
         x = 0
-        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1, kicked=kicked, extra=extra) is not None:
+        while x < MAX_X and self._payment(seat, card, from_command_zone, x + 1, kickers=kickers, extra=extra) is not None:
             x += 1
         return x
 
@@ -1064,8 +1074,15 @@ class Game:
         return self._targets_exist(seat, effects, colors)
 
     def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset()) -> bool:
-        return all(self.target_options(target_kind(e), seat, colors) for e in effects
-                   if target_kind(e) and not getattr(e, "optional_target", False))
+        """Whether every targeting effect (but "up to one target") has a legal target; a `distinct` one needs one
+        besides the targets chosen for earlier effects of the same kind."""
+        kinds = [(kind, getattr(e, "distinct", False)) for e in effects
+                 if (kind := target_kind(e)) and not getattr(e, "optional_target", False)]
+        for i, (kind, distinct) in enumerate(kinds):
+            needed = 1 + (sum(k == kind for k, _ in kinds[:i]) if distinct else 0)
+            if len(self.target_options(kind, seat, colors)) < needed:
+                return False
+        return True
 
     def _choose_modes(self, seat: Seat, card: Card, modal: Modal, from_command_zone: bool = False,
                       casting: bool = False) -> tuple[list, str]:
@@ -1100,8 +1117,8 @@ class Game:
     def _choose_targets(self, seat: Seat, effects, source_name: str, source: Permanent | None = None,
                         colors: frozenset[str] = frozenset()) -> tuple[list, list[str]] | None:
         """Ask `seat` for a target per targeting effect: (targets, labels), or None if one has no legal target.
-        "Another target ..." can't be `source` itself, and nothing with protection from `colors` (the
-        colors of the spell or source) can be chosen."""
+        "Another target ..." can't be `source` itself, and
+        nothing with protection from `colors` (the colors of the spell or source) can be chosen."""
         targets, labels = [], []
         chosen: dict[str, set[int]] = {}  # kind -> which of its options were already chosen ("up to two target ...")
         for effect in effects or []:
@@ -1138,23 +1155,23 @@ class Game:
             alternative = ways[seat.player.choose(COST_PROMPT + card.name, options)]
         if alternative and alternative.overload:  # every "target" is "each": no targets
             effects = overloaded_effects(card) or effects
-        kicked = 0 if graveyard else self._choose_kicks(seat, card, effects, from_command_zone, alternative)
-        replicated = 0 if graveyard or prepared is not None else self._choose_replicate(seat, card, from_command_zone, kicked, extra, alternative)
+        kicked, kickers = (0, ()) if graveyard else self._choose_kicks(seat, card, effects, from_command_zone, alternative)
+        replicated = 0 if graveyard or prepared is not None else self._choose_replicate(seat, card, from_command_zone, kickers, extra, alternative)
         if replicated:
             extra += replicate_cost(card) * replicated
-        effects = kicked_effects(effects, kicked)
+        effects = kicked_effects(effects, kicked, kickers)
         targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
         x = 0
         if alternative is None and parse_cost(paying.mana_cost).x:  # casting without paying the mana cost makes X 0
-            options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kicked, extra) + 1)]
+            options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kickers, extra) + 1)]
             x = seat.player.choose(X_PROMPT + card.name, options)
         elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
             x = seat.player.choose(LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
         delve = 0
         if alternative is None and not graveyard and has_keyword(card, "delve"):  # exile as few cards as will do
             delve = next(k for k in range(self._delve_max(seat, paying) + 1)
-                         if self._payment(seat, paying, from_command_zone, x, alternative, kicked, extra, delve=k) is not None)
-        tapped = self._payment(seat, paying, from_command_zone, x, alternative, kicked, extra, delve=delve)
+                         if self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=k) is not None)
+        tapped = self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve)
         self._spend_mana(seat, tapped)
         for _ in range(delve):
             exiled = seat.graveyard[seat.player.choose(DELVE_PROMPT + card.name, [c.name for c in seat.graveyard])]
@@ -1166,8 +1183,8 @@ class Game:
         zone.remove(card)
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
-        self._pay_extras(seat, card, alternative, graveyard, x)
-        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, exile_after=bool(graveyard and graveyard.exile_after),
+        self._pay_extras(seat, card, alternative, graveyard, x, kicked)
+        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after),
                          is_copy=prepared is not None, evoked=bool(alternative and alternative.evoke))
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
@@ -1195,22 +1212,35 @@ class Game:
         self._check_ward(item)
 
     def _choose_kicks(self, seat: Seat, card: Card, effects: list | None, from_command_zone: bool,
-                      alternative: AlternativeCost | None) -> int:
-        """Ask how many times to pay the kicker cost: yes or no, or any affordable number for multikicker.
-        Kicking is only offered when the kicked spell's targets exist."""
-        if kicker_cost(card) is None:
-            return 0
-        if not self._targets_exist(seat, kicked_effects(effects, 1) or [], source_qualities(card)):
-            return 0
-        most = 0
-        while (most < (MAX_X if is_multikicker(card) else 1)
-               and self._payment(seat, card, from_command_zone, alternative=alternative, kicked=most + 1) is not None):
-            most += 1
-        if not most:
-            return 0
+                      alternative: AlternativeCost | None) -> tuple[int, tuple[str, ...]]:
+        """Ask which kicker costs to pay: yes or no, any affordable number for multikicker, or each of two kicker
+        costs. Returns (times kicked, mana kicker costs paid). A kick is only offered when it can be paid and the
+        spell's kicked targets exist."""
+        costs = kicker_costs(card)
+        if not costs and kicker_other_cost(card) is None:
+            return 0, ()
+
+        def possible(kickers: tuple[str, ...], kicked: int) -> bool:
+            return (self._targets_exist(seat, kicked_effects(effects, kicked, kickers) or [], source_qualities(card))
+                    and self._can_pay_extras(seat, card, alternative, kicked)
+                    and self._payment(seat, card, from_command_zone, alternative=alternative, kickers=kickers) is not None)
+
         if is_multikicker(card):
-            return seat.player.choose(MULTIKICKER_PROMPT + card.name, [str(n) for n in range(most + 1)])
-        return 1 if seat.player.choose(KICKER_PROMPT + card.name, YES_NO) == 0 else 0
+            most = 0
+            while most < MAX_X and possible(costs * (most + 1), most + 1):
+                most += 1
+            times = seat.player.choose(MULTIKICKER_PROMPT + card.name, [str(n) for n in range(most + 1)]) if most else 0
+            return times, costs * times
+        if len(costs) == 2:
+            chosen: tuple[str, ...] = ()
+            for cost in costs:
+                if (possible(chosen + (cost,), len(chosen) + 1)
+                        and seat.player.choose(f"{KICKER_PROMPT}{card.name} ({cost})", YES_NO) == 0):
+                    chosen += (cost,)
+            return len(chosen), chosen
+        if possible(costs, 1) and seat.player.choose(KICKER_PROMPT + card.name, YES_NO) == 0:
+            return 1, costs
+        return 0, ()
 
     # --- what players see ----------------------------------------------------
 
@@ -1260,7 +1290,7 @@ class Game:
             return
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-            entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked)
+            entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers)
             if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
                 self._queue(EVOKE_SACRIFICE, entering, seat)
             self._enter(seat, entering, x=item.x)
@@ -1293,11 +1323,11 @@ class Game:
             if creature is None:  # it could not come back (it was exiled instead, say): the Aura has nothing to enchant
                 self._move_card(seat, card, "graveyard")
                 return
-            self._enter(seat, Permanent(card, sick=True, attached_to=creature, kicked=item.kicked))
+            self._enter(seat, Permanent(card, sick=True, attached_to=creature, kicked=item.kicked, kickers=item.kickers))
             self.broadcast({"event": "attached", "card": card.name, "to": creature.card.name})
             return
         self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-        self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked))
+        self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked, kickers=item.kickers))
         self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
 
     def return_to_hand_from_graveyard(self, card: Card) -> None:
@@ -1465,8 +1495,8 @@ class Game:
     def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None) -> bool:
         """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`."""
         kind = condition.kind
-        if kind == "kicked":
-            return source is not None and source.kicked
+        if kind == "kicked":  # "if it was kicked (with its {R} kicker)"
+            return source is not None and bool(source.kicked) and (not condition.what or condition.what in source.kickers)
         if kind == "graveyard_left":
             return seat.graveyard_left_turn == self.turn
         if kind == "gained_life":
@@ -2378,14 +2408,14 @@ class Game:
             permanent.counters[PLUS] = permanent.counters.get(PLUS, 0) + eaten * devour(permanent.card)
             self.broadcast({"event": "devoured", "seat": seat.index, "card": permanent.card.name, "creatures": eaten})
 
-    def _choose_replicate(self, seat: Seat, card: Card, from_command_zone: bool, kicked: int, extra: str,
+    def _choose_replicate(self, seat: Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str,
                           alternative: AlternativeCost | None) -> int:
         """Replicate {cost}: how many times to pay it (any affordable number)."""
         cost = replicate_cost(card)
         if cost is None:
             return 0
         most = 0
-        while (most < MAX_X and self._payment(seat, card, from_command_zone, alternative=alternative, kicked=kicked,
+        while (most < MAX_X and self._payment(seat, card, from_command_zone, alternative=alternative, kickers=kickers,
                                               extra=extra + cost * (most + 1)) is not None):
             most += 1
         return seat.player.choose(REPLICATE_PROMPT + card.name, [str(n) for n in range(most + 1)]) if most else 0
@@ -2754,7 +2784,8 @@ class Game:
         if new_targets and (chosen := self._choose_targets(controller, item.effects, item.card.name,
                                                            colors=source_qualities(item.card))):
             targets = chosen[0]
-        self.stack.append(StackItem(item.card, controller, item.effects, targets, x=item.x, kicked=item.kicked, is_copy=True))
+        self.stack.append(StackItem(item.card, controller, item.effects, targets, x=item.x, kicked=item.kicked,
+                                    kickers=item.kickers, is_copy=True))
         self.broadcast({"event": "copied_spell", "seat": controller.index, "card": item.card.name})
         self._observe("copy", item.card, controller)
 

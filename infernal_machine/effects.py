@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -2542,7 +2542,10 @@ class AdditionalCost:
     life_x: bool = False  # "pay X life" (Toxic Deluge): X is chosen as the spell is cast
 
 
-_KICKER = re.compile(r"(?:Multik|K)icker ((?:\{\d+\}|\{[WUBRGC]\})+)")
+_MANA_SYMBOLS = r"(?:\{\d+\}|\{[WUBRGC]\})+"
+_KICKER = re.compile(rf"(?:Multik|K)icker ({_MANA_SYMBOLS})(?: and/or ({_MANA_SYMBOLS}))?")
+_KICKER_OTHER = re.compile(rf"Kicker\u2014(?:Sacrifice an? (creature|artifact|land|artifact or creature|permanent)"
+                           rf"|(Discard a card)|Pay (?!X ){_N} life)\.")
 _FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast this spell without paying its mana cost\.")
 _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life and )?exile an? ({_COLOR_NAMES}) card "
                     r"from your hand rather than pay this spell's mana cost\.")
@@ -2556,9 +2559,21 @@ _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|nonc
                         r"you cast cost \{(\d+)\} less to cast\.", re.I)
 
 
-def kicker_cost(card: Card) -> str | None:
-    """The mana cost from "Kicker {1}{U}" or "Multikicker {1}{G}" (only mana costs are supported), or None."""
-    return next((m[1] for line in rules_lines(card) if (m := _KICKER.fullmatch(line))), None)
+def kicker_costs(card: Card) -> tuple[str, ...]:
+    """The mana kicker costs: one for "Kicker {1}{U}" or "Multikicker {1}{G}", two for "Kicker {R} and/or {W}",
+    none if there's no kicker or it isn't mana."""
+    for line in rules_lines(card):
+        if m := _KICKER.fullmatch(line):
+            return tuple(cost for cost in m.groups() if cost)
+    return ()
+
+
+def kicker_other_cost(card: Card) -> AdditionalCost | None:
+    """A kicker cost that isn't mana: "Kicker—Sacrifice a land.", "Kicker—Discard a card.", "Kicker—Pay 3 life." """
+    for line in rules_lines(card):
+        if m := _KICKER_OTHER.fullmatch(line):
+            return AdditionalCost(sacrifice=m[1], discard=bool(m[2]), life=_count(m[3]) if m[3] else 0)
+    return None
 
 
 def entwine_cost(card: Card) -> str | None:
@@ -2729,7 +2744,7 @@ _SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid)(?:, (?:Delve|Cascade|Dev
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY))
 
@@ -2753,25 +2768,53 @@ def is_cost_reduction_line(line: str) -> bool:
 
 @dataclass(frozen=True)
 class IfKicked:
-    """"If this spell was kicked, draw a card.": the effect happens only if the kicker cost was paid."""
+    """"If this spell was kicked, draw a card.": the effect happens only if the kicker cost was paid.
+    `kicker` names one of two kicker costs: "If this spell was kicked with its {1}{B} kicker, ..." """
     effect: Any
+    kicker: str = ""
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if game.resolving_item is not None and game.resolving_item.kicked:
             self.effect.resolve(game, controller, target)
 
 
+@dataclass(frozen=True)
+class KickedInstead:
+    """"If this spell was kicked, it deals 4 damage instead.": when kicked, the previous effect's `field`
+    (its damage, number of tokens or cards) becomes `value`."""
+    field: str
+    value: int | str
+
+
+_KICKED_INSTEAD = [
+    (re.compile(rf"if this spell was kicked, {_SELF} deals {_N} damage instead\.", re.I), "amount"),
+    (re.compile(rf"if this spell was kicked, create {_N} of those tokens instead\.", re.I), "count"),
+    (re.compile(rf"if this spell was kicked, draw {_N} cards instead\.", re.I), "count"),
+]
+
+
 def _kicked(m: re.Match) -> IfKicked | None:
-    effects = _parse([m[1][:1].upper() + m[1][1:]])
-    return IfKicked(effects[0]) if effects else None
+    kicker, rest = m[1] or "", m[2]
+    effects = _parse([rest[:1].upper() + rest[1:]])
+    return IfKicked(effects[0], kicker) if effects else None
 
 
-def kicked_effects(effects: list | None, kicked: int) -> list | None:
+def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] = ()) -> list | None:
     """A spell's effects once it's known whether it was kicked: "If this spell was kicked, ..." effects
     become plain effects, or are dropped. This happens before targets are chosen, so kicked effects can target."""
     if effects is None:
         return None
-    return [e.effect if isinstance(e, IfKicked) else e for e in effects if kicked or not isinstance(e, IfKicked)]
+    result = []
+    for effect in effects:
+        if isinstance(effect, KickedInstead):
+            if kicked:
+                result[-1] = replace(result[-1], **{effect.field: effect.value})
+        elif isinstance(effect, IfKicked):
+            if kicked and (not effect.kicker or effect.kicker in kickers):
+                result.append(effect.effect)
+        else:
+            result.append(effect)
+    return result
 _LAND_TYPES = rf"({_LAND_TYPE}(?:, {_LAND_TYPE})*(?:,? or {_LAND_TYPE})?)"
 
 
@@ -2836,7 +2879,8 @@ _DAMAGE_KIND = (r"(any target|target creature|target player|target opponent|targ
                 r"|target player or planeswalker)")
 
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
-    (re.compile(r"if this spell was kicked, (.+)", re.I), _kicked),
+    *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
+    (re.compile(rf"if this spell was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?, (.+)", re.I), _kicked),
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
     (re.compile(rf"you gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
@@ -2891,7 +2935,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (player|opponent) gains {_N} life\.", re.I), lambda m: TargetGainLife(_count(m[2]), m[1].lower())),
     (re.compile(rf"target (player|opponent) loses {_N} life\.", re.I), lambda m: TargetLoseLife(_count(m[2]), m[1].lower())),
     (re.compile(rf"return (another |up to one )?target {_PERMANENT_KIND} to its owner's hand\.", re.I),
-     lambda m: ReturnToHand(m[2].lower(), (m[1] or "").lower() == "another ", (m[1] or "").lower() == "up to one ")),
+     # "Return another target ..." can be neither the source (a trigger's) nor the spell's earlier target (Rushing River).
+     lambda m: ReturnToHand(m[2].lower(), (m[1] or "").lower() == "another ", (m[1] or "").lower() == "up to one ",
+                            distinct=(m[1] or "").lower() == "another ")),
     (re.compile(rf"return {_UP_TO} target {_PLURAL_KIND} to their owners' hands\.", re.I), lambda m: _up_to(ReturnToHand, m)),
     (re.compile(rf"return all {_MASS} to their owners' hands\.", re.I), lambda m: ReturnAllToHand(_mass_kind(m))),
     (re.compile(rf"return {_UP_TO} target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),
@@ -3349,6 +3395,9 @@ def _parse(sentences: list[str]) -> list | None:
             return None
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
+    for i, effect in enumerate(effects):
+        if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
+            return None  # "instead" has to change the effect just before it
     merged = _merge_no_regen(effects)
     for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters):  # each returns None for a line it rejects
         merged = merge(merged)
@@ -3480,7 +3529,8 @@ _CONDITIONS = [
     (re.compile(r"you're the monarch"), lambda m: Condition("monarch")),
     (re.compile(rf"you have {_N} or more cards in hand"), lambda m: Condition("hand_at_least", _count(m[1]))),
     (re.compile(r"you have no cards in hand"), lambda m: Condition("hand_none")),
-    (re.compile(rf"(?:{_SELF}|he|she) was kicked"), lambda m: Condition("kicked")),
+    (re.compile(rf"(?:{_SELF}|he|she) was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?"),
+     lambda m: Condition("kicked", what=m[1] or "")),
     (re.compile(r"you have the city's blessing"), lambda m: Condition("citys_blessing")),
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
     (re.compile(rf"there are {_N} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
