@@ -1,0 +1,34 @@
+{
+ "id": "2668ac91-6cda-4f81-a08d-4fc5f9cb35b2",
+ "name": "Riverglide Pathway // Lavaglide Pathway",
+ "layout": "modal_dfc",
+ "cmc": 0.0,
+ "type_line": "Land // Land",
+ "color_identity": [
+  "R",
+  "U"
+ ],
+ "produced_mana": [
+  "R",
+  "U"
+ ],
+ "legalities": {
+  "commander": "legal"
+ },
+ "card_faces": [
+  {
+   "name": "Riverglide Pathway",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {U}.",
+   "colors": []
+  },
+  {
+   "name": "Lavaglide Pathway",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "{T}: Add {R}.",
+   "colors": []
+  }
+ ]
+}

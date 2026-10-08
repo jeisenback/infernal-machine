@@ -919,7 +919,9 @@ _REPLACE_OPPONENT_GRAVEYARD = "If a card would be put into an opponent's graveya
 _DOUBLE_TOKENS = ("If an effect would create one or more tokens under your control, it creates twice that many of "
                   "those tokens instead.")
 _DOUBLE_COUNTERS = ("If an effect would put one or more counters on a permanent you control, it puts twice that many "
-                    "of those counters instead.")
+                    "of those counters on that permanent instead.")
+_DOUBLE_COUNTERS_OLD = ("If an effect would put one or more counters on a permanent you control, it puts twice that "
+                        "many of those counters instead.")  # the wording before the Oracle update
 _PLUS_ONE_COUNTERS = ("If one or more +1/+1 counters would be put on a creature you control, that many plus one "
                       "+1/+1 counters are put on it instead.")
 _EXTRA_TRIGGER = re.compile(r"If (an artifact or creature|a permanent) entering the battlefield causes a triggered "
@@ -946,7 +948,7 @@ def replacement_effects(card: Card) -> Replacements:
             found.setdefault("graveyard", "opponent")
         elif line == _DOUBLE_TOKENS:
             found["tokens"] = found.get("tokens", 1) * 2
-        elif line == _DOUBLE_COUNTERS:
+        elif line in (_DOUBLE_COUNTERS, _DOUBLE_COUNTERS_OLD):
             found["counters"] = found.get("counters", 1) * 2
         elif line == _PLUS_ONE_COUNTERS:
             found["plus_one"] = found.get("plus_one", 0) + 1
@@ -957,10 +959,10 @@ def replacement_effects(card: Card) -> Replacements:
 
 def is_replacement_line(line: str) -> bool:
     return (line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
-                     _PLUS_ONE_COUNTERS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
+                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
 
 
-_CLONE = re.compile(r"You may have CARDNAME enter(?: the battlefield)? as a copy of "
+_CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy of "
                     r"(?:any (creature|artifact|enchantment|land) on the battlefield|a (creature) you control)\.")
 
 
@@ -1976,6 +1978,30 @@ class Vote:
                     effect.resolve(game, controller, None)
 
 
+_NO_MAX_HAND = "You have no maximum hand size."
+
+
+def no_max_hand_size(card: Card) -> bool:
+    """Reliquary Tower, Thought Vessel: their controller discards nothing down to seven at the end of turn."""
+    return any(line == _NO_MAX_HAND for line in rules_lines(card))
+
+
+def is_no_max_hand_line(line: str) -> bool:
+    return line == _NO_MAX_HAND
+
+
+_EXTRA_VOTE = "While voting, you may vote an additional time."
+
+
+def extra_votes(card: Card) -> int:
+    """Tivit, Seller of Secrets: how many additional times its controller may vote (the votes can differ)."""
+    return int(any(line == _EXTRA_VOTE for line in rules_lines(card)))
+
+
+def is_extra_vote_line(line: str) -> bool:
+    return line == _EXTRA_VOTE
+
+
 @dataclass(frozen=True)
 class VoteToExile:
     """Council's Judgment."""
@@ -2505,7 +2531,8 @@ class FetchBasicLand:
         game.fetch_basic_land(controller)
 
 
-_PERMANENT_KIND = (r"((?:creature token|nontoken creature|attacking creature|tapped creature|untapped creature|creature|artifact"
+_PERMANENT_KIND = (r"((?:creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
+                   r"|non(?:white|blue|black|red|green|artifact) creature|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker)(?: an opponent controls| you don't control| you control)?"
                    r"(?: with mana value \d+ or (?:less|greater))?)")
@@ -2598,7 +2625,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"search your library for up to (two|three|four) {_LAND_TYPES_PLURAL}, put them onto the battlefield"
                 r"( tapped)?, then shuffle\.", re.I),
      lambda m: SearchForLands(_count(m[1]), _land_types(m[2]), _count(m[1]), bool(m[3]), False)),
-    (re.compile(r"you lose life equal to its mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
+    (re.compile(r"you lose life equal to (?:its|that card's) mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
     (re.compile(rf"you lose {_N} life\.", re.I), lambda m: LoseLife(_count(m[1]))),
     (re.compile(r"search your library for up to two basic land cards, reveal those cards, put one onto the battlefield "
                 r"tapped and the other into your hand, then shuffle\.", re.I),
@@ -2610,6 +2637,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"then shuffle\.", re.I),
      lambda m: SearchForLands(1, _land_types(m[1]), 1, bool(m[2]), False)),
     (re.compile(rf"scry {_N}\.", re.I), lambda m: Scry(_count(m[1]))),
+    (re.compile(rf"scry {_N}, then draw (?:a card|{_N} cards)\.", re.I),
+     lambda m: [Scry(_count(m[1])), Draw(_count(m[2] or "a"))]),
     (re.compile(rf"scry {_N}, then reveal the top card of your library\.", re.I),
      lambda m: RevealTopStep("reveal", _count(m[1]))),
     (re.compile(r"if it's a land card, put it onto the battlefield( tapped)?\.", re.I),
@@ -2634,6 +2663,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
      lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
     (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
+    (re.compile(rf"untap target {_PERMANENT_KIND} and gain control of it until end of turn\.", re.I),
+     lambda m: [GainControl(m[1].lower(), until_end_of_turn=True), UntapThat()]),
+    (re.compile(r"that creature gains haste until end of turn\.", re.I),
+     lambda m: PumpSource(Modifier(keywords=frozenset({"haste"})))),
     (re.compile(r"tap (?:it|that creature)\.", re.I), lambda m: TapThat()),
     (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
     (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
@@ -2756,6 +2789,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"move (?:{_N}|all) {_COUNTER} from target (creature) onto another target (creature)\.", re.I),
      lambda m: [MoveCountersFrom(m[3].lower()), MoveCountersOnto(_count(m[1]) if m[1] else None, _counter_name(m[2]), m[4].lower())]),
     (re.compile(rf"(?:Until end of turn, )(?:CARDNAME|this land) becomes an? {_ANIMATED}\."), lambda m: _animate(m, None)),
+    (re.compile(rf"(?i:CARDNAME|this land) becomes an? {_ANIMATED} (?i:until end of turn)\."), lambda m: _animate(m, None)),
     (re.compile(rf"(?i:target) (land you control) becomes an? {_ANIMATED} (?i:until end of turn)\."),
      lambda m: _animate(m, m[1].lower(), 1)),
     (re.compile(r"it's still an? (land|artifact)\.", re.I), lambda m: StillALand()),
@@ -3111,7 +3145,7 @@ _CONDITIONS = [
     (re.compile(r"you're the monarch"), lambda m: Condition("monarch")),
     (re.compile(rf"you have {_N} or more cards in hand"), lambda m: Condition("hand_at_least", _count(m[1]))),
     (re.compile(r"you have no cards in hand"), lambda m: Condition("hand_none")),
-    (re.compile(rf"{_SELF} was kicked"), lambda m: Condition("kicked")),
+    (re.compile(rf"(?:{_SELF}|he|she) was kicked"), lambda m: Condition("kicked")),
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
     (re.compile(rf"there are {_N} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
      lambda m: Condition("graveyard_at_least", _count(m[1]), m[2].replace(" and/or ", " or "))),
@@ -3348,6 +3382,7 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
     return _parse(_split_sentences(rest[:1].upper() + rest[1:])), optional, once, condition
 
 
+_MAY_PAY_OR = re.compile(r"that player may pay ((?:\{[^}]+\})+)\. If the player doesn't, (.+)")
 _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", re.I)
 
 
@@ -3356,6 +3391,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     (only if every effect is about "it"), "that player" / "they" the player who did it (only for effects that
     target a player); where neither can be pointed at, the line isn't understood."""
     about_player = False
+    if player_ok and (m := _MAY_PAY_OR.fullmatch(rest)):  # "that player may pay {2}. If the player doesn't, you create ..."
+        rest = f"{re.sub('^you ', '', m[2].rstrip('.'))} unless that player pays {m[1]}."
     if player_ok:  # before "that creature" becomes "it": "that creature's controller" names the player who controls it
         before = rest
         for pattern, replacement in _PLAYER_PRONOUNS[:2]:
