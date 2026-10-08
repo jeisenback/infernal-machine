@@ -1936,6 +1936,18 @@ class CopySpell:
 
 
 @dataclass(frozen=True)
+class CopyTriggeringSpell:
+    """Codie: "Whenever you cast a prepared spell, copy it. You may choose new targets for the copy." The spell that set
+    the trigger off is `carried`."""
+    new_targets: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        spell = game.resolving_item.carried if game.resolving_item is not None else None
+        if spell is not None:
+            game.copy_spell(spell, controller, self.new_targets)
+
+
+@dataclass(frozen=True)
 class NewTargets:
     """ "You may choose new targets for the copy." Only meaningful after a copy effect (_merge_copy folds it in)."""
     follows_target = True
@@ -3084,6 +3096,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
      lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
+    (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"you may choose new targets for the copy\.", re.I), lambda m: NewTargets()),
     (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
      lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
@@ -3526,7 +3539,7 @@ def _merge_copy(effects: list) -> list | None:
     merged: list = []
     for effect in effects:
         if isinstance(effect, NewTargets):
-            if not merged or not isinstance(merged[-1], CopySpell):
+            if not merged or not isinstance(merged[-1], (CopySpell, CopyTriggeringSpell)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], new_targets=True)
         else:
@@ -3733,7 +3746,7 @@ _WATCHES = {
     "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:(an?|another)|(?:your|their) (first|second|third)) "
                        r"((?:white|blue|black|red|green) spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
-                       r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost"
+                       r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
                        r"|(?-i:[A-Z][a-z]+) spell)"  # a creature type: "another Vampire spell"
                        r"(?: with mana value (\d+) or greater)?( from your hand)?(?(3) each turn), (.+)", re.I),
 }
@@ -3911,11 +3924,14 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
             replaced = pattern.sub(replacement, replaced)
         about_player, rest = about_player or replaced != rest, replaced
     about_subject = re.search(r"\bit\b|\bthat spell\b", rest, re.I) is not None
-    if about_subject and not subject_ok:
+    copies_spell = re.match(r"copy (it|that spell)\.", rest, re.I) is not None  # Codie: "it" is the spell cast
+    if about_subject and not subject_ok and not copies_spell:
         return None, False, False, None
     effects, optional, once, condition = _trigger_body(rest)
     if effects is None:
         return None, False, False, None
+    if copies_spell and not subject_ok:
+        return effects, optional, once, condition
     if about_player:
         if not all(getattr(e, "target", None) in ("player", "opponent", "any") for e in effects):
             return None, False, False, None

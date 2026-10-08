@@ -236,6 +236,7 @@ class PendingTrigger:
     subject: "Permanent | None" = None  # what a watching trigger saw happen
     player: "Seat | None" = None  # who did it
     card: Card | None = None  # for a dungeon room's ability, which has no permanent behind it
+    spell: "StackItem | None" = None  # for a cast trigger: the spell that was cast
 
     @property
     def source(self) -> Card:
@@ -1227,7 +1228,8 @@ class Game:
         if has_keyword(card, "cascade") and prepared is None:  # the trigger goes on the stack above the spell
             ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
-        self._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared)
+        self._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared,
+                      prepared=prepared is not None, spell=item)
         self._check_ward(item)
 
     def _choose_kicks(self, seat: Seat, card: Card, effects: list | None, from_command_zone: bool,
@@ -1509,14 +1511,14 @@ class Game:
             self._trigger_each("opponent_discard", opponent, player=seat)
 
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0,
-               subject: Permanent | None = None, player: Seat | None = None) -> None:
+               subject: Permanent | None = None, player: Seat | None = None, spell: "StackItem | None" = None) -> None:
         if ability.condition and not self.condition_holds(ability.condition, controller, permanent):
             return
         if ability.once_per_turn:  # "This ability triggers only once each turn."
             if permanent.triggered_turn.get(ability.text) == self.turn:
                 return
             permanent.triggered_turn[ability.text] = self.turn
-        self.pending.append(PendingTrigger(ability, permanent, controller, x, subject, player))
+        self.pending.append(PendingTrigger(ability, permanent, controller, x, subject, player, spell=spell))
 
     def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None) -> bool:
         """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`."""
@@ -1565,7 +1567,8 @@ class Game:
         return matching >= condition.count if kind == "control_at_least" else matching == 0
 
     def _observe(self, event: str, card: Card, seat: Seat, subject: Permanent | None = None,
-                 extra: list[tuple[Permanent, Seat]] = (), x: int = 0, from_hand: bool = False) -> None:
+                 extra: list[tuple[Permanent, Seat]] = (), x: int = 0, from_hand: bool = False,
+                 prepared: bool = False, spell: "StackItem | None" = None) -> None:
         """Trigger abilities that watch for `event` happening to `card` (controlled by `seat`):
         "Whenever another creature enters", landfall, "whenever a creature dies",
         "whenever you cast a spell". `extra` adds watchers that just left the battlefield
@@ -1601,13 +1604,16 @@ class Game:
                     continue
                 if watch.nontoken and _is_token(card):
                     continue
-                if not _watch_type_matches(watch.kind, card):
+                if watch.kind == "prepared spell":  # cast as a prepared creature's spell, whatever kind of spell it is
+                    if not prepared:
+                        continue
+                elif not _watch_type_matches(watch.kind, card):
                     continue
                 if watch.nth_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
                                                for turn, c in seat.cast_log) != watch.nth_each_turn:
                     continue
                 for _ in range(self._trigger_times(watcher_seat, event, card)):
-                    self._queue(ability, watcher, watcher_seat, x, subject, seat)
+                    self._queue(ability, watcher, watcher_seat, x, subject, seat, spell)
 
     def _put_triggers_on_stack(self) -> None:
         """Active player's triggers first, then the others in turn order (CR 603.3b).
@@ -1632,7 +1638,8 @@ class Game:
                 continue
             targets, labels = chosen
             item = StackItem(trigger.source, seat, effects, targets, trigger.ability,
-                             trigger.permanent, x=trigger.x, subject=trigger.subject, player=trigger.player)
+                             trigger.permanent, x=trigger.x, subject=trigger.subject, player=trigger.player,
+                             carried=trigger.spell)
             self.stack.append(item)
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
                             "ability": _shown(trigger.ability.text, trigger.source), "targets": labels})

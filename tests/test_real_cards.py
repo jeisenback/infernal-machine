@@ -6,8 +6,7 @@ from dataclasses import replace
 from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
 from infernal_machine.effects import activated_abilities, spell_effects
-from infernal_machine.game import Permanent
-from infernal_machine.game import MODE_PROMPT, OPENING_PROMPT
+from infernal_machine.game import CAST, CAST_PREPARED, MODE_PROMPT, OPENING_PROMPT, Permanent
 from tests.test_combat import BEAR
 from tests.test_effects import lands, table
 from tests.test_mass_effects import table3
@@ -222,3 +221,23 @@ class BioshiftTests(unittest.TestCase):
         options = [o for p, o in players[0].prompts if p.startswith("Choose a target")][1]
         self.assertEqual(len(options), 1)  # only the other Bear it controls, not the opponent's
         self.assertIs(targets[1], also_mine)
+
+
+class CodieTests(unittest.TestCase):
+    def test_a_prepared_spell_is_copied_and_an_ordinary_one_is_not(self):
+        from tests.test_prepared import ADEPT
+        game, _ = table3()
+        a = game.seats[0]
+        a.library = [BEAR] * 9
+        adept = Permanent(ADEPT, prepared=True)
+        a.battlefield = [Permanent(REAL["Codie, Ravenous Codex"]), adept, *lands(2)]
+        game._perform(a, CAST_PREPARED + "Quick Study")
+        run_stack(game)
+        self.assertEqual(len(a.hand), 4)  # Draw two cards, twice: the spell and its copy
+        a.hand.clear()
+        spell = Card(name="Study", mana_cost="{1}", type_line="Instant", oracle_text="Draw two cards.")
+        a.hand = [spell]
+        a.battlefield += lands(1)
+        game._perform(a, CAST + "Study")
+        run_stack(game)
+        self.assertEqual(len(a.hand), 2)  # no copy of a spell that was not prepared
