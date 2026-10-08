@@ -1481,6 +1481,9 @@ class Game:
                         if not i.ability and _watch_type_matches(kind, i.card)
                         and not (whose == "you" and i.controller is not caster)]
             return options
+        limit = re.search(r" with mana value (\d+) or (less|greater)$", kind)  # "creature ... with mana value 3 or less"
+        if limit:
+            kind = kind[:limit.start()]
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
         kind, controller = _split_controller(kind.removesuffix(" that attacked this turn"))
         state, _, base = kind.partition(" ") if kind.split(" ")[0] in ("tapped", "untapped", "attacking") else ("", "", kind)
@@ -1492,6 +1495,8 @@ class Game:
                 if not _permanent_matches(base, card) or self.has_keyword(permanent, "shroud"):
                     continue
                 if attacked and permanent.attacked_turn != self.turn:
+                    continue
+                if limit and (card.cmc > int(limit[1]) if limit[2] == "less" else card.cmc < int(limit[1])):
                     continue
                 if ((state == "tapped" and not permanent.tapped) or (state == "untapped" and permanent.tapped)
                         or (state == "attacking" and not any(a.attacker is permanent for a in self.combat.attacks))):
