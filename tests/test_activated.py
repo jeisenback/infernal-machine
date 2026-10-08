@@ -36,7 +36,7 @@ class ParseTests(unittest.TestCase):
         self.assertTrue(activated_abilities(ONCE)[0].once_per_turn)
 
     def test_unsupported_costs_or_effects_are_left_out(self):
-        for text in ("{4}: Proliferate.", "Sacrifice a creature: Draw a card.", "{1}, {T}: Add {W}{U}."):
+        for text in ("{4}: Venture into the dungeon.", "Tap an untapped creature you control: Draw a card.", "{1}, {T}: Add {W}{U}."):
             self.assertEqual(activated_abilities(Card(name="x", oracle_text=text)), (), text)
 
 

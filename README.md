@@ -35,6 +35,10 @@ deck = load_deck(open("deck.txt").read(), source)  # deck.commanders, deck.main,
   It sends the required headers and spaces requests 100 ms apart.
 - `CachedSource` wraps any source and stores the cards it fetches in a JSON file,
   so repeat lookups work offline.
+- `BulkSource(".cache/oracle_bulk.json")` skips the per-card API calls. It downloads Scryfall's
+  [Oracle Cards bulk file](https://scryfall.com/docs/api/bulk-data) (~25 MB gzipped, ~35,000 cards) once, saves a
+  slim copy, and refreshes it after a week (keeping the old copy if Scryfall is unreachable). Everything after
+  that is offline. The server uses it with `--bulk .cache/oracle_bulk.json`.
 - `parse_decklist` reads Arena/MTGO/Moxfield text: `Commander` / `Deck` / `Sideboard`
   headers, `1 Sol Ring (CMM) 400`, and Moxfield's `*CMDR*` and `*F*` tags.
 
@@ -93,9 +97,21 @@ winner = game.play()
 - **Paying mana:** mana is paid automatically from lands (using Scryfall's `produced_mana`) and from
   permanents with a simple tap ability: `{T}: Add {C}{C}.`, `{T}: Add {G}.`, `{T}: Add {R} or {G}.`,
   and "one mana of any color" (optionally limited to your commander's colors).
-  Creatures can't tap for mana the turn they arrive. Phyrexian symbols are paid with mana.
-  Signet-style abilities ("{1}, {T}: Add {W}{U}.") are used when plain sources aren't enough.
+  Creatures can't tap for mana the turn they arrive.
+  - Phyrexian symbols ({B/P}) are paid with mana when possible, otherwise with 2 life each, but never down to 0 life.
+  - Twobrid symbols ({2/W}) are paid with one mana of that color if possible, otherwise with two mana of any kind.
+  - {S} (snow) is paid by mana from a snow permanent ("Snow-Covered Forest"), which still makes its normal color.
+  Signet-style abilities ("{1}, {T}: Add {W}{U}.") are used when plain sources aren't enough. One Signet can pay
+  another's {1} (but never its own). A Signet's cost is paid with the first mana that fits, so a chain of Signets
+  can occasionally miss a payment that a different choice would have found.
+  Lands with "{T}, Pay 1 life: Add {G} or {W}." (Horizon lands) pay life for each tap, like Mana Confluence, and are
+  not used at 1 life or less.
   Their own cost is always paid by a plain source.
+- **Mana pool and rituals:** "Add {B}{B}{B}." as a spell (Dark Ritual) puts mana in the caster's pool. Pool mana is
+  spent first on whatever they cast or activate next, and the pool empties at the end of every step. Clients see it
+  as `mana_pool` in the board state. Bots don't cast cards that only add mana, since they don't plan ahead.
+- **X in abilities:** "{X}, {T}: Draw X cards." asks for X when you activate, from 0 up to what you can afford,
+  the same way spells do.
 - **X spells:** the caster chooses X when casting, from 0 up to what they can afford.
   X works in effects ("draw X cards", "deals X damage", "create X tokens", "put X counters")
   and in "enters with X +1/+1 counters".
@@ -103,10 +119,24 @@ winner = game.play()
   - Cost reducers: "Green spells you cast cost {1} less to cast." (Medallions), for a color, "creature",
     "artifact", "enchantment", "noncreature", "instant and sorcery", or all spells. Only generic mana is
     reduced, including commander tax and kicker.
+  - Evoke and Overload are alternative costs paid in mana, offered when you cast ("Evoke {2}{U}", "Overload {6}{U}").
+    An evoked creature is sacrificed once it enters, after its own "when it enters" abilities have resolved
+    (Mulldrifter draws its two cards first). An overloaded spell reads every "target" as "each" and has no targets
+    (Cyclonic Rift returns every nonland permanent you don't control; Vandalblast destroys every artifact you don't
+    control). Overload is only offered when the "each" version is understood; otherwise the line is reported.
+  - A spell can reduce its own cost: "This spell costs {1} less to cast for each creature on the battlefield."
+    (Blasphemous Act, any player's creatures) or "... for each instant and sorcery card in your graveyard".
   - Alternative costs: "If you control a commander, you may cast this spell without paying its mana cost."
     (Fierce Guardianship, Deadly Rollick) and "(If it's not your turn,) you may (pay N life and) exile a blue card
     from your hand rather than pay this spell's mana cost." (Force of Will, Force of Negation). When more than
     one way is payable, the caster chooses. X is 0 when the mana cost isn't paid.
+  - Flashback {N}: you may cast the card from your graveyard for that cost (at the usual timing: an instant at any
+    time, anything else at sorcery speed). Whenever it leaves the stack, whether it resolves, fizzles or is
+    countered, it is exiled instead of going to the graveyard. Bots use graveyard casts like any other cast.
+  - Escape—{N}, Exile N other cards from your graveyard: you cast it from the graveyard for that cost and exile the
+    other cards you choose, which counts as cards leaving your graveyard. It isn't exiled afterwards, so an escaped
+    creature stays. Only one graveyard-casting ability per card is used (the first on the card). Kicker and
+    commander tax don't apply to a graveyard cast.
   - Kicker {N}: the caster chooses whether to pay it, before choosing targets. "If this spell was kicked, ..."
     effects on instants and sorceries happen only when it was, and can target (kicker is only offered when those
     targets exist). A kicked permanent (Auras too) remembers it: "If this creature was kicked, it enters with
@@ -124,10 +154,21 @@ winner = game.play()
     or creature / a land / a permanent", "discard a card" or "pay N life". They're paid after mana, so a creature
     that tapped for mana can still be sacrificed. Effects that read the paid cost ("the sacrificed creature's
     power") aren't supported.
+    "Pay X life" (Toxic Deluge) is chosen as you cast: any amount that leaves you with at least 1 life, and the
+    spell's X is that amount ("All creatures get -X/-X until end of turn"; also "Creatures you control get +X/+X" and
+    "Creatures your opponents control get -X/-X"). The bot pays up to 3. "{X}, Sacrifice this enchantment: Destroy each
+    artifact, creature, and enchantment with mana value X or less." (Pernicious Deed) takes its X from the activation.
 - **Commander tax:** your commander costs {2} more for each earlier cast from the command zone.
   When your commander would go to the graveyard, you choose whether it goes back to the command zone instead.
 - **The stack:** spells go on the stack and resolve last in, first out once everyone passes in a row.
-- **Combat:** the active player chooses, creature by creature, whether to attack and which opponent.
+- **Combat:** the active player chooses, creature by creature, whether to attack and whom: an opponent, or a
+  planeswalker an opponent controls ("Attack Planeswalker: ..."). Damage to a planeswalker removes loyalty (it dies at
+  0), and the player's creatures can block attackers aimed at their planeswalker. A trampler's extra damage goes to
+  the planeswalker. If the planeswalker has left, the attacker deals no damage. Bots attack players only.
+  "Whenever a creature attacks you" triggers only for attacks on the player; "... attacks you or a planeswalker you
+  control" triggers for both. When several creatures block one attacker, its controller names which blocker gets
+  lethal damage first, then the next, and so on (bots go for the weakest first); the rest goes to the last, or to the
+  player with trample.
   Each defending player then chooses blockers, and damage is dealt all at once. With no attackers,
   the blockers and damage steps are skipped. If any creature in combat has first strike or double strike,
   there's an extra first-strike damage step.
@@ -159,44 +200,121 @@ winner = game.play()
 | Exile target player's graveyard. | Tormod's Crypt |
 | Exile (another) target nonland permanent ... until this enchantment leaves the battlefield. | Banishing Light |
 | Exile another target ...; When this leaves the battlefield, return the exiled card to the battlefield under its owner's control. | Oblivion Ring, Fiend Hunter |
-| Choose one / two / three / one or both / one or more — • mode • mode ... | charms and commands |
+| Exile target creature (you control), then return it to the battlefield under its owner's (your) control. / ... Return it to the battlefield (or its owner's hand) at the beginning of the next end step. | Cloudshift, Flickerwisp |
+| Exile target spell. / Counter target spell. If that spell is countered this way, exile it instead ... | Dissipate |
+| Exile the top N cards of your library. You may play it (them) this turn. / Until the end of your next turn, you may play those cards. | Light Up the Stage |
+| Choose one / two / three / one or both / one or more — • mode • mode ... (also in "When ..., choose one —" and "{T}: Choose one —") | charms and commands, Charming Prince |
+| Entwine {cost} / Escalate {cost} (mana costs only) | Tooth and Nail |
+| Tap all creatures your opponents control. | Cryptic Command |
 | Target player (or opponent) draws N cards / gains N life / loses N life. | |
 | Exile target card from a graveyard. | |
 | Return (another) target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation, Rushing River |
 | Return target (creature) card from your graveyard to your hand / to the battlefield. | Raise Dead, Zombify |
 | Put target creature card from a graveyard onto the battlefield under your control. | Reanimate |
-| Search your library for a (creature) card, (reveal it,) put it into your hand, then shuffle. | Demonic Tutor |
+| Search your library for a (creature / legendary creature / Aura / Equipment / nonbasic land) card (with mana value N or less), (reveal it,) put it into your hand, then shuffle. | Demonic Tutor, Stoneforge-style |
+| Search your library for a nonbasic land card / up to two Forest cards, put it onto the battlefield (tapped), then shuffle. | Skyshroud Claim |
+| Return target creature card from your graveyard to the battlefield tapped. | |
 | Search your library for a card, then shuffle and put that card on top. | Vampiric Tutor |
 | You lose N life. | |
 | Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle. | Cultivate, Kodama's Reach |
 | Search your library for a (Plains, Island, ...) card, put it onto the battlefield (tapped), then shuffle. | Farseek, Nature's Lore |
 | Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle. | Explosive Vegetation |
 | Scry N. / Surveil N. | |
+| Look at the top N cards of your library. Put one of them into your hand and the rest on the bottom. / You may reveal a creature card from among them... | |
+| Take an extra turn after this one. / Target player takes an extra turn after this one. | Time Walk, Time Warp |
+| After this (main) phase, there is an additional combat phase (followed by an additional main phase). | Relentless Assault |
+| Untap all creatures that attacked this turn. / Untap all creatures you control. | Aggravated Assault |
+| Untap target land (permanent, creature, ...). / Untap another target creature. / Untap up to two target lands. | |
+| Untap all lands (artifacts, permanents, enchantments) you control. | |
+| Untap it. / Untap this creature. (in "Whenever this creature attacks, untap it", or "equipped creature ... untap it") | |
+| You become the monarch. | Palace Jailer |
+| You take the initiative. | Caves of Chaos Adventurer |
+| Goad target creature. / Goad all creatures you don't control. | Disrupt Decorum |
+| Whenever an opponent casts a spell / draws a card, (you may) draw a card / create a Treasure token unless that player pays {N}. | Rhystic Study, Mystic Remora, Smothering Tithe |
+| Whenever you become the monarch, ... / Whenever an opponent becomes the monarch, ... | |
+| Starting with you, each player votes for X or Y. For each X vote, ... / If X gets more votes (or the vote is tied), ... | Tivit, Plea for Power, Capital Punishment |
+| Starting with you, each player votes for a nonland permanent you don't control. Exile each permanent with the most votes or tied for most votes. | Council's Judgment |
+| Investigate. | |
 | Mill N cards. / Target player (or opponent) mills N cards. / Each opponent (or player) mills N cards. | |
+| Discard N cards (at random). / Discard your hand. / Target player (or opponent) discards N cards (at random). / Each opponent (or player) discards N cards or their hand. | Mind Rot, Hymn to Tourach, Windfall |
+| Draw N cards, then discard N cards. / Each player discards their hand, then draws N cards. / Each player draws N cards. | Faithless Looting, Wheel of Fortune |
+| Target player reveals their hand. You choose a (nonland / noncreature, nonland / ... with mana value N or less) card from it. That player discards that card. | Thoughtseize, Duress, Inquisition of Kozilek |
 | Equip {N} (Equipment) | Swiftfoot Boots, Lightning Greaves |
+| Equip—Pay N life. / Sacrifice a creature. / Discard a card. | Blood-style equipment |
+| Whenever equipped (enchanted) creature dies / deals combat damage to a player, ... | Sword of Feast and Famine-style |
+| When this is put into a graveyard from the battlefield, return it to its owner's hand. | Rancor |
+| Enchanted (equipped) creature (land) has "{T}: ..." | Enchanted land has "{T}: Add {G}{G}." |
 | Equipped creature gets +N/+N and has keywords. / Enchanted creature gets +N/+N and has keywords. | |
 | Enchant creature / land / ... (Auras) | |
 | Enchanted creature can't attack or block. | Pacifism |
 | Destroy all creatures / artifacts / lands / nonland permanents / ... (optionally "you don't control", "you control") | Wrath of God, Armageddon |
 | Exile all creatures / ... | |
+| Destroy / exile all creatures with flying / without flying / with power 4 or greater / with toughness 2 or less / nonblack / white | Hurricane-style wipes |
 | This spell deals N (or X) damage to each creature / each creature you don't control / each opponent / each player | Pyroclasm |
-| Each opponent (or each player) sacrifices a creature. Target player (or opponent) sacrifices a creature. | Diabolic Edict |
+| ... damage to each creature with flying (and each player) | Electrickery-style |
+| Each opponent (or each player) sacrifices a creature / artifact / enchantment / land / permanent. Target player (or opponent) sacrifices one. | Diabolic Edict |
+| Sacrifice a creature. | Smothering Abomination |
+| Two things joined by "and": "... and you gain 1 life", "You gain 1 life and draw a card", "You draw two cards and lose 2 life" | Blood Artist, Night's Whisper |
 | Create N P/T color Subtype (artifact) creature token(s) (with flying, vigilance, ...). | Raise the Alarm |
+| Create a P/T ... creature token with (flying and) "<an ability we understand>" | Pest: "When this creature dies, you gain 1 life." |
 | Create N Treasure / Clue / Food token(s). | Smothering Tithe |
+| Create a token that's a copy of target creature (you control). / Populate. | Growing Ranks |
 | Destroy target permanent. Its controller creates a 3/3 green Beast creature token. | Beast Within |
 | Put N +1/+1 (or -1/-1) counters on target creature / on each creature you control / on it. | |
 | This creature enters with N +1/+1 counters on it. | Hydras |
 | Target creature gets +N/+N (and gains keywords) / gains keywords until end of turn. | Giant Growth |
+| Creatures you control (or your opponents control) get +N/+N (and gain keywords) until end of turn. | |
+| Target creature gets +X/+X (-X/-X, +X/+0, ...) until end of turn, for each ... / where X is ... | |
+| Target creature becomes a 4/4 Dragon until end of turn. / has base power and toughness 0/1 until end of turn. | |
+| Put N <kind> counters on target <permanent>. / Remove N (all) <kind> counters from target <permanent>. / Remove all counters from target <permanent>. | |
+| Double the number of +1/+1 counters on each creature you control. | |
+| Move a (or all) +1/+1 counter(s) from target creature onto another target creature. | Bioshift |
+| Until end of turn, this land becomes a P/T (color) (Subtype) (artifact) creature (with keywords). It's still a land. / Target land you control becomes a ... | Mutavault, Treetop Village |
+| Each opponent (or player) creates a token. / Target opponent creates a token. | |
 | Creatures you control get +N/+N and gain trample until end of turn. | Overrun |
 | This creature gets +1/+0 until end of turn. (as an activated ability) | Shivan Dragon |
 | Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. | Rampant Growth |
 
+- **Wording:** "of their choice" and a leading "You draw" / "You create" are read the same as without them.
+- **Amounts that depend on the game:** "..., where X is ...", "... equal to ..." and "... for each ..." are worked out
+  when the effect resolves. Supported: its (or this creature's) power, using its last known power if it has left the
+  battlefield; counters of any kind on it ("charge counters on this artifact"); cards (or <type> cards) in your graveyard; the number of <type> you control; creatures on the battlefield; the amount of life
+  you gained this turn; half your life total, rounded down or up; spells you've cast this turn; the greatest mana value among instant and sorcery spells you've
+  cast this turn; opponents. "For each" multiplies drawing, life, tokens, +1/+1 counters and a pump ("+2/+2 until end of turn for each creature you control") ("create a 1/1 Saproling
+  token for each +1/+1 counter on this creature"). A sentence a template already understands is never rewritten.
+  "An X/X ... token" gets its size when it's created (Rootha, Mastering the Moment).
 - **Target restrictions:** destroy and exile targets can say "an opponent controls",
   "you don't control" or "you control".
 - **Counters:** +1/+1 and -1/-1 counters change power and toughness. Matching +1/+1 and -1/-1
-  counters cancel out.
+  counters cancel out. Other kinds ("charge", "time") are only counted. "Put N <kind> counters on target <permanent>",
+  "Remove N <kind> counters from target ...", "Remove all (<kind>) counters from target ..." and "Double the number of
+  +1/+1 counters on each creature you control" work. "Move a (or all) <kind> counter(s) from target creature onto
+  another target creature" moves up to that many; moved counters aren't "put", so Doubling Season doesn't double them.
+  "Move any number of" isn't built.
+- **Setting power and toughness:** "Target creature becomes a 4/4 (color) (Subtype) (creature) (with flying) until end of
+  turn" and "has base power and toughness 0/1 until end of turn" set the base; counters and bonuses still add to it,
+  whatever order they came in. Its types, subtypes and colors don't change.
+- **Animating lands:** "Until end of turn, this land becomes a 3/3 green Ape creature with trample. It's still a land."
+  (Mutavault, Blinkmoth Nexus, Treetop Village, Celestial Colonnade) and "Target land you control becomes a 3/3
+  Elemental creature with haste until end of turn. It's still a land." The permanent keeps its types and gains
+  Creature (and Artifact), the stated subtypes, colors, power and toughness, and keywords; "with all creature types"
+  adds no subtype. It goes back to a plain card at end of turn. A land is summoning sick the turn it comes in, so it
+  can't attack or use {T} abilities if animated that turn. Bots never activate these abilities.
+- **Tokens for other players:** "Each opponent (or player) creates ..." and "Target opponent creates ...". A token
+  with "This creature can't block / attack / attack or block." gets that restriction.
 - **Static abilities:** "(Other) (Elf) creatures you control get +1/+1 (and have flying)" and
   "Creatures you control have haste". These apply only while their source is on the battlefield.
+  - Either can be conditional, written "As long as X, ..." or "... as long as X.", and a creature can buff
+    itself ("As long as you control an artifact, this creature gets +1/+1 and has flying."). The buff is checked
+    every time power, toughness or keywords are looked at, so it switches on and off as the game changes.
+    Conditions: you control a/N or more <type>, you control no <type>, it's your turn, you're the monarch,
+    you have no cards in hand, you have N or more cards in hand, plus the graveyard, life, lands and cast
+    conditions listed under triggers. A line with any other condition is ignored.
+  - Who it affects can be a color ("Other red creatures you control"), a tribe in the plural ("Spirits you control"),
+    or attackers only ("Attacking Pests you control"). Bonuses can scale: "This creature gets +1/+0 for each artifact
+    you control", "... for each creature card in your graveyard", "+2/+2 for each Aura attached to it", and on an Aura
+    "Enchanted creature gets +1/+1 for each Aura you control that's attached to a creature". "Enchanted creature gets
+    +1/+1 and is goaded" goads it for as long as the Aura stays (the Aura's controller is the goader).
 - **Current power, toughness and keywords:** printed values plus counters, static abilities and
   "until end of turn" effects. They count everywhere: combat, damage, targeting (granted hexproof),
   destroy (granted indestructible), state checks, and the labels players see ("Bear 4/4").
@@ -206,50 +324,162 @@ winner = game.play()
 - **Tokens:** they enter with summoning sickness, and "dies" triggers still happen when they leave.
   After leaving the battlefield they stop existing, so they never reach the graveyard or exile.
   Treasure is a mana source that's sacrificed when used, and it's spent after lands and other sources.
-  Clue and Food work through their activated abilities. Copy tokens and tokens with quoted abilities
-  aren't supported yet.
+  "Create a 0/0 Fractal token. Put X +1/+1 counters on it." (or ", then put three ... on it") gives the new token the
+  counters. Clue and Food work through their activated abilities. A token with a quoted ability
+  ("When this token dies, you gain 1 life.") works when that ability is understood; otherwise the card isn't.
 - **Lands:**
   - Entering tapped: "This land enters tapped" (taplands, gain-lands, temples, triomes), and the conditional
     kinds: checklands ("unless you control an Island or a Swamp"; any land with that land type counts),
     fastlands ("two or fewer other lands"), slowlands ("two or more other lands"), and bond lands
-    ("unless you have two or more opponents", so untapped in a 3+ player game). Fetched and reanimated lands
-    follow the same rules.
+    ("unless you have two or more opponents", so untapped in a 3+ player game), plus "unless you control two or more
+    basic lands", "unless you control three or more other Islands", "unless your opponents control eight or more lands"
+    (their lands added together), and the Snarls ("you may reveal a Mountain or Plains card from your hand"; you are
+    asked, and it enters tapped if you decline or have no such card). Fetched and reanimated lands follow the same rules.
   - Shocklands: you may pay 2 life or the land enters tapped. Life you can't spare (2 or less) isn't offered.
   - Painlands and Talismans: 1 damage when tapped for a colored mana. Colorless mana from them is free, and
     the payer picks painless sources first. Talismans make their colors now (they used to make colorless only).
   - Command Tower: only makes your commander's colors, whatever the card data lists.
+  - Ancient Tomb ("{T}: Add {C}{C}. ... deals 2 damage to you."): two mana from one tap, and the damage is dealt
+    once per tap however much of the mana is used. Bouncelands ("{T}: Add {B}{G}.") make both colors the same way.
+  - City of Brass ("Whenever this land becomes tapped, it deals 1 damage to you."): hurts every time it's tapped
+    for mana. Mana Confluence ("{T}, Pay 1 life: Add one mana of any color."): pays life (not damage), and is not
+    used when you can't afford it. The payer picks painless sources first.
+  - Bouncelands: "enters tapped" plus "When this land enters, return a land you control to its owner's hand."
+    You choose the land and it can be itself; bots return the newest land.
+  - **Prepare cards** (Secrets of Strixhaven, e.g. Eiganjo Dynastorian // Replenish): a creature whose card also has a spell half. "This creature enters prepared" and "... becomes prepared" (from any trigger the engine fires) make it prepared; while it is, you get a "Cast prepared: <spell>" action (with the spell's own timing and cost). It casts a copy of the spell, which ends instead of going to a graveyard, and the creature stops being prepared. The report checks both halves. "Target creature becomes prepared / unprepared" (Skycoach Waypoint, Hexhaven Dueling Arena's "creature that attacked this turn"), "each creature you control becomes prepared" (Codie) and the conditions "if this creature isn't prepared", "three or more artifact and/or creature cards in your graveyard", "a player has one or fewer cards in hand" and "an opponent has more cards in hand than you" work. Not built yet: see #85.
   - Cycling {N}: an ability you can use from your hand at instant speed. Pay, discard the card, draw.
-    Landcycling and other costs aren't supported.
-  - Not yet: bouncelands, Pathways (double-faced), filter lands, City of Brass and Mana Confluence,
-    Ancient Tomb, lands that make several mana.
+    Basic landcycling {N} and Plainscycling / Islandcycling / Swampcycling / Mountaincycling / Forestcycling {N}
+    fetch a land to your hand instead (basic land, or any land with that type). The cost can be mana or "Pay N life"
+    (offered only if it leaves you above 0 life).
+  - Mana abilities that end with "Activate only if <condition>." (Temple of the False God, Mox Jasper) make mana only
+    while the condition holds, checked each time you pay. "{1}, {T}: Add one mana of any color." (Hall of Oracles) works
+    like a Signet. A filter or Signet can no longer tap for mana to pay for its own cost (a land with a plain
+    {T}: Add {C} could before).
+  - "{T}: Add {G} for each creature you control" (Gaea's Cradle, Elvish Archdruid) and "{2}, {T}: Add {B} for each Swamp
+    you control" (Cabal Coffers): the amount is worked out each time you pay. Coffers' {2} is paid first, so it is only
+    worth it with enough Swamps (the payment picks the first mana that fits).
+  - Filter lands ("{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}."): paid like a Signet, so one Swamp becomes two white,
+    two black or one of each. A filter land can't pay for its own ability.
+  - Exotic Orchard ("any color that a land an opponent controls could produce") and Reflecting Pool ("any type that
+    a land you control could produce", colorless included): they read the other lands' mana, and a land of this
+    kind adds nothing to another's, so two never feed each other. With nothing to read they make no mana.
+  - Pathways (modal double-faced lands): the card shows both faces' names, and "Play land" is offered once for
+    each face. The face you play is the permanent and makes only its own color. This applies to a land back face
+    of any modal double-faced card; other double-faced cards use their front face only.
 - **Equipment and Auras:** "Equip {N}" is an activated ability at sorcery speed that targets a creature you
   control (re-equipping moves the Equipment). An Aura chooses what it enchants when cast, and goes to the
   graveyard instead of entering if that target is gone when it resolves. Attached permanents change the
   creature's power, toughness and keywords, so granted haste, hexproof or shroud work as usual (shroud stops
   even the controller's equip). Equipment stays on the battlefield, unattached, when its creature leaves;
   an Aura goes to the graveyard. Labels show attachments ("Sword attached to Bear (seat 0, #1)").
-  "Can't attack or block" is supported through Auras. Other equip costs (like "Equip legendary creature {3}")
-  and Auras on lands with special abilities aren't supported yet.
-- **Protection from a color:** "Protection from red" (and "from red and from blue"), whether printed or given by
-  Equipment, an Aura, a static ability, or "gains protection from red until end of turn". The protected permanent
-  can't be targeted by red spells or abilities, takes no damage from red sources, can't be blocked by red
-  creatures, and can't be enchanted or equipped by red permanents, so a red Aura or Equipment already on it
-  falls off. The source's color is what counts: colorless sources ignore protection. A spell that targeted it
-  before it gained protection fizzles. Not supported: "protection from the color of your choice" (Mother of
-  Runes), "protection from everything", and non-color qualities like "from creatures".
-- **Ward {N}:** when an opponent's spell or ability targets a warded permanent, a ward trigger goes on the stack
-  above it. When it resolves, that opponent may pay {N} or their spell or ability is countered (an ability's
-  source is left alone). You can't ward yourself, and if the opponent can't afford the cost they aren't asked.
-  Only mana ward costs work, not "Ward—Pay 3 life".
+  "Can't attack or block" is supported through Auras.
+  - **Other equip costs:** "Equip—Pay 3 life.", "Equip—Sacrifice a creature.", "Equip—Discard a card." are paid like any
+    ability cost. "Equip legendary creature {3}" (a restriction on what it can equip) isn't supported.
+  - **Triggers on what is attached:** "Whenever equipped (or enchanted) creature dies / deals combat damage to a
+    player, ..." (the Equipment's or Aura's controller gets the trigger). "When this Aura is put into a graveyard
+    from the battlefield, return it to its owner's hand" (Rancor) works for any permanent, and so does "When
+    enchanted creature dies, return this Aura to its owner's hand": it comes back from the graveyard it is in.
+    Exiled, it isn't returned. Other Aura returns on "When enchanted creature dies" work too: "return it to the
+    battlefield under your control" (Changing Loyalty), "return this card from your graveyard to the battlefield"
+    (Screams from Within) and "... at the beginning of the next end step" (Ghoulish Impetus) with you choosing what
+    it enchants (it stays in the graveyard if nothing is legal), and Gift of Immortality's creature-then-Aura pair.
+  - **Granting abilities:** "Enchanted (or equipped) creature has "{T}: Draw a card."" lets that creature activate it
+    (a summoning-sick one can't use {T}). "Enchanted land has "{T}: Add {G}{G}."" makes the land tap for that mana
+    instead of its own single mana. A quoted ability that isn't understood leaves the card unsupported.
+  - **Reconfigure {N}:** an Equipment creature has two abilities at sorcery speed: attach to another creature you
+    control (offered only if you have one), and "(unattach)" (offered only while attached). While attached it is
+    not a creature; when unattached, when its creature leaves, or when it leaves the battlefield it is its real
+    card again.
+  - **"It" on the host:** "Whenever equipped (enchanted) creature attacks (deals combat damage to a player), put a
+    +1/+1 counter on it" means the equipped creature. In "Whenever equipped creature dies, ... it" the creature is
+    gone, so that line isn't understood.
+  - **Not built:** Fortify and Fortifications, "Whenever this Equipment becomes attached", Wild
+    Growth-style "whenever enchanted land is tapped for mana", and an equip bonus that scales ("+1/+1 for each").
+- **Replacement effects:** statics that change what would happen, read from a permanent on the battlefield.
+  - Rest in Peace: "If a card or token would be put into a graveyard from anywhere, exile it instead." (Leyline of the
+    Void: only an opponent's cards.) Every route to a graveyard is covered: spells, dying, discarding, milling, cycling.
+    Things still die, so dies triggers happen; a commander can still choose the command zone. Rest in Peace's "exile
+    all cards from all graveyards" is supported.
+  - Doubling Season and Parallel Lives: tokens an effect creates under your control, and counters an effect puts on your
+    permanents (including the counters a permanent enters with), are doubled. Several stack (two doublers: four times).
+    Hardened Scales adds one to +1/+1 counters on your creatures first, then doubling applies.
+  - Panharmonicon and Yarok: a triggered ability of a permanent you control that triggers because an artifact or creature
+    (or any permanent) entered triggers an additional time; each such permanent adds one. Both the entering
+    permanent's own "When this enters" and watching "Whenever another creature enters" abilities count.
+    "This ability triggers only once each turn" still holds.
+- **Copying:**
+  - Clone: "You may have this creature enter the battlefield as a copy of any creature on the battlefield." (also
+    "a creature you control", and artifacts, enchantments or lands). It is decided as it enters, with a "Don't copy
+    anything" choice, so the copy's enters abilities trigger. A copy has the other card's printed characteristics,
+    not its counters or damage; a copy of a token isn't a token. It goes to the graveyard as the Clone card.
+    Bots copy the biggest creature. "Except ..." variants (Phyrexian Metamorph, Phantasmal Image) aren't supported.
+  - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
+    the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
+    instead of going to the graveyard, even if countered. With the second sentence its controller picks targets
+    again (the old ones are still choices); without it the copy keeps them. Abilities can't be copied yet.
+  - "Create a token that's a copy of target creature" and populate were added earlier.
+- **Control change:** "Gain control of target creature." (permanent), "Gain control of target creature until end of turn.
+  Untap that creature. It gains haste until end of turn." (Threaten), and Control Magic ("Enchant creature. You
+  control enchanted creature."). The permanent moves to the new controller's battlefield, is summoning sick for
+  them (haste fixes that), and leaves combat. Its owner doesn't change, so it goes to its owner's graveyard if it
+  dies. Threaten's effect ends in the cleanup step; Control Magic's ends as soon as the Aura stops being
+  attached or leaves, and the creature goes back to whoever controlled it before. A lone "Untap that creature."
+  isn't understood. Bots aim Control Magic at an opponent's creature.
+- **Vehicles:** "Crew N" is an ability at instant speed: tap untapped creatures you control, one at a time, until their
+  total power is N or more (summoning-sick creatures can crew, the Vehicle can't crew itself). Until end of turn the
+  Vehicle is an artifact creature, with its printed power and toughness, so it can attack (not the turn it arrived)
+  and block, and it dies like a creature. It goes back to being a plain card at end of turn or when it leaves. It
+  can't be crewed twice in a turn, and bots crew whenever they can.
+- **Sagas:** "I — ...", "II — ..." and "I, II — ..." chapters. A Saga enters with a lore counter and its
+  chapter I triggers; each of its controller's turns, after the draw step, it gets another and the matching chapter
+  triggers. Once the last chapter's ability has resolved it is put into the graveyard. A Saga is all or nothing: if
+  any chapter isn't understood it has none, and the report lists its lines.
+- **Protection:** "Protection from red" (and "from red and from blue"), printed or given by Equipment, an Aura, a
+  static ability, or "gains protection from red until end of turn". The protected permanent can't be targeted,
+  damaged, blocked, enchanted or equipped by the source. What counts about the source is its colors, its card types
+  and whether it is monocolored, multicolored or colorless, so these work too: "protection from everything", "from
+  all colors", "from monocolored" / "multicolored", "from creatures" / "artifacts" / "enchantments" / "instants" /
+  "sorceries" / "planeswalkers". Protection from creatures stops creatures blocking it and creature damage and
+  abilities, but not a Bolt. An Aura or Equipment of a type it is protected from falls off. A spell that targeted it
+  before it gained protection fizzles.
+  - **"Protection from the color of your choice"** (Mother of Runes, Gods Willing), as "Target creature (you
+    control) gains protection from the color of your choice until end of turn" or "This creature gains ...": the
+    controller picks one of the five colors as it resolves. Bots take the first (white).
+- **Ward:** when an opponent's spell or ability targets a warded permanent, a ward trigger goes on the stack and the
+  spell or ability is countered unless its controller pays. The cost can be mana ("Ward {2}"), life ("Ward—Pay 3
+  life."), discarding ("Ward—Discard a card.") or a mix ("Ward—{1}, Pay 2 life."); if they can't pay they aren't
+  asked, and bots always pay when they can. Ward can also be given: "Other creatures you control have ward {1}",
+  "Equipped creature has ward {2}". You can't ward yourself. Not supported: tapping or sacrificing as a ward cost.
 - **Exile until it leaves:** Oblivion Ring, Banishing Light and Fiend Hunter exile a permanent, and when the source
   leaves the battlefield for any reason the exiled card comes back under its owner's control as a new permanent
   (summoning sick, without counters or attachments, and its "enters" abilities happen again). Tokens exiled this way
   are gone for good, and a commander that went to the command zone instead isn't returned. If the source has left
-  by the time the exile ability resolves, nothing is exiled. "Another target" can't be the source itself, or a target the same spell or ability already chose.
+  by the time the exile ability resolves, nothing is exiled. "Another target" can't be the source itself.
+- **Flicker and delayed returns:** "Exile target creature you control, then return it to the battlefield under its
+  owner's (or your) control" (Cloudshift, Ephemerate) brings it back at once; "Exile target creature. Return it to the
+  battlefield under its owner's control at the beginning of the next end step" (Flickerwisp's "another target
+  permanent" too) or "...to its owner's hand at the beginning of the next end step" waits. It comes back as a new
+  object with no counters, summoning sick, and its enters triggers happen again. A token is gone for good. Cast
+  during the end step itself, the card waits for the next turn's end step.
+- **Exiling a spell:** "Exile target (kind of) spell." and "Counter target spell. If that spell is countered this way,
+  exile it instead of putting it into its owner's graveyard." The spell goes to its owner's exile, not the graveyard.
+- **Exile, then play it:** "Exile the top card (or N cards) of your library. You may play it this turn" and
+  "...Until the end of your next turn, you may play those cards." The cards sit in exile and show up as "Cast from
+  exile: ..." and "Play land from exile: ..." until the permission ends (a land uses your land drop; each card can
+  be played once). "Your next turn" is the next turn that comes round to you in normal order. Without "you may play",
+  "Exile the top N cards" just exiles them. Bots play exiled cards like cards in hand.
 - **Modal spells:** you choose the modes as you cast. Only modes that have a legal target are offered, a mode can't
   be chosen twice, and "one or both" / "one or more" let you stop with "Done choosing modes" once you have enough.
-  Chosen modes happen in the order printed. If any mode isn't supported (or the card has entwine or escalate), the
-  whole card is unsupported, and the report lists the mode.
+  Chosen modes happen in the order printed. If any mode isn't supported, the whole card is unsupported, and the
+  report lists the mode.
+  - **Entwine {cost}:** offered (yes or no) when every mode has a target and the extra cost can be paid; paying it
+    does all the modes. **Escalate {cost}:** each mode beyond the first adds the cost, and a mode that would cost
+    more than the caster has isn't offered. Only mana costs are understood ("Escalate\u2014Discard a card" leaves
+    the card unsupported). Bots always entwine when they can, and keep adding modes while they can pay.
+  - **Modal triggers and abilities** ("When this creature enters, choose one \u2014", "{T}: Choose one \u2014"): the
+    modes are chosen when the ability goes on the stack, before its targets. It isn't put on the stack if no
+    mode has a legal target (and can't be activated at all). One mode that isn't understood leaves the whole
+    ability unsupported.
 - **Zones:** bounced permanents go to their owner's hand, and tokens stop existing. A commander headed for the
   hand can go to the command zone instead. Cards keep their owner: a creature you reanimate from an opponent's
   graveyard enters under your control, but goes back to their graveyard when it dies. Graveyard targets are
@@ -258,20 +488,148 @@ winner = game.play()
   with the listed land types, which includes non-basic lands like Steam Vents for "Island or Mountain"),
   then the library is shuffled. Lands put onto the battlefield trigger landfall. A land put into the hand is
   revealed when the card says so.
+- **Extra turns, monarch and goad:**
+  - Extra turns go to the player who asked, right after the current turn; the latest one asked for goes first,
+    and regular turn order then carries on from where it was.
+  - The monarch draws a card at their end step. Combat damage dealt to the monarch by a creature makes that
+    creature's controller the monarch. If the monarch loses, the active player becomes monarch.
+  - **The initiative:** "You take the initiative" makes you venture into the Undercity (`undercity.py` has the
+    rooms: Secret Entrance, Forge, Lost Well, Trap!, Arena, Stash, Archives, Catacombs, Throne of the Dead
+    Three). You also venture at your upkeep while you hold it, and combat damage to the holder from a creature
+    takes it (each hit is checked on its own, so two players' creatures hitting at once give it to the first
+    one resolved). If the holder loses, the active player takes it. Each room's ability goes on the stack and
+    uses the normal targeting, so the player chooses targets and the next room (when there are two exits);
+    leaving the last room completes the dungeon and the next venture starts over. The Throne's creature enters
+    with three +1/+1 counters and hexproof until its controller's next turn begins. Bots take the first exit and
+    put the Forge's counters on their own creature. "Whenever you take the initiative" and "if you have the
+    initiative" aren't understood.
+  - **Voting:** "Starting with you, each player votes for X or Y" (and, for Council's Judgment, for a nonland
+    permanent you don't control), with the card's own outcome: "For each X vote, ..." (Tivit),
+    "If X gets more votes [or the vote is tied], ..." (Plea for Power), or "Exile each permanent with the most votes
+    or tied for most votes". The vote goes round in turn order starting with the caster, and every vote is public.
+    Only outcomes that need no target are understood, and a vote with no outcome is ignored with its card. Bots
+    vote against an opponent's permanent, and for the first word otherwise. Capital Punishment's two-part
+    outcome ("Each opponent sacrifices a creature for each death vote and discards a card for each taxes vote") is
+    two per-vote outcomes; the second part takes the first's subject if it has none.
+  - An additional combat phase goes right after the current phase (after combat ends, if it comes from inside
+    combat), with an additional main phase after it if the card says so. Cast before combat, it simply gives
+    you two combats, and creatures tapped in the first can't attack in the second.
+  - A goaded creature must attack each combat if able, and not the goader if another opponent can be attacked.
+    It lasts until the goader's next untap step. "Goad all creatures you don't control" goads every creature
+    each opponent controls.
+  - "Whenever you become the monarch" and "Whenever an opponent becomes the monarch" trigger only when the
+    monarch actually changes.
+  - "... unless that player pays {N}": the player who cast the spell or drew the card is asked whether to pay
+    when the trigger resolves, and is only asked if they can. Understood only for effects that need no target
+    (draw, create a token, gain or lose life).
 - **Scry, surveil and mill:** scrying and surveilling look at the top cards one at a time and choose to keep
-  each on top or put it on the bottom (scry) or into the graveyard (surveil). Cards kept on top stay in
-  their original order. Only the scrying player sees the cards. Surveil's graveyard cards are public. Milling
+  each on top or put it on the bottom (scry) or into the graveyard (surveil). When two or more stay on top the
+  player is asked which goes on top next (bots keep the order). Only the scrying player sees the cards. Surveil's graveyard cards are public. Milling
   more cards than the library holds just mills what's there, and the player loses on their next draw.
+- **Discard:** the player discards the cards they choose, unless it says "at random" (then nobody is asked) or
+  "their hand" (all of it goes, in order, and nobody is asked). Discarding more cards than the hand holds just
+  empties it, and every discard is public. Thoughtseize-style effects reveal the hand to everyone, then the
+  caster picks from the cards that fit ("nonland", "noncreature, nonland", "mana value 3 or less"); if none fit,
+  the hand is only revealed. The three sentences are understood only together. Bots discard their worst card
+  (a land if more than half the hand is lands, otherwise the most expensive spell), and take the most expensive
+  card they can see; cards from an opponent's hand they don't know count as worth nothing. Not understood: "Discard
+  a card, then ..." followed by anything but a draw, "whenever you discard", madness, and discarding "that many".
+- **Library and mana tricks:** Chaos Warp ("The owner of target permanent shuffles it into their library, then reveals the top
+  card. If it's a permanent card, they put it onto the battlefield": the owner shuffles and reveals, a token just
+  vanishes, an Aura stays on top), Sensei's Divining Top ("{T}: Draw a card, then put this artifact on top of its
+  owner's library"), and Mana Drain (the {C} equal to the countered spell's mana value, X included, arrives at the
+  beginning of your next main phase and is lost at the end of it).
+- **Keywords:**
+  - **Prowess:** whenever you cast a noncreature spell, +1/+1 until end of turn.
+  - **Shadow:** it can block or be blocked only by creatures with shadow. **Skulk:** it can't be blocked by creatures
+    with greater power. **Devoid** is accepted: the card data already has no color.
+  - **Living weapon:** a 0/0 black Phyrexian Germ token is created and the Equipment attached to it when it enters.
+  - **Echo {cost}:** at your next upkeep after it enters you pay once (you are asked, if you can) or sacrifice it.
+  - **Delve:** exiling cards from your graveyard pays for generic mana. The engine exiles as few as will do, and you
+    choose which. **Cascade:** a trigger above the spell exiles cards from your library until a nonland card that costs
+    less; you may cast it for free, and the rest go to the bottom in a random order (a cascade spell's X counts as 0 on
+    the card but its chosen X counts for the comparison).
+- **Reanimation Auras** (Animate Dead): "Enchant creature card in a graveyard" is cast on a creature card in any
+  graveyard; when it resolves the creature comes back under your control and the Aura is attached to it, and if the
+  Aura leaves the battlefield the creature is sacrificed. The tapped version (Dance of the Dead) is understood
+  too, but its other lines are not. Necromancy (it becomes an Aura as it enters) is not built.
+- **Kaalia of the Vast:** "Whenever this creature attacks an opponent, you may put an Angel, Demon, or Dragon creature
+  card from your hand onto the battlefield tapped and attacking that opponent." It attacks the same player and
+  triggers nothing for attacking. A legendary card's short name ("Kaalia", "Edgar") is read as the card itself.
+- **Cumulative upkeep {1}** (Mystic Remora): at your upkeep it gets an age counter and you pay the cost once for each
+  counter, or sacrifice it. You are asked if you can pay. Mana costs only; "Cumulative upkeep—Pay 1 life" is not built.
+- **Reordering the library:** "Look at the top three cards of your library, then put them back in any order. You may
+  shuffle." (Ponder, Sensei's Divining Top's first ability) and "Draw three cards, then put two cards from your hand on
+  top of your library in any order." (Brainstorm). You choose the order; the first card you pick goes on top.
+- **Look at the top N (impulse effects):** "Look at the top four cards of your library. Put one of them into
+  your hand and the rest on the bottom of your library in any order." and "Look at the top five cards... You may
+  reveal a creature card from among them and put it into your hand. Put the rest on the bottom..." are understood
+  only as a whole. The rest go to the bottom in a random order (the engine picks the order for "any order").
+  The optional reveal shows everyone the card; the plain version keeps it private. Bots take the highest
+  mana value card.
 - **Tutors:** the searcher picks from the matching cards in their library, which is then shuffled. Other players
   only learn which card unless it says "reveal it". If nothing matches, the library is just shuffled.
-  Restrictions like "with mana value 3 or less" aren't supported yet.
-- **Mass effects:** nothing is targeted, so hexproof doesn't help. Indestructible permanents survive
+  "With mana value 3 or less / 3 or greater / 3" works for searches and for graveyard targets
+  ("Return target creature card with mana value 2 or less from your graveyard to your hand"); only the cards that
+  match are offered. "A land card" can go onto the battlefield (any land, not just a basic). Reanimate's "You lose
+  life equal to its mana value" follows the card it put onto the battlefield.
+  The kind can also be "legendary" or "legendary creature", "nonbasic land", or a subtype: "Aura", "Equipment",
+  "Vehicle", "Saga" ("an Equipment card with mana value 2 or less"). The same kinds work for cards in a
+  graveyard ("Return target legendary creature card from your graveyard to your hand"). "Return ... to the
+  battlefield tapped" is supported. Land searches also cover "a nonbasic land card" and "up to two Forest (or
+  Mountain or Forest) cards" onto the battlefield, tapped or not. "Your opponents control" works in "Return all
+  creatures your opponents control to their owners' hands" and in destroy and exile all. Tribal cards work too: a
+  capitalized subtype before "card" ("an Elf card", "target Goblin card from your graveyard"), but only a single
+  word (not "Time Lord"). Cards in a graveyard are offered by name, so two copies of a card are one choice.
+- **Targets:** "another target ..." (bounce, destroy, exile) can't be the source itself, and "up to one target ..."
+  (bounce, destroy, exile) adds a "No target" choice at the end of the list; the spell can be cast even when there
+  is nothing to target. Bots take a real target when there is one.
+  - **"Up to two (three, four) target creatures"** (also artifacts, enchantments, permanents, nonland permanents,
+    lands, creature tokens, and creature cards in your graveyard) for bounce, destroy and exile: one target prompt
+    per target, each with "No target", and a target already chosen can't be chosen again by the same effect.
+  - **More kinds of target:** "creature token", "nontoken creature", "tapped / untapped / attacking creature" and
+    "land", each also with "you control" / "an opponent controls".
+- **Mass effects:** nothing is targeted, so hexproof doesn't help. A restriction ("with flying", "with power 4 or
+  greater", "nonblack") is checked when the effect resolves, using the permanent's current keywords and stats, so
+  a creature that was given flying until end of turn counts. Only the keywords the engine knows are accepted; "with a
+  +1/+1 counter on it" and similar aren't supported. Indestructible permanents survive
   "destroy all" but not exile or sacrifice. Everything leaves the battlefield at the same moment, so a
   creature watching for deaths triggers for every other creature that died with it, and a creature with
   "Whenever this creature or another creature dies" sees itself go too. The same is true when several
-  creatures die to damage at once. "They can't be regenerated" is accepted and does nothing, since
-  regeneration isn't implemented. A player chooses their own creature to sacrifice, in turn order.
-  Restrictions like "with flying" or "with the greatest power" aren't supported yet.
+  creatures die to damage at once. A player chooses their own creature to sacrifice, in turn order.
+  - **More restrictions:** "with mana value N or less / greater" (any permanent, not just creatures), "nontoken",
+    "creature tokens", "legendary", "tapped" / "untapped", "nonbasic" (lands), plus the existing keywords, power,
+    toughness and color. **"Except":** "except (for) artifact (enchantment, legendary, white, ...) creatures",
+    "except (for) creatures with flying" and "except for tokens" leave those alone. "Your opponents control" works
+    in all of them.
+  - **Wipes that give something back:** "Destroy all creatures. For each creature destroyed this way, its controller
+    creates a 1/1 white Spirit creature token." (also for exile): a token per creature that really left, to its
+    last controller; an indestructible survivor gives nothing.
+  - **Sacrifice:** "Each player (opponent) sacrifices two lands", "...a nonland permanent", "...an artifact or
+    enchantment", "...all creatures they control", "...a creature with the greatest power among creatures they
+    control" (they choose among the tied greatest), and "Sacrifice all creatures you control." With fewer
+    than asked, they sacrifice what they have.
+  - **Also:** "deals N damage to each creature your opponents control" and "All creatures get -2/-2 until end of turn."
+    Farewell works as a plain modal spell ("Choose one or more" with "Exile all graveyards"). "That are one or more colors / colorless / multicolored / monocolored" works in destroy and exile all ("Exile all
+    nonland permanents that are one or more colors"), and so do "an attacking / tapped / untapped creature" in the
+    sacrifice effects. Not built: other "that are ..." conditions.
+- **Regeneration:** "Regenerate target creature.", "{B}: Regenerate this creature." and "Regenerate each creature you
+  control." give a shield that lasts until end of turn (several stack). The next time the creature would be
+  destroyed, by a destroy effect or by lethal damage or deathtouch, it is tapped, loses all its damage and leaves
+  combat instead (a blocked attacker stays blocked). "It can't be regenerated" and "They can't be regenerated" after
+  a destroy effect make that effect skip shields. Exile, sacrifice and zero toughness aren't destruction, so shields
+  don't help. Activating in response works like any ability, but bots don't regenerate on their own.
+  "Sacrifices the creature with the greatest power" isn't supported yet.
+- **Fight, proliferate, persist and undying:**
+  - "Target creature you control fights target creature you don't control." (also "fights another target creature")
+    and "Target creature you control deals damage equal to its power to target creature you don't control." (a bite,
+    one-sided). It takes two targets; each deals damage equal to its power to the other at the same time, with its
+    deathtouch and lifelink. If either target is gone or they are the same creature, nothing happens.
+  - "Proliferate." lets you pick any permanents (yours or an opponent's) that have counters, or planeswalkers; each gets
+    one more of every kind it has. You choose one at a time and finish with "Done". Bots pick only their own.
+  - Persist and undying: when the creature dies with no -1/-1 (persist) or +1/+1 (undying) counter on it, it comes
+    back from the graveyard under its owner's control with one. It is a dies trigger, so it uses the stack and
+    can be answered; a token or a card that went somewhere else instead (a commander in the command zone) doesn't return.
 - **Exile:** each player has an exile zone. Exiled creatures don't "die", so dies triggers don't fire.
   A commander heading to exile or the graveyard can go to the command zone instead.
 - **Targets:** chosen when the spell is cast. If every target is gone when it resolves, the spell
@@ -285,6 +643,18 @@ winner = game.play()
   | When this creature enters, ... | Mulldrifter: "When Mulldrifter enters, draw two cards." |
   | When this creature dies, ... | |
   | Whenever this creature attacks, ... | |
+  | Whenever this creature blocks, ... | |
+  | When this creature enters or dies, ... (also "attacks or blocks"; one ability per event) | |
+  | Whenever a creature you control attacks, ... (once per attacker) | |
+  | Whenever you draw a card, ... (once per card; the opening hand doesn't count) | |
+  | Whenever an opponent draws a card / gains life / loses life, ... | Sheoldred, the Apocalypse |
+  | Whenever you draw your second card each turn, ... | |
+  | Whenever an opponent sacrifices a creature, ... | |
+  | Whenever you discard a card / an opponent discards a card, ... | Megrim |
+  | Whenever an opponent searches their library, ... | Ob Nixilis, Unshackled (the event; its effect is not built yet) |
+  | Whenever a Pest (Elf, token, creature token) you control dies / another Elf you control enters, ... | |
+  | Whenever (another) creature (permanent) you control leaves the battlefield, ... | |
+  | Whenever a creature enters / dies, ... its controller ... | |
   | Whenever this creature deals combat damage to a player, ... | |
   | At the beginning of your upkeep / end step, ... | |
   | At the beginning of each upkeep / each end step, ... (every player's turn) | Tendershoot Dryad |
@@ -299,6 +669,13 @@ winner = game.play()
   | Whenever one or more cards leave your graveyard, ... (once per event) | Quintorius, History Chaser |
   | Whenever a player sacrifices a permanent / another permanent, ... | Merchant of Venom |
   | Whenever you lose life for the first time each turn, ... | |
+  | Whenever you cast or copy an instant or sorcery spell, ... (Magecraft) | Archmage Emeritus |
+  | Whenever you cast an instant or sorcery spell with mana value 5 or greater (from your hand), ... | Dirgur Focusmage |
+  | Whenever one or more creatures (creature tokens) you control deal combat damage to a player, ... (once per player hit) | Striding Shotcaller |
+  | Whenever you gain life for the first time each turn, ... | Leech Collector |
+  | Whenever an opponent draws their second card each turn, ... | Faerie Mastermind |
+  | Whenever you cast your first / second / third spell each turn, ... (and an opponent's "their second spell") | Monologue Tax |
+  | At the beginning of your first / second main phase, ... | Scathing Shadelock |
   | Whenever you cast a (creature / noncreature / instant or sorcery) spell, ... | |
   | Whenever you cast a red (or other color) / Aura / "Aura, Equipment, or Vehicle" / historic spell, ... | Sram, Senior Edificer |
   | Whenever a player / an opponent casts a spell, ... | |
@@ -306,6 +683,7 @@ winner = game.play()
   | Whenever a creature (token) you control deals combat damage to a player, ... (once per creature) | Ohran Frostfang |
   | Whenever equipped / enchanted creature attacks, ... | |
   | Whenever you attack with two or more creatures, ... | Firemane Commando |
+  | Whenever a creature attacks you (or a planeswalker you control), ... (once per attacker) | |
 
   - Triggers go on the stack the next time a player would get priority. The active player's go
     first, so they resolve last, and players can respond to them.
@@ -317,11 +695,19 @@ winner = game.play()
   - Intervening "if" clauses are checked when the ability triggers and again when it resolves (CR 603.4).
     Supported: "if a card left your graveyard this turn", "if you gained life this turn", "if an opponent
     controls more lands than you", "if you've cast an instant or sorcery spell this turn", "if you control
-    seven or more Plains", "if you control no Snakes". A trigger with any other "if" clause is ignored.
+    seven or more Plains", "if you control no Snakes", "if you control an artifact", "if it's your turn", "if you're
+    the monarch", "if you have no cards in hand", "if you gained 2 or more life this turn", "if two or more creatures
+    died this turn" (any player's), "if there are three or more creature cards in your graveyard", "if a player has one
+    or fewer cards in hand", "if an opponent has more cards in hand than you", "if this creature isn't prepared". A
+    trigger with any other "if" clause is ignored.
   - Paying life counts as losing it. A creature that's sacrificed sees itself go
     ("Whenever you sacrifice a creature" on the creature itself triggers).
-  - A trigger whose effect isn't understood is ignored. So is a watching trigger whose effect mentions
-    "it" or "that creature", because that may mean the other object rather than the source.
+  - A trigger whose effect isn't understood is ignored.
+  - In triggers about another creature (enters, dies, attacks, attacks you, deals combat damage), "it" and
+    "that creature" mean that creature ("put a +1/+1 counter on it"), but only when every effect is about "it".
+  - In triggers about another player (an opponent draws, gains or loses life, discards, searches their library, or casts a spell), "that player"
+    and "they" mean that player ("they lose 2 life", "deals 2 damage to that player"), but only for effects that
+    target a player. Anywhere else a line that says "it", "they" or "that player" is ignored.
   - Ability words like "Landfall —" are ignored when reading the trigger. A creature that dies still sees
     its own death ("Whenever this creature or another creature dies").
 - **Activated abilities on permanents:** these also use the same effect list.
@@ -330,15 +716,27 @@ winner = game.play()
   |---|---|
   | Mana, {T}, sacrifice this, pay N life | Mind Stone: "{1}, {T}, Sacrifice this artifact: Draw a card." |
   | Planeswalker loyalty (+1, −3, 0) | "−3: Destroy target creature." |
+  | Sacrifice a creature / another creature / an artifact (land, enchantment, permanent) | "Sacrifice a creature: Draw a card." |
+  | Discard a card | "{1}, Discard a card: Draw a card." |
+  | Exile a card from your graveyard | "{1}, Exile a card from your graveyard: You gain 1 life." |
+  | Remove a counter from this (+1/+1 or a named one) | "{2}{G}, Remove a +1/+1 counter from this creature: Destroy target artifact or enchantment." |
+  | Sacrifice a Food / Treasure / Clue | "{1}, Sacrifice a Food: Target creature gains indestructible until end of turn. Tap it." |
 
   - They can be activated whenever you have priority, unless they say "Activate only as a sorcery".
     "Activate only once each turn" is respected.
+    "Activate only if <condition>" (and "... as a sorcery and only if ...") uses the same conditions as triggers,
+    plus "you control two or more white permanents". "Target creature can't be blocked this turn" is understood.
   - Loyalty abilities: one per planeswalker per turn, at sorcery speed, and loyalty can't go below 0.
   - Creatures can't use {T} abilities the turn they arrive (unless they have haste).
   - A permanent can't tap itself for mana to pay for its own {T} or sacrifice ability.
   - Abilities go on the stack, so players can respond, and counterspells can't target them.
-- **Other rules text on permanents:** static abilities, mana abilities with a cost (Signets),
-  and activation costs like "sacrifice a creature" aren't implemented yet.
+  - Card costs ("Sacrifice a creature", "Discard a card", "Exile a card from your graveyard") are paid when you
+    activate, and the ability isn't offered unless you can pay. You can sacrifice only your own permanents; the
+    source itself counts unless it says "another". Bots don't use abilities that cost their own cards. Costs
+    can name two to four cards ("Sacrifice two creatures", "Discard two cards", "Exile three cards from your
+    graveyard"); ward costs still pay one card.
+  - "Scry N, then reveal the top card of your library. If it's a land card, put it onto the battlefield
+    (tapped). Otherwise, draw a card." (Thrasios, Triton Hero) is understood as a whole or not at all.
 
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
@@ -349,7 +747,7 @@ winner = game.play()
 python -m infernal_machine.report deck.txt
 ```
 
-The report fetches the deck from Scryfall (caching cards in `.cache/cards.json`) and prints:
+The report looks the deck up in Scryfall's bulk data (downloaded to `.cache/oracle_bulk.json` on first use) and prints:
 - how many cards are fully playable,
 - the missing pieces grouped by kind, such as activated abilities, tokens or exile, with the most-affected kind first,
 - every rules-text line the engine doesn't understand yet.

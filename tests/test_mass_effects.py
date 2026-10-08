@@ -43,7 +43,7 @@ def names(seat):
 
 class ParseTests(unittest.TestCase):
     def test_templates(self):
-        self.assertEqual(spell_effects(WRATH), [DestroyAll("creature"), CannotRegenerate()])
+        self.assertEqual(spell_effects(WRATH), [DestroyAll("creature", no_regen=True)])
         self.assertEqual(spell_effects(ARMAGEDDON), [DestroyAll("land")])
         self.assertEqual(spell_effects(PURGE), [DestroyAll("creature you don't control")])
         self.assertEqual(spell_effects(BANISH), [ExileAll("creature")])
@@ -60,7 +60,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(spell_effects(both), [DestroyAll("artifact or enchantment")])
 
     def test_variants_that_need_more_are_unsupported(self):
-        for text in ("Destroy all creatures with flying.", "Each opponent sacrifices a creature with the greatest power.",
+        for text in ("Destroy all creatures with a +1/+1 counter on them.", "Each opponent sacrifices a creature with the greatest power.",
                      "Destroy all creatures. Draw a card for each creature destroyed this way."):
             self.assertIsNone(spell_effects(Card(name="x", oracle_text=text)), text)
 

@@ -5,15 +5,15 @@ from infernal_machine.report import category, deck_report, format_report, unsupp
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", oracle_text="({T}: Add {G}.)", produced_mana=("G",))
 SOL_RING = Card(name="Sol Ring", mana_cost="{1}", type_line="Artifact", oracle_text="{T}: Add {C}{C}.")
-MULLDRIFTER = Card(name="Mulldrifter", mana_cost="{4}{U}", type_line="Creature — Elemental",
-                   oracle_text="Flying\nWhen Mulldrifter enters, draw two cards.\nEvoke {2}{U} (You may cast this spell for its evoke cost.)")
+SLOW_SAGE = Card(name="Slow Sage", mana_cost="{4}{U}", type_line="Creature — Elemental",  # invented: a keyword the engine lacks
+                  oracle_text="Flying\nBanding (Any creatures with banding, and up to one without, can attack in a group.)")
 BOLT = Card(name="Lightning Bolt", mana_cost="{R}", type_line="Instant", oracle_text="Lightning Bolt deals 3 damage to any target.")
 SWORDS = Card(name="Swords to Plowshares", mana_cost="{W}", type_line="Instant",
               oracle_text="Exile target creature. Its controller gains life equal to its power.")
 MIND_STONE = Card(name="Mind Stone", mana_cost="{2}", type_line="Artifact",
                   oracle_text="{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.")
-THRASIOS = Card(name="Thrasios, Triton Hero", mana_cost="{G}{U}", type_line="Legendary Creature — Merfolk Wizard",
-                oracle_text="{4}: Proliferate.\nPartner (You can have two commanders if both have partner.)")
+DELVER = Card(name="Dungeon Delver", mana_cost="{G}{U}", type_line="Legendary Creature — Merfolk Wizard",  # invented: no real card says this
+                oracle_text="{4}: Venture into the dungeon.\nPartner (You can have two commanders if both have partner.)")
 
 
 class UnsupportedLinesTests(unittest.TestCase):
@@ -22,14 +22,14 @@ class UnsupportedLinesTests(unittest.TestCase):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
     def test_lists_only_what_is_missing(self):
-        self.assertEqual(unsupported_lines(MULLDRIFTER), ["Evoke {2}{U}"])
-        self.assertEqual(unsupported_lines(THRASIOS), ["{4}: Proliferate."])  # partner is a deckbuilding line
-        self.assertEqual(unsupported_lines(Card(name="x", mana_cost="{S}", type_line="Creature")), ["mana cost {S}"])
+        self.assertEqual(unsupported_lines(SLOW_SAGE), ["Banding"])
+        self.assertEqual(unsupported_lines(DELVER), ["{4}: Venture into the dungeon."])  # partner is a deckbuilding line
+        self.assertEqual(unsupported_lines(Card(name="x", mana_cost="{Q}", type_line="Creature")), ["mana cost {Q}"])
 
     def test_categories(self):
-        self.assertEqual(category("{4}: Proliferate."), "activated abilities")
+        self.assertEqual(category("{4}: Venture into the dungeon."), "activated abilities")
         self.assertEqual(category("+1: Draw a card."), "activated abilities")
-        self.assertEqual(category("When CARDNAME enters, proliferate."), "triggers (the trigger or its effect)")
+        self.assertEqual(category("When CARDNAME enters, venture into the dungeon."), "triggers (the trigger or its effect)")
         self.assertEqual(category("Create a 1/1 white Soldier creature token."), "tokens")
         self.assertEqual(category("Exile target creature. Its controller gains life equal to its power."), "exile")
         self.assertEqual(category("Creatures you control get +1/+1."), "pump and static buffs")
@@ -41,11 +41,11 @@ class UnsupportedLinesTests(unittest.TestCase):
 
 class ReportTests(unittest.TestCase):
     def test_format(self):
-        deck = Deck([THRASIOS], [FOREST] * 3 + [BOLT, SWORDS, MIND_STONE], [])
+        deck = Deck([DELVER], [FOREST] * 3 + [BOLT, SWORDS, MIND_STONE], [])
         text = format_report(deck_report(deck))
         self.assertIn("Fully playable: 6/7 cards", text)  # Swords to Plowshares is playable now
-        self.assertIn("activated abilities (1): Thrasios, Triton Hero", text)
-        self.assertIn("Thrasios, Triton Hero: {4}: Proliferate.", text)
+        self.assertIn("activated abilities (1): Dungeon Delver", text)
+        self.assertIn("Dungeon Delver: {4}: Venture into the dungeon.", text)
 
 
 if __name__ == "__main__":

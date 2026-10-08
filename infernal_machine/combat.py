@@ -1,6 +1,6 @@
 """Combat: declaring attackers and blockers, and combat damage (CR 506-511).
 
-Creatures attack players (not planeswalkers yet). Supported keywords: flying,
+Creatures attack players or the planeswalkers they control. Supported keywords: flying,
 reach, vigilance, haste, defender, menace, trample, first strike, double
 strike, deathtouch and lifelink, whether printed or granted; power, toughness
 and keywords are read through the game so modifiers count.
@@ -11,13 +11,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from .effects import CANT_ATTACK, CANT_BLOCK
+from .characteristics import source_qualities
+from .effects import CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK
 
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
 
 ATTACK_PROMPT = "Attack with "  # followed by the creature's label
 BLOCK_PROMPT = "Block with "
+ASSIGN_PROMPT = "Damage first to a blocker of "  # followed by the attacker's label
 NO_ATTACK = "Don't attack"
 NO_BLOCK = "Don't block"
 
@@ -26,9 +28,10 @@ NO_BLOCK = "Don't block"
 class Attack:
     attacker: Permanent
     controller: Seat
-    defender: Seat
+    defender: Seat  # the player attacked, or the controller of the planeswalker attacked
     blockers: list[Permanent] = field(default_factory=list)
     blocked: bool = False  # stays blocked even if its blockers leave (CR 509.1h)
+    walker: Permanent | None = None  # the planeswalker attacked, if it isn't the player
 
 
 class Combat:
@@ -40,27 +43,53 @@ class Combat:
         """Ask the active player, creature by creature, whether and whom to attack (CR 508.1)."""
         opponents = self.game.opponents(seat)
         self.game.send_state(seat)
-        options = [NO_ATTACK] + [f"Attack Player: {o.name} (seat {o.index})" for o in opponents]
+        walkers = [p for o in opponents for p in o.battlefield if p.loyalty is not None]
+        options = ([NO_ATTACK] + [f"Attack Player: {o.name} (seat {o.index})" for o in opponents]
+                   + [f"Attack Planeswalker: {self.game.label(p)}" for p in walkers])
         for permanent in list(seat.battlefield):
             if not self._can_attack(permanent):
                 continue
-            choice = seat.player.choose(ATTACK_PROMPT + self.game.label(permanent), options)
-            if choice == 0:
-                continue
-            defender = opponents[choice - 1]
+            walker = None
+            if goader := self.game.goader_of(permanent):  # must attack, and not the goader if there's anyone else
+                targets = [o for o in opponents if o is not goader] or opponents
+                defender = targets[0] if len(targets) == 1 else targets[seat.player.choose(
+                    ATTACK_PROMPT + self.game.label(permanent), [f"Attack Player: {o.name} (seat {o.index})" for o in targets])]
+            else:
+                choice = seat.player.choose(ATTACK_PROMPT + self.game.label(permanent), options)
+                if choice == 0:
+                    continue
+                if choice <= len(opponents):
+                    defender = opponents[choice - 1]
+                else:
+                    walker = walkers[choice - 1 - len(opponents)]
+                    defender = self.game.controller_of(walker)
             if not self.game.has_keyword(permanent, "vigilance"):
                 permanent.tapped = True
-            self.attacks.append(Attack(permanent, seat, defender))
+            self.attacks.append(Attack(permanent, seat, defender, walker=walker))
+            permanent.attacked_turn = self.game.turn
             self.game.trigger("attacks", permanent, seat)
+            if walker is None:
+                self.game.trigger("attacks_player", permanent, seat, player=defender)
+            self.game._trigger_each("ally_attacks", seat, subject=permanent)
+            self.game._trigger_each("attacked_or_walker", defender, subject=permanent)
+            if walker is None:
+                self.game._trigger_each("attacked", defender, subject=permanent)
             for owner in self.game.live_seats():  # "Whenever equipped / enchanted creature attacks"
                 for attachment in list(owner.battlefield):
                     if attachment.attached_to is permanent:
-                        self.game.trigger("host_attacks", attachment, owner)
+                        self.game.trigger("host_attacks", attachment, owner, permanent)
             self.game.broadcast({"event": "attack", "seat": seat.index, "card": permanent.card.name,
-                                 "defender": defender.index})
+                                 "defender": defender.index,
+                                 **({"planeswalker": walker.card.name} if walker is not None else {})})
         if len(self.attacks) >= 2:
             for permanent in list(seat.battlefield):
                 self.game.trigger("attack_with_two", permanent, seat)
+
+    def add_attacker(self, permanent: Permanent, controller: Seat, defender: Seat) -> None:
+        """A creature put onto the battlefield "tapped and attacking": it was never declared as an attacker, so
+        nothing triggers on its attacking."""
+        self.attacks.append(Attack(permanent, controller, defender))
+        permanent.attacked_turn = self.game.turn
 
     def declare_blockers(self) -> None:
         """Each defending player, in turn order, assigns blockers (CR 509.1)."""
@@ -80,6 +109,7 @@ class Combat:
                 if choice:
                     attack = blockable[choice - 1]
                     attack.blockers.append(permanent)
+                    self.game.trigger("blocks", permanent, seat)
                     self.game.broadcast({"event": "block", "seat": seat.index, "card": permanent.card.name,
                                          "attacker": attack.attacker.card.name})
         for attack in self.attacks:
@@ -102,23 +132,38 @@ class Combat:
             if not self.game.on_battlefield(attacker):
                 continue
             blockers = [b for b in attack.blockers if self.game.on_battlefield(b)]
+            # What it is attacking: the player, or the planeswalker (nothing, if that has left the battlefield).
+            victim = attack.walker if attack.walker is not None else attack.defender
+            if attack.walker is not None and not self.game.on_battlefield(attack.walker):
+                victim = None
             if self._deals_damage_now(attacker, first_strike_step):
                 amount = max(0, self.game.power(attacker))
                 if not attack.blocked:
-                    hits.append((attacker, attack.defender, amount))
+                    if victim is not None:
+                        hits.append((attacker, victim, amount))
                 else:
-                    hits += self._assign(attacker, blockers, attack.defender, amount)
+                    hits += self._assign(attacker, attack.controller, blockers, victim, amount)
             for blocker in blockers:
                 if self._deals_damage_now(blocker, first_strike_step):
                     hits.append((blocker, attacker, max(0, self.game.power(blocker))))
+        hit_players: dict[tuple[int, int], tuple[Seat, list[Permanent]]] = {}  # (hitter, player hit) -> who did it
         for source, target, amount in hits:
             if amount > 0:
+                hitter = self.game.controller_of(source)
                 self.game.damage(target, amount, source=source, combat=True)
+                if hitter is not None and not hasattr(target, "card"):  # a player, not a permanent
+                    hit_players.setdefault((hitter.index, target.index), (hitter, []))[1].append(source)
+        for hitter, sources in hit_players.values():  # "Whenever one or more creatures you control deal combat damage ..."
+            for permanent in list(hitter.battlefield):
+                self.game.trigger("creatures_combat_damage", permanent, hitter, subject=sources[0])
+                if any(s.card.type_line.startswith("Token") for s in sources):
+                    self.game.trigger("tokens_combat_damage", permanent, hitter, subject=sources[0])
 
-    def _assign(self, attacker: Permanent, blockers: list[Permanent], defender: Seat,
+    def _assign(self, attacker: Permanent, controller: Seat, blockers: list[Permanent], defender: Seat | Permanent | None,
                 amount: int) -> list[tuple[Permanent, Seat | Permanent, int]]:
-        """Lethal damage to each blocker in order, the rest to the last one, or to
-        the player with trample (CR 510.1c-d)."""
+        """Lethal damage to each blocker in an order its controller chooses, the rest to the last one, or to
+        the player or planeswalker with trample (CR 510.1c-d)."""
+        blockers = self._damage_order(attacker, controller, blockers) if amount > 0 else blockers
         deathtouch = self.game.has_keyword(attacker, "deathtouch")
         trample = self.game.has_keyword(attacker, "trample")
         hits: list[tuple[Permanent, Seat | Permanent, int]] = []
@@ -126,12 +171,21 @@ class Combat:
             share = min(amount, self._lethal_damage(blocker, deathtouch))
             hits.append((attacker, blocker, share))
             amount -= share
-        if amount > 0 and trample:
+        if amount > 0 and trample and defender is not None:
             hits.append((attacker, defender, amount))
         elif amount > 0 and hits:
             source, target, share = hits[-1]
             hits[-1] = (source, target, share + amount)
         return hits
+
+    def _damage_order(self, attacker: Permanent, controller: Seat, blockers: list[Permanent]) -> list[Permanent]:
+        """With several blockers the attacker's controller picks which gets lethal damage first, then next, ..."""
+        remaining, ordered = list(blockers), []
+        while len(remaining) > 1:
+            pick = controller.player.choose(ASSIGN_PROMPT + self.game.label(attacker),
+                                            [self.game.label(b) for b in remaining])
+            ordered.append(remaining.pop(pick))
+        return ordered + remaining
 
     def _lethal_damage(self, permanent: Permanent, deathtouch: bool) -> int:
         """Damage still needed to destroy a blocker; any amount is lethal with deathtouch."""
@@ -149,9 +203,13 @@ class Combat:
                 and not self._has(permanent, "defender") and not self._has(permanent, CANT_ATTACK))
 
     def _can_block(self, blocker: Permanent, attacker: Permanent) -> bool:
-        if self._has(blocker, CANT_BLOCK):
+        if self._has(blocker, CANT_BLOCK) or self._has(attacker, CANT_BE_BLOCKED):
             return False
-        if self.game.protected_from(attacker, frozenset(blocker.card.colors)):  # can't be blocked by those colors
+        if self._has(attacker, "shadow") != self._has(blocker, "shadow"):  # shadow blocks and is blocked only by shadow
+            return False
+        if self._has(attacker, "skulk") and self.game.power(blocker) > self.game.power(attacker):
+            return False
+        if self.game.protected_from(attacker, source_qualities(blocker.card)):  # can't be blocked by those colors
             return False
         if self._has(attacker, "flying"):
             return self._has(blocker, "flying") or self._has(blocker, "reach")

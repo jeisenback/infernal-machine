@@ -2,7 +2,7 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.effects import Mill, Scry, SearchForLands, Surveil, TargetMill, spell_effects, triggered_abilities
-from infernal_machine.game import (CAST, KEEP_ON_TOP, PUT_IN_GRAVEYARD, SCRY_PROMPT, SEARCH_LAND_HAND_PROMPT,
+from infernal_machine.game import (CAST, KEEP_ON_TOP, LOOK_PROMPT, NONE_TAKEN, ORDER_TOP_PROMPT, PUT_IN_GRAVEYARD, SCRY_PROMPT, SEARCH_LAND_HAND_PROMPT,
                                    SEARCH_LAND_PROMPT, SURVEIL_PROMPT, Permanent)
 from infernal_machine.report import unsupported_lines
 from tests.test_effects import BEAR, BOLT, FOREST, lands, pick, table
@@ -61,8 +61,7 @@ class ParseTests(unittest.TestCase):
 
     def test_variants_that_need_more_are_unsupported(self):
         for text in ("Look at the top three cards of your library.",
-                     "Search your library for up to three basic land cards, put them onto the battlefield.",
-                     "Search your library for a land card, put it onto the battlefield, then shuffle."):
+                     "Search your library for up to three basic land cards, put them onto the battlefield."):
             self.assertIsNone(spell_effects(Card(name="Foo", oracle_text=text)), text)
 
     def test_report(self):
@@ -233,3 +232,107 @@ class MillTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+IMPULSE = Card(name="Impulse", mana_cost="{1}{U}", type_line="Instant",
+               oracle_text="Look at the top four cards of your library. Put one of them into your hand and the rest on "
+                           "the bottom of your library in any order.")
+DIG = Card(name="Dig", mana_cost="{2}{G}", type_line="Sorcery",
+           oracle_text="Look at the top five cards of your library. You may reveal a creature card from among them and "
+                       "put it into your hand. Put the rest on the bottom of your library in a random order.")
+
+
+class ReorderAndImpulseTests(unittest.TestCase):
+    def test_scry_lets_you_order_the_cards_you_keep(self):
+        game, players = table3(choices(0, 0, 1))  # keep both; then the second of the two goes on top
+        seat = game.seats[0]
+        seat.hand = [WIZARD]
+        seat.battlefield = lands(1)
+        seat.library = [BEAR, BOLT, FOREST]
+        game._priority_round(seat)
+        self.assertEqual([c.name for c in seat.library], ["Lightning Bolt", "Grizzly Bears", "Forest"])
+        options = next(o for p, o in players[0].prompts if p == ORDER_TOP_PROMPT)
+        self.assertEqual(options, ["Grizzly Bears", "Lightning Bolt"])
+
+    def test_no_order_question_for_a_single_card(self):
+        game, players = table3(choices(0, 1))
+        seat = game.seats[0]
+        seat.hand = [WIZARD]
+        seat.battlefield = lands(1)
+        seat.library = [BEAR, BOLT, FOREST]
+        game._priority_round(seat)
+        self.assertFalse([p for p, _ in players[0].prompts if p == ORDER_TOP_PROMPT])
+
+    def test_surveil_orders_what_stays(self):
+        game, _ = table3(choices(0, 0, 1))
+        seat = game.seats[0]
+        seat.hand = [SURVEIL]
+        seat.battlefield = lands(1)
+        seat.library = [BOLT, BEAR, FOREST]
+        game._priority_round(seat)
+        self.assertEqual([c.name for c in seat.library], ["Grizzly Bears", "Lightning Bolt", "Forest"])
+
+    def test_look_at_four_takes_one_and_bottoms_the_rest(self):
+        game, players = table3(choices(1))
+        seat = game.seats[0]
+        seat.hand = [IMPULSE]
+        seat.battlefield = lands(2)
+        seat.library = [BEAR, BOLT, FOREST, ISLAND, PLAINS]
+        game._priority_round(seat)
+        self.assertEqual([c.name for c in seat.hand], ["Lightning Bolt"])
+        self.assertEqual(sorted(c.name for c in seat.library[-3:]), ["Forest", "Grizzly Bears", "Island"])
+        self.assertEqual(seat.library[0].name, "Plains")
+        options = next(o for p, o in players[0].prompts if p == LOOK_PROMPT)
+        self.assertEqual(options, ["Grizzly Bears", "Lightning Bolt", "Forest", "Island"])  # only the top four
+        self.assertNotIn("card", next(e for e in players[1].events if e["event"] == "looked"))
+
+    def test_optional_reveal_takes_a_creature_and_shows_it(self):
+        game, players = table3(choices(0))
+        seat = game.seats[0]
+        seat.hand = [DIG]
+        seat.battlefield = lands(3)
+        seat.library = [BOLT, BEAR, FOREST, ISLAND, PLAINS, ISLAND]
+        game._priority_round(seat)
+        self.assertEqual([c.name for c in seat.hand], ["Grizzly Bears"])
+        options = next(o for p, o in players[0].prompts if p == LOOK_PROMPT)
+        self.assertEqual(options, ["Grizzly Bears", NONE_TAKEN])  # Bolt and the lands aren't creatures
+        self.assertEqual(next(e for e in players[2].events if e["event"] == "looked")["card"], "Grizzly Bears")
+        self.assertEqual(len(seat.library), 5)
+
+    def test_optional_reveal_can_take_nothing(self):
+        game, _ = table3(choices(1))
+        seat = game.seats[0]
+        seat.hand = [DIG]
+        seat.battlefield = lands(3)
+        seat.library = [BOLT, BEAR, FOREST, ISLAND, PLAINS, ISLAND]
+        game._priority_round(seat)
+        self.assertEqual(seat.hand, [])
+        self.assertEqual(len(seat.library), 6)
+
+    def test_no_creature_among_them_asks_nothing(self):
+        game, players = table3(choices())
+        seat = game.seats[0]
+        seat.hand = [DIG]
+        seat.battlefield = lands(3)
+        seat.library = [BOLT, FOREST, ISLAND, PLAINS, ISLAND, BEAR]
+        game._priority_round(seat)
+        self.assertFalse([p for p, _ in players[0].prompts if p == LOOK_PROMPT])
+        self.assertEqual(len(seat.library), 6)
+
+    def test_a_short_library_is_fine(self):
+        game, _ = table3(choices(0))
+        seat = game.seats[0]
+        seat.hand = [IMPULSE]
+        seat.battlefield = lands(2)
+        seat.library = [BEAR]
+        game._priority_round(seat)
+        self.assertEqual([c.name for c in seat.hand], ["Grizzly Bears"])
+        self.assertEqual(seat.library, [])
+
+    def test_half_a_look_is_not_understood(self):
+        look = Card(name="Peek", mana_cost="{U}", type_line="Sorcery", oracle_text="Look at the top three cards of your library.")
+        reveal = Card(name="Half", mana_cost="{U}", type_line="Sorcery",
+                      oracle_text="Look at the top five cards of your library. You may reveal a creature card from among them and put it into your hand.")
+        self.assertIsNone(spell_effects(look))
+        self.assertIsNone(spell_effects(reveal))
+        self.assertEqual(unsupported_lines(IMPULSE) + unsupported_lines(DIG), [])

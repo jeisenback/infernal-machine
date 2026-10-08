@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import re
 import time
@@ -32,11 +33,34 @@ class Card:
     produced_mana: tuple[str, ...] = ()
     commander_legal: bool = True
     scryfall_id: str | None = None
+    back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
+    prepare: "Card | None" = None  # a prepare card's spell half, which a prepared creature can cast a copy of
 
     @classmethod
     def from_scryfall(cls, data: dict) -> "Card":
         # Double-faced cards keep their rules text on the faces; use the front face.
         face = data["card_faces"][0] if "card_faces" in data and "oracle_text" not in data else data
+        back = None
+        produced = tuple(data.get("produced_mana", []))
+        if data.get("layout") == "modal_dfc" and len(data.get("card_faces", [])) == 2:
+            produced = _face_mana(face, produced)
+            back_face = data["card_faces"][1]
+            if "Land" in back_face.get("type_line", ""):
+                back = cls(name=back_face["name"], type_line=back_face["type_line"],
+                           oracle_text=back_face.get("oracle_text", ""),
+                           color_identity=tuple(data.get("color_identity", [])),
+                           produced_mana=_face_mana(back_face, tuple(data.get("produced_mana", []))),
+                           commander_legal=data.get("legalities", {}).get("commander") == "legal",
+                           scryfall_id=data.get("id"))
+        prepare = None
+        if data.get("layout") == "prepare" and len(data.get("card_faces", [])) == 2:
+            spell = data["card_faces"][1]
+            prepare = cls(name=spell["name"], mana_cost=spell.get("mana_cost", ""),
+                          cmc=_mana_value(spell.get("mana_cost", "")), type_line=spell.get("type_line", ""),
+                          oracle_text=spell.get("oracle_text", ""), colors=_cost_colors(spell.get("mana_cost", "")),
+                          color_identity=tuple(data.get("color_identity", [])),
+                          commander_legal=data.get("legalities", {}).get("commander") == "legal",
+                          scryfall_id=data.get("id"))
         return cls(
             name=data["name"],
             mana_cost=face.get("mana_cost", ""),
@@ -48,18 +72,42 @@ class Card:
             toughness=face.get("toughness"),
             loyalty=face.get("loyalty"),
             color_identity=tuple(data.get("color_identity", [])),
-            produced_mana=tuple(data.get("produced_mana", [])),
+            produced_mana=produced,
             commander_legal=data.get("legalities", {}).get("commander") == "legal",
             scryfall_id=data.get("id"),
+            back=back,
+            prepare=prepare,
         )
 
     @classmethod
     def from_dict(cls, data: dict) -> "Card":
         tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity", "produced_mana")}
-        return cls(**{**data, **tuples})
+        back = cls.from_dict(data["back"]) if data.get("back") else None
+        prepare = cls.from_dict(data["prepare"]) if data.get("prepare") else None
+        return cls(**{**data, **tuples, "back": back, "prepare": prepare})
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def _mana_value(cost: str) -> float:
+    """The mana value of a mana cost ("{2}{W}" is 3; X counts as 0)."""
+    total = 0
+    for symbol in re.findall(r"\{([^}]+)\}", cost):
+        total += int(symbol) if symbol.isdigit() else 2 if symbol.startswith("2/") else 0 if symbol == "X" else 1
+    return float(total)
+
+
+def _cost_colors(cost: str) -> tuple[str, ...]:
+    """The colors in a mana cost, in WUBRG order (what a face with no color of its own is)."""
+    return tuple(c for c in "WUBRG" if re.search(rf"[{{/]{c}[}}/]", cost))
+
+
+def _face_mana(face: dict, produced: tuple[str, ...]) -> tuple[str, ...]:
+    """The mana one face of a double-faced land makes: the symbols in its "{T}: Add {G}." text, among the card's."""
+    runs = re.findall(r"Add ((?:\{[WUBRGC]\})+)", face.get("oracle_text", ""))
+    symbols = {symbol for run in runs for symbol in re.findall(r"[WUBRGC]", run)}
+    return tuple(m for m in produced if m in symbols) if symbols else produced
 
 
 _REMINDER = re.compile(r"\s*\([^)]*\)")
@@ -193,6 +241,93 @@ class CachedSource:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         data = {key: card.to_dict() for key, card in self._cards.items()}
         self.path.write_text(json.dumps(data, indent=2, sort_keys=True))
+
+
+def _download_jsonl(request: urllib.request.Request) -> list[dict]:
+    """A gzipped JSON-lines file, which is how Scryfall serves its bulk data."""
+    with urllib.request.urlopen(request, timeout=300) as response, gzip.open(response, "rt", encoding="utf-8") as lines:
+        return [json.loads(line) for line in lines if line.strip()]
+
+
+# Bulk-data layouts that aren't cards a deck can hold.
+_NON_CARD_LAYOUTS = {"token", "double_faced_token", "emblem", "art_series", "vanguard", "scheme", "planar",
+                     "augment", "host"}
+
+
+class BulkSource:
+    """Looks cards up in Scryfall's "Oracle Cards" bulk file instead of calling the API per card.
+
+    The file (one entry per card, about 25 MB gzipped) is downloaded once, converted to a slim JSON file at `path`, and
+    reused until it is `max_age_days` old. After that every lookup is offline.
+    """
+
+    FORMAT = 2  # bumped when Card gains fields, so a copy saved earlier is downloaded again
+
+    def __init__(self, path: str | Path, max_age_days: float = 7.0, base_url: str = "https://api.scryfall.com",
+                 user_agent: str = "infernal-machine/0.1", http: HttpFn = _urlopen_json,
+                 download: Callable[[urllib.request.Request], list[dict]] = _download_jsonl):
+        self.path = Path(path)
+        self.max_age_days = max_age_days
+        self.base_url = base_url
+        self.user_agent = user_agent
+        self.http = http
+        self.download = download
+        self._index: dict[str, Card] | None = None
+
+    def get(self, name: str) -> Card:
+        return self.get_many([name])[name]
+
+    def get_many(self, names: Iterable[str]) -> dict[str, Card]:
+        index = self._load()
+        wanted = list(dict.fromkeys(names))
+        missing = [n for n in wanted if n.lower() not in index]
+        if missing:
+            raise CardNotFound(", ".join(missing))
+        return {n: index[n.lower()] for n in wanted}
+
+    def refresh(self) -> int:
+        """Download the bulk file now, replacing the saved copy. Returns how many cards it holds."""
+        listing = self._request(self.http, f"{self.base_url}/bulk-data")
+        entry = next((e for e in listing["data"] if e["type"] == "oracle_cards"), None)
+        if entry is None:
+            raise LookupError("Scryfall's bulk-data list has no oracle_cards file")
+        data = self._request(self.download, entry["jsonl_download_uri"])
+        cards = [Card.from_scryfall(d) for d in data if d.get("layout") not in _NON_CARD_LAYOUTS]
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps({"format": self.FORMAT, "cards": {card.name: card.to_dict() for card in cards}}))
+        self._index = _name_index(cards)
+        return len(cards)
+
+    def _load(self) -> dict[str, Card]:
+        if self._index is None:
+            if not self.path.exists() or time.time() - self.path.stat().st_mtime > self.max_age_days * 86400                     or json.loads(self.path.read_text()).get("format") != self.FORMAT:
+                try:
+                    self.refresh()
+                except (OSError, LookupError):
+                    if not self.path.exists():
+                        raise  # no copy to fall back on
+            if self._index is None:
+                raw = json.loads(self.path.read_text())
+                raw = raw.get("cards", raw)  # a copy from before the format marker is just the cards
+                self._index = _name_index(Card.from_dict(value) for value in raw.values())
+        return self._index
+
+    def _request(self, send: Callable, url: str):
+        return send(urllib.request.Request(url, headers={"User-Agent": self.user_agent, "Accept": "*/*"}))
+
+
+def _name_index(cards: Iterable[Card]) -> dict[str, Card]:
+    """Cards by lowercase full name, plus each face of a split or double-faced card ("Fire", "Ice", "Fire // Ice")."""
+    cards = list(cards)
+    index: dict[str, Card] = {}
+    for card in cards:
+        index[card.name.lower()] = card
+    for position in (0, 1, 2):  # front faces first, so "Fire" is "Fire // Ice", not "Start // Fire"
+        for card in cards:
+            parts = card.name.split(" // ")
+            if position < len(parts):
+                index.setdefault(parts[position].lower(), card)
+    return index
 
 
 _DECK_LINE = re.compile(r"^(\d+)x?\s+(.+?)(?:\s+\([A-Z0-9]+\)\s*[^\s*]*)?$")

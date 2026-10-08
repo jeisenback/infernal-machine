@@ -108,9 +108,10 @@ class WatchTriggerTests(unittest.TestCase):
         self.assertEqual(order, [("cast", "Divination"), ("trigger", "Monk"), ("resolve", "Monk"), ("resolve", "Divination")])
 
     def test_report(self):
-        for card in (SOUL_WARDEN, GUIDE, COURSER, PAWN, ZULAPORT, MONK):
+        for card in (SOUL_WARDEN, GUIDE, COURSER, PAWN, ZULAPORT, MONK, CRUSADE):
             self.assertEqual(unsupported_lines(card), [], card.name)
-        self.assertEqual(unsupported_lines(CRUSADE), ["Whenever another creature you control enters, put a +1/+1 counter on it."])
+        tapper = Card(name="Tapper", type_line="Enchantment", oracle_text="Whenever another creature enters, tap it.")
+        self.assertEqual(unsupported_lines(tapper), ["Whenever another creature enters, tap it."])
 
 
 if __name__ == "__main__":

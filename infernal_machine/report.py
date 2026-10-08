@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from .analysis import is_land
 from .cards import Card, Deck
 from .effects import (PROTECTION, activated_abilities, attached_abilities, is_casting_cost_line, is_cost_reduction_line,
-                      is_cycling_line, is_enchant_line, is_enters_tapped_line, is_enters_with_counters, is_mana_ability, is_modal_header,
+                      is_clone_line, is_replacement_line, is_control_aura_line, is_cycling_line, is_enchant_line, is_granting_line, is_cumulative_upkeep_line, is_echo_line, is_reanimation_aura_line, is_enters_prepared_line, is_overload_line, overloaded_effects, is_extra_vote_line, is_no_max_hand_line, is_enters_tapped_line, is_enters_with_counters, is_mana_ability, is_modal_header,
                       is_return_exiled_line, is_ward_line, line_effects, mode_text, rules_lines, static_abilities,
                       triggered_abilities)
 from .mana import parse_cost
@@ -25,6 +25,8 @@ SUPPORTED_KEYWORDS = {
     "flying", "reach", "vigilance", "haste", "defender", "menace", "trample", "first strike",
     "double strike", "deathtouch", "lifelink", "indestructible", "hexproof", "shroud", "flash",
     "protection",  # "protection from <color>" only; see _is_keyword_line
+    "persist", "undying",
+    "prowess", "delve", "cascade", "devoid", "shadow", "skulk", "living weapon",  # devoid: the card data has no color
 }
 # Lines that only matter when building the deck, which commander.py checks.
 _DECKBUILDING = re.compile(
@@ -64,6 +66,12 @@ def unsupported_lines(card: Card) -> list[str]:
     abilities = {a.text for a in triggered_abilities(card) + activated_abilities(card) + static_abilities(card)
                  + attached_abilities(card)}
     for line in rules_lines(card):
+        if is_cumulative_upkeep_line(line) or is_echo_line(line) or is_reanimation_aura_line(line):
+            continue
+        if is_overload_line(line):
+            if overloaded_effects(card) is None:
+                problems.append(line)  # the overloaded text ("each" for "target") isn't understood
+            continue
         if _is_keyword_line(line) or _DECKBUILDING.fullmatch(line) or is_cycling_line(line):
             continue
         if is_casting_cost_line(line):
@@ -71,14 +79,18 @@ def unsupported_lines(card: Card) -> list[str]:
         if spell and (is_modal_header(line) or line_effects(mode_text(line)) is not None):
             continue  # a sentence of the spell, or the "Choose one —" line, or one of its modes
         if not spell and (line in abilities or is_mana_ability(line) or is_enters_with_counters(line)
-                          or is_enchant_line(line) or is_enters_tapped_line(line) or is_return_exiled_line(line)
-                          or is_cost_reduction_line(line)):
+                          or is_enchant_line(line) or is_clone_line(line) or is_replacement_line(line) or is_control_aura_line(line) or is_enters_tapped_line(line) or is_enters_prepared_line(line) or is_extra_vote_line(line) or is_no_max_hand_line(line) or is_return_exiled_line(line)
+                          or is_cost_reduction_line(line) or is_granting_line(line)):
             continue
         problems.append(line)
+    if card.prepare is not None:  # a prepared creature casts a copy of this half, so its text has to work too
+        problems += [f"{card.prepare.name}: {line}" for line in unsupported_lines(card.prepare)]
     return problems
 
 
 def _is_keyword_line(line: str) -> bool:
+    if is_ward_line(line):  # "Ward\u2014{1}, Pay 2 life." has a comma that isn't between keywords
+        return True
     line = PROTECTION.sub("protection", line.lower())  # "protection from red and from blue" is one keyword
     return all(part in SUPPORTED_KEYWORDS or is_ward_line(part) for part in line.split(", "))
 
@@ -122,13 +134,14 @@ def format_report(reports: list[CardReport]) -> str:
 
 
 def main(argv: list[str]) -> int:
-    from .cards import CachedSource, ScryfallSource, load_deck
+    from .cards import BulkSource, load_deck
 
+    sys.stdout.reconfigure(encoding="utf-8")  # card text has characters like − that the Windows console can't print
     if len(argv) != 2:
         print("usage: python -m infernal_machine.report DECKLIST", file=sys.stderr)
         return 2
     with open(argv[1]) as f:
-        deck = load_deck(f.read(), CachedSource(ScryfallSource(), ".cache/cards.json"))
+        deck = load_deck(f.read(), BulkSource(".cache/oracle_bulk.json"))
     print(format_report(deck_report(deck)))
     return 0
 
