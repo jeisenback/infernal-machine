@@ -2063,6 +2063,13 @@ class Game:
 
     # --- characteristics -----------------------------------------------------
 
+    def subtypes(self, permanent: Permanent) -> list[str]:
+        """Its creature types: the printed ones, plus those an Aura gives it ("is an Angel in addition")."""
+        printed = permanent.card.type_line.partition("—")[2].split()
+        added = [buff.subtype for seat in self.seats for a in seat.battlefield if a.attached_to is permanent
+                 for buff in attached_abilities(a.card) if buff.subtype]
+        return printed + added
+
     def modifiers(self, permanent: Permanent) -> list[Modifier]:
         """Everything currently changing a permanent: its "until end of turn" effects, plus
         static abilities of permanents its controller controls ("Creatures you control get +1/+1")."""
@@ -2070,7 +2077,7 @@ class Game:
         controller = self.controller_of(permanent)
         if controller is None or "Creature" not in permanent.card.type_line:
             return mods
-        subtypes = permanent.card.type_line.partition("—")[2].split()
+        subtypes = self.subtypes(permanent)
         for owner, source in [(s, p) for s in self.seats for p in s.battlefield]:
             for buff in static_abilities(source.card):
                 if owner is not controller and not buff.everyone:

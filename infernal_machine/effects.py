@@ -913,6 +913,8 @@ _PER_LOWER = {k.lower(): v for k, v in _PER.items()}
 _PER_WORDS = "|".join(re.escape(k) for k in _PER)
 _SELF_SCALED = re.compile(rf"{_SELF} gets {_PT} for each ({_PER_WORDS})\.", re.I)
 _ATTACHED_SCALED = re.compile(rf"Enchanted creature gets {_PT} for each ({_PER_WORDS})\.")
+_ATTACHED_TYPED = re.compile(rf"Enchanted creature gets {_PT}, has ({_KW}(?: and {_KW})*), and is an? ([A-Z][a-z]+) in addition "
+                             r"to its other types\.")
 _ATTACHED_GOADED = re.compile(rf"Enchanted creature gets {_PT}(?:, has ({_KW}),)? and is goaded\.")
 
 
@@ -1129,6 +1131,7 @@ class AttachedBuff:
     text: str
     per: tuple[str, str] | None = None  # "... for each Aura you control that's attached to a creature"
     goaded: bool = False  # "Enchanted creature gets +1/+1 and is goaded."
+    subtype: str | None = None  # "... and is an Angel in addition to its other types."
 
 
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
@@ -1190,6 +1193,8 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             else:
                 modifier = _modifier(m, 1)
             buffs.append(AttachedBuff(modifier, line))
+        elif m := _ATTACHED_TYPED.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[3])), line, subtype=m[4]))
         elif m := _ATTACHED_GOADED.fullmatch(line):
             keywords = _keyword_list(m[3]) if m[3] else frozenset()
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), keywords), line, goaded=True))

@@ -41,3 +41,19 @@ class EldraziConscriptionTests(unittest.TestCase):
         game.combat.declare_attackers(a)
         run_stack(game)
         self.assertEqual(len(b.battlefield), 1)
+
+
+class AngelicDestinyTests(unittest.TestCase):
+    def test_it_pumps_gives_keywords_and_makes_the_creature_an_angel(self):
+        game, _ = table3()
+        a = game.seats[0]
+        bear = Permanent(BEAR)
+        lord = Card(name="Angel Lord", type_line="Creature " + chr(0x2014) + " Angel", power="1", toughness="1",
+                    oracle_text="Angels you control get +1/+1.")
+        a.battlefield = [bear, Permanent(lord)]
+        self.assertEqual(game.power(bear), 2)
+        a.battlefield.append(Permanent(REAL["Angelic Destiny"], attached_to=bear))
+        self.assertEqual((game.power(bear), game.toughness(bear)), (2 + 4 + 1, 2 + 4 + 1))  # +4/+4, and the Angel lord's +1/+1
+        self.assertEqual((game.has_keyword(bear, "flying"), game.has_keyword(bear, "first strike")), (True, True))
+        self.assertIn("Angel", game.subtypes(bear))
+        self.assertEqual(game.power(a.battlefield[1]), 1 + 1)  # the lord itself is an Angel too
