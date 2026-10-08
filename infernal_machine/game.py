@@ -26,6 +26,7 @@ from .effects import (CANT_ATTACK, CANT_BLOCK, ActivatedAbility, AlternativeCost
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count, no_max_hand_size,
+                      overloaded_effects, SacrificeSelf,
                       self_cost_reduction, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
@@ -201,9 +202,14 @@ class StackItem:
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
     is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
+    evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
     player: "Seat | None" = None  # for a watching trigger: the player whose action set it off ("that player")
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
+
+
+EVOKE_SACRIFICE = TriggeredAbility("enters", (SacrificeSelf(),), False,
+                                   "When this permanent enters, if its evoke cost was paid, sacrifice it.")
 
 
 @dataclass(eq=False)
@@ -745,7 +751,10 @@ class Game:
                  alternative: AlternativeCost | None = None, kicked: int = 0, extra: str = "") -> list[Permanent] | None:
         """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now. An alternative
         cost replaces the mana cost; commander tax and kicker are added, then cost reductions apply."""
-        cost = Cost() if alternative else parse_cost(card.mana_cost)
+        if alternative:
+            cost = parse_cost(alternative.mana_cost) if alternative.mana_cost else Cost()  # Evoke and Overload cost mana
+        else:
+            cost = parse_cost(card.mana_cost)
         if cost is None:
             return None
         if from_command_zone:
@@ -1104,6 +1113,8 @@ class Game:
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
             alternative = ways[seat.player.choose(COST_PROMPT + card.name, options)]
+        if alternative and alternative.overload:  # every "target" is "each": no targets
+            effects = overloaded_effects(card) or effects
         kicked = 0 if graveyard else self._choose_kicks(seat, card, effects, from_command_zone, alternative)
         effects = kicked_effects(effects, kicked)
         targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
@@ -1118,7 +1129,7 @@ class Game:
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard)
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, exile_after=bool(graveyard and graveyard.exile_after),
-                         is_copy=prepared is not None)
+                         is_copy=prepared is not None, evoked=bool(alternative and alternative.evoke))
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -1200,7 +1211,10 @@ class Game:
             return
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked), x=item.x)
+            entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked)
+            if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
+                self._queue(EVOKE_SACRIFICE, entering, seat)
+            self._enter(seat, entering, x=item.x)
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})

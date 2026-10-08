@@ -1424,6 +1424,16 @@ class DefineX:
 
 
 @dataclass(frozen=True)
+class SacrificeSelf:
+    """Evoke: "When this creature enters, sacrifice it." """
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game._leave_battlefield(target, "sacrificed")
+
+
+@dataclass(frozen=True)
 class SacrificeCreature:
     """ "Sacrifice a creature." (you choose which) """
 
@@ -2391,6 +2401,9 @@ class AlternativeCost:
     not_your_turn: bool = False  # "If it's not your turn, ..."
     life: int = 0
     exile_color: str | None = None  # exile a card of this color (a letter) from your hand
+    mana_cost: str = ""  # an alternative cost that is mana ("Evoke {2}{U}", "Overload {6}{U}"), paid instead of the mana cost
+    evoke: bool = False  # the creature is sacrificed when it enters
+    overload: bool = False  # every "target" in the spell becomes "each"
 
 
 @dataclass(frozen=True)
@@ -2435,9 +2448,33 @@ def is_multikicker(card: Card) -> bool:
     return any(line.startswith("Multikicker ") and _KICKER.fullmatch(line) for line in rules_lines(card))
 
 
+_EVOKE = re.compile(r"Evoke ((?:\{[^}]+\})+)")
+_OVERLOAD = re.compile(r"Overload ((?:\{[^}]+\})+)")
+
+
+def overloaded_effects(card: Card) -> list | None:
+    """What an overloaded spell does: the same text with every "target" read as "each" (Cyclonic Rift), or None if
+    the card has no Overload or that text isn't understood."""
+    if not any(_OVERLOAD.fullmatch(line) for line in rules_lines(card)):
+        return None
+    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line)]
+    return _parse(_split_sentences(re.sub(r"\btarget\b", "each", "\n".join(lines))))
+
+
+def is_overload_line(line: str) -> bool:
+    return _OVERLOAD.fullmatch(line) is not None
+
+
 def alternative_costs(card: Card) -> list[AlternativeCost]:
     costs = []
     for line in rules_lines(card):
+        if m := _EVOKE.fullmatch(line):
+            costs.append(AlternativeCost(f"Evoke {m[1]}", mana_cost=m[1], evoke=True))
+            continue
+        if m := _OVERLOAD.fullmatch(line):
+            if overloaded_effects(card):
+                costs.append(AlternativeCost(f"Overload {m[1]}", mana_cost=m[1], overload=True))
+            continue
         if _FREE_WITH_COMMANDER.fullmatch(line):
             costs.append(AlternativeCost("Cast without paying its mana cost", commander=True))
         elif m := _PITCH.fullmatch(line):
@@ -2488,7 +2525,7 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE,
-                                           _PER_REDUCTION))
+                                           _PER_REDUCTION, _EVOKE, _OVERLOAD))
 
 
 _PER_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast for each "
@@ -2600,6 +2637,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
     (re.compile(rf"destroy (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[2].lower(), bool(m[1]))),
+    (re.compile(rf"destroy each {_PERMANENT_KIND}\.", re.I), lambda m: DestroyAll(m[1].lower())),
+    (re.compile(rf"exile each {_PERMANENT_KIND}\.", re.I), lambda m: ExileAll(m[1].lower())),
+    (re.compile(rf"return each {_PERMANENT_KIND} to its owner's hand\.", re.I), lambda m: ReturnAllToHand(m[1].lower())),
     (re.compile(rf"destroy {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Destroy, m)),
     (re.compile(rf"destroy up to one target {_PERMANENT_KIND}\.", re.I),
      lambda m: Destroy(m[1].lower(), optional_target=True)),

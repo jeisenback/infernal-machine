@@ -119,6 +119,11 @@ winner = game.play()
   - Cost reducers: "Green spells you cast cost {1} less to cast." (Medallions), for a color, "creature",
     "artifact", "enchantment", "noncreature", "instant and sorcery", or all spells. Only generic mana is
     reduced, including commander tax and kicker.
+  - Evoke and Overload are alternative costs paid in mana, offered when you cast ("Evoke {2}{U}", "Overload {6}{U}").
+    An evoked creature is sacrificed once it enters, after its own "when it enters" abilities have resolved
+    (Mulldrifter draws its two cards first). An overloaded spell reads every "target" as "each" and has no targets
+    (Cyclonic Rift returns every nonland permanent you don't control; Vandalblast destroys every artifact you don't
+    control). Overload is only offered when the "each" version is understood; otherwise the line is reported.
   - A spell can reduce its own cost: "This spell costs {1} less to cast for each creature on the battlefield."
     (Blasphemous Act, any player's creatures) or "... for each instant and sorcery card in your graveyard".
   - Alternative costs: "If you control a commander, you may cast this spell without paying its mana cost."
