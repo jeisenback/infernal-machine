@@ -914,6 +914,8 @@ def is_choose_type_line(line: str) -> bool:
 
 _AFFECTED = (r"Creatures you control of the chosen type|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
+_COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
+                               r"this game\.")
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
 _AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
@@ -961,6 +963,10 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     "chosen" if who["chosen"] else who["sub"] or who["tribe"], line,
                                     condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
                                     attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"])))
+        elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
+            who = _AFFECTED_WHO.fullmatch(m[1])
+            buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
+                                    who["sub"] or who["tribe"], line, condition=condition, per=("commander_casts", "")))
         elif m := _SELF_SCALED.fullmatch(sentence):  # "This creature gets +1/+0 for each artifact you control."
             modifier = Modifier(_signed(m[1]), _signed(m[2]))
             buffs.append(StaticBuff(modifier, False, None, line, self_only=True, condition=condition,
@@ -3919,9 +3925,29 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
 _TRIGGERS_ONCE = " This ability triggers only once each turn."
 
 
+_PAY_TO_RETURN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, return this card from your graveyard to the "
+                            r"battlefield\.", re.I)
+
+
+@dataclass(frozen=True)
+class PayToReturnSelf:
+    """Vanguard of the Restless: "you may pay {2}{W}. If you do, return this card from your graveyard to the
+    battlefield." It works from the graveyard, so the game looks for it there."""
+    cost: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        card = item.card if item is not None else None
+        if card is not None and any(c is card for c in controller.graveyard) \
+                and game.pays_unless(controller, self.cost, card):
+            game.return_from_graveyard(game.graveyard_target(card, controller), controller, "battlefield")
+
+
 def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]:
     """The part of a trigger after its event: (effects, or None if not understood; "you may";
     "only once each turn"; an intervening "if" clause)."""
+    if m := _PAY_TO_RETURN.fullmatch(rest):
+        return [PayToReturnSelf(m[1])], False, False, None
     condition = None
     if rest.startswith("if ") and ", " in rest:
         text, rest = rest[3:].split(", ", 1)

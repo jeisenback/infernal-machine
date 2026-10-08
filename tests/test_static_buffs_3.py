@@ -101,3 +101,43 @@ class PatchworkBannerTests(unittest.TestCase):
         a.battlefield = [Permanent(bear)]
         game._enter(a, Permanent(REAL["Patchwork Banner"]))
         self.assertEqual(game.power(a.battlefield[0]), 3)
+
+
+SPIRIT = Card(name="Spirit", type_line="Token Creature " + chr(0x2014) + " Spirit", power="1", toughness="1")
+
+
+class VanguardOfTheRestlessTests(unittest.TestCase):
+    VANGUARD = REAL["Vanguard of the Restless"]
+
+    def test_it_is_understood(self):
+        self.assertEqual(unsupported_lines(self.VANGUARD), [])
+
+    def test_spirits_grow_with_each_commander_cast(self):
+        game, _ = table3()
+        a = game.seats[0]
+        spirit = Permanent(SPIRIT)
+        a.battlefield = [Permanent(self.VANGUARD), spirit, Permanent(BEAR)]
+        self.assertEqual(game.power(spirit), 1)
+        a.commander_casts = {"Omnath": 2, "Other": 1}
+        self.assertEqual((game.power(spirit), game.power(a.battlefield[2])), (1 + 3, 2))  # only Spirits; the Vanguard is one too
+        self.assertEqual(game.power(a.battlefield[0]), 2 + 3)
+
+    def test_it_comes_back_from_the_graveyard_when_a_spirit_enters_and_you_pay(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.graveyard, a.battlefield = [self.VANGUARD], lands(3)
+        game._enter(a, Permanent(SPIRIT))
+        run_stack(game)
+        self.assertEqual(sorted(p.card.name for p in a.battlefield if "Land" not in p.card.type_line), ["Spirit", "Vanguard of the Restless"])
+        self.assertEqual(a.graveyard, [])
+
+    def test_it_stays_if_you_cannot_pay_or_a_non_spirit_enters(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.graveyard, a.battlefield = [self.VANGUARD], lands(2)
+        game._enter(a, Permanent(SPIRIT))
+        run_stack(game)
+        a.battlefield = lands(3)
+        game._enter(a, Permanent(BEAR))
+        run_stack(game)
+        self.assertEqual(a.graveyard, [self.VANGUARD])

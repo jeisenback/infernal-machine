@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, annihilator_of, chooses_creature_type, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, PayToReturnSelf, annihilator_of, chooses_creature_type, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -1588,13 +1588,18 @@ class Game:
         watchers = [(p, s) for s in self.live_seats() for p in s.battlefield] + list(extra)
         # Eminence abilities (Edgar Markov) also work from the command zone, where a card is no Permanent.
         eminent = [(Permanent(c), s) for s in self.live_seats() for c in s.command_zone]
-        for watcher, watcher_seat in watchers + eminent:
+        # A few cards watch from the graveyard (Vanguard of the Restless), where a card is no Permanent either.
+        buried = [(Permanent(c), s) for s in self.live_seats() for c in s.graveyard]
+        for watcher, watcher_seat in watchers + eminent + buried:
             in_command_zone = any(watcher is p for p, _ in eminent)
+            in_graveyard = any(watcher is p for p, _ in buried)
             for ability in triggered_abilities(watcher.card):
                 watch = ability.watch
                 if not watch or ability.event != ("cast" if event == "copy" else event):
                     continue
                 if in_command_zone and not ability.text.startswith("Eminence"):
+                    continue
+                if in_graveyard and not any(isinstance(effect, PayToReturnSelf) for effect in ability.effects):
                     continue
                 if watch.other and event in ("cast", "copy") and card is watcher.card:
                     continue  # "another" spell: not the one that has this ability
@@ -1967,6 +1972,9 @@ class Game:
         else:
             self._enter(controller, Permanent(card, sick=True, tapped=tapped, loyalty=_starting_loyalty(card), owner=seat))
 
+    def graveyard_target(self, card: Card, seat: Seat) -> "GraveyardTarget":
+        return GraveyardTarget(card, seat)
+
     def _graveyard_of(self, card: Card) -> Seat | None:
         return next((s for s in self.seats if any(c is card for c in s.graveyard)), None)
 
@@ -2110,6 +2118,10 @@ class Game:
         what, kind = per
         if what == "permanent":
             count = sum(_has_type(p.card, kind) for p in controller.battlefield)
+        elif what == "commander_casts":
+            count = sum(controller.commander_casts.values())
+        elif what == "commander_casts":
+            count = sum(controller.commander_casts.values())
         elif what == "graveyard":
             count = sum(_card_matches(kind, c) for c in controller.graveyard)
         elif what == "auras_on_it":
