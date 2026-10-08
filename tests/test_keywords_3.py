@@ -5,7 +5,7 @@ from dataclasses import replace
 
 from infernal_machine.cards import Card
 from infernal_machine.effects import DEMONSTRATE_PROMPT, graveyard_casts, triggered_abilities
-from infernal_machine.game import CAST, CAST_GRAVEYARD, Permanent
+from infernal_machine.game import CAST, CAST_GRAVEYARD, ENCORE, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
@@ -118,3 +118,36 @@ class BackupTests(unittest.TestCase):
         run_stack(game)
         self.assertEqual(sorted(p.card.name for p in a.battlefield), ["Cheap Relic", "Guardian Scalelord"])
         self.assertEqual(sorted(c.name for c in a.graveyard), ["Dear Relic", "Forest"])
+
+
+class EncoreTests(unittest.TestCase):
+    def setup_encore(self):
+        game, _ = table3()
+        a, b, c = game.seats
+        angel = REAL["Angel of Indemnity"]
+        a.graveyard, a.battlefield = [angel], lands(8)
+        return game, a, b, c, angel
+
+    def test_the_card_is_understood(self):
+        self.assertEqual(unsupported_lines(REAL["Angel of Indemnity"]), [])
+
+    def test_a_token_copy_for_each_opponent_attacks_that_opponent_and_is_sacrificed(self):
+        game, a, b, c, angel = self.setup_encore()
+        self.assertIn(ENCORE + "Angel of Indemnity", game.legal_actions(a))
+        game._perform(a, ENCORE + "Angel of Indemnity")
+        run_stack(game)
+        tokens = [p for p in a.battlefield if p.card.name == "Angel of Indemnity"]
+        self.assertEqual(sorted(t.must_attack.index for t in tokens), [1, 2])
+        self.assertTrue(all(game.has_keyword(t, "haste") for t in tokens))
+        self.assertEqual((a.graveyard, a.exile), ([], [angel]))
+        game.step = "declare_attackers"
+        game.combat.declare_attackers(a)
+        self.assertEqual(sorted(x.defender.index for x in game.combat.attacks), [1, 2])
+        game.step = "end"
+        game._turn_based_actions(a)
+        self.assertEqual([p for p in a.battlefield if p.card.name == "Angel of Indemnity"], [])
+
+    def test_only_at_sorcery_speed_and_with_the_mana(self):
+        game, a, b, c, angel = self.setup_encore()
+        a.battlefield = lands(7)
+        self.assertNotIn(ENCORE + "Angel of Indemnity", game.legal_actions(a))

@@ -2696,6 +2696,12 @@ _ENTWINE = re.compile(r"Entwine ((?:\{[^}]+\})+)")
 _ESCALATE = re.compile(r"Escalate ((?:\{[^}]+\})+)")  # "Escalate\u2014Discard a card." (a cost that isn't mana) isn't supported
 _FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
 _RETRACE = re.compile(r"Retrace")
+_ENCORE = re.compile(r"Encore ((?:\{[^}]+\})+)")
+
+
+def encore_cost(card: Card) -> str | None:
+    """Encore {cost}: from the graveyard, for each opponent a token copy attacks that opponent this turn."""
+    return next((m[1] for line in rules_lines(card) if (m := _ENCORE.fullmatch(line))), None)
 _ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four|five|six) other cards? from your graveyard\.")
 _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery) )?spells "
                         r"you cast cost \{(\d+)\} less to cast\.", re.I)
@@ -2889,7 +2895,7 @@ _SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate)(?:, (?:Delve
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY))
 

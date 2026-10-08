@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, Demonstrate, Backup, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, Demonstrate, Backup, encore_cost, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -57,6 +57,7 @@ PLAY_LAND = "Play land: "
 CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
+ENCORE = "Encore: "  # followed by the card's name
 CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
@@ -160,6 +161,7 @@ class Permanent:
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
     attacked_turn: int | None = None  # the last turn it attacked
+    must_attack: "Seat | None" = None  # an Encore token: it attacks this player this turn if able
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
     prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
@@ -549,6 +551,10 @@ class Game:
             for cast in graveyard_casts(card)[:1]:
                 if not is_land(card) and (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card, graveyard=cast):
                     actions.append(CAST_GRAVEYARD + card.name)
+        if sorcery_timing:
+            for card in _unique(seat.graveyard):
+                if (cost := encore_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
+                    actions.append(ENCORE + card.name)
         for card in _unique([c for c, until in seat.exile_play if self.turn <= until and c in seat.exile]):
             if is_land(card):
                 if sorcery_timing and seat.lands_played < 1:
@@ -1016,6 +1022,8 @@ class Game:
         elif action.startswith(CAST_GRAVEYARD):
             card = next(c for c in seat.graveyard if c.name == action.removeprefix(CAST_GRAVEYARD))
             self._cast(seat, card, seat.graveyard, graveyard=graveyard_casts(card)[0])
+        elif action.startswith(ENCORE):
+            self._encore(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ENCORE)))
         elif action.startswith(CAST_PREPARED):
             name = action.removeprefix(CAST_PREPARED)
             permanent = next(p for p in seat.battlefield if p.prepared and p.card.prepare and p.card.prepare.name == name)
@@ -2231,6 +2239,26 @@ class Game:
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": dead.card.name, "to": "battlefield"})
         self._left_graveyard(seat)
         self._enter(seat, Permanent(dead.card, sick=True, loyalty=_starting_loyalty(dead.card), counters={counter: 1}))
+
+    def _encore(self, seat: Seat, card: Card) -> None:
+        """Encore: pay its cost and exile it from the graveyard; for each opponent, a token copy with haste attacks that
+        opponent this turn if able and is sacrificed at the beginning of the next end step."""
+        tapped = self._payment(seat, dataclasses.replace(card, mana_cost=encore_cost(card)))
+        self._spend_mana(seat, tapped)
+        seat.graveyard.remove(card)
+        self.broadcast({"event": "encore", "seat": seat.index, "card": card.name})
+        self._move_card(seat, card, "exile")
+        self._left_graveyard(seat)
+        token = dataclasses.replace(card, type_line="Token " + card.type_line)
+        made = []
+        for opponent in self.opponents(seat):
+            copy = Permanent(token, sick=True, must_attack=opponent)
+            self._enter(seat, copy)
+            self.modify_until_end_of_turn(copy, Modifier(keywords=frozenset({"haste"})))
+            made.append(copy)
+        fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+        self.at_end_step.append((fire_turn, lambda: self._leave_together(
+            [(p, "sacrificed") for p in made if self.on_battlefield(p)])))
 
     def grant_abilities(self, permanent: Permanent, text: str) -> None:
         """The permanent gains the abilities written in `text` until end of turn (Backup); like a crewed Vehicle, its
