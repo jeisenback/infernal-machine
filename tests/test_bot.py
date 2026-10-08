@@ -2,7 +2,8 @@ import unittest
 
 from infernal_machine.bot import BotPlayer, goldfish, keep_hand, worst_card
 from infernal_machine.cards import Card, Deck
-from infernal_machine.game import Game
+from infernal_machine.game import (CAST, CYCLE, DONE_MODES, KEEP_ON_TOP, MODE_PROMPT, PASS, PUT_IN_GRAVEYARD, PUT_ON_BOTTOM,
+                                   SCRY_PROMPT, SURVEIL_PROMPT, Game)
 
 LAND = Card(name="Wastes", type_line="Basic Land")
 CHEAP = Card(name="Sol Ring", type_line="Artifact", cmc=1)
@@ -64,6 +65,53 @@ class BotPlayerTests(unittest.TestCase):
         game.play(max_turns=30)
         self.assertTrue(any(seat.life < 40 for seat in game.seats))
         self.assertTrue(any(BOLT in seat.graveyard for seat in game.seats))
+
+
+WRATH = Card(name="Wrath of God", mana_cost="{2}{W}{W}", cmc=4, type_line="Sorcery",
+             oracle_text="Destroy all creatures. They can't be regenerated.")
+ONE_SIDED = Card(name="Plague Wind", mana_cost="{7}{B}{B}", cmc=9, type_line="Sorcery",
+                 oracle_text="Destroy all creatures you don't control. They can't be regenerated.")
+CYCLER = Card(name="Big Cycler", mana_cost="{6}{G}", cmc=7, type_line="Creature — Beast", oracle_text="Cycling {2}")
+LAND_CYCLER = Card(name="Cycling Land", type_line="Land", oracle_text="Cycling {2}")
+
+
+def board(lands_in_play=0, hand=(), mine=0, theirs=0):
+    """A bot (seat 0) looking at a snapshot: its lands and creatures, and an opponent's creatures."""
+    bot = BotPlayer("Bot", Deck([COMMANDER], [LAND, CHEAP, PRICEY, WRATH, ONE_SIDED, CYCLER, LAND_CYCLER], []))
+    bot.notify({"event": "seat", "seat": 0, "name": "Bot", "life": 40})
+    permanent = lambda kind: {"type": kind}
+    bot.notify({"event": "state", "hand": list(hand), "seats": [
+        {"seat": 0, "lost": False, "battlefield": [permanent("Basic Land")] * lands_in_play + [permanent("Creature")] * mine},
+        {"seat": 1, "lost": False, "battlefield": [permanent("Creature")] * theirs}]})
+    return bot
+
+
+class JudgmentTests(unittest.TestCase):
+    def test_scry_keeps_lands_until_it_has_enough(self):
+        self.assertEqual(board(2).choose(SCRY_PROMPT + LAND.name, [KEEP_ON_TOP, PUT_ON_BOTTOM]), 0)
+        self.assertEqual(board(5, hand=[LAND.name]).choose(SCRY_PROMPT + LAND.name, [KEEP_ON_TOP, PUT_ON_BOTTOM]), 1)
+
+    def test_scry_and_surveil_keep_spells_it_can_cast_soon(self):
+        self.assertEqual(board(3).choose(SCRY_PROMPT + CHEAP.name, [KEEP_ON_TOP, PUT_ON_BOTTOM]), 0)
+        self.assertEqual(board(3).choose(SURVEIL_PROMPT + PRICEY.name, [KEEP_ON_TOP, PUT_IN_GRAVEYARD]), 1)
+
+    def test_modes_prefer_removal_and_skip_costly_extras(self):
+        modes = ["You gain 2 life.", "Destroy target artifact.", "Draw a card."]
+        self.assertEqual(board().choose(MODE_PROMPT + "Charm", modes), 1)
+        self.assertEqual(board().choose(MODE_PROMPT + "Charm", ["Each player discards a card. You lose 2 life.",
+                                                               DONE_MODES]), 1)
+
+    def test_casts_a_wipe_only_when_behind_on_creatures(self):
+        options = [PASS, CAST + WRATH.name]
+        self.assertEqual(board(4, mine=1, theirs=3).choose("Priority: main1", options), 1)
+        self.assertEqual(board(4, mine=2, theirs=2).choose("Priority: main1", options), 0)
+        self.assertEqual(board(9, mine=3, theirs=1).choose("Priority: main1", [PASS, CAST + ONE_SIDED.name]), 1)
+
+    def test_cycles_extra_lands_and_expensive_spells(self):
+        self.assertEqual(board(6).choose("Priority: main1", [PASS, CYCLE + LAND_CYCLER.name]), 1)
+        self.assertEqual(board(2).choose("Priority: main1", [PASS, CYCLE + LAND_CYCLER.name]), 0)
+        self.assertEqual(board(2).choose("Priority: main1", [PASS, CYCLE + CYCLER.name]), 1)
+        self.assertEqual(board(5).choose("Priority: main1", [PASS, CYCLE + CYCLER.name]), 0)
 
 
 class GoldfishTests(unittest.TestCase):
