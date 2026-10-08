@@ -58,6 +58,7 @@ CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
 CYCLE = "Cycle: "
+REVEAL_PROMPT = "Reveal a card from your hand for "  # followed by the land's name
 SHOCK_PROMPT = "Pay life so it enters untapped? "  # followed by the land's name
 ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
 COMMANDER_TAX = 2  # CR 903.8
@@ -2472,6 +2473,18 @@ class Game:
             return lands < rule.count
         if rule.kind == "unless_opponents":
             return len(self.opponents(seat)) < rule.count
+        if rule.kind == "unless_basic_lands":
+            return sum(1 for p in seat.battlefield if "Basic" in p.card.type_line and is_land(p.card)) < rule.count
+        if rule.kind == "unless_land_type_count":
+            return sum(1 for p in seat.battlefield if rule.types[0] in p.card.type_line) < rule.count
+        if rule.kind == "unless_opponent_lands":
+            return sum(1 for o in self.opponents(seat) for p in o.battlefield if is_land(p.card)) < rule.count
+        if rule.kind == "reveal":  # a Snarl: show a matching card from your hand or enter tapped
+            matching = [c for c in seat.hand if any(t in c.type_line for t in rule.types)]
+            if matching and seat.player.choose(REVEAL_PROMPT + card.name, [f"Reveal {matching[0].name}", "Enter tapped"]) == 0:
+                self.broadcast({"event": "revealed", "seat": seat.index, "card": matching[0].name})
+                return False
+            return True
         # Shock land: you may pay life. (You can only pay life you have to spare.)
         if seat.life > rule.life and seat.player.choose(SHOCK_PROMPT + card.name,
                                                         [f"Pay {rule.life} life", "Enter tapped"]) == 0:
