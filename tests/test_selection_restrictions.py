@@ -45,7 +45,7 @@ class KindTests(unittest.TestCase):
                                                "graveyard to your hand.")),
                          [ReturnFromGraveyard("graveyard:creature|mv<=2:yours", "hand")])
         self.assertEqual(spell_effects(sorcery("Return another target creature to its owner's hand.")),
-                         [ReturnToHand("creature", another=True)])
+                         [ReturnToHand("creature", another=True, distinct=True)])
         self.assertEqual(spell_effects(sorcery("Return up to one target creature to its owner's hand.")),
                          [ReturnToHand("creature", optional_target=True)])
         self.assertEqual(spell_effects(sorcery("Destroy another target creature.")), [Destroy("creature", another=True)])

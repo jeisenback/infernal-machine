@@ -142,8 +142,14 @@ winner = game.play()
     targets exist). A kicked permanent (Auras too) remembers it: "If this creature was kicked, it enters with
     N +1/+1 counters on it." and "When this creature enters, if it was kicked, ..." (Untamed Kavu, Josu Vess).
   - Multikicker {N}: the caster chooses how many times to pay it, and "... enters with a +1/+1 counter on it for
-    each time it was kicked." counts them (Gnarlid Pack). "Instead" wordings and non-mana kicker costs aren't
-    supported.
+    each time it was kicked." counts them (Gnarlid Pack).
+  - Kicked "instead" wordings change the effect just before them: "it deals N damage instead" (Burst Lightning),
+    "create N of those tokens instead" (Saproling Migration) and "draw N cards instead".
+  - Kicker costs that aren't mana: "Kicker—Sacrifice a land / a creature / ...", "Kicker—Discard a card." and
+    "Kicker—Pay N life." are paid like additional costs, and only offered when they can be paid.
+  - Two kicker costs ("Kicker {R} and/or {W}"): each is offered separately, when it can be paid, and
+    "if it was kicked with its {R} kicker" / "If this spell was kicked with its {1}{B} kicker, ..." check that
+    specific cost (Thornscape Battlemage).
   - Additional costs: "As an additional cost to cast this spell, sacrifice a creature / an artifact / an artifact
     or creature / a land / a permanent", "discard a card" or "pay N life". They're paid after mana, so a creature
     that tapped for mana can still be sacrificed. Effects that read the paid cost ("the sacrificed creature's
@@ -202,7 +208,7 @@ winner = game.play()
 | Tap all creatures your opponents control. | Cryptic Command |
 | Target player (or opponent) draws N cards / gains N life / loses N life. | |
 | Exile target card from a graveyard. | |
-| Return target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation |
+| Return (another) target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation, Rushing River |
 | Return target (creature) card from your graveyard to your hand / to the battlefield. | Raise Dead, Zombify |
 | Put target creature card from a graveyard onto the battlefield under your control. | Reanimate |
 | Search your library for a (creature / legendary creature / Aura / Equipment / nonbasic land) card (with mana value N or less), (reveal it,) put it into your hand, then shuffle. | Demonic Tutor, Stoneforge-style |
