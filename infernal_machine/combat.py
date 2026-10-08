@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .characteristics import source_qualities
-from .effects import CANT_ATTACK, CANT_BLOCK
+from .effects import CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK
 
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
@@ -195,7 +195,7 @@ class Combat:
                 and not self._has(permanent, "defender") and not self._has(permanent, CANT_ATTACK))
 
     def _can_block(self, blocker: Permanent, attacker: Permanent) -> bool:
-        if self._has(blocker, CANT_BLOCK):
+        if self._has(blocker, CANT_BLOCK) or self._has(attacker, CANT_BE_BLOCKED):
             return False
         if self.game.protected_from(attacker, source_qualities(blocker.card)):  # can't be blocked by those colors
             return False

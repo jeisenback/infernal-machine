@@ -450,6 +450,7 @@ class PutCounters:
     count: int
     counter: str  # "+1/+1" or "-1/-1"
     target: str
+    another: bool = False  # "on another target creature you control": not the source itself
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -991,6 +992,7 @@ class AttachedBuff:
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
                        r"|can't attack or block)\.")
 CANT_ATTACK, CANT_BLOCK = "can't attack", "can't block"  # pseudo-keywords, so combat can ask has_keyword
+CANT_BE_BLOCKED = "can't be blocked"
 
 
 _GRANT = re.compile(r'(?:Equipped|Enchanted) (?:creature|land|permanent) has "(.+)"\.?')  # the quote's own full stop is inside it
@@ -1764,6 +1766,16 @@ class UntapThat:
         pass
 
 
+@dataclass(frozen=True)
+class TapThat:
+    """ "Tap it." / "Tap that creature.": the target of the effect before it."""
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.tapped = True
+
+
 _CONTROL_AURA = "You control enchanted creature."
 
 
@@ -2494,7 +2506,7 @@ class FetchBasicLand:
 
 
 _PERMANENT_KIND = (r"((?:creature token|nontoken creature|attacking creature|tapped creature|untapped creature|creature|artifact"
-                   r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment"
+                   r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker)(?: an opponent controls| you don't control| you control)?"
                    r"(?: with mana value \d+ or (?:less|greater))?)")
 # "up to two target creatures": the plural kinds, and the singular they stand for
@@ -2622,6 +2634,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
      lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
     (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
+    (re.compile(r"tap (?:it|that creature)\.", re.I), lambda m: TapThat()),
     (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
     (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
      lambda m: [FightFirst(m[1].lower()), Fight(m[3].lower(), another=bool(m[2]))]),
@@ -2714,6 +2727,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
     (re.compile(rf"put {_N} {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
+    (re.compile(rf"put {_N} {_COUNTER} on another target {_PERMANENT_KIND}\.", re.I),
+     lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower(), another=True)),
     (re.compile(rf"put {_N} {_COUNTER} on each creature you control\.", re.I),
      lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]))),
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
@@ -2723,6 +2738,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:{_SELF}) gains protection from the color of your choice until end of turn\."),
      lambda m: GrantProtection(uses_source=True)),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
+    (re.compile(rf"target {_PERMANENT_KIND} can't be blocked this turn\.", re.I),
+     lambda m: Pump(Modifier(keywords=frozenset({CANT_BE_BLOCKED})), m[1].lower())),
     (re.compile(rf"(?i:one or two target creatures each) {_CHANGE}"),
      lambda m: [Pump(_modifier(m, 1), "creature"), Pump(_modifier(m, 1), "creature", optional_target=True, distinct=True)]),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} gets? {_PT_X} until end of turn\."),
@@ -3067,7 +3084,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
     #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "not_prepared", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
 
@@ -3084,6 +3101,8 @@ _CONDITIONS = [
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
     (re.compile(r"you've cast an? (instant or sorcery spell|creature spell|noncreature spell|spell) this turn"),
      lambda m: Condition("cast_this_turn", what=m[1])),
+    (re.compile(rf"you control {_N} or more (white|blue|black|red|green) permanents"),
+     lambda m: Condition("control_color_at_least", _count(m[1]), m[2])),
     (re.compile(rf"you control {_N} or more ([A-Za-z]+)"),
      lambda m: Condition("control_at_least", _count(m[1]), _singular(m[2]))),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
@@ -3430,6 +3449,8 @@ class ActivatedAbility:
     exile_graveyard: int = 0  # "Exile a card from your graveyard": how many
     crew: int = 0  # "Crew N": tap untapped creatures you control with total power N or more
     reconfigure: str = ""  # "attach" (only with another creature to attach to) or "unattach" (only while attached)
+    remove_counter: str = ""  # "Remove a +1/+1 counter from this creature": the kind of counter
+    condition: "Condition | None" = None  # "Activate only if you control two or more white permanents."
 
 
 _CREW = re.compile(r"Crew (\d+)")
@@ -3438,13 +3459,15 @@ _MANA_PART = re.compile(r"(\{(?:\d+|X|S|[WUBRGC]|[WUBRGC]/[WUBRGCP]|2/[WUBRGC])\
 _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
 _CARDS = r"(an?|two|three|four)"
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature)s?")
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|Food|Treasure|Clue)s?")
+_REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
 _EXILE_COST = re.compile(rf"Exile {_CARDS} cards? from your graveyard")
 _NUMBER = {"a": 1, "an": 1, "two": 2, "three": 3, "four": 4}
 _LOYALTY = re.compile(r"([+\u2212-]?)(\d+)")
 _SORCERY_ONLY = "Activate only as a sorcery."
 _ONCE_EACH_TURN = "Activate only once each turn."
+_ACTIVATE_ONLY_IF = re.compile(r"Activate only (as a sorcery and only )?if (.+)\.")
 
 
 @lru_cache(maxsize=None)
@@ -3493,6 +3516,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["discard"] = _NUMBER[m[1]]
         elif m := _EXILE_COST.fullmatch(part):
             fields["exile_graveyard"] = _NUMBER[m[1]]
+        elif m := _REMOVE_COUNTER_COST.fullmatch(part):
+            fields["remove_counter"] = _counter_name(m[1])
         else:
             return None
     return fields
@@ -3518,9 +3543,17 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
     if _ONCE_EACH_TURN in sentences:
         fields["once_per_turn"] = True
         sentences.remove(_ONCE_EACH_TURN)
+    for sentence in list(sentences):
+        if m := _ACTIVATE_ONLY_IF.fullmatch(sentence):
+            if (condition := _condition(m[2])) is None:
+                return None
+            fields.update(condition=condition, sorcery_speed=fields.get("sorcery_speed", False) or bool(m[1]))
+            sentences.remove(sentence)
     effects = _parse(sentences)
     if not effects:
         return None
+    if fields.get("condition") and any(isinstance(e, AddMana) for e in effects):
+        return None  # a conditional mana ability (Temple of the False God) isn't a stack ability: auto-pay couldn't use it
     return ActivatedAbility(line, tuple(effects), **fields)
 
 
