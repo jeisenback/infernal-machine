@@ -781,10 +781,24 @@ class StaticBuff:
     text: str
     self_only: bool = False  # "CARDNAME gets +1/+1 as long as ...": only the source itself
     condition: "Condition | None" = None  # "As long as you control an artifact, ...": applies only while it holds
+    color: str | None = None  # "Other red creatures you control": a color letter
+    attacking: bool = False  # "Attacking Pests you control": only while they are attacking
+    per: tuple[str, str] | None = None  # "... for each artifact you control": (what to count, its type); see Game.modifiers
 
 
-_AFFECTED = r"(?:(Other) )?(?:([A-Z][\w'-]*) )?[Cc]reatures you control"
-_STATIC = re.compile(rf"{_AFFECTED} (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
+_AFFECTED = (r"(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+             r"|(?:Attacking )?[A-Z][\w'-]*s you control")
+_STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
+_AFFECTED_WHO = re.compile(r"(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+                  r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
+                  r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control")
+_PER = {"artifact you control": ("permanent", "artifact"), "creature card in your graveyard": ("graveyard", "creature"),
+        "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", "")}
+_PER_LOWER = {k.lower(): v for k, v in _PER.items()}
+_PER_WORDS = "|".join(re.escape(k) for k in _PER)
+_SELF_SCALED = re.compile(rf"{_SELF} gets {_PT} for each ({_PER_WORDS})\.", re.I)
+_ATTACHED_SCALED = re.compile(rf"Enchanted creature gets {_PT} for each ({_PER_WORDS})\.")
+_ATTACHED_GOADED = re.compile(rf"Enchanted creature gets {_PT}(?:, has ({_KW}),)? and is goaded\.")
 
 
 _CANT = re.compile(rf"{_SELF} can't (attack or block|attack|block)\.", re.I)
@@ -812,7 +826,15 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             if (condition := _condition(text)) is None:
                 continue
         if m := _STATIC.fullmatch(sentence):
-            buffs.append(StaticBuff(_modifier(m, 3), m[1] is not None, m[2], line, condition=condition))
+            who = _AFFECTED_WHO.fullmatch(m[1])
+            colors = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+            buffs.append(StaticBuff(_modifier(m, 2), who["other"] is not None, who["sub"] or who["tribe"], line,
+                                    condition=condition, color=colors.get(who["color"] or ""),
+                                    attacking=bool(who["attacking"] or who["attacking2"])))
+        elif m := _SELF_SCALED.fullmatch(sentence):  # "This creature gets +1/+0 for each artifact you control."
+            modifier = Modifier(_signed(m[1]), _signed(m[2]))
+            buffs.append(StaticBuff(modifier, False, None, line, self_only=True, condition=condition,
+                                    per=_PER_LOWER[m[3].lower()]))
         elif m := _CANT.fullmatch(sentence):  # "This creature can't block." (a token's, for one)
             keywords = {"attack": {CANT_ATTACK}, "block": {CANT_BLOCK}}.get(m[1].lower(), {CANT_ATTACK, CANT_BLOCK})
             buffs.append(StaticBuff(Modifier(0, 0, frozenset(keywords)), False, None, line, self_only=True, condition=condition))
@@ -962,6 +984,8 @@ class AttachedBuff:
     """ "Equipped creature gets +1/+1 and has haste." / "Enchanted creature can't attack or block." """
     modifier: Modifier
     text: str
+    per: tuple[str, str] | None = None  # "... for each Aura you control that's attached to a creature"
+    goaded: bool = False  # "Enchanted creature gets +1/+1 and is goaded."
 
 
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
@@ -1009,6 +1033,11 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             else:
                 modifier = _modifier(m, 1)
             buffs.append(AttachedBuff(modifier, line))
+        elif m := _ATTACHED_GOADED.fullmatch(line):
+            keywords = _keyword_list(m[3]) if m[3] else frozenset()
+            buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), keywords), line, goaded=True))
+        elif m := _ATTACHED_SCALED.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2])), line, per=_PER[m[3]]))
     return tuple(buffs)
 
 
