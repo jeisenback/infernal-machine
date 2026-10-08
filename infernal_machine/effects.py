@@ -1506,6 +1506,26 @@ class DefineX:
 
 
 @dataclass(frozen=True)
+class LivingWeapon:
+    """Living weapon: "When this Equipment enters, create a 0/0 black Phyrexian Germ creature token, then attach this to it." """
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.living_weapon(target)
+
+
+@dataclass(frozen=True)
+class Cascade:
+    """Cascade: exile cards from the top of your library until you exile a nonland card that costs less than `value`;
+    you may cast it without paying its mana cost."""
+    value: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.cascade(controller, self.value)
+
+
+@dataclass(frozen=True)
 class PutAttackingFromHand:
     """Kaalia of the Vast: "put an Angel, Demon, or Dragon creature card from your hand onto the battlefield tapped and
     attacking that opponent." The opponent is the player the trigger was about."""
@@ -2543,6 +2563,21 @@ def is_multikicker(card: Card) -> bool:
     return any(line.startswith("Multikicker ") and _KICKER.fullmatch(line) for line in rules_lines(card))
 
 
+_ECHO = re.compile(r"Echo ((?:\{[^}]+\})+)")
+
+
+def echo_cost(card: Card) -> str | None:
+    """Karmic Guide: the mana to pay at your next upkeep after it comes under your control, or sacrifice it."""
+    for line in rules_lines(card):
+        if m := _ECHO.fullmatch(line):
+            return m[1]
+    return None
+
+
+def is_echo_line(line: str) -> bool:
+    return _ECHO.fullmatch(line) is not None
+
+
 _CUMULATIVE_UPKEEP = re.compile(r"Cumulative upkeep ((?:\{[^}]+\})+)")
 
 
@@ -2634,10 +2669,13 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
     return found
 
 
+_SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid)(?:, (?:Delve|Cascade|Devoid))*")  # rules for casting, not effects
+
+
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return any(p.fullmatch(line) for p in (_KICKER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE,
-                                           _PER_REDUCTION, _EVOKE, _OVERLOAD))
+                                           _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS))
 
 
 _PER_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast for each "
@@ -3589,6 +3627,11 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
         abilities.append(TriggeredAbility(f"chapter_{number}", effects, False, line))
     for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard
         words = {word.strip().lower() for word in line.split(",")}
+        if "prowess" in words:  # whenever you cast a noncreature spell, this gets +1/+1 until end of turn
+            abilities.append(TriggeredAbility("cast", (PumpSource(Modifier(1, 1)),), False, "Prowess",
+                                              Watch("noncreature spell", caster="you")))
+        if "living weapon" in words:
+            abilities.append(TriggeredAbility("enters", (LivingWeapon(),), False, "Living weapon"))
         for keyword, counter in (("persist", "-1/-1"), ("undying", "+1/+1")):
             if keyword in words:
                 abilities.append(TriggeredAbility("dies", (ReturnWithCounter(counter),), False, line,

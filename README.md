@@ -533,6 +533,16 @@ winner = game.play()
   vanishes, an Aura stays on top), Sensei's Divining Top ("{T}: Draw a card, then put this artifact on top of its
   owner's library"), and Mana Drain (the {C} equal to the countered spell's mana value, X included, arrives at the
   beginning of your next main phase and is lost at the end of it).
+- **Keywords:**
+  - **Prowess:** whenever you cast a noncreature spell, +1/+1 until end of turn.
+  - **Shadow:** it can block or be blocked only by creatures with shadow. **Skulk:** it can't be blocked by creatures
+    with greater power. **Devoid** is accepted: the card data already has no color.
+  - **Living weapon:** a 0/0 black Phyrexian Germ token is created and the Equipment attached to it when it enters.
+  - **Echo {cost}:** at your next upkeep after it enters you pay once (you are asked, if you can) or sacrifice it.
+  - **Delve:** exiling cards from your graveyard pays for generic mana. The engine exiles as few as will do, and you
+    choose which. **Cascade:** a trigger above the spell exiles cards from your library until a nonland card that costs
+    less; you may cast it for free, and the rest go to the bottom in a random order (a cascade spell's X counts as 0 on
+    the card but its chosen X counts for the comparison).
 - **Reanimation Auras** (Animate Dead): "Enchant creature card in a graveyard" is cast on a creature card in any
   graveyard; when it resolves the creature comes back under your control and the Aura is attached to it, and if the
   Aura leaves the battlefield the creature is sacrificed. The tapped version (Dance of the Dead) is understood
