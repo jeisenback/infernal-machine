@@ -1371,6 +1371,14 @@ class Game:
             return len(seat.hand) >= condition.count
         if kind == "hand_none":
             return not seat.hand
+        if kind == "not_prepared":
+            return source is not None and not source.prepared
+        if kind == "graveyard_at_least":
+            return sum(_card_matches(condition.what, c) for c in seat.graveyard) >= condition.count
+        if kind == "any_hand_at_most":
+            return any(len(s.hand) <= condition.count for s in self.live_seats())
+        if kind == "opponent_more_cards":
+            return any(len(o.hand) > len(seat.hand) for o in self.opponents(seat))
         matching = sum(_has_type(p.card, condition.what) for p in seat.battlefield)
         return matching >= condition.count if kind == "control_at_least" else matching == 0
 
@@ -1460,7 +1468,8 @@ class Game:
                         if not i.ability and _watch_type_matches(kind, i.card)
                         and not (whose == "you" and i.controller is not caster)]
             return options
-        kind, controller = _split_controller(kind)
+        attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
+        kind, controller = _split_controller(kind.removesuffix(" that attacked this turn"))
         state, _, base = kind.partition(" ") if kind.split(" ")[0] in ("tapped", "untapped", "attacking") else ("", "", kind)
         for seat in self.live_seats():
             if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
@@ -1468,6 +1477,8 @@ class Game:
             for n, permanent in enumerate(seat.battlefield):
                 card = permanent.card
                 if not _permanent_matches(base, card) or self.has_keyword(permanent, "shroud"):
+                    continue
+                if attacked and permanent.attacked_turn != self.turn:
                     continue
                 if ((state == "tapped" and not permanent.tapped) or (state == "untapped" and permanent.tapped)
                         or (state == "attacking" and not any(a.attacker is permanent for a in self.combat.attacks))):
@@ -2366,6 +2377,11 @@ class Game:
         if self.on_battlefield(permanent) and permanent.card.prepare and not permanent.prepared:
             permanent.prepared = True
             self.broadcast({"event": "prepared", "card": permanent.card.name})
+
+    def unprepare(self, permanent: Permanent) -> None:
+        if permanent.prepared:
+            permanent.prepared = False
+            self.broadcast({"event": "unprepared", "card": permanent.card.name})
 
     def _become_copy(self, seat: Seat, permanent: Permanent, kind: str, yours: bool) -> None:
         """Clone: choose a permanent on the battlefield and enter as a copy of it. A copy gets the other card's
