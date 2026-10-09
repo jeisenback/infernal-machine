@@ -25,7 +25,7 @@ from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
-                      affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, mana_condition, mana_per_count,
+                      affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
@@ -320,6 +320,7 @@ class Seat:
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
     spent_turn: int | None = None  # the turn `spent_amount` counts for
     spent_amount: int = 0  # the mana this player spent casting spells that turn ("Whenever you expend 4")
+    surge: tuple[int, Card] | None = None  # Surge to Victory: (the turn, the exiled card its creatures copy on combat damage)
     paragon_turn: int | None = None  # the last turn Serra Paragon's once-a-turn permission was used
     paragon_marked: list = field(default_factory=list)  # cards played with it, which are exiled if they go back (+ life)
     modified_died_turn: int | None = None  # the last turn a modified creature died under this player's control
@@ -1262,6 +1263,10 @@ class Game:
             permanent, ability = self._activations(seat, sorcery_timing)[action]
             self._activate(seat, permanent, ability)
 
+    def cast_copy_free(self, seat: Seat, card: Card) -> None:
+        """Cast a copy of `card` without paying its mana cost (Surge to Victory); the copy stops existing afterwards."""
+        self._cast(seat, card, [card], free=True, copy=True)
+
     def _paragon_options(self, seat: Seat) -> list[Card]:
         """Cards in the graveyard Serra Paragon lets `seat` play this turn (once a turn): a land, or a permanent spell
         of mana value 3 or less."""
@@ -1508,7 +1513,8 @@ class Game:
         return targets, labels
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
-              graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False) -> None:
+              graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False,
+              copy: bool = False) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
         extra = ""
@@ -1577,7 +1583,7 @@ class Game:
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked)
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after),
-                         is_copy=prepared is not None, evoked=bool(alternative and alternative.evoke),
+                         is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent)
         self.stack.append(item)
@@ -2343,6 +2349,9 @@ class Game:
                     for attachment in list(holder.battlefield):
                         if attachment.attached_to is source:
                             self.trigger("host_combat_damage", attachment, holder, source)
+                if controller.surge is not None and controller.surge[0] == self.turn:  # Surge to Victory
+                    self._queue(TriggeredAbility("ally_combat_damage", (CastExiledCopy(controller.surge[1]),), True,
+                                                 "Surge to Victory"), source, controller)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):

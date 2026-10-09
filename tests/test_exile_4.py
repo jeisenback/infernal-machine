@@ -81,3 +81,70 @@ class SerraParagonTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+DIVINATION = Card(name="Divination", mana_cost="{2}{U}", cmc=3, type_line="Sorcery", oracle_text="Draw two cards.")
+BEAR = Card(name="Grizzly Bear", mana_cost="{1}{G}", cmc=2, type_line="Creature — Bear", power="2", toughness="2")
+
+
+def surge_table(graveyard):
+    game, a, b = table()
+    seat = game.seats[0]
+    seat.hand = [REAL["Surge to Victory"]]
+    seat.battlefield = [Permanent(BEAR)] + lands(6)
+    seat.graveyard = list(graveyard)
+    seat.library = [Card(name=f"Card {i}", type_line="Sorcery") for i in range(6)]
+    return game, seat
+
+
+def cast_surge(game, seat):
+    game._perform(seat, "Cast: Surge to Victory")
+    run_stack(game)
+
+
+class SurgeToVictoryTests(unittest.TestCase):
+    def test_exiles_the_card_and_pumps_by_its_mana_value(self):
+        game, seat = surge_table([DIVINATION])
+        cast_surge(game, seat)
+        self.assertEqual(([c.name for c in seat.exile], [c.name for c in seat.graveyard]), (["Divination"], ["Surge to Victory"]))
+        self.assertEqual(game.power(seat.battlefield[0]), 2 + 3)
+
+    def test_combat_damage_lets_you_cast_a_free_copy(self):
+        game, seat = surge_table([DIVINATION])
+        cast_surge(game, seat)
+        hand = len(seat.hand)
+        game.damage(game.seats[1], 5, source=seat.battlefield[0], combat=True)
+        run_stack(game)
+        self.assertEqual(len(seat.hand), hand + 2)  # the copy drew two cards
+        self.assertEqual(len(seat.exile), 1)  # the exiled card itself stays exiled; the copy is gone
+
+    def test_each_creature_that_connects_gives_another_copy(self):
+        game, seat = surge_table([DIVINATION])
+        seat.battlefield.append(Permanent(BEAR))
+        cast_surge(game, seat)
+        hand = len(seat.hand)
+        for p in seat.battlefield[:2]:
+            game.damage(game.seats[1], 5, source=p, combat=True)
+        run_stack(game)
+        self.assertEqual(len(seat.hand), hand + 4)
+
+    def test_no_copy_without_combat_damage_to_a_player(self):
+        game, seat = surge_table([DIVINATION])
+        cast_surge(game, seat)
+        hand = len(seat.hand)
+        game.damage(game.seats[1], 5, source=seat.battlefield[0])  # not combat damage
+        run_stack(game)
+        self.assertEqual(len(seat.hand), hand)
+
+    def test_the_permission_ends_with_the_turn(self):
+        game, seat = surge_table([DIVINATION])
+        cast_surge(game, seat)
+        game.turn += 2
+        hand = len(seat.hand)
+        game.damage(game.seats[1], 5, source=seat.battlefield[0], combat=True)
+        run_stack(game)
+        self.assertEqual(len(seat.hand), hand)
+
+    def test_needs_an_instant_or_sorcery_in_the_graveyard(self):
+        game, seat = surge_table([BEAR])
+        self.assertNotIn("Cast: Surge to Victory", game.legal_actions(seat))

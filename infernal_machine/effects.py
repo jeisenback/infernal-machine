@@ -84,7 +84,10 @@ def rules_lines(card: Card) -> list[str]:
 
 
 _WHOLE_LINE = re.compile(
-    r"Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
+    r"Exile target instant or sorcery card from your graveyard\. Creatures you control get \+X/\+0 until end of turn, where X is "
+    r"that card's mana value\. Whenever a creature you control deals combat damage to a player this turn, copy the exiled card\. "
+    r"You may cast the copy without paying its mana cost\."
+    r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
     r"you or planeswalkers you control for as long as it has a vow counter on it\."
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
     r"|Shuffle your library\. As many times as you choose, you may exile the top card of your library\. .*"
@@ -2317,6 +2320,32 @@ _SUSPEND = re.compile(r"Suspend (\d+)—((?:\{[^}]+\})+)")
 def suspend_of(card: Card) -> tuple[int, str] | None:
     """Suspend N—{cost}: (the time counters, the cost to exile it from your hand with them)."""
     return next(((int(m[1]), m[2]) for line in rules_lines(card) if (m := _SUSPEND.fullmatch(line))), None)
+
+
+@dataclass(frozen=True)
+class SurgeToVictory:
+    """ "Exile target instant or sorcery card from your graveyard. Creatures you control get +X/+0 until end of turn, where X
+    is that card's mana value. Whenever a creature you control deals combat damage to a player this turn, copy the exiled
+    card. You may cast the copy without paying its mana cost." """
+    target: str = "graveyard:instant or sorcery:yours"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None or not game.exile_from_graveyard(target):
+            return
+        card = target.card
+        for permanent in controller.battlefield:
+            if "Creature" in permanent.card.type_line:
+                game.modify_until_end_of_turn(permanent, Modifier(int(card.cmc), 0))
+        controller.surge = (game.turn, card)
+
+
+@dataclass(frozen=True)
+class CastExiledCopy:
+    """The delayed trigger of Surge to Victory: cast a copy of the exiled card without paying its mana cost."""
+    card: Card
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.cast_copy_free(controller, self.card)
 
 
 @dataclass(frozen=True)
@@ -4720,6 +4749,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(r"Exile target instant or sorcery card from your graveyard\. Creatures you control get "
+                                     r"\+X/\+0 until end of turn, where X is that card's mana value\. Whenever a creature you control "
+                                     r"deals combat damage to a player this turn, copy the exiled card\. You may cast the copy "
+                                     r"without paying its mana cost\.", re.I), lambda m: SurgeToVictory()),
     (re.compile(rf"remove {_N} ([a-z]+) counters? from (?:{_SELF})\.", re.I),
      lambda m: RemoveCountersFromSource(_count(m[1]), m[2].lower())),
     (re.compile(rf"(?:{_SELF}) deals damage to target (player|opponent) equal to (.+)\.", re.I),
