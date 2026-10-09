@@ -28,6 +28,7 @@ SUPPORTED_KEYWORDS = {
     "persist", "undying",
     "prowess", "delve", "cascade", "devoid", "shadow", "skulk", "living weapon",  # devoid: the card data has no color
     "ascend",  # the city's blessing for a permanent that has it
+    "decayed",  # can't block; sacrificed at end of combat when it attacks
 }
 # Lines that only matter when building the deck, which commander.py checks.
 _DECKBUILDING = re.compile(

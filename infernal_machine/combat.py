@@ -258,7 +258,7 @@ class Combat:
                 and not self._has(permanent, "defender") and not self._has(permanent, CANT_ATTACK))
 
     def _can_block(self, blocker: Permanent, attacker: Permanent) -> bool:
-        if self._has(blocker, CANT_BLOCK) or self._has(attacker, CANT_BE_BLOCKED):
+        if self._has(blocker, CANT_BLOCK) or self._has(blocker, "decayed") or self._has(attacker, CANT_BE_BLOCKED):
             return False
         if self._has(attacker, "shadow") != self._has(blocker, "shadow"):  # shadow blocks and is blocked only by shadow
             return False
