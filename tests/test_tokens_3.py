@@ -8,8 +8,9 @@ cuts off with "..." were completed from memory (marked "completed from memory" b
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (CopyToken, CreateTokens, Draw, MassFilter, ReturnAllToHand, TREASURE,
-                                      TargetControllerCreatesTokens, spell_effects, static_abilities)
+from infernal_machine.effects import (CopyToken, CreateTokens, DestroyAll, Draw, ExileAll, GiveBack, MassFilter,
+                                      ReturnAllToHand, TREASURE, TargetControllerCreatesTokens, spell_effects,
+                                      static_abilities)
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR
@@ -41,6 +42,13 @@ RESCULPT = Card(name="Resculpt", mana_cost="{1}{U}", type_line="Instant", colors
 PERPLEXING_TEST = Card(name="Perplexing Test", mana_cost="{4}{U}", type_line="Sorcery", colors=("U",), cmc=5,
                        oracle_text="Choose one —\n• Return all creature tokens to their owners' hands.\n"
                                    "• Return all nontoken creatures to their owners' hands.")
+CEASELESS_CONFLICT = Card(name="Ceaseless Conflict", mana_cost="{3}{R}{W}", type_line="Sorcery", colors=("R", "W"), cmc=5,
+                          oracle_text="Destroy all creatures. Then create a 3/2 red and white Spirit creature token for "
+                                      "each nontoken creature you controlled that was destroyed this way.")
+OVERSIMPLIFY = Card(name="Oversimplify", mana_cost="{3}{G}{U}", type_line="Sorcery", colors=("G", "U"), cmc=5,
+                    oracle_text="Exile all creatures. Each player creates a 0/0 green and blue Fractal creature token and "
+                                "puts a number of +1/+1 counters on it equal to the total power of the creatures they "
+                                "controlled that were exiled this way.")
 STORM_KILN_ARTIST = Card(name="Storm-Kiln Artist", mana_cost="{3}{R}", type_line="Creature — Dwarf Shaman", power="2",
                          toughness="2", colors=("R",), cmc=4,
                          oracle_text="This creature gets +1/+0 for each artifact you control.\nMagecraft — Whenever you "
@@ -136,3 +144,42 @@ class StormKilnArtistTests(unittest.TestCase):
         game._priority_round(a)
         self.assertEqual(count(a, "Treasure"), 2)  # one from the spell, one from the artist
         self.assertEqual(game.power(next(p for p in a.battlefield if p.card.name == "Storm-Kiln Artist")), 4)
+
+
+SPIRIT = Card(name="Spirit", type_line="Token Creature — Spirit", colors=("R", "W"), power="3", toughness="2")
+FRACTAL = Card(name="Fractal", type_line="Token Creature — Fractal", colors=("G", "U"), power="0", toughness="0")
+OGRE = Card(name="Ogre", mana_cost="{2}{R}", type_line="Creature — Ogre", power="3", toughness="3")
+INDESTRUCTIBLE = Card(name="Darksteel", mana_cost="{3}", type_line="Artifact Creature — Myr", oracle_text="Indestructible",
+                      power="0", toughness="1")
+
+
+class WipeGiftTests(unittest.TestCase):
+    def test_parse(self):
+        self.assertEqual(spell_effects(CEASELESS_CONFLICT),
+                         [DestroyAll("creature", gives=GiveBack(1, SPIRIT, who="you", nontoken=True))])
+        self.assertEqual(spell_effects(OVERSIMPLIFY),
+                         [ExileAll("creature", gives=GiveBack(1, FRACTAL, who="each player", power_counters=True))])
+        self.assertEqual(unsupported_lines(CEASELESS_CONFLICT), [])
+        self.assertEqual(unsupported_lines(OVERSIMPLIFY), [])
+
+    def test_ceaseless_conflict_pays_you_for_your_own_nontoken_creatures_only(self):
+        game, _ = table3(pick(CAST))
+        a, b, _c = game.seats
+        a.hand = [CEASELESS_CONFLICT]
+        a.battlefield = lands(5) + [Permanent(BEAR), Permanent(OGRE), Permanent(TOKEN_BEAR), Permanent(INDESTRUCTIBLE)]
+        b.battlefield = [Permanent(BEAR), Permanent(BEAR)]
+        game._priority_round(a)
+        self.assertEqual((count(a, "Spirit"), count(b, "Spirit"), count(a, "Darksteel"), count(b, "Bear")), (2, 0, 1, 0))
+
+    def test_oversimplify_gives_each_player_a_fractal_as_big_as_what_they_lost(self):
+        game, _ = table3(pick(CAST))
+        a, b, c = game.seats
+        a.hand = [OVERSIMPLIFY]
+        a.battlefield = lands(5) + [Permanent(BEAR), Permanent(OGRE)]
+        b.battlefield = [Permanent(TOKEN_BEAR, counters={"+1/+1": 1})]
+        game._priority_round(a)
+        fractals = {seat: [p for p in seat.battlefield if p.card.name == "Fractal"] for seat in (a, b, c)}
+        self.assertEqual(([p.counters for p in fractals[a]], [p.counters for p in fractals[b]]),
+                         ([{"+1/+1": 5}], [{"+1/+1": 3}]))
+        self.assertEqual((fractals[c], [p.card.name for p in a.battlefield if "Creature" in p.card.type_line]),
+                         ([], ["Fractal"]))  # a 0/0 with no counters dies; the exiled creatures are gone

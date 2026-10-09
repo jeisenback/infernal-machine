@@ -22,7 +22,7 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
+from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
@@ -1972,26 +1972,36 @@ class Game:
         """Whether an "except for ..." filter describes this permanent (so it is left alone)."""
         return self._passes(permanent, spared)
 
-    def destroy_all(self, permanents: list[Permanent], no_regen: bool = False, gives: tuple[int, Card] | None = None) -> None:
+    def destroy_all(self, permanents: list[Permanent], no_regen: bool = False, gives: GiveBack | None = None,
+                    caster: Seat | None = None) -> None:
         """Destroy them all at once; indestructible ones survive, and so do ones with a regeneration shield
-        unless they "can't be regenerated". `gives`: each controller then gets tokens for each one destroyed."""
+        unless they "can't be regenerated". `gives`: tokens for what was destroyed (see _give_back)."""
         doomed = [p for p in permanents if not self.has_keyword(p, "indestructible")
                   and (no_regen or not self._regenerated(p))]
         self._leave_together([(p, "destroyed") for p in doomed])
-        self._give_back(doomed, gives)
+        self._give_back(doomed, gives, caster)
 
-    def exile_all(self, permanents: list[Permanent], gives: tuple[int, Card] | None = None) -> None:
+    def exile_all(self, permanents: list[Permanent], gives: GiveBack | None = None, caster: Seat | None = None) -> None:
         self._leave_together([(p, "exiled") for p in permanents], destination="exile")
-        self._give_back(permanents, gives)
+        self._give_back(permanents, gives, caster)
 
-    def _give_back(self, gone: list[Permanent], gives: tuple[int, Card] | None) -> None:
-        """"For each creature destroyed this way, its controller creates a token": for each one that left."""
+    def _give_back(self, gone: list[Permanent], gives: GiveBack | None, caster: Seat | None) -> None:
+        """"For each creature destroyed this way, its controller creates a token": for each one that left. Ceaseless
+        Conflict pays only `caster`, for their own nontoken creatures; Oversimplify gives every player one token with a
+        +1/+1 counter per point of power (as it last was) of the creatures they lost."""
         if gives is None:
             return
-        count, token = gives
-        for permanent in gone:
-            if permanent.last_controller is not None and not self.on_battlefield(permanent):
-                self.create_tokens(permanent.last_controller, token, count)
+        left = [p for p in gone if p.last_controller is not None and not self.on_battlefield(p)
+                and not (gives.nontoken and _is_token(p.card))]
+        if gives.who == "each player":
+            for seat in self.turn_order_from_active():
+                power = sum(p.last_power for p in left if p.last_controller is seat) if gives.power_counters else 0
+                self.create_tokens(seat, gives.token, gives.count, (power, "+1/+1") if power else None)
+            return
+        for permanent in left:
+            if gives.who == "you" and permanent.last_controller is not caster:
+                continue
+            self.create_tokens(caster if gives.who == "you" else permanent.last_controller, gives.token, gives.count)
 
     def return_to_hand(self, permanent: Permanent) -> None:
         """Bounce: a permanent goes to its owner's hand (a token just stops existing)."""

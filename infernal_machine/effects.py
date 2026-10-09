@@ -1436,7 +1436,7 @@ def _merge_wipe_gift(effects: list) -> list | None:
         if isinstance(effect, GiveBack):
             if not (merged and isinstance(merged[-1], (DestroyAll, ExileAll))):
                 return None
-            merged[-1] = dataclasses.replace(merged[-1], gives=(effect.count, effect.token))
+            merged[-1] = dataclasses.replace(merged[-1], gives=effect)
         else:
             merged.append(effect)
     return merged
@@ -1508,28 +1508,32 @@ class DestroyAll:
     kind: str  # "creature", "artifact or enchantment", "creature you don't control", ...
     restriction: MassFilter | None = None  # "... with flying"
     no_regen: bool = False  # "They can't be regenerated."
-    gives: "tuple[int, Card] | None" = None  # "For each creature destroyed this way, its controller creates a 1/1 token"
+    gives: "GiveBack | None" = None  # "For each creature destroyed this way, its controller creates a 1/1 token"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen, self.gives)
+        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen, self.gives, controller)
 
 
 @dataclass(frozen=True)
 class ExileAll:
     kind: str
     restriction: MassFilter | None = None
-    gives: "tuple[int, Card] | None" = None
+    gives: "GiveBack | None" = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_all(game.mass_targets(self.kind, controller, self.restriction), self.gives)
+        game.exile_all(game.mass_targets(self.kind, controller, self.restriction), self.gives, controller)
 
 
 @dataclass(frozen=True)
 class GiveBack:
     """ "For each creature destroyed this way, its controller creates a 1/1 white Spirit creature token." Only ever the
-    end of a DestroyAll or ExileAll (see _merge_wipe_gift)."""
+    end of a DestroyAll or ExileAll (see _merge_wipe_gift). Ceaseless Conflict pays only the caster, for their own
+    nontoken creatures; Oversimplify gives each player one token with a counter per point of power they lost."""
     count: int
     token: Card
+    who: str = "controller"  # "controller": each one's controller gets tokens for it; "you": the caster; "each player"
+    nontoken: bool = False  # "for each nontoken creature you controlled that was destroyed this way"
+    power_counters: bool = False  # "... puts a number of +1/+1 counters on it equal to the total power of the creatures"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         raise NotImplementedError("a lone give-back is never built")
@@ -1878,9 +1882,9 @@ class _GiftMatch:
         self.spec, self.quote = spec, quote
 
 
-def _gift(m: _GiftMatch) -> Any:
+def _gift(m: _GiftMatch, **fields: Any) -> Any:
     parsed = _token(m.spec + '."' if m.quote else m.spec)
-    return GiveBack(*parsed) if parsed else None
+    return GiveBack(*parsed, **fields) if parsed else None
 
 
 def _damage_each(m: re.Match) -> DamageEach | None:
@@ -3345,6 +3349,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SacrificeAll(_PLURAL_SACRIFICE[m[1].lower()])),
     (re.compile(r"for each (creature|permanent) (?:destroyed|exiled) this way, its controller creates (.+)\.(\"?)", re.I),
      lambda m: _gift(_GiftMatch(m[2], m[3]))),
+    (re.compile(r"(?:then )?create (.+) for each nontoken creature you controlled that was destroyed this way\.(\"?)", re.I),
+     lambda m: _gift(_GiftMatch(m[1], m[2]), who="you", nontoken=True)),
+    (re.compile(r"each player creates (.+) and puts a number of \+1/\+1 counters on it equal to the total power of the "
+                r"creatures they controlled that were exiled this way\.(\"?)", re.I),
+     lambda m: _gift(_GiftMatch(m[1], m[2]), who="each player", power_counters=True)),
     (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),
     (re.compile(r"Let X be (.+)\."), lambda m: DefineX(a) if (a := _amount(m[1])) else None),
     (re.compile(rf"target (player|opponent) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
