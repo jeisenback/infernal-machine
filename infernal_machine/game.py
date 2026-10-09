@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, hand_abilities, strive_cost, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, untaps_in_other_untap_steps, hand_abilities, strive_cost, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -172,6 +172,13 @@ class Permanent:
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
     prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
+    tap_events: int = 0  # how many times it became tapped (entering tapped doesn't count)
+    tap_seen: int = 0  # ... and how many of those the game has put triggers on the stack for
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "tapped" and value and "tap_events" in self.__dict__ and not self.__dict__.get("tapped"):
+            object.__setattr__(self, "tap_events", self.tap_events + 1)
+        object.__setattr__(self, name, value)
 
 
 @dataclass(frozen=True)
@@ -282,6 +289,8 @@ class Seat:
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
     suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
     player_counters: dict[str, int] = field(default_factory=dict)  # counters on the player: poison, energy, ...
+    expended_turn: int | None = None  # the turn `expended` counts for
+    expended: int = 0  # mana spent to cast spells that turn
     died_turn: int | None = None  # the turn `died` counts for
     died: int = 0  # creatures that died under this player's control that turn
     creatures_entered_turn: int | None = None  # the turn `creatures_entered` counts for
@@ -453,6 +462,13 @@ class Game:
                 for permanent in other.battlefield:
                     if permanent.goaded_by is seat:
                         permanent.goaded_by = None
+            for other in self.live_seats():  # Quest for Renewal: untap in each other player's untap step too
+                if other is not seat and any(
+                        (rule := untaps_in_other_untap_steps(p.card)) and p.counters.get(rule[0], 0) >= rule[1]
+                        for p in other.battlefield):
+                    for permanent in other.battlefield:
+                        if "Creature" in permanent.card.type_line:
+                            permanent.tapped = False
         elif self.step == "draw":
             # CR 103.8: only a two-player game skips the first player's first draw.
             if not (self.turn == 1 and not self.multiplayer):
@@ -1147,6 +1163,8 @@ class Game:
         ability = ActivatedAbility(f"{word} {cost}" if cost else f"{word}\u2014Pay {life} life.", effects, mana_cost=cost, life=life)
         self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cycling"})
         self._move_card(seat, card, "graveyard")
+        self._trigger_each("cycle", seat)
+        self._discarded(seat)  # cycling is discarding
         self.stack.append(StackItem(card, seat, list(effects), [], ability))
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
@@ -1396,8 +1414,31 @@ class Game:
             ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
         self._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared,
-                      prepared=prepared is not None, spell=item)
+                      prepared=prepared is not None, spell=item, from_graveyard=graveyard is not None)
+        self._expend(seat, paying, alternative, x, kickers, extra)
         self._check_ward(item)
+
+    def _expend(self, seat: Seat, paying: Card, alternative: AlternativeCost | None, x: int, kickers: tuple[str, ...],
+                extra: str) -> None:
+        """Mana spent to cast spells this turn: "Whenever you expend 4" fires as the fourth mana is spent."""
+        if alternative is not None and not alternative.mana_cost:
+            return  # nothing was spent
+        cost = parse_cost(alternative.mana_cost if alternative else paying.mana_cost)
+        for kicker in kickers:
+            cost = cost + parse_cost(kicker)
+        if extra:
+            cost = cost + parse_cost(extra)
+        cost = cost.with_x(x)
+        spent = cost.generic + len(cost.colored) + 2 * len(cost.twobrid) + len(cost.phyrexian)
+        if not spent:
+            return
+        before = seat.expended if seat.expended_turn == self.turn else 0
+        seat.expended_turn, seat.expended = self.turn, before + spent
+        for number in range(before + 1, before + spent + 1):
+            for permanent in list(seat.battlefield):
+                for ability in triggered_abilities(permanent.card):
+                    if ability.event == "expend" and ability.watch is not None and ability.watch.kind == str(number):
+                        self._queue(ability, permanent, seat)
 
     def _choose_kicks(self, seat: Seat, card: Card, effects: list | None, from_command_zone: bool,
                       alternative: AlternativeCost | None) -> tuple[int, tuple[str, ...]]:
@@ -1702,6 +1743,7 @@ class Game:
     def _discarded(self, seat: Seat) -> None:
         """`seat` discarded a card: "Whenever you discard a card" and "Whenever an opponent discards a card"."""
         self._trigger_each("discard", seat)
+        self._trigger_each("cycle_or_discard", seat)
         for opponent in self.opponents(seat):
             self._trigger_each("opponent_discard", opponent, player=seat)
 
@@ -1769,7 +1811,7 @@ class Game:
 
     def _observe(self, event: str, card: Card, seat: Seat, subject: Permanent | None = None,
                  extra: list[tuple[Permanent, Seat]] = (), x: int = 0, from_hand: bool = False,
-                 prepared: bool = False, spell: "StackItem | None" = None) -> None:
+                 prepared: bool = False, spell: "StackItem | None" = None, from_graveyard: bool = False) -> None:
         """Trigger abilities that watch for `event` happening to `card` (controlled by `seat`):
         "Whenever another creature enters", landfall, "whenever a creature dies",
         "whenever you cast a spell". `extra` adds watchers that just left the battlefield
@@ -1796,6 +1838,8 @@ class Game:
                 if event == "copy" and not watch.with_copy:
                     continue
                 if event in ("cast", "copy") and (card.cmc < watch.mv_at_least or (watch.from_hand and not from_hand)):
+                    continue
+                if watch.from_graveyard and not from_graveyard:
                     continue
                 if watch.other and subject is watcher:
                     continue
@@ -2726,6 +2770,9 @@ class Game:
         seat.library = self._ordered(seat, kept) + seat.library + bottom
         self.broadcast({"event": "scry", "seat": seat.index, "count": len(top)}, skip=seat)
         seat.player.notify({"event": "scry", "seat": seat.index, "count": len(top), "bottom": [c.name for c in bottom]})
+        if top:  # scrying 0 isn't scrying
+            self._trigger_each("scry", seat)
+            self._trigger_each("scry_or_surveil", seat)
 
     def _ordered(self, seat: Seat, cards: list[Card]) -> list[Card]:
         """Let the player choose the order of the cards they keep on top (first asked goes on top)."""
@@ -3010,6 +3057,9 @@ class Game:
         self.broadcast({"event": "surveil", "seat": seat.index, "count": len(top), "graveyard": [c.name for c in binned]})
         for card in binned:
             self._move_card(seat, card, "graveyard")
+        if top:
+            self._trigger_each("surveil", seat)
+            self._trigger_each("scry_or_surveil", seat)
 
     def may_loot(self, seat: Seat) -> None:
         """ "You may discard a card. If you do, draw a card." """
@@ -3334,6 +3384,8 @@ class Game:
             seat.library.insert(0, card)
             return
         {"exile": seat.exile, "hand": seat.hand, "graveyard": seat.graveyard, "library": seat.library}[zone].append(card)
+        if zone == "graveyard" and "Creature" in card.type_line:  # "Whenever a creature card is put into your graveyard"
+            self._trigger_each("creature_card_to_graveyard", seat)
 
     def _check_state(self) -> None:
         """State-based actions (CR 704.5): losing the game, lethal damage, zero toughness or loyalty."""
@@ -3367,6 +3419,10 @@ class Game:
             dying: list[tuple[Permanent, str]] = []
             for seat in self.live_seats():
                 for permanent in list(seat.battlefield):
+                    while permanent.tap_seen < permanent.tap_events:  # "Whenever a creature you control becomes tapped"
+                        permanent.tap_seen += 1
+                        if "Creature" in permanent.card.type_line:
+                            self._trigger_each("creature_tapped", seat, subject=permanent)
                     counters = permanent.counters
                     cancel = min(counters.get(PLUS, 0), counters.get(MINUS, 0))
                     if cancel:  # CR 704.5q

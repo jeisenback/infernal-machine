@@ -95,6 +95,8 @@ class Combat:
         if len(self.attacks) >= 2:
             for permanent in list(seat.battlefield):
                 self.game.trigger("attack_with_two", permanent, seat)
+        elif len(self.attacks) == 1:  # "attacks alone": Exalted and its kin
+            self.game._trigger_each("attacks_alone", seat, subject=self.attacks[0].attacker)
 
     def _attack_tax(self, permanent: Permanent, defender: Seat) -> int:
         """What attacking `defender` costs `permanent`: Nils makes each counter on the attacker cost {1}."""

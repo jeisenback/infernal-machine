@@ -958,6 +958,22 @@ class VowCounters:
 
 VOW_PROMPT = "Choose the creature that gets the vow counter"
 
+_QUEST_UNTAP = re.compile(r"As long as there are (\w+) or more (\w+) counters on this enchantment, untap all creatures you "
+                          r"control during each other player's untap step\.")
+
+
+def untaps_in_other_untap_steps(card: Card) -> tuple[str, int] | None:
+    """Quest for Renewal: (the counter, how many of it) while which your creatures untap in everyone's untap step."""
+    for line in rules_lines(card):
+        if m := _QUEST_UNTAP.fullmatch(line):
+            return m[2], _count(m[1])
+    return None
+
+
+def is_quest_untap_line(line: str) -> bool:
+    return _QUEST_UNTAP.fullmatch(line) is not None
+
+
 _ANNIHILATOR = re.compile(r"Annihilator (\d+)", re.I)
 
 
@@ -3881,6 +3897,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'(each opponent|each player) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
     (re.compile(r'target (player|opponent) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
     (re.compile(rf"(?i:{_SELF}) {_CHANGE}"), lambda m: PumpSource(_modifier(m, 1))),
+    (re.compile(rf"(?i:{_SELF}) gets {_PT} until end of turn and can't be blocked this turn\."),  # Nimrodel Watcher
+     lambda m: PumpSource(Modifier(_signed(m[1]), _signed(m[2]), frozenset({CANT_BE_BLOCKED})))),
     (re.compile(rf"(?i:{_SELF}) gets? {_PT_X} until end of turn\."),
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
@@ -4304,6 +4322,7 @@ class Watch:
     with_copy: bool = False  # "cast or copy" (magecraft)
     mv_at_least: int = 0  # "a spell with mana value 5 or greater"
     from_hand: bool = False  # "... from your hand"
+    from_graveyard: bool = False  # "... from your graveyard"
 
 
 _TRIGGERS = {
@@ -4316,6 +4335,15 @@ _TRIGGERS = {
     "attacked": re.compile(r"Whenever a creature attacks you, (.+)", re.I),
     "attacked_or_walker": re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),
     "enters_untapped": re.compile(rf"When {_SELF} enters untapped, (.+)", re.I),
+    "creature_tapped": re.compile(r"Whenever a creature you control becomes tapped, (.+)", re.I),
+    "cycle": re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I),
+    "cycle_or_discard": re.compile(r"Whenever you cycle or discard (?:a|another) card, (.+)", re.I),
+    "scry": re.compile(r"Whenever you scry, (.+)", re.I),
+    "surveil": re.compile(r"Whenever you surveil, (.+)", re.I),
+    "scry_or_surveil": re.compile(r"Whenever you scry or surveil, (.+)", re.I),
+    "attacks_alone": re.compile(r"Whenever a creature you control attacks alone, (.+)", re.I),
+    "creature_card_to_graveyard": re.compile(r"Whenever a creature card is put into your graveyard from anywhere, (.+)", re.I),
+    "expend": re.compile(r"Whenever you expend (\d+), (.+)", re.I),
     "tokens_created": re.compile(r"Whenever you create one or more creature tokens, (.+)", re.I),
     "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
@@ -4379,7 +4407,8 @@ _TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
 _PERMANENT_WATCH = rf"(nontoken creature|creature token|token|creature|land|artifact|enchantment|{_TRIBE})"
 _WATCHES = {
     "permanent_enters": re.compile(
-        rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? enters(?: the battlefield)?( under your control)?, (.+)", re.I),
+        rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? enters(?: the battlefield)?"
+        r"( under your control)?, (.+)", re.I),
     "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature token|token|creature|{_TRIBE})"
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
     "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? leaves the battlefield, (.+)", re.I),
@@ -4388,7 +4417,7 @@ _WATCHES = {
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
                        r"|(?-i:[A-Z][a-z]+) spell)"  # a creature type: "another Vampire spell"
-                       r"(?: with mana value (\d+) or greater)?( from your hand)?(?(3) each turn), (.+)", re.I),
+                       r"(?: with mana value (\d+) or greater)?( from your hand| from your graveyard)?(?(3) each turn), (.+)", re.I),
 }
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
@@ -4407,6 +4436,7 @@ _PLAYER_PRONOUNS = [
     (re.compile(rf"\bto {_CONTROLLER}\b", re.I), "to target player"),
     (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bthat player (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
+    (re.compile(r"\bhave that player (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bto that player\b", re.I), "to target player"),
 ]
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
@@ -4433,8 +4463,11 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
                   "an opponent casts": "opponent"}[m[1].lower()]
         nth = {"first": 1, "second": 2, "third": 3}.get((m[3] or "").lower(), 0)
         watch = Watch(m[4].lower(), other=(m[2] or "").lower() == "another", caster=caster, nth_each_turn=nth,
-                      with_copy=m[1].lower() == "you cast or copy", mv_at_least=int(m[5] or 0), from_hand=bool(m[6]))
+                      with_copy=m[1].lower() == "you cast or copy", mv_at_least=int(m[5] or 0), from_hand=(m[6] or "") == " from your hand",
+                      from_graveyard=(m[6] or "") == " from your graveyard")
         return "cast", watch, m[7]
+    if m := _TRIGGERS["expend"].fullmatch(line):  # Whenever you expend 4 (the watch's kind is the number)
+        return "expend", Watch(m[1]), m[2]
     for event in ("permanent_enters", "creature_dies", "permanent_leaves"):
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()
@@ -4502,6 +4535,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
         if "prowess" in words:  # whenever you cast a noncreature spell, this gets +1/+1 until end of turn
             abilities.append(TriggeredAbility("cast", (PumpSource(Modifier(1, 1)),), False, "Prowess",
                                               Watch("noncreature spell", caster="you")))
+        if "exalted" in words:  # whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn
+            abilities.append(TriggeredAbility("attacks_alone", (OnSubject(PumpSource(Modifier(1, 1))),), False, "Exalted"))
         if "living weapon" in words:
             abilities.append(TriggeredAbility("enters", (LivingWeapon(),), False, "Living weapon"))
         for keyword, counter in (("persist", "-1/-1"), ("undying", "+1/+1")):
@@ -4689,7 +4724,8 @@ _MANA_PART = re.compile(r"(\{(?:\d+|X|S|[WUBRGC]|[WUBRGC]/[WUBRGCP]|2/[WUBRGC])\
 _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
 _CARDS = r"(an?|two|three|four)"
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|Food|Treasure|Clue)s?")
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|Food|Treasure|Clue"
+                              r"|(?-i:[A-Z][a-z]+))s?")  # (a creature type: "Sacrifice a Spirit")
 _REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
 _EXILE_COST = re.compile(rf"Exile {_CARDS} cards? from your graveyard")

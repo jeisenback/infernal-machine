@@ -358,6 +358,13 @@ winner = game.play()
     (Twinflame), preventing combat damage to you and making an Inkling for each point (Inkshield), and Brudiclad's
     hasty tokens that copy one another. Magma Opus divides 4 damage among any number of targets one point at a time,
     and has an ability that works from your hand ("{U/R}{U/R}, Discard this card: Create a Treasure token").
+  - Trigger events: "Whenever a creature you control becomes tapped" (a creature that enters tapped, or was already
+    tapped, doesn't), "Whenever you cycle (or discard) a card", "Whenever you scry", "surveil" or "scry or surveil" (scrying 0
+    doesn't), "Whenever a creature you control attacks alone" (and the Exalted keyword), "Whenever a creature an opponent
+    controls enters" ("that player" is its controller), "Whenever you cast a spell from your graveyard", "Whenever a creature
+    card is put into your graveyard from anywhere" and "Whenever you expend N" (as the Nth mana of the turn is spent on
+    spells, once a turn). Quest for Renewal's creatures untap in each other player's untap step while it has four quest
+    counters.
 - **Current power, toughness and keywords:** printed values plus counters, static abilities and
   "until end of turn" effects. They count everywhere: combat, damage, targeting (granted hexproof),
   destroy (granted indestructible), state checks, and the labels players see ("Bear 4/4").
