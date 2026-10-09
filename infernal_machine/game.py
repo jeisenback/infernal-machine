@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -273,6 +273,8 @@ class Seat:
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
+    died_turn: int | None = None  # the turn `died` counts for
+    died: int = 0  # creatures that died under this player's control that turn
     creatures_entered_turn: int | None = None  # the turn `creatures_entered` counts for
     creatures_entered: int = 0  # nontoken creatures that entered under this player's control that turn
     life_gained_turn: int | None = None
@@ -827,6 +829,8 @@ class Game:
                         if _spell_matches(kind, card))
         if (kind := affinity_for(card)) is not None:  # Affinity for planeswalkers
             reduction += sum(_has_type(p.card, kind) for p in seat.battlefield)
+        if "{X}" in card.mana_cost and not any("{X}" in c.mana_cost for turn, c in seat.cast_log if turn == self.turn):
+            reduction += sum(p.counters.get("+1/+1", 0) for p in seat.battlefield if x_spell_discount(p.card))  # Zimone
         if own := self_cost_reduction(card):  # "This spell costs {1} less to cast for each creature on the battlefield."
             amount, what = own
             counted = (sum(_has_type(p.card, "creature") for s in self.live_seats() for p in s.battlefield)
@@ -2906,6 +2910,10 @@ class Game:
                     for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped).items()}
         if extra_when_copy and permanent.real_card is not None:  # Altered Ego: X additional counters on the copy
             counters["+1/+1"] = counters.get("+1/+1", 0) + x
+        if "Creature" in permanent.card.type_line and not _is_token(permanent.card) and seat.died_turn == self.turn:
+            bonus = sum(replacement_effects(p.card).enter_counters_per_death for p in seat.battlefield) * seat.died
+            if bonus:  # Gorma, the Gullet
+                counters["+1/+1"] = counters.get("+1/+1", 0) + bonus
         for counter, amount in counters.items():  # CR 614.1c: it arrives with them
             number = self._counters_to_add(seat, permanent.card, counter, amount, permanent)
             permanent.counters[counter] = permanent.counters.get(counter, 0) + number
@@ -3065,6 +3073,9 @@ class Game:
                 if self.deaths_turn != self.turn:
                     self.deaths_turn, self.deaths_count = self.turn, 0
                 self.deaths_count += 1
+                if controller.died_turn != self.turn:
+                    controller.died_turn, controller.died = self.turn, 0
+                controller.died += 1
                 self.trigger("dies", permanent, controller)
                 for attachment, attachment_seat in everyone:  # "When enchanted creature dies"
                     if attachment.attached_to is permanent:

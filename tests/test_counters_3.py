@@ -134,3 +134,36 @@ class NevTests(unittest.TestCase):
         a.battlefield = [Permanent(REAL["Nev, the Practical Dean"]), with_counter, without]
         b.battlefield = [theirs]
         self.assertEqual([game.has_keyword(p, "trample") for p in (with_counter, without, theirs)], [True, False, False])
+
+
+class GormaTests(unittest.TestCase):
+    def test_nontoken_creatures_enter_with_a_counter_for_each_creature_that_died_this_turn(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield = [Permanent(REAL["Gorma, the Gullet"]), Permanent(BEAR), Permanent(BEAR)]
+        before = Permanent(BEAR)
+        game._enter(a, before)
+        self.assertEqual(before.counters, {})  # nothing has died yet
+        for dying in list(a.battlefield[1:3]):
+            game.destroy(dying)
+        late, token = Permanent(BEAR), Permanent(replace(BEAR, type_line="Token " + BEAR.type_line))
+        game._enter(a, late)
+        game._enter(a, token)
+        self.assertEqual((late.counters, token.counters), ({"+1/+1": 2}, {}))
+        game.turn += 1
+        next_turn = Permanent(BEAR)
+        game._enter(a, next_turn)
+        self.assertEqual(next_turn.counters, {})
+
+
+class ZimoneTests(unittest.TestCase):
+    X_SPELL = Card(name="Blaze", mana_cost="{X}{R}", type_line="Sorcery", oracle_text="Draw X cards.")
+
+    def test_the_first_x_spell_each_turn_costs_less_for_each_counter(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield = [Permanent(REAL["Zimone, Infinite Analyst"], counters={"+1/+1": 2})]
+        self.assertEqual(game.cost_reduction(a, self.X_SPELL), 2)
+        self.assertEqual(game.cost_reduction(a, BEAR), 0)  # not an X spell
+        a.cast_log.append((game.turn, self.X_SPELL))
+        self.assertEqual(game.cost_reduction(a, self.X_SPELL), 0)  # only the first

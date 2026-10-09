@@ -1730,6 +1730,30 @@
    "colors": [
     "G"
    ]
+  },
+  {
+   "name": "Gorma, the Gullet",
+   "mana_cost": "{1}{B}{G}",
+   "type_line": "Legendary Creature — Pest Frog",
+   "oracle_text": "Lifelink\nWhenever another creature you control dies, put a +1/+1 counter on Gorma.\nNontoken creatures you control enter with an additional +1/+1 counter on them for each creature that died under your control this turn.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Zimone, Infinite Analyst",
+   "mana_cost": "{1}{G}{U}",
+   "type_line": "Legendary Creature — Human Wizard",
+   "oracle_text": "The first spell you cast with {X} in its mana cost each turn costs {1} less to cast for each +1/+1 counter on Zimone.\nWhenever you cast your first spell with {X} in its mana cost each turn, put two +1/+1 counters on Zimone.",
+   "power": "0",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

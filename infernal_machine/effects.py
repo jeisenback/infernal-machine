@@ -1099,6 +1099,8 @@ _DOUBLE_COUNTERS_OLD = ("If an effect would put one or more counters on a perman
                         "many of those counters instead.")  # the wording before the Oracle update
 _PLUS_ONE_OTHERS = ("If one or more +1/+1 counters would be put on another creature you control, that many plus one "
                     "+1/+1 counters are put on it instead.")
+_ENTER_PER_DEATH = ("Nontoken creatures you control enter with an additional +1/+1 counter on them for each creature that "
+                    "died under your control this turn.")
 _PLUS_ONE_PERMANENTS = ("If one or more +1/+1 counters would be put on a permanent you control, that many plus one "
                         "+1/+1 counters are put on that permanent instead.")
 _PLUS_ONE_ARTIFACTS = ("If one or more +1/+1 counters would be put on an artifact or creature you control, that many plus "
@@ -1117,6 +1119,7 @@ class Replacements:
     counters: int = 1  # how many times as many counters go on its controller's permanents
     plus_one: int = 0  # extra +1/+1 counters on its controller's creatures
     plus_one_others: int = 0  # the same, but not on the permanent itself (Benevolent Hydra)
+    enter_counters_per_death: int = 0  # Gorma: nontoken creatures enter with that many extra counters per death this turn
     plus_one_permanents: int = 0  # the same on any permanent you control (Kami of Whispered Hopes)
     plus_one_artifacts: int = 0  # the same on an artifact or creature you control (Ozolith, the Shattered Spire)
     extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice;
@@ -1137,6 +1140,8 @@ def replacement_effects(card: Card) -> Replacements:
             found["counters"] = found.get("counters", 1) * 2
         elif line == _PLUS_ONE_COUNTERS:
             found["plus_one"] = found.get("plus_one", 0) + 1
+        elif line == _ENTER_PER_DEATH:
+            found["enter_counters_per_death"] = found.get("enter_counters_per_death", 0) + 1
         elif line == _PLUS_ONE_PERMANENTS:
             found["plus_one_permanents"] = found.get("plus_one_permanents", 0) + 1
         elif line == _PLUS_ONE_ARTIFACTS:
@@ -1157,7 +1162,7 @@ _EXTRA_TRIGGER_SPELL = re.compile(r"If you casting or copying an instant or sorc
 
 def is_replacement_line(line: str) -> bool:
     return (_EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
-                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
+                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH) or _EXTRA_TRIGGER.fullmatch(line) is not None)
 
 
 _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy of "
@@ -3016,6 +3021,19 @@ def is_casting_cost_line(line: str) -> bool:
     return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY))
+
+
+_X_DISCOUNT = re.compile(r"The first spell you cast with \{X\} in its mana cost each turn costs \{1\} less to cast for each "
+                         r"\+1/\+1 counter on (?:CARDNAME|this creature)\.")
+
+
+def is_x_discount_line(line: str) -> bool:
+    return _X_DISCOUNT.fullmatch(line) is not None
+
+
+def x_spell_discount(card: Card) -> bool:
+    """Zimone, Infinite Analyst: its first X spell each turn costs {1} less for each +1/+1 counter on it."""
+    return any(_X_DISCOUNT.fullmatch(line) for line in rules_lines(card))
 
 
 _PER_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast for each "
