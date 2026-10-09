@@ -22,9 +22,9 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
+from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -63,6 +63,7 @@ CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
 CYCLE = "Cycle: "
+ACTIVATE_HAND = "Activate from hand: "  # followed by the card's name: "{U/R}{U/R}, Discard this card: ..." (Magma Opus)
 REVEAL_PROMPT = "Reveal a card from your hand for "  # followed by the land's name
 SHOCK_PROMPT = "Pay life so it enters untapped? "  # followed by the land's name
 ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
@@ -116,6 +117,7 @@ ORDER_TOP_PROMPT = "Put on top next"  # options are card names; asked while two 
 LOOK_PROMPT = "Take a card from the top of your library"  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
 KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom", "Put into your graveyard"
+MAX_TARGETS = 30  # a bound on "any number of target ..."
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
@@ -221,6 +223,7 @@ class StackItem:
     kicked: int = 0  # how many times the kicker cost was paid
     kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
+    mana_spent: int = 0  # the mana paid to cast it (Deekah: "the amount of mana spent to cast that spell")
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
     is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
@@ -286,6 +289,8 @@ class Seat:
     life_gained_turn: int | None = None
     life_gained_amount: int = 0  # how much life this player gained on life_gained_turn
     delayed_mana: int = 0  # {C} to add at the beginning of this player's next main phase (Mana Drain)
+    combat_shield_turn: int | None = None  # Inkshield: the turn combat damage to this player is prevented
+    combat_shield_token: Card | None = None  # ... and the token made for each point prevented
     citys_blessing: bool = False  # Ascend: ten permanents, for the rest of the game
     graveyard_left_turn: int | None = None  # the last turn a card left this player's graveyard
     cast_log: list[tuple[int, Card]] = field(default_factory=list)  # (turn, spell) for every spell cast
@@ -330,6 +335,7 @@ class Game:
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
+        self.targeting_max: int | None = None  # how many targets "any number of target ..." may have (Strive: what the mana pays for)
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
@@ -587,6 +593,10 @@ class Game:
         for card in _unique(seat.hand):
             if (found := cycling(card)) and self._can_cycle(seat, found[1], found[3]):
                 actions.append(CYCLE + card.name)
+            for ability in hand_abilities(card)[:1]:
+                if self._pay_cost(seat, parse_cost(ability.mana_cost)) is not None \
+                        and self._effects_possible(seat, ability.effects, source_qualities(card)):
+                    actions.append(ACTIVATE_HAND + card.name)
         actions += list(self._activations(seat, sorcery_timing))
         return actions
 
@@ -597,7 +607,7 @@ class Game:
             granted = [a for other in self.seats for attachment in other.battlefield if attachment.attached_to is permanent
                        for a in granted_abilities(attachment.card)]
             for ability in [*activated_abilities(permanent.card), *granted]:
-                if self._can_activate(seat, permanent, ability, sorcery_timing):
+                if not ability.discard_self and self._can_activate(seat, permanent, ability, sorcery_timing):
                     text = ability.text.replace("CARDNAME", permanent.card.name)
                     options[f"{ACTIVATE}{self.label(permanent)}: {text}"] = (permanent, ability)
         return options
@@ -848,8 +858,15 @@ class Game:
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
                  alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",
                  delve: int = 0) -> list[Permanent] | None:
-        """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now. An alternative
-        cost replaces the mana cost; commander tax and kicker are added, then cost reductions apply."""
+        """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now."""
+        cost = self._cast_cost(seat, card, from_command_zone, x, alternative, kickers, extra, delve)
+        return None if cost is None else self._pay_cost(seat, cost)
+
+    def _cast_cost(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
+                   alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",
+                   delve: int = 0) -> Cost | None:
+        """The mana to pay for `card` with X = `x`. An alternative cost replaces the mana cost; commander tax and
+        kicker are added, then cost reductions apply."""
         if alternative:
             cost = parse_cost(alternative.mana_cost) if alternative.mana_cost else Cost()  # Evoke and Overload cost mana
         else:
@@ -862,7 +879,7 @@ class Game:
             cost = cost + parse_cost(kicker)
         if extra:  # entwine, or escalate for each mode beyond the first
             cost = cost + parse_cost(extra)
-        return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card) + delve))
+        return cost.with_x(x).reduced(self.cost_reduction(seat, card) + delve)
 
     def cost_reduction(self, seat: Seat, card: Card) -> int:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""
@@ -1068,6 +1085,8 @@ class Game:
             self._cast(seat, card, seat.exile)
         elif action.startswith(CYCLE):
             self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
+        elif action.startswith(ACTIVATE_HAND):
+            self._activate_from_hand(seat, _take(seat.hand, action.removeprefix(ACTIVATE_HAND)))
         elif action.startswith(CAST_COMMANDER):
             name = action.removeprefix(CAST_COMMANDER)
             card = next(c for c in seat.command_zone if c.name == name)
@@ -1133,6 +1152,20 @@ class Game:
         self.stack.append(StackItem(card, seat, list(effects), [], ability))
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
+
+    def _activate_from_hand(self, seat: Seat, card: Card) -> None:
+        """"{U/R}{U/R}, Discard this card: Create a Treasure token.": like cycling, the card is discarded as a cost and
+        the ability goes on the stack."""
+        ability = hand_abilities(card)[0]
+        effects = list(ability.effects)
+        targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
+        tapped = self._pay_cost(seat, parse_cost(ability.mana_cost)) if ability.mana_cost else []
+        self._spend_mana(seat, tapped)
+        self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cost"})
+        self._move_card(seat, card, "graveyard")
+        self.stack.append(StackItem(card, seat, effects, targets, ability))
+        self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
+                        "targets": labels, "tapped": [p.card.name for p in tapped]})
 
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
         effects = list(ability.effects)
@@ -1245,14 +1278,19 @@ class Game:
                 targets.append(picked)
                 labels.append(", ".join(self.label(p) for p in picked) or NO_TARGET)
                 continue
-            if getattr(effect, "up_to_x", False):  # "up to X target creatures": one target slot holding a list
+            if getattr(effect, "up_to_x", False) or getattr(effect, "any_number", False):
+                # "up to X target creatures", "X target creatures", "any number of target creatures": one slot holding a list
                 picked: list = []
                 taken_here = set()
-                for _ in range(self.targeting_x):
+                exact = getattr(effect, "exact_x", False)  # "X target creatures": no stopping early
+                limit = self.targeting_x if getattr(effect, "up_to_x", False) else (
+                    self.targeting_max if self.targeting_max is not None else MAX_TARGETS)
+                for _ in range(limit):
                     pool = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors)) if i not in taken_here]
                     if not pool:
                         break
-                    pick = seat.player.choose(TARGET_PROMPT + source_name, [o[1][0] for o in pool] + [NO_TARGET])
+                    pick = seat.player.choose(TARGET_PROMPT + source_name,
+                                              [o[1][0] for o in pool] + ([] if exact else [NO_TARGET]))
                     if pick == len(pool):
                         break
                     taken_here.add(pool[pick][0])
@@ -1301,18 +1339,35 @@ class Game:
         effects = kicked_effects(effects, kicked, kickers)
         x = 0  # announced before the targets (CR 601.2b-c): "up to X target creatures" needs it
         if alternative is None and parse_cost(paying.mana_cost).x:  # casting without paying the mana cost makes X 0
-            options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kickers, extra) + 1)]
-            x = seat.player.choose(X_PROMPT + card.name, options)
+            most = self._max_x(seat, paying, from_command_zone, kickers, extra)
+            for effect in effects or []:  # "Exile X target creatures": there have to be X legal targets
+                if getattr(effect, "exact_x", False):
+                    most = min(most, len(self.target_options(target_kind(effect), seat, source_qualities(card))))
+            x = seat.player.choose(X_PROMPT + card.name, [str(n) for n in range(most + 1)])
         elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
             x = seat.player.choose(LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
         self.targeting_x = x
+        strive = strive_cost(card)
+        if strive:  # as many targets as the mana will pay for: each one beyond the first costs more
+            more = 0
+            while more < MAX_TARGETS and self._payment(seat, paying, from_command_zone, x, alternative, kickers,
+                                                       extra + strive * (more + 1)) is not None:
+                more += 1
+            self.targeting_max = more + 1
         targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
+        self.targeting_max = None
+        if strive:
+            chosen = sum(len(t) for e, t in zip([e for e in effects or [] if target_kind(e)], targets)
+                         if getattr(e, "any_number", False))
+            extra += strive * max(0, chosen - 1)
         delve = 0
         if alternative is None and not graveyard and has_keyword(card, "delve"):  # exile as few cards as will do
             delve = next(k for k in range(self._delve_max(seat, paying) + 1)
                          if self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=k) is not None)
-        tapped = self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve)
+        cost = self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve)
+        tapped = self._pay_cost(seat, cost)
         self._spend_mana(seat, tapped)
+        spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
         for _ in range(delve):
             exiled = seat.graveyard[seat.player.choose(DELVE_PROMPT + card.name, [c.name for c in seat.graveyard])]
             seat.graveyard.remove(exiled)
@@ -1327,7 +1382,7 @@ class Game:
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after),
                          is_copy=prepared is not None, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
-                         bestowed=bool(alternative and alternative.bestow))
+                         bestowed=bool(alternative and alternative.bestow), mana_spent=spent)
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -1575,11 +1630,14 @@ class Game:
             return int(max((c.cmc for c in this_turn if _watch_type_matches(amount.what, c)), default=0))
         if kind == "opponents":
             return len(self.opponents(controller))
+        if kind == "mana_spent":  # on the spell that set off this trigger; a copy of a spell was never cast
+            spell = self.resolving_item.carried if self.resolving_item is not None else None
+            return spell.mana_spent if isinstance(spell, StackItem) else 0
         raise ValueError(f"unknown amount {kind}")
 
     def amount(self, value: int | str) -> int:
-        """A number from an effect; "X" is the resolving spell's X."""
-        return self.x_value if value == "X" else value
+        """A number from an effect; "X" is the resolving spell's X, "2X" twice it."""
+        return self.x_value if value == "X" else 2 * self.x_value if value == "2X" else value
 
     def _apply_effects(self, item: StackItem) -> bool:
         """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""
@@ -1594,12 +1652,15 @@ class Game:
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
         colors = source_qualities(item.card)
+        declared = {}  # a target list that had targets when the spell was put on the stack
         for index, (e, t) in enumerate(zip([e for e in item.effects if target_kind(e)], item.targets)):
             if getattr(e, "multi_target", False):  # keep only the targets that are still legal
+                declared[index] = bool(t)
                 item.targets[index] = [p for p in t if self.is_legal_target(target_kind(e), p, seat, colors)]
-        legal = [(t is None and getattr(e, "optional_target", False)) or getattr(e, "multi_target", False)
-                 or self.is_legal_target(self._fixed_kind(target_kind(e), item.source), t, seat, colors)
-                 for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
+        legal = [(index in declared and (not declared[index] or bool(t)))  # a list with none chosen still resolves
+                 or (t is None and getattr(e, "optional_target", False))
+                 or (index not in declared and self.is_legal_target(self._fixed_kind(target_kind(e), item.source), t, seat, colors))
+                 for index, (e, t) in enumerate(zip([e for e in item.effects if target_kind(e)], item.targets))]
         about = {"seat": seat.index, "card": item.card.name}
         if item.ability:
             about["ability"] = _shown(item.ability.text, item.card)
@@ -1956,6 +2017,11 @@ class Game:
             self.broadcast({"event": "damage_prevented", "card": target.card.name, "amount": amount})
             return
         controller = self.controller_of(source) if source else None
+        if isinstance(target, Seat) and combat and target.combat_shield_turn == self.turn:  # Inkshield
+            self.broadcast({"event": "damage_prevented", "seat": target.index, "amount": amount})
+            if target.combat_shield_token is not None and amount > 0:
+                self.create_tokens(target, target.combat_shield_token, amount)
+            return
         if isinstance(target, Seat):
             self.change_life(target, -amount)
             if combat and controller:
@@ -1988,6 +2054,11 @@ class Game:
                             "source": source.card.name if source else None})
         if controller and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
+
+    def prevent_combat_damage(self, seat: Seat, token: Card | None) -> None:
+        """Inkshield: no combat damage is dealt to `seat` this turn; `token` is created for each point prevented."""
+        seat.combat_shield_turn, seat.combat_shield_token = self.turn, token
+        self.broadcast({"event": "combat_shield", "seat": seat.index})
 
     def destroy(self, permanent: Permanent, no_regen: bool = False) -> None:
         if self.has_keyword(permanent, "indestructible"):
@@ -2073,26 +2144,36 @@ class Game:
         """Whether an "except for ..." filter describes this permanent (so it is left alone)."""
         return self._passes(permanent, spared)
 
-    def destroy_all(self, permanents: list[Permanent], no_regen: bool = False, gives: tuple[int, Card] | None = None) -> None:
+    def destroy_all(self, permanents: list[Permanent], no_regen: bool = False, gives: GiveBack | None = None,
+                    caster: Seat | None = None) -> None:
         """Destroy them all at once; indestructible ones survive, and so do ones with a regeneration shield
-        unless they "can't be regenerated". `gives`: each controller then gets tokens for each one destroyed."""
+        unless they "can't be regenerated". `gives`: tokens for what was destroyed (see _give_back)."""
         doomed = [p for p in permanents if not self.has_keyword(p, "indestructible")
                   and (no_regen or not self._regenerated(p))]
         self._leave_together([(p, "destroyed") for p in doomed])
-        self._give_back(doomed, gives)
+        self._give_back(doomed, gives, caster)
 
-    def exile_all(self, permanents: list[Permanent], gives: tuple[int, Card] | None = None) -> None:
+    def exile_all(self, permanents: list[Permanent], gives: GiveBack | None = None, caster: Seat | None = None) -> None:
         self._leave_together([(p, "exiled") for p in permanents], destination="exile")
-        self._give_back(permanents, gives)
+        self._give_back(permanents, gives, caster)
 
-    def _give_back(self, gone: list[Permanent], gives: tuple[int, Card] | None) -> None:
-        """"For each creature destroyed this way, its controller creates a token": for each one that left."""
+    def _give_back(self, gone: list[Permanent], gives: GiveBack | None, caster: Seat | None) -> None:
+        """"For each creature destroyed this way, its controller creates a token": for each one that left. Ceaseless
+        Conflict pays only `caster`, for their own nontoken creatures; Oversimplify gives every player one token with a
+        +1/+1 counter per point of power (as it last was) of the creatures they lost."""
         if gives is None:
             return
-        count, token = gives
-        for permanent in gone:
-            if permanent.last_controller is not None and not self.on_battlefield(permanent):
-                self.create_tokens(permanent.last_controller, token, count)
+        left = [p for p in gone if p.last_controller is not None and not self.on_battlefield(p)
+                and not (gives.nontoken and _is_token(p.card))]
+        if gives.who == "each player":
+            for seat in self.turn_order_from_active():
+                power = sum(p.last_power for p in left if p.last_controller is seat) if gives.power_counters else 0
+                self.create_tokens(seat, gives.token, gives.count, (power, "+1/+1") if power else None)
+            return
+        for permanent in left:
+            if gives.who == "you" and permanent.last_controller is not caster:
+                continue
+            self.create_tokens(caster if gives.who == "you" else permanent.last_controller, gives.token, gives.count)
 
     def return_to_hand(self, permanent: Permanent) -> None:
         """Bounce: a permanent goes to its owner's hand (a token just stops existing)."""
@@ -2245,6 +2326,8 @@ class Game:
                 if buff.self_only and source is not permanent:
                     continue
                 if buff.color and buff.color not in permanent.card.colors:
+                    continue
+                if buff.token and not _is_token(permanent.card):
                     continue
                 if buff.attacking and not any(a.attacker is permanent for a in self.combat.attacks):
                     continue
@@ -2401,16 +2484,42 @@ class Game:
         self.broadcast({"event": "encore", "seat": seat.index, "card": card.name})
         self._move_card(seat, card, "exile")
         self._left_graveyard(seat)
-        token = dataclasses.replace(card, type_line="Token " + card.type_line)
+        self.attacking_tokens(seat, dataclasses.replace(card, type_line="Token " + card.type_line), 1, True, "sacrificed")
+
+    def attacking_tokens(self, seat: Seat, token: Card, count: int, haste: bool, at_end: str | None) -> None:
+        """For each opponent, `count` tokens that attack that opponent this turn if able (Encore, Furygale Flocking);
+        with `haste` until end of turn, and `at_end` ("sacrificed" or "exiled") at the beginning of the next end step."""
         made = []
         for opponent in self.opponents(seat):
-            copy = Permanent(token, sick=True, must_attack=opponent)
-            self._enter(seat, copy)
-            self.modify_until_end_of_turn(copy, Modifier(keywords=frozenset({"haste"})))
-            made.append(copy)
-        fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
-        self.at_end_step.append((fire_turn, lambda: self._leave_together(
-            [(p, "sacrificed") for p in made if self.on_battlefield(p)])))
+            for _ in range(count * self._factor(seat, "tokens")):
+                copy = Permanent(token, sick=True, must_attack=opponent)
+                self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
+                                "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
+                self._enter(seat, copy)
+                if haste:
+                    self.modify_until_end_of_turn(copy, Modifier(keywords=frozenset({"haste"})))
+                made.append(copy)
+        if at_end:
+            fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+            self.at_end_step.append((fire_turn, lambda: self._leave_together(
+                [(p, at_end) for p in made if self.on_battlefield(p)], "exile" if at_end == "exiled" else "graveyard")))
+
+    def tokens_become_copies(self, seat: Seat) -> None:
+        """Brudiclad: `seat` may choose a token they control; each other token they control becomes a copy of it until
+        end of turn (like a crewed Vehicle, the card comes back at cleanup). Counters and damage stay where they are."""
+        tokens = [p for p in seat.battlefield if _is_token(p.card)]
+        if not tokens:
+            return
+        pick = seat.player.choose(CLONE_PROMPT + "tokens", [self.label(p) for p in tokens] + [NOT_A_COPY])
+        if pick == len(tokens):
+            return
+        chosen = tokens[pick]
+        for permanent in tokens:
+            if permanent is not chosen:
+                permanent.original = permanent.original or permanent.card
+                permanent.card = chosen.card
+                self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.original.name,
+                                "as": chosen.card.name})
 
     def grant_abilities(self, permanent: Permanent, text: str) -> None:
         """The permanent gains the abilities written in `text` until end of turn (Backup); like a crewed Vehicle, its
@@ -2445,16 +2554,39 @@ class Game:
                 self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
                                 "added": -removed, "total": permanent.counters.get(kind, 0)})
 
-    def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None) -> None:
-        for _ in range(count * self._factor(seat, "tokens")):
-            self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
-                            "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
-            made = Permanent(token, sick=True)
-            self._enter(seat, made)
-            if counters:
-                self.put_counters(made, counters[1], counters[0])
-        if count and "Creature" in token.type_line:  # once for the whole batch: "one or more creature tokens"
+    def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None) -> list[Permanent]:
+        return self.create_token_batch(seat, [token] * count, counters)
+
+    def create_token_batch(self, seat: Seat, tokens: list[Card], counters: tuple[int, str] | None = None) -> list[Permanent]:
+        """Create tokens at once, each as many times as the replacement effects say (Doubling Season). Watchers of "one or
+        more creature tokens" see the whole batch as one event."""
+        made = []
+        for token in tokens:
+            for _ in range(self._factor(seat, "tokens")):
+                self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
+                                "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
+                permanent = Permanent(token, sick=True)
+                self._enter(seat, permanent)
+                if counters:
+                    self.put_counters(permanent, counters[1], counters[0])
+                made.append(permanent)
+        if any("Creature" in p.card.type_line for p in made):
             self._trigger_each("tokens_created", seat)
+        return made
+
+    def copy_tokens(self, seat: Seat, sources: list[Permanent], haste: bool, exile_at_end: bool) -> None:
+        """Twinflame: a token that's a copy of each of `sources`, except it has haste, exiled as the next end step begins."""
+        cards = []
+        for source in sources:
+            card = source.card if _is_token(source.card) else dataclasses.replace(source.card, type_line="Token " + source.card.type_line)
+            if haste:
+                card = dataclasses.replace(card, oracle_text=(card.oracle_text + "\nHaste").strip())
+            cards.append(card)
+        made = self.create_token_batch(seat, cards)
+        if made and exile_at_end:
+            fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+            self.at_end_step.append((fire_turn, lambda: self._leave_together(
+                [(p, "exiled") for p in made if self.on_battlefield(p)], "exile")))
 
     def exile(self, permanent: Permanent) -> None:
         self._leave_battlefield(permanent, "exiled", destination="exile")

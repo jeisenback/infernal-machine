@@ -64,7 +64,7 @@ class ParseTests(unittest.TestCase):
     def test_shapes(self):
         [wipe_] = spell_effects(sorcery("Destroy all creatures. For each creature destroyed this way, its controller creates a 1/1 "
                                          "white Spirit creature token."))
-        self.assertEqual((wipe_.gives[0], wipe_.gives[1].name), (1, "Spirit"))
+        self.assertEqual((wipe_.gives.count, wipe_.gives.token.name), (1, "Spirit"))
         self.assertEqual(spell_effects(sorcery("Each opponent sacrifices a creature with the greatest power among creatures "
                                                 "they control.")), [EachSacrifices("opponent", "creature", 1, True)])
         self.assertEqual(spell_effects(sorcery("Each player sacrifices all creatures they control.")),

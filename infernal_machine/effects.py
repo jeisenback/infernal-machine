@@ -31,9 +31,11 @@ _SELF = (r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|plane
 
 
 def _count(word: str) -> int | str:
-    """A number from rules text; "X" stays "X" and the game fills it in (Game.amount)."""
+    """A number from rules text; "X" stays "X" ("twice X" is "2X") and the game fills it in (Game.amount)."""
     if word == "X":
         return "X"
+    if word == "twice X":
+        return "2X"
     return int(word) if word.isdigit() else _NUMBERS[word.lower()]
 
 
@@ -146,6 +148,7 @@ class OpponentsLoseLife:
 class Damage:
     amount: int
     target: str
+    optional_target: bool = False  # one point of "4 damage divided as you choose among any number of targets"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -1050,6 +1053,7 @@ class StaticBuff:
     attacking: bool = False  # "Attacking Pests you control": only while they are attacking
     per: tuple[str, str] | None = None  # "... for each artifact you control": (what to count, its type); see Game.modifiers
     everyone: bool = False  # "White creatures get +1/+1": every player's, not just its controller's
+    token: bool = False  # "Creature tokens you control have haste": only tokens
     with_counters: bool = False  # "Creatures you control with counters on them have trample"
 
 
@@ -1065,12 +1069,12 @@ def is_choose_type_line(line: str) -> bool:
     return _CHOOSE_TYPE.fullmatch(line) is not None
 
 
-_AFFECTED = (r"Creatures you control of the chosen type|Creatures you control with counters on them|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+_AFFECTED = (r"Creatures you control of the chosen type|Creature tokens you control|Creatures you control with counters on them|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
                                r"this game\.")
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
-_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<counters>Creatures you control with counters on them)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
@@ -1120,6 +1124,7 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     "chosen" if who["chosen"] else who["sub"] or who["tribe"], line,
                                     condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
                                     attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]),
+                                    token=bool(who["tokens"]),
                                     with_counters=bool(who["counters"])))
         elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
             who = _AFFECTED_WHO.fullmatch(m[1])
@@ -1437,13 +1442,127 @@ class CreateTokens:
 class CopyToken:
     """ "Create a token that's a copy of target creature you control." """
     target: str
+    count: int = 1  # Rite of Replication: "If this spell was kicked, create five of those tokens instead."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             card = target.card
             if not card.type_line.startswith("Token"):
                 card = dataclasses.replace(card, type_line="Token " + card.type_line)
-            game.create_tokens(controller, card, 1)
+            game.create_tokens(controller, card, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class AttackingTokens:
+    """Furygale Flocking: "For each opponent, create two 3/3 blue and red Elemental creature tokens with flying that attack
+    that opponent this turn if able. They gain haste until end of turn. Exile them at the beginning of the next end step."
+    The second and third sentences are folded in by _merge_attacking_tokens."""
+    count: int  # for each opponent
+    token: Card
+    haste: bool = False
+    exile_at_end: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.attacking_tokens(controller, self.token, game.amount(self.count), self.haste,
+                              "exiled" if self.exile_at_end else None)
+
+
+@dataclass(frozen=True)
+class _TheyGainHaste:
+    """ "They gain haste until end of turn.": only ever after AttackingTokens."""
+
+
+@dataclass(frozen=True)
+class _ExileThemLater:
+    """ "Exile them at the beginning of the next end step.": only ever after AttackingTokens."""
+
+
+def _merge_attacking_tokens(effects: list) -> list | None:
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, (_TheyGainHaste, _ExileThemLater)):
+            if not (merged and isinstance(merged[-1], AttackingTokens)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], **({"haste": True} if isinstance(effect, _TheyGainHaste)
+                                                             else {"exile_at_end": True}))
+        else:
+            merged.append(effect)
+    return merged
+
+
+def _attacking_tokens(m: re.Match) -> AttackingTokens | None:
+    parsed = _token(m[1] + '."' if m[2] else m[1])
+    return AttackingTokens(*parsed) if parsed else None
+
+
+@dataclass(frozen=True)
+class PreventCombatDamageToYou:
+    """Inkshield: "Prevent all combat damage that would be dealt to you this turn. For each 1 damage prevented this way,
+    create a 2/1 white and black Inkling creature token with flying." The second sentence is folded in by
+    _merge_prevention; the game creates the tokens as the damage is prevented."""
+    token: Card | None = None  # one for each point of damage prevented
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.prevent_combat_damage(controller, self.token)
+
+
+@dataclass(frozen=True)
+class _TokenPerPrevented:
+    """ "For each 1 damage prevented this way, create ...": only ever after PreventCombatDamageToYou."""
+    token: Card
+
+
+def _merge_prevention(effects: list) -> list | None:
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, _TokenPerPrevented):
+            if not (merged and isinstance(merged[-1], PreventCombatDamageToYou) and merged[-1].token is None):
+                return None
+            merged[-1] = PreventCombatDamageToYou(effect.token)
+        else:
+            merged.append(effect)
+    return merged
+
+
+def _token_per_prevented(m: re.Match) -> _TokenPerPrevented | None:
+    parsed = _token(m[1] + '."' if m[2] else m[1])
+    return _TokenPerPrevented(parsed[1]) if parsed and parsed[0] == 1 else None
+
+
+@dataclass(frozen=True)
+class TokensBecomeCopies:
+    """Brudiclad: "Then you may choose a token you control. If you do, each other token you control becomes a copy of
+    that token until end of turn." (two sentences, folded together by _merge_token_copies)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.tokens_become_copies(controller)
+
+
+@dataclass(frozen=True)
+class _ChooseToken:
+    """ "Then you may choose a token you control.": only ever before _OthersBecomeCopies."""
+
+
+@dataclass(frozen=True)
+class _OthersBecomeCopies:
+    """ "If you do, each other token you control becomes a copy of that token until end of turn." """
+
+
+def _merge_token_copies(effects: list) -> list | None:
+    merged: list = []
+    i = 0
+    while i < len(effects):
+        if isinstance(effects[i], _ChooseToken):
+            if not (i + 1 < len(effects) and isinstance(effects[i + 1], _OthersBecomeCopies)):
+                return None
+            merged.append(TokensBecomeCopies())
+            i += 2
+            continue
+        if isinstance(effects[i], _OthersBecomeCopies):
+            return None
+        merged.append(effects[i])
+        i += 1
+    return merged
 
 
 POPULATE_PROMPT = "Populate: copy which token? "
@@ -1527,8 +1646,9 @@ HEARTWOOD = Card(name="Heartwood", type_line="Token Artifact — Heartwood", ora
 _NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "heartwood": HEARTWOOD}
 _COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 _COLOR = r"(?:white|blue|black|red|green)"
+_TOKEN_COUNT = _N.replace("|X)", "|X|twice X)")  # "Create twice X 1/1 ... tokens" (Pest Infestation)
 _CREATURE_TOKEN = re.compile(
-    rf"{_N} (\d+|X)/(\d+|X) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact )?"
+    rf"{_TOKEN_COUNT} (\d+|X)/(\d+|X) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact )?"
     r"creature tokens?(?: named ([A-Z][\w'-]*))?"  # "named Cadet"
     r"(?: with (?:([a-z ,]+?)(?:,? and |, |$))?(?:\"(.+)\")?)?"  # keywords and/or a quoted ability
 )
@@ -1587,6 +1707,10 @@ def _merge_token_counters(effects: list) -> list | None:
         if isinstance(effect, PutCountersOnSource) and merged and isinstance(merged[-1], CreateTokens) \
                 and merged[-1].counters is None:
             merged[-1] = dataclasses.replace(merged[-1], counters=(effect.count, effect.counter))
+        elif isinstance(effect, PutCountersOnSource) and len(merged) > 1 and isinstance(merged[-1], DefineX) \
+                and isinstance(merged[-2], CreateTokens) and merged[-2].counters is None:
+            # "..., where X is ...": X is worked out first, then the tokens come in with X counters (Deekah)
+            merged[-2:] = [merged[-1], dataclasses.replace(merged[-2], counters=(effect.count, effect.counter))]
         else:
             merged.append(effect)
     return merged
@@ -1616,9 +1740,9 @@ def _merge_wipe_gift(effects: list) -> list | None:
     merged: list = []
     for effect in effects:
         if isinstance(effect, GiveBack):
-            if not (merged and isinstance(merged[-1], (DestroyAll, ExileAll))):
+            if not (merged and isinstance(merged[-1], (DestroyAll, ExileAll, ExileX))):
                 return None
-            merged[-1] = dataclasses.replace(merged[-1], gives=(effect.count, effect.token))
+            merged[-1] = dataclasses.replace(merged[-1], gives=effect)
         else:
             merged.append(effect)
     return merged
@@ -1737,28 +1861,117 @@ class DestroyAll:
     kind: str  # "creature", "artifact or enchantment", "creature you don't control", ...
     restriction: MassFilter | None = None  # "... with flying"
     no_regen: bool = False  # "They can't be regenerated."
-    gives: "tuple[int, Card] | None" = None  # "For each creature destroyed this way, its controller creates a 1/1 token"
+    gives: "GiveBack | None" = None  # "For each creature destroyed this way, its controller creates a 1/1 token"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen, self.gives)
+        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen, self.gives, controller)
 
 
 @dataclass(frozen=True)
 class ExileAll:
     kind: str
     restriction: MassFilter | None = None
-    gives: "tuple[int, Card] | None" = None
+    gives: "GiveBack | None" = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_all(game.mass_targets(self.kind, controller, self.restriction), self.gives)
+        game.exile_all(game.mass_targets(self.kind, controller, self.restriction), self.gives, controller)
+
+
+@dataclass(frozen=True)
+class ExileX:
+    """Curse of the Swine: "Exile X target creatures. For each creature exiled this way, its controller creates a 2/2
+    Boar." Exactly X targets, in one list; X can't be more than there are legal targets."""
+    target: str
+    gives: "GiveBack | None" = None
+    up_to_x = True
+    exact_x = True
+    multi_target = True  # its one target slot holds a list
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_all(list(target or []), self.gives, controller)
+
+
+@dataclass(frozen=True)
+class DestroyUpToX:
+    """Pest Infestation: "Destroy up to X target artifacts and/or enchantments." Up to X targets, in one list."""
+    target: str
+    up_to_x = True
+    multi_target = True
+    optional_target = True  # it needs no target to be cast
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.destroy_all(list(target or []))
+
+
+@dataclass(frozen=True)
+class CopyTokensOfTargets:
+    """Twinflame: "Choose any number of target creatures you control. For each of them, create a token that's a copy of that
+    creature, except it has haste. Exile those tokens at the beginning of the next end step." The three sentences are
+    folded together by _merge_target_copies. Each target beyond the first costs the strive cost more (see strive_cost)."""
+    target: str
+    haste: bool = False
+    exile_at_end: bool = False
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.copy_tokens(controller, list(target or []), self.haste, self.exile_at_end)
+
+
+@dataclass(frozen=True)
+class _ChooseAnyNumber:
+    """ "Choose any number of target creatures you control.": only ever before _CopyEachWithHaste."""
+    target: str
+
+
+@dataclass(frozen=True)
+class _CopyEachWithHaste:
+    """ "For each of them, create a token that's a copy of that creature, except it has haste." """
+
+
+@dataclass(frozen=True)
+class _ExileThoseTokens:
+    """ "Exile those tokens at the beginning of the next end step." """
+
+
+def _merge_target_copies(effects: list) -> list | None:
+    merged: list = []
+    i = 0
+    while i < len(effects):
+        effect = effects[i]
+        if isinstance(effect, _ChooseAnyNumber):
+            if not (i + 1 < len(effects) and isinstance(effects[i + 1], _CopyEachWithHaste)):
+                return None
+            exile = i + 2 < len(effects) and isinstance(effects[i + 2], _ExileThoseTokens)
+            merged.append(CopyTokensOfTargets(effect.target, True, exile))
+            i += 3 if exile else 2
+            continue
+        if isinstance(effect, (_CopyEachWithHaste, _ExileThoseTokens)):
+            return None
+        merged.append(effect)
+        i += 1
+    return merged
+
+
+_STRIVE = re.compile(r"Strive \u2014 This spell costs ((?:\{[^}]+\})+) more to cast for each target beyond the first\.")
+
+
+def strive_cost(card: Card) -> str | None:
+    """Twinflame's "Strive": the mana added for each target beyond the first, or None."""
+    return next((m[1] for line in rules_lines(card) if (m := _STRIVE.fullmatch(line))), None)
 
 
 @dataclass(frozen=True)
 class GiveBack:
     """ "For each creature destroyed this way, its controller creates a 1/1 white Spirit creature token." Only ever the
-    end of a DestroyAll or ExileAll (see _merge_wipe_gift)."""
+    end of a DestroyAll or ExileAll (see _merge_wipe_gift). Ceaseless Conflict pays only the caster, for their own
+    nontoken creatures; Oversimplify gives each player one token with a counter per point of power they lost."""
     count: int
     token: Card
+    who: str = "controller"  # "controller": each one's controller gets tokens for it; "you": the caster; "each player"
+    nontoken: bool = False  # "for each nontoken creature you controlled that was destroyed this way"
+    power_counters: bool = False  # "... puts a number of +1/+1 counters on it equal to the total power of the creatures"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         raise NotImplementedError("a lone give-back is never built")
@@ -1849,6 +2062,7 @@ _AMOUNTS = [
     (re.compile(r"the greatest mana value among instant and sorcery spells you've cast this turn", re.I),
      lambda m: Amount("greatest_mana_value_cast", "instant or sorcery spell")),
     (re.compile(r"opponents?", re.I), lambda m: Amount("opponents")),
+    (re.compile(r"the amount of mana spent to cast that spell", re.I), lambda m: Amount("mana_spent")),
     (re.compile(r"(?:the number of )?([A-Za-z]+) you control", re.I), lambda m: Amount("you_control", _singular(m[1]))),
 ]
 
@@ -2107,9 +2321,9 @@ class _GiftMatch:
         self.spec, self.quote = spec, quote
 
 
-def _gift(m: _GiftMatch) -> Any:
+def _gift(m: _GiftMatch, **fields: Any) -> Any:
     parsed = _token(m.spec + '."' if m.quote else m.spec)
-    return GiveBack(*parsed) if parsed else None
+    return GiveBack(*parsed, **fields) if parsed else None
 
 
 def _damage_each(m: re.Match) -> DamageEach | None:
@@ -2142,9 +2356,10 @@ class ReturnToHand:
 @dataclass(frozen=True)
 class ReturnAllToHand:
     kind: str
+    restriction: MassFilter | None = None  # Perplexing Test: "all creature tokens" / "all nontoken creatures"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.return_all_to_hand(game.mass_targets(self.kind, controller))
+        game.return_all_to_hand(game.mass_targets(self.kind, controller, self.restriction))
 
 
 @dataclass(frozen=True)
@@ -2326,6 +2541,17 @@ class UntapThat:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         pass
+
+
+@dataclass(frozen=True)
+class Tap:
+    """ "Tap two target permanents.": one effect per target, each a different permanent."""
+    target: str
+    distinct: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.tapped = True
 
 
 @dataclass(frozen=True)
@@ -3208,7 +3434,7 @@ def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
-                                           _AFFINITY))
+                                           _AFFINITY, _STRIVE))
 
 
 _X_DISCOUNT = re.compile(r"The first spell you cast with \{X\} in its mana cost each turn costs \{1\} less to cast for each "
@@ -3364,6 +3590,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
+    (re.compile(rf"{_SELF} deals (\d+) damage divided as you choose among any number of targets\.", re.I),
+     lambda m: [Damage(1, "any", optional_target=n > 0) for n in range(int(m[1]))]),  # a point at a time
+    (re.compile(rf"tap (two|three) target {_PLURAL_KIND}\.", re.I),
+     lambda m: [Tap(_PLURAL_KINDS[m[2].lower()] + (m[3] or ""), distinct=n > 0) for n in range(_count(m[1]))]),
     (re.compile(rf"destroy (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[2].lower(), bool(m[1]))),
     (re.compile(rf"destroy each {_PERMANENT_KIND}\.", re.I), lambda m: DestroyAll(m[1].lower())),
     (re.compile(r"destroy each artifact, creature, and enchantment with mana value X or less\.", re.I),
@@ -3377,6 +3607,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[2].lower(), bool(m[1]))),
     (re.compile(rf"exile {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Exile, m)),
+    (re.compile(rf"exile X target {_PLURAL_KIND}\.", re.I), lambda m: ExileX(_PLURAL_KINDS[m[1].lower()] + (m[2] or ""))),
+    (re.compile(r"destroy up to X target artifacts and/or enchantments\.", re.I),
+     lambda m: DestroyUpToX("artifact or enchantment")),
+    (re.compile(r"choose any number of target creatures you control\.", re.I), lambda m: _ChooseAnyNumber("creature you control")),
+    (re.compile(r"for each of them, create a token that's a copy of that creature, except it has haste\.", re.I),
+     lambda m: _CopyEachWithHaste()),
+    (re.compile(r"exile those tokens at the beginning of the next end step\.", re.I), lambda m: _ExileThoseTokens()),
     (re.compile(rf"exile up to one target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower(), optional_target=True)),
     (re.compile(r"exile target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell", exile=True)),
@@ -3417,7 +3654,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnToHand(m[2].lower(), (m[1] or "").lower() == "another ", (m[1] or "").lower() == "up to one ",
                             distinct=(m[1] or "").lower() == "another ")),
     (re.compile(rf"return {_UP_TO} target {_PLURAL_KIND} to their owners' hands\.", re.I), lambda m: _up_to(ReturnToHand, m)),
-    (re.compile(rf"return all {_MASS} to their owners' hands\.", re.I), lambda m: ReturnAllToHand(_mass_kind(m))),
+    (re.compile(rf"return all {_MASS_FILTERED} to their owners' hands\.", re.I), lambda m: _mass_effect(ReturnAllToHand, m)),
     (re.compile(rf"return {_UP_TO} target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),
      lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand",
                                     optional_target=True, distinct=n > 0) for n in range(_count(m[1]))]),
@@ -3614,6 +3851,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SacrificeAll(_PLURAL_SACRIFICE[m[1].lower()])),
     (re.compile(r"for each (creature|permanent) (?:destroyed|exiled) this way, its controller creates (.+)\.(\"?)", re.I),
      lambda m: _gift(_GiftMatch(m[2], m[3]))),
+    (re.compile(r"(?:then )?create (.+) for each nontoken creature you controlled that was destroyed this way\.(\"?)", re.I),
+     lambda m: _gift(_GiftMatch(m[1], m[2]), who="you", nontoken=True)),
+    (re.compile(r"each player creates (.+) and puts a number of \+1/\+1 counters on it equal to the total power of the "
+                r"creatures they controlled that were exiled this way\.(\"?)", re.I),
+     lambda m: _gift(_GiftMatch(m[1], m[2]), who="each player", power_counters=True)),
     (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),
     (re.compile(r"Let X be (.+)\."), lambda m: DefineX(a) if (a := _amount(m[1])) else None),
     (re.compile(rf"target (player|opponent) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
@@ -3677,8 +3919,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:{_SELF}) gets? {_PT_X} until end of turn\."),
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
+    (re.compile(r'for each opponent, create (.+) that attack that opponent this turn if able\.("?)', re.I), _attacking_tokens),
+    (re.compile(r"they gain haste until end of turn\.", re.I), lambda m: _TheyGainHaste()),
+    (re.compile(r"exile them at the beginning of the next end step\.", re.I), lambda m: _ExileThemLater()),
+    (re.compile(r"prevent all combat damage that would be dealt to you this turn\.", re.I),
+     lambda m: PreventCombatDamageToYou()),
+    (re.compile(r'for each 1 damage prevented this way, create (.+)\.("?)', re.I), _token_per_prevented),
+    (re.compile(r"(?:then )?you may choose a token you control\.", re.I), lambda m: _ChooseToken()),
+    (re.compile(r"if you do, each other token you control becomes a copy of that token until end of turn\.", re.I),
+     lambda m: _OthersBecomeCopies()),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
-    (re.compile(r'(?i:its controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
+    (re.compile(r'(?i:(?:its|that creature\'s) controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
     (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
                 r"battlefield tapped, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand()),
@@ -3739,6 +3990,8 @@ def _clauses(sentence: str) -> list[str]:
     if m := re.fullmatch(r"(Create .+ tokens?), then (put .+ counters? on it\.)", sentence):
         return [m[1] + ".", m[2].capitalize()]
     sentence = re.sub(r"^You (draw|create) ", lambda m: m[1].capitalize() + " ", sentence)
+    if m := re.fullmatch(rf"(Draw {_N} cards?) and (create .+)\.", sentence):  # Big Score, Seize the Spoils
+        return [m[1] + ".", m[3][:1].upper() + m[3][1:] + "."]
     if m := re.fullmatch(rf"(.+) and you ({_YOUR_ACTION})\.", sentence, re.I):
         return _clauses(m[1] + ".") + [_you_do(m[2])]
     if m := re.fullmatch(rf"(?:you )?(?P<first>{_YOUR_ACTION}) and (?P<second>{_YOUR_ACTION})\.", sentence, re.I):
@@ -3924,7 +4177,7 @@ def _parse(sentences: list[str]) -> list | None:
         if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
             return None  # "instead" has to change the effect just before it
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
@@ -4000,13 +4253,19 @@ def _merge_no_regen(effects: list) -> list:
 def spell_effects(card: Card) -> list | None:
     """Effects of an instant or sorcery, in order; None if any sentence isn't understood. A modal spell
     ("Choose one — ...") gives a single Modal effect."""
-    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line)]
+    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line) and not is_hand_ability_line(line)]
     if lines and (m := _MODAL_HEADER.fullmatch(lines[0])):
         return _parse_modal(m[1].lower(), lines[1:])
     if lines and _MODAL_COMMANDER.fullmatch(lines[0]):
         modal = _parse_modal("one", lines[1:])
         return [dataclasses.replace(modal[0], commander_both=True)] if modal else None
     return _parse(_split_sentences("\n".join(lines)))
+
+
+def is_hand_ability_line(line: str) -> bool:
+    """Magma Opus's "{U/R}{U/R}, Discard this card: ...": an ability of the card, not a sentence of the spell."""
+    m = _ACTIVATED.fullmatch(line)
+    return m is not None and bool((_cost_fields(m[1]) or {}).get("discard_self"))
 
 
 def line_effects(line: str) -> list | None:
@@ -4357,6 +4616,7 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
     return _parse(_split_sentences(rest[:1].upper() + rest[1:])), optional, once, condition
 
 
+_MANA_SPENT = re.compile(r"the amount of mana spent to cast that spell", re.I)
 _MAY_PAY_OR = re.compile(r"that player may pay ((?:\{[^}]+\})+)\. If the player doesn't, (.+)")
 _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", re.I)
 
@@ -4385,12 +4645,16 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
         for pattern, replacement in _PLAYER_PRONOUNS:
             replaced = pattern.sub(replacement, replaced)
         about_player, rest = about_player or replaced != rest, replaced
-    about_subject = re.search(r"\bit\b|\bthat spell\b", rest, re.I) is not None
+    # "the amount of mana spent to cast that spell" is an amount the trigger carries, not an effect on the spell.
+    about_subject = re.search(r"\bit\b|\bthat spell\b", _MANA_SPENT.sub("", rest), re.I) is not None
     copies_spell = re.match(r"copy (it|that spell)\.", rest, re.I) is not None  # Codie: "it" is the spell cast
-    if about_subject and not subject_ok and not copies_spell:
-        return None, False, False, None
     effects, optional, once, condition = _trigger_body(rest)
     if effects is None:
+        return None, False, False, None
+    if about_subject and any(isinstance(e, CreateTokens) and e.counters for e in effects) \
+            and not any(uses_source(e) or follows_target(e) for e in effects):
+        about_subject = False  # the "it" was the new token of "Create a ... token. Put X counters on it." (Deekah)
+    if about_subject and not subject_ok and not copies_spell:
         return None, False, False, None
     if copies_spell and not subject_ok:
         return effects, optional, once, condition
@@ -4469,6 +4733,7 @@ class ActivatedAbility:
     reconfigure: str = ""  # "attach" (only with another creature to attach to) or "unattach" (only while attached)
     remove_counter: str = ""  # "Remove a +1/+1 counter from this creature": the kind of counter
     condition: "Condition | None" = None  # "Activate only if you control two or more white permanents."
+    discard_self: bool = False  # "Discard this card": activated from the hand, like cycling (Magma Opus)
 
 
 _CREW = re.compile(r"Crew (\d+)")
@@ -4480,6 +4745,7 @@ _CARDS = r"(an?|two|three|four)"
 _SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|Food|Treasure|Clue)s?")
 _REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
+_DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
 _EXILE_COST = re.compile(rf"Exile {_CARDS} cards? from your graveyard")
 _NUMBER = {"a": 1, "an": 1, "two": 2, "three": 3, "four": 4}
 _LOYALTY = re.compile(r"([+\u2212-]?)(\d+)")
@@ -4516,6 +4782,11 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
     return tuple(abilities)
 
 
+def hand_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
+    """The activated abilities a card has in your hand: those whose cost discards it (Magma Opus)."""
+    return tuple(a for a in activated_abilities(card) if a.discard_self)
+
+
 def _cost_fields(cost: str) -> dict[str, Any] | None:
     """The fields of an ActivatedAbility that a cost sets ("{1}, {T}, Pay 2 life"), or None if any part isn't understood."""
     fields: dict[str, Any] = {}
@@ -4532,6 +4803,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another", sacrifice_count=_NUMBER.get(m[1], 1))
         elif m := _DISCARD_COST.fullmatch(part):
             fields["discard"] = _NUMBER[m[1]]
+        elif _DISCARD_SELF.fullmatch(part):
+            fields["discard_self"] = True
         elif m := _EXILE_COST.fullmatch(part):
             fields["exile_graveyard"] = _NUMBER[m[1]]
         elif m := _REMOVE_COUNTER_COST.fullmatch(part):
