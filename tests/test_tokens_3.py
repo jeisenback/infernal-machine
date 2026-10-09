@@ -81,3 +81,62 @@ class DeekahTests(unittest.TestCase):
         run_stack(game)
         [fractal] = [p for p in a.battlefield if p.card.name == "Fractal"]
         self.assertEqual(fractal.counters, {"+1/+1": 2})
+
+
+def x_policy(x, *prefixes):
+    from infernal_machine.game import X_PROMPT
+    return lambda prompt, options: x if prompt.startswith(X_PROMPT) else pick(*prefixes)(prompt, options)
+
+
+class CurseOfTheSwineTests(unittest.TestCase):
+    def test_x_creatures_are_exiled_and_their_controllers_get_boars(self):
+        game, _ = table3(x_policy(2, CAST))
+        a, b, _c = game.seats
+        a.hand, a.battlefield = [REAL["Curse of the Swine"]], [Permanent(BEAR), *lands(6)]
+        b.battlefield = [Permanent(BEAR), Permanent(BEAR)]
+        game._priority_round(a)
+        run_stack(game)
+        exiled = len(a.exile) + len(b.exile)
+        boars = sum(p.card.name == "Boar" for p in a.battlefield + b.battlefield)
+        self.assertEqual((exiled, boars), (2, 2))
+
+
+class PestInfestationTests(unittest.TestCase):
+    def test_up_to_x_destroyed_and_twice_x_pests(self):
+        game, _ = table3(x_policy(2, CAST))
+        a, b, _c = game.seats
+        relics = [Permanent(Card(name=f"Relic {n}", type_line="Artifact")) for n in range(3)]
+        a.hand, a.battlefield = [REAL["Pest Infestation"]], lands(5)
+        b.battlefield = relics
+        game._priority_round(a)
+        run_stack(game)
+        self.assertEqual((len(b.battlefield), sum(p.card.name == "Pest" for p in a.battlefield)), (1, 4))
+
+
+class OversimplifyTests(unittest.TestCase):
+    def test_everyone_gets_a_fractal_as_big_as_the_power_they_lost(self):
+        game, _ = table3(pick(CAST))
+        a, b, c = game.seats
+        a.hand, a.battlefield = [REAL["Oversimplify"]], [Permanent(BEAR), *lands(5)]
+        b.battlefield = [Permanent(BEAR), Permanent(replace(BEAR, power="4", toughness="4"))]
+        game._priority_round(a)
+        run_stack(game)
+        sizes = {seat.index: [p.counters for p in seat.battlefield if p.card.name == "Fractal"] for seat in game.seats}
+        self.assertEqual(sizes, {0: [{"+1/+1": 2}], 1: [{"+1/+1": 6}], 2: []})  # c lost nothing: its 0/0 died at once
+
+
+class RiteOfReplicationTests(unittest.TestCase):
+    def test_five_tokens_when_kicked_one_otherwise(self):
+        for kicked, expected in ((False, 1), (True, 5)):
+            def policy(prompt, options, kicked=kicked):
+                from infernal_machine.game import KICKER_PROMPT
+                if prompt.startswith(KICKER_PROMPT):
+                    return 0 if kicked else 1
+                return pick(CAST, "Bear")(prompt, options)
+            game, _ = table3(policy)
+            a = game.seats[0]
+            a.hand, a.battlefield = [REAL["Rite of Replication"]], [Permanent(BEAR), *lands(9)]
+            game._priority_round(a)
+            run_stack(game)
+            tokens = sum(p.card.type_line.startswith("Token") for p in a.battlefield)
+            self.assertEqual(tokens, expected, kicked)

@@ -78,7 +78,10 @@ def rules_lines(card: Card) -> list[str]:
 
 
 _WHOLE_LINE = re.compile(
-    r"Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
+    r"Exile X target creatures\. For each creature exiled this way, its controller creates .+"
+    r"|Exile all creatures\. Each player creates a 0/0 green and blue Fractal creature token and puts a number of \+1/\+1 "
+    r"counters on it equal to the total power of creatures they controlled that were exiled this way\."
+    r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
     r"you or planeswalkers you control for as long as it has a vow counter on it\."
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
     r"|Remove all counters from target nonland permanent you control\. Draw a card for each counter removed this way\."
@@ -1437,13 +1440,14 @@ class CreateTokens:
 class CopyToken:
     """ "Create a token that's a copy of target creature you control." """
     target: str
+    count: int = 1  # Rite of Replication: five of them when it was kicked
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             card = target.card
             if not card.type_line.startswith("Token"):
                 card = dataclasses.replace(card, type_line="Token " + card.type_line)
-            game.create_tokens(controller, card, 1)
+            game.create_tokens(controller, card, game.amount(self.count))
 
 
 POPULATE_PROMPT = "Populate: copy which token? "
@@ -1724,6 +1728,54 @@ _SUSPEND = re.compile(r"Suspend (\d+)—((?:\{[^}]+\})+)")
 def suspend_of(card: Card) -> tuple[int, str] | None:
     """Suspend N—{cost}: (the time counters, the cost to exile it from your hand with them)."""
     return next(((int(m[1]), m[2]) for line in rules_lines(card) if (m := _SUSPEND.fullmatch(line))), None)
+
+
+@dataclass(frozen=True)
+class ExileXTargets:
+    """Curse of the Swine: "Exile X target creatures. For each creature exiled this way, its controller creates a 2/2 green
+    Boar creature token." The targets are one list (as many as there are, up to X)."""
+    token: Card
+    target: str = "creature"
+    up_to_x = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        gone = [p for p in target or [] if game.on_battlefield(p)]
+        for permanent in gone:
+            game.exile(permanent)
+        for permanent in gone:
+            if permanent.last_controller is not None:
+                game.create_tokens(permanent.last_controller, self.token, 1)
+
+
+@dataclass(frozen=True)
+class DestroyUpToX:
+    """Pest Infestation: "Destroy up to X target artifacts and/or enchantments." The targets are one list."""
+    target: str = "artifact or enchantment"
+    up_to_x = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in target or []:
+            game.destroy(permanent)
+
+
+_FRACTAL = Card(name="Fractal", type_line="Token Creature — Fractal", colors=("G", "U"), power="0", toughness="0")
+
+
+@dataclass(frozen=True)
+class Oversimplify:
+    """Oversimplify: "Exile all creatures. Each player creates a 0/0 green and blue Fractal creature token and puts a
+    number of +1/+1 counters on it equal to the total power of creatures they controlled that were exiled this way." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        creatures = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line]
+        game.exile_all(creatures)
+        for seat in game.turn_order_from_active():
+            total = sum(max(0, p.last_power) for p in creatures if p.last_controller is seat)
+            game.create_tokens(seat, _FRACTAL, 1, (total, "+1/+1"))
 
 
 @dataclass(frozen=True)
@@ -3493,6 +3545,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(r"exile X target creatures\. For each creature exiled this way, its controller creates (.+)\.(\"?)", re.I),
+     lambda m: (lambda parsed: ExileXTargets(parsed[1]) if parsed else None)(_token(m[1] + ('."' if m[2] else "")))),
+    (re.compile(r"exile all creatures\. Each player creates a 0/0 green and blue Fractal creature token and puts a number of "
+                r"\+1/\+1 counters on it equal to the total power of creatures they controlled that were exiled this way\.",
+                re.I), lambda m: Oversimplify()),
+    (re.compile(r"destroy up to X target artifacts and/or enchantments\.", re.I), lambda m: DestroyUpToX()),
+    (re.compile(r"create twice X (.+)\.(\"?)", re.I),
+     lambda m: (lambda parsed: CreateTokens("2X", parsed[1]) if parsed else None)(_token("X " + m[1] + ('."' if m[2] else "")))),
     (re.compile(r"add \{([WUBRGC])\} for each card in target opponent's hand\.", re.I), lambda m: AddManaPerCardInHand(m[1].upper())),
     (re.compile(r"until end of turn, you don't lose this mana as steps and phases end\.", re.I), lambda m: KeepManaThisTurn()),
     (re.compile(r"exile (?:CARDNAME|this spell) with (a|two|three|four|five|\d+) time counters? on it\.", re.I),

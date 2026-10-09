@@ -1582,7 +1582,7 @@ class Game:
 
     def amount(self, value: int | str) -> int:
         """A number from an effect; "X" is the resolving spell's X."""
-        return self.x_value if value == "X" else value
+        return self.x_value if value == "X" else 2 * self.x_value if value == "2X" else value
 
     def _apply_effects(self, item: StackItem) -> bool:
         """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""

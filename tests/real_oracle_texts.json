@@ -1931,6 +1931,51 @@
    "colors": [
     "W"
    ]
+  },
+  {
+   "name": "Curse of the Swine",
+   "mana_cost": "{X}{U}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Exile X target creatures. For each creature exiled this way, its controller creates a 2/2 green Boar creature token.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Pest Infestation",
+   "mana_cost": "{X}{X}{G}",
+   "type_line": "Sorcery",
+   "oracle_text": "Destroy up to X target artifacts and/or enchantments. Create twice X 1/1 black and green Pest creature tokens with \"When this token dies, you gain 1 life.\"",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Oversimplify",
+   "mana_cost": "{3}{G}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Exile all creatures. Each player creates a 0/0 green and blue Fractal creature token and puts a number of +1/+1 counters on it equal to the total power of creatures they controlled that were exiled this way.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Rite of Replication",
+   "mana_cost": "{2}{U}{U}",
+   "type_line": "Sorcery",
+   "oracle_text": "Kicker {5} (You may pay an additional {5} as you cast this spell.)\nCreate a token that's a copy of target creature. If this spell was kicked, create five of those tokens instead.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
