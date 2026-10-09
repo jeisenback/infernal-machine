@@ -274,6 +274,15 @@ winner = game.play()
 | Create a P/T ... creature token with (flying and) "<an ability we understand>" | Pest: "When this creature dies, you gain 1 life." |
 | Create N Treasure / Clue / Food token(s). | Smothering Tithe |
 | Create a token that's a copy of target creature (you control). / Populate. | Growing Ranks |
+| Create a 3/3 ... token, then populate. (the new token may be the one copied) | |
+| Create a token that's a copy of another target creature you control. (not the source itself) | |
+| Create a token that's a copy of it, tapped and attacking. (the copy attacks whom the source attacks; it is never declared, so attack triggers don't see it) | |
+| Target player loses half their life, rounded up / rounded down. | |
+| Double the number of +1/+1 counters on target creature. | |
+| When this creature dies, return it to the battlefield (tapped). / ... under its owner's control. (a token is gone for good) | |
+| You may put a creature card from your hand onto the battlefield. | |
+| Mill three cards, then return a creature card from your graveyard to your hand. (any two effects that each work alone join with ", then") | |
+| You gain life equal to the amount of life you lost this turn. | |
 | Destroy target permanent. Its controller creates a 3/3 green Beast creature token. / That creature's controller creates ... | Beast Within, Rapid Hybridization, Resculpt |
 | Draw two cards and create two Treasure tokens. | Big Score, Seize the Spoils |
 | Create a token that's a copy of target creature. If this spell was kicked, create five of those tokens instead. | Rite of Replication |

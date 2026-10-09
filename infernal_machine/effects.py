@@ -1443,6 +1443,7 @@ class CopyToken:
     """ "Create a token that's a copy of target creature you control." """
     target: str
     count: int = 1  # Rite of Replication: "If this spell was kicked, create five of those tokens instead."
+    another: bool = False  # "a copy of another target creature you control": not the source itself
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -1563,6 +1564,70 @@ def _merge_token_copies(effects: list) -> list | None:
         merged.append(effects[i])
         i += 1
     return merged
+
+
+@dataclass(frozen=True)
+class CopyTokenAttacking:
+    """ "Create a token that's a copy of it, tapped and attacking." (it: the attacking source). The token attacks the
+    same player or planeswalker; it was never declared as an attacker, so attack triggers do not see it."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.copy_attacking(controller, target)
+
+
+@dataclass(frozen=True)
+class TargetLoseHalfLife:
+    """ "Target player loses half their life, rounded up (down)." """
+    target: str  # "player" or "opponent"
+    round_up: bool
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target.life > 0:
+            game.change_life(target, -((target.life + 1) // 2 if self.round_up else target.life // 2))
+
+
+@dataclass(frozen=True)
+class DoubleCountersOnTarget:
+    """ "Double the number of +1/+1 counters on target creature." """
+    counter: str
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target.counters.get(self.counter):
+            game.put_counters(target, self.counter, target.counters[self.counter])
+
+
+@dataclass(frozen=True)
+class ReturnSelfToBattlefield:
+    """ "When this creature dies, return it to the battlefield (tapped)." It comes back as a new object under its
+    owner's control; a token is gone for good."""
+    tapped: bool = False
+    uses_dead_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.return_dead_to_battlefield(target, controller, under_owner=True, tapped=self.tapped)
+
+
+@dataclass(frozen=True)
+class PutFromHand:
+    """ "You may put a creature card from your hand onto the battlefield." """
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.put_from_hand(controller, self.kind)
+
+
+@dataclass(frozen=True)
+class ReturnChosen:
+    """ "Return a creature card from your graveyard to your hand.": you choose, it is not targeted."""
+    kind: str
+    to: str  # "hand"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.return_chosen(controller, self.kind, self.to)
 
 
 POPULATE_PROMPT = "Populate: copy which token? "
@@ -2057,6 +2122,7 @@ _AMOUNTS = [
                 re.I), lambda m: Amount("graveyard", (m[1] or "card").lower())),
     (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
     (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
+    (re.compile(r"the amount of life you lost this turn", re.I), lambda m: Amount("life_lost")),
     (re.compile(r"half your life total, rounded (down|up)", re.I), lambda m: Amount("half_life", m[1].lower())),
     (re.compile(r"(?:the number of )?spells? you've cast this turn", re.I), lambda m: Amount("spells_cast")),
     (re.compile(r"the greatest mana value among instant and sorcery spells you've cast this turn", re.I),
@@ -3825,6 +3891,19 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"target (creature(?: that attacked this turn)?) becomes (prepared|unprepared)\.", re.I),
      lambda m: TargetPrepared(m[1].lower(), m[2].lower() == "prepared")),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
+    (re.compile(rf"create a token that's a copy of another target {_PERMANENT_KIND}\.", re.I),
+     lambda m: CopyToken(m[1].lower(), another=True)),
+    (re.compile(rf"create a token that's a copy of {_SELF}, tapped and attacking\.", re.I), lambda m: CopyTokenAttacking()),
+    (re.compile(r"target (player|opponent) loses half their life, rounded (up|down)\.", re.I),
+     lambda m: TargetLoseHalfLife(m[1].lower(), m[2].lower() == "up")),
+    (re.compile(rf"double the number of {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
+     lambda m: DoubleCountersOnTarget(_counter_name(m[1]), m[2].lower())),
+    (re.compile(rf"return {_SELF} to the battlefield( tapped)?( under its owner's control)?\.", re.I),
+     lambda m: ReturnSelfToBattlefield(tapped=bool(m[1]))),
+    (re.compile(rf"you may put an? {_CARD_TYPE} from your hand onto the battlefield\.", re.I),
+     lambda m: PutFromHand(_card_kind(m[1]))),
+    (re.compile(rf"return an? {_CARD_TYPE} from your graveyard to your hand\.", re.I),
+     lambda m: ReturnChosen(_card_kind(m[1]), "hand")),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
     (re.compile(rf"return (?:{_SELF}|this card) to its owner's hand\.", re.I), lambda m: ReturnSelfToHand()),
@@ -4042,6 +4121,8 @@ def _clauses(sentence: str) -> list[str]:
         return [f"Let X be {m[2]}."] + _clauses(body + ".") if count and _amount(m[2]) else [sentence]
     if m := re.fullmatch(r"(Create .+ tokens?), then (put .+ counters? on it\.)", sentence):
         return [m[1] + ".", m[2].capitalize()]
+    if m := re.fullmatch(r"(Create .+ tokens?), then populate\.", sentence):
+        return [m[1] + ".", "Populate."]
     sentence = re.sub(r"^You (draw|create) ", lambda m: m[1].capitalize() + " ", sentence)
     if m := re.fullmatch(rf"(Draw {_N} cards?) and (create .+)\.", sentence):  # Big Score, Seize the Spoils
         return [m[1] + ".", m[3][:1].upper() + m[3][1:] + "."]
@@ -4049,6 +4130,10 @@ def _clauses(sentence: str) -> list[str]:
         return _clauses(m[1] + ".") + [_you_do(m[2])]
     if m := re.fullmatch(rf"(?:you )?(?P<first>{_YOUR_ACTION}) and (?P<second>{_YOUR_ACTION})\.", sentence, re.I):
         return [_you_do(m["first"]), _you_do(m["second"])]
+    if m := re.fullmatch(r"(.+?), then (.+)\.", sentence):  # "Mill three cards, then return a creature card ..."
+        first, second = m[1] + ".", m[2][:1].upper() + m[2][1:] + "."
+        if _template(first) is not None and _template(second) is not None:
+            return [first, second]
     return [sentence]
 
 
@@ -4797,6 +4882,8 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
                                                                  event in _PLAYER_EVENTS)
             else:
                 effects, optional, once, condition = _trigger_body(match[1])
+            if effects is not None and event != "dies" and any(isinstance(e, ReturnSelfToBattlefield) for e in effects):
+                effects = None  # "return it to the battlefield": it is only gone when the creature has died
             if effects is not None:
                 abilities.append(TriggeredAbility(event, tuple(effects), optional, line, once_per_turn=once,
                                                   condition=condition))

@@ -21,7 +21,7 @@ from .analysis import is_land
 from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import MINUS, PLUS, Modifier, source_qualities
-from .combat import Combat
+from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
@@ -81,6 +81,9 @@ SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+PUT_FROM_HAND_PROMPT = "Put a card from your hand onto the battlefield: "
+RETURN_CHOSEN_PROMPT = "Return which card from your graveyard? "
+DECLINE = "Don't"
 CHOOSE_COLOR_PROMPT = "Choose a color for "  # followed by the card's name; white, blue, black, red, green
 KAROO_PROMPT = "Return a land or sacrifice "  # followed by the card's name; the last option is SACRIFICE_IT
 SACRIFICE_IT = "Sacrifice it"
@@ -283,6 +286,7 @@ class Seat:
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
+    life_lost_amount: int = 0  # how much they lost on life_lost_turn
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
     suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
     player_counters: dict[str, int] = field(default_factory=dict)  # counters on the player: poison, energy, ...
@@ -1650,6 +1654,8 @@ class Game:
             return sum(_card_matches(amount.what, c) for c in controller.graveyard)
         if kind == "half_life":
             return max(0, controller.life) // 2 if amount.what == "down" else (max(0, controller.life) + 1) // 2
+        if kind == "life_lost":
+            return controller.life_lost_amount if controller.life_lost_turn == self.turn else 0
         if kind == "life_gained":
             return controller.life_gained_amount if controller.life_gained_turn == self.turn else 0
         if kind == "spells_cast":
@@ -2049,6 +2055,9 @@ class Game:
             first_loss = amount < 0 and seat.life_lost_turn != self.turn
             first_gain = amount > 0 and seat.life_gained_turn != self.turn
             if amount < 0:
+                if seat.life_lost_turn != self.turn:
+                    seat.life_lost_amount = 0
+                seat.life_lost_amount -= amount
                 seat.life_lost_turn = self.turn
             else:
                 if seat.life_gained_turn != self.turn:
@@ -2258,13 +2267,42 @@ class Game:
     def _graveyard_of(self, card: Card) -> Seat | None:
         return next((s for s in self.seats if any(c is card for c in s.graveyard)), None)
 
-    def return_dead_to_battlefield(self, dead: Permanent, controller: Seat, under_owner: bool) -> None:
+    def return_dead_to_battlefield(self, dead: Permanent, controller: Seat, under_owner: bool, tapped: bool = False) -> None:
         """A creature that just died comes back from its owner's graveyard, under `controller`'s control unless
         `under_owner`."""
         holder = self._graveyard_of(dead.card)
         if holder is not None:
             self.return_from_graveyard(GraveyardTarget(dead.card, holder), holder if under_owner else controller,
-                                       "battlefield")
+                                       "battlefield", tapped)
+
+    def copy_attacking(self, seat: Seat, source: Permanent) -> None:
+        """A token that's a copy of `source`, tapped and attacking whom it attacks."""
+        attack = next((a for a in self.combat.attacks if a.attacker is source), None)
+        card = source.card if _is_token(source.card) else dataclasses.replace(source.card, type_line="Token " + source.card.type_line)
+        for made in self.create_tokens(seat, card, 1):
+            made.tapped = True
+            if attack is not None:
+                self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
+                self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": attack.defender.index})
+
+    def put_from_hand(self, seat: Seat, kind: str) -> None:
+        """"You may put a creature card from your hand onto the battlefield.": you choose one, or none."""
+        options = [c for c in seat.hand if _card_matches(kind, c)]
+        if not options:
+            return
+        pick = seat.player.choose(PUT_FROM_HAND_PROMPT, [c.name for c in options] + [DECLINE])
+        if pick < len(options):
+            card = options[pick]
+            seat.hand.remove(card)
+            self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card)))
+
+    def return_chosen(self, seat: Seat, kind: str, to: str) -> None:
+        """"Return a creature card from your graveyard to your hand.": you choose, nothing is targeted."""
+        options = [c for c in seat.graveyard if _card_matches(kind, c)]
+        if not options:
+            return
+        card = options[0] if len(options) == 1 else options[seat.player.choose(RETURN_CHOSEN_PROMPT, [c.name for c in options])]
+        self.return_from_graveyard(GraveyardTarget(card, seat), seat, to)
 
     def return_aura(self, source: Permanent, controller: Seat, when: str, host: Permanent | None) -> None:
         """An Aura in a graveyard comes back to the battlefield, right away ("now") or as the next end step begins.
