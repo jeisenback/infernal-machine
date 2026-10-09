@@ -29,7 +29,7 @@ from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, Altern
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
-                      filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, mana_spent_trigger, Scry, spell_effects, static_abilities, target_kind,
+                      filter_mana_ability, follows_target, mana_ability, mana_extra_cost, mana_restriction, charge_mana, mana_ability_sacrifices, mana_spent_trigger, Scry, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
 from .mana import SNOW, Cost, parse_cost, pay
@@ -203,6 +203,7 @@ class ManaSource:
     pain: frozenset[str] = frozenset()  # types that deal `damage` to the controller when produced
     damage: int = 0
     life: bool = False  # the `damage` is life paid (Mana Confluence), not damage dealt
+    restriction: str | None = None  # what the mana may be spent on (see effects.mana_restriction)
 
 
 def _snowy(permanent: "Permanent", types: frozenset[str]) -> frozenset[str]:
@@ -330,6 +331,11 @@ class Seat:
 
 
 class Game:
+    # What the mana being paid is for, so "Spend this mana only ..." sources can say whether they qualify: a spell, or an
+    # ability whose cost has {X}.
+    _spending_spell: Card | None = None
+    _spending_x: bool = False
+
     def __init__(self, seats: list[tuple[Player, Deck]], seed: int | None = None):
         if len(seats) < 2:
             raise ValueError("Commander needs at least two players")
@@ -815,7 +821,11 @@ class Game:
                          x: int = 0) -> list[Permanent] | None:
         cost = (parse_cost(ability.mana_cost) if ability.mana_cost else Cost()).with_x(x)
         # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
-        return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice else None)
+        self._spending_x = "{X}" in ability.mana_cost
+        try:
+            return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice else None)
+        finally:
+            self._spending_x = False
 
     def _mana_spent_matches(self, seat: Seat, source: Permanent, card: Card, from_command_zone: bool, tapped) -> bool:
         """Whether `source`'s "When that mana is spent to cast ..." rider applies to casting `card`. A Study Hall
@@ -863,6 +873,10 @@ class Game:
             self.tap(source)
             if not is_land(source.card) and mana_ability_sacrifices(source.card):
                 self._leave_battlefield(source, "sacrificed")
+            if (extra := mana_extra_cost(source.card)) == "mill":
+                self.mill(seat, 1)
+            elif extra == "food" and (food := next((p for p in seat.battlefield if _has_type(p.card, "food")), None)):
+                self._leave_battlefield(food, "sacrificed")
         if pain := getattr(sources, "pain", 0):
             self.damage(seat, pain)
         if life := getattr(sources, "life", 0):
@@ -896,11 +910,21 @@ class Game:
                 continue
             seat.mana_pool.clear()
 
+    def _restriction_ok(self, restriction: str | None) -> bool:
+        """Whether mana limited by `restriction` can pay for what is being paid for now."""
+        if restriction is None:
+            return True
+        spell = self._spending_spell
+        if restriction == "x_cost":
+            return self._spending_x or (spell is not None and "{X}" in spell.mana_cost)
+        return spell is not None and (spell.cmc >= 5 or "{X}" in spell.mana_cost)
+
     def _mana_sources(self, seat: Seat, exclude: Permanent | None = None) -> list[ManaSource]:
         """One entry per mana each untapped permanent can make: nonland sources first,
         then lands, and sources that sacrifice themselves (Treasure) last."""
         abilities, lands, sacrifices = [], [], []
         pooled = [ManaSource(None, unit) for unit in seat.mana_pool]
+        foods = sum(_has_type(p.card, "food") for p in seat.battlefield)  # Gilded Goose: one Food per use
         for permanent in seat.battlefield:
             if permanent.tapped or permanent is exclude:
                 continue
@@ -942,14 +966,26 @@ class Game:
                 lands.extend([ManaSource(permanent, _snowy(permanent, types), pain, damage)] + extra)
             elif not (permanent.sick and "Creature" in card.type_line):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
+                extra = mana_extra_cost(card)
+                if extra == "food" and foods <= 0 or extra == "mill" and not seat.library:
+                    continue  # nothing to pay the mana ability's extra cost with
+                if extra == "food":
+                    foods -= 1
+                if (charge := charge_mana(card)) is not None:  # Astral Cornucopia: a mana for each charge counter
+                    if permanent.counters.get("charge", 0) and self._restriction_ok(charge[1]):
+                        bucket.extend(ManaSource(permanent, charge[0], restriction=charge[1])
+                                      for _ in range(permanent.counters["charge"]))
                 if (kind := counter_mana(card)) is not None:  # Mana Bloom: a counter for one mana, once each turn
                     if permanent.counters.get(kind, 0) and permanent.activated_turn.get("counter mana") != self.turn:
                         bucket.append(ManaSource(permanent, frozenset("WUBRG")))
                     continue
                 units = ([frozenset("WUBRG")] * max(0, self.power(permanent)) if makes_mana_by_power(card)
                          else mana_ability(card, seat.color_identity) or [])  # (the power's worth need not be one color here)
+                restriction = mana_restriction(card)
+                if not self._restriction_ok(restriction):
+                    continue
                 for mana in units:
-                    bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage))
+                    bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage, restriction=restriction))
         return pooled + abilities + lands + sacrifices
 
     def _reflected_types(self, seat: Seat, opponents: bool, colorless: bool) -> frozenset[str]:
@@ -968,7 +1004,13 @@ class Game:
                  delve: int = 0) -> list[Permanent] | None:
         """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now."""
         cost = self._cast_cost(seat, card, from_command_zone, x, alternative, kickers, extra, delve)
-        return None if cost is None else self._pay_cost(seat, cost)
+        if cost is None:
+            return None
+        self._spending_spell = card
+        try:
+            return self._pay_cost(seat, cost)
+        finally:
+            self._spending_spell = None
 
     def _cast_cost(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
                    alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",
@@ -1525,7 +1567,11 @@ class Game:
             delve = next(k for k in range(self._delve_max(seat, paying) + 1)
                          if self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=k) is not None)
         cost = self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve)
-        tapped = self._pay_cost(seat, cost)
+        self._spending_spell = paying
+        try:
+            tapped = self._pay_cost(seat, cost)
+        finally:
+            self._spending_spell = None
         self._spend_mana(seat, tapped)
         spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
         for _ in range(delve):
