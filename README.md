@@ -365,6 +365,16 @@ winner = game.play()
     card is put into your graveyard from anywhere" and "Whenever you expend N" (as the Nth mana of the turn is spent on
     spells, once a turn). Quest for Renewal's creatures untap in each other player's untap step while it has four quest
     counters.
+  - Watch qualifiers: "Whenever a creature you control with power 4 or greater enters" (or toughness, "with flying",
+    "with a +1/+1 counter on it"; for entering, dying and attacking). Cast qualifiers: "multicolored spell", and "the number of
+    colors that spell is" and "cards in all graveyards with the same name as that spell" as amounts.
+  - Turn triggers: "At the beginning of your draw step" and "each other player's draw step" ("draw an additional card"),
+    "At the beginning of each opponent's upkeep" and "an opponent's end step" ("that player" is whose turn it is; "if that
+    player didn't cast a creature spell this turn" and "has one or fewer cards in hand"; "the number of cards in their hand
+    (minus N)"), "Whenever an opponent attacks with creatures, if two or more of those creatures are attacking you", and the
+    intervening "if you control no other creatures". "Power and toughness are each equal to the number of cards in your hand"
+    (Overbeing of Myth) is its base size. "Players have no maximum hand size" and "Your maximum hand size is equal to the number
+    of hour counters" (Midnight Oil) decide who discards at cleanup.
 - **Current power, toughness and keywords:** printed values plus counters, static abilities and
   "until end of turn" effects. They count everywhere: combat, damage, targeting (granted hexproof),
   destroy (granted indestructible), state checks, and the labels players see ("Bear 4/4").

@@ -82,6 +82,7 @@ class Combat:
                 self.game._queue(TriggeredAbility("attacks", (Annihilate(n),), False, f"Annihilator {n}"), permanent, seat,
                                  player=defender)
             self.game._trigger_each("ally_attacks", seat, subject=permanent)
+            self.game._observe("creature_attacks", permanent.card, seat, subject=permanent)
             self.game._trigger_each("attacked_or_walker", defender, subject=permanent)
             if walker is None:
                 self.game._trigger_each("attacked", defender, subject=permanent)
@@ -92,6 +93,11 @@ class Combat:
             self.game.broadcast({"event": "attack", "seat": seat.index, "card": permanent.card.name,
                                  "defender": defender.index,
                                  **({"planeswalker": walker.card.name} if walker is not None else {})})
+        if self.attacks:  # "Whenever an opponent attacks with creatures": x is how many are aimed at the watcher
+            for watcher in self.game.opponents(seat):
+                aimed = sum(1 for a in self.attacks if a.defender is watcher)
+                for permanent in list(watcher.battlefield):
+                    self.game.trigger("opponent_attacks", permanent, watcher, player=seat, x=aimed)
         if len(self.attacks) >= 2:
             for permanent in list(seat.battlefield):
                 self.game.trigger("attack_with_two", permanent, seat)
