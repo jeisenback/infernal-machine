@@ -105,6 +105,10 @@ class Combat:
             for permanent in list(seat.battlefield):
                 self.game.trigger("attack_with_two", permanent, seat)
         if self.attacks:
+            for holder in self.game.live_seats():  # Killian: an attacker enchanted by an Aura that holder controls (any attacker)
+                if any(self._enchanted_by(a.attacker, holder) for a in self.attacks):
+                    for permanent in list(holder.battlefield):
+                        self.game.trigger("enchanted_attack", permanent, holder)
             for permanent in list(seat.battlefield):
                 self.game.trigger("creatures_attack", permanent, seat)
             if len(self.attacks) == 1:  # "Whenever you attack with a creature alone"
@@ -113,6 +117,11 @@ class Combat:
                 at_them = sum(1 for a in self.attacks if a.defender is other)
                 for permanent in list(other.battlefield):
                     self.game.trigger("opponent_attacks", permanent, other, player=seat, x=at_them)
+
+    @staticmethod
+    def _enchanted_by(creature: Permanent, holder: Seat) -> bool:
+        """Whether an Aura `holder` controls is attached to `creature`."""
+        return any(p.attached_to is creature and "Aura" in p.card.type_line for p in holder.battlefield)
 
     def _attack_tax(self, permanent: Permanent, defender: Seat) -> int:
         """What attacking `defender` costs `permanent`: Nils makes each counter on the attacker cost {1}."""

@@ -1,5 +1,5 @@
-session: claude-code nice-albattani
-branch: claude/nice-albattani-8ps1nk
-task: Infinite Coursework and issue #25 fixes
-status: done, PR #140 open
-updated: 2026-10-09T21:30:34Z
+session: claude-code triggers-80
+branch: claude/triggers-80
+task: issue #80 (trigger effects the precon decks need), stacked on PR 140
+status: pull request open
+updated: 2026-10-09T23:25:00Z
