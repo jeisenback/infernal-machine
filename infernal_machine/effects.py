@@ -3881,6 +3881,19 @@ class PrepareEach:
             game.prepare(permanent)
 
 
+@dataclass(frozen=True)
+class WhenThatDealsCombatDamage:
+    """Stensian Sanguinist: "Whenever that creature deals combat damage to a player this combat, this creature becomes
+    prepared." The creature is the last one targeted; the watch lives on this combat, so it ends with it."""
+    then: Any
+    follows_target = True
+    text = "Whenever that creature deals combat damage to a player this combat, this creature becomes prepared."
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.resolving_source is not None:
+            game.combat.damage_watches.append((target, game.resolving_source, self))
+
+
 _ENTERS_PREPARED = re.compile(rf"{_SELF} enters prepared\.", re.I)
 
 
@@ -5019,6 +5032,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield tapped and attacking that opponent\.)"),
      lambda m: PutAttackingFromHand(tuple(re.findall(r"[A-Z][a-z]+", m[1])))),
     (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
+    (re.compile(rf"whenever that creature deals combat damage to a player this combat, ({_SELF} becomes prepared)\.", re.I),
+     lambda m: WhenThatDealsCombatDamage(BecomePrepared())),
     (re.compile(r"each creature you control becomes prepared\.", re.I), lambda m: PrepareEach()),
     (re.compile(r"target (creature(?: that attacked this turn)?) becomes (prepared|unprepared)\.", re.I),
      lambda m: TargetPrepared(m[1].lower(), m[2].lower() == "prepared")),
@@ -5606,7 +5621,7 @@ class TriggeredAbility:
 @dataclass(frozen=True)
 class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
-    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
+    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "target_power_at_least", "cast_this_turn", "control_at_least",
     #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
     #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
     count: int = 0
@@ -5623,6 +5638,8 @@ _CONDITIONS = [
     (re.compile(rf"you gained {_N} or more life this turn"), lambda m: Condition("gained_life_at_least", _count(m[1]))),
     (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
+    (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),
+    (re.compile(rf"that creature has power {_N} or greater"), lambda m: Condition("target_power_at_least", _count(m[1]))),
     (re.compile(r"you've cast an? (instant or sorcery spell|creature spell|noncreature spell|spell) this turn"),
      lambda m: Condition("cast_this_turn", what=m[1])),
     (re.compile(rf"you control {_N} or more (white|blue|black|red|green) permanents"),
@@ -5730,7 +5747,7 @@ _TRIGGERS = {
     "host_attacks": re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I),
     "attack_with_two": re.compile(r"Whenever you attack with two or more creatures, (.+)", re.I),
     "attack_alone": re.compile(r"Whenever (?:you attack with a creature alone|a creature you control attacks alone), (.+)", re.I),
-    "creatures_attack": re.compile(r"Whenever one or more creatures you control attack, (.+)", re.I),
+    "creatures_attack": re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I),
     "opponent_attacks": re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I),
     "cycle": re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I),
     "cycle_or_discard": re.compile(r"Whenever you cycle or discard (?:a|another) card, (.+)", re.I),

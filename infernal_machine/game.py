@@ -390,6 +390,7 @@ class Game:
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
+        self.resolving_target: Any = None  # the last target chosen for it, which "that creature" in a condition means
         self.resolving_colors: frozenset[str] = frozenset()  # its colors (for protection from damage)
 
     @property
@@ -1991,6 +1992,7 @@ class Game:
         finally:
             self.x_value, self.resolving_source = 0, None
             self.resolving_item, self.resolving_colors = None, frozenset()
+            self.resolving_target = None
 
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
@@ -2032,6 +2034,7 @@ class Game:
                 target = item.source  # persist and undying: the creature has already left the battlefield
             elif uses_source(effect):
                 target = item.source if item.source and self.on_battlefield(item.source) else None
+            self.resolving_target = previous
             effect.resolve(self, seat, target)
         return True
 
@@ -2113,6 +2116,12 @@ class Game:
         if kind == "opponent_more_lands":
             lands = lambda s: sum(is_land(p.card) for p in s.battlefield)
             return any(lands(o) > lands(seat) for o in self.opponents(seat))
+        if kind == "target_power_at_least":  # Yavimaya Bloomsage: "if that creature has power 7 or greater"
+            target = self.resolving_target
+            return isinstance(target, Permanent) and self.on_battlefield(target) and self.power(target) >= condition.count
+        if kind == "opponent_more_creatures":  # Emeritus of Truce
+            creatures = lambda s: sum("Creature" in p.card.type_line for p in s.battlefield)
+            return any(creatures(o) > creatures(seat) for o in self.opponents(seat))
         if kind == "cast_this_turn":
             return any(turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in seat.cast_log)
         if kind == "no_counter":  # "if it had no -1/-1 counters on it": what it had when it left
@@ -2441,6 +2450,10 @@ class Game:
                 if controller.surge is not None and controller.surge[0] == self.turn:  # Surge to Victory
                     self._queue(TriggeredAbility("ally_combat_damage", (CastExiledCopy(controller.surge[1]),), True,
                                                  "Surge to Victory"), source, controller)
+                for watched, watcher, effect in list(self.combat.damage_watches):  # "Whenever that creature deals ... this combat"
+                    if watched is source and self.on_battlefield(watcher):
+                        self._queue(TriggeredAbility("ally_combat_damage", (effect.then,), False, effect.text), watcher,
+                                    self.controller_of(watcher))
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):

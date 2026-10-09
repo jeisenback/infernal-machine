@@ -9,7 +9,7 @@ and keywords are read through the game so modifiers count.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .characteristics import source_qualities
 from .effects import (CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, Annihilate, TriggeredAbility, attack_tax_per_counter, combat_restrictions,
@@ -40,6 +40,7 @@ class Combat:
     def __init__(self, game: Game):
         self.game = game
         self.attacks: list[Attack] = []
+        self.damage_watches: list[tuple[Permanent, Permanent, Any]] = []  # (creature, watcher, effect): Stensian Sanguinist
 
     def declare_attackers(self, seat: Seat) -> None:
         """Ask the active player, creature by creature, whether and whom to attack (CR 508.1)."""
