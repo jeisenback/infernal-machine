@@ -1,5 +1,5 @@
 session: claude-code nice-albattani
 branch: claude/nice-albattani-8ps1nk
-task: attack taxes paid once as a total (CR 508.1h-i)
-status: done, pushed, PR to open
-updated: 2026-10-09T19:30:23Z
+task: rules fixes from the Comprehensive Rules check (citations, tokens, attack taxes)
+status: done, PR #139 open
+updated: 2026-10-09T19:42:15Z
