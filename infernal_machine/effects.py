@@ -111,7 +111,8 @@ _WHOLE_LINE = re.compile(
     r"isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the next end step\."
     r"|Target player draws cards equal to half the number of cards in their library and loses half their life\. "
     r"Round up each time\."
-    r"|Until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\.", re.I)
+    r"|Until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\."
+    r"|Tap enchanted creature\. It becomes unprepared\.", re.I)
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -1664,9 +1665,12 @@ class AttachedBuff:
     subtype: str | None = None  # "... and is an Angel in addition to its other types."
 
 
+_ATTACHED_LOSES = re.compile(r"(?:Equipped|Enchanted) creature (?:loses all abilities(?: and doesn't untap during its controller's "
+                             r"untap step)?|doesn't untap during its controller's untap step)\.")
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
                        r"|can't attack or block)\.")
 CANT_ATTACK, CANT_BLOCK = "can't attack", "can't block"  # pseudo-keywords, so combat can ask has_keyword
+LOSES_ALL, NO_UNTAP = "loses all abilities", "doesn't untap"  # pseudo-keywords of an Aura: Infinite Coursework
 CANT_BE_BLOCKED = "can't be blocked"
 
 
@@ -1728,6 +1732,9 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             buffs.append(AttachedBuff(Modifier(keywords=_keyword_list(m[1])), line))
         elif m := _ATTACHED_TYPED.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[3])), line, subtype=m[4]))
+        elif _ATTACHED_LOSES.fullmatch(line):  # Infinite Coursework
+            keywords = {LOSES_ALL} if "loses all abilities" in line else set()
+            buffs.append(AttachedBuff(Modifier(keywords=frozenset(keywords | ({NO_UNTAP} if "untap" in line else set()))), line))
         elif m := _ATTACHED_GOADED.fullmatch(line):
             keywords = _keyword_list(m[3]) if m[3] else frozenset()
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), keywords), line, goaded=True))
@@ -3902,6 +3909,20 @@ class PayLifeForMana:
 
 
 @dataclass(frozen=True)
+class TapEnchanted:
+    """An Aura's "When this Aura enters, tap enchanted creature." (Infinite Coursework adds "It becomes unprepared.")"""
+    unprepare: bool = False
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        host = target.attached_to if target is not None else None
+        if host is not None and game.on_battlefield(host):
+            game.tap(host)
+            if self.unprepare:
+                game.unprepare(host)
+
+
+@dataclass(frozen=True)
 class Conjure:
     """Alchemy: "Conjure a card named Storm Crow onto the battlefield." The card was looked up when the deck loaded."""
     name: str
@@ -5062,6 +5083,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutAttackingFromHand(tuple(re.findall(r"[A-Z][a-z]+", m[1])))),
     (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
     (re.compile(r"conjure a card named (.+?) onto the battlefield\.", re.I), lambda m: Conjure(m[1])),
+    (re.compile(r"tap enchanted creature\.", re.I), lambda m: TapEnchanted()),
+    (re.compile(r"tap enchanted creature\. It becomes unprepared\.", re.I), lambda m: TapEnchanted(unprepare=True)),
     (re.compile(r"until end of turn, whenever you tap a mountain for mana, add an additional \{R\}\.", re.I),
      lambda m: ExtraMountainMana()),
     (re.compile(r"until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\.",

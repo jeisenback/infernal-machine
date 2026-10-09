@@ -23,7 +23,7 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
+from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
@@ -507,7 +507,8 @@ class Game:
         if self.step == "untap":
             self.combat = Combat(self)
             for permanent in seat.battlefield:
-                permanent.tapped = False
+                if not self.has_keyword(permanent, NO_UNTAP):  # Infinite Coursework
+                    permanent.tapped = False
                 permanent.sick = False
                 permanent.until_next_turn = []
             for other in self.live_seats():  # goad lasts until the goader's next turn
@@ -712,7 +713,8 @@ class Game:
         for permanent in seat.battlefield:
             granted = [a for other in self.seats for attachment in other.battlefield if attachment.attached_to is permanent
                        for a in granted_abilities(attachment.card)]
-            for ability in [*activated_abilities(permanent.card), *granted]:
+            own = [] if self.loses_abilities(permanent) else activated_abilities(permanent.card)
+            for ability in [*own, *granted]:
                 if not ability.discard_self and not ability.from_graveyard and self._can_activate(seat, permanent, ability, sorcery_timing):
                     text = ability.text.replace("CARDNAME", permanent.card.name)
                     options[f"{ACTIVATE}{self.label(permanent)}: {text}"] = (permanent, ability)
@@ -969,7 +971,7 @@ class Game:
         pooled = [ManaSource(None, unit) for unit in seat.mana_pool]
         foods = sum(_has_type(p.card, "food") for p in seat.battlefield)  # Gilded Goose: one Food per use
         for permanent in seat.battlefield:
-            if permanent.tapped or permanent is exclude:
+            if permanent.tapped or permanent is exclude or self.loses_abilities(permanent):
                 continue
             card = permanent.card
             pain, damage = mana_pain(card) or (frozenset(), 0)
@@ -1265,7 +1267,8 @@ class Game:
     def _filter_sources(self, seat: Seat, exclude: Permanent | None) -> list[tuple[Permanent, Cost, list]]:
         found = []
         for permanent in seat.battlefield:
-            if permanent.tapped or permanent is exclude or (permanent.sick and "Creature" in permanent.card.type_line):
+            if permanent.tapped or permanent is exclude or (permanent.sick and "Creature" in permanent.card.type_line) \
+                    or self.loses_abilities(permanent):
                 continue
             ability = filter_mana_ability(permanent.card)
             if ability:
@@ -2067,6 +2070,8 @@ class Game:
                 player: Seat | None = None, x: int = 0, spell: "StackItem | Card | None" = None) -> None:
         """Note that `permanent`'s abilities for `event` triggered; they go on the stack
         the next time a player would get priority (CR 603.3)."""
+        if self.loses_abilities(permanent):
+            return
         for ability in triggered_abilities(permanent.card):
             if ability.event == event and ability.watch is None:
                 if any(isinstance(e, ReturnThisFromGraveyard) for e in ability.effects) and self.on_battlefield(permanent):
@@ -2203,6 +2208,8 @@ class Game:
         for watcher, watcher_seat in watchers + eminent + buried:
             in_command_zone = any(watcher is p for p, _ in eminent)
             in_graveyard = any(watcher is p for p, _ in buried)
+            if self.loses_abilities(watcher):
+                continue
             for ability in triggered_abilities(watcher.card):
                 watch = ability.watch
                 if not watch or ability.event != ("cast" if event == "copy" else event):
@@ -2906,6 +2913,8 @@ class Game:
             return mods
         subtypes = self.subtypes(permanent)
         for owner, source in [(s, p) for s in self.seats for p in s.battlefield]:
+            if self.loses_abilities(source):
+                continue
             for buff in static_abilities(source.card):
                 if owner is not controller and not buff.everyone:
                     continue
@@ -2978,7 +2987,14 @@ class Game:
         mods = self.modifiers(permanent)
         if keyword in ("hexproof", "shroud") and any(LOSES_HEXPROOF in m.keywords for m in mods):
             return False  # Arcane Lighthouse
-        return has_keyword(permanent.card, keyword) or any(keyword in m.keywords for m in mods)
+        printed = has_keyword(permanent.card, keyword) and not self.loses_abilities(permanent)
+        return printed or any(keyword in m.keywords for m in mods)
+
+    def loses_abilities(self, permanent: Permanent) -> bool:
+        """Whether an Aura or Equipment on it takes away all its abilities (Infinite Coursework). Abilities that other
+        effects give it are kept; the order effects were made in is not tracked."""
+        return any(a.attached_to is permanent and any(LOSES_ALL in b.modifier.keywords for b in attached_abilities(a.card))
+                   for s in self.seats for a in s.battlefield)
 
     def annihilator(self, permanent: Permanent) -> int:
         """N of the creature's Annihilator N, printed or granted (Eldrazi Conscription); they add up."""
