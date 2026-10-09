@@ -2024,6 +2024,190 @@
    ]
   },
   {
+   "name": "Aven Shrine",
+   "mana_cost": "{1}{W}{W}",
+   "type_line": "Enchantment",
+   "oracle_text": "Whenever a player casts a spell, that player gains X life, where X is the number of cards in all graveyards with the same name as that spell.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Kheru Bloodsucker",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Vampire",
+   "oracle_text": "Whenever a creature you control with toughness 4 or greater dies, each opponent loses 2 life and you gain 2 life.\n{2}{B}, Sacrifice another creature: Put a +1/+1 counter on this creature.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Kiora, Behemoth Beckoner",
+   "mana_cost": "{2}{G/U}",
+   "type_line": "Legendary Planeswalker — Kiora",
+   "oracle_text": "Whenever a creature you control with power 4 or greater enters, draw a card.\n−1: Untap target permanent.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Lone Revenant",
+   "mana_cost": "{3}{U}{U}",
+   "type_line": "Creature — Spirit",
+   "oracle_text": "Hexproof (This creature can't be the target of spells or abilities your opponents control.)\nWhenever this creature deals combat damage to a player, if you control no other creatures, look at the top four cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Mage Tower Referee",
+   "mana_cost": "{2}",
+   "type_line": "Artifact Creature — Construct",
+   "oracle_text": "Whenever you cast a multicolored spell, put a +1/+1 counter on this creature.",
+   "power": "2",
+   "toughness": "1",
+   "colors": []
+  },
+  {
+   "name": "Mana Cannons",
+   "mana_cost": "{2}{R}",
+   "type_line": "Enchantment",
+   "oracle_text": "Whenever you cast a multicolored spell, this enchantment deals X damage to any target, where X is the number of colors that spell is.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Mangara, the Diplomat",
+   "mana_cost": "{3}{W}",
+   "type_line": "Legendary Creature — Human Cleric",
+   "oracle_text": "Lifelink\nWhenever an opponent attacks with creatures, if two or more of those creatures are attacking you and/or planeswalkers you control, draw a card.\nWhenever an opponent casts their second spell each turn, draw a card.",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Midnight Oil",
+   "mana_cost": "{2}{B}{B}",
+   "type_line": "Enchantment",
+   "oracle_text": "This enchantment enters with seven hour counters on it.\nAt the beginning of your draw step, draw an additional card and remove two hour counters from this enchantment.\nYour maximum hand size is equal to the number of hour counters on this enchantment.\nWhenever you discard a card, you lose 1 life.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Overbeing of Myth",
+   "mana_cost": "{G/U}{G/U}{G/U}{G/U}{G/U}",
+   "type_line": "Creature — Spirit Avatar",
+   "oracle_text": "Overbeing of Myth's power and toughness are each equal to the number of cards in your hand.\nAt the beginning of your draw step, draw an additional card.",
+   "power": "*",
+   "toughness": "*",
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Predatory Advantage",
+   "mana_cost": "{3}{R}{G}",
+   "type_line": "Enchantment",
+   "oracle_text": "At the beginning of each opponent's end step, if that player didn't cast a creature spell this turn, create a 2/2 green Lizard creature token.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Price of Knowledge",
+   "mana_cost": "{6}{B}",
+   "type_line": "Enchantment",
+   "oracle_text": "Players have no maximum hand size.\nAt the beginning of each opponent's upkeep, this enchantment deals damage to that player equal to the number of cards in that player's hand.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Raid Bombardment",
+   "mana_cost": "{2}{R}",
+   "type_line": "Enchantment",
+   "oracle_text": "Whenever a creature you control with power 2 or less attacks, this enchantment deals 1 damage to the player or planeswalker that creature is attacking.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Tome of the Guildpact",
+   "mana_cost": "{5}",
+   "type_line": "Artifact — Book",
+   "oracle_text": "Whenever you cast a multicolored spell, draw a card.\n{T}: Add one mana of any color.",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Viseling",
+   "mana_cost": "{4}",
+   "type_line": "Artifact Creature — Phyrexian Construct",
+   "oracle_text": "At the beginning of each opponent's upkeep, this creature deals X damage to that player, where X is the number of cards in their hand minus 4.",
+   "power": "2",
+   "toughness": "2",
+   "colors": []
+  },
+  {
+   "name": "Well of Ideas",
+   "mana_cost": "{5}{U}",
+   "type_line": "Enchantment",
+   "oracle_text": "When this enchantment enters, draw two cards.\nAt the beginning of each other player's draw step, that player draws an additional card.\nAt the beginning of your draw step, draw two additional cards.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Skyclave Shadowcat",
+   "mana_cost": "{3}{B}",
+   "type_line": "Creature — Cat Horror",
+   "oracle_text": "{1}{B}, Sacrifice another creature: Put a +1/+1 counter on this creature.\nWhenever a creature you control with a +1/+1 counter on it dies, draw a card.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Meltstrider Eulogist",
+   "mana_cost": "{2}{G}",
+   "type_line": "Creature — Insect Soldier",
+   "oracle_text": "Whenever a creature you control with a +1/+1 counter on it dies, draw a card.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ]
+  },
+  {
    "name": "Troyan, Gutsy Explorer",
    "mana_cost": "{1}{G}{U}",
    "type_line": "Legendary Creature — Vedalken Scout",
