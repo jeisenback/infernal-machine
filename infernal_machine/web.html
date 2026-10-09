@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Infernal Machine</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --panel: #fffdf8; --ink: #22201c; --muted: #6b665c; --line: #d9d3c6;
+    --accent: #8a2f1f; --accent-ink: #fff; --tapped: #b8b1a3; --you: #e9f0e4; --card: #fff; --shadow: rgba(0,0,0,.08);
+    --mana-W: #f3e9b8; --mana-U: #b9d4ef; --mana-B: #cbc4c4; --mana-R: #f0b9a6; --mana-G: #bcdcb4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1a18; --panel: #24221f; --ink: #ece7dc; --muted: #a39d90; --line: #3a3731;
+      --accent: #d8613f; --accent-ink: #1b1a18; --tapped: #5a564e; --you: #26302a; --card: #2c2a26; --shadow: rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .muted { color: var(--muted); }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 16px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section.board { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px var(--shadow); }
+  .seat.you { background: var(--you); }
+  .seat.lost { opacity: .55; }
+  .seat h2 { font-size: 16px; margin: 0 0 4px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+  .seat h2 .life { font-size: 20px; }
+  .stats { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: flex-start; }
+  .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; width: 100%; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 96px; max-width: 170px; font-size: 13px; line-height: 1.25; position: relative; transition: transform .2s; }
+  .card .name { font-weight: 600; }
+  .card .pt { float: right; font-weight: 600; margin-left: 6px; }
+  .card .tags { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .card.tapped { transform: rotate(8deg); background: var(--tapped); }
+  .card.sick .name::after { content: " z"; color: var(--muted); font-size: 11px; }
+  .chip { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
+  .chip.tapped { background: var(--tapped); }
+  .chip b { font-weight: 600; }
+  .stack { font-size: 14px; }
+  .stack .label { display: block; margin-bottom: 4px; }
+  .stack .item { display: inline-block; margin-right: 10px; }
+  .prompt h2 { margin: 0 0 8px; font-size: 16px; }
+  .prompt .options { display: flex; flex-wrap: wrap; gap: 8px; }
+  .prompt button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+  .prompt button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .prompt button:disabled { opacity: .5; cursor: default; }
+  .prompt .waiting { color: var(--muted); }
+  .prompt .clock { color: var(--muted); font-size: 13px; margin: -4px 0 8px; }
+  .prompt .clock.late { color: var(--accent); font-weight: 600; }
+  aside.log { min-width: 0; }
+  aside.log .panel { position: sticky; top: 60px; max-height: calc(100vh - 80px); display: flex; flex-direction: column; }
+  aside.log h2 { font-size: 14px; margin: 0 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  aside.log ol { margin: 0; padding: 0; list-style: none; overflow-y: auto; font-size: 13px; }
+  aside.log li { padding: 2px 0; border-bottom: 1px dotted var(--line); }
+  aside.log li.turn { font-weight: 600; margin-top: 6px; }
+  .mana { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--line); vertical-align: middle; font-size: 10px; line-height: 14px; text-align: center; margin-right: 2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Infernal Machine</h1>
+  <span id="who" class="muted">Connecting...</span>
+  <span id="turn" class="muted"></span>
+</header>
+<main>
+  <section class="board">
+    <div id="prompt" class="panel prompt"><span class="waiting">Waiting for the game to start.</span></div>
+    <div id="stack" class="panel stack" hidden></div>
+    <div id="seats"></div>
+    <div id="hand" class="panel" hidden></div>
+  </section>
+  <aside class="log"><div class="panel"><h2>Log</h2><ol id="log"></ol></div></aside>
+</main>
+<script>
+(function () {
+  "use strict";
+  let since = -1;
+  let posting = false;
+  let deadline = null;  // when the open prompt's clock runs out, if the table has one
+  let timedPrompt = null;  // the id of the prompt the deadline belongs to
+
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
+
+  function tags(p) {
+    const out = [];
+    if (p.damage) out.push(p.damage + " damage");
+    if (p.loyalty !== null) out.push("loyalty " + p.loyalty);
+    for (const kind in p.counters) out.push(p.counters[kind] + " " + kind);
+    if (p.attached_to) out.push("on " + p.attached_to);
+    if (p.token) out.push("token");
+    return out.join(", ");
+  }
+
+  function card(p) {
+    const node = el("div", "card" + (p.tapped ? " tapped" : "") + (p.sick ? " sick" : ""));
+    if (p.power !== null) node.appendChild(el("span", "pt", p.power + "/" + p.toughness));
+    node.appendChild(el("div", "name", p.name));
+    const extra = tags(p);
+    if (extra) node.appendChild(el("div", "tags", extra));
+    node.title = p.type;
+    return node;
+  }
+
+  function landChips(lands) {
+    const counts = new Map();
+    for (const p of lands) {
+      const key = p.name + (p.tapped ? " (tapped)" : "");
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return Array.from(counts, ([key, n]) => {
+      const chip = el("span", "chip" + (key.endsWith("(tapped)") ? " tapped" : ""));
+      chip.appendChild(el("b", "", key.replace(" (tapped)", "")));
+      if (n > 1) chip.appendChild(document.createTextNode(" x" + n));
+      return chip;
+    });
+  }
+
+  function manaPool(pool) {
+    const span = el("span", "");
+    for (const unit of pool) {
+      const dot = el("span", "mana", unit.length === 1 ? unit : "?");
+      if (unit.length === 1) dot.style.background = "var(--mana-" + unit + ", var(--card))";
+      span.appendChild(dot);
+    }
+    return span;
+  }
+
+  function seatPanel(seat, state, names) {
+    const you = seat.seat === state.you;
+    const panel = el("div", "panel seat" + (you ? " you" : "") + (seat.lost ? " lost" : ""));
+    const h = el("h2");
+    h.appendChild(el("span", "", seat.name + (you ? " (you)" : "") + (seat.lost ? " - eliminated" : "")));
+    h.appendChild(el("span", "life", seat.life + " life"));
+    if (seat.mana_pool.length) h.appendChild(manaPool(seat.mana_pool));
+    panel.appendChild(h);
+    const stats = el("div", "stats");
+    stats.appendChild(el("span", "", plural(seat.hand, "card") + " in hand"));
+    stats.appendChild(el("span", "", "library " + seat.library));
+    const grave = el("span", "", "graveyard " + seat.graveyard.length);
+    grave.title = seat.graveyard.join("\n");
+    stats.appendChild(grave);
+    const exile = el("span", "", "exile " + seat.exile.length);
+    exile.title = seat.exile.join("\n");
+    stats.appendChild(exile);
+    if (seat.command_zone.length)
+      stats.appendChild(el("span", "", "command zone: " + seat.command_zone.map(c => c.name + (c.tax ? " (tax " + c.tax + ")" : "")).join(", ")));
+    for (const d of seat.commander_damage)
+      stats.appendChild(el("span", "", d.damage + " commander damage from " + (names[d.from_seat] || "seat " + d.from_seat) + "'s " + d.commander));
+    panel.appendChild(stats);
+    const lands = seat.battlefield.filter(p => p.type.includes("Land"));
+    const others = seat.battlefield.filter(p => !p.type.includes("Land"));
+    if (others.length) {
+      const row = el("div", "row");
+      row.appendChild(el("span", "label", "Permanents"));
+      for (const p of others) row.appendChild(card(p));
+      panel.appendChild(row);
+    }
+    if (lands.length) {
+      const row = el("div", "row");
+      row.appendChild(el("span", "label", "Lands"));
+      for (const chip of landChips(lands)) row.appendChild(chip);
+      panel.appendChild(row);
+    }
+    return panel;
+  }
+
+  function renderBoard(state) {
+    const names = {};
+    for (const s of state.seats) names[s.seat] = s.name;
+    document.getElementById("turn").textContent = "Turn " + state.turn + ", " + state.step + ", " + (names[state.active] || "seat " + state.active) + "'s turn";
+    const stack = document.getElementById("stack");
+    stack.hidden = !state.stack.length;
+    stack.replaceChildren();
+    if (state.stack.length) {
+      stack.appendChild(el("span", "label", "Stack, top first"));
+      for (const item of state.stack.slice().reverse())
+        stack.appendChild(el("span", "item", (item.ability || item.card) + " (" + (names[item.seat] || "seat " + item.seat) + ")"));
+    }
+    const seats = document.getElementById("seats");
+    seats.replaceChildren();
+    const order = state.seats.filter(s => s.seat !== state.you).concat(state.seats.filter(s => s.seat === state.you));
+    for (const seat of order) seats.appendChild(seatPanel(seat, state, names));
+    const hand = document.getElementById("hand");
+    hand.hidden = state.you < 0;  // a spectator has no hand
+    hand.replaceChildren();
+    if (state.you < 0) return;
+    const row = el("div", "row");
+    row.appendChild(el("span", "label", "Your hand (" + state.hand.length + ")"));
+    if (!state.hand.length) row.appendChild(el("span", "chip", "empty"));
+    for (const name of state.hand) row.appendChild(el("span", "chip", name));
+    hand.appendChild(row);
+  }
+
+  function renderPrompt(prompt, over, spectator) {
+    const box = document.getElementById("prompt");
+    box.replaceChildren();
+    if (over) { box.appendChild(el("span", "waiting", "The connection to the game is closed.")); return; }
+    if (spectator) { box.appendChild(el("span", "waiting", "You are watching this game. Hands stay hidden.")); return; }
+    if (!prompt) { box.appendChild(el("span", "waiting", "Waiting for the other players...")); return; }
+    box.appendChild(el("h2", "", prompt.prompt));
+    if (prompt.seconds) {
+      if (timedPrompt !== prompt.id) { timedPrompt = prompt.id; deadline = Date.now() + prompt.seconds * 1000; }
+      const clock = el("div", "clock");
+      clock.id = "clock";
+      box.appendChild(clock);
+      tick();
+    }
+    const options = el("div", "options");
+    prompt.options.forEach((text, i) => {
+      const button = el("button", text === "Pass" ? "primary" : "", text);
+      button.disabled = posting;
+      button.onclick = () => choose(prompt.id, i);
+      options.appendChild(button);
+    });
+    box.appendChild(options);
+  }
+
+  function renderLog(lines) {
+    const log = document.getElementById("log");
+    log.replaceChildren();
+    for (const line of lines) log.appendChild(el("li", line.startsWith("--- Turn") || line.startsWith("=== Game over") ? "turn" : "", line));
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function render(view) {
+    document.getElementById("who").textContent = view.spectator ? "Spectating" : view.name + (view.me === null ? "" : ", seat " + view.me);
+    if (view.state) renderBoard(view.state);
+    renderPrompt(view.prompt, view.over, view.spectator);
+    renderLog(view.lines);
+  }
+
+  function tick() {
+    const clock = document.getElementById("clock");
+    if (!clock || deadline === null) return;
+    const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    clock.textContent = left ? left + " s left" : "Time's up: a bot answers for you";
+    clock.classList.toggle("late", left <= 10);
+    if (left) setTimeout(tick, 250);
+  }
+
+  async function choose(id, choice) {
+    posting = true;
+    for (const b of document.querySelectorAll("#prompt button")) b.disabled = true;
+    try {
+      await fetch("/choose", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, choice }) });
+    } finally {
+      posting = false;
+    }
+  }
+
+  async function poll() {
+    for (;;) {
+      try {
+        const response = await fetch("/state?since=" + since);
+        const view = await response.json();
+        since = view.version;
+        render(view);
+        if (view.over) return;
+      } catch (err) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+  }
+
+  poll();
+})();
+</script>
+</body>
+</html>
