@@ -261,3 +261,68 @@ class KillianTests(unittest.TestCase):
     def test_an_opponents_creature_enchanted_by_your_aura_does_when_it_attacks(self):
         a = self.attack([(BEAR, 1, 0)], active=1)
         self.assertEqual(len(a.hand), 1)
+
+
+EIDOLON = Card(name="Hateful Eidolon", mana_cost="{3}{B}", type_line="Creature — Spirit", power="2", toughness="3",
+               oracle_text="Deathtouch\nWhenever an enchanted creature dies, draw a card for each Aura you controlled that was "
+                           "attached to it.")
+
+
+class HatefulEidolonTests(unittest.TestCase):
+    def die(self, mine, theirs, owner_index=0):
+        """A creature on `owner_index`'s side dies with `mine` of Eidolon's controller's Auras and `theirs` of seat 1's on it."""
+        game, _ = table3()
+        a, b, c = game.seats
+        a.battlefield = [Permanent(EIDOLON)]
+        a.library = [BEAR] * 6
+        victim = Permanent(OGRE)
+        game.seats[owner_index].battlefield.append(victim)
+        for _ in range(mine):
+            a.battlefield.append(Permanent(BLESSING, attached_to=victim))
+        for _ in range(theirs):
+            b.battlefield.append(Permanent(BLESSING, attached_to=victim))
+        game._leave_together([(victim, "destroyed")])
+        run_stack(game)
+        return a
+
+    def test_it_is_supported(self):
+        self.assertEqual(unsupported_lines(EIDOLON), [])
+
+    def test_one_card_for_each_of_your_auras_that_was_on_it(self):
+        self.assertEqual(len(self.die(mine=2, theirs=0).hand), 2)
+
+    def test_only_your_auras_count(self):
+        self.assertEqual(len(self.die(mine=1, theirs=2).hand), 1)
+
+    def test_a_creature_with_no_aura_draws_nothing(self):
+        self.assertEqual(self.die(mine=0, theirs=0).hand, [])
+
+    def test_a_creature_enchanted_only_by_an_opponents_aura_draws_nothing(self):
+        self.assertEqual(self.die(mine=0, theirs=2).hand, [])
+
+    def test_an_opponents_creature_dying_with_your_aura_counts(self):
+        self.assertEqual(len(self.die(mine=1, theirs=0, owner_index=1).hand), 1)
+
+
+MOURNER = Card(name="Aura Mourner", mana_cost="{1}{B}", type_line="Creature — Spirit", power="1", toughness="1",
+               oracle_text="Whenever an enchanted creature dies, you gain 1 life.")
+
+
+class EnchantedCreatureDiesTests(unittest.TestCase):
+    def die(self, auras):
+        game, _ = table3()
+        a, b, c = game.seats
+        a.battlefield = [Permanent(MOURNER)]
+        victim = Permanent(OGRE)
+        b.battlefield.append(victim)
+        for _ in range(auras):
+            c.battlefield.append(Permanent(BLESSING, attached_to=victim))  # anyone's Aura makes it enchanted
+        game._leave_together([(victim, "destroyed")])
+        run_stack(game)
+        return a.life
+
+    def test_a_creature_with_an_aura_on_it_triggers_it(self):
+        self.assertEqual(self.die(1), 41)
+
+    def test_a_creature_without_one_does_not(self):
+        self.assertEqual(self.die(0), 40)

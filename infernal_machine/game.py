@@ -177,6 +177,7 @@ class Permanent:
     activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
     triggered_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last triggered (once-a-turn ones)
     last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
+    last_auras: dict[int, int] = field(default_factory=dict)  # when it died: how many Auras each seat (by index) had on it
     last_power: int = 0  # its power just before it left (CR 608.2h: last known information)
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
@@ -1986,6 +1987,9 @@ class Game:
         if kind == "auras_on_creatures":
             return sum(1 for p in controller.battlefield if "Aura" in p.card.type_line and p.attached_to is not None
                        and "Creature" in p.attached_to.card.type_line)
+        if kind == "auras_on_subject":  # Hateful Eidolon: the Auras you controlled that were attached to the creature that died
+            subject = self.resolving_item.subject if self.resolving_item is not None else None
+            return subject.last_auras.get(controller.index, 0) if subject is not None else 0
         if kind == "creatures_entered":  # nontoken creatures that entered under your control this turn
             return controller.creatures_entered if controller.creatures_entered_turn == self.turn else 0
         if kind == "sacrificed_power":  # the creature sacrificed to pay this ability's cost
@@ -2307,6 +2311,10 @@ class Game:
             return value >= int(m[3]) if m[2] == ">=" else value <= int(m[3])
         if qualifier.startswith("mv<="):
             return permanent.card.cmc <= int(qualifier.removeprefix("mv<="))
+        if qualifier == "enchanted":  # "an enchanted creature dies": it had an Aura on it (as it died, if it is gone)
+            if here:
+                return any(p.attached_to is permanent and "Aura" in p.card.type_line for s in self.seats for p in s.battlefield)
+            return any(permanent.last_auras.values())
         if qualifier == "flying":
             return self.has_keyword(permanent, "flying") if here else has_keyword(permanent.card, "flying")
         return permanent.counters.get(qualifier.removeprefix("counter:"), 0) > 0
@@ -4092,6 +4100,8 @@ class Game:
         for permanent, _ in leaving:
             permanent.last_power = self.power(permanent)
             permanent.last_controller = self.controller_of(permanent)
+            permanent.last_auras = {s.index: n for s in self.seats
+                                    if (n := sum(p.attached_to is permanent and "Aura" in p.card.type_line for p in s.battlefield))}
         for permanent, _ in leaving:
             owner = permanent.last_controller
             owner.battlefield = [p for p in owner.battlefield if p is not permanent]

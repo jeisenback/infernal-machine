@@ -2773,6 +2773,7 @@ class Amount:
 _AMOUNTS = [
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
     (re.compile(r"the sacrificed creature's power", re.I), lambda m: Amount("sacrificed_power")),
+    (re.compile(r"(?:the number of )?Auras? you controlled that was attached to it", re.I), lambda m: Amount("auras_on_subject")),
     (re.compile(r"(?:the number of )?Auras? you control that's attached to a creature", re.I),
      lambda m: Amount("auras_on_creatures")),
     (re.compile(r"the number of nontoken creatures you had enter the battlefield under your control this turn", re.I),
@@ -5915,12 +5916,12 @@ _SEVERAL_EVENTS = re.compile(rf"When(?:ever)? {_SELF} ({_ANY_SELF_EVENT}(?: or {
 
 _WHO = rf"(?:({_SELF}) or another|(another)|an?)"
 _TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
-_PERMANENT_WATCH = rf"(nontoken creature|creature token|token|creature|land|artifact|enchantment|permanent|{_TRIBE})"
+_PERMANENT_WATCH = rf"(enchanted creature|nontoken creature|creature token|token|creature|land|artifact|enchantment|permanent|{_TRIBE})"
 _WATCHES = {
     "permanent_enters": re.compile(
         rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? enters(?: the battlefield)?"
         rf"( under your control| under an opponent's control)?, (.+)", re.I),
-    "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature token|token|creature|{_TRIBE})"
+    "creature_dies": re.compile(rf"Whenever {_WHO} (enchanted creature|nontoken creature|creature token|token|creature|{_TRIBE})"
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
     "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? leaves the battlefield, (.+)", re.I),
     "permanent_taps": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? becomes tapped, (.+)", re.I),
@@ -6025,6 +6026,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
             own_graveyard = event == "permanent_to_graveyard" and m[5] is not None  # Nether Traitor: "into your graveyard"
             yours = m[4] == " you control" or under == " under your control" or own_graveyard
             theirs = m[4] == " an opponent controls" or under == " under an opponent's control"
+            if kind == "enchanted creature":  # Hateful Eidolon: a creature, with an Aura on it
+                kind, qualifier = "creature", qualifier or "enchanted"
             watch = Watch(kind.removeprefix("nontoken "), other=bool(another) and not self_or_other,
                           yours=yours, nontoken=kind.startswith("nontoken"), theirs=theirs, qualifier=qualifier)
             return event, watch, m[len(m.groups())]
@@ -6230,6 +6233,7 @@ _PUT_IT = re.compile(r"\bsearch your library for [^.]*?, (?:reveal (?:it|them), 
 
 
 _TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')
+_AURAS_ON_IT = re.compile(r"that was attached to it", re.I)  # Hateful Eidolon: "it" is only the creature that died
 
 
 def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | None, bool, bool, Condition | None]:
@@ -6266,7 +6270,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
         about_player, rest = about_player or replaced != rest, replaced
     # "the amount of mana spent to cast that spell" is an amount the trigger carries, not an effect on the spell.
     # (a created token's own ability, "It has "Sacrifice this token: Add {C}."", is about the token, not the creature that died)
-    without_token_ability = _TOKEN_HAS.sub("", rest) if re.search(r"\btokens?\b", rest, re.I) else rest
+    without_token_ability = _AURAS_ON_IT.sub("", _TOKEN_HAS.sub("", rest) if re.search(r"\btokens?\b", rest, re.I) else rest)
     about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?copy (it|that spell)\.", rest, re.I) is not None  # Codie: "it" is the spell cast
     effects, optional, once, condition = _trigger_body(rest)
