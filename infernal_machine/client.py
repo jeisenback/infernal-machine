@@ -239,7 +239,7 @@ class Client:
                 kind = message.get("type")
                 if kind == "welcome":
                     self.narrator.me = message["seat"]
-                    self.show(f"Joined the table at seat {message['seat']}.")
+                    self.show(f"{'Rejoined' if message.get('rejoined') else 'Joined'} the table at seat {message['seat']}.")
                 elif kind == "error":
                     self.show(f"Server: {message['message']}")
                 elif kind == "event":
@@ -247,7 +247,7 @@ class Client:
                 elif kind == "choose":
                     self._choose(message)
         except (EOFError, KeyboardInterrupt):
-            self.show("\nLeft the game; a bot will play your seat.")
+            self.show("\nLeft the game; a bot will play your seat until you connect again with the same name.")
         finally:
             self._reader.close()
             self.sock.close()

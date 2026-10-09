@@ -4,7 +4,9 @@
 
 Each human sends their decklist in the hello message (see tcp.py; `python -m infernal_machine.client`
 does this). The server fetches the cards, checks the deck against the Commander rules, and either
-seats the player or tells them why not. If a human disconnects mid-game, a bot takes over their seat.
+seats the player or tells them why not. If a human disconnects mid-game, a bot takes over their seat until they
+connect again with the same name: the server keeps listening during the game, and a hello with a seated player's name
+gives them their seat back (a deck isn't needed, and a connection still open under that name is dropped).
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from __future__ import annotations
 import argparse
 import socket
 import sys
+import threading
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -29,31 +32,57 @@ class DeckRejected(Exception):
 
 
 class AutoPilotPlayer:
-    """A human's seat. If their connection drops, a bot (which has watched the whole game) plays on."""
+    """A human's seat. If their connection drops, a bot (which has watched the whole game) plays on until the human
+    connects again (`reconnect`, called from another thread: the game thread reads `_human` once per call, so a swap
+    lands between calls, and closing the old connection wakes a read blocked on it)."""
 
     wants_state = True
 
-    def __init__(self, human: TcpPlayer, bot: BotPlayer):
+    def __init__(self, human: TcpPlayer, bot: BotPlayer, seat: int = 0):
         self.name = human.name
-        self._human = human
+        self.seat = seat
+        self._human: TcpPlayer | None = human
         self._bot = bot
-        self.disconnected = False
+        self._introductions: list[dict] = []  # the "seat" events, which a rejoining client needs to name everyone
+
+    @property
+    def disconnected(self) -> bool:
+        return self._human is None
 
     def notify(self, event: dict) -> None:
+        if event.get("event") == "seat":
+            self._introductions.append(event)
         self._bot.notify(event)
-        if not self.disconnected:
+        human = self._human
+        if human is not None:
             try:
-                self._human.notify(event)
+                human.notify(event)
             except Disconnected:
-                self.disconnected = True
+                self._drop(human)
 
     def choose(self, prompt: str, options: Sequence[str]) -> int:
-        if not self.disconnected:
+        human = self._human
+        if human is not None:
             try:
-                return self._human.choose(prompt, options)
+                return human.choose(prompt, options)
             except Disconnected:
-                self.disconnected = True
+                self._drop(human)
         return self._bot.choose(prompt, options)
+
+    def reconnect(self, human: TcpPlayer) -> None:
+        """A new connection for this seat takes over; one still open is closed (it may be dead without the server
+        knowing). The newcomer is welcomed and told who sits where; the board comes with their next decision."""
+        old, self._human = self._human, human
+        if old is not None:
+            old.close()
+        human.welcome(self.seat, rejoined=True)
+        for event in self._introductions:
+            human.notify(event)
+
+    def _drop(self, human: TcpPlayer) -> None:
+        human.close()
+        if self._human is human:
+            self._human = None
 
 
 def _reject_message(problems: list[str]) -> str:
@@ -117,11 +146,39 @@ def seat_humans(server: socket.socket, count: int, source: CardSource, check: bo
     return seated
 
 
+def rejoin_players(server: socket.socket, pilots: dict[str, AutoPilotPlayer], over: threading.Event,
+                   log: Callable[[str], None] = print, handshake_timeout: float = 10.0) -> None:
+    """Keep accepting connections during the game: a hello with a seated player's name gives them their seat back
+    (`AutoPilotPlayer.reconnect`); anyone else is told the game has started. Ends when `over` is set or the
+    listening socket is closed."""
+    while not over.is_set():
+        try:
+            conn, _ = server.accept()
+        except TimeoutError:
+            continue
+        except OSError:
+            return
+        conn.settimeout(handshake_timeout)
+        player = TcpPlayer(conn)
+        try:
+            name = player.read_hello()["name"].strip()
+            pilot = pilots.get(name)
+            if pilot is None or over.is_set():
+                player.send_error(f"The game has started and {name!r} isn't playing in it.")
+                raise Disconnected("not a player")
+            conn.settimeout(None)
+            pilot.reconnect(player)
+            log(f"{name} rejoined")
+        except Disconnected:
+            player.close()
+
+
 def run_table(server: socket.socket, humans: int, bot_decks: list[str], source: CardSource, seed: int | None = None,
               check_decks: bool = True, max_turns: int = 300, log: Callable[[str], None] = print,
               handshake_timeout: float = 10.0) -> str | None:
     """Wait for `humans` players on `server`, add one bot per entry of `bot_decks` (decklist texts), play the
-    game, and return the winner's name (None if nobody won within `max_turns`)."""
+    game, and return the winner's name (None if nobody won within `max_turns`). While the game runs, a player who
+    dropped can connect again and take their seat back."""
     if humans + len(bot_decks) < 2:
         raise ValueError("A table needs at least two players")
     bots: list[tuple[str, Deck]] = []
@@ -133,16 +190,22 @@ def run_table(server: socket.socket, humans: int, bot_decks: list[str], source: 
 
     log(f"Waiting for {humans} player(s); {len(bots)} bot(s) will fill the other seats.")
     seated = seat_humans(server, humans, source, check_decks, {name for name, _ in bots}, log, handshake_timeout)
+    over = threading.Event()
+    pilots = [AutoPilotPlayer(human, BotPlayer(human.name, deck), seat) for seat, (human, deck) in enumerate(seated)]
     try:
-        players = [(AutoPilotPlayer(human, BotPlayer(human.name, deck)), deck) for human, deck in seated]
+        players = [(pilot, deck) for pilot, (_, deck) in zip(pilots, seated)]
         players += [(BotPlayer(name, deck), deck) for name, deck in bots]
+        threading.Thread(target=rejoin_players, args=(server, {p.name: p for p in pilots}, over, log, handshake_timeout),
+                         daemon=True).start()
         log("Starting the game.")
         winner = Game(players, seed=seed).play(max_turns=max_turns)
         log(f"Game over: {winner.name} wins." if winner else f"Game over: no winner after {max_turns} turns.")
         return winner.name if winner else None
     finally:
-        for human, _ in seated:
-            human.close()
+        over.set()
+        for pilot in pilots:
+            if pilot._human is not None:
+                pilot._human.close()
 
 
 def main(argv: list[str] | None = None) -> int:
