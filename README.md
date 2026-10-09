@@ -432,6 +432,18 @@ winner = game.play()
   - **Prepare cards** (Secrets of Strixhaven, e.g. Eiganjo Dynastorian // Replenish): a creature whose card also has a spell half. "This creature enters prepared" and "... becomes prepared" (from any trigger the engine fires) make it prepared; while it is, you get a "Cast prepared: <spell>" action (with the spell's own timing and cost). It casts a copy of the spell, which ends instead of going to a graveyard, and the creature stops being prepared. The report checks both halves. "Target creature becomes prepared / unprepared" (Skycoach Waypoint, Hexhaven Dueling Arena's "creature that attacked this turn"), "each creature you control becomes prepared" (Codie) and the conditions "if this creature isn't prepared", "three or more artifact and/or creature cards in your graveyard", "a player has one or fewer cards in hand" and "an opponent has more cards in hand than you" work. Not built yet: see #85.
   - Abilities from the hand: "{U/R}{U/R}, Discard this card: Create a Treasure token." (Magma Opus) is offered as
     "Activate from hand: <card>" at instant speed; the card is discarded as the cost and the effect goes on the stack.
+  - More activated abilities (#73): costs that exile this permanent ("Exile this artifact", Perpetual Timepiece) or return it
+    to its owner's hand (Rootha) are paid before the ability goes on the stack, so it outlives the source. An ability that
+    says "Return this card from your graveyard to the battlefield tapped" (Teacher's Pest) is offered as "Activate from
+    graveyard: <card>". "Pay life equal to the number of colors in your commanders' color identity" (War Room) works.
+    Alchemist's Refuge lets you cast every spell this turn at instant speed, Arcane Lighthouse takes hexproof and shroud
+    off your opponents' creatures until end of turn, and Restless Spire's creature has first strike only during your turn.
+    Also: "noncreature artifact or noncreature enchantment" and "noncreature, nonland permanent" as target kinds, "creatures
+    named CARDNAME can't be blocked", "Spirits you control gain ... until end of turn", "Exile enchanted creature", a
+    counter on each green creature that entered this turn (Oran-Rief), a land fetched untapped when you control four lands
+    (Fabled Passage), a token if the exiled card is a creature (Feral Appetite), "draw two cards instead" with a condition
+    (Zimone) and Quintorius's "draw two cards, then mill a card". Still unsupported from #73: mana abilities that spend
+    other resources or restrict what the mana buys, Level up, Priest of Forgotten Gods and Currency Converter.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
     card can be turned face up at any time you have priority for its mana cost ("Turn face up: ..."; not a stack
     action). It goes to the graveyard as the real card, and only its controller is shown what it is
