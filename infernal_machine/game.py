@@ -2143,6 +2143,8 @@ class Game:
                     continue
                 if buff.color and buff.color not in permanent.card.colors:
                     continue
+                if buff.token and not _is_token(permanent.card):
+                    continue
                 if buff.attacking and not any(a.attacker is permanent for a in self.combat.attacks):
                     continue
                 if buff.condition and not self.condition_holds(buff.condition, owner, source):

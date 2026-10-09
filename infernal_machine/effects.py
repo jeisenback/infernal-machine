@@ -903,6 +903,7 @@ class StaticBuff:
     attacking: bool = False  # "Attacking Pests you control": only while they are attacking
     per: tuple[str, str] | None = None  # "... for each artifact you control": (what to count, its type); see Game.modifiers
     everyone: bool = False  # "White creatures get +1/+1": every player's, not just its controller's
+    token: bool = False  # "Creature tokens you control have haste": only tokens
 
 
 _CHOOSE_TYPE = re.compile(r"As (?:CARDNAME|this [a-z]+) enters, choose a creature type\.")
@@ -917,12 +918,12 @@ def is_choose_type_line(line: str) -> bool:
     return _CHOOSE_TYPE.fullmatch(line) is not None
 
 
-_AFFECTED = (r"Creatures you control of the chosen type|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+_AFFECTED = (r"Creatures you control of the chosen type|Creature tokens you control|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
                                r"this game\.")
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
-_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<tokens>Creature tokens you control)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
@@ -971,7 +972,8 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             buffs.append(StaticBuff(_modifier(m, 2), who["other"] is not None,
                                     "chosen" if who["chosen"] else who["sub"] or who["tribe"], line,
                                     condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
-                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"])))
+                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]),
+                                    token=bool(who["tokens"])))
         elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
             who = _AFFECTED_WHO.fullmatch(m[1])
             buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
@@ -1267,13 +1269,14 @@ class CreateTokens:
 class CopyToken:
     """ "Create a token that's a copy of target creature you control." """
     target: str
+    count: int = 1  # Rite of Replication: "If this spell was kicked, create five of those tokens instead."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             card = target.card
             if not card.type_line.startswith("Token"):
                 card = dataclasses.replace(card, type_line="Token " + card.type_line)
-            game.create_tokens(controller, card, 1)
+            game.create_tokens(controller, card, game.amount(self.count))
 
 
 POPULATE_PROMPT = "Populate: copy which token? "
@@ -1910,9 +1913,10 @@ class ReturnToHand:
 @dataclass(frozen=True)
 class ReturnAllToHand:
     kind: str
+    restriction: MassFilter | None = None  # Perplexing Test: "all creature tokens" / "all nontoken creatures"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.return_all_to_hand(game.mass_targets(self.kind, controller))
+        game.return_all_to_hand(game.mass_targets(self.kind, controller, self.restriction))
 
 
 @dataclass(frozen=True)
@@ -3168,7 +3172,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnToHand(m[2].lower(), (m[1] or "").lower() == "another ", (m[1] or "").lower() == "up to one ",
                             distinct=(m[1] or "").lower() == "another ")),
     (re.compile(rf"return {_UP_TO} target {_PLURAL_KIND} to their owners' hands\.", re.I), lambda m: _up_to(ReturnToHand, m)),
-    (re.compile(rf"return all {_MASS} to their owners' hands\.", re.I), lambda m: ReturnAllToHand(_mass_kind(m))),
+    (re.compile(rf"return all {_MASS_FILTERED} to their owners' hands\.", re.I), lambda m: _mass_effect(ReturnAllToHand, m)),
     (re.compile(rf"return {_UP_TO} target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),
      lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand",
                                     optional_target=True, distinct=n > 0) for n in range(_count(m[1]))]),
@@ -3403,7 +3407,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
-    (re.compile(r'(?i:its controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
+    (re.compile(r'(?i:(?:its|that creature\'s) controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
     (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
                 r"battlefield tapped, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand()),
@@ -3464,6 +3468,8 @@ def _clauses(sentence: str) -> list[str]:
     if m := re.fullmatch(r"(Create .+ tokens?), then (put .+ counters? on it\.)", sentence):
         return [m[1] + ".", m[2].capitalize()]
     sentence = re.sub(r"^You (draw|create) ", lambda m: m[1].capitalize() + " ", sentence)
+    if m := re.fullmatch(rf"(Draw {_N} cards?) and (create .+)\.", sentence):  # Big Score, Seize the Spoils
+        return [m[1] + ".", m[3][:1].upper() + m[3][1:] + "."]
     if m := re.fullmatch(rf"(.+) and you ({_YOUR_ACTION})\.", sentence, re.I):
         return _clauses(m[1] + ".") + [_you_do(m[2])]
     if m := re.fullmatch(rf"(?:you )?(?P<first>{_YOUR_ACTION}) and (?P<second>{_YOUR_ACTION})\.", sentence, re.I):
