@@ -8,10 +8,10 @@ cuts off with "..." were completed from memory (marked "completed from memory" b
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (CopyToken, CreateTokens, DestroyAll, Draw, ExileAll, GiveBack, MassFilter,
-                                      ReturnAllToHand, TREASURE, TargetControllerCreatesTokens, spell_effects,
-                                      static_abilities)
-from infernal_machine.game import CAST, Permanent
+from infernal_machine.effects import (Amount, CopyToken, CreateTokens, DefineX, DestroyAll, Draw, ExileAll, GiveBack,
+                                      MassFilter, ReturnAllToHand, TREASURE, TargetControllerCreatesTokens,
+                                      spell_effects, static_abilities, triggered_abilities)
+from infernal_machine.game import CAST, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR
 from tests.test_effects import lands, pick
@@ -49,6 +49,12 @@ OVERSIMPLIFY = Card(name="Oversimplify", mana_cost="{3}{G}{U}", type_line="Sorce
                     oracle_text="Exile all creatures. Each player creates a 0/0 green and blue Fractal creature token and "
                                 "puts a number of +1/+1 counters on it equal to the total power of the creatures they "
                                 "controlled that were exiled this way.")
+DEEKAH = Card(  # the trigger's second sentence is completed from memory
+    name="Deekah, Fractal Theorist", mana_cost="{3}{U}", type_line="Legendary Creature — Human Wizard", power="2",
+    toughness="4", colors=("U",), cmc=4,
+    oracle_text="Magecraft \u2014 Whenever you cast or copy an instant or sorcery spell, create a 0/0 green and blue "
+                "Fractal creature token. Put X +1/+1 counters on it, where X is the amount of mana spent to cast that "
+                "spell.\n{3}{U}: Target creature token can't be blocked this turn.")
 STORM_KILN_ARTIST = Card(name="Storm-Kiln Artist", mana_cost="{3}{R}", type_line="Creature — Dwarf Shaman", power="2",
                          toughness="2", colors=("R",), cmc=4,
                          oracle_text="This creature gets +1/+0 for each artifact you control.\nMagecraft — Whenever you "
@@ -183,3 +189,28 @@ class WipeGiftTests(unittest.TestCase):
                          ([{"+1/+1": 5}], [{"+1/+1": 3}]))
         self.assertEqual((fractals[c], [p.card.name for p in a.battlefield if "Creature" in p.card.type_line]),
                          ([], ["Fractal"]))  # a 0/0 with no counters dies; the exiled creatures are gone
+
+
+class DeekahTests(unittest.TestCase):
+    def test_parse(self):
+        [magecraft] = triggered_abilities(DEEKAH)
+        self.assertEqual(magecraft.effects, (DefineX(Amount("mana_spent")), CreateTokens(1, FRACTAL, ("X", "+1/+1"))))
+        self.assertEqual(unsupported_lines(DEEKAH), [])
+
+    def test_the_fractal_is_as_big_as_the_mana_spent_and_a_copy_spends_none(self):
+        game, _ = table3(pick(CAST))
+        a = game.seats[0]
+        a.hand, a.battlefield = [SEIZE_THE_SPOILS, BEAR], lands(3) + [Permanent(DEEKAH)]
+        game._priority_round(a)
+        [fractal] = [p for p in a.battlefield if p.card.name == "Fractal"]
+        self.assertEqual((fractal.counters, game.power(fractal)), ({"+1/+1": 3}, 3))
+        a.hand = [SEIZE_THE_SPOILS, BEAR]
+        a.battlefield += lands(3)
+        game._priority_round(a)  # a second one: its own cost, not the first spell's
+        self.assertEqual(sorted(p.counters["+1/+1"] for p in a.battlefield if p.card.name == "Fractal"), [3, 3])
+        item = StackItem(SEIZE_THE_SPOILS, a, [], [], mana_spent=3)
+        game.stack.append(item)
+        game.copy_spell(item, a)
+        run_stack(game)
+        game._check_state()
+        self.assertEqual(count(a, "Fractal"), 2)  # the copy's Fractal came in 0/0 with no counters and died

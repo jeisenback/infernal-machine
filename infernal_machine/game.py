@@ -218,6 +218,7 @@ class StackItem:
     kicked: int = 0  # how many times the kicker cost was paid
     kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
+    mana_spent: int = 0  # the mana paid to cast it (Deekah: "the amount of mana spent to cast that spell")
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
     is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
@@ -801,8 +802,15 @@ class Game:
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
                  alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",
                  delve: int = 0) -> list[Permanent] | None:
-        """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now. An alternative
-        cost replaces the mana cost; commander tax and kicker are added, then cost reductions apply."""
+        """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now."""
+        cost = self._cast_cost(seat, card, from_command_zone, x, alternative, kickers, extra, delve)
+        return None if cost is None else self._pay_cost(seat, cost)
+
+    def _cast_cost(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
+                   alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",
+                   delve: int = 0) -> Cost | None:
+        """The mana to pay for `card` with X = `x`. An alternative cost replaces the mana cost; commander tax and
+        kicker are added, then cost reductions apply."""
         if alternative:
             cost = parse_cost(alternative.mana_cost) if alternative.mana_cost else Cost()  # Evoke and Overload cost mana
         else:
@@ -815,7 +823,7 @@ class Game:
             cost = cost + parse_cost(kicker)
         if extra:  # entwine, or escalate for each mode beyond the first
             cost = cost + parse_cost(extra)
-        return self._pay_cost(seat, cost.with_x(x).reduced(self.cost_reduction(seat, card) + delve))
+        return cost.with_x(x).reduced(self.cost_reduction(seat, card) + delve)
 
     def cost_reduction(self, seat: Seat, card: Card) -> int:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""
@@ -1223,8 +1231,10 @@ class Game:
         if alternative is None and not graveyard and has_keyword(card, "delve"):  # exile as few cards as will do
             delve = next(k for k in range(self._delve_max(seat, paying) + 1)
                          if self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=k) is not None)
-        tapped = self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve)
+        cost = self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve)
+        tapped = self._pay_cost(seat, cost)
         self._spend_mana(seat, tapped)
+        spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
         for _ in range(delve):
             exiled = seat.graveyard[seat.player.choose(DELVE_PROMPT + card.name, [c.name for c in seat.graveyard])]
             seat.graveyard.remove(exiled)
@@ -1238,7 +1248,7 @@ class Game:
         self._pay_extras(seat, card, alternative, graveyard, x, kicked)
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after),
                          is_copy=prepared is not None, evoked=bool(alternative and alternative.evoke),
-                         bestowed=bool(alternative and alternative.bestow))
+                         bestowed=bool(alternative and alternative.bestow), mana_spent=spent)
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -1481,6 +1491,9 @@ class Game:
             return int(max((c.cmc for c in this_turn if _watch_type_matches(amount.what, c)), default=0))
         if kind == "opponents":
             return len(self.opponents(controller))
+        if kind == "mana_spent":  # on the spell that set off this trigger; a copy of a spell was never cast
+            spell = self.resolving_item.carried if self.resolving_item is not None else None
+            return spell.mana_spent if isinstance(spell, StackItem) else 0
         raise ValueError(f"unknown amount {kind}")
 
     def amount(self, value: int | str) -> int:

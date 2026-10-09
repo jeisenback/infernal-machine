@@ -1405,6 +1405,10 @@ def _merge_token_counters(effects: list) -> list | None:
         if isinstance(effect, PutCountersOnSource) and merged and isinstance(merged[-1], CreateTokens) \
                 and merged[-1].counters is None:
             merged[-1] = dataclasses.replace(merged[-1], counters=(effect.count, effect.counter))
+        elif isinstance(effect, PutCountersOnSource) and len(merged) > 1 and isinstance(merged[-1], DefineX) \
+                and isinstance(merged[-2], CreateTokens) and merged[-2].counters is None:
+            # "..., where X is ...": X is worked out first, then the tokens come in with X counters (Deekah)
+            merged[-2:] = [merged[-1], dataclasses.replace(merged[-2], counters=(effect.count, effect.counter))]
         else:
             merged.append(effect)
     return merged
@@ -1624,6 +1628,7 @@ _AMOUNTS = [
     (re.compile(r"the greatest mana value among instant and sorcery spells you've cast this turn", re.I),
      lambda m: Amount("greatest_mana_value_cast", "instant or sorcery spell")),
     (re.compile(r"opponents?", re.I), lambda m: Amount("opponents")),
+    (re.compile(r"the amount of mana spent to cast that spell", re.I), lambda m: Amount("mana_spent")),
     (re.compile(r"(?:the number of )?([A-Za-z]+) you control", re.I), lambda m: Amount("you_control", _singular(m[1]))),
 ]
 
@@ -4082,6 +4087,7 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
     return _parse(_split_sentences(rest[:1].upper() + rest[1:])), optional, once, condition
 
 
+_MANA_SPENT = re.compile(r"the amount of mana spent to cast that spell", re.I)
 _MAY_PAY_OR = re.compile(r"that player may pay ((?:\{[^}]+\})+)\. If the player doesn't, (.+)")
 _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", re.I)
 
@@ -4110,12 +4116,16 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
         for pattern, replacement in _PLAYER_PRONOUNS:
             replaced = pattern.sub(replacement, replaced)
         about_player, rest = about_player or replaced != rest, replaced
-    about_subject = re.search(r"\bit\b|\bthat spell\b", rest, re.I) is not None
+    # "the amount of mana spent to cast that spell" is an amount the trigger carries, not an effect on the spell.
+    about_subject = re.search(r"\bit\b|\bthat spell\b", _MANA_SPENT.sub("", rest), re.I) is not None
     copies_spell = re.match(r"copy (it|that spell)\.", rest, re.I) is not None  # Codie: "it" is the spell cast
-    if about_subject and not subject_ok and not copies_spell:
-        return None, False, False, None
     effects, optional, once, condition = _trigger_body(rest)
     if effects is None:
+        return None, False, False, None
+    if about_subject and any(isinstance(e, CreateTokens) and e.counters for e in effects) \
+            and not any(uses_source(e) or follows_target(e) for e in effects):
+        about_subject = False  # the "it" was the new token of "Create a ... token. Put X counters on it." (Deekah)
+    if about_subject and not subject_ok and not copies_spell:
         return None, False, False, None
     if copies_spell and not subject_ok:
         return effects, optional, once, condition
