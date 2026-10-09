@@ -212,3 +212,52 @@ class ManaformHellkiteTests(unittest.TestCase):
     def test_an_opponents_spell_makes_nothing(self):
         game, tokens = self.cast(spell("Three", 3), caster=1)
         self.assertEqual(tokens, [])
+
+
+KILLIAN = Card(name="Killian, Decisive Mentor", mana_cost="{2}{W}{U}", type_line="Legendary Creature — Human Warlock", power="3",
+               toughness="3", oracle_text="Whenever an enchantment you control enters, tap up to one target creature and goad it.\n"
+                                          "Whenever one or more creatures that are enchanted by an Aura you control attack, draw a card.")
+BLESSING = Card(name="Blessing", mana_cost="{1}{W}", type_line="Enchantment — Aura", oracle_text="Enchant creature")
+
+
+class KillianTests(unittest.TestCase):
+    def attack(self, attackers, active=0, auras=()):
+        """`attackers` are (card, seat index, aura owner index or None); the active player attacks with all of them."""
+        policy = lambda prompt, options: 1 if prompt.startswith("Attack") and len(options) > 1 else 0
+        game, _ = table3(policy, policy, policy)
+        a = game.seats[0]
+        killian = Permanent(KILLIAN)
+        a.battlefield = [killian]
+        a.library = [BEAR] * 6
+        for card, seat_index, aura_owner in attackers:
+            creature = Permanent(card, sick=False)
+            game.seats[seat_index].battlefield.append(creature)
+            if aura_owner is not None:
+                game.seats[aura_owner].battlefield.append(Permanent(BLESSING, attached_to=creature))
+        game.active = active
+        game.combat.declare_attackers(game.seats[active])
+        run_stack(game)
+        return a
+
+    def test_it_is_supported(self):
+        self.assertEqual(unsupported_lines(KILLIAN), [])
+
+    def test_an_attacking_creature_enchanted_by_your_aura_draws_a_card(self):
+        a = self.attack([(BEAR, 0, 0)])
+        self.assertEqual(len(a.hand), 1)
+
+    def test_two_such_attackers_still_draw_one_card(self):
+        a = self.attack([(BEAR, 0, 0), (OGRE, 0, 0)])
+        self.assertEqual(len(a.hand), 1)
+
+    def test_a_creature_enchanted_by_someone_elses_aura_does_not(self):
+        a = self.attack([(BEAR, 0, 1)])
+        self.assertEqual(a.hand, [])
+
+    def test_an_unenchanted_attacker_does_not(self):
+        a = self.attack([(BEAR, 0, None)])
+        self.assertEqual(a.hand, [])
+
+    def test_an_opponents_creature_enchanted_by_your_aura_does_when_it_attacks(self):
+        a = self.attack([(BEAR, 1, 0)], active=1)
+        self.assertEqual(len(a.hand), 1)

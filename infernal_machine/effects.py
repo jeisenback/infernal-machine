@@ -5868,6 +5868,7 @@ _TRIGGERS = {
     "attack_with_two": re.compile(r"Whenever you attack with two or more creatures, (.+)", re.I),
     "attack_alone": re.compile(r"Whenever (?:you attack with a creature alone|a creature you control attacks alone), (.+)", re.I),
     "conjure": re.compile(r"Whenever you conjure one or more cards, (.+)", re.I),
+    "enchanted_attack": re.compile(r"Whenever one or more creatures that are enchanted by an Aura you control attack, (.+)", re.I),
     "creatures_attack": re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I),
     "opponent_attacks": re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I),
     "cycle": re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I),
