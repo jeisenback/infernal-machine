@@ -1584,7 +1584,11 @@ def _merge_token_counters(effects: list) -> list | None:
     the counters (the second sentence means the new token, not the ability's source)."""
     merged: list = []
     for effect in effects:
-        if isinstance(effect, PutCountersOnSource) and merged and isinstance(merged[-1], CreateTokens) \
+        if isinstance(effect, PutCountersOnSource) and len(merged) >= 2 and isinstance(merged[-1], DefineX) \
+                and isinstance(merged[-2], CreateTokens) and merged[-2].counters is None:
+            # "... Put X +1/+1 counters on it, where X is that spell's mana value": X is defined before the token is made
+            merged[-2:] = [merged[-1], dataclasses.replace(merged[-2], counters=(effect.count, effect.counter))]
+        elif isinstance(effect, PutCountersOnSource) and merged and isinstance(merged[-1], CreateTokens) \
                 and merged[-1].counters is None:
             merged[-1] = dataclasses.replace(merged[-1], counters=(effect.count, effect.counter))
         else:
@@ -1834,6 +1838,7 @@ class Amount:
 _AMOUNTS = [
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
     (re.compile(r"the sacrificed creature's power", re.I), lambda m: Amount("sacrificed_power")),
+    (re.compile(r"that spell's mana value", re.I), lambda m: Amount("spell_mana_value")),
     (re.compile(r"(?:the number of )?Auras? you control that's attached to a creature", re.I),
      lambda m: Amount("auras_on_creatures")),
     (re.compile(r"the number of nontoken creatures you had enter the battlefield under your control this turn", re.I),
@@ -2017,11 +2022,13 @@ _MASS_KINDS = {"battles": "battle", "creatures": "creature", "creature tokens": 
                "planeswalkers": "planeswalker", "lands": "land", "nonland permanents": "nonland permanent",
                "artifacts and enchantments": "artifact or enchantment",
                "creatures and planeswalkers": "creature or planeswalker"}
-_MASS = (r"(battles|artifacts and enchantments|creatures and planeswalkers|nonland permanents|creatures|artifacts"
+_MASS = (r"(creature tokens|nontoken creatures|battles|artifacts and enchantments|creatures and planeswalkers|nonland permanents|creatures|artifacts"
          r"|enchantments|planeswalkers|lands)( you don't control| you control| an opponent controls| your opponents control)?")
 
 
 def _mass_kind(m: re.Match) -> str:
+    if m[1].lower() in ("creature tokens", "nontoken creatures"):  # Perplexing Test
+        return m[1].lower().removesuffix("s") + (m[2] or "")
     return _MASS_KINDS[m[1].lower()] + (m[2] or "").replace(" your opponents control", " an opponent controls")
 
 
@@ -3678,7 +3685,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
-    (re.compile(r'(?i:its controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
+    (re.compile(r'(?i:(?:its|that creature\'s) controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
     (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
                 r"battlefield tapped, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand()),
@@ -3727,6 +3734,8 @@ def _clauses(sentence: str) -> list[str]:
     sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
     "You create" add nothing."""
     sentence = sentence.replace(" of their choice.", ".")
+    if m := re.fullmatch(rf"(Draw (?:a card|{_N} cards)) and (create .+)\.", sentence, re.I):  # Big Score, Seize the Spoils
+        return [m[1] + ".", m[3][:1].upper() + m[3][1:] + "."]
     if _RETURN_UP_TO_POWER.fullmatch(sentence):  # one effect: X is looked at when the target is chosen
         return [sentence]
     if m := re.fullmatch(r"Create a number of (.+?) tokens? equal to (.+)\.", sentence, re.I):  # Gyome's Food
@@ -4385,7 +4394,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
         for pattern, replacement in _PLAYER_PRONOUNS:
             replaced = pattern.sub(replacement, replaced)
         about_player, rest = about_player or replaced != rest, replaced
-    about_subject = re.search(r"\bit\b|\bthat spell\b", rest, re.I) is not None
+    probe = rest.replace("that spell's mana value", "").replace("counters on it, where", "counters, where")  # Deekah
+    about_subject = re.search(r"\bit\b|\bthat spell\b", probe, re.I) is not None
     copies_spell = re.match(r"copy (it|that spell)\.", rest, re.I) is not None  # Codie: "it" is the spell cast
     if about_subject and not subject_ok and not copies_spell:
         return None, False, False, None

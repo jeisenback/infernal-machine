@@ -1854,6 +1854,72 @@
    "colors": [
     "R"
    ]
+  },
+  {
+   "name": "Big Score",
+   "mana_cost": "{3}{R}",
+   "type_line": "Instant",
+   "oracle_text": "As an additional cost to cast this spell, discard a card.\nDraw two cards and create two Treasure tokens. (They're artifacts with \"{T}, Sacrifice this token: Add one mana of any color.\")",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Seize the Spoils",
+   "mana_cost": "{2}{R}",
+   "type_line": "Sorcery",
+   "oracle_text": "As an additional cost to cast this spell, discard a card.\nDraw two cards and create a Treasure token. (It's an artifact with \"{T}, Sacrifice this token: Add one mana of any color.\")",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Resculpt",
+   "mana_cost": "{1}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Exile target artifact or creature. Its controller creates a 4/4 blue and red Elemental creature token.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Rapid Hybridization",
+   "mana_cost": "{U}",
+   "type_line": "Instant",
+   "oracle_text": "Destroy target creature. It can't be regenerated. That creature's controller creates a 3/3 green Frog Lizard creature token.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Perplexing Test",
+   "mana_cost": "{3}{U}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Choose one —\n• Return all creature tokens to their owners' hands.\n• Return all nontoken creatures to their owners' hands.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Deekah, Fractal Theorist",
+   "mana_cost": "{4}{U}",
+   "type_line": "Legendary Creature — Human Wizard",
+   "oracle_text": "Magecraft — Whenever you cast or copy an instant or sorcery spell, create a 0/0 green and blue Fractal creature token. Put X +1/+1 counters on it, where X is that spell's mana value.\n{3}{U}: Target creature token can't be blocked this turn.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

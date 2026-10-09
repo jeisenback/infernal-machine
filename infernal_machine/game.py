@@ -1555,6 +1555,9 @@ class Game:
                        and "Creature" in p.attached_to.card.type_line)
         if kind == "creatures_entered":  # nontoken creatures that entered under your control this turn
             return controller.creatures_entered if controller.creatures_entered_turn == self.turn else 0
+        if kind == "spell_mana_value":  # the spell that set the trigger off
+            spell = self.resolving_item.carried if self.resolving_item is not None else None
+            return int(spell.card.cmc) + spell.x if spell is not None else 0
         if kind == "sacrificed_power":  # the creature sacrificed to pay this ability's cost
             return self.resolving_item.sacrificed_power if self.resolving_item else 0
         if kind == "source_counters":
