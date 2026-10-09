@@ -10,6 +10,7 @@ other rules text is not implemented yet.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import random
 import re
@@ -135,6 +136,7 @@ RETURN_CARD_PROMPT = "Return which card from your graveyard: "  # followed by th
 KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom", "Put into your graveyard"
 MAX_TARGETS = 30  # a bound on "any number of target ..."
 MAX_X = 30  # stop looking for a bigger affordable X here
+MAX_LIFE_MANA = 10  # Channel: how many life-paid {C} the payer offers at once
 YES_NO = ["Yes", "No"]
 LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
 REMOVE_COUNTER_PROMPT = "Remove a counter to draw a card? "  # followed by the permanent's name
@@ -310,6 +312,10 @@ class Seat:
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
+    extra_mountain_mana_turn: int | None = None  # Molten Tide: this turn, a Mountain tapped for mana adds an additional {R}
+    life_mana_turn: int | None = None  # Channel: this turn, 1 life buys {C} any time
+    conjurable: dict[str, Card] = field(default_factory=dict)  # Alchemy: the cards this player's deck can conjure, by name
+    noncombat_damage_turn: int | None = None  # the last turn this player was dealt damage that wasn't combat damage
     life_lost_amount: int = 0  # how much they lost on life_lost_turn
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
     suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
@@ -347,6 +353,7 @@ class Game:
     # ability whose cost has {X}.
     _spending_spell: Card | None = None
     _spending_x: bool = False
+    _spending_from_hand: bool = False  # ... and whether that spell is being cast from its owner's hand
 
     def __init__(self, seats: list[tuple[Player, Deck]], seed: int | None = None):
         if len(seats) < 2:
@@ -360,6 +367,7 @@ class Game:
                 command_zone=list(deck.commanders),
                 commander_names={c.name for c in deck.commanders},
                 color_identity=frozenset(color for c in deck.commanders for color in c.color_identity),
+                conjurable=dict(deck.conjured),
             )
             for i, (player, deck) in enumerate(seats)
         ]
@@ -390,6 +398,7 @@ class Game:
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
+        self.resolving_target: Any = None  # the last target chosen for it, which "that creature" in a condition means
         self.resolving_colors: frozenset[str] = frozenset()  # its colors (for protection from damage)
 
     @property
@@ -933,11 +942,22 @@ class Game:
                 continue
             seat.mana_pool.clear()
 
+    @contextlib.contextmanager
+    def _paying_for(self, seat: Seat, card: Card):
+        """While mana is paid for casting `card`, which is still in the zone it is cast from."""
+        self._spending_spell, self._spending_from_hand = card, any(c is card for c in seat.hand)
+        try:
+            yield
+        finally:
+            self._spending_spell, self._spending_from_hand = None, False
+
     def _restriction_ok(self, restriction: str | None) -> bool:
         """Whether mana limited by `restriction` can pay for what is being paid for now."""
         if restriction is None:
             return True
         spell = self._spending_spell
+        if restriction == "not_from_hand":  # Heartwood Crafter: only spells cast from hand are off limits
+            return not self._spending_from_hand
         if restriction == "x_cost":
             return self._spending_x or (spell is not None and "{X}" in spell.mana_cost)
         return spell is not None and (spell.cmc >= 5 or "{X}" in spell.mana_cost)
@@ -969,6 +989,8 @@ class Game:
                           for mana in granted_mana(a.card)]  # "Enchanted land has "{T}: Add {G}{G}."": the better of the two
                 extra = [ManaSource(permanent, mana, pain, damage) for other in self.seats for a in other.battlefield
                          if a.attached_to is permanent for mana in additional_land_mana(a.card)]  # Wild Growth
+                if seat.extra_mountain_mana_turn == self.turn and "Mountain" in card.type_line:  # Molten Tide
+                    extra.append(ManaSource(permanent, frozenset("R"), pain, damage))
                 if units := land_mana_units(card):  # a bounceland or Ancient Tomb makes several mana in one tap
                     lands.extend([ManaSource(permanent, mana, pain, damage) for mana in units] + extra)
                     continue
@@ -1029,11 +1051,8 @@ class Game:
         cost = self._cast_cost(seat, card, from_command_zone, x, alternative, kickers, extra, delve)
         if cost is None:
             return None
-        self._spending_spell = card
-        try:
+        with self._paying_for(seat, card):
             return self._pay_cost(seat, cost)
-        finally:
-            self._spending_spell = None
 
     def _cast_cost(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
                    alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",
@@ -1192,6 +1211,13 @@ class Game:
                 chosen = self._pay_with_filters(cost, sources, combo)
                 if chosen is not None:
                     return chosen
+        if seat.life_mana_turn == self.turn and seat.life > 1:  # Channel: only when nothing that costs nothing will do
+            lives = [ManaSource(None, frozenset("C"), frozenset("C"), 1, life=True) for _ in range(min(seat.life - 1, MAX_LIFE_MANA))]
+            for size in range(len(filters) + 1):
+                for combo in combinations(filters, size):
+                    chosen = self._pay_with_filters(cost, sources + lives, combo)
+                    if chosen is not None and chosen.life < seat.life:  # never down to 0
+                        return chosen
         return None
 
     def _pay_with_filters(self, cost: Cost, sources: list[ManaSource], combo) -> Payment | None:
@@ -1224,14 +1250,15 @@ class Game:
         # A permanent that makes several mana (Sol Ring) is tapped once. Mana already in the pool has no permanent.
         permanents = [s.permanent for s, _ in used if s.permanent is not None] + [p for p, _, _ in ordered]
         payment = Payment({id(p): p for p in permanents}.values())
-        payment.pool = tuple(s.types for s, _ in used if s.permanent is None)
+        payment.pool = tuple(s.types for s, _ in used if s.permanent is None and not s.life)  # a life-paid {C} (Channel) isn't pooled
         payment.filters = tuple(p for p, _, _ in ordered)
         # A permanent hurts (or costs life) once per tap, however many of its mana are used.
         hurt: dict[int, int] = {}
         paid_life: dict[int, int] = {}
         for source, symbol in used:
             into = paid_life if source.life else hurt
-            into[id(source.permanent)] = max(into.get(id(source.permanent), 0), _pain(source, symbol))
+            key = id(source) if source.permanent is None else id(source.permanent)  # each life-paid {C} costs its own life
+            into[key] = max(into.get(key, 0), _pain(source, symbol))
         payment.pain, payment.life = sum(hurt.values()), sum(paid_life.values())
         return payment
 
@@ -1651,11 +1678,8 @@ class Game:
             delve = next(k for k in range(self._delve_max(seat, paying) + 1)
                          if self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=k) is not None)
         cost = self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve)
-        self._spending_spell = paying
-        try:
+        with self._paying_for(seat, paying):
             tapped = self._pay_cost(seat, cost)
-        finally:
-            self._spending_spell = None
         self._spend_mana(seat, tapped)
         spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
         for _ in range(delve):
@@ -1991,6 +2015,7 @@ class Game:
         finally:
             self.x_value, self.resolving_source = 0, None
             self.resolving_item, self.resolving_colors = None, frozenset()
+            self.resolving_target = None
 
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
@@ -2032,6 +2057,7 @@ class Game:
                 target = item.source  # persist and undying: the creature has already left the battlefield
             elif uses_source(effect):
                 target = item.source if item.source and self.on_battlefield(item.source) else None
+            self.resolving_target = previous
             effect.resolve(self, seat, target)
         return True
 
@@ -2113,6 +2139,14 @@ class Game:
         if kind == "opponent_more_lands":
             lands = lambda s: sum(is_land(p.card) for p in s.battlefield)
             return any(lands(o) > lands(seat) for o in self.opponents(seat))
+        if kind == "opponent_dealt_noncombat_damage":  # Whiplash Wordsmith
+            return any(o.noncombat_damage_turn == self.turn for o in self.opponents(seat))
+        if kind == "target_power_at_least":  # Yavimaya Bloomsage: "if that creature has power 7 or greater"
+            target = self.resolving_target
+            return isinstance(target, Permanent) and self.on_battlefield(target) and self.power(target) >= condition.count
+        if kind == "opponent_more_creatures":  # Emeritus of Truce
+            creatures = lambda s: sum("Creature" in p.card.type_line for p in s.battlefield)
+            return any(creatures(o) > creatures(seat) for o in self.opponents(seat))
         if kind == "cast_this_turn":
             return any(turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in seat.cast_log)
         if kind == "no_counter":  # "if it had no -1/-1 counters on it": what it had when it left
@@ -2206,6 +2240,8 @@ class Game:
                 if watch.theirs and watcher_seat is seat:
                     continue
                 if watch.nontoken and _is_token(card):
+                    continue
+                if watch.not_starting_deck and not card.conjured:
                     continue
                 if watch.kind == "prepared spell":  # cast as a prepared creature's spell, whatever kind of spell it is
                     if not prepared:
@@ -2427,6 +2463,8 @@ class Game:
                 self.create_tokens(target, target.combat_shield_token, amount)
             return
         if isinstance(target, Seat):
+            if amount > 0 and not combat:
+                target.noncombat_damage_turn = self.turn
             self.change_life(target, -amount)
             if combat and controller:
                 self.trigger("combat_damage_to_player", source, controller)
@@ -2441,6 +2479,10 @@ class Game:
                 if controller.surge is not None and controller.surge[0] == self.turn:  # Surge to Victory
                     self._queue(TriggeredAbility("ally_combat_damage", (CastExiledCopy(controller.surge[1]),), True,
                                                  "Surge to Victory"), source, controller)
+                for watched, watcher, effect in list(self.combat.damage_watches):  # "Whenever that creature deals ... this combat"
+                    if watched is source and self.on_battlefield(watcher):
+                        self._queue(TriggeredAbility("ally_combat_damage", (effect.then,), False, effect.text), watcher,
+                                    self.controller_of(watcher))
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
@@ -2867,6 +2909,8 @@ class Game:
             for buff in static_abilities(source.card):
                 if owner is not controller and not buff.everyone:
                     continue
+                if buff.plus_counter and not permanent.counters.get("+1/+1"):
+                    continue
                 if buff.with_counters and not any(permanent.counters.values()):
                     continue
                 wanted = source.chosen_type if buff.subtype == "chosen" else buff.subtype
@@ -3107,6 +3151,18 @@ class Game:
                     del permanent.counters[kind]
                 self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
                                 "added": -removed, "total": permanent.counters.get(kind, 0)})
+
+    def conjure(self, seat: Seat, name: str) -> None:
+        """Alchemy: create the named card, from the cards this player's deck can conjure, onto the battlefield. A card the
+        deck has no definition for is not conjured."""
+        card = seat.conjurable.get(name)
+        if card is None:
+            self.broadcast({"event": "conjure_failed", "seat": seat.index, "card": name})
+            return
+        self.broadcast({"event": "conjure", "seat": seat.index, "card": name})
+        self._enter(seat, Permanent(dataclasses.replace(card, conjured=True), sick=True))
+        for permanent in list(seat.battlefield):
+            self.trigger("conjure", permanent, seat)
 
     def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None,
                       tapped: bool = False) -> list[Permanent]:

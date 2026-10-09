@@ -35,6 +35,7 @@ class Card:
     scryfall_id: str | None = None
     back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
     prepare: "Card | None" = None  # a prepare card's spell half, which a prepared creature can cast a copy of
+    conjured: bool = False  # Alchemy: made during the game, so not from anyone's starting deck
 
     @classmethod
     def from_scryfall(cls, data: dict) -> "Card":
@@ -381,6 +382,25 @@ class Deck:
     commanders: list[Card]
     main: list[Card]
     sideboard: list[Card]
+    conjured: dict[str, Card] = field(default_factory=dict)  # the cards its text can conjure, by name
+
+
+CONJURE_NAMED = re.compile(r"[Cc]onjure a card named (.+?) onto the battlefield")
+
+
+def _conjured_cards(cards: Iterable[Card], source: CardSource) -> dict[str, Card]:
+    """The cards the deck's text conjures ("Conjure a card named Storm Crow onto the battlefield"), looked up now so
+    nothing is fetched during a game. A name the source doesn't know is left out; conjuring it then does nothing."""
+    found: dict[str, Card] = {}
+    for card in cards:
+        for face in (card, card.prepare):
+            for name in CONJURE_NAMED.findall(face.oracle_text) if face is not None else ():
+                if name not in found:
+                    try:
+                        found[name] = source.get(name)
+                    except CardNotFound:
+                        pass
+    return found
 
 
 def load_deck(text: str, source: CardSource) -> Deck:
@@ -388,4 +408,5 @@ def load_deck(text: str, source: CardSource) -> Deck:
     parsed = parse_decklist(text)
     cards = source.get_many([*parsed.commanders, *parsed.main, *parsed.sideboard])
     expand = lambda counts: [cards[name] for name, n in counts.items() for _ in range(n)]
-    return Deck(expand(parsed.commanders), expand(parsed.main), expand(parsed.sideboard))
+    return Deck(expand(parsed.commanders), expand(parsed.main), expand(parsed.sideboard),
+                _conjured_cards(cards.values(), source))

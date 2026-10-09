@@ -110,7 +110,8 @@ _WHOLE_LINE = re.compile(
     r"|Create (?:a token that's a copy of|five tokens that are copies of) another target creature you control(?:, except it "
     r"isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the next end step\."
     r"|Target player draws cards equal to half the number of cards in their library and loses half their life\. "
-    r"Round up each time\.", re.I)
+    r"Round up each time\."
+    r"|Until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\.", re.I)
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -1362,6 +1363,7 @@ class StaticBuff:
     everyone: bool = False  # "White creatures get +1/+1": every player's, not just its controller's
     token: bool = False  # "Creature tokens you control have haste": only tokens
     with_counters: bool = False  # "Creatures you control with counters on them have trample"
+    plus_counter: bool = False  # "Each creature you control with a +1/+1 counter on it has vigilance": that counter only
 
 
 _CHOOSE_TYPE = re.compile(r"As (?:CARDNAME|this [a-z]+) enters, choose a creature type\.")
@@ -1376,12 +1378,12 @@ def is_choose_type_line(line: str) -> bool:
     return _CHOOSE_TYPE.fullmatch(line) is not None
 
 
-_AFFECTED = (r"Creatures you control of the chosen type|Creature tokens you control|Creatures you control with counters on them|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+_AFFECTED = (r"Creatures you control of the chosen type|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
                                r"this game\.")
-_STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
-_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+_STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|(?:have|has) {_KEYWORDS})\.")
+_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
@@ -1419,8 +1421,9 @@ def _conditional(line: str) -> tuple[str, str] | None:
 def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
     buffs = []
     for line in rules_lines(card):
-        sentence, condition = line, None
-        if split := _conditional(line):
+        bare = _ABILITY_WORD.sub("", line)  # "Threshold — ": the word names the condition but changes nothing
+        sentence, condition = bare, None
+        if split := _conditional(bare):
             sentence, text = split
             if (condition := _condition(text)) is None:
                 continue
@@ -1432,7 +1435,7 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
                                     attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]),
                                     token=bool(who["tokens"]),
-                                    with_counters=bool(who["counters"])))
+                                    with_counters=bool(who["counters"]), plus_counter=bool(who["plus"])))
         elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
             who = _AFFECTED_WHO.fullmatch(m[1])
             buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
@@ -3881,6 +3884,45 @@ class PrepareEach:
             game.prepare(permanent)
 
 
+@dataclass(frozen=True)
+class ExtraMountainMana:
+    """Pyre Rhymer's Molten Tide: "Until end of turn, whenever you tap a Mountain for mana, add an additional {R}." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.extra_mountain_mana_turn = game.turn
+
+
+@dataclass(frozen=True)
+class PayLifeForMana:
+    """Yavimaya Bloomsage's Channel: "Until end of turn, any time you could activate a mana ability, you may pay 1 life. If
+    you do, add {C}." Paying for something uses it automatically, after the mana that costs nothing."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.life_mana_turn = game.turn
+
+
+@dataclass(frozen=True)
+class Conjure:
+    """Alchemy: "Conjure a card named Storm Crow onto the battlefield." The card was looked up when the deck loaded."""
+    name: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.conjure(controller, self.name)
+
+
+@dataclass(frozen=True)
+class WhenThatDealsCombatDamage:
+    """Stensian Sanguinist: "Whenever that creature deals combat damage to a player this combat, this creature becomes
+    prepared." The creature is the last one targeted; the watch lives on this combat, so it ends with it."""
+    then: Any
+    follows_target = True
+    text = "Whenever that creature deals combat damage to a player this combat, this creature becomes prepared."
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.resolving_source is not None:
+            game.combat.damage_watches.append((target, game.resolving_source, self))
+
+
 _ENTERS_PREPARED = re.compile(rf"{_SELF} enters prepared\.", re.I)
 
 
@@ -5019,6 +5061,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield tapped and attacking that opponent\.)"),
      lambda m: PutAttackingFromHand(tuple(re.findall(r"[A-Z][a-z]+", m[1])))),
     (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
+    (re.compile(r"conjure a card named (.+?) onto the battlefield\.", re.I), lambda m: Conjure(m[1])),
+    (re.compile(r"until end of turn, whenever you tap a mountain for mana, add an additional \{R\}\.", re.I),
+     lambda m: ExtraMountainMana()),
+    (re.compile(r"until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\.",
+                re.I), lambda m: PayLifeForMana()),
+    (re.compile(rf"whenever that creature deals combat damage to a player this combat, ({_SELF} becomes prepared)\.", re.I),
+     lambda m: WhenThatDealsCombatDamage(BecomePrepared())),
     (re.compile(r"each creature you control becomes prepared\.", re.I), lambda m: PrepareEach()),
     (re.compile(r"target (creature(?: that attacked this turn)?) becomes (prepared|unprepared)\.", re.I),
      lambda m: TargetPrepared(m[1].lower(), m[2].lower() == "prepared")),
@@ -5606,7 +5655,7 @@ class TriggeredAbility:
 @dataclass(frozen=True)
 class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
-    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "cast_this_turn", "control_at_least",
+    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
     #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
     count: int = 0
@@ -5623,6 +5672,8 @@ _CONDITIONS = [
     (re.compile(rf"you gained {_N} or more life this turn"), lambda m: Condition("gained_life_at_least", _count(m[1]))),
     (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
+    (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),
+    (re.compile(rf"that creature has power {_N} or greater"), lambda m: Condition("target_power_at_least", _count(m[1]))),
     (re.compile(r"you've cast an? (instant or sorcery spell|creature spell|noncreature spell|spell) this turn"),
      lambda m: Condition("cast_this_turn", what=m[1])),
     (re.compile(rf"you control {_N} or more (white|blue|black|red|green) permanents"),
@@ -5655,6 +5706,8 @@ _CONDITIONS = [
     (re.compile(r"you were the monarch as the turn began"), lambda m: Condition("monarch_at_turn_start")),
     # Eminence: the ability only works from those two zones, which is where the game looks for it.
     (re.compile(rf"{_SELF} is in the command zone or on the battlefield"), lambda m: Condition("eminence")),
+    (re.compile(rf"there are {_N} or more cards in your graveyard"), lambda m: Condition("graveyard_at_least", _count(m[1]), "card")),
+    (re.compile(r"an opponent was dealt noncombat damage this turn"), lambda m: Condition("opponent_dealt_noncombat_damage")),
     (re.compile(rf"there are {_N} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
      lambda m: Condition("graveyard_at_least", _count(m[1]), m[2].replace(" and/or ", " or "))),
     (re.compile(rf"a player has {_N} or fewer cards in hand"), lambda m: Condition("any_hand_at_most", _count(m[1]))),
@@ -5683,6 +5736,7 @@ class Watch:
     with_copy: bool = False  # "cast or copy" (magecraft)
     mv_at_least: int = 0  # "a spell with mana value 5 or greater"
     from_hand: bool = False  # "... from your hand"
+    not_starting_deck: bool = False  # "a spell that isn't from your starting deck": a conjured card
     from_zone: str = ""  # "graveyard" ("from your graveyard", "from their graveyard") or "not_hand" ("from anywhere other than your hand")
     qualifier: str = ""  # "with power 4 or greater" ("power>=4"), "with flying" ("flying"), "with a +1/+1 counter on it" ("counter:+1/+1")
     expend: int = 0  # "Whenever you expend 4": the total mana spent on spells this turn that it waits for
@@ -5730,7 +5784,8 @@ _TRIGGERS = {
     "host_attacks": re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I),
     "attack_with_two": re.compile(r"Whenever you attack with two or more creatures, (.+)", re.I),
     "attack_alone": re.compile(r"Whenever (?:you attack with a creature alone|a creature you control attacks alone), (.+)", re.I),
-    "creatures_attack": re.compile(r"Whenever one or more creatures you control attack, (.+)", re.I),
+    "conjure": re.compile(r"Whenever you conjure one or more cards, (.+)", re.I),
+    "creatures_attack": re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I),
     "opponent_attacks": re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I),
     "cycle": re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I),
     "cycle_or_discard": re.compile(r"Whenever you cycle or discard (?:a|another) card, (.+)", re.I),
@@ -5793,7 +5848,8 @@ _WATCHES = {
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
                        r"|(?-i:[A-Z][a-z]+) spell)"  # a creature type: "another Vampire spell"
                        r"(?: with mana value (\d+) or greater)?"
-                       r"( from your hand| from your graveyard| from their graveyard| from anywhere other than your hand)?"
+                       r"( from your hand| from your graveyard| from their graveyard| from anywhere other than your hand"
+                       r"| that isn't from your starting deck)?"
                        r"(?(3) each turn), (.+)", re.I),
     "card_to_graveyard": re.compile(rf"Whenever an? ([a-z ]+?) card is put into your graveyard from anywhere, (.+)", re.I),
     "creature_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
@@ -5868,6 +5924,7 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         watch = Watch(m[4].lower(), other=(m[2] or "").lower() == "another", caster=caster, nth_each_turn=nth,
                       with_copy=m[1].lower() == "you cast or copy", mv_at_least=int(m[5] or 0),
                       from_hand=origin == "from your hand",
+                      not_starting_deck=origin == "that isn't from your starting deck",
                       from_zone="graveyard" if "graveyard" in origin else "not_hand" if "other than" in origin else "")
         return "cast", watch, m[7]
     if m := _WATCHES["card_to_graveyard"].fullmatch(line):
@@ -6390,10 +6447,11 @@ def mana_spent_trigger(card: Card) -> ManaSpentTrigger | None:
 
 
 # Troyan, Elementalist's Palette: "Spend this mana only ..." limits what the mana can pay for.
-_RESTRICTION = re.compile(r" Spend this mana only (to cast spells with mana value 5 or greater or spells with \{X\} in their "
-                          r"mana costs|on costs that contain \{X\})\.")
-_RESTRICTIONS = {"to cast spells with mana value 5 or greater or spells with {X} in their mana costs": "big_or_x",
-                 "on costs that contain {X}": "x_cost"}
+_RESTRICTIONS = {"Spend this mana only to cast spells with mana value 5 or greater or spells with {X} in their mana costs":
+                 "big_or_x",
+                 "Spend this mana only on costs that contain {X}": "x_cost",
+                 "This mana can't be spent to cast spells from your hand": "not_from_hand"}  # Heartwood Crafter
+_RESTRICTION = re.compile(" (" + "|".join(re.escape(k) for k in _RESTRICTIONS) + r")\.")
 
 
 def _without_spent_rider(line: str) -> str:
@@ -6404,7 +6462,7 @@ def _without_spent_rider(line: str) -> str:
 
 def mana_restriction(card: Card) -> str | None:
     """What the card's plain mana ability limits its mana to: "big_or_x" (spells of mana value 5 or more, or with {X} in
-    their cost) or "x_cost" (costs containing {X})."""
+    their cost), "x_cost" (costs containing {X}) or "not_from_hand" (not spells cast from hand)."""
     line = _mana_line(card)
     m = _RESTRICTION.search(line) if line else None
     return _RESTRICTIONS[m[1]] if m else None
