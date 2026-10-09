@@ -4,6 +4,7 @@ import unittest
 from dataclasses import replace
 
 from infernal_machine.cards import Card
+from infernal_machine.combat import Attack
 from infernal_machine.game import CAST, MODE_PROMPT, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
@@ -140,3 +141,63 @@ class RiteOfReplicationTests(unittest.TestCase):
             run_stack(game)
             tokens = sum(p.card.type_line.startswith("Token") for p in a.battlefield)
             self.assertEqual(tokens, expected, kicked)
+
+
+class InkshieldTests(unittest.TestCase):
+    def test_combat_damage_is_prevented_and_makes_an_inkling_for_each_point(self):
+        game, _ = table3(pick(CAST))
+        a, b, _c = game.seats
+        a.hand, a.battlefield = [REAL["Inkshield"]], lands(5)
+        game._priority_round(a)
+        run_stack(game)
+        attacker = Permanent(replace(BEAR, power="3", toughness="3"))
+        b.battlefield = [attacker]
+        game.combat.attacks = [Attack(attacker, b, a)]
+        game.combat.deal_damage(first_strike_step=False)
+        run_stack(game)
+        self.assertEqual((a.life, sum(p.card.name == "Inkling" for p in a.battlefield)), (40, 3))
+        game.turn += 1  # it only lasts this turn
+        game.combat.attacks = [Attack(attacker, b, a)]
+        game.combat.deal_damage(first_strike_step=False)
+        self.assertEqual(a.life, 37)
+
+
+class FurygaleFlockingTests(unittest.TestCase):
+    def test_two_hasty_attackers_for_each_opponent(self):
+        game, _ = table3(pick(CAST))
+        a, b, c = game.seats
+        a.hand, a.battlefield = [REAL["Furygale Flocking"]], lands(10)
+        game._priority_round(a)
+        run_stack(game)
+        elementals = [p for p in a.battlefield if p.card.name == "Elemental"]
+        self.assertEqual(sorted(p.must_attack.index for p in elementals), [1, 1, 2, 2])
+        self.assertTrue(all(game.has_keyword(p, "haste") and game.has_keyword(p, "flying") for p in elementals))
+
+
+class TwinflameTests(unittest.TestCase):
+    def test_hasty_copies_for_each_target_and_strive_for_the_extras(self):
+        def policy(prompt, options):
+            if prompt.startswith("Choose a target"):
+                return 0  # the first, then the next, then the option to stop is last
+            return pick(CAST)(prompt, options)
+        game, _ = table3(policy)
+        a = game.seats[0]
+        bear, ogre = Permanent(BEAR), Permanent(replace(BEAR, name="Ogre", power="3", toughness="3"))
+        a.hand, a.battlefield = [REAL["Twinflame"]], [bear, ogre, *lands(5)]
+        game._priority_round(a)
+        run_stack(game)
+        tokens = [p for p in a.battlefield if p.card.type_line.startswith("Token")]
+        self.assertEqual(sorted(t.card.name for t in tokens), ["Bear", "Ogre"])
+        self.assertTrue(all(game.has_keyword(t, "haste") for t in tokens))
+        self.assertEqual(sum(p.tapped for p in a.battlefield if "Land" in p.card.type_line), 5)  # {1}{R} + {2}{R} for the second
+        game.step = "end"
+        game._turn_based_actions(a)
+        self.assertEqual([p for p in a.battlefield if p.card.type_line.startswith("Token")], [])
+
+    def test_it_stops_offering_targets_it_cannot_afford(self):
+        game, _ = table3(lambda prompt, options: 0 if prompt.startswith("Choose a target") else pick(CAST)(prompt, options))
+        a = game.seats[0]
+        a.hand, a.battlefield = [REAL["Twinflame"]], [Permanent(BEAR), Permanent(BEAR), Permanent(BEAR), *lands(3)]
+        game._priority_round(a)
+        run_stack(game)
+        self.assertEqual(sum(p.card.type_line.startswith("Token") for p in a.battlefield), 1)  # only {1}{R} was affordable

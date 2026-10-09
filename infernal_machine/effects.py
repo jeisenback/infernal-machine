@@ -78,7 +78,12 @@ def rules_lines(card: Card) -> list[str]:
 
 
 _WHOLE_LINE = re.compile(
-    r"Exile X target creatures\. For each creature exiled this way, its controller creates .+"
+    r"Choose any number of target creatures you control\. For each of them, create a token that's a copy of that creature, "
+    r"except it has haste\. Exile those tokens at the beginning of the next end step\."
+    r"|For each opponent, create .+ tokens? with flying that attack that opponent this turn if able\. They gain haste until end "
+    r"of turn\."
+    r"|Prevent all combat damage that would be dealt to you this turn\. For each 1 damage prevented this way, create .+"
+    r"|Exile X target creatures\. For each creature exiled this way, its controller creates .+"
     r"|Exile all creatures\. Each player creates a 0/0 green and blue Fractal creature token and puts a number of \+1/\+1 "
     r"counters on it equal to the total power of creatures they controlled that were exiled this way\."
     r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
@@ -1779,6 +1784,46 @@ class Oversimplify:
 
 
 @dataclass(frozen=True)
+class InkshieldEffect:
+    """Inkshield: "Prevent all combat damage that would be dealt to you this turn. For each 1 damage prevented this way,
+    create a 2/1 white and black Inkling creature token with flying." """
+    token: Card
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.prevent_combat_turn = game.turn
+        controller.prevent_combat_token = self.token
+
+
+@dataclass(frozen=True)
+class AttackingTokensForEachOpponent:
+    """Furygale Flocking: "For each opponent, create two 3/3 ... tokens with flying that attack that opponent this turn if
+    able. They gain haste until end of turn." """
+    count: int
+    token: Card
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for opponent in game.opponents(controller):
+            for _ in range(self.count):
+                game.create_attacking_token(controller, self.token, opponent)
+
+
+@dataclass(frozen=True)
+class HastyCopiesUntilEndStep:
+    """Twinflame: "Choose any number of target creatures you control. For each of them, create a token that's a copy of
+    that creature, except it has haste. Exile those tokens at the beginning of the next end step." """
+    target: str = "creature you control"
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        made = [game.create_hasty_copy(controller, p) for p in target or [] if game.on_battlefield(p)]
+        fire_turn = game.turn + 1 if game.step in ("end", "cleanup") else game.turn
+        game.at_end_step.append((fire_turn, lambda: game._leave_together(
+            [(p, "exiled") for p in made if game.on_battlefield(p)], destination="exile")))
+
+
+@dataclass(frozen=True)
 class OpponentsLoseCounters:
     """Final Act: "Each opponent loses all counters." (the counters on players: poison, energy, experience, ...)"""
 
@@ -3058,6 +3103,12 @@ _ENTWINE = re.compile(r"Entwine ((?:\{[^}]+\})+)")
 _ESCALATE = re.compile(r"Escalate ((?:\{[^}]+\})+)")  # "Escalate\u2014Discard a card." (a cost that isn't mana) isn't supported
 _FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
 _RETRACE = re.compile(r"Retrace")
+_STRIVE = re.compile(r"Strive — This spell costs ((?:\{[^}]+\})+) more to cast for each target beyond the first\.")
+
+
+def strive_cost(card: Card) -> str:
+    """Strive: the mana each target beyond the first adds to the cost ("" if the card has none)."""
+    return next((m[1] for line in rules_lines(card) if (m := _STRIVE.fullmatch(line))), "")
 _BESTOW = re.compile(r"Bestow ((?:\{[^}]+\})+)")
 _ENCORE = re.compile(r"Encore ((?:\{[^}]+\})+)")
 
@@ -3266,7 +3317,7 @@ _SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate)(?:, (?:Delve
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _SUSPEND, _STRIVE, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY))
 
@@ -3545,6 +3596,15 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(r"choose any number of target creatures you control\. For each of them, create a token that's a copy of that "
+                r"creature, except it has haste\. Exile those tokens at the beginning of the next end step\.", re.I),
+     lambda m: HastyCopiesUntilEndStep()),
+    (re.compile(r"for each opponent, create (.+ tokens? with flying) that attack that opponent this turn if able\. They gain "
+                r"haste until end of turn\.", re.I),
+     lambda m: (lambda parsed: AttackingTokensForEachOpponent(*parsed) if parsed else None)(_token(m[1]))),
+    (re.compile(r"prevent all combat damage that would be dealt to you this turn\. For each 1 damage prevented this way, "
+                r"create (.+)\.(\"?)", re.I),
+     lambda m: (lambda parsed: InkshieldEffect(parsed[1]) if parsed else None)(_token(m[1] + ('."' if m[2] else "")))),
     (re.compile(r"exile X target creatures\. For each creature exiled this way, its controller creates (.+)\.(\"?)", re.I),
      lambda m: (lambda parsed: ExileXTargets(parsed[1]) if parsed else None)(_token(m[1] + ('."' if m[2] else "")))),
     (re.compile(r"exile all creatures\. Each player creates a 0/0 green and blue Fractal creature token and puts a number of "

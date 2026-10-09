@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, strive_cost, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -276,6 +276,8 @@ class Seat:
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
+    prevent_combat_turn: int | None = None  # Inkshield: combat damage to this player is prevented that turn
+    prevent_combat_token: "Card | None" = None  # ... and each point prevented makes this token
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
     suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
     player_counters: dict[str, int] = field(default_factory=dict)  # counters on the player: poison, energy, ...
@@ -330,6 +332,7 @@ class Game:
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
+        self.targeting_afford = None  # Strive: whether the spell with this many targets can still be paid for
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
@@ -1245,6 +1248,21 @@ class Game:
                 targets.append(picked)
                 labels.append(", ".join(self.label(p) for p in picked) or NO_TARGET)
                 continue
+            if getattr(effect, "any_number", False):  # "any number of target creatures": a list, paid for with strive
+                picked = []
+                taken_here = set()
+                while True:
+                    pool = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors)) if i not in taken_here]
+                    if not pool or (self.targeting_afford and picked and not self.targeting_afford(len(picked) + 1)):
+                        break
+                    pick = seat.player.choose(TARGET_PROMPT + source_name, [o[1][0] for o in pool] + [NO_TARGET])
+                    if pick == len(pool):
+                        break
+                    taken_here.add(pool[pick][0])
+                    picked.append(pool[pick][1][1])
+                targets.append(picked)
+                labels.append(", ".join(self.label(p) for p in picked) or NO_TARGET)
+                continue
             if getattr(effect, "up_to_x", False):  # "up to X target creatures": one target slot holding a list
                 picked: list = []
                 taken_here = set()
@@ -1306,7 +1324,13 @@ class Game:
         elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
             x = seat.player.choose(LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
         self.targeting_x = x
+        strive = strive_cost(card)
+        self.targeting_afford = ((lambda n: self._payment(seat, paying, from_command_zone, x, alternative, kickers,
+                                                          extra + strive * max(0, n - 1)) is not None) if strive else None)
         targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
+        if strive:  # each target beyond the first adds to the cost
+            beyond = sum(max(0, len(t) - 1) for t in targets if isinstance(t, list))
+            extra += strive * beyond
         delve = 0
         if alternative is None and not graveyard and has_keyword(card, "delve"):  # exile as few cards as will do
             delve = next(k for k in range(self._delve_max(seat, paying) + 1)
@@ -1953,11 +1977,16 @@ class Game:
                 self._trigger_each("opponent_gain_life" if amount > 0 else "opponent_lose_life", opponent, player=seat)
 
     def damage(self, target: Seat | Permanent, amount: int, source: Permanent | None = None,
-               combat: bool = False) -> None:
+               combat: bool = False) -> bool:
+        """Deal damage; False if it was all prevented."""
         colors = source_qualities(source.card) if source is not None else self.resolving_colors
         if isinstance(target, Permanent) and self.protected_from(target, colors):
             self.broadcast({"event": "damage_prevented", "card": target.card.name, "amount": amount})
-            return
+            return False
+        if combat and isinstance(target, Seat) and target.prevent_combat_turn == self.turn:  # Inkshield
+            self.broadcast({"event": "damage_prevented", "seat": target.index, "amount": amount})
+            self.create_tokens(target, target.prevent_combat_token, amount)
+            return False
         controller = self.controller_of(source) if source else None
         if isinstance(target, Seat):
             self.change_life(target, -amount)
@@ -2452,6 +2481,24 @@ class Game:
                     del permanent.counters[kind]
                 self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
                                 "added": -removed, "total": permanent.counters.get(kind, 0)})
+
+    def create_hasty_copy(self, seat: Seat, original: Permanent) -> Permanent:
+        """A token that's a copy of `original`, except it has haste (Twinflame)."""
+        card = original.card
+        if not card.type_line.startswith("Token"):
+            card = dataclasses.replace(card, type_line="Token " + card.type_line)
+        made = Permanent(card, sick=True)
+        self._enter(seat, made)
+        self.modify_until_end_of_turn(made, Modifier(keywords=frozenset({"haste"})))
+        return made
+
+    def create_attacking_token(self, seat: Seat, token: Card, opponent: Seat) -> None:
+        """A token with haste that attacks `opponent` this turn if able (Furygale Flocking)."""
+        made = Permanent(token, sick=True, must_attack=opponent)
+        self._enter(seat, made)
+        self.modify_until_end_of_turn(made, Modifier(keywords=frozenset({"haste"})))
+        self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name, "type_line": token.type_line,
+                        "power": token.power, "toughness": token.toughness})
 
     def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None) -> None:
         for _ in range(count * self._factor(seat, "tokens")):

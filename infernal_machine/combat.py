@@ -176,8 +176,8 @@ class Combat:
         for source, target, amount in hits:
             if amount > 0:
                 hitter = self.game.controller_of(source)
-                self.game.damage(target, amount, source=source, combat=True)
-                if hitter is not None and not hasattr(target, "card"):  # a player, not a permanent
+                dealt_now = self.game.damage(target, amount, source=source, combat=True)
+                if hitter is not None and not hasattr(target, "card") and dealt_now is not False:  # a player, not a permanent
                     hit_players.setdefault((hitter.index, target.index), (hitter, []))[1].append(source)
                     dealt.setdefault((hitter.index, target.index), {})[id(source)] = amount
         for key, (hitter, sources) in hit_players.items():  # "Whenever one or more creatures you control deal combat damage ..."
