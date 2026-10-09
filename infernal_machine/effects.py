@@ -1757,6 +1757,31 @@ _GRANT = re.compile(rf'(?:Equipped|Enchanted) (?:creature|land|permanent) has (?
 _ATTACHED_AND_GRANT = re.compile(rf'(?:Equipped|Enchanted) creature has ({_KEYWORDS}) and ".+"\.?')  # Fallen Ideal  # the quote's own full stop is inside it
 
 
+_GROUP_GRANT = re.compile(r'(Treasures|Artifacts) you control have "(.+)"\.?')
+
+
+def is_group_mana_grant_line(line: str) -> bool:
+    """Goldspan Dragon, Galazeth Prismari: "Treasures you control have "{T}, Sacrifice this artifact: Add ..."." """
+    return (m := _GROUP_GRANT.fullmatch(line)) is not None and is_mana_ability(m[2])
+
+
+@lru_cache(maxsize=None)
+def group_mana_grants(card: Card) -> tuple[tuple[str, str], ...]:
+    """The mana abilities `card` gives to a group of permanents you control, as (type of permanent, the ability's line)."""
+    return tuple(("Treasure" if m[1] == "Treasures" else "Artifact", m[2]) for line in rules_lines(card)
+                 if (m := _GROUP_GRANT.fullmatch(line)) and is_mana_ability(m[2]))
+
+
+@lru_cache(maxsize=None)
+def with_granted_mana(card: Card, lines: tuple[str, ...]) -> Card:
+    """`card` as its mana ability reads once it is given `lines`. An unrestricted grant goes first, since it replaces the
+    card's own ability (Goldspan Dragon's two mana beat a Treasure's one); one with a spending restriction goes last, so it
+    only counts for a card that has no mana ability of its own (Galazeth Prismari)."""
+    first = [line for line in lines if "Spend this mana only" not in line]
+    last = [line for line in lines if "Spend this mana only" in line]
+    return dataclasses.replace(card, oracle_text="\n".join([*first, *rules_lines(card), *last]))
+
+
 def is_granting_line(line: str) -> bool:
     """ "Enchanted creature has "{T}: Draw a card."" where the quoted ability is one we understand."""
     return (m := _GRANT.fullmatch(line)) is not None and (
@@ -6705,6 +6730,7 @@ def mana_spent_trigger(card: Card) -> ManaSpentTrigger | None:
 _RESTRICTIONS = {"Spend this mana only to cast spells with mana value 5 or greater or spells with {X} in their mana costs":
                  "big_or_x",
                  "Spend this mana only on costs that contain {X}": "x_cost",
+                 "Spend this mana only to cast an instant or sorcery spell": "instant_or_sorcery",
                  "This mana can't be spent to cast spells from your hand": "not_from_hand"}  # Heartwood Crafter
 _RESTRICTION = re.compile(" (" + "|".join(re.escape(k) for k in _RESTRICTIONS) + r")\.")
 

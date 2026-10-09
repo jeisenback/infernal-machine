@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -969,6 +969,8 @@ class Game:
         spell = self._spending_spell
         if restriction == "not_from_hand":  # Heartwood Crafter: only spells cast from hand are off limits
             return not self._spending_from_hand
+        if restriction == "instant_or_sorcery":  # Galazeth Prismari
+            return spell is not None and ("Instant" in spell.type_line or "Sorcery" in spell.type_line)
         if restriction == "x_cost":
             return self._spending_x or (spell is not None and "{X}" in spell.mana_cost)
         return spell is not None and (spell.cmc >= 5 or "{X}" in spell.mana_cost)
@@ -979,10 +981,13 @@ class Game:
         abilities, lands, sacrifices = [], [], []
         pooled = [ManaSource(None, unit) for unit in seat.mana_pool]
         foods = sum(_has_type(p.card, "food") for p in seat.battlefield)  # Gilded Goose: one Food per use
+        grants = [g for p in seat.battlefield if not self.loses_abilities(p) for g in group_mana_grants(p.card)]
         for permanent in seat.battlefield:
             if permanent.tapped or permanent is exclude or self.loses_abilities(permanent):
                 continue
             card = permanent.card
+            if grants and not is_land(card) and (given := tuple(line for kind, line in grants if kind in card.type_line)):
+                card = with_granted_mana(card, given)  # Goldspan Dragon, Galazeth Prismari
             pain, damage = mana_pain(card) or (frozenset(), 0)
             if (condition := mana_condition(card)) and not self.condition_holds(condition, seat, permanent):
                 continue  # "Activate only if you control five or more lands."
