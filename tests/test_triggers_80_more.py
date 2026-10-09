@@ -403,3 +403,56 @@ class PearlEarAffinityTests(unittest.TestCase):
 
     def test_without_pearl_ear_there_is_no_discount(self):
         self.assertFalse(self.payable(self.BIG_AURA, auras=1, with_pearl_ear=False))
+
+
+WARSINGER = Card(name="Venerable Warsinger", mana_cost="{3}{W}{W}", type_line="Creature — Angel Cleric", power="4", toughness="4",
+                 oracle_text="Trample\nWhenever this creature deals combat damage to a player, you may return target creature card "
+                             "with mana value X or less from your graveyard to the battlefield, where X is the amount of damage "
+                             "this creature dealt to that player.")
+
+
+def creature_card(name, mana_value):
+    return Card(name=name, mana_cost="{%d}" % mana_value, cmc=float(mana_value), type_line="Creature — Test", power="2", toughness="2")
+
+
+class VenerableWarsingerTests(unittest.TestCase):
+    def hit(self, damage, graveyard, answer="Yes"):
+        offered = []
+
+        def policy(prompt, options):
+            offered.append(list(options))
+            return next((i for i, o in enumerate(options) if o.startswith(answer)), 0)
+
+        game, _ = table3(policy)
+        a, b, c = game.seats
+        warsinger = Permanent(WARSINGER)
+        a.battlefield = [warsinger]
+        a.graveyard = list(graveyard)
+        game.damage(b, damage, source=warsinger, combat=True)
+        run_stack(game)
+        return a, offered
+
+    def test_it_is_supported(self):
+        self.assertEqual(unsupported_lines(WARSINGER), [])
+
+    def test_it_returns_a_creature_card_with_mana_value_up_to_the_damage(self):
+        a, offered = self.hit(3, [creature_card("Two", 2), creature_card("Three", 3), creature_card("Five", 5)], answer="Three")
+        self.assertEqual(sorted(p.card.name for p in a.battlefield if "Creature" in p.card.type_line), ["Three", "Venerable Warsinger"])
+        self.assertTrue(all("Five" not in option for options in offered for option in options))  # too expensive for 3 damage
+
+    def test_a_smaller_hit_offers_less(self):
+        a, offered = self.hit(2, [creature_card("Two", 2), creature_card("Three", 3)], answer="Two")
+        self.assertEqual(sorted(p.card.name for p in a.battlefield if "Creature" in p.card.type_line), ["Two", "Venerable Warsinger"])
+        self.assertTrue(all("Three" not in option for options in offered for option in options))
+
+    def test_with_nothing_cheap_enough_nothing_happens(self):
+        a, offered = self.hit(1, [creature_card("Five", 5)])
+        self.assertEqual([c.name for c in a.graveyard], ["Five"])
+
+    def test_a_card_that_is_not_a_creature_is_not_returned(self):
+        a, offered = self.hit(4, [Card(name="Relic", mana_cost="{1}", cmc=1.0, type_line="Artifact")])
+        self.assertEqual([c.name for c in a.graveyard], ["Relic"])
+
+    def test_declining_returns_nothing(self):
+        a, offered = self.hit(3, [creature_card("Two", 2)], answer="No")
+        self.assertEqual([c.name for c in a.graveyard], ["Two"])

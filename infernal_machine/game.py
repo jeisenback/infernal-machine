@@ -2062,7 +2062,7 @@ class Game:
                 item.targets[index] = [p for p in t if self.is_legal_target(target_kind(e), p, seat, colors)]
         legal = [(index in declared and (not declared[index] or bool(t)))  # a list with none chosen still resolves
                  or (t is None and getattr(e, "optional_target", False))
-                 or (index not in declared and self.is_legal_target(self._fixed_kind(target_kind(e), item.source), t, seat, colors))
+                 or (index not in declared and self.is_legal_target(self._fixed_kind(target_kind(e), item.source, item.x), t, seat, colors))
                  for index, (e, t) in enumerate(zip([e for e in item.effects if target_kind(e)], item.targets))]
         about = {"seat": seat.index, "card": item.card.name}
         if item.ability:
@@ -2354,8 +2354,12 @@ class Game:
                 effects, _ = self._choose_modes(seat, trigger.source, effects[0], source=trigger.permanent)
                 if not effects:
                     continue
-            chosen = self._choose_targets(seat, effects, trigger.source.name, trigger.permanent,
-                                          source_qualities(trigger.source))
+            self.targeting_x = trigger.x  # "mana value X or less, where X is the damage dealt" (Venerable Warsinger)
+            try:
+                chosen = self._choose_targets(seat, effects, trigger.source.name, trigger.permanent,
+                                              source_qualities(trigger.source))
+            finally:
+                self.targeting_x = 0
             if chosen is None:
                 continue
             targets, labels = chosen
@@ -2534,7 +2538,7 @@ class Game:
                 target.noncombat_damage_turn = self.turn
             self.change_life(target, -amount)
             if combat and controller:
-                self.trigger("combat_damage_to_player", source, controller)
+                self.trigger("combat_damage_to_player", source, controller, x=amount)
                 if target is self.monarch and controller is not target:  # CR 725.2
                     self.become_monarch(controller)
                 if target is self.initiative and controller is not target:  # CR 726.2
@@ -3202,11 +3206,14 @@ class Game:
         permanent.card = dataclasses.replace(permanent.card, oracle_text=permanent.card.oracle_text + "\n" + text)
         self.broadcast({"event": "gained_abilities", "card": permanent.card.name, "text": text})
 
-    def _fixed_kind(self, kind: str, source: Permanent | None) -> str:
-        """A target kind with "mv<=power" turned into the source creature's power right now."""
+    def _fixed_kind(self, kind: str, source: Permanent | None, x: int | None = None) -> str:
+        """A target kind with "mv<=power" turned into the source creature's power right now, or "mv<=x" into the X the
+        ability carries (Venerable Warsinger: the damage dealt)."""
         if "mv<=power" in kind and source is not None:
             power = self.power(source) if self.on_battlefield(source) else source.last_power
             return kind.replace("mv<=power", f"mv<={max(power, 0)}")
+        if "mv<=x" in kind:
+            return kind.replace("mv<=x", f"mv<={max(self.targeting_x if x is None else x, 0)}")
         return kind
 
     def put_counters(self, permanent: Permanent, counter: str, count: int) -> None:

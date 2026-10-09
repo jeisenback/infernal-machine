@@ -4831,6 +4831,9 @@ _DAMAGE_KIND = (r"(any target|target creature|target player|target opponent|targ
 _RETURN_UP_TO_POWER = re.compile(r"return target nonland permanent card with mana value X or less from your graveyard to the "
                                  r"battlefield, where X is (?:this creature's|CARDNAME's|its) power\.", re.I)
 
+_RETURN_UP_TO_DAMAGE = re.compile(r"return target creature card with mana value X or less from your graveyard to the battlefield, "
+                                  r"where X is the amount of damage (?:this creature|CARDNAME) dealt to that player\.", re.I)
+
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
     (re.compile(rf"if this spell was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?, (.+)", re.I), _kicked),
@@ -5033,6 +5036,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
+    (_RETURN_UP_TO_DAMAGE, lambda m: ReturnFromGraveyard("graveyard:creature|mv<=x:yours", "battlefield")),  # Venerable Warsinger
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
     (re.compile(r"you lose all but 1 life\.", re.I), lambda m: LoseAllButOneLife()),
@@ -5402,7 +5406,7 @@ def _clauses(sentence: str) -> list[str]:
                       lambda m: f"{m[1]} {'a card' if m[2] in ('an', 'a', 'one') else m[2] + ' cards'}", sentence, flags=re.I)
     if m := re.fullmatch(r"(.*)\bhalf X (.+?), rounded (up|down)\.", sentence):  # The Goose Mother: "create half X Food tokens, rounded up."
         return _clauses(f"{m[1]}half X {m[3]} {m[2]}.")
-    if _RETURN_UP_TO_POWER.fullmatch(sentence):  # one effect: X is looked at when the target is chosen
+    if _RETURN_UP_TO_POWER.fullmatch(sentence) or _RETURN_UP_TO_DAMAGE.fullmatch(sentence):  # one effect: X is looked at when the target is chosen
         return [sentence]
     if m := re.fullmatch(r"Create a number of (.+?) tokens? equal to (.+)\.", sentence, re.I):  # Gyome's Food
         return [f"Let X be {m[2]}.", f"Create X {m[1]} tokens."] if _amount(m[2]) else [sentence]
