@@ -2,4 +2,4 @@ session: claude-code triggers-80-cheap
 branch: claude/triggers-80-cheap
 task: issue #80 third batch (attack events, land counts, granted abilities), stacked on claude/triggers-80-more
 status: in progress
-updated: 2026-10-09T22:29:39Z
+updated: 2026-10-09T22:33:32Z

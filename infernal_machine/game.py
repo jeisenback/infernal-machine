@@ -2162,6 +2162,11 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
             return False
+        if kind == "attackers_at_most":
+            return x <= condition.count
+        if kind == "defender_more_life":  # Breena: x is the seat attacked; it has more life than another of the opponents
+            defender = self.seats[x]
+            return any(defender.life > other.life for other in self.opponents(seat) if other is not defender)
         if kind == "land_entered":
             return seat.land_entered_turn == self.turn
         if kind == "lands_prime":
@@ -2839,6 +2844,13 @@ class Game:
             if attack is not None:
                 self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
                 self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": attack.defender.index})
+
+    def token_attacking(self, seat: Seat, token: Card, defender: Seat) -> None:
+        """A token created for `seat`, tapped and attacking `defender`; it was never declared, so attack triggers don't see it."""
+        for made in self.create_tokens(seat, token, 1):
+            made.tapped = True
+            self.combat.attacks.append(Attack(made, seat, defender))
+            self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": defender.index})
 
     def put_from_hand(self, seat: Seat, kind: str, tapped: bool = False) -> None:
         """"You may put a creature card from your hand onto the battlefield.": you choose one, or none."""

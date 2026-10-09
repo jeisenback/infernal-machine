@@ -117,6 +117,14 @@ class Combat:
                 at_them = sum(1 for a in self.attacks if a.defender is other)
                 for permanent in list(other.battlefield):
                     self.game.trigger("opponent_attacks", permanent, other, player=seat, x=at_them)
+                    if len(self.attacks) >= 2:
+                        self.game.trigger("other_attacks_two", permanent, other, player=seat, x=at_them)
+            attacked = {id(a.defender): a.defender for a in self.attacks if a.walker is None}
+            for watcher in self.game.live_seats():  # "Whenever a player attacks one of your opponents": once for each
+                for defender in attacked.values():
+                    if defender is not watcher:
+                        for permanent in list(watcher.battlefield):
+                            self.game.trigger("attacks_opponent", permanent, watcher, player=seat, x=defender.index)
 
     @staticmethod
     def _enchanted_by(creature: Permanent, holder: Seat) -> bool:

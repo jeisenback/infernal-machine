@@ -765,6 +765,24 @@ class ZimonesHypothesis:
         game.return_all_to_hand(chosen)
 
 
+PUT_COUNTERS_PROMPT = "Put counters on which creature you control for "  # followed by the source's name
+
+
+@dataclass(frozen=True)
+class PutCountersOnChosenCreature:
+    """Breena: "you put two +1/+1 counters on a creature you control." Nothing is targeted; you choose as it resolves."""
+    count: int
+    counter: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        creatures = [p for p in controller.battlefield if "Creature" in p.card.type_line]
+        if not creatures:
+            return
+        source = game.resolving_item.card.name if game.resolving_item is not None else "the ability"
+        pick = controller.player.choose(PUT_COUNTERS_PROMPT + source, [game.label(p) for p in creatures]) if len(creatures) > 1 else 0
+        game.put_counters(creatures[pick], self.counter, game.amount(self.count))
+
+
 @dataclass(frozen=True)
 class PutCountersOnEachUpToX:
     """Silkguard: "Put a +1/+1 counter on each of up to X target creatures you control." The targets are one list."""
@@ -2035,6 +2053,19 @@ class DanceWithCalamity:
 
 
 @dataclass(frozen=True)
+class AttackerCreatesAttackingToken:
+    """Combat Calligrapher: "that attacking player creates a tapped 2/1 ... Inkling creature token with flying that's attacking
+    that opponent." The target is the player who attacked; the opponent is the seat the trigger carries in x."""
+    token: Card
+    uses_player = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if target is not None and item is not None and game.combat is not None:
+            game.token_attacking(target, self.token, game.seats[item.x])
+
+
+@dataclass(frozen=True)
 class CopyTokenAttacking:
     """ "Create a token that's a copy of it, tapped and attacking." (it: the attacking source). The token attacks the
     same player or planeswalker; it was never declared as an attacker, so attack triggers do not see it."""
@@ -2201,6 +2232,11 @@ _CREATURE_TOKEN = re.compile(
     r"(?: with (?:([a-z ,]+?)(?:,? and |, |$))?(?:\"(.+)\")?)?"  # keywords and/or a quoted ability
 )
 _NAMED_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) (Treasure|Clue|Food|Heartwood) tokens?")
+
+
+def _attacker_token(spec: str) -> "AttackerCreatesAttackingToken | None":
+    made = _token(spec)
+    return AttackerCreatesAttackingToken(made[1]) if made is not None and made[0] == 1 else None
 
 
 def _token(spec: str) -> tuple[int, Card] | None:
@@ -4944,6 +4980,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [DefineX(Amount("you_control", "land")),  # "that many": the lands you control
                 CreateTokens(1, Card(name="Primo, the Indivisible", type_line="Legendary Token Creature — Fractal",
                                      colors=("G", "U"), power="0", toughness="0"), counters=("X", "+1/+1"))]),
+    (re.compile(rf"(?:you )?put {_N} \+1/\+1 counters? on a creature you control\.", re.I),
+     lambda m: PutCountersOnChosenCreature(_count(m[1]), "+1/+1")),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
     (re.compile(r"attach (?:this Aura|CARDNAME) to it\.", re.I), lambda m: AttachThisToSubject()),
     (re.compile(r"if that enchantment is an Aura, you may attach it to the token\.", re.I), lambda m: _AttachItToToken()),
@@ -5231,6 +5269,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"create a token that's a copy of another target {_PERMANENT_KIND}\.", re.I),
      lambda m: CopyToken(m[1].lower(), another=True)),
     (re.compile(rf"create a token that's a copy of {_SELF}, tapped and attacking\.", re.I), lambda m: CopyTokenAttacking()),
+    (re.compile(r"that attacking player creates a tapped (.+? creature token(?: with [a-z, ]+)?) that's attacking that opponent\.",
+                re.I), lambda m: _attacker_token("a " + m[1])),
     (re.compile(r"put one of them into your hand, put one of them on the bottom of your library, and exile one of them\.",
                 re.I), lambda m: _SplitTop()),
     (re.compile(r"you may play the exiled card this turn\.", re.I), lambda m: _PlayTheExiledCard()),
@@ -5436,7 +5476,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
 
 
 _YOUR_ACTION = (rf"(?:draw (?:a card|{_N} cards)|gain {_N} life|lose {_N} life"
-                r"|return (?:up to one )?target (?:[a-z]+ )?card from your graveyard to your hand)")  # Witch of the Moors
+                r"|return (?:up to one )?target (?:[a-z]+ )?card from your graveyard to your hand"
+                rf"|put {_N} \+1/\+1 counters? on a creature you control)")  # Witch of the Moors; Breena
 
 
 def _you_do(phrase: str) -> str:
@@ -5818,7 +5859,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -5869,6 +5910,8 @@ _CONDITIONS = [
     (re.compile(r"a modified creature died under your control this turn"), lambda m: Condition("modified_died")),
     (re.compile(rf"{_N} or more of those creatures are attacking you and/or planeswalkers you control"),
      lambda m: Condition("attackers_at_least", _count(m[1]))),
+    (re.compile(r"none of those creatures attacked you"), lambda m: Condition("attackers_at_most", 0)),
+    (re.compile(r"that opponent has more life than another of your opponents"), lambda m: Condition("defender_more_life")),
     (re.compile(r"you were the monarch as the turn began"), lambda m: Condition("monarch_at_turn_start")),
     # Eminence: the ability only works from those two zones, which is where the game looks for it.
     (re.compile(rf"{_SELF} is in the command zone or on the battlefield"), lambda m: Condition("eminence")),
@@ -5963,6 +6006,8 @@ _TRIGGERS = {
     "enchanted_attack": re.compile(r"Whenever one or more creatures that are enchanted by an Aura you control attack, (.+)", re.I),
     "creatures_attack": re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I),
     "opponent_attacks": re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I),
+    "other_attacks_two": re.compile(r"Whenever another player attacks with two or more creatures, (.+)", re.I),
+    "attacks_opponent": re.compile(r"Whenever a player attacks one of your opponents, (.+)", re.I),  # x: the seat attacked
     "cycle": re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I),
     "cycle_or_discard": re.compile(r"Whenever you cycle or discard (?:a|another) card, (.+)", re.I),
     "scry_or_surveil": re.compile(r"Whenever you scry or surveil, (.+)", re.I),
@@ -6048,7 +6093,7 @@ _OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat
 # The creature is already gone when it dies, so "it" there has nothing to point at (the line isn't understood).
 _HOST_GONE = {"host_dies"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
-_PLAYER_EVENTS = {"opponent_draw", "opponent_second_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
+_PLAYER_EVENTS = {"other_attacks_two", "attacks_opponent", "opponent_draw", "opponent_second_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
                   "opponent_discard", "opponent_search", "opponent_attacks", "other_draw_step", "opponent_upkeep", "opponent_end_step",
                   "host_combat_damage"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
@@ -6057,7 +6102,7 @@ _PLAYER_PRONOUNS = [
     (re.compile(rf"\b{_CONTROLLER} (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
     (re.compile(rf"\bto {_CONTROLLER}\b", re.I), "to target player"),
     (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
-    (re.compile(r"\bthat player (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
+    (re.compile(r"\bthat (?:attacking )?player (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
     (re.compile(r"\bhave that player (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bto that player\b", re.I), "to target player"),
     (re.compile(r"\bthat opponent (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),  # Tomik
@@ -6289,7 +6334,9 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
             return [MayPay(m[1], inner[0])], False, False, None
         return None, False, False, None
     condition = None
-    if rest.startswith("if ") and ", " in rest:
+    if m := re.fullmatch(r"(.+?) if (none of those creatures attacked you)\.?", rest):  # Firemane Commando
+        rest, condition = m[1] + ".", _condition(m[2])
+    elif rest.startswith("if ") and ", " in rest:
         text, rest = rest[3:].split(", ", 1)
         condition = _condition(text)
         if condition is None:
