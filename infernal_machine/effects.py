@@ -94,6 +94,8 @@ _WHOLE_LINE = re.compile(
     r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
     r"you or planeswalkers you control for as long as it has a vow counter on it\."
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
+    r"|You and target opponent each reveal the top card of your library\. You each lose life equal to the mana value of the "
+    r"card revealed by the other player\. You each put the card you revealed into your hand\."
     r"|Shuffle your library\. As many times as you choose, you may exile the top card of your library\. .*"
     r"|Remove all counters from target nonland permanent you control\. Draw a card for each counter removed this way\."
     r"|When you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the copy\."
@@ -422,6 +424,28 @@ class YouAndTargetDraw:
         game.draw(controller, game.amount(self.count))
         if target is not None:
             game.draw(target, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class RevealTopTradeLife:
+    """Keen Duelist: you and target opponent each reveal the top card, lose life equal to the other's card's mana value, and
+    put your own revealed card into your hand."""
+    target: str = "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        pair = (controller, target)
+        revealed = [(seat, seat.library.pop(0) if seat.library else None) for seat in pair]
+        for seat, card in revealed:
+            if card is not None:
+                game.broadcast({"event": "revealed", "seat": seat.index, "card": card.name})
+        for (seat, _), (_, other) in zip(revealed, reversed(revealed)):
+            if other is not None:
+                game.change_life(seat, -int(other.cmc))
+        for seat, card in revealed:
+            if card is not None:
+                seat.hand.append(card)
 
 
 @dataclass(frozen=True)
@@ -4954,6 +4978,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (player|opponent) draws {_N} cards?\.", re.I), lambda m: TargetDraw(_count(m[2]), m[1].lower())),
     (re.compile(rf"target (player|opponent) draws {_N} cards? and loses {_N} life\.", re.I),
      lambda m: TargetDrawLose(_count(m[2]), _count(m[3]), m[1].lower())),
+    (re.compile(r"you and target opponent each reveal the top card of your library\. You each lose life equal to the mana value "
+                r"of the card revealed by the other player\. You each put the card you revealed into your hand\.", re.I),
+     lambda m: RevealTopTradeLife()),
     (re.compile(rf"you and target opponent each draw {_N} cards?\.", re.I), lambda m: YouAndTargetDraw(_count(m[1]))),
     (re.compile(rf"each player loses {_N} life\.", re.I), lambda m: EachPlayerLosesLife(_count(m[1]))),
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),

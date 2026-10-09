@@ -2,4 +2,4 @@ session: claude-code triggers-80
 branch: claude/triggers-80
 task: issue #80 (trigger effects the precon decks need), stacked on PR 140
 status: in progress
-updated: 2026-10-09T22:05:00Z
+updated: 2026-10-09T22:20:00Z
