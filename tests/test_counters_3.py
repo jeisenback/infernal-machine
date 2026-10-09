@@ -6,7 +6,7 @@ from dataclasses import replace
 from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
 from infernal_machine.effects import (HYPOTHESIS_COUNTER_PROMPT, PARITY_PROMPT, Counter, OpponentsLoseCounters,
-                                      RemoveAllCountersDraw, ZimonesHypothesis, spell_effects)
+                                      RemoveAllCountersDraw, VowCounters, ZimonesHypothesis, spell_effects)
 from infernal_machine.game import CAST, MODE_PROMPT, X_PROMPT, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
@@ -309,3 +309,61 @@ class SilkguardTests(unittest.TestCase):
         game._priority_round(a)
         run_stack(game)
         self.assertEqual((bear.counters, game.has_keyword(bear, "hexproof")), ({}, False))
+
+
+class PromiseOfLoyaltyTests(unittest.TestCase):
+    def test_each_player_keeps_one_creature_and_it_cannot_attack_the_caster(self):
+        game, _ = table3(lambda prompt, options: 0)
+        a, b, c = game.seats
+        a.battlefield = [Permanent(BEAR), Permanent(BEAR)]
+        b.battlefield = [Permanent(BEAR), Permanent(BEAR), Permanent(BEAR)]
+        VowCounters().resolve(game, a, None)
+        self.assertEqual((len(a.battlefield), len(b.battlefield), len(c.battlefield)), (1, 1, 0))
+        kept = b.battlefield[0]
+        self.assertEqual((kept.counters, kept.vow_of), ({"vow": 1}, a))
+        game.step = "declare_attackers"
+        asked = []
+        b.player = type(b.player)("B", lambda prompt, options: asked.append(options) or 0)
+        game.combat.declare_attackers(b)
+        self.assertTrue(all("seat 0" not in option for option in asked[0]))  # not the caster
+        self.assertTrue(any("seat 2" in option for option in asked[0]))
+
+    def test_without_the_vow_counter_it_may_attack_again(self):
+        game, _ = table3()
+        a, b, _c = game.seats
+        bear = Permanent(BEAR, counters={"vow": 1})
+        bear.vow_of = a
+        b.battlefield = [bear]
+        self.assertEqual(game.combat._attackable(b, bear, game.opponents(b), [])[0], [game.seats[2]])
+        game.remove_counters(bear, "vow", 1)
+        self.assertEqual(game.combat._attackable(b, bear, game.opponents(b), [])[0], [a, game.seats[2]])
+
+
+class NilsTests(unittest.TestCase):
+    NILS = REAL["Nils, Discipline Enforcer"]
+
+    def test_it_is_understood(self):
+        self.assertEqual(unsupported_lines(self.NILS), [])
+
+    def test_attackers_with_counters_pay_x_to_attack_nils_controller(self):
+        game, _ = table3()
+        a, b, c = game.seats
+        a.battlefield = [Permanent(self.NILS)]
+        carrier = Permanent(BEAR, counters={"+1/+1": 2})
+        b.battlefield = [carrier, *lands(1)]
+        self.assertEqual(game.combat._attack_tax(carrier, a), 2)
+        self.assertEqual(game.combat._attack_tax(carrier, c), 0)
+        self.assertEqual(game.combat._attackable(b, carrier, game.opponents(b), [])[0], [c])  # it cannot pay {2}
+        b.battlefield.append(Permanent(RELIC))
+        b.battlefield += lands(1)
+        self.assertEqual(game.combat._attackable(b, carrier, game.opponents(b), [])[0], [a, c])
+
+    def test_the_end_step_trigger_gives_each_player_a_counter(self):
+        game, _ = table3(lambda prompt, options: 0)
+        a, b, c = game.seats
+        bears = [Permanent(BEAR), Permanent(BEAR), Permanent(BEAR)]
+        a.battlefield, b.battlefield, c.battlefield = [Permanent(self.NILS), bears[0]], [bears[1]], [bears[2]]
+        game.trigger("end_step", a.battlefield[0], a)
+        run_stack(game)
+        nils = a.battlefield[0]
+        self.assertEqual([nils.counters] + [p.counters for p in bears[1:]], [{"+1/+1": 1}] * 3)  # (the first choice was Nils)

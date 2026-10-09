@@ -12,7 +12,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .characteristics import source_qualities
-from .effects import CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, Annihilate, TriggeredAbility
+from .effects import CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, Annihilate, TriggeredAbility, attack_tax_per_counter
+from .mana import Cost
 
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
@@ -43,12 +44,15 @@ class Combat:
         """Ask the active player, creature by creature, whether and whom to attack (CR 508.1)."""
         opponents = self.game.opponents(seat)
         self.game.send_state(seat)
-        walkers = [p for o in opponents for p in o.battlefield if p.loyalty is not None]
-        options = ([NO_ATTACK] + [f"Attack Player: {o.name} (seat {o.index})" for o in opponents]
-                   + [f"Attack Planeswalker: {self.game.label(p)}" for p in walkers])
+        all_walkers = [p for o in opponents for p in o.battlefield if p.loyalty is not None]
         for permanent in list(seat.battlefield):
             if not self._can_attack(permanent):
                 continue
+            opponents, walkers = self._attackable(seat, permanent, self.game.opponents(seat), all_walkers)
+            if not opponents:
+                continue
+            options = ([NO_ATTACK] + [f"Attack Player: {o.name} (seat {o.index})" for o in opponents]
+                       + [f"Attack Planeswalker: {self.game.label(p)}" for p in walkers])
             walker = None
             if permanent.must_attack in opponents:  # an Encore token
                 defender = permanent.must_attack
@@ -67,6 +71,8 @@ class Combat:
                     defender = self.game.controller_of(walker)
             if not self.game.has_keyword(permanent, "vigilance"):
                 permanent.tapped = True
+            if tax := self._attack_tax(permanent, defender):  # Nils: pay {X} to attack, X the counters on the attacker
+                self.game._spend_mana(seat, self.game._pay_cost(seat, Cost(generic=tax)))
             self.attacks.append(Attack(permanent, seat, defender, walker=walker))
             permanent.attacked_turn = self.game.turn
             self.game.trigger("attacks", permanent, seat)
@@ -89,6 +95,20 @@ class Combat:
         if len(self.attacks) >= 2:
             for permanent in list(seat.battlefield):
                 self.game.trigger("attack_with_two", permanent, seat)
+
+    def _attack_tax(self, permanent: Permanent, defender: Seat) -> int:
+        """What attacking `defender` costs `permanent`: Nils makes each counter on the attacker cost {1}."""
+        counters = sum(permanent.counters.values())
+        return counters * sum(attack_tax_per_counter(p.card) for p in defender.battlefield) if counters else 0
+
+    def _attackable(self, seat: Seat, permanent: Permanent, opponents: list[Seat],
+                    walkers: list[Permanent]) -> tuple[list[Seat], list[Permanent]]:
+        """The players (and their planeswalkers) `permanent` may attack: not the one a vow counter keeps it from
+        (Promise of Loyalty), and not one whose attack tax the attacking player can't pay."""
+        barred = permanent.vow_of if permanent.counters.get("vow") else None
+        allowed = [o for o in opponents if o is not barred and (
+            not (tax := self._attack_tax(permanent, o)) or self.game._pay_cost(seat, Cost(generic=tax)) is not None)]
+        return allowed, [w for w in walkers if self.game.controller_of(w) in allowed]
 
     def add_attacker(self, permanent: Permanent, controller: Seat, defender: Seat) -> None:
         """A creature put onto the battlefield "tapped and attacking": it was never declared as an attacker, so

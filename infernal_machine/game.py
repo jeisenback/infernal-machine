@@ -162,6 +162,7 @@ class Permanent:
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
     attacked_turn: int | None = None  # the last turn it attacked
+    vow_of: "Seat | None" = None  # Promise of Loyalty: while it has a vow counter it can't attack this player
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     bestowed_from: "Card | None" = None  # a bestowed Aura: the creature card it goes back to when its creature leaves
@@ -1197,6 +1198,17 @@ class Game:
             if not kind:
                 continue
             kind = self._fixed_kind(kind, source)
+            if getattr(effect, "per_player", False):  # "for each player, ... up to one target creature that player controls"
+                picked = []
+                for owner in self.turn_order_from_active():
+                    pool = [o for o in self.target_options(kind, seat, colors) if self.controller_of(o[1]) is owner]
+                    if pool:
+                        pick = seat.player.choose(TARGET_PROMPT + source_name, [o[0] for o in pool] + [NO_TARGET])
+                        if pick < len(pool):
+                            picked.append(pool[pick][1])
+                targets.append(picked)
+                labels.append(", ".join(self.label(p) for p in picked) or NO_TARGET)
+                continue
             if getattr(effect, "up_to_x", False):  # "up to X target creatures": one target slot holding a list
                 picked: list = []
                 taken_here = set()
@@ -1543,9 +1555,9 @@ class Game:
         seat = item.controller
         colors = source_qualities(item.card)
         for index, (e, t) in enumerate(zip([e for e in item.effects if target_kind(e)], item.targets)):
-            if getattr(e, "up_to_x", False):  # keep only the targets that are still legal
+            if getattr(e, "multi_target", False):  # keep only the targets that are still legal
                 item.targets[index] = [p for p in t if self.is_legal_target(target_kind(e), p, seat, colors)]
-        legal = [(t is None and getattr(e, "optional_target", False)) or getattr(e, "up_to_x", False)
+        legal = [(t is None and getattr(e, "optional_target", False)) or getattr(e, "multi_target", False)
                  or self.is_legal_target(self._fixed_kind(target_kind(e), item.source), t, seat, colors)
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
         about = {"seat": seat.index, "card": item.card.name}

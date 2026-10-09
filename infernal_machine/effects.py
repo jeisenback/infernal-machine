@@ -77,7 +77,9 @@ def rules_lines(card: Card) -> list[str]:
 
 
 _WHOLE_LINE = re.compile(
-    r"Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
+    r"Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
+    r"you or planeswalkers you control for as long as it has a vow counter on it\."
+    r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
     r"|Remove all counters from target nonland permanent you control\. Draw a card for each counter removed this way\."
     r"|You may put a \+1/\+1 counter on a creature\. Then choose odd or even\. Return each creature with power of the chosen "
     r"quality to its owner's hand\.", re.I)
@@ -560,7 +562,23 @@ class PutCountersOnEachUpToX:
     counter: str
     target: str = "creature you control"
     up_to_x = True
+    multi_target = True  # its one target slot holds a list
     optional_target = True  # it needs no target to be cast
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in target or []:
+            game.put_counters(permanent, self.counter, 1)
+
+
+@dataclass(frozen=True)
+class PutCounterPerPlayer:
+    """Nils: "For each player, put a +1/+1 counter on up to one target creature that player controls." The targets are one
+    list, a creature (or none) for each player in turn order."""
+    counter: str
+    target: str = "creature"
+    per_player = True
+    multi_target = True
+    optional_target = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for permanent in target or []:
@@ -888,6 +906,37 @@ class PumpSourceX:
             x = game.amount("X")
             game.modify_until_end_of_turn(target, Modifier(self.power * x, self.toughness * x))
 
+
+_ATTACK_TAX = re.compile(r"Each creature with one or more counters on it can't attack you or planeswalkers you control unless "
+                         r"its controller pays \{X\}, where X is the number of counters on that creature\.")
+
+
+def attack_tax_per_counter(card: Card) -> int:
+    """Nils, Discipline Enforcer: how many times the card taxes each counter on a creature that attacks its controller."""
+    return sum(_ATTACK_TAX.fullmatch(line) is not None for line in rules_lines(card))
+
+
+def is_attack_tax_line(line: str) -> bool:
+    return _ATTACK_TAX.fullmatch(line) is not None
+
+
+@dataclass(frozen=True)
+class VowCounters:
+    """Promise of Loyalty: "Each player puts a vow counter on a creature they control and sacrifices the rest. Each of
+    those creatures can't attack you or planeswalkers you control for as long as it has a vow counter on it." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            creatures = [p for p in seat.battlefield if "Creature" in p.card.type_line]
+            if not creatures:
+                continue
+            keep = creatures[seat.player.choose(VOW_PROMPT, [game.label(p) for p in creatures])]
+            keep.counters["vow"] = keep.counters.get("vow", 0) + 1
+            keep.vow_of = controller
+            game._leave_together([(p, "sacrificed") for p in creatures if p is not keep])
+
+
+VOW_PROMPT = "Choose the creature that gets the vow counter"
 
 _ANNIHILATOR = re.compile(r"Annihilator (\d+)", re.I)
 
@@ -3379,6 +3428,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(rf"for each player, put an? {_COUNTER} on up to one target creature that player controls\.", re.I),
+     lambda m: PutCounterPerPlayer(_counter_name(m[1]))),
+    (re.compile(r"each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures "
+                r"can't attack you or planeswalkers you control for as long as it has a vow counter on it\.", re.I),
+     lambda m: VowCounters()),
     (re.compile(rf"put an? {_COUNTER} on each of up to X target creatures you control\.", re.I),
      lambda m: PutCountersOnEachUpToX(_counter_name(m[1]))),
     (re.compile(r"Auras, Equipment, and modified creatures you control gain hexproof until end of turn\.", re.I),
