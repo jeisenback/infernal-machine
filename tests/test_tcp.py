@@ -1,9 +1,10 @@
 import json
 import socket
 import threading
+import time
 import unittest
 
-from infernal_machine.tcp import Disconnected, accept_players, listen
+from infernal_machine.tcp import Disconnected, TimedOut, accept_players, listen
 
 
 class Client:
@@ -96,6 +97,28 @@ class TcpTests(unittest.TestCase):
         client.send({"type": "response", "id": prompt["id"], "choice": 7})
         self.assertEqual(client.recv()["type"], "error")
         self.assertEqual(client.recv(), prompt)  # re-prompted
+        client.send({"type": "response", "id": prompt["id"] - 1, "choice": 0})  # a late answer to an earlier choice
+        client.send({"type": "response", "id": prompt["id"], "choice": 1})
+        chooser.join(5)
+        self.assertEqual(answer["i"], 1)
+        player.notify({"event": "ping"})
+        self.assertEqual(client.recv(), {"type": "event", "event": "ping"})  # the late answer drew no error
+
+    def test_a_timed_choice_tells_the_client_the_limit_and_gives_up_when_it_passes(self):
+        thread, result = self.accept(1)
+        client = self.connect("Alice")
+        thread.join(5)
+        client.recv()  # welcome
+        player = result["players"][0]
+        with self.assertRaises(TimedOut):
+            player.choose("Keep?", ["Keep", "Mulligan"], seconds=0.2)
+        self.assertEqual(client.recv()["seconds"], 0.2)
+        answer = {}  # the connection is still good: the next, untimed choice waits for its answer
+        chooser = threading.Thread(target=lambda: answer.update(i=player.choose("Priority: main1", ["Pass", "Play"])))
+        chooser.start()
+        prompt = client.recv()
+        self.assertNotIn("seconds", prompt)
+        time.sleep(0.3)
         client.send({"type": "response", "id": prompt["id"], "choice": 1})
         chooser.join(5)
         self.assertEqual(answer["i"], 1)

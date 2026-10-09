@@ -22,7 +22,7 @@ from .bot import BotPlayer
 from .cards import BulkSource, CachedSource, CardNotFound, CardSource, Deck, ScryfallSource, load_deck
 from .commander import deck_problems
 from .game import Game
-from .tcp import Disconnected, TcpPlayer, listen
+from .tcp import Disconnected, TcpPlayer, TimedOut, listen
 
 MAX_PROBLEMS_SHOWN = 10
 
@@ -38,9 +38,10 @@ class AutoPilotPlayer:
 
     wants_state = True
 
-    def __init__(self, human: TcpPlayer, bot: BotPlayer, seat: int = 0):
+    def __init__(self, human: TcpPlayer, bot: BotPlayer, seat: int = 0, timer: float = 0):
         self.name = human.name
         self.seat = seat
+        self.timer = timer  # seconds the human has for each decision (0: as long as they like); then the bot answers
         self._human: TcpPlayer | None = human
         self._bot = bot
         self._introductions: list[dict] = []  # the "seat" events, which a rejoining client needs to name everyone
@@ -64,7 +65,11 @@ class AutoPilotPlayer:
         human = self._human
         if human is not None:
             try:
-                return human.choose(prompt, options)
+                return human.choose(prompt, options, self.timer or None)
+            except TimedOut:
+                choice = self._bot.choose(prompt, options)
+                self.notify({"event": "timed_out", "seat": self.seat, "prompt": prompt, "choice": options[choice]})
+                return choice
             except Disconnected:
                 self._drop(human)
         return self._bot.choose(prompt, options)
@@ -175,10 +180,11 @@ def rejoin_players(server: socket.socket, pilots: dict[str, AutoPilotPlayer], ov
 
 def run_table(server: socket.socket, humans: int, bot_decks: list[str], source: CardSource, seed: int | None = None,
               check_decks: bool = True, max_turns: int = 300, log: Callable[[str], None] = print,
-              handshake_timeout: float = 10.0) -> str | None:
+              handshake_timeout: float = 10.0, timer: float = 0) -> str | None:
     """Wait for `humans` players on `server`, add one bot per entry of `bot_decks` (decklist texts), play the
     game, and return the winner's name (None if nobody won within `max_turns`). While the game runs, a player who
-    dropped can connect again and take their seat back."""
+    dropped can connect again and take their seat back. With `timer`, each decision has that many seconds before
+    the bot answers it."""
     if humans + len(bot_decks) < 2:
         raise ValueError("A table needs at least two players")
     bots: list[tuple[str, Deck]] = []
@@ -191,7 +197,8 @@ def run_table(server: socket.socket, humans: int, bot_decks: list[str], source: 
     log(f"Waiting for {humans} player(s); {len(bots)} bot(s) will fill the other seats.")
     seated = seat_humans(server, humans, source, check_decks, {name for name, _ in bots}, log, handshake_timeout)
     over = threading.Event()
-    pilots = [AutoPilotPlayer(human, BotPlayer(human.name, deck), seat) for seat, (human, deck) in enumerate(seated)]
+    pilots = [AutoPilotPlayer(human, BotPlayer(human.name, deck), seat, timer)
+              for seat, (human, deck) in enumerate(seated)]
     try:
         players = [(pilot, deck) for pilot, (_, deck) in zip(pilots, seated)]
         players += [(BotPlayer(name, deck), deck) for name, deck in bots]
@@ -218,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="a decklist for the bots; repeat for several (bots take them in turn)")
     parser.add_argument("--seed", type=int, help="make shuffles repeatable")
     parser.add_argument("--max-turns", type=int, default=300)
+    parser.add_argument("--timer", type=float, default=0, metavar="SECONDS",
+                        help="how long a player has for each decision before a bot answers it (default: no limit)")
     parser.add_argument("--cache", default=".cache/cards.json", help="where fetched cards are saved")
     parser.add_argument("--bulk", metavar="FILE", help="look cards up in Scryfall's bulk Oracle Cards data, "
                         "downloaded to FILE and refreshed weekly, instead of calling the API per card")
@@ -227,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--bot-deck is needed when there are bots")
     if args.humans + args.bots < 2:
         parser.error("a table needs at least two players")
+    if args.timer < 0:
+        parser.error("--timer can't be negative")
 
     bot_texts = [Path(p).read_text() for p in args.bot_deck]
     bot_decks = [bot_texts[i % len(bot_texts)] for i in range(args.bots)]
@@ -234,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     server = listen(args.host, args.port)
     print(f"Listening on {args.host}:{server.getsockname()[1]}")
     try:
-        run_table(server, args.humans, bot_decks, source, args.seed, not args.no_check, args.max_turns)
+        run_table(server, args.humans, bot_decks, source, args.seed, not args.no_check, args.max_turns, timer=args.timer)
     except (ValueError, CardNotFound, OSError) as err:
         print(f"Error: {err}", file=sys.stderr)
         return 1

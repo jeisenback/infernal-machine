@@ -23,6 +23,7 @@ from .client import Client
 PAGE = Path(__file__).with_name("web.html")
 LOG_LINES = 300  # how much of the log the page is given
 POLL_SECONDS = 25.0  # how long a request for changes may wait before answering "nothing new"
+CLOCK_GRACE = 1.0  # how long after a timed prompt's clock the client keeps waiting for the page before giving up
 
 
 class WebClient(Client):
@@ -63,14 +64,15 @@ class WebClient(Client):
             with self._changed:
                 self._bump()
 
-    def decide(self, prompt: str, options: list[str]) -> int:
+    def decide(self, prompt: str, options: list[str], seconds: float | None = None) -> int | None:
+        """Wait for the page's answer. With a clock, only until it runs out (a little longer, so the server's own
+        clock goes first): then None, and the events the server sent meanwhile are read."""
         with self._changed:
             self._prompt_id += 1
-            self.prompt = {"id": self._prompt_id, "prompt": prompt, "options": list(options)}
+            self.prompt = {"id": self._prompt_id, "prompt": prompt, "options": list(options), "seconds": seconds}
             self._answer = None
             self._bump()
-            while self._answer is None:
-                self._changed.wait()
+            self._changed.wait_for(lambda: self._answer is not None, seconds + CLOCK_GRACE if seconds else None)
             choice, self._answer, self.prompt = self._answer, None, None
             self._bump()
         return choice

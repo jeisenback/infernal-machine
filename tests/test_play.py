@@ -257,7 +257,7 @@ def wait_for(lines, text, seconds=10):
 class TableHarness:
     """A real server on a real socket, running a game in a thread."""
 
-    def __init__(self, test, humans, bot_decks, source, check=True, max_turns=3, seed=1):
+    def __init__(self, test, humans, bot_decks, source, check=True, max_turns=3, seed=1, timer=0):
         self.server = listen("127.0.0.1", 0)
         self.server.settimeout(15)
         self.port = self.server.getsockname()[1]
@@ -266,7 +266,7 @@ class TableHarness:
         def run():
             try:
                 self.result["winner"] = run_table(self.server, humans, bot_decks, source, seed=seed, check_decks=check,
-                                                  max_turns=max_turns, log=self.log.append)
+                                                  max_turns=max_turns, log=self.log.append, timer=timer)
             except BaseException as err:  # reported by finish()
                 self.error.append(err)
 
@@ -389,8 +389,32 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(any("Game over" in line for line in back_lines))
         self.assertIn("Alice rejoined", log)
 
+    def test_a_table_with_a_timer_plays_on_when_the_human_is_slow(self):
+        src = offline_source()
+        table_ = TableHarness(self, 1, [demo_deck("red")], src, check=False, max_turns=8, timer=0.3)
+        lines, seen = [], []
+
+        def slow(hint):
+            seen.append(hint)
+            if len(seen) == 1:
+                time.sleep(0.5)  # the first answer comes too late
+            return "1"
+
+        def run():
+            sock = socket.create_connection(("127.0.0.1", table_.port))
+            sock.settimeout(30)
+            Client(sock, "Alice", demo_deck("green"), ask=slow, show=lines.append).run()
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        winner, log = table_.finish(thread)
+        self.assertTrue(any(line.startswith("Time ran out:") for line in lines))
+        self.assertTrue(any("seconds" in hint for hint in seen))
+        self.assertTrue(any("Game over" in line for line in lines))
+
     def test_bad_arguments(self):
-        for argv in (["--bots", "1", "--humans", "1"], ["--bots", "0", "--humans", "1"]):
+        for argv in (["--bots", "1", "--humans", "1"], ["--bots", "0", "--humans", "1"],
+                     ["--bots", "1", "--bot-deck", "x", "--timer", "-5"]):
             with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
                 server_main(argv)
 
@@ -444,6 +468,23 @@ class AutoPilotTests(unittest.TestCase):
         chooser.join(5)
         self.assertEqual(answer["i"], 1)
         second.close()
+
+    def test_when_the_clock_runs_out_the_bot_answers_and_the_human_is_told(self):
+        fake = FakeServer()
+        pilot = AutoPilotPlayer(TcpPlayer(fake.client_sock, "Alice"), BotPlayer("Alice", Deck([COMMANDER], [BEAR] * 5, [])), timer=0.2)
+        self.assertEqual(pilot.choose("Priority: main1", ["Pass"]), 0)  # nobody answered in time
+        prompt = fake.receive()
+        self.assertEqual((prompt["options"], prompt["seconds"]), (["Pass"], 0.2))
+        self.assertEqual(fake.receive(), {"type": "event", "event": "timed_out", "seat": 0, "prompt": "Priority: main1", "choice": "Pass"})
+        self.assertFalse(pilot.disconnected)
+        answer = {}  # the next decision is the human's again, and an answer in time counts
+        chooser = threading.Thread(target=lambda: answer.update(i=pilot.choose("Keep?", ["Keep", "Mulligan"])))
+        chooser.start()
+        prompt = fake.receive()
+        fake.send({"type": "response", "id": prompt["id"], "choice": 1})
+        chooser.join(5)
+        self.assertEqual(answer["i"], 1)
+        fake.close()
 
     def test_a_second_connection_with_the_name_replaces_one_still_open(self):
         first, second = FakeServer(), FakeServer()

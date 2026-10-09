@@ -50,6 +50,8 @@
   .prompt button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .prompt button:disabled { opacity: .5; cursor: default; }
   .prompt .waiting { color: var(--muted); }
+  .prompt .clock { color: var(--muted); font-size: 13px; margin: -4px 0 8px; }
+  .prompt .clock.late { color: var(--accent); font-weight: 600; }
   aside.log { min-width: 0; }
   aside.log .panel { position: sticky; top: 60px; max-height: calc(100vh - 80px); display: flex; flex-direction: column; }
   aside.log h2 { font-size: 14px; margin: 0 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
@@ -79,6 +81,8 @@
   "use strict";
   let since = -1;
   let posting = false;
+  let deadline = null;  // when the open prompt's clock runs out, if the table has one
+  let timedPrompt = null;  // the id of the prompt the deadline belongs to
 
   function el(tag, cls, text) {
     const node = document.createElement(tag);
@@ -204,6 +208,13 @@
     if (over) { box.appendChild(el("span", "waiting", "The connection to the game is closed.")); return; }
     if (!prompt) { box.appendChild(el("span", "waiting", "Waiting for the other players...")); return; }
     box.appendChild(el("h2", "", prompt.prompt));
+    if (prompt.seconds) {
+      if (timedPrompt !== prompt.id) { timedPrompt = prompt.id; deadline = Date.now() + prompt.seconds * 1000; }
+      const clock = el("div", "clock");
+      clock.id = "clock";
+      box.appendChild(clock);
+      tick();
+    }
     const options = el("div", "options");
     prompt.options.forEach((text, i) => {
       const button = el("button", text === "Pass" ? "primary" : "", text);
@@ -226,6 +237,15 @@
     if (view.state) renderBoard(view.state);
     renderPrompt(view.prompt, view.over);
     renderLog(view.lines);
+  }
+
+  function tick() {
+    const clock = document.getElementById("clock");
+    if (!clock || deadline === null) return;
+    const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    clock.textContent = left ? left + " s left" : "Time's up: a bot answers for you";
+    clock.classList.toggle("late", left <= 10);
+    if (left) setTimeout(tick, 250);
   }
 
   async function choose(id, choice) {

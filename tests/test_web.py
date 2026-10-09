@@ -53,12 +53,13 @@ class WebClientTests(unittest.TestCase):
         game, _, _ = table()
         self.server.send({"type": "event", "event": "state", **game.snapshot(game.seats[0])})
         self.server.send({"type": "event", "event": "turn", "turn": 2, "seat": 0})
-        self.server.send({"type": "choose", "id": 7, "prompt": "Priority: main1", "options": ["Pass", "Play land: Forest"]})
+        self.server.send({"type": "choose", "id": 7, "prompt": "Priority: main1", "options": ["Pass", "Play land: Forest"],
+                          "seconds": 45})
         while (view := self.view(view["version"]))["prompt"] is None:
             pass
         self.assertEqual(view["state"]["turn"], 2)
         self.assertEqual([s["name"] for s in view["state"]["seats"]], ["A", "B"])
-        self.assertEqual(view["prompt"]["options"], ["Pass", "Play land: Forest"])
+        self.assertEqual((view["prompt"]["options"], view["prompt"]["seconds"]), (["Pass", "Play land: Forest"], 45))
         self.assertIn("--- Turn 2: your turn ---", view["lines"])
         prompt_id = view["prompt"]["id"]
         self.assertEqual(self.request("POST", "/choose", {"id": prompt_id + 1, "choice": 1})[0], 409)  # not this prompt
@@ -68,6 +69,19 @@ class WebClientTests(unittest.TestCase):
         while (view := self.view(view["version"]))["prompt"] is not None:
             pass
         self.assertEqual(self.request("POST", "/choose", {"id": prompt_id, "choice": 1})[0], 409)  # already answered
+
+    def test_a_timed_prompt_is_given_up_when_its_clock_runs_out(self):
+        self.server.send({"type": "choose", "id": 5, "prompt": "Keep this hand?", "options": ["Keep", "Mulligan"], "seconds": 0.2})
+        while (view := self.view(-1))["prompt"] is None:
+            pass
+        self.assertEqual(view["prompt"]["seconds"], 0.2)
+        while (view := self.view(view["version"]))["prompt"] is not None:
+            pass  # the clock (plus the grace) ran out: the page's answer is no longer waited for
+        self.server.send({"type": "choose", "id": 6, "prompt": "Priority: main1", "options": ["Pass", "Play land: Forest"]})
+        while (view := self.view(view["version"]))["prompt"] is None:
+            pass
+        self.assertEqual(self.request("POST", "/choose", {"id": view["prompt"]["id"], "choice": 1})[0], 200)
+        self.assertEqual(self.server.receive(), {"type": "response", "id": 6, "choice": 1})  # nothing was sent for 5
 
     def test_a_pass_only_prompt_is_answered_without_asking_and_closing_ends_the_view(self):
         self.server.send({"type": "choose", "id": 3, "prompt": "Priority: upkeep", "options": ["Pass"]})
