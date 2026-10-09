@@ -6019,6 +6019,33 @@ _ADD_ANY_N = re.compile(_TAP + r"(two|three|four|five) mana of any one color\." 
 _ANY_N = {"two": 2, "three": 3, "four": 4, "five": 5}
 
 
+# Study Hall, Path of Ancestry: a mana ability with a rider that triggers when the mana is spent on the right spell.
+_SPENT_RIDER = re.compile(r"(.+\.) When (?:you spend this mana|that mana is spent) to cast "
+                          r"(your commander|a creature spell that shares a creature type with your commander), "
+                          r"scry (1|X, where X is the number of times it's been cast from the command zone this game)\.")
+
+
+@dataclass(frozen=True)
+class ManaSpentTrigger:
+    """ "When that mana is spent to cast <spell>, scry <n>." on a mana ability."""
+    spell: str  # "commander" (your commander) or "shares_type_with_commander" (a creature spell sharing a type)
+    scry: int | str  # a number, or "commander_casts": the times that commander has been cast from the command zone
+
+
+def mana_spent_trigger(card: Card) -> ManaSpentTrigger | None:
+    for line in rules_lines(card):
+        if m := _SPENT_RIDER.fullmatch(line):
+            return ManaSpentTrigger("commander" if m[2] == "your commander" else "shares_type_with_commander",
+                                    1 if m[3] == "1" else "commander_casts")
+    return None
+
+
+def _without_spent_rider(line: str) -> str:
+    """The mana ability alone, without its "When that mana is spent ..." sentence."""
+    m = _SPENT_RIDER.fullmatch(line)
+    return m[1] if m else line
+
+
 def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
     """The mana a nonland permanent makes when tapped, one set of options per mana.
 
@@ -6062,6 +6089,7 @@ def mana_ability_sacrifices(card: Card) -> bool:
 
 def _mana_match(line: str) -> re.Match | None:
     """The match of a plain "{T}: Add ..." line, unless its "Activate only if" condition isn't understood."""
+    line = _without_spent_rider(line)
     for pattern in _MANA_PATTERNS:
         if (m := pattern.fullmatch(line)) and (m.group(pattern.groups) is None or _condition(m.group(pattern.groups))):
             return m
@@ -6092,6 +6120,7 @@ _PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add (one mana of any color
 
 
 def is_mana_ability(line: str) -> bool:
+    line = _without_spent_rider(line)
     return (_mana_match(line) is not None or _ADD_POWER.fullmatch(line) is not None
             or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
             or _FILTER.fullmatch(line) is not None
@@ -6150,7 +6179,7 @@ def land_mana_units(card: Card) -> list[frozenset[str]] | None:
 
 def is_identity_mana_land(card: Card) -> bool:
     """Command Tower: a land that makes one mana of any color in your commander's color identity."""
-    return "Land" in card.type_line and any(_ADD_IDENTITY.fullmatch(line) for line in rules_lines(card))
+    return "Land" in card.type_line and any(_ADD_IDENTITY.fullmatch(_without_spent_rider(line)) for line in rules_lines(card))
 
 
 _FILTER = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\}|\{[WUBRG]/[WUBRG]\})+), \{T\}: Add ((?:\{[WUBRGC]\})+)\.")
@@ -6175,7 +6204,7 @@ _FILTER_LAND = re.compile(r"(\{[WUBRG]/[WUBRG]\}), \{T\}: Add \{([WUBRG])\}\{\2\
 def filter_mana_ability(card: Card) -> tuple[str, list[frozenset[str]]] | None:
     """A mana ability that costs mana, like a Signet's "{1}, {T}: Add {W}{U}.":
     (the mana it costs, the mana it makes, one set per mana)."""
-    for line in rules_lines(card):
+    for line in map(_without_spent_rider, rules_lines(card)):
         if m := _FILTER.fullmatch(line):
             return m[1], [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2])]
         if m := _FILTER_ANY.fullmatch(line):

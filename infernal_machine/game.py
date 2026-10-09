@@ -29,7 +29,7 @@ from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, Altern
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
-                      filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
+                      filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, mana_spent_trigger, Scry, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
 from .mana import SNOW, Cost, parse_cost, pay
@@ -222,6 +222,7 @@ class Payment(list):
     pain: int = 0
     life: int = 0
     pool: tuple[frozenset[str], ...] = ()
+    filters: tuple["Permanent", ...] = ()  # the permanents whose Signet-style ability ("{1}, {T}: Add ...") was used
 
 
 @dataclass(eq=False)
@@ -802,6 +803,21 @@ class Game:
         # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
         return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice else None)
 
+    def _mana_spent_matches(self, seat: Seat, source: Permanent, card: Card, from_command_zone: bool, tapped) -> bool:
+        """Whether `source`'s "When that mana is spent to cast ..." rider applies to casting `card`. A Study Hall
+        tapped for its plain {C} spent no such mana: only its "{1}, {T}" ability carries the rider."""
+        rider = mana_spent_trigger(source.card)
+        if rider is None or (filter_mana_ability(source.card) and source not in getattr(tapped, "filters", ())):
+            return False
+        if rider.spell == "commander":
+            return from_command_zone and card.name in seat.commander_names
+        if "Creature" not in card.type_line:
+            return False
+        types = set(card.type_line.partition("—")[2].split())
+        commanders = [c for zone in (seat.command_zone, seat.graveyard, seat.exile, seat.library, seat.hand) for c in zone
+                      if c.name in seat.commander_names] + [p.card for p in seat.battlefield if p.card.name in seat.commander_names]
+        return any(types & set(c.type_line.partition("—")[2].split()) for c in commanders)
+
     def commander_tax(self, seat: Seat, card: Card) -> int:
         return COMMANDER_TAX * seat.commander_casts.get(card.name, 0)
 
@@ -1130,6 +1146,7 @@ class Game:
         permanents = [s.permanent for s, _ in used if s.permanent is not None] + [p for p, _, _ in ordered]
         payment = Payment({id(p): p for p in permanents}.values())
         payment.pool = tuple(s.types for s, _ in used if s.permanent is None)
+        payment.filters = tuple(p for p, _, _ in ordered)
         # A permanent hurts (or costs life) once per tap, however many of its mana are used.
         hurt: dict[int, int] = {}
         paid_life: dict[int, int] = {}
@@ -1536,6 +1553,12 @@ class Game:
         for ability in triggered_abilities(card):  # "When you cast this spell, ..." (Hydroid Krasis)
             if ability.event == "cast_self" and prepared is None:
                 self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, x=x))
+        for source in tapped or ():  # Study Hall, Path of Ancestry: "When that mana is spent to cast ..., scry"
+            if self._mana_spent_matches(seat, source, card, from_command_zone, tapped):
+                scry = mana_spent_trigger(source.card).scry
+                count = seat.commander_casts.get(card.name, 0) + 1 if scry == "commander_casts" else scry
+                ability = TriggeredAbility("cast", (Scry("X"),), False, f"Scry {count}")
+                self.stack.append(StackItem(source.card, seat, list(ability.effects), [], ability, source, x=count))
         if has_keyword(card, "cascade") and prepared is None:  # the trigger goes on the stack above the spell
             ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
