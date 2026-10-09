@@ -1417,6 +1417,8 @@ class Game:
             self._move_card(seat, card, "exile")
             if until is not None and card in seat.exile:
                 seat.exile_play.append((card, until))
+        if exiled:
+            self._exiled_from_library_or_graveyard(seat)
 
     def exile_random_from_graveyard(self, seat: Seat, play_this_turn: bool) -> None:
         """Exile a card chosen at random from the graveyard; it can be played until the turn ends."""
@@ -1429,6 +1431,7 @@ class Game:
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
         self._move_card(seat, card, "exile")
         self._left_graveyard(seat)
+        self._exiled_from_library_or_graveyard(seat)
         if play_this_turn and card in seat.exile:
             seat.exile_play.append((card, self.turn))
 
@@ -2888,6 +2891,7 @@ class Game:
             self._move_card(seat, card, "exile")
         if count:
             self._left_graveyard(seat)
+            self._exiled_from_library_or_graveyard(seat)
         return True
 
     def shuffle_into_library(self, seat: Seat, targets: list[GraveyardTarget]) -> None:
@@ -2912,6 +2916,7 @@ class Game:
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
         self._move_card(seat, card, "exile")
         self._left_graveyard(seat)
+        self._exiled_from_library_or_graveyard(seat)
         return True
 
     def _left_graveyard(self, seat: Seat) -> None:
@@ -2919,6 +2924,10 @@ class Game:
         seat.graveyard_left_turn = self.turn
         for permanent in list(seat.battlefield):
             self.trigger("graveyard_leave", permanent, seat)
+
+    def _exiled_from_library_or_graveyard(self, seat: Seat) -> None:
+        """One or more of `seat`'s cards were just put into exile from its library and/or graveyard, as one event (Laelia)."""
+        self._trigger_each("exile_library_graveyard", seat)
 
     def tutor(self, seat: Seat, card_type: str, to: str, reveal: bool) -> None:
         """Search the library for a card of `card_type`: it goes to the hand (`to` is "hand")

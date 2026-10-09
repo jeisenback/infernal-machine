@@ -5905,6 +5905,8 @@ _TRIGGERS = {
     "become_monarch": re.compile(r"Whenever you become the monarch, (.+)", re.I),
     "opponent_become_monarch": re.compile(r"Whenever an opponent becomes the monarch, (.+)", re.I),
     "discard": re.compile(r"Whenever you discard a card, (.+)", re.I),
+    "exile_library_graveyard": re.compile(
+        r"Whenever one or more cards are put into exile from your library and/or your graveyard, (.+)", re.I),
     "discard_nonland": re.compile(r"Whenever you discard one or more nonland cards, (.+)", re.I),
     "opponent_discard": re.compile(r"Whenever an opponent discards a card, (.+)", re.I),
     "opponent_search": re.compile(r"Whenever an opponent searches their library, (.+)", re.I),
