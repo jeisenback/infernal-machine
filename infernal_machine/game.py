@@ -26,7 +26,7 @@ from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, Altern
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
-                      no_max_hand_size, begins_on_battlefield,
+                      no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, mana_spent_trigger, Scry, spell_effects, static_abilities, target_kind,
@@ -499,6 +499,9 @@ class Game:
                 self.draw(seat, 1)
             for permanent in list(seat.battlefield):
                 self.trigger("draw_step", permanent, seat)
+            for other in self.live_seats():  # "At the beginning of each other player's draw step" (Well of Ideas)
+                if other is not seat:
+                    self._trigger_each("other_draw_step", other, player=seat)
         elif self.step in ("upkeep", "end"):
             if self.step == "end":  # "at the beginning of the next end step"
                 due = [what for turn, what in self.at_end_step if turn <= self.turn]
@@ -523,7 +526,8 @@ class Game:
                 for permanent in list(other.battlefield):
                     self.trigger("each_upkeep" if self.step == "upkeep" else "each_end_step", permanent, other)
                     if other is not seat:  # "At the beginning of each opponent's upkeep / end step"
-                        self.trigger("opponent_upkeep" if self.step == "upkeep" else "opponent_end_step", permanent, other)
+                        self.trigger("opponent_upkeep" if self.step == "upkeep" else "opponent_end_step", permanent, other,
+                                     player=seat)  # "that player" is whose turn it is
             if self.step == "upkeep" and self.initiative is seat:  # CR 725.2: the initiative ventures at upkeep
                 self.venture(seat)
             if self.step == "end" and self.monarch is seat:  # CR 724.2: the monarch draws at their end step
@@ -559,7 +563,10 @@ class Game:
             for permanent in list(seat.battlefield):
                 self.trigger("second_main", permanent, seat)
         elif self.step == "cleanup":
-            excess = 0 if any(no_max_hand_size(p.card) for p in seat.battlefield) else len(seat.hand) - HAND_SIZE
+            everyone = any(players_have_no_max_hand(p.card) for s in self.seats for p in s.battlefield)  # Price of Knowledge
+            limits = [p.counters.get(c, 0) for p in seat.battlefield if (c := hand_size_counter(p.card))]  # Midnight Oil
+            excess = 0 if everyone or any(no_max_hand_size(p.card) for p in seat.battlefield) \
+                else len(seat.hand) - (min(limits) if limits else HAND_SIZE)
             for _ in range(max(0, excess)):
                 i = seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])
                 card = seat.hand.pop(i)
@@ -1777,7 +1784,7 @@ class Game:
                             "ability": _shown(ability.text, item.card), "declined": True})
             return
         condition = getattr(ability, "condition", None)
-        if condition and not self.condition_holds(condition, seat, item.source, item.x):  # checked again on resolution (CR 603.4)
+        if condition and not self.condition_holds(condition, seat, item.source, item.x, item.player):  # checked again on resolution (CR 603.4)
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": _shown(ability.text, item.card), "condition_false": True})
             return
@@ -1818,6 +1825,17 @@ class Game:
             return int(max((c.cmc for c in this_turn if _watch_type_matches(amount.what, c)), default=0))
         if kind == "opponents":
             return len(self.opponents(controller))
+        if kind == "spell_colors":  # Mana Cannons: the spell that set off this trigger
+            spell = self.resolving_item.carried if self.resolving_item is not None else None
+            return len(spell.card.colors) if isinstance(spell, StackItem) else 0
+        if kind == "graveyards_same_name":  # Aven Shrine
+            spell = self.resolving_item.carried if self.resolving_item is not None else None
+            return sum(c.name == spell.card.name for s in self.seats for c in s.graveyard) if isinstance(spell, StackItem) else 0
+        if kind == "hand_size":
+            return len(controller.hand)
+        if kind in ("player_hand", "player_hand_minus"):  # the player the trigger is about (Price of Knowledge, Viseling)
+            who = self.resolving_item.player if self.resolving_item is not None else None
+            return max(0, len(who.hand) - int(amount.what or 0)) if who is not None else 0
         if kind == "spell_mana_value":  # Renegade Bull: the spell that set off this trigger
             spell = self.resolving_item.carried if self.resolving_item is not None else None
             return int(spell.card.cmc) + spell.x if isinstance(spell, StackItem) else 0
@@ -1921,7 +1939,7 @@ class Game:
 
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0,
                subject: Permanent | None = None, player: Seat | None = None, spell: "StackItem | None" = None) -> None:
-        if ability.condition and not self.condition_holds(ability.condition, controller, permanent, x):
+        if ability.condition and not self.condition_holds(ability.condition, controller, permanent, x, player):
             return
         if ability.once_per_turn:  # "This ability triggers only once each turn."
             if permanent.triggered_turn.get(ability.text) == self.turn:
@@ -1929,10 +1947,19 @@ class Game:
             permanent.triggered_turn[ability.text] = self.turn
         self.pending.append(PendingTrigger(ability, permanent, controller, x, subject, player, spell=spell))
 
-    def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None, x: int = 0) -> bool:
+    def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None, x: int = 0,
+                        player: Seat | None = None) -> bool:
         """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`. `x` is the
-        number the event carried (how many attackers went at the controller, for "two or more of those creatures")."""
+        number the event carried (how many attackers went at the controller, for "two or more of those creatures");
+        `player` is the player the trigger is about ("that player")."""
         kind = condition.kind
+        if kind == "control_no_other":  # Lone Revenant
+            return not any("Creature" in p.card.type_line and p is not source for p in seat.battlefield)
+        if kind == "player_cast_none":  # "that player didn't cast a creature spell this turn" (Predatory Advantage)
+            return player is not None and not any(
+                turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in player.cast_log)
+        if kind == "player_hand_at_most":
+            return player is not None and len(player.hand) <= condition.count
         if kind == "attackers_at_least":
             return x >= condition.count
         if kind == "control_none_keyword":  # Jadar: "you control no creatures with decayed"
@@ -2063,8 +2090,12 @@ class Game:
         """A watch's "with power 4 or greater" / "with flying" / "with a +1/+1 counter on it": for a creature that is
         gone (it died), what it last was."""
         here = self.on_battlefield(permanent)
-        if qualifier.startswith("power>="):
-            return (self.power(permanent) if here else permanent.last_power) >= int(qualifier.removeprefix("power>="))
+        if m := re.fullmatch(r"(power|toughness)(>=|<=)(\d+)", qualifier):
+            if m[1] == "power":
+                value = self.power(permanent) if here else permanent.last_power
+            else:  # a gone creature's toughness: its printed one plus counters, the last known information
+                value = self.toughness(permanent) if here else int(permanent.card.toughness or 0) + permanent.counters.get("+1/+1", 0)
+            return value >= int(m[3]) if m[2] == ">=" else value <= int(m[3])
         if qualifier.startswith("mv<="):
             return permanent.card.cmc <= int(qualifier.removeprefix("mv<="))
         if qualifier == "flying":
@@ -2691,6 +2722,9 @@ class Game:
         controller = self.controller_of(permanent)
         mods = [m for m in permanent.until_end_of_turn + permanent.until_next_turn
                 if not m.your_turn or self.seats[self.active] is controller]
+        if controller is not None and (cda := power_toughness_amount(permanent.card)) is not None:
+            size = self.evaluate(cda, controller)  # Overbeing of Myth: its base power and toughness
+            mods = [Modifier(set_pt=(size, size))] + mods
         if controller is None or "Creature" not in permanent.card.type_line:
             return mods
         subtypes = self.subtypes(permanent)

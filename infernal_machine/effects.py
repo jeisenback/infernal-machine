@@ -770,6 +770,31 @@ class MoveCountersOnto:
 
 
 @dataclass(frozen=True)
+class RemoveCountersFromSource:
+    """ "Remove two hour counters from this enchantment." (Midnight Oil)"""
+    count: int
+    counter: str
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.remove_counters(target, self.counter, self.count)
+
+
+@dataclass(frozen=True)
+class DamageWhatItAttacks:
+    """Raid Bombardment: "... deals 1 damage to the player or planeswalker that creature is attacking." The creature that
+    attacked is the subject."""
+    amount: int
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        attack = next((a for a in game.combat.attacks if a.attacker is target), None) if target is not None else None
+        if attack is not None:
+            game.damage(attack.walker if attack.walker is not None else attack.defender, self.amount)
+
+
+@dataclass(frozen=True)
 class DoubleCountersOnSource:
     """ "Double the number of +1/+1 counters on this creature." """
     counter: str
@@ -2537,6 +2562,13 @@ _AMOUNTS = [
     (re.compile(r"opponents?", re.I), lambda m: Amount("opponents")),
     (re.compile(r"the amount of mana spent to cast that spell", re.I), lambda m: Amount("mana_spent")),
     (re.compile(r"that spell's mana value", re.I), lambda m: Amount("spell_mana_value")),
+    (re.compile(r"the number of cards in your hand", re.I), lambda m: Amount("hand_size")),
+    (re.compile(r"the number of cards in (?:that player's|their) hand minus (\d+)", re.I),
+     lambda m: Amount("player_hand_minus", m[1])),
+    (re.compile(r"the number of cards in (?:that player's|their) hand", re.I), lambda m: Amount("player_hand")),
+    (re.compile(r"the number of colors that spell is", re.I), lambda m: Amount("spell_colors")),
+    (re.compile(r"the number of cards in all graveyards with the same name as that spell", re.I),
+     lambda m: Amount("graveyards_same_name")),
     (re.compile(r"(?:the number of )?([A-Za-z]+) you control", re.I), lambda m: Amount("you_control", _singular(m[1]))),
 ]
 
@@ -3528,7 +3560,40 @@ class Vote:
                     effect.resolve(game, controller, None)
 
 
+_CDA = re.compile(r"(?:CARDNAME's|This creature's) power and toughness are each equal to (.+)\.")
+
+
+def power_toughness_amount(card: Card) -> "Amount | None":
+    """Overbeing of Myth: a characteristic-defining "power and toughness are each equal to ..." line."""
+    for line in rules_lines(card):
+        if (m := _CDA.fullmatch(line)) and (amount := _amount(m[1])):
+            return amount
+    return None
+
+
+def is_cda_line(line: str) -> bool:
+    return (m := _CDA.fullmatch(line)) is not None and _amount(m[1]) is not None
+
+
+_HAND_BY_COUNTERS = re.compile(r"Your maximum hand size is equal to the number of (\w+) counters on (?:CARDNAME|this \w+)\.")
+
+
+def hand_size_counter(card: Card) -> str | None:
+    """Midnight Oil: "Your maximum hand size is equal to the number of hour counters on this enchantment." """
+    return next((m[1] for line in rules_lines(card) if (m := _HAND_BY_COUNTERS.fullmatch(line))), None)
+
+
+def is_hand_by_counters_line(line: str) -> bool:
+    return _HAND_BY_COUNTERS.fullmatch(line) is not None
+
+
 _NO_MAX_HAND = "You have no maximum hand size."
+_NO_MAX_HAND_ALL = "Players have no maximum hand size."
+
+
+def players_have_no_max_hand(card: Card) -> bool:
+    """Price of Knowledge: no player has a maximum hand size."""
+    return any(line == _NO_MAX_HAND_ALL for line in rules_lines(card))
 
 
 def no_max_hand_size(card: Card) -> bool:
@@ -3537,7 +3602,7 @@ def no_max_hand_size(card: Card) -> bool:
 
 
 def is_no_max_hand_line(line: str) -> bool:
-    return line == _NO_MAX_HAND
+    return line in (_NO_MAX_HAND, _NO_MAX_HAND_ALL)
 
 
 _EXTRA_VOTE = "While voting, you may vote an additional time."
@@ -4644,6 +4709,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(rf"remove {_N} ([a-z]+) counters? from (?:{_SELF})\.", re.I),
+     lambda m: RemoveCountersFromSource(_count(m[1]), m[2].lower())),
+    (re.compile(rf"(?:{_SELF}) deals damage to target (player|opponent) equal to (.+)\.", re.I),
+     lambda m: [DefineX(a), Damage("X", m[1].lower())] if (a := _amount(m[2])) else None),
+    (re.compile(rf"(?:{_SELF}) deals (\d+) damage to the player or planeswalker (?:that creature|it) is attacking\.", re.I),
+     lambda m: DamageWhatItAttacks(int(m[1]))),
     (re.compile(r"add \{([WUBRGC])\} for each card in target opponent's hand\.", re.I), lambda m: AddManaPerCardInHand(m[1].upper())),
     (re.compile(r"until end of turn, you don't lose this mana as steps and phases end\.", re.I), lambda m: KeepManaThisTurn()),
     (re.compile(r"exile (?:CARDNAME|this spell) with (a|two|three|four|five|\d+) time counters? on it\.", re.I),
@@ -4960,6 +5031,8 @@ def _clauses(sentence: str) -> list[str]:
     sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
     "You create" add nothing."""
     sentence = sentence.replace(" of their choice.", ".")
+    sentence = re.sub(r"\b(draws?) (an|a|one|two|three) additional cards?\b",  # Well of Ideas, Midnight Oil
+                      lambda m: f"{m[1]} {'a card' if m[2] in ('an', 'a', 'one') else m[2] + ' cards'}", sentence, flags=re.I)
     if m := re.fullmatch(r"(.*)\bhalf X (.+?), rounded (up|down)\.", sentence):  # The Goose Mother: "create half X Food tokens, rounded up."
         return _clauses(f"{m[1]}half X {m[3]} {m[2]}.")
     if _RETURN_UP_TO_POWER.fullmatch(sentence):  # one effect: X is looked at when the target is chosen
@@ -4978,7 +5051,7 @@ def _clauses(sentence: str) -> list[str]:
     if m := re.fullmatch(r"(Create .+ tokens?), then populate\.", sentence):
         return [m[1] + ".", "Populate."]
     sentence = re.sub(r"^You (draw|create) ", lambda m: m[1].capitalize() + " ", sentence)
-    if m := re.fullmatch(rf"(Draw {_N} cards?) and (create .+)\.", sentence):  # Big Score, Seize the Spoils
+    if m := re.fullmatch(rf"(Draw {_N} cards?) and ((?:create|remove) .+)\.", sentence):  # Big Score, Seize the Spoils, Midnight Oil
         return [m[1] + ".", m[3][:1].upper() + m[3][1:] + "."]
     if m := re.fullmatch(rf"(.+) and you ({_YOUR_ACTION})\.", sentence, re.I):
         return _clauses(m[1] + ".") + [_you_do(m[2])]
@@ -5320,6 +5393,9 @@ _CONDITIONS = [
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
     (re.compile(r"you control an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, _singular(m[1]))),
     (re.compile(r"it's your turn"), lambda m: Condition("your_turn")),
+    (re.compile(r"you control no other creatures"), lambda m: Condition("control_no_other", what="creature")),
+    (re.compile(r"that player didn't cast an? ([a-z]+) spell this turn"), lambda m: Condition("player_cast_none", what=m[1])),
+    (re.compile(rf"that player has {_N} or fewer cards in hand"), lambda m: Condition("player_hand_at_most", _count(m[1]))),
     (re.compile(rf"(?:{_SELF}) has no {_COUNTER} on it"), lambda m: Condition("source_no_counters", what=_counter_name(m[1]))),
     (re.compile(rf"(?:it|{_SELF}) has {_N} or more {_COUNTER} on it"),
      lambda m: Condition("source_counters_at_least", _count(m[1]), _counter_name(m[2]))),
@@ -5420,6 +5496,7 @@ _TRIGGERS = {
     "scry": re.compile(r"Whenever you scry, (.+)", re.I),
     "surveil": re.compile(r"Whenever you surveil, (.+)", re.I),
     "draw_step": re.compile(r"At the beginning of your draw step, (.+)", re.I),
+    "other_draw_step": re.compile(r"At the beginning of each other player's draw step, (.+)", re.I),
     "opponent_upkeep": re.compile(r"At the beginning of each opponent's upkeep, (.+)", re.I),
     "opponent_end_step": re.compile(r"At the beginning of (?:each|an) opponent's end step, (.+)", re.I),
     "graveyard_leave": re.compile(r"Whenever one or more cards leave your graveyard, (.+)", re.I),
@@ -5477,10 +5554,11 @@ _WATCHES = {
                        r"( from your hand| from your graveyard| from their graveyard| from anywhere other than your hand)?"
                        r"(?(3) each turn), (.+)", re.I),
     "card_to_graveyard": re.compile(rf"Whenever an? ([a-z ]+?) card is put into your graveyard from anywhere, (.+)", re.I),
+    "creature_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
     "expend": re.compile(r"Whenever you expend (\d+), (.+)", re.I),
 }
-_WATCH_QUALIFIER = re.compile(r" with (power (\d+) or greater|flying|a \+1/\+1 counter on it|mana value (\d+) or less)"
-                              r"(?= (?:enters|dies|leaves the battlefield|becomes tapped))")
+_WATCH_QUALIFIER = re.compile(r" with ((power|toughness) (\d+) or (greater|less)|flying|a \+1/\+1 counter on it|mana value (\d+) or less)"
+                              r"(?= (?:enters|dies|leaves the battlefield|becomes tapped|attacks))")
 # "Whenever one or more other creatures you control with mana value 3 or less enter": read as the singular, once per batch
 _ONE_OR_MORE = re.compile(r"Whenever one or more (other )?(nontoken creatures|creature tokens|tokens|creatures|lands|artifacts|"
                           r"enchantments|permanents)( you control| an opponent controls)?( with (?:power \d+ or greater|flying|"
@@ -5489,7 +5567,7 @@ _SINGULAR = {"nontoken creatures": "nontoken creature", "creature tokens": "crea
              "creatures": "creature", "lands": "land", "artifacts": "artifact", "enchantments": "enchantment",
              "permanents": "permanent"}
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
-_SUBJECT_EVENTS = {"permanent_enters", "creature_dies", "permanent_taps", "permanent_to_graveyard"}
+_SUBJECT_EVENTS = {"permanent_enters", "creature_dies", "permanent_taps", "permanent_to_graveyard", "creature_attacks"}
 # Triggers about some other creature: there "it" and "that creature" mean that creature, not the source.
 _OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat_damage", "token_combat_damage",
                   "host_attacks", "host_combat_damage", "attack_alone"}
@@ -5497,7 +5575,7 @@ _OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat
 _HOST_GONE = {"host_dies"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
 _PLAYER_EVENTS = {"opponent_draw", "opponent_second_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
-                  "opponent_discard", "opponent_search", "opponent_attacks"}
+                  "opponent_discard", "opponent_search", "opponent_attacks", "other_draw_step", "opponent_upkeep", "opponent_end_step"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
 _CONTROLLER = r"(?:its|that (?:creature|permanent|land)'s) controller"
 _PLAYER_PRONOUNS = [
@@ -5536,7 +5614,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     line = _ABILITY_WORD.sub("", line)
     qualifier = ""
     if q := _WATCH_QUALIFIER.search(line):  # "a creature you control with power 4 or greater enters"
-        qualifier = (f"power>={q[2]}" if q[2] else "flying" if q[1] == "flying" else f"mv<={q[3]}" if q[3] else "counter:+1/+1")
+        qualifier = (f"{q[2]}{'>=' if q[4] == 'greater' else '<='}{q[3]}" if q[2] else "flying" if q[1] == "flying"
+                     else f"mv<={q[5]}" if q[5] else "counter:+1/+1")
         line = line[:q.start()] + line[q.end():]
     if m := _WATCHES["cast"].fullmatch(line):
         caster = {"you cast or copy": "you", "you cast": "you", "a player casts": "player",
@@ -5550,6 +5629,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         return "cast", watch, m[7]
     if m := _WATCHES["card_to_graveyard"].fullmatch(line):
         return "card_to_graveyard", Watch(m[1].lower(), yours=True), m[2]
+    if qualifier and (m := _WATCHES["creature_attacks"].fullmatch(line)):  # "a creature you control with power 2 or less attacks"
+        return "creature_attacks", Watch("creature", yours=True, qualifier=qualifier), m[1]
     if m := _WATCHES["expend"].fullmatch(line):
         return "expend", Watch("expend", yours=True, expend=int(m[1])), m[2]
     for event in ("permanent_enters", "creature_dies", "permanent_leaves", "permanent_taps", "permanent_to_graveyard"):
@@ -5750,6 +5831,8 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
 
 
 _MANA_SPENT = re.compile(r"the amount of mana spent to cast that spell", re.I)
+_SPELL_COLORS = re.compile(r"the number of colors that spell is", re.I)  # Mana Cannons
+_SAME_NAME = re.compile(r"with the same name as that spell", re.I)  # Aven Shrine
 _SPELL_MV = re.compile(r"that spell's mana value", re.I)
 _MAY_PAY_OR = re.compile(r"that player may pay ((?:\{[^}]+\})+)\. If the player doesn't, (.+)")
 _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", re.I)
@@ -5793,7 +5876,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
             replaced = pattern.sub(replacement, replaced)
         about_player, rest = about_player or replaced != rest, replaced
     # "the amount of mana spent to cast that spell" is an amount the trigger carries, not an effect on the spell.
-    about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", rest))), re.I) is not None
+    about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", rest))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?copy (it|that spell)\.", rest, re.I) is not None  # Codie: "it" is the spell cast
     effects, optional, once, condition = _trigger_body(rest)
     if effects is None:

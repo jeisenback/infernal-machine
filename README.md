@@ -825,13 +825,16 @@ winner = game.play()
   | Whenever one or more creatures you control attack, ... (once) | |
   | Whenever an opponent attacks with creatures, if two or more of those creatures are attacking you and/or planeswalkers you control, ... | Mangara |
   | Whenever a creature enters under an opponent's control, ... (or "a creature an opponent controls enters"; "you may have that player lose 1 life") | Blood Seeker |
-  | Whenever a creature (with power 4 or greater / with flying / with a +1/+1 counter on it) you control enters or dies, ... | |
+  | Whenever a creature (with power 4 or greater / toughness 4 or greater / power 2 or less / with flying / with a +1/+1 counter on it) you control enters, dies or attacks, ... | Kiora, Kheru Bloodsucker, Raid Bombardment ("the player or planeswalker that creature is attacking"), Skyclave Shadowcat |
   | Whenever you cast a spell from your graveyard / from anywhere other than your hand, ... (and "a player casts a spell from their graveyard") | |
-  | Whenever you cast a multicolored spell, ... | |
+  | Whenever you cast a multicolored spell, ... ("the number of colors that spell is" is an amount) | Tome of the Guildpact, Mana Cannons |
+  | Whenever a player casts a spell, that player gains X life, where X is the number of cards in all graveyards with the same name as that spell. | Aven Shrine |
   | Whenever a creature card is put into your graveyard from anywhere, ... (dying, discarding, milling, cycling and spells all count; tokens are not cards) | |
   | Whenever you expend 4, ... (as the mana you have spent on spells this turn reaches 4) | |
-  | At the beginning of your draw step, ... ("draw an additional card" works) | |
-  | At the beginning of each opponent's upkeep / each opponent's end step / an opponent's end step, ... | |
+  | At the beginning of your draw step, ... ("draw an additional card", "two additional cards", and "remove two hour counters" work) | Well of Ideas, Midnight Oil |
+  | At the beginning of each other player's draw step, that player draws an additional card. | Well of Ideas |
+  | At the beginning of each opponent's upkeep / each opponent's end step / an opponent's end step, ... ("that player" is whose turn it is; "if that player didn't cast a creature spell this turn"; damage equal to the cards in their hand, or minus 4) | Predatory Advantage, Price of Knowledge, Viseling |
+  | "Power and toughness are each equal to the number of cards in your hand" is a base size; "Players have no maximum hand size" and "Your maximum hand size is equal to the number of hour counters on this enchantment" decide who discards at cleanup. | Overbeing of Myth, Price of Knowledge, Midnight Oil |
   | Whenever you cast or copy an instant or sorcery spell, ... (Magecraft) | Archmage Emeritus |
   | Whenever you cast an instant or sorcery spell with mana value 5 or greater (from your hand), ... | Dirgur Focusmage |
   | Whenever one or more creatures (creature tokens) you control deal combat damage to a player, ... (once per player hit) | Striding Shotcaller |
