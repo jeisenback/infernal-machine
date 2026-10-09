@@ -94,6 +94,8 @@ _WHOLE_LINE = re.compile(
     r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
     r"you or planeswalkers you control for as long as it has a vow counter on it\."
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
+    r"|Search your library for a [A-Z][a-z]+ card and put it onto the battlefield tapped\. Then if an opponent controls more "
+    r"lands than you, repeat this process once\. If you search your library this way, shuffle\."
     r"|You and target opponent each reveal the top card of your library\. You each lose life equal to the mana value of the "
     r"card revealed by the other player\. You each put the card you revealed into your hand\."
     r"|Shuffle your library\. As many times as you choose, you may exile the top card of your library\. .*"
@@ -2118,6 +2120,19 @@ class PutFromHand:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.put_from_hand(controller, self.kind, self.tapped)
+
+
+@dataclass(frozen=True)
+class SearchLandWhileBehind:
+    """Claim Jumper: "... search your library for a Plains card and put it onto the battlefield tapped. Then if an opponent
+    controls more lands than you, repeat this process once." (The "you may" of the trigger covers both searches.)"""
+    subtype: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for _ in range(2):
+            game.search_for_lands(controller, 1, (self.subtype,), 1, True, False)
+            if not game.condition_holds(Condition("opponent_more_lands"), controller):
+                break
 
 
 @dataclass(frozen=True)
@@ -5284,7 +5299,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: DoubleCountersOnTarget(_counter_name(m[1]), m[2].lower())),
     (re.compile(rf"return {_SELF} to the battlefield( tapped)?( under its owner's control)?\.", re.I),
      lambda m: ReturnSelfToBattlefield(tapped=bool(m[1]))),
-    (re.compile(rf"you may put an? {_CARD_TYPE} from your hand onto the battlefield( tapped)?\.", re.I),
+    (re.compile(r"search your library for a ([A-Z][a-z]+) card and put it onto the battlefield tapped\. Then if an opponent controls "
+                r"more lands than you, repeat this process once\. If you search your library this way, shuffle\.", re.I),
+     lambda m: SearchLandWhileBehind(m[1].capitalize())),
+    (re.compile(rf"(?:you may )?put an? {_CARD_TYPE} from your hand onto the battlefield( tapped)?\.", re.I),
      lambda m: PutFromHand(_card_kind(m[1]), bool(m[2]))),
     (re.compile(rf"return an? {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnChosen(_card_kind(m[1]), "hand")),
@@ -5859,7 +5877,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -5877,6 +5895,7 @@ _CONDITIONS = [
     (re.compile(rf"you gained {_N} or more life this turn"), lambda m: Condition("gained_life_at_least", _count(m[1]))),
     (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
+    (re.compile(r"that player controls more lands than you"), lambda m: Condition("player_more_lands")),
     (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),
     (re.compile(rf"that spell's mana value is {_N} or greater"), lambda m: Condition("spell_mv_at_least", _count(m[1]))),
     (re.compile(rf"that creature has power {_N} or greater"), lambda m: Condition("target_power_at_least", _count(m[1]))),

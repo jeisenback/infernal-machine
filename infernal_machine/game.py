@@ -2201,6 +2201,9 @@ class Game:
         if kind == "opponent_more_lands":
             lands = lambda s: sum(is_land(p.card) for p in s.battlefield)
             return any(lands(o) > lands(seat) for o in self.opponents(seat))
+        if kind == "player_more_lands":  # Archaeomancer's Map: the player whose land entered
+            lands = lambda s: sum(is_land(p.card) for p in s.battlefield)
+            return player is not None and lands(player) > lands(seat)
         if kind == "opponent_dealt_noncombat_damage":  # Whiplash Wordsmith
             return any(o.noncombat_damage_turn == self.turn for o in self.opponents(seat))
         if kind == "spell_mv_at_least":  # Prismari Pianist: "if that spell's mana value is 5 or greater" (the spell that set it off)
