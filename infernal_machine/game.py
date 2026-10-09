@@ -24,11 +24,11 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
-                      self_cost_reduction, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
+                      self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
@@ -133,6 +133,8 @@ MAX_TARGETS = 30  # a bound on "any number of target ..."
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
+DRAW_UP_TO_PROMPT = "How many cards do you draw? "
+SACRIFICE_DRAW_PROMPT = "Sacrifice a permanent to draw cards? "
 LOOT_PROMPT = "Discard a card to draw a card? "
 PUT_ATTACKING_PROMPT = "Put which creature card onto the battlefield attacking? "
 SHUFFLE_PROMPT = "Shuffle your library? "
@@ -355,6 +357,7 @@ class Game:
         self.initiative: Seat | None = None
         self.graveyarded_turn, self.graveyarded_count = 0, 0  # permanents put into a graveyard this turn (Gravestorm)
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
+        self.at_upkeep: list[tuple[int, Callable[[], None]]] = []  # (turn made, what) to do as the next turn's upkeep begins
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
         self.targeting_max: int | None = None  # how many targets "any number of target ..." may have (Strive: what the mana pays for)
@@ -490,6 +493,10 @@ class Game:
                 for what in due:
                     what()
             if self.step == "upkeep":
+                due = [what for turn, what in self.at_upkeep if turn < self.turn]
+                self.at_upkeep = [(turn, what) for turn, what in self.at_upkeep if turn >= self.turn]
+                for what in due:
+                    what()
                 self._pay_upkeep_costs(seat)
                 self._tick_suspend(seat)
             for permanent in list(seat.battlefield):
@@ -946,6 +953,13 @@ class Game:
             reduction += sum(_has_type(p.card, kind) for p in seat.battlefield)
         if "{X}" in card.mana_cost and not any("{X}" in c.mana_cost for turn, c in seat.cast_log if turn == self.turn):
             reduction += sum(p.counters.get("+1/+1", 0) for p in seat.battlefield if x_spell_discount(p.card))  # Zimone
+        for p in seat.battlefield:  # Pearl-Ear, Imperial Advisor: affinity for Auras
+            if (kind := granted_affinity(p.card)) and _spell_matches(kind, card):
+                reduction += sum(_has_type(a.card, "aura") for a in seat.battlefield)
+        if (conditional := conditional_cost_reduction(card)) and self.condition_holds(conditional[1], seat):
+            reduction += conditional[0]
+        if reduced_by_total_power(card):
+            reduction += sum(self.power(p) for p in seat.battlefield if "Creature" in p.card.type_line)
         if own := self_cost_reduction(card):  # "This spell costs {1} less to cast for each creature on the battlefield."
             amount, what = own
             counted = (sum(_has_type(p.card, "creature") for s in self.live_seats() for p in s.battlefield)
@@ -962,7 +976,7 @@ class Game:
             others = len(seat.graveyard) - (card in seat.graveyard)
             if graveyard.discard_land and not any(is_land(c) for c in seat.hand):
                 return []
-            return [None] if others >= graveyard.exile and self._payment(seat, paying) is not None else []
+            return [None] if others >= graveyard.exile and graveyard.life < seat.life and self._payment(seat, paying) is not None else []
         return [way for way in [None, *alternative_costs(card)]
                 if self._can_pay_extras(seat, card, way)
                 and not (way and way.bestow and not self.target_options("creature", seat, source_qualities(card)))
@@ -985,8 +999,8 @@ class Game:
             return False
         if sum(c.discard for c in extras) > len(others):
             return False
-        for kind in {c.sacrifice for c in extras if c.sacrifice}:
-            needed = sum(c.sacrifice == kind for c in extras)
+        for kind in {c.sacrifice for c in extras if c.sacrifice and not c.sacrifice_x}:
+            needed = sum(c.sacrifice == kind for c in extras if not c.sacrifice_x)
             if sum(_permanent_matches(kind, p.card) for p in seat.battlefield) < needed:
                 return False
         if alternative is None:
@@ -1007,6 +1021,8 @@ class Game:
             self._move_card(seat, exiled, "exile")
         if graveyard and graveyard.exile:
             self._left_graveyard(seat)
+        if graveyard and graveyard.life:  # "Flashback\u2014{1}{U}, Pay 3 life."
+            self.change_life(seat, -graveyard.life)
         if graveyard and graveyard.discard_land:  # Retrace
             lands = [c for c in seat.hand if is_land(c)]
             discarded = lands[seat.player.choose(DISCARD_PROMPT, [c.name for c in lands])]
@@ -1026,7 +1042,7 @@ class Game:
                 seat.hand.remove(discarded)
                 self.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
                 self._move_card(seat, discarded, "graveyard")
-            if extra.sacrifice:
+            for _ in range(x if extra.sacrifice_x else 1 if extra.sacrifice else 0):
                 options = [p for p in seat.battlefield if _permanent_matches(extra.sacrifice, p.card)]
                 choice = options[seat.player.choose(SACRIFICE_COST_PROMPT + card.name, [self.label(p) for p in options])]
                 self._leave_together([(choice, "sacrificed")])
@@ -1291,6 +1307,7 @@ class Game:
                  if (kind := target_kind(e)) and not getattr(e, "optional_target", False)]
         for i, (kind, distinct, another) in enumerate(kinds):
             needed = 1 + (sum(k == kind for k, _, _ in kinds[:i]) if distinct else 0)
+            kind = kind.removesuffix(" with mana value x")  # X isn't chosen yet: any creature could do
             options = [o for _, o in self.target_options(self._fixed_kind(kind, source), seat, colors)
                        if not (another and o is source)]
             if len(options) < needed:
@@ -1421,6 +1438,11 @@ class Game:
             for effect in effects or []:  # "Exile X target creatures": there have to be X legal targets
                 if getattr(effect, "exact_x", False):
                     most = min(most, len(self.target_options(target_kind(effect), seat, source_qualities(card))))
+            if x_limited_by_players(card):
+                most = min(most, len(self.live_seats()))
+            for cost in additional_costs(card):  # "sacrifice X creatures": there have to be X of them
+                if cost.sacrifice_x:
+                    most = min(most, sum(_permanent_matches(cost.sacrifice, p.card) for p in seat.battlefield))
             x = seat.player.choose(X_PROMPT + card.name, [str(n) for n in range(most + 1)])
         elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
             x = seat.player.choose(LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
@@ -1828,6 +1850,8 @@ class Game:
         kind = condition.kind
         if kind == "attackers_at_least":
             return x >= condition.count
+        if kind == "opponent_life_at_most":  # Bloodghast
+            return any(o.life <= condition.count for o in self.opponents(seat))
         if kind == "modified_died":
             return seat.modified_died_turn == self.turn
         if kind == "control_no_other":
@@ -2010,9 +2034,10 @@ class Game:
                         if not i.ability and _watch_type_matches(kind, i.card)
                         and not (whose == "you" and i.controller is not caster)]
             return options
-        limit = re.search(r" with mana value (\d+) or (less|greater)$", kind)  # "creature ... with mana value 3 or less"
+        limit = re.search(r" with mana value (\d+|x)(?: or (less|greater))?$", kind)  # "creature ... with mana value 3 or less"
         if limit:
             kind = kind[:limit.start()]
+            value = int(limit[1]) if limit[1] != "x" else self.x_value if self.resolving_item is not None else self.targeting_x
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
         kind, controller = _split_controller(kind.removesuffix(" that attacked this turn"))
         state, _, base = kind.partition(" ") if kind.split(" ")[0] in ("tapped", "untapped", "attacking") else ("", "", kind)
@@ -2027,7 +2052,8 @@ class Game:
                     continue
                 if attacked and permanent.attacked_turn != self.turn:
                     continue
-                if limit and (card.cmc > int(limit[1]) if limit[2] == "less" else card.cmc < int(limit[1])):
+                if limit and (card.cmc > value if limit[2] == "less" else card.cmc < value if limit[2] == "greater"
+                              else card.cmc != value):
                     continue
                 if ((state == "tapped" and not permanent.tapped) or (state == "untapped" and permanent.tapped)
                         or (state == "attacking" and not any(a.attacker is permanent for a in self.combat.attacks))):
@@ -2106,6 +2132,8 @@ class Game:
                         self._trigger_each("opponent_second_draw", opponent, player=seat)
 
     def change_life(self, seat: Seat, amount: int) -> None:
+        if amount > 0:  # Pest Rescuer: "you gain that much life plus 1 instead"
+            amount += sum(replacement_effects(p.card).life_gain_plus for p in seat.battlefield)
         seat.life += amount
         self.broadcast({"event": "life", "seat": seat.index, "change": amount, "life": seat.life})
         if amount:  # "Whenever you gain life" / "Whenever you lose life": once per event, not per point
@@ -2211,13 +2239,18 @@ class Game:
         """Every permanent an "all"/"each" effect of `kind` affects, e.g. "creature",
         "artifact or enchantment", "creature you don't control", narrowed by a restriction such as
         "with flying". Nothing is targeted."""
+        limit = re.search(r" with mana value (\d+)(?: or (less|greater))?$", kind)  # "nonland permanent with mana value 2 or less"
+        if limit:
+            kind = kind[:limit.start()]
         kind, controller = _split_controller(kind)
         found: list[Permanent] = []
         for seat in self.live_seats():
             if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
                 continue
             found += [p for p in seat.battlefield
-                      if _permanent_matches(kind, p.card) and self._passes(p, restriction)]
+                      if _permanent_matches(kind, p.card) and self._passes(p, restriction)
+                      and not (limit and (p.card.cmc > int(limit[1]) if limit[2] == "less" else
+                                          p.card.cmc < int(limit[1]) if limit[2] == "greater" else p.card.cmc != int(limit[1])))]
         return found
 
     def _passes(self, permanent: Permanent, restriction: MassFilter | None) -> bool:
@@ -2245,6 +2278,9 @@ class Game:
                 or (restriction.tapped is not None and permanent.tapped != restriction.tapped)
                 or (restriction.has_type and restriction.has_type not in card.type_line)):
             return False
+        if restriction.enchanted is not None and restriction.enchanted != any(
+                a.attached_to is permanent and "Aura" in a.card.type_line for seat in self.seats for a in seat.battlefield):
+            return False
         if restriction.colors_are:
             count = len(card.colors)
             if not {"one or more colors": count >= 1, "colorless": count == 0, "multicolored": count >= 2,
@@ -2265,13 +2301,14 @@ class Game:
         return self._passes(permanent, spared)
 
     def destroy_all(self, permanents: list[Permanent], no_regen: bool = False, gives: GiveBack | None = None,
-                    caster: Seat | None = None) -> None:
+                    caster: Seat | None = None) -> list[Permanent]:
         """Destroy them all at once; indestructible ones survive, and so do ones with a regeneration shield
-        unless they "can't be regenerated". `gives`: tokens for what was destroyed (see _give_back)."""
+        unless they "can't be regenerated". `gives`: tokens for what was destroyed (see _give_back). Returns what was destroyed."""
         doomed = [p for p in permanents if not self.has_keyword(p, "indestructible")
                   and (no_regen or not self._regenerated(p))]
         self._leave_together([(p, "destroyed") for p in doomed])
         self._give_back(doomed, gives, caster)
+        return [p for p in doomed if not self.on_battlefield(p)]
 
     def exile_all(self, permanents: list[Permanent], gives: GiveBack | None = None, caster: Seat | None = None) -> None:
         self._leave_together([(p, "exiled") for p in permanents], destination="exile")
@@ -2336,6 +2373,15 @@ class Game:
         if holder is not None:
             self.return_from_graveyard(GraveyardTarget(dead.card, holder), holder if under_owner else controller,
                                        "battlefield", tapped)
+
+    def look_take(self, seat: Seat, count: int, take: int) -> None:
+        """Look at the top `count` cards; `take` of them go to the hand and the rest to the bottom of the library."""
+        top = seat.library[:count]
+        del seat.library[:len(top)]
+        for _ in range(min(take, len(top))):
+            card = top.pop(seat.player.choose(SPLIT_HAND_PROMPT, [c.name for c in top]) if len(top) > 1 else 0)
+            seat.hand.append(card)
+        seat.library.extend(top)
 
     def three_way_split(self, seat: Seat, count: int, play: bool) -> None:
         """Expressive Iteration: look at the top `count` cards; one to your hand, one to the bottom of your library, one
@@ -3327,6 +3373,23 @@ class Game:
             if mill:
                 self.mill(seat, mill)
 
+    def may_sacrifice_draw(self, seat: Seat, kind: str, draw: int) -> None:
+        """ "You may sacrifice a permanent. If you do, draw two cards." """
+        if any(_permanent_matches(kind, p.card) for p in seat.battlefield) \
+                and seat.player.choose(SACRIFICE_DRAW_PROMPT, YES_NO) == 0:
+            self.sacrifice(seat, kind, 1)
+            self.draw(seat, draw)
+
+    def draw_at_next_upkeep(self, seat: Seat, count: int, up_to: bool) -> None:
+        """"... draw a card at the beginning of the next turn's upkeep": with `up_to`, the player picks how many when it happens."""
+        def draw() -> None:
+            if up_to and count > 1:
+                number = seat.player.choose(DRAW_UP_TO_PROMPT, [str(n) for n in range(count + 1)])
+            else:
+                number = count if not up_to else seat.player.choose(DRAW_UP_TO_PROMPT, ["0", "1"])
+            self.draw(seat, number)
+        self.at_upkeep.append((self.turn, draw))
+
     def may_wheel(self, count: int) -> None:
         """ "Each player may discard their hand and draw seven cards." """
         for seat in self.turn_order_from_active():
@@ -3884,7 +3947,16 @@ def _spell_matches(kind: str, card: Card) -> bool:
         return "Creature" not in card.type_line
     if kind == "instant and sorcery":
         return "Instant" in card.type_line or "Sorcery" in card.type_line
+    if kind == "targets a creature":  # Killian, Ink Duelist
+        return _targets_a_creature(card)
     return kind.capitalize() in card.type_line
+
+
+def _targets_a_creature(card: Card) -> bool:
+    """Whether casting the card means choosing a creature as a target: an Aura that enchants one, or a spell with such a target."""
+    if (enchants := aura_kind(card)) is not None:
+        return "creature" in enchants
+    return any("creature" in (target_kind(e) or "") for e in (_effects(card) or []))
 
 
 def _instant_speed(card: Card) -> bool:
@@ -3901,7 +3973,7 @@ def _split_controller(kind: str) -> tuple[str, str | None]:
 
 
 def _permanent_matches(kind: str, card: Card) -> bool:
-    kind = kind.replace(", ", " ")  # "noncreature, nonland permanent"
+    kind = kind.replace("noncreature, nonland", "noncreature nonland")
     if m := re.fullmatch(r"non(white|blue|black|red|green|artifact|creature|land|enchantment) (.+)", kind):  # "nonblack creature"
         has = m[1].capitalize() in card.type_line if m[1] in ("artifact", "creature", "land", "enchantment") else {
             "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[m[1]] in card.colors
@@ -3926,7 +3998,7 @@ def _permanent_matches(kind: str, card: Card) -> bool:
         return not _is_token(card) and _permanent_matches(kind.removeprefix("nontoken "), card)
     if kind.endswith(" creature") and " " not in kind.removesuffix(" creature"):  # "Blinkmoth creature"
         return "Creature" in card.type_line and kind.removesuffix(" creature").capitalize() in card.type_line.partition("—")[2].split()
-    return any(t.capitalize() in card.type_line for t in kind.split(" or ") if t != "player")
+    return any(t.capitalize() in card.type_line for t in re.split(r",? or |, ", kind) if t != "player")
 
 
 def _take(cards: list[Card], name: str) -> Card:
