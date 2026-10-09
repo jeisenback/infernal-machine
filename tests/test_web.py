@@ -104,6 +104,7 @@ class WebSpectatorTests(unittest.TestCase):
         server.send({"type": "welcome", "spectator": True})
         game, _, _ = table()
         server.send({"type": "event", "event": "state", **game.snapshot(None)})
+        server.send({"type": "event", "event": "turn", "turn": 3, "seat": 1})
         httpd = WebServer(client, port=0, poll_seconds=0.2)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         self.addCleanup(httpd.shutdown)
@@ -115,5 +116,11 @@ class WebSpectatorTests(unittest.TestCase):
         conn.close()
         self.assertEqual((view["spectator"], view["prompt"], view["state"]["you"], view["state"]["hand"]), (True, None, -1, []))
         self.assertTrue(any("Watching the table" in line for line in view["lines"]))
+        while not any("Turn 3" in line for line in view["lines"]):
+            conn = http.client.HTTPConnection(*httpd.server_address[:2], timeout=10)
+            conn.request("GET", f"/state?since={view['version']}")
+            view = json.loads(conn.getresponse().read())
+            conn.close()
+        self.assertFalse(any("=== Turn" in line for line in view["lines"]))  # the page draws the board; the log has sentences
         server.close()
         thread.join(10)

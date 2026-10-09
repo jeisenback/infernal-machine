@@ -36,6 +36,7 @@ class WebClient(Client):
                  spectate: bool = False, password: str | None = None):
         super().__init__(sock, name, deck_text, show=self._add_line, auto_pass=auto_pass, spectate=spectate,
                          password=password)
+        self.board_as_text = False  # the page draws the board; the log is only sentences
         self.lines: list[str] = []
         self.prompt: dict | None = None  # {"id", "prompt", "options"} while a decision is open
         self.over = False  # the game socket closed

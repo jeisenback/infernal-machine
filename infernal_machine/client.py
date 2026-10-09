@@ -221,6 +221,7 @@ class Client:
         self.name = name
         self.deck_text = deck_text
         self.spectate = spectate  # watch instead of play: no seat, no decisions, no hands
+        self.board_as_text = True  # a spectator is shown the board as text with each turn (the web page draws it instead)
         self.password = password
         self.ask = ask
         self.show = show
@@ -274,7 +275,7 @@ class Client:
         if event["event"] == "state":
             self.state = event
             return
-        if self.spectate and event["event"] == "turn":
+        if self.spectate and self.board_as_text and event["event"] == "turn":
             self._show_board(only_if_changed=True)  # a spectator is never asked anything, so the board comes with each turn
         text = self.narrator.narrate(event)
         if text:
