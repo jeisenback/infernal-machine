@@ -257,7 +257,7 @@ def wait_for(lines, text, seconds=10):
 class TableHarness:
     """A real server on a real socket, running a game in a thread."""
 
-    def __init__(self, test, humans, bot_decks, source, check=True, max_turns=3, seed=1):
+    def __init__(self, test, humans, bot_decks, source, check=True, max_turns=3, seed=1, timer=0):
         self.server = listen("127.0.0.1", 0)
         self.server.settimeout(15)
         self.port = self.server.getsockname()[1]
@@ -266,7 +266,7 @@ class TableHarness:
         def run():
             try:
                 self.result["winner"] = run_table(self.server, humans, bot_decks, source, seed=seed, check_decks=check,
-                                                  max_turns=max_turns, log=self.log.append)
+                                                  max_turns=max_turns, log=self.log.append, timer=timer)
             except BaseException as err:  # reported by finish()
                 self.error.append(err)
 
@@ -359,8 +359,62 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(any("a bot will play your seat" in line for line in lines))
         self.assertTrue(any(entry.startswith("Game over") for entry in log))
 
+    def test_a_dropped_player_rejoins_by_name_and_a_stranger_is_refused(self):
+        src = offline_source()
+        table_ = TableHarness(self, 1, [demo_deck("red")], src, check=False, max_turns=12)
+        stuck, released = [], threading.Event()
+
+        def first_connection():  # answers nothing: the game waits on it until it is replaced
+            sock = socket.create_connection(("127.0.0.1", table_.port))
+            sock.settimeout(20)
+
+            def hang(hint):
+                released.wait(20)
+                raise EOFError
+            Client(sock, "Alice", demo_deck("green"), ask=hang, show=stuck.append).run()
+
+        thread = threading.Thread(target=first_connection)
+        thread.start()
+        wait_for(stuck, "Your hand")  # the game is on, and Alice's connection is open but silent
+        stranger, stranger_lines = table_.client("Mallory", None)
+        stranger.join(20)
+        self.assertTrue(any("The game has started" in line and "'Mallory'" in line for line in stranger_lines))
+        back, back_lines = table_.client("Alice", None)  # no deck needed the second time
+        winner, log = table_.finish(back)
+        released.set()
+        thread.join(20)
+        self.assertIn("Rejoined the table at seat 0.", back_lines)
+        self.assertTrue(any(line.startswith("Seat 1: Bot 1") for line in back_lines))  # introduced again
+        self.assertTrue(any("=== Turn" in line for line in back_lines))  # and given decisions, with the board
+        self.assertTrue(any("Game over" in line for line in back_lines))
+        self.assertIn("Alice rejoined", log)
+
+    def test_a_table_with_a_timer_plays_on_when_the_human_is_slow(self):
+        src = offline_source()
+        table_ = TableHarness(self, 1, [demo_deck("red")], src, check=False, max_turns=8, timer=0.3)
+        lines, seen = [], []
+
+        def slow(hint):
+            seen.append(hint)
+            if len(seen) == 1:
+                time.sleep(0.5)  # the first answer comes too late
+            return "1"
+
+        def run():
+            sock = socket.create_connection(("127.0.0.1", table_.port))
+            sock.settimeout(30)
+            Client(sock, "Alice", demo_deck("green"), ask=slow, show=lines.append).run()
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        winner, log = table_.finish(thread)
+        self.assertTrue(any(line.startswith("Time ran out:") for line in lines))
+        self.assertTrue(any("seconds" in hint for hint in seen))
+        self.assertTrue(any("Game over" in line for line in lines))
+
     def test_bad_arguments(self):
-        for argv in (["--bots", "1", "--humans", "1"], ["--bots", "0", "--humans", "1"]):
+        for argv in (["--bots", "1", "--humans", "1"], ["--bots", "0", "--humans", "1"],
+                     ["--bots", "1", "--bot-deck", "x", "--timer", "-5"]):
             with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
                 server_main(argv)
 
@@ -382,10 +436,74 @@ class AutoPilotTests(unittest.TestCase):
             def choose(self, prompt, options):
                 raise Disconnected("Alice")
 
+            def close(self):
+                pass
+
         pilot = AutoPilotPlayer(Gone(), BotPlayer("Alice", Deck([COMMANDER], [BEAR] * 5, [])))
         pilot.notify({"event": "seat", "seat": 0, "name": "Alice", "life": 40, "commanders": []})
         self.assertTrue(pilot.disconnected)
         self.assertEqual(pilot.choose("Priority: main1", ["Pass"]), 0)
+
+    def test_a_new_connection_takes_the_seat_back_and_is_told_who_sits_where(self):
+        first, second = FakeServer(), FakeServer()
+        pilot = AutoPilotPlayer(TcpPlayer(first.client_sock, "Alice"), BotPlayer("Alice", Deck([COMMANDER], [BEAR] * 5, [])), seat=1)
+        introductions = [{"event": "seat", "seat": 0, "name": "Bot 1", "life": 40, "commanders": []},
+                         {"event": "seat", "seat": 1, "name": "Alice", "life": 40, "commanders": []}]
+        for event in introductions:
+            pilot.notify(event)
+        pilot.notify({"event": "turn", "turn": 1, "seat": 0})
+        first.close()  # the client goes away
+        pilot.notify({"event": "turn", "turn": 2, "seat": 1})
+        self.assertTrue(pilot.disconnected)
+        pilot.reconnect(TcpPlayer(second.client_sock, "Alice"))
+        self.assertFalse(pilot.disconnected)
+        self.assertEqual(second.receive(), {"type": "welcome", "seat": 1, "rejoined": True})
+        self.assertEqual([second.receive() for _ in introductions], [{"type": "event", **e} for e in introductions])
+        answer = {}
+        chooser = threading.Thread(target=lambda: answer.update(i=pilot.choose("Priority: main1", ["Pass", "Play land: Forest"])))
+        chooser.start()
+        prompt = second.receive()
+        self.assertEqual(prompt["options"], ["Pass", "Play land: Forest"])
+        second.send({"type": "response", "id": prompt["id"], "choice": 1})
+        chooser.join(5)
+        self.assertEqual(answer["i"], 1)
+        second.close()
+
+    def test_when_the_clock_runs_out_the_bot_answers_and_the_human_is_told(self):
+        fake = FakeServer()
+        pilot = AutoPilotPlayer(TcpPlayer(fake.client_sock, "Alice"), BotPlayer("Alice", Deck([COMMANDER], [BEAR] * 5, [])), timer=0.2)
+        self.assertEqual(pilot.choose("Priority: main1", ["Pass"]), 0)  # nobody answered in time
+        prompt = fake.receive()
+        self.assertEqual((prompt["options"], prompt["seconds"]), (["Pass"], 0.2))
+        self.assertEqual(fake.receive(), {"type": "event", "event": "timed_out", "seat": 0, "prompt": "Priority: main1", "choice": "Pass"})
+        self.assertFalse(pilot.disconnected)
+        answer = {}  # the next decision is the human's again, and an answer in time counts
+        chooser = threading.Thread(target=lambda: answer.update(i=pilot.choose("Keep?", ["Keep", "Mulligan"])))
+        chooser.start()
+        prompt = fake.receive()
+        fake.send({"type": "response", "id": prompt["id"], "choice": 1})
+        chooser.join(5)
+        self.assertEqual(answer["i"], 1)
+        fake.close()
+
+    def test_a_second_connection_with_the_name_replaces_one_still_open(self):
+        first, second = FakeServer(), FakeServer()
+        pilot = AutoPilotPlayer(TcpPlayer(first.client_sock, "Alice"), BotPlayer("Alice", Deck([COMMANDER], [BEAR] * 5, [])))
+        answer = {}
+        chooser = threading.Thread(target=lambda: answer.update(i=pilot.choose("Keep?", ["Keep", "Mulligan"])))
+        chooser.start()
+        first.receive()  # the prompt went to the first connection, which never answers
+        pilot.reconnect(TcpPlayer(second.client_sock, "Alice"))  # wakes the read on the first connection: the bot answers
+        chooser.join(5)
+        self.assertIn(answer["i"], (0, 1))
+        self.assertEqual(second.receive()["type"], "welcome")
+        chooser = threading.Thread(target=lambda: answer.update(i=pilot.choose("Priority: main1", ["Pass", "Play land: Forest"])))
+        chooser.start()
+        prompt = second.receive()  # the next decision goes to the new connection
+        second.send({"type": "response", "id": prompt["id"], "choice": 1})
+        chooser.join(5)
+        self.assertEqual(answer["i"], 1)
+        second.close()
 
 
 class ProtocolTests(unittest.TestCase):

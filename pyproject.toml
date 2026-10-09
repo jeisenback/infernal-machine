@@ -7,6 +7,10 @@ requires-python = ">=3.11"
 [project.scripts]
 infernal-server = "infernal_machine.server:main"
 infernal-client = "infernal_machine.client:main"
+infernal-web = "infernal_machine.web:main"
 
 [tool.setuptools]
 packages = ["infernal_machine"]
+
+[tool.setuptools.package-data]
+infernal_machine = ["web.html"]

@@ -148,6 +148,8 @@ class Narrator:
             return f"{card}'s ability is countered." if ability else f"{card} is countered."
         if kind == "damage_prevented":
             return f"Damage to {card} is prevented (protection)."
+        if kind == "timed_out":
+            return f"Time ran out: {e['choice']!r} was chosen for you."
         if kind == "ward_paid":
             return f"{who} {v('pay')} the ward cost {e['cost']}."
         if kind == "life":
@@ -239,7 +241,7 @@ class Client:
                 kind = message.get("type")
                 if kind == "welcome":
                     self.narrator.me = message["seat"]
-                    self.show(f"Joined the table at seat {message['seat']}.")
+                    self.show(f"{'Rejoined' if message.get('rejoined') else 'Joined'} the table at seat {message['seat']}.")
                 elif kind == "error":
                     self.show(f"Server: {message['message']}")
                 elif kind == "event":
@@ -247,7 +249,9 @@ class Client:
                 elif kind == "choose":
                     self._choose(message)
         except (EOFError, KeyboardInterrupt):
-            self.show("\nLeft the game; a bot will play your seat.")
+            self.show("\nLeft the game; a bot will play your seat until you connect again with the same name.")
+        except OSError:  # the server closed the connection while we were answering
+            self.show("\nThe connection to the server is closed.")
         finally:
             self._reader.close()
             self.sock.close()
@@ -274,9 +278,14 @@ class Client:
 
     def _choose(self, message: dict) -> None:
         prompt, options = message["prompt"], message["options"]
-        if self.auto_pass and options == ["Pass"]:
-            self._send({"type": "response", "id": message["id"], "choice": 0})
-            return
+        choice = 0 if self.auto_pass and options == ["Pass"] else self.decide(prompt, options, message.get("seconds"))
+        if choice is not None:  # None: the clock ran out and the server has moved on
+            self._send({"type": "response", "id": message["id"], "choice": choice})
+
+    def decide(self, prompt: str, options: list[str], seconds: float | None = None) -> int | None:
+        """Ask the player to pick one of `options` (the index back). At the terminal: the board when it changed, the
+        options numbered from 1, Enter to pass. `seconds` is the time limit, if the table has one; an answer typed
+        after it is sent anyway, and the server ignores it. The web client asks in the browser instead."""
         if prompt.startswith("Priority"):
             self._show_board(only_if_changed=True)
         self.show(f"\n{prompt}")
@@ -284,6 +293,8 @@ class Client:
             self.show(f"  {n}. {option}")
         default = options.index("Pass") + 1 if "Pass" in options else None
         hint = f"1-{len(options)}" + (", Enter passes" if default else "") + f", {BOARD_KEY} shows the board"
+        if seconds:
+            hint += f"; {seconds:g} seconds"
         while True:
             answer = self.ask(f"[{hint}] > ").strip().lower()
             if answer in (BOARD_KEY, "board"):
@@ -296,7 +307,7 @@ class Client:
                 break
             else:
                 self.show(f"Enter a number from 1 to {len(options)}.")
-        self._send({"type": "response", "id": message["id"], "choice": choice - 1})
+        return choice - 1
 
 
 def main(argv: list[str] | None = None) -> int:
