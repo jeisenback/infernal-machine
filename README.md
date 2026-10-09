@@ -89,7 +89,7 @@ winner = game.play()
 - **Mulligans:** London mulligan. The first one is free in games with 3 or more players (CR 103.5c).
 - **Turns:** all twelve steps. Priority goes around the table, and a step ends only when every
   player passes in a row. There's no priority in untap or cleanup.
-- **Draw:** the first player skips their first draw only in a two-player game (CR 103.8).
+- **Draw:** the first player skips their first draw only in a two-player game (CR 103.8a).
 - **Cleanup:** discard down to seven cards.
 - **Losing:** a player loses at 0 life or when drawing from an empty library.
   The last player standing wins.

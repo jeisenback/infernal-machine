@@ -164,7 +164,7 @@ class Combat:
                     self.game.broadcast({"event": "block", "seat": seat.index, "card": permanent.card.name,
                                          "attacker": attack.attacker.card.name})
         for attack in self.attacks:
-            # Menace: a creature blocked by only one creature is unblocked instead (CR 702.110b).
+            # Menace: a creature blocked by only one creature is unblocked instead (CR 702.111b).
             if self.game.has_keyword(attack.attacker, "menace") and len(attack.blockers) == 1:
                 self.game.broadcast({"event": "block_removed", "card": attack.blockers[0].card.name,
                                      "reason": "menace"})

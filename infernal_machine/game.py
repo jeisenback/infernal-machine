@@ -522,7 +522,7 @@ class Game:
                         if "Creature" in permanent.card.type_line:
                             permanent.tapped = False
         elif self.step == "draw":
-            # CR 103.8: only a two-player game skips the first player's first draw.
+            # CR 103.8a: only a two-player game skips the first player's first draw.
             if not (self.turn == 1 and not self.multiplayer):
                 self.draw(seat, 1)
             for permanent in list(seat.battlefield):
@@ -560,9 +560,9 @@ class Game:
                     if other is not seat:  # "At the beginning of each opponent's upkeep / end step"
                         self.trigger("opponent_upkeep" if self.step == "upkeep" else "opponent_end_step", permanent, other,
                                      player=seat)  # "that player" is whose turn it is
-            if self.step == "upkeep" and self.initiative is seat:  # CR 725.2: the initiative ventures at upkeep
+            if self.step == "upkeep" and self.initiative is seat:  # CR 726.2: the initiative ventures at upkeep
                 self.venture(seat)
-            if self.step == "end" and self.monarch is seat:  # CR 724.2: the monarch draws at their end step
+            if self.step == "end" and self.monarch is seat:  # CR 725.2: the monarch draws at their end step
                 self.broadcast({"event": "monarch_draw", "seat": seat.index})
                 self.draw(seat, 1)
         elif self.step == "main1":  # after the draw step, each Saga gets a lore counter and its chapter triggers
@@ -1489,7 +1489,7 @@ class Game:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn
         permanent.activated_turn[ability.text] = self.turn
-        if ability.exile_source or ability.bounce_source:  # a cost: the ability exists apart from the source (CR 112.7a)
+        if ability.exile_source or ability.bounce_source:  # a cost: the ability exists apart from the source (CR 113.7a)
             self._leave_battlefield(permanent, "exiled" if ability.exile_source else "returned",
                                     destination="exile" if ability.exile_source else "hand")
         item = StackItem(permanent.card, seat, effects, targets, ability, permanent, x=x,
@@ -2468,9 +2468,9 @@ class Game:
             self.change_life(target, -amount)
             if combat and controller:
                 self.trigger("combat_damage_to_player", source, controller)
-                if target is self.monarch and controller is not target:  # CR 724.2
+                if target is self.monarch and controller is not target:  # CR 725.2
                     self.become_monarch(controller)
-                if target is self.initiative and controller is not target:  # CR 725.2
+                if target is self.initiative and controller is not target:  # CR 726.2
                     self.take_initiative(controller)
                 for holder in self.live_seats():  # "Whenever equipped (enchanted) creature deals combat damage to a player"
                     for attachment in list(holder.battlefield):
@@ -2523,7 +2523,7 @@ class Game:
 
     def _regenerated(self, permanent: Permanent) -> bool:
         """Use up a regeneration shield, if it has one, instead of letting `permanent` be destroyed: it taps,
-        loses all damage and is removed from combat (CR 701.15)."""
+        loses all damage and is removed from combat (CR 701.19a)."""
         if permanent.regeneration <= 0:
             return False
         permanent.regeneration -= 1
@@ -2992,7 +2992,7 @@ class Game:
 
     def gain_control(self, permanent: Permanent, seat: Seat, aura: Permanent | None = None, until_eot: bool = False,
                      untap: bool = False, haste: bool = False) -> None:
-        """`seat` takes control of `permanent` (CR 701.10): it moves to their battlefield, is summoning sick under
+        """`seat` takes control of `permanent` (CR 110.2): it moves to their battlefield, is summoning sick under
         them, and leaves combat. `aura` holds control for as long as it stays attached; `until_eot` gives it back
         at end of turn. Its owner doesn't change."""
         current = self.controller_of(permanent)
@@ -3052,7 +3052,7 @@ class Game:
                                 "added": 1, "total": permanent.loyalty})
 
     def fight(self, first: Permanent, second: Permanent, one_sided: bool = False) -> None:
-        """Two creatures each deal damage equal to their power to the other at the same time (CR 701.12). With
+        """Two creatures each deal damage equal to their power to the other at the same time (CR 701.14). With
         `one_sided`, only `first` deals damage."""
         if not (self.on_battlefield(first) and self.on_battlefield(second)):
             return
@@ -3472,7 +3472,7 @@ class Game:
         seat.library = self._ordered(seat, kept) + seat.library + bottom
         self.broadcast({"event": "scry", "seat": seat.index, "count": len(top)}, skip=seat)
         seat.player.notify({"event": "scry", "seat": seat.index, "count": len(top), "bottom": [c.name for c in bottom]})
-        if top:  # CR 701.22c: scry 0 is no scry event
+        if top:  # CR 701.22b: scry 0 is no scry event
             self._trigger_each("scry", seat)
             self._trigger_each("scry_or_surveil", seat)
 
@@ -3691,7 +3691,7 @@ class Game:
         return True
 
     def take_initiative(self, seat: Seat) -> None:
-        """Taking the initiative ventures into the Undercity (CR 725.2); already having it does nothing."""
+        """Taking the initiative ventures into the Undercity (CR 726.2); already having it does nothing."""
         if self.initiative is seat:
             return
         self.initiative = seat
@@ -4200,11 +4200,11 @@ class Game:
                     self.combat.attacks = [a for a in self.combat.attacks
                                            if a.defender is not seat and a.controller is not seat]
                     self.broadcast({"event": "player_lost", "seat": seat.index, "reason": reason})
-                    if self.monarch is seat:  # CR 724.4: the active player takes it, if they're still in
+                    if self.monarch is seat:  # CR 725.4: the active player takes it, if they're still in
                         self.monarch = None
                         if not self.seats[self.active].lost:
                             self.become_monarch(self.seats[self.active])
-                    if self.initiative is seat:  # CR 725.4: the active player takes it, if they're still in
+                    if self.initiative is seat:  # CR 726.4: the active player takes it, if they're still in
                         self.initiative = None
                         if not self.seats[self.active].lost:
                             self.take_initiative(self.seats[self.active])
