@@ -161,3 +161,54 @@ class PrismariPianistTests(unittest.TestCase):
 
     def test_an_opponents_spell_makes_none(self):
         self.assertEqual(self.cast(spell("Five", 5), caster=1), [])
+
+
+HELLKITE = Card(name="Manaform Hellkite", mana_cost="{2}{R}{R}", type_line="Creature — Dragon", power="4", toughness="4",
+                oracle_text="Flying, haste\nWhenever you cast a noncreature spell, create an X/X red Dragon Illusion creature token "
+                            "with flying and haste, where X is the amount of mana spent to cast that spell. Exile that token at the "
+                            "beginning of the next end step.")
+
+
+class ManaformHellkiteTests(unittest.TestCase):
+    def cast(self, card, caster=0):
+        from infernal_machine.game import CAST
+        policy = lambda prompt, options: next((i for i, o in enumerate(options) if o.startswith(CAST)), 0)
+        game, _ = table3(policy, policy)
+        a, b, c = game.seats
+        a.battlefield = [Permanent(HELLKITE)]
+        game.seats[caster].battlefield += lands(6)
+        game.seats[caster].hand = [card]
+        game.seats[caster].library = [BEAR] * 5
+        game.active, game.step = caster, "main1"
+        game._perform(game.seats[caster], CAST + card.name)
+        run_stack(game)
+        return game, [p for p in a.battlefield if p.card.name == "Dragon Illusion"]
+
+    def test_it_is_supported(self):
+        self.assertEqual(unsupported_lines(HELLKITE), [])
+
+    def test_the_token_is_as_big_as_the_mana_spent(self):
+        game, tokens = self.cast(spell("Three", 3))
+        [token] = tokens
+        self.assertEqual((token.card.power, token.card.toughness), ("3", "3"))
+        self.assertEqual((game.has_keyword(token, "flying"), game.has_keyword(token, "haste")), (True, True))
+
+    def test_a_bigger_spell_makes_a_bigger_token(self):
+        game, tokens = self.cast(spell("Five", 5, "Sorcery"))
+        self.assertEqual([t.card.power for t in tokens], ["5"])
+
+    def test_it_is_exiled_at_the_beginning_of_the_next_end_step(self):
+        game, tokens = self.cast(spell("Three", 3))
+        game.step = "end"
+        game._turn_based_actions(game.seats[0])
+        run_stack(game)
+        self.assertEqual([p for p in game.seats[0].battlefield if p.card.name == "Dragon Illusion"], [])
+        self.assertEqual([c.name for c in game.seats[0].exile if c.name == "Dragon Illusion"], [])  # a token ceases to exist
+
+    def test_a_creature_spell_makes_nothing(self):
+        game, tokens = self.cast(spell("Ogre", 3, "Creature — Ogre"))
+        self.assertEqual(tokens, [])
+
+    def test_an_opponents_spell_makes_nothing(self):
+        game, tokens = self.cast(spell("Three", 3), caster=1)
+        self.assertEqual(tokens, [])

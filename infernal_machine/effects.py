@@ -1773,6 +1773,7 @@ class CreateTokens:
     tapped: bool = False  # "Create a number of tapped Treasure tokens ..." (Goldvein Hydra)
     more: int = 0  # Prismari Pianist: "If that spell's mana value is 5 or greater, create three of those tokens instead."
     more_if: "Condition | None" = None
+    exile_at_end: bool = False  # Manaform Hellkite: "Exile that token at the beginning of the next end step."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         count = self.more if self.more_if and game.condition_holds(self.more_if, controller, game.resolving_source) else self.count
@@ -1781,7 +1782,9 @@ class CreateTokens:
             token = dataclasses.replace(token, power=str(game.amount(token.power)),
                                         toughness=str(game.amount(token.toughness)))
         counters = (game.amount(self.counters[0]), self.counters[1]) if self.counters else None
-        game.create_tokens(controller, token, game.amount(count), counters, tapped=self.tapped)
+        made = game.create_tokens(controller, token, game.amount(count), counters, tapped=self.tapped)
+        if self.exile_at_end and made:
+            game.leave_at_next_end_step(made, "exiled", "exile")
 
 
 @dataclass(frozen=True)
@@ -3261,6 +3264,11 @@ class _InsteadDraw:
 
 
 @dataclass(frozen=True)
+class _ExileTokenAtEnd:
+    """ "Exile that token at the beginning of the next end step." after a token was created (see _merge_conditional)."""
+
+
+@dataclass(frozen=True)
 class _InsteadTokens:
     """ "If that spell's mana value is 5 or greater, create three of those tokens instead." (see _merge_conditional)"""
     condition: "Condition"
@@ -3352,6 +3360,10 @@ def _merge_conditional(effects: list) -> list | None:
             if not (merged and isinstance(merged[-1], Draw)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], more=effect.count, more_if=effect.condition)
+        elif isinstance(effect, _ExileTokenAtEnd):
+            if not (merged and isinstance(merged[-1], CreateTokens)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], exile_at_end=True)
         elif isinstance(effect, _InsteadTokens):
             if not (merged and isinstance(merged[-1], CreateTokens)):
                 return None
@@ -4873,6 +4885,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
     (re.compile(rf"if (.+), draw {_N} cards instead\.", re.I),
      lambda m: _InsteadDraw(c, _count(m[2])) if (c := _condition(m[1])) else None),
+    (re.compile(r"exile that token at the beginning of the next end step\.", re.I), lambda m: _ExileTokenAtEnd()),
     (re.compile(rf"if (.+), create {_N} of those tokens instead\.", re.I),
      lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
