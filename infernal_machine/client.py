@@ -145,6 +145,8 @@ class Narrator:
             return f"{card}'s ability resolves{note}." if ability else f"{card} resolves{note}."
         if kind == "fizzle":
             return f"{card}'s ability fizzles: its target is gone." if ability else f"{card} fizzles: its target is gone."
+        if kind == "cant_cast":
+            return f"{card} can't be cast: there is nothing it could target."
         if kind == "countered":
             return f"{card}'s ability is countered." if ability else f"{card} is countered."
         if kind == "damage_prevented":

@@ -23,7 +23,7 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
+from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
@@ -507,7 +507,8 @@ class Game:
         if self.step == "untap":
             self.combat = Combat(self)
             for permanent in seat.battlefield:
-                permanent.tapped = False
+                if not self.has_keyword(permanent, NO_UNTAP):  # Infinite Coursework
+                    permanent.tapped = False
                 permanent.sick = False
                 permanent.until_next_turn = []
             for other in self.live_seats():  # goad lasts until the goader's next turn
@@ -712,7 +713,8 @@ class Game:
         for permanent in seat.battlefield:
             granted = [a for other in self.seats for attachment in other.battlefield if attachment.attached_to is permanent
                        for a in granted_abilities(attachment.card)]
-            for ability in [*activated_abilities(permanent.card), *granted]:
+            own = [] if self.loses_abilities(permanent) else activated_abilities(permanent.card)
+            for ability in [*own, *granted]:
                 if not ability.discard_self and not ability.from_graveyard and self._can_activate(seat, permanent, ability, sorcery_timing):
                     text = ability.text.replace("CARDNAME", permanent.card.name)
                     options[f"{ACTIVATE}{self.label(permanent)}: {text}"] = (permanent, ability)
@@ -882,7 +884,12 @@ class Game:
         if not self._cast_ways(seat, card, from_command_zone, graveyard):
             return False
         effects, colors = kicked_effects(_effects(card), 0) or [], source_qualities(card)
-        return self._effects_possible(seat, effects, colors)
+        if not self._effects_possible(seat, effects, colors):
+            return False
+        if parse_cost(card.mana_cost).x and any((kind := target_kind(e)) and kind.endswith(" with mana value x") for e in effects):
+            # "target creature with mana value X": some X it can pay for has to match a creature
+            return bool(self._x_values_with_targets(seat, effects, colors, self._max_x(seat, card, from_command_zone, ())))
+        return True
 
     def tap(self, permanent: Permanent) -> None:
         """Tap a permanent. A tapped one stays as it is; one that becomes tapped is seen by "Whenever a creature you
@@ -969,7 +976,7 @@ class Game:
         pooled = [ManaSource(None, unit) for unit in seat.mana_pool]
         foods = sum(_has_type(p.card, "food") for p in seat.battlefield)  # Gilded Goose: one Food per use
         for permanent in seat.battlefield:
-            if permanent.tapped or permanent is exclude:
+            if permanent.tapped or permanent is exclude or self.loses_abilities(permanent):
                 continue
             card = permanent.card
             pain, damage = mana_pain(card) or (frozenset(), 0)
@@ -1265,7 +1272,8 @@ class Game:
     def _filter_sources(self, seat: Seat, exclude: Permanent | None) -> list[tuple[Permanent, Cost, list]]:
         found = []
         for permanent in seat.battlefield:
-            if permanent.tapped or permanent is exclude or (permanent.sick and "Creature" in permanent.card.type_line):
+            if permanent.tapped or permanent is exclude or (permanent.sick and "Creature" in permanent.card.type_line) \
+                    or self.loses_abilities(permanent):
                 continue
             ability = filter_mana_ability(permanent.card)
             if ability:
@@ -1504,6 +1512,22 @@ class Game:
         elif ability.exile_source:  # "Exile this land" (Tomb Fortress)
             self.exile(permanent)
 
+    def _x_values_with_targets(self, seat: Seat, effects, colors: frozenset[str], most: int) -> list[int]:
+        """The X from 0 to `most` for which every "target creature with mana value X" has a legal target. Any X will do
+        for a spell whose targets don't depend on X."""
+        kinds = [kind for e in effects or [] if (kind := target_kind(e)) and kind.endswith(" with mana value x")]
+        if not kinds:
+            return list(range(most + 1))
+        saved, good = self.targeting_x, []
+        try:
+            for n in range(most + 1):
+                self.targeting_x = n
+                if all(self.target_options(self._fixed_kind(kind, None), seat, colors) for kind in kinds):
+                    good.append(n)
+        finally:
+            self.targeting_x = saved
+        return good
+
     def _effects_possible(self, seat: Seat, effects, colors: frozenset[str] = frozenset(),
                           source: Permanent | None = None) -> bool:
         """Whether the targets exist: for a modal spell or ability, for enough of its modes."""
@@ -1656,7 +1680,10 @@ class Game:
             for cost in additional_costs(card):  # "sacrifice X creatures": there have to be X of them
                 if cost.sacrifice_x:
                     most = min(most, sum(_permanent_matches(cost.sacrifice, p.card) for p in seat.battlefield))
-            x = seat.player.choose(X_PROMPT + card.name, [str(n) for n in range(most + 1)])
+            choices = self._x_values_with_targets(seat, effects, source_qualities(card), most)
+            if not choices:  # nothing could be targeted for any X that can be paid
+                return
+            x = choices[seat.player.choose(X_PROMPT + card.name, [str(n) for n in choices])]
         elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
             x = seat.player.choose(LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
         self.targeting_x = x
@@ -1667,8 +1694,12 @@ class Game:
                                                        extra + strive * (more + 1)) is not None:
                 more += 1
             self.targeting_max = more + 1
-        targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
+        chosen_targets = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
         self.targeting_max = None
+        if chosen_targets is None:  # no legal target (a free cast: cascade, suspend ...): it isn't cast, and stays where it is
+            self.broadcast({"event": "cant_cast", "seat": seat.index, "card": card.name})
+            return
+        targets, labels = chosen_targets
         if strive:
             chosen = sum(len(t) for e, t in zip([e for e in effects or [] if target_kind(e)], targets)
                          if getattr(e, "any_number", False))
@@ -2067,6 +2098,8 @@ class Game:
                 player: Seat | None = None, x: int = 0, spell: "StackItem | Card | None" = None) -> None:
         """Note that `permanent`'s abilities for `event` triggered; they go on the stack
         the next time a player would get priority (CR 603.3)."""
+        if self.loses_abilities(permanent):
+            return
         for ability in triggered_abilities(permanent.card):
             if ability.event == event and ability.watch is None:
                 if any(isinstance(e, ReturnThisFromGraveyard) for e in ability.effects) and self.on_battlefield(permanent):
@@ -2184,6 +2217,9 @@ class Game:
             return any(len(s.hand) <= condition.count for s in self.live_seats())
         if kind == "opponent_more_cards":
             return any(len(o.hand) > len(seat.hand) for o in self.opponents(seat))
+        if kind == "control_none_token":  # Pest Rescuer: "you don't control a Pest creature token"
+            return not any(_is_token(p.card) and "Creature" in p.card.type_line and _has_type(p.card, condition.what)
+                           for p in seat.battlefield)
         matching = sum(_has_type(p.card, condition.what) for p in seat.battlefield)
         return matching >= condition.count if kind == "control_at_least" else matching == 0
 
@@ -2203,6 +2239,8 @@ class Game:
         for watcher, watcher_seat in watchers + eminent + buried:
             in_command_zone = any(watcher is p for p, _ in eminent)
             in_graveyard = any(watcher is p for p, _ in buried)
+            if self.loses_abilities(watcher):
+                continue
             for ability in triggered_abilities(watcher.card):
                 watch = ability.watch
                 if not watch or ability.event != ("cast" if event == "copy" else event):
@@ -2906,6 +2944,8 @@ class Game:
             return mods
         subtypes = self.subtypes(permanent)
         for owner, source in [(s, p) for s in self.seats for p in s.battlefield]:
+            if self.loses_abilities(source):
+                continue
             for buff in static_abilities(source.card):
                 if owner is not controller and not buff.everyone:
                     continue
@@ -2978,7 +3018,14 @@ class Game:
         mods = self.modifiers(permanent)
         if keyword in ("hexproof", "shroud") and any(LOSES_HEXPROOF in m.keywords for m in mods):
             return False  # Arcane Lighthouse
-        return has_keyword(permanent.card, keyword) or any(keyword in m.keywords for m in mods)
+        printed = has_keyword(permanent.card, keyword) and not self.loses_abilities(permanent)
+        return printed or any(keyword in m.keywords for m in mods)
+
+    def loses_abilities(self, permanent: Permanent) -> bool:
+        """Whether an Aura or Equipment on it takes away all its abilities (Infinite Coursework). Abilities that other
+        effects give it are kept; the order effects were made in is not tracked."""
+        return any(a.attached_to is permanent and any(LOSES_ALL in b.modifier.keywords for b in attached_abilities(a.card))
+                   for s in self.seats for a in s.battlefield)
 
     def annihilator(self, permanent: Permanent) -> int:
         """N of the creature's Annihilator N, printed or granted (Eldrazi Conscription); they add up."""
@@ -3401,15 +3448,16 @@ class Game:
             return
         self.counter(item)
 
-    def fetch_basic_land(self, seat: Seat, optional: bool = False, untap_if: "Condition | None" = None) -> None:
+    def fetch_basic_land(self, seat: Seat, optional: bool = False, untap_if: "Condition | None" = None,
+                         tapped: bool = True) -> None:
         if optional and seat.player.choose(SEARCH_OPTIONAL_PROMPT, YES_NO) != 0:
             return
         basics = _unique([c for c in seat.library if "Basic" in c.type_line and "Land" in c.type_line])
         if basics:
             choice = basics[seat.player.choose(SEARCH_PROMPT, [c.name for c in basics])]
             seat.library.remove(choice)
-            self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": True})
-            land = Permanent(choice, tapped=True)
+            self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": tapped})
+            land = Permanent(choice, tapped=tapped)
             self._enter(seat, land)
             if untap_if and self.condition_holds(untap_if, seat, self.resolving_source):
                 land.tapped = False
@@ -3781,11 +3829,17 @@ class Game:
             if mill:
                 self.mill(seat, mill)
 
-    def may_sacrifice_draw(self, seat: Seat, kind: str, draw: int) -> None:
-        """ "You may sacrifice a permanent. If you do, draw two cards." """
+    def may_sacrifice(self, seat: Seat, kind: str) -> bool:
+        """ "You may sacrifice a permanent." Whether they did (they need one to sacrifice, and to want to)."""
         if any(_permanent_matches(kind, p.card) for p in seat.battlefield) \
                 and seat.player.choose(SACRIFICE_DRAW_PROMPT, YES_NO) == 0:
             self.sacrifice(seat, kind, 1)
+            return True
+        return False
+
+    def may_sacrifice_draw(self, seat: Seat, kind: str, draw: int) -> None:
+        """ "You may sacrifice a permanent. If you do, draw two cards." """
+        if self.may_sacrifice(seat, kind):
             self.draw(seat, draw)
 
     def draw_at_next_upkeep(self, seat: Seat, count: int, up_to: bool) -> None:
