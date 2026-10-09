@@ -756,6 +756,19 @@ winner = game.play()
   | Whenever one or more cards leave your graveyard, ... (once per event) | Quintorius, History Chaser |
   | Whenever a player sacrifices a permanent / another permanent, ... | Merchant of Venom |
   | Whenever you lose life for the first time each turn, ... | |
+  | Whenever a creature (a permanent) you control becomes tapped, ... (attacking, tapping for mana or as a cost, or a tap effect; not entering tapped) | |
+  | Whenever you cycle a card, ... / Whenever you scry, ... / Whenever you surveil, ... | |
+  | Whenever you attack with a creature alone, ... (also "a creature you control attacks alone"; "it" is the attacker) | |
+  | Whenever one or more creatures you control attack, ... (once) | |
+  | Whenever an opponent attacks with creatures, if two or more of those creatures are attacking you and/or planeswalkers you control, ... | Mangara |
+  | Whenever a creature enters under an opponent's control, ... (or "a creature an opponent controls enters") | |
+  | Whenever a creature (with power 4 or greater / with flying / with a +1/+1 counter on it) you control enters or dies, ... | |
+  | Whenever you cast a spell from your graveyard / from anywhere other than your hand, ... (and "a player casts a spell from their graveyard") | |
+  | Whenever you cast a multicolored spell, ... | |
+  | Whenever a creature card is put into your graveyard from anywhere, ... (dying, discarding, milling, cycling and spells all count; tokens are not cards) | |
+  | Whenever you expend 4, ... (as the mana you have spent on spells this turn reaches 4) | |
+  | At the beginning of your draw step, ... ("draw an additional card" works) | |
+  | At the beginning of each opponent's upkeep / each opponent's end step / an opponent's end step, ... | |
   | Whenever you cast or copy an instant or sorcery spell, ... (Magecraft) | Archmage Emeritus |
   | Whenever you cast an instant or sorcery spell with mana value 5 or greater (from your hand), ... | Dirgur Focusmage |
   | Whenever one or more creatures (creature tokens) you control deal combat damage to a player, ... (once per player hit) | Striding Shotcaller |
@@ -785,8 +798,11 @@ winner = game.play()
     seven or more Plains", "if you control no Snakes", "if you control an artifact", "if it's your turn", "if you're
     the monarch", "if you have no cards in hand", "if you gained 2 or more life this turn", "if two or more creatures
     died this turn" (any player's), "if there are three or more creature cards in your graveyard", "if a player has one
-    or fewer cards in hand", "if an opponent has more cards in hand than you", "if this creature isn't prepared". A
-    trigger with any other "if" clause is ignored.
+    or fewer cards in hand", "if an opponent has more cards in hand than you", "if this creature isn't prepared", "if
+    this land is tapped", "if you control no other creatures" (the source doesn't count itself), "if a modified
+    creature died under your control this turn" (a creature with counters, or with Equipment or an Aura of yours on it),
+    and "if two or more of those creatures are attacking you and/or planeswalkers you control". A trigger with any
+    other "if" clause is ignored. Not built: "a spell with the same name as ..." and the wording of Tomik's trigger.
   - Paying life counts as losing it. A creature that's sacrificed sees itself go
     ("Whenever you sacrifice a creature" on the creature itself triggers).
   - A trigger whose effect isn't understood is ignored.
