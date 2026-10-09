@@ -24,7 +24,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -133,6 +133,9 @@ MAX_TARGETS = 30  # a bound on "any number of target ..."
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
+REMOVE_COUNTER_PROMPT = "Remove a counter to draw a card? "  # followed by the permanent's name
+ATTACH_PROMPT = "Attach it to the new token? "  # followed by the Aura's name
+MAY_PAY_PROMPT = "Pay the cost for "  # followed by the source's name; options are "Pay <cost>" and "Don't pay"
 DRAW_UP_TO_PROMPT = "How many cards do you draw? "
 SACRIFICE_DRAW_PROMPT = "Sacrifice a permanent to draw cards? "
 LOOT_PROMPT = "Discard a card to draw a card? "
@@ -357,6 +360,7 @@ class Game:
         self.initiative: Seat | None = None
         self.graveyarded_turn, self.graveyarded_count = 0, 0  # permanents put into a graveyard this turn (Gravestorm)
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
+        self._batch: set[tuple[int, int]] | None = None  # watchers of "one or more ..." already told about this simultaneous event
         self.at_upkeep: list[tuple[int, Callable[[], None]]] = []  # (turn made, what) to do as the next turn's upkeep begins
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
@@ -501,6 +505,11 @@ class Game:
                 self._tick_suspend(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
+            if self.step == "upkeep":  # Squee: a card that returns itself from the graveyard at the beginning of your upkeep
+                for card in list(seat.graveyard):
+                    for ability in triggered_abilities(card):
+                        if ability.event == "upkeep" and any(isinstance(e, ReturnThisFromGraveyard) for e in ability.effects):
+                            self._queue(ability, Permanent(card), seat)
             for other in self.live_seats():  # "At the beginning of each upkeep / end step"
                 for permanent in list(other.battlefield):
                     self.trigger("each_upkeep" if self.step == "upkeep" else "each_end_step", permanent, other)
@@ -532,6 +541,10 @@ class Game:
         elif self.step == "combat_damage":
             self.combat.deal_damage(first_strike_step=False)
         elif self.step == "main2":
+            doomed = [a.attacker for a in self.combat.attacks if self.has_keyword(a.attacker, "decayed")
+                      and self.on_battlefield(a.attacker)]
+            if doomed:  # decayed: sacrifice it at end of combat
+                self._leave_together([(p, "sacrificed") for p in doomed])
             self.combat = Combat(self)  # CR 511.3: creatures leave combat
             self._add_delayed_mana(seat)
             for permanent in list(seat.battlefield):
@@ -1213,6 +1226,20 @@ class Game:
             if until is not None and card in seat.exile:
                 seat.exile_play.append((card, until))
 
+    def exile_random_from_graveyard(self, seat: Seat, play_this_turn: bool) -> None:
+        """Exile a card chosen at random from the graveyard; it can be played until the turn ends."""
+        if seat.graveyard:
+            self.exile_card_from_graveyard(seat, seat.graveyard[self.rng.randrange(len(seat.graveyard))], play_this_turn)
+
+    def exile_card_from_graveyard(self, seat: Seat, card: Card, play_this_turn: bool) -> None:
+        """Exile that card from `seat`'s graveyard; it can be played until the turn ends."""
+        seat.graveyard.remove(card)
+        self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
+        self._move_card(seat, card, "exile")
+        self._left_graveyard(seat)
+        if play_this_turn and card in seat.exile:
+            seat.exile_play.append((card, self.turn))
+
     def _can_cycle(self, seat: Seat, cost: str, life: int) -> bool:
         """Cycling costs mana, or life you can spare (never down to 0)."""
         return life < seat.life if life else self._pay_cost(seat, parse_cost(cost)) is not None
@@ -1505,6 +1532,9 @@ class Game:
         if has_keyword(card, "demonstrate") and prepared is None:
             ability = TriggeredAbility("cast", (Demonstrate(),), False, "Demonstrate")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
+        for ability in triggered_abilities(card):  # "When you cast this spell, ..." (Hydroid Krasis)
+            if ability.event == "cast_self" and prepared is None:
+                self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, x=x))
         if has_keyword(card, "cascade") and prepared is None:  # the trigger goes on the stack above the spell
             ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
@@ -1519,6 +1549,9 @@ class Game:
         before, seat.spent_amount = seat.spent_amount, seat.spent_amount + spent
         for total in range(before + 1, seat.spent_amount + 1):  # "Whenever you expend N": the Nth mana spent this turn
             self._observe("expend", card, seat, x=total)
+        for target in (t for chosen in item.targets for t in (chosen if isinstance(chosen, list) else [chosen])):
+            if isinstance(target, Permanent) and self.on_battlefield(target):  # "Whenever this creature becomes the target of a spell"
+                self.trigger("targeted", target, self.controller_of(target))
         self._check_ward(item)
 
     def _choose_kicks(self, seat: Seat, card: Card, effects: list | None, from_command_zone: bool,
@@ -1684,6 +1717,11 @@ class Game:
                                                       type_line=" ".join(w for w in head.split() if w != "Creature") + f" {dash}{tail}".rstrip())
             self.broadcast({"event": "attached", "card": attachment.card.name, "to": creature.card.name})
 
+    def may_attach(self, seat: Seat, attachment: Permanent, creature: Permanent) -> None:
+        """ "You may attach it to the token.": asked, then the Aura moves."""
+        if seat.player.choose(ATTACH_PROMPT + attachment.card.name, YES_NO) == 0:
+            self.attach(attachment, creature)
+
     def untap_all(self, seat: Seat, kind: str) -> None:
         for permanent in seat.battlefield:
             if _permanent_matches(kind, permanent.card):
@@ -1743,6 +1781,9 @@ class Game:
             return int(max((c.cmc for c in this_turn if _watch_type_matches(amount.what, c)), default=0))
         if kind == "opponents":
             return len(self.opponents(controller))
+        if kind == "spell_mana_value":  # Renegade Bull: the spell that set off this trigger
+            spell = self.resolving_item.carried if self.resolving_item is not None else None
+            return int(spell.card.cmc) + spell.x if isinstance(spell, StackItem) else 0
         if kind == "mana_spent":  # on the spell that set off this trigger; a copy of a spell was never cast
             spell = self.resolving_item.carried if self.resolving_item is not None else None
             return spell.mana_spent if isinstance(spell, StackItem) else 0
@@ -1750,6 +1791,10 @@ class Game:
 
     def amount(self, value: int | str) -> int:
         """A number from an effect; "X" is the resolving spell's X, "2X" twice it."""
+        if value == "hX":  # half X, rounded down (Hydroid Krasis, The Goose Mother)
+            return self.x_value // 2
+        if value == "hX+":  # ... rounded up
+            return (self.x_value + 1) // 2
         return self.x_value if value == "X" else 2 * self.x_value if value == "2X" else value
 
     def _apply_effects(self, item: StackItem) -> bool:
@@ -1808,29 +1853,31 @@ class Game:
     # --- triggered abilities -------------------------------------------------
 
     def trigger(self, event: str, permanent: Permanent, controller: Seat, subject: Permanent | None = None,
-                player: Seat | None = None, x: int = 0) -> None:
+                player: Seat | None = None, x: int = 0, spell: "StackItem | Card | None" = None) -> None:
         """Note that `permanent`'s abilities for `event` triggered; they go on the stack
         the next time a player would get priority (CR 603.3)."""
         for ability in triggered_abilities(permanent.card):
             if ability.event == event and ability.watch is None:
+                if any(isinstance(e, ReturnThisFromGraveyard) for e in ability.effects) and self.on_battlefield(permanent):
+                    continue  # it only works from the graveyard (Squee)
                 for _ in range(self._trigger_times(controller, event, permanent.card)):
-                    self._queue(ability, permanent, controller, x=x, subject=subject, player=player)
+                    self._queue(ability, permanent, controller, x=x, subject=subject, player=player, spell=spell)
 
     def _trigger_each(self, event: str, seat: Seat, subject: Permanent | None = None,
-                      player: Seat | None = None) -> None:
+                      player: Seat | None = None, spell: "StackItem | Card | None" = None) -> None:
         """`event` happened for `seat`: every permanent it controls with an ability for it triggers. `subject` is
-        the permanent it happened to, `player` the player who did it."""
+        the permanent it happened to, `player` the player who did it, `spell` the spell (or card) involved."""
         for permanent in list(seat.battlefield):
-            self.trigger(event, permanent, seat, subject, player)
+            self.trigger(event, permanent, seat, subject, player, spell=spell)
 
     def _searched(self, seat: Seat) -> None:
         """`seat` searched their library (found something or not)."""
         for opponent in self.opponents(seat):
             self._trigger_each("opponent_search", opponent, player=seat)
 
-    def _discarded(self, seat: Seat) -> None:
+    def _discarded(self, seat: Seat, card: Card | None = None) -> None:
         """`seat` discarded a card: "Whenever you discard a card" and "Whenever an opponent discards a card"."""
-        self._trigger_each("discard", seat)
+        self._trigger_each("discard", seat, spell=card)
         for opponent in self.opponents(seat):
             self._trigger_each("opponent_discard", opponent, player=seat)
 
@@ -1850,6 +1897,8 @@ class Game:
         kind = condition.kind
         if kind == "attackers_at_least":
             return x >= condition.count
+        if kind == "control_none_keyword":  # Jadar: "you control no creatures with decayed"
+            return not any("Creature" in p.card.type_line and self.has_keyword(p, condition.what) for p in seat.battlefield)
         if kind == "opponent_life_at_most":  # Bloodghast
             return any(o.life <= condition.count for o in self.opponents(seat))
         if kind == "modified_died":
@@ -1942,6 +1991,10 @@ class Game:
                     continue
                 if watch.qualifier and (subject is None or not self._qualifies(watch.qualifier, subject)):
                     continue
+                if watch.batch and self._batch is not None:  # "one or more": once for everything that happened together
+                    if (id(watcher), id(ability)) in self._batch:
+                        continue
+                    self._batch.add((id(watcher), id(ability)))
                 if event == "expend" and watch.expend != x:  # x is the total the spell took the count up to
                     continue
                 if watch.other and subject is watcher:
@@ -1974,6 +2027,8 @@ class Game:
         here = self.on_battlefield(permanent)
         if qualifier.startswith("power>="):
             return (self.power(permanent) if here else permanent.last_power) >= int(qualifier.removeprefix("power>="))
+        if qualifier.startswith("mv<="):
+            return permanent.card.cmc <= int(qualifier.removeprefix("mv<="))
         if qualifier == "flying":
             return self.has_keyword(permanent, "flying") if here else has_keyword(permanent.card, "flying")
         return permanent.counters.get(qualifier.removeprefix("counter:"), 0) > 0
@@ -2844,10 +2899,21 @@ class Game:
                 self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
                                 "added": -removed, "total": permanent.counters.get(kind, 0)})
 
-    def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None) -> list[Permanent]:
-        return self.create_token_batch(seat, [token] * count, counters)
+    def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None,
+                      tapped: bool = False) -> list[Permanent]:
+        return self.create_token_batch(seat, [token] * count, counters, tapped)
 
-    def create_token_batch(self, seat: Seat, tokens: list[Card], counters: tuple[int, str] | None = None) -> list[Permanent]:
+    def create_token_batch(self, seat: Seat, tokens: list[Card], counters: tuple[int, str] | None = None,
+                           tapped: bool = False) -> list[Permanent]:
+        outer = self._batch
+        self._batch = set() if outer is None else outer
+        try:
+            return self._create_token_batch_now(seat, tokens, counters, tapped)
+        finally:
+            self._batch = outer
+
+    def _create_token_batch_now(self, seat: Seat, tokens: list[Card], counters: tuple[int, str] | None,
+                                tapped: bool) -> list[Permanent]:
         """Create tokens at once, each as many times as the replacement effects say (Doubling Season). Watchers of "one or
         more creature tokens" see the whole batch as one event."""
         made = []
@@ -2855,7 +2921,7 @@ class Game:
             for _ in range(self._factor(seat, "tokens")):
                 self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
                                 "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
-                permanent = Permanent(token, sick=True)
+                permanent = Permanent(token, sick=True, tapped=tapped)
                 self._enter(seat, permanent)
                 if counters:
                     self.put_counters(permanent, counters[1], counters[0])
@@ -2865,6 +2931,12 @@ class Game:
         if made:
             self._trigger_each("tokens_enter", seat)
         return made
+
+    def leave_at_next_end_step(self, permanents: list[Permanent], reason: str, destination: str) -> None:
+        """They leave the battlefield (exiled, sacrificed) as the next end step begins."""
+        fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+        self.at_end_step.append((fire_turn, lambda: self._leave_together(
+            [(p, reason) for p in permanents if self.on_battlefield(p)], destination)))
 
     def copy_tokens(self, seat: Seat, sources: list[Permanent], haste: bool, exile_at_end: bool) -> None:
         """Twinflame: a token that's a copy of each of `sources`, except it has haste, exiled as the next end step begins."""
@@ -3023,13 +3095,13 @@ class Game:
         self._searched(seat)
 
     def search_for_lands(self, seat: Seat, count: int, subtypes: tuple[str, ...], battlefield: int,
-                         tapped: bool, reveal: bool) -> None:
+                         tapped: bool, reveal: bool, basic_only: bool = False) -> None:
         """Search for up to `count` lands (basic lands, or any land with one of `subtypes`): the first
         `battlefield` go onto the battlefield and the rest into the hand, then the library is shuffled."""
         to_battlefield: list[Card] = []
         to_hand: list[Card] = []
         for n in range(count):
-            matches = _unique([c for c in seat.library if _is_searched_land(c, subtypes)])
+            matches = _unique([c for c in seat.library if _is_searched_land(c, subtypes) and (not basic_only or "Basic" in c.type_line)])
             if not matches:
                 break
             onto = n < battlefield
@@ -3284,6 +3356,16 @@ class Game:
         self.broadcast({"event": "paid_unless", "seat": payer.index, "card": source.name, "cost": cost_text})
         return True
 
+    def pays_optional(self, payer: Seat, cost_text: str, source: Card | None) -> bool:
+        """ "You may pay {2}. If you do, ...": whether `payer` can and chooses to pay the cost (and pays it)."""
+        payment = self._pay_cost(payer, parse_cost(cost_text))
+        name = source.name if source is not None else ""
+        if payment is None or payer.player.choose(MAY_PAY_PROMPT + name, [f"Pay {cost_text}", "Don't pay"]) != 0:
+            return False
+        self._spend_mana(payer, payment)
+        self.broadcast({"event": "paid_unless", "seat": payer.index, "card": name, "cost": cost_text})
+        return True
+
     def take_initiative(self, seat: Seat) -> None:
         """Taking the initiative ventures into the Undercity (CR 725.2); already having it does nothing."""
         if self.initiative is seat:
@@ -3390,6 +3472,12 @@ class Game:
             self.draw(seat, number)
         self.at_upkeep.append((self.turn, draw))
 
+    def may_remove_counter_draw(self, seat: Seat, source: Permanent, counter: str, draw: int) -> None:
+        """ "You may remove a +1/+1 counter from it. If you do, draw a card." """
+        if source.counters.get(counter, 0) and seat.player.choose(REMOVE_COUNTER_PROMPT + source.card.name, YES_NO) == 0:
+            self.remove_counters(source, counter, 1)
+            self.draw(seat, draw)
+
     def may_wheel(self, count: int) -> None:
         """ "Each player may discard their hand and draw seven cards." """
         for seat in self.turn_order_from_active():
@@ -3413,7 +3501,7 @@ class Game:
                 card = seat.hand.pop(seat.player.choose(DISCARD_CARD_PROMPT, [c.name for c in seat.hand]))
             self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
             self._move_card(seat, card, "graveyard")
-            self._discarded(seat)
+            self._discarded(seat, card)
 
     def reveal_and_discard(self, chooser: Seat, victim: Seat, excluded: tuple[str, ...], max_mv: int | None) -> None:
         """Thoughtseize: `victim` reveals their hand and `chooser` picks a card from it that isn't one of the
@@ -3427,7 +3515,7 @@ class Game:
         victim.hand.remove(card)
         self.broadcast({"event": "discard", "seat": victim.index, "card": card.name})
         self._move_card(victim, card, "graveyard")
-        self._discarded(victim)
+        self._discarded(victim, card)
 
     def mill(self, seat: Seat, count: int) -> list[Card]:
         """Put the top `count` cards of the library into the graveyard (fewer if there aren't that many); the cards milled."""
@@ -3603,6 +3691,14 @@ class Game:
         self._leave_together([(permanent, reason)], destination)
 
     def _leave_together(self, leaving: list[tuple[Permanent, str]], destination: str = "graveyard") -> None:
+        outer = self._batch
+        self._batch = set() if outer is None else outer  # watchers of "one or more" hear of it once
+        try:
+            self._leave_together_now(leaving, destination)
+        finally:
+            self._batch = outer
+
+    def _leave_together_now(self, leaving: list[tuple[Permanent, str]], destination: str) -> None:
         """Permanents leave the battlefield at the same moment (a board wipe, or several
         creatures with lethal damage). They all see each other go (CR 603.10a), so a creature
         that watches for deaths triggers for every other creature that died with it."""
@@ -3640,6 +3736,7 @@ class Game:
                 self.graveyarded_count += 1
             if destination == "graveyard" and not _is_token(permanent.card):  # Rancor: "put into a graveyard from the battlefield"
                 self.trigger("put_into_graveyard", permanent, controller)
+                self._observe("permanent_to_graveyard", permanent.card, controller, subject=permanent, extra=gone)
             if destination == "graveyard" and "Creature" in permanent.card.type_line:
                 if permanent.counters and any(permanent.counters.values()) or any(  # CR 700.9: modified
                         a.attached_to is permanent and self.controller_of(a) is controller
@@ -3909,6 +4006,11 @@ def _card_matches(kind: str, card: Card) -> bool:
         return "Basic" in card.type_line and "Land" in card.type_line
     if kind == "nonbasic land":
         return "Basic" not in card.type_line and "Land" in card.type_line
+    words = kind.replace(",", "").split()
+    if len(words) > 1 and all(w.startswith("non") for w in words):  # "noncreature, nonland"
+        return all(_card_matches(w, card) for w in words)
+    if kind.startswith("non") and " " not in kind:  # "nonland", "noncreature"
+        return kind[3:].capitalize() not in card.type_line
     if kind.startswith("legendary"):  # "legendary creature": legendary, and the rest of the kind
         return "Legendary" in card.type_line and _card_matches(kind.removeprefix("legendary").strip() or "card", card)
     return any(t.capitalize() in card.type_line for t in kind.split(" or "))
@@ -3973,7 +4075,7 @@ def _split_controller(kind: str) -> tuple[str, str | None]:
 
 
 def _permanent_matches(kind: str, card: Card) -> bool:
-    kind = kind.replace("noncreature, nonland", "noncreature nonland")
+    kind = re.sub(r", (?=non)", " ", kind)  # "noncreature, nonland permanent", "nonland, nontoken permanent"
     if m := re.fullmatch(r"non(white|blue|black|red|green|artifact|creature|land|enchantment) (.+)", kind):  # "nonblack creature"
         has = m[1].capitalize() in card.type_line if m[1] in ("artifact", "creature", "land", "enchantment") else {
             "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[m[1]] in card.colors

@@ -458,6 +458,20 @@ winner = game.play()
     can't attack you, "can block only creatures with flying" and "creatures with power less than this creature's power can't block it".
     Not built (see #81): the Class level lines, Anger and Cursed Mirror, Drumbellower, Galazeth Prismari and Goldspan Dragon (they give
     mana abilities to other permanents), Harmonic Prodigy, Flickering Ward, spell mastery, and Quandrix Command's shuffle-back mode.
+  - Trigger effects of #80: "sacrifice two lands", a search whose "it" is the card found (Bitterthorn), "Whenever one or more
+    creatures die / enter" (once for everything that happens together, with "with mana value 3 or less" and "only once each turn"),
+    "its controller loses 2 life and you gain 2 life" (Parasitic Impetus), "you may attach this Aura to that creature" and
+    "if that enchantment is an Aura, you may attach it to the token", "tap up to one target creature and goad it", "return target
+    nonland permanent card with mana value 3 or less", "exile target noncreature, nonland card", "exile up to one target nonland,
+    nontoken permanent you don't control", a token copy of this creature, "create half X Food tokens, rounded up", "When you cast
+    this spell, you gain half X life and draw half X cards", tapped Treasures equal to its power, "gets +X/+0 where X is that spell's
+    mana value", "creatures you control gain flying and get +X/+X", "You may pay {2}. If you do, ..." (including a target), "pay {1}
+    and discard a card", "remove a counter from it. If you do, draw a card", "It has "Sacrifice this token: Add {C}."", populate with
+    a hasty token that is sacrificed at the end step, "put into a graveyard from the battlefield", "becomes the target of a spell",
+    decayed, "return this card from your graveyard to your hand" at upkeep (Squee), "exile that card from your graveyard" after a
+    discard, and "mill a card, then exile a card from your graveyard at random. You may play the exiled card this turn".
+    Not built (see #80): phasing (Guardian of Faith), Hateful Eidolon, Laelia, Pearl-Ear's modified permanents, Unbound Flourishing,
+    Firemane Commando, Forgotten Ancient, Fractal Harness (an ETB trigger gets no X), and two of Killian's and Conspiracy Theorist's lines.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
     card can be turned face up at any time you have priority for its mana cost ("Turn face up: ..."; not a stack
     action). It goes to the graveyard as the real card, and only its controller is shown what it is
