@@ -740,7 +740,7 @@ def _counter_name(text: str) -> str:
     return text.replace("\u2212", "-")
 
 
-_ENTERS_WITH = re.compile(rf"{_SELF} enters with (twice X|{_N}) {_COUNTER} on it\.", re.I)
+_ENTERS_WITH = re.compile(rf"{_SELF} enters (?:tapped )?with (twice X|{_N}) {_COUNTER} on it\.", re.I)
 _ESCAPES_WITH = re.compile(rf"{_SELF} escapes with {_N} {_COUNTER} on it\.", re.I)  # Woe Strider
 _CLONE_EXTRA = re.compile(r".*, except it enters with X additional \+1/\+1 counters on it\.")  # Altered Ego
 _IF_KICKED = re.compile(rf"if {_SELF} was kicked, ", re.I)
@@ -3114,12 +3114,27 @@ class TargetMill:
 
 
 @dataclass(frozen=True)
+class SacrificeUnlessReturnLand:
+    """The Karoo cycle: "When this land enters, sacrifice it unless you return an untapped Mountain you control to its
+    owner's hand." """
+    land_type: str
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.karoo(controller, target, self.land_type)
+
+
+@dataclass(frozen=True)
 class EntersTapped:
     """How a permanent (usually a land) may enter tapped. `kind` is one of: "always",
     "unless_land_types" (checklands), "unless_lands_at_most" (fastlands), "unless_lands_at_least"
     (slowlands), "unless_opponents" (bond lands), "unless_basic_lands" (Port-style lands), "unless_land_type_count"
     ("three or more other Islands"), "unless_opponent_lands" (Turbulent lands), "reveal" (Snarls: reveal a card from your
-    hand or it enters tapped), "shock" (pay life or it enters tapped)."""
+    hand or it enters tapped), "shock" (pay life or it enters tapped),
+    "unless_control" (`types` are alternatives, each "Legendary+Creature"-style words that must all be types of one
+    permanent you control), "unless_a_player_life" (a player has `count` or less life), "if_lands_at_least" (tapped if
+    you control `count` or more other lands) and "if_starting_player"."""
     kind: str
     types: tuple[str, ...] = ()
     count: int = 0
@@ -3147,7 +3162,42 @@ _ENTERS_TAPPED = [
      lambda m: EntersTapped("reveal", types=(m[1].capitalize(), m[2].capitalize()))),
     (re.compile(rf"As {_SELF} enters, you may pay {_N} life\. If you don't, it enters tapped\.", re.I),
      lambda m: EntersTapped("shock", life=_count(m[1]))),
+    (re.compile(rf"{_SELF} enters tapped unless you control an? ({_LAND_TYPE})\.", re.I),
+     lambda m: EntersTapped("unless_control", types=(m[1].capitalize(),))),
+    (re.compile(rf"{_SELF} enters tapped unless you control a planeswalker\.", re.I),
+     lambda m: EntersTapped("unless_control", types=("Planeswalker",))),
+    (re.compile(rf"{_SELF} enters tapped unless you control a basic land\.", re.I),
+     lambda m: EntersTapped("unless_control", types=("Basic+Land",))),
+    (re.compile(rf"{_SELF} enters tapped unless you control a legendary creature\.", re.I),
+     lambda m: EntersTapped("unless_control", types=("Legendary+Creature",))),
+    (re.compile(rf"{_SELF} enters tapped unless you control a Mount or Vehicle\.", re.I),
+     lambda m: EntersTapped("unless_control", types=("Mount", "Vehicle"))),
+    (re.compile(rf"{_SELF} enters tapped unless a player has {_N} or less life\.", re.I),
+     lambda m: EntersTapped("unless_a_player_life", count=_count(m[1]))),
+    (re.compile(rf"If you control {_N} or more other lands, {_SELF} enters tapped\.", re.I),
+     lambda m: EntersTapped("if_lands_at_least", count=_count(m[1]))),
+    (re.compile(rf"If you were the starting player, {_SELF} enters tapped\.", re.I),
+     lambda m: EntersTapped("if_starting_player")),
+    (re.compile(rf"{_SELF} enters tapped if you were the starting player\.", re.I),
+     lambda m: EntersTapped("if_starting_player")),
+    (re.compile(rf"As {_SELF} enters, you may reveal an? ([A-Z][a-z]+) card from your hand\. "
+                rf"If you don't, {_SELF} enters tapped\.", re.I),
+     lambda m: EntersTapped("reveal", types=(m[1].capitalize(),))),
+    (re.compile(rf"{_SELF} enters tapped with {_N} {_COUNTER} on it\.", re.I), lambda m: EntersTapped("always")),
+    (re.compile(rf"{_SELF} enters tapped\. As (?:it|{_SELF}) enters, choose a color\.", re.I),
+     lambda m: EntersTapped("always")),
 ]
+
+_CHOOSE_COLOR = re.compile(rf"(?:{_SELF} enters tapped\. )?As (?:it|{_SELF}) enters, choose a color\.", re.I)
+
+
+def chooses_color(card: Card) -> bool:
+    """Room of Refuge and the like: "As it enters, choose a color." (the choice is kept on the permanent)."""
+    return any(_CHOOSE_COLOR.fullmatch(line) for line in rules_lines(card))
+
+
+def is_choose_color_line(line: str) -> bool:
+    return _CHOOSE_COLOR.fullmatch(line) is not None
 
 
 def enters_tapped_rule(card: Card) -> EntersTapped | None:
@@ -3857,6 +3907,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"creatures they controlled that were exiled this way\.(\"?)", re.I),
      lambda m: _gift(_GiftMatch(m[1], m[2]), who="each player", power_counters=True)),
     (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),
+    (re.compile(rf"sacrifice {_SELF} unless you return an untapped ({_LAND_TYPE}) you control to its owner's hand\.", re.I),
+     lambda m: SacrificeUnlessReturnLand(m[1].capitalize())),
     (re.compile(r"Let X be (.+)\."), lambda m: DefineX(a) if (a := _amount(m[1])) else None),
     (re.compile(rf"target (player|opponent) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
      lambda m: TargetSacrifices(m[1].lower(), m[2].lower())),
@@ -4323,6 +4375,7 @@ _CONDITIONS = [
      lambda m: Condition("kicked", what=m[1] or "")),
     (re.compile(r"you have the city's blessing"), lambda m: Condition("citys_blessing")),
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
+    (re.compile(rf"{_SELF} is tapped"), lambda m: Condition("source_tapped")),
     (re.compile(r"you were the monarch as the turn began"), lambda m: Condition("monarch_at_turn_start")),
     # Eminence: the ability only works from those two zones, which is where the game looks for it.
     (re.compile(rf"{_SELF} is in the command zone or on the battlefield"), lambda m: Condition("eminence")),
