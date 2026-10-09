@@ -84,7 +84,14 @@ def rules_lines(card: Card) -> list[str]:
 
 
 _WHOLE_LINE = re.compile(
-    r"Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
+    r"Exile the top four cards of your library in a face-down pile, then exile the top four cards of your library in a face-up pile\. An opponent chooses one of those piles\. Put that pile into your graveyard\. Look at the cards in the other pile\. You may cast a spell from among them without paying its mana cost\. Put the rest into your hand\."
+    r"|Council's dilemma — Starting with you, each player votes for past or present\. You mill a card for each past vote, "
+    r"then CARDNAME deals damage to each opponent equal to the total mana value of cards milled this way\. Exile the top card "
+    r"of your library for each present vote\. Until the end of your next turn, you may play the exiled cards\."
+    r"|Exile target instant or sorcery card from your graveyard\. Creatures you control get \+X/\+0 until end of turn, where X is "
+    r"that card's mana value\. Whenever a creature you control deals combat damage to a player this turn, copy the exiled card\. "
+    r"You may cast the copy without paying its mana cost\."
+    r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
     r"you or planeswalkers you control for as long as it has a vow counter on it\."
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
     r"|Shuffle your library\. As many times as you choose, you may exile the top card of your library\. .*"
@@ -2456,6 +2463,57 @@ class CopiesOfAnotherCreature:
 
 
 @dataclass(frozen=True)
+class PilesOfFour:
+    """Abstract Performance: exile the top four cards face down and the next four face up; an opponent chooses one pile to
+    put into your graveyard; you may cast a spell from the other for free and put the rest into your hand."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.choose_piles(controller)
+
+
+@dataclass(frozen=True)
+class PastOrPresentVote:
+    """Fateful Tempest: each player votes for past or present. You mill a card for each past vote, then it deals damage to each
+    opponent equal to the total mana value of the cards milled; you exile the top card for each present vote and may play
+    those cards until the end of your next turn."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        past, present = game.vote(controller, ["past", "present"])
+        milled = sum(int(card.cmc) for card in game.mill(controller, past))
+        if milled:
+            for opponent in game.opponents(controller):
+                game.damage(opponent, milled)
+        if present:
+            game.exile_top(controller, present, "next turn")
+
+
+@dataclass(frozen=True)
+class SurgeToVictory:
+    """ "Exile target instant or sorcery card from your graveyard. Creatures you control get +X/+0 until end of turn, where X
+    is that card's mana value. Whenever a creature you control deals combat damage to a player this turn, copy the exiled
+    card. You may cast the copy without paying its mana cost." """
+    target: str = "graveyard:instant or sorcery:yours"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None or not game.exile_from_graveyard(target):
+            return
+        card = target.card
+        for permanent in controller.battlefield:
+            if "Creature" in permanent.card.type_line:
+                game.modify_until_end_of_turn(permanent, Modifier(int(card.cmc), 0))
+        controller.surge = (game.turn, card)
+
+
+@dataclass(frozen=True)
+class CastExiledCopy:
+    """The delayed trigger of Surge to Victory: cast a copy of the exiled card without paying its mana cost."""
+    card: Card
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.cast_copy_free(controller, self.card)
+
+
+@dataclass(frozen=True)
 class OpponentsLoseCounters:
     """Final Act: "Each opponent loses all counters." (the counters on players: poison, energy, experience, ...)"""
 
@@ -4440,6 +4498,21 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
     return found
 
 
+# Serra Paragon: one land or cheap permanent spell from the graveyard each turn; the permanent is exiled if it goes back.
+_PARAGON = re.compile(r"Once during each of your turns, you may play a land from your graveyard or cast a permanent spell with "
+                      r"mana value (\d+) or less from your graveyard\. If you do, it gains \"When this permanent is put into a "
+                      r"graveyard from the battlefield, exile it and you gain (\d+) life\.\"")
+
+
+def graveyard_permission(card: Card) -> tuple[int, int] | None:
+    """Serra Paragon: (the most mana value of the permanent spell, the life gained when it goes to the graveyard)."""
+    return next(((int(m[1]), int(m[2])) for line in rules_lines(card) if (m := _PARAGON.fullmatch(line))), None)
+
+
+def is_graveyard_permission_line(line: str) -> bool:
+    return _PARAGON.fullmatch(line) is not None
+
+
 def additional_costs(card: Card) -> list[AdditionalCost]:
     costs = []
     for line in rules_lines(card):
@@ -4864,6 +4937,15 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: CopiesOfAnotherCreature(5 if m[1] else 1, bool(m[2]))),
     (re.compile(r"target player draws cards equal to half the number of cards in their library and loses half their life\. "
                 r"Round up each time\.", re.I), lambda m: DrawHalfLibraryLoseHalfLife()),
+    (re.compile(r"Exile the top four cards of your library in a face-down pile, then exile the top four cards of your library in a face-up pile\. An opponent chooses one of those piles\. Put that pile into your graveyard\. Look at the cards in the other pile\. You may cast a spell from among them without paying its mana cost\. Put the rest into your hand\.", re.I), lambda m: PilesOfFour()),
+    (re.compile(r"Council's dilemma — Starting with you, each player votes for past or present\. You mill a card for each "
+                r"past vote, then (?:CARDNAME|[A-Z][\w' ]+) deals damage to each opponent equal to the total mana value of cards milled "
+                r"this way\. Exile the top card of your library for each present vote\. Until the end of your next turn, you may "
+                r"play the exiled cards\."), lambda m: PastOrPresentVote()),
+    (re.compile(r"Exile target instant or sorcery card from your graveyard\. Creatures you control get "
+                                     r"\+X/\+0 until end of turn, where X is that card's mana value\. Whenever a creature you control "
+                                     r"deals combat damage to a player this turn, copy the exiled card\. You may cast the copy "
+                                     r"without paying its mana cost\.", re.I), lambda m: SurgeToVictory()),
     (re.compile(rf"remove {_N} ([a-z]+) counters? from (?:{_SELF})\.", re.I),
      lambda m: RemoveCountersFromSource(_count(m[1]), m[2].lower())),
     (re.compile(rf"(?:{_SELF}) deals damage to target (player|opponent) equal to (.+)\.", re.I),
@@ -6272,7 +6354,7 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
     return ActivatedAbility(line, tuple(effects), **fields)
 
 
-_TAP = r"\{T\}(, Sacrifice (?:CARDNAME|this (?:artifact|creature|permanent|land)))?: Add "  # group 1: sacrifice
+_TAP = r"\{T\}(, Sacrifice (?:CARDNAME|this (?:artifact|creature|permanent|land)))?(?:, (?:Sacrifice a Food|Mill a card))?: Add "  # group 1: sacrifice
 # Each may end with "Activate only if <condition>." (Temple of the False God, Spire of Industry): that is always the
 # last group of the match, None when it is absent.
 _IF_TAIL = r"(?: Activate only if (.+)\.)?"
@@ -6307,10 +6389,49 @@ def mana_spent_trigger(card: Card) -> ManaSpentTrigger | None:
     return None
 
 
+# Troyan, Elementalist's Palette: "Spend this mana only ..." limits what the mana can pay for.
+_RESTRICTION = re.compile(r" Spend this mana only (to cast spells with mana value 5 or greater or spells with \{X\} in their "
+                          r"mana costs|on costs that contain \{X\})\.")
+_RESTRICTIONS = {"to cast spells with mana value 5 or greater or spells with {X} in their mana costs": "big_or_x",
+                 "on costs that contain {X}": "x_cost"}
+
+
 def _without_spent_rider(line: str) -> str:
-    """The mana ability alone, without its "When that mana is spent ..." sentence."""
+    """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
     m = _SPENT_RIDER.fullmatch(line)
-    return m[1] if m else line
+    return _RESTRICTION.sub("", m[1] if m else line)
+
+
+def mana_restriction(card: Card) -> str | None:
+    """What the card's plain mana ability limits its mana to: "big_or_x" (spells of mana value 5 or more, or with {X} in
+    their cost) or "x_cost" (costs containing {X})."""
+    line = _mana_line(card)
+    m = _RESTRICTION.search(line) if line else None
+    return _RESTRICTIONS[m[1]] if m else None
+
+
+_EXTRA_COST = re.compile(r"\{T\}, (Sacrifice a Food|Mill a card): Add ")
+
+
+def mana_extra_cost(card: Card) -> str | None:
+    """"food" or "mill" when the card's mana ability costs a Food sacrifice (Gilded Goose) or a milled card (Millikin)."""
+    line = _mana_line(card)
+    m = _EXTRA_COST.match(line) if line else None
+    return None if m is None else ("food" if m[1].startswith("Sacrifice") else "mill")
+
+
+# Astral Cornucopia, Elementalist's Palette: one mana for each charge counter.
+_CHARGE_MANA = re.compile(r"\{T\}: (Choose a color\. Add one mana of that color|Add \{C\}) for each charge counter on "
+                          r"(?:CARDNAME|this [a-z]+)\.(?: Spend this mana only on costs that contain \{X\}\.)?")
+
+
+def charge_mana(card: Card) -> tuple[frozenset[str], str | None] | None:
+    """The types of the mana per charge counter this permanent makes when tapped, and its spending restriction."""
+    for line in rules_lines(card):
+        if m := _CHARGE_MANA.fullmatch(line):
+            return (frozenset("WUBRG") if m[1].startswith("Choose") else frozenset("C"),
+                    "x_cost" if "Spend" in line else None)
+    return None
 
 
 def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
@@ -6390,6 +6511,7 @@ def is_mana_ability(line: str) -> bool:
     line = _without_spent_rider(line)
     return (_mana_match(line) is not None or _ADD_POWER.fullmatch(line) is not None
             or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
+            or _CHARGE_MANA.fullmatch(line) is not None
             or _FILTER.fullmatch(line) is not None
             or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))
@@ -6482,6 +6604,7 @@ def filter_mana_ability(card: Card) -> tuple[str, list[frozenset[str]]] | None:
 
 
 def _mana_from_line(line: str, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
+    line = _without_spent_rider(line)
     if m := _ADD_SYMBOLS.fullmatch(line):
         return [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2])]
     if m := _ADD_EITHER.fullmatch(line):

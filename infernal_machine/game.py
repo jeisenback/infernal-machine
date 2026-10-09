@@ -25,11 +25,11 @@ from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
-                      affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
+                      affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
-                      filter_mana_ability, follows_target, mana_ability, mana_ability_sacrifices, mana_spent_trigger, Scry, spell_effects, static_abilities, target_kind,
+                      filter_mana_ability, follows_target, mana_ability, mana_extra_cost, mana_restriction, charge_mana, mana_ability_sacrifices, mana_spent_trigger, Scry, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
 from .mana import SNOW, Cost, parse_cost, pay
@@ -59,6 +59,8 @@ CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
 SUSPEND = "Suspend: "  # followed by the card's name
+CAST_PARAGON = "Cast from graveyard (once a turn): "  # Serra Paragon
+PLAY_PARAGON = "Play land from graveyard: "
 CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
@@ -146,6 +148,8 @@ SHUFFLE_PROMPT = "Shuffle your library? "
 DEVOUR_PROMPT = "Devour: sacrifice which creature to "  # followed by the creature's name; the last option is DEVOUR_DONE
 DEVOUR_DONE = "Done"
 REPLICATE_PROMPT = "Choose how many times to replicate "  # followed by the spell's name; options are "0", "1", ...
+PILE_PROMPT = "Put which pile into the graveyard? "  # an opponent chooses; the options are the piles
+PILE_CAST_PROMPT = "Cast a spell from the pile for free? "  # the options are the cards, then "None"
 CASCADE_PROMPT = "Cast for free (cascade): "  # followed by the card's name; Yes or No
 DELVE_PROMPT = "Exile which card from your graveyard to pay for "  # followed by the spell's name
 UPKEEP_PROMPT = "Pay the cumulative upkeep of "  # followed by the permanent's name; Yes or No (No sacrifices it)
@@ -197,6 +201,7 @@ class Permanent:
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
     stored: int = 0  # a number it remembers (the life Soulgorger Orgg's controller lost)
     goad_forever: "Seat | None" = None  # goaded for the rest of the game by this player (Life of the Party's copies)
+    paragon_life: tuple["Seat", int] | None = None  # played with Serra Paragon: (who gains life, how much) when it goes to the graveyard
 
 
 @dataclass(frozen=True)
@@ -207,6 +212,7 @@ class ManaSource:
     pain: frozenset[str] = frozenset()  # types that deal `damage` to the controller when produced
     damage: int = 0
     life: bool = False  # the `damage` is life paid (Mana Confluence), not damage dealt
+    restriction: str | None = None  # what the mana may be spent on (see effects.mana_restriction)
 
 
 def _snowy(permanent: "Permanent", types: frozenset[str]) -> frozenset[str]:
@@ -321,6 +327,9 @@ class Seat:
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
     spent_turn: int | None = None  # the turn `spent_amount` counts for
     spent_amount: int = 0  # the mana this player spent casting spells that turn ("Whenever you expend 4")
+    surge: tuple[int, Card] | None = None  # Surge to Victory: (the turn, the exiled card its creatures copy on combat damage)
+    paragon_turn: int | None = None  # the last turn Serra Paragon's once-a-turn permission was used
+    paragon_marked: list = field(default_factory=list)  # cards played with it, which are exiled if they go back (+ life)
     modified_died_turn: int | None = None  # the last turn a modified creature died under this player's control
     citys_blessing: bool = False  # Ascend: ten permanents, for the rest of the game
     graveyard_left_turn: int | None = None  # the last turn a card left this player's graveyard
@@ -334,6 +343,11 @@ class Seat:
 
 
 class Game:
+    # What the mana being paid is for, so "Spend this mana only ..." sources can say whether they qualify: a spell, or an
+    # ability whose cost has {X}.
+    _spending_spell: Card | None = None
+    _spending_x: bool = False
+
     def __init__(self, seats: list[tuple[Player, Deck]], seed: int | None = None):
         if len(seats) < 2:
             raise ValueError("Commander needs at least two players")
@@ -644,6 +658,12 @@ class Game:
             for cast in graveyard_casts(card)[:1]:
                 if not is_land(card) and (sorcery_timing or seat.flash_turn == self.turn or _instant_speed(card)) and self._can_cast(seat, card, graveyard=cast):
                     actions.append(CAST_GRAVEYARD + card.name)
+        for card in self._paragon_options(seat):
+            if is_land(card):
+                if sorcery_timing and seat.lands_played < 1:
+                    actions.append(PLAY_PARAGON + card.name)
+            elif (sorcery_timing or seat.flash_turn == self.turn or _instant_speed(card)) and self._can_cast(seat, card):
+                actions.append(CAST_PARAGON + card.name)
         for card in _unique(seat.hand):  # Suspend N: pay the cost, exile it with time counters
             if (suspend := suspend_of(card)) and (sorcery_timing or seat.flash_turn == self.turn or _instant_speed(card)) \
                     and self._payment(seat, dataclasses.replace(card, mana_cost=suspend[1])) is not None:
@@ -824,7 +844,11 @@ class Game:
                          x: int = 0) -> list[Permanent] | None:
         cost = (parse_cost(ability.mana_cost) if ability.mana_cost else Cost()).with_x(x)
         # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
-        return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice or ability.exile_source else None)
+        self._spending_x = "{X}" in ability.mana_cost
+        try:
+            return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice or ability.exile_source else None)
+        finally:
+            self._spending_x = False
 
     def _mana_spent_matches(self, seat: Seat, source: Permanent, card: Card, from_command_zone: bool, tapped) -> bool:
         """Whether `source`'s "When that mana is spent to cast ..." rider applies to casting `card`. A Study Hall
@@ -872,6 +896,10 @@ class Game:
             self.tap(source)
             if not is_land(source.card) and mana_ability_sacrifices(source.card):
                 self._leave_battlefield(source, "sacrificed")
+            if (extra := mana_extra_cost(source.card)) == "mill":
+                self.mill(seat, 1)
+            elif extra == "food" and (food := next((p for p in seat.battlefield if _has_type(p.card, "food")), None)):
+                self._leave_battlefield(food, "sacrificed")
         if pain := getattr(sources, "pain", 0):
             self.damage(seat, pain)
         if life := getattr(sources, "life", 0):
@@ -905,11 +933,21 @@ class Game:
                 continue
             seat.mana_pool.clear()
 
+    def _restriction_ok(self, restriction: str | None) -> bool:
+        """Whether mana limited by `restriction` can pay for what is being paid for now."""
+        if restriction is None:
+            return True
+        spell = self._spending_spell
+        if restriction == "x_cost":
+            return self._spending_x or (spell is not None and "{X}" in spell.mana_cost)
+        return spell is not None and (spell.cmc >= 5 or "{X}" in spell.mana_cost)
+
     def _mana_sources(self, seat: Seat, exclude: Permanent | None = None) -> list[ManaSource]:
         """One entry per mana each untapped permanent can make: nonland sources first,
         then lands, and sources that sacrifice themselves (Treasure) last."""
         abilities, lands, sacrifices = [], [], []
         pooled = [ManaSource(None, unit) for unit in seat.mana_pool]
+        foods = sum(_has_type(p.card, "food") for p in seat.battlefield)  # Gilded Goose: one Food per use
         for permanent in seat.battlefield:
             if permanent.tapped or permanent is exclude:
                 continue
@@ -951,14 +989,26 @@ class Game:
                 lands.extend([ManaSource(permanent, _snowy(permanent, types), pain, damage)] + extra)
             elif not (permanent.sick and "Creature" in card.type_line):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
+                extra = mana_extra_cost(card)
+                if extra == "food" and foods <= 0 or extra == "mill" and not seat.library:
+                    continue  # nothing to pay the mana ability's extra cost with
+                if extra == "food":
+                    foods -= 1
+                if (charge := charge_mana(card)) is not None:  # Astral Cornucopia: a mana for each charge counter
+                    if permanent.counters.get("charge", 0) and self._restriction_ok(charge[1]):
+                        bucket.extend(ManaSource(permanent, charge[0], restriction=charge[1])
+                                      for _ in range(permanent.counters["charge"]))
                 if (kind := counter_mana(card)) is not None:  # Mana Bloom: a counter for one mana, once each turn
                     if permanent.counters.get(kind, 0) and permanent.activated_turn.get("counter mana") != self.turn:
                         bucket.append(ManaSource(permanent, frozenset("WUBRG")))
                     continue
                 units = ([frozenset("WUBRG")] * max(0, self.power(permanent)) if makes_mana_by_power(card)
                          else mana_ability(card, seat.color_identity) or [])  # (the power's worth need not be one color here)
+                restriction = mana_restriction(card)
+                if not self._restriction_ok(restriction):
+                    continue
                 for mana in units:
-                    bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage))
+                    bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage, restriction=restriction))
         return pooled + abilities + lands + sacrifices
 
     def _reflected_types(self, seat: Seat, opponents: bool, colorless: bool) -> frozenset[str]:
@@ -977,7 +1027,13 @@ class Game:
                  delve: int = 0) -> list[Permanent] | None:
         """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now."""
         cost = self._cast_cost(seat, card, from_command_zone, x, alternative, kickers, extra, delve)
-        return None if cost is None else self._pay_cost(seat, cost)
+        if cost is None:
+            return None
+        self._spending_spell = card
+        try:
+            return self._pay_cost(seat, cost)
+        finally:
+            self._spending_spell = None
 
     def _cast_cost(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
                    alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",
@@ -1206,6 +1262,17 @@ class Game:
             self._enter(seat, Permanent(card, sick=True))
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
+        elif action.startswith(PLAY_PARAGON):
+            card = _take(seat.graveyard, action.removeprefix(PLAY_PARAGON))
+            self._used_paragon(seat, card)
+            self._left_graveyard(seat)
+            self._enter(seat, Permanent(card, sick=True))
+            seat.lands_played += 1
+            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "graveyard"})
+        elif action.startswith(CAST_PARAGON):
+            card = next(c for c in seat.graveyard if c.name == action.removeprefix(CAST_PARAGON))
+            self._used_paragon(seat, card)
+            self._cast(seat, card, seat.graveyard)
         elif action.startswith(CAST_EXILE):
             card = next(c for c in seat.exile if c.name == action.removeprefix(CAST_EXILE))
             self._used_exile_permission(seat, card)
@@ -1248,6 +1315,53 @@ class Game:
             sorcery_timing = seat.index == self.active and self.step in ("main1", "main2") and not self.stack
             permanent, ability = self._activations(seat, sorcery_timing)[action]
             self._activate(seat, permanent, ability)
+
+    def choose_piles(self, seat: Seat) -> None:
+        """Abstract Performance: two piles of four exiled cards (one face down); an opponent chooses which goes to the
+        graveyard, then `seat` may cast a spell from the other one for free and puts the rest into their hand."""
+        piles = []
+        for face in ("face-down", "face-up"):
+            pile = [seat.library.pop(0) for _ in range(min(4, len(seat.library)))]
+            piles.append(pile)
+            self.broadcast({"event": "exiled_pile", "seat": seat.index, "face": face,
+                            "cards": [] if face == "face-down" else [c.name for c in pile]})
+        opponents = self.opponents(seat)
+        chooser = opponents[0] if opponents else seat
+        lost = piles[chooser.player.choose(PILE_PROMPT, [f"The face-down pile ({len(piles[0])} cards)",
+                                                           "The face-up pile: " + ", ".join(c.name for c in piles[1])])]
+        kept = piles[1] if lost is piles[0] else piles[0]
+        for card in lost:
+            self._move_card(seat, card, "graveyard")
+        for card in kept:
+            seat.exile.append(card)
+        options = [c for c in kept if not is_land(c)]
+        if options:
+            pick = seat.player.choose(PILE_CAST_PROMPT, [c.name for c in options] + ["None"])
+            if pick < len(options):
+                self._cast(seat, options[pick], seat.exile, free=True)
+        for card in kept:
+            if card in seat.exile:
+                seat.exile.remove(card)
+                seat.hand.append(card)
+
+    def cast_copy_free(self, seat: Seat, card: Card) -> None:
+        """Cast a copy of `card` without paying its mana cost (Surge to Victory); the copy stops existing afterwards."""
+        self._cast(seat, card, [card], free=True, copy=True)
+
+    def _paragon_options(self, seat: Seat) -> list[Card]:
+        """Cards in the graveyard Serra Paragon lets `seat` play this turn (once a turn): a land, or a permanent spell
+        of mana value 3 or less."""
+        if seat.paragon_turn == self.turn:
+            return []
+        limits = [found[0] for p in seat.battlefield if (found := graveyard_permission(p.card))]
+        if not limits:
+            return []
+        return _unique([c for c in seat.graveyard
+                        if is_land(c) or ("Instant" not in c.type_line and "Sorcery" not in c.type_line and c.cmc <= max(limits))])
+
+    def _used_paragon(self, seat: Seat, card: Card) -> None:
+        seat.paragon_turn = self.turn
+        seat.paragon_marked = [card]
 
     def _used_exile_permission(self, seat: Seat, card: Card) -> None:
         seat.exile_play = [(c, until) for c, until in seat.exile_play if c != card] + \
@@ -1482,7 +1596,8 @@ class Game:
         return targets, labels
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
-              graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False) -> None:
+              graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False,
+              copy: bool = False) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
         extra = ""
@@ -1536,7 +1651,11 @@ class Game:
             delve = next(k for k in range(self._delve_max(seat, paying) + 1)
                          if self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=k) is not None)
         cost = self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve)
-        tapped = self._pay_cost(seat, cost)
+        self._spending_spell = paying
+        try:
+            tapped = self._pay_cost(seat, cost)
+        finally:
+            self._spending_spell = None
         self._spend_mana(seat, tapped)
         spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
         for _ in range(delve):
@@ -1551,7 +1670,7 @@ class Game:
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked)
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after),
-                         is_copy=prepared is not None, evoked=bool(alternative and alternative.evoke),
+                         is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent)
         self.stack.append(item)
@@ -2319,6 +2438,9 @@ class Game:
                     for attachment in list(holder.battlefield):
                         if attachment.attached_to is source:
                             self.trigger("host_combat_damage", attachment, holder, source, player=target)
+                if controller.surge is not None and controller.surge[0] == self.turn:  # Surge to Victory
+                    self._queue(TriggeredAbility("ally_combat_damage", (CastExiledCopy(controller.surge[1]),), True,
+                                                 "Surge to Victory"), source, controller)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
@@ -3700,6 +3822,9 @@ class Game:
             permanent.counters[counter] = permanent.counters.get(counter, 0) + number
         permanent.owner = permanent.owner or seat
         permanent.entered_turn = self.turn
+        if any(c is permanent.card for c in seat.paragon_marked):  # Serra Paragon's permission
+            seat.paragon_marked = [c for c in seat.paragon_marked if c is not permanent.card]
+            permanent.paragon_life = (seat, next((found[1] for p in seat.battlefield if (found := graveyard_permission(p.card))), 2))
         if chooses_creature_type(permanent.card):
             permanent.chosen_type = self._choose_creature_type(seat, permanent.card)
         if chooses_color(permanent.card):
@@ -3910,8 +4035,12 @@ class Game:
                 permanent.card, permanent.reconfigured = permanent.reconfigured, None
             if permanent.original is not None:  # a crewed Vehicle goes back to being just a card
                 permanent.card, permanent.original = permanent.original, None
+            where = destination
+            if destination == "graveyard" and permanent.paragon_life is not None:  # "exile it and you gain 2 life"
+                where = "exile"
+                self.change_life(permanent.paragon_life[0], permanent.paragon_life[1])
             if not _is_token(permanent.card):  # tokens stop existing once they leave (CR 111.7)
-                self._move_card(permanent.owner or controller, permanent.card, destination)
+                self._move_card(permanent.owner or controller, permanent.card, where)
         for permanent, _ in leaving:  # Animate Dead leaves: "that creature's controller sacrifices it"
             host = permanent.attached_to
             if reanimation_aura(permanent.card) is not None and host is not None and self.on_battlefield(host):
