@@ -333,6 +333,21 @@ winner = game.play()
     choose; "Creatures you control of the chosen type get +1/+1" follows. "... for each time you've cast your
     commander from the command zone" scales a tribe (Vanguard of the Restless, which also returns from the
     graveyard when a Spirit enters if you pay {2}{W}). Veyran makes your instant and sorcery triggers happen twice.
+  - Counters: "that many plus one +1/+1 counters" replacements can cover other creatures (Benevolent Hydra), any permanent
+    (Kami of Whispered Hopes) or artifacts and creatures (Ozolith). "Enters with twice X" (Primo), "escapes with two
+    +1/+1 counters" (Woe Strider), a copy "except it enters with X additional counters" (Altered Ego) and "enters with an
+    additional counter for each creature that died this turn" (Gorma) are supported, as are "as long as it has ten or more
+    counters" (Primordial Hydra) and "creatures you control with counters on them" (Nev). A creature that taps for as
+    much mana as its power (Kami), a mana ability that removes a counter once each turn (Mana Bloom), "double the
+    counters on this creature" and a spell that costs {1} less for each counter on a permanent (Zimone) work too.
+  - Counters on cards: "Move all counters" and "Remove all counters ... draw a card for each" (Nexus Mentality, whose
+    "choose both" needs a commander), "Put a +1/+1 counter on each of up to X target creatures" (Silkguard, which asks
+    for X before the targets), a counter for each player's creature (Nils, whose attack tax makes each counter cost {1}),
+    vow counters that keep a creature from attacking the caster (Promise of Loyalty), "each opponent loses all counters"
+    (Final Act), and Zimone's Hypothesis (odd or even).
+  - Shadrix Silverquill chooses two modes for two different players, or none. Rousing Refrain adds {R} for each card in an
+    opponent's hand, keeps the mana until end of turn and suspends itself; Suspend N—{cost} exiles a card from your hand
+    with time counters, one comes off each upkeep, and the last one casts it for free.
 - **Current power, toughness and keywords:** printed values plus counters, static abilities and
   "until end of turn" effects. They count everywhere: combat, damage, targeting (granted hexproof),
   destroy (granted indestructible), state checks, and the labels players see ("Bear 4/4").
