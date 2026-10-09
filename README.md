@@ -818,12 +818,13 @@ winner = game.play()
   | Whenever one or more cards leave your graveyard, ... (once per event) | Quintorius, History Chaser |
   | Whenever a player sacrifices a permanent / another permanent, ... | Merchant of Venom |
   | Whenever you lose life for the first time each turn, ... | |
-  | Whenever a creature (a permanent) you control becomes tapped, ... (attacking, tapping for mana or as a cost, or a tap effect; not entering tapped) | |
-  | Whenever you cycle a card, ... / Whenever you scry, ... / Whenever you surveil, ... | |
-  | Whenever you attack with a creature alone, ... (also "a creature you control attacks alone"; "it" is the attacker) | |
+  | Whenever a creature (a permanent) you control becomes tapped, ... (attacking, tapping for mana or as a cost, or a tap effect; not entering tapped) | Quest for Renewal (whose creatures also untap in each other player's untap step while it has four quest counters) |
+  | Whenever you cycle a card (another card), ... / Whenever you cycle or discard a card, ... | Drannith Healer, Pitiless Vizier |
+  | Whenever you scry, ... / Whenever you surveil, ... / Whenever you scry or surveil, ... (scry 0 and surveil 0 are no event) | Denzilore Fatehold, Nimrodel Watcher |
+  | Whenever you attack with a creature alone, ... (also "a creature you control attacks alone"; "it" is the attacker; the Exalted keyword) | Black Panther, Aven Squire |
   | Whenever one or more creatures you control attack, ... (once) | |
   | Whenever an opponent attacks with creatures, if two or more of those creatures are attacking you and/or planeswalkers you control, ... | Mangara |
-  | Whenever a creature enters under an opponent's control, ... (or "a creature an opponent controls enters") | |
+  | Whenever a creature enters under an opponent's control, ... (or "a creature an opponent controls enters"; "you may have that player lose 1 life") | Blood Seeker |
   | Whenever a creature (with power 4 or greater / with flying / with a +1/+1 counter on it) you control enters or dies, ... | |
   | Whenever you cast a spell from your graveyard / from anywhere other than your hand, ... (and "a player casts a spell from their graveyard") | |
   | Whenever you cast a multicolored spell, ... | |

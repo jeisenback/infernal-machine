@@ -1149,6 +1149,22 @@ class VowCounters:
 
 VOW_PROMPT = "Choose the creature that gets the vow counter"
 
+_QUEST_UNTAP = re.compile(r"As long as there are (\w+) or more (\w+) counters on this enchantment, untap all creatures you "
+                          r"control during each other player's untap step\.")
+
+
+def untaps_in_other_untap_steps(card: Card) -> tuple[str, int] | None:
+    """Quest for Renewal: (the counter, how many of it) while which your creatures untap in everyone's untap step."""
+    for line in rules_lines(card):
+        if m := _QUEST_UNTAP.fullmatch(line):
+            return m[2], _count(m[1])
+    return None
+
+
+def is_quest_untap_line(line: str) -> bool:
+    return _QUEST_UNTAP.fullmatch(line) is not None
+
+
 _ANNIHILATOR = re.compile(r"Annihilator (\d+)", re.I)
 
 
@@ -4877,6 +4893,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'(each opponent|each player) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
     (re.compile(r'target (player|opponent) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
     (re.compile(rf"(?i:{_SELF}) {_CHANGE}"), lambda m: PumpSource(_modifier(m, 1))),
+    (re.compile(rf"(?i:{_SELF}) gets {_PT} until end of turn and can't be blocked this turn\."),  # Nimrodel Watcher
+     lambda m: PumpSource(Modifier(_signed(m[1]), _signed(m[2]), frozenset({CANT_BE_BLOCKED})))),
     (re.compile(rf"(?i:{_SELF}) gets? {_PT_X} until end of turn\."),
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
@@ -5396,7 +5414,9 @@ _TRIGGERS = {
     "attack_alone": re.compile(r"Whenever (?:you attack with a creature alone|a creature you control attacks alone), (.+)", re.I),
     "creatures_attack": re.compile(r"Whenever one or more creatures you control attack, (.+)", re.I),
     "opponent_attacks": re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I),
-    "cycle": re.compile(r"Whenever you cycle a card, (.+)", re.I),
+    "cycle": re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I),
+    "cycle_or_discard": re.compile(r"Whenever you cycle or discard (?:a|another) card, (.+)", re.I),
+    "scry_or_surveil": re.compile(r"Whenever you scry or surveil, (.+)", re.I),
     "scry": re.compile(r"Whenever you scry, (.+)", re.I),
     "surveil": re.compile(r"Whenever you surveil, (.+)", re.I),
     "draw_step": re.compile(r"At the beginning of your draw step, (.+)", re.I),
@@ -5485,6 +5505,7 @@ _PLAYER_PRONOUNS = [
     (re.compile(rf"\bto {_CONTROLLER}\b", re.I), "to target player"),
     (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bthat player (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
+    (re.compile(r"\bhave that player (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bto that player\b", re.I), "to target player"),
 ]
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
@@ -5600,6 +5621,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
         if "prowess" in words:  # whenever you cast a noncreature spell, this gets +1/+1 until end of turn
             abilities.append(TriggeredAbility("cast", (PumpSource(Modifier(1, 1)),), False, "Prowess",
                                               Watch("noncreature spell", caster="you")))
+        if "exalted" in words:  # whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn
+            abilities.append(TriggeredAbility("attack_alone", (OnSubject(PumpSource(Modifier(1, 1))),), False, "Exalted"))
         if "living weapon" in words:
             abilities.append(TriggeredAbility("enters", (LivingWeapon(),), False, "Living weapon"))
         for keyword, counter in (("persist", "-1/-1"), ("undying", "+1/+1")):

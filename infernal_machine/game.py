@@ -24,7 +24,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -486,6 +486,13 @@ class Game:
                 for permanent in other.battlefield:
                     if permanent.goaded_by is seat:
                         permanent.goaded_by = None
+            for other in self.live_seats():  # Quest for Renewal: untap in each other player's untap step too
+                if other is not seat and any(
+                        (rule := untaps_in_other_untap_steps(p.card)) and p.counters.get(rule[0], 0) >= rule[1]
+                        for p in other.battlefield):
+                    for permanent in other.battlefield:
+                        if "Creature" in permanent.card.type_line:
+                            permanent.tapped = False
         elif self.step == "draw":
             # CR 103.8: only a two-player game skips the first player's first draw.
             if not (self.turn == 1 and not self.multiplayer):
@@ -1274,6 +1281,7 @@ class Game:
         self._move_card(seat, card, "graveyard")
         self.stack.append(StackItem(card, seat, list(effects), [], ability))
         self._trigger_each("cycle", seat)
+        self._trigger_each("cycle_or_discard", seat)
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
 
@@ -1907,6 +1915,7 @@ class Game:
     def _discarded(self, seat: Seat, card: Card | None = None) -> None:
         """`seat` discarded a card: "Whenever you discard a card" and "Whenever an opponent discards a card"."""
         self._trigger_each("discard", seat, spell=card)
+        self._trigger_each("cycle_or_discard", seat)
         for opponent in self.opponents(seat):
             self._trigger_each("opponent_discard", opponent, player=seat)
 
@@ -3179,7 +3188,9 @@ class Game:
         seat.library = self._ordered(seat, kept) + seat.library + bottom
         self.broadcast({"event": "scry", "seat": seat.index, "count": len(top)}, skip=seat)
         seat.player.notify({"event": "scry", "seat": seat.index, "count": len(top), "bottom": [c.name for c in bottom]})
-        self._trigger_each("scry", seat)
+        if top:  # CR 701.22c: scry 0 is no scry event
+            self._trigger_each("scry", seat)
+            self._trigger_each("scry_or_surveil", seat)
 
     def _ordered(self, seat: Seat, cards: list[Card]) -> list[Card]:
         """Let the player choose the order of the cards they keep on top (first asked goes on top)."""
@@ -3474,7 +3485,9 @@ class Game:
         self.broadcast({"event": "surveil", "seat": seat.index, "count": len(top), "graveyard": [c.name for c in binned]})
         for card in binned:
             self._move_card(seat, card, "graveyard")
-        self._trigger_each("surveil", seat)
+        if top:  # surveil 0 is no surveil event either
+            self._trigger_each("surveil", seat)
+            self._trigger_each("scry_or_surveil", seat)
 
     def may_loot(self, seat: Seat, draw: int = 1, mill: int = 0) -> None:
         """ "You may discard a card. If you do, draw a card." (and maybe then mill some)"""
