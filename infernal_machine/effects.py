@@ -1279,6 +1279,49 @@ class CopyToken:
             game.create_tokens(controller, card, game.amount(self.count))
 
 
+@dataclass(frozen=True)
+class AttackingTokens:
+    """Furygale Flocking: "For each opponent, create two 3/3 blue and red Elemental creature tokens with flying that attack
+    that opponent this turn if able. They gain haste until end of turn. Exile them at the beginning of the next end step."
+    The second and third sentences are folded in by _merge_attacking_tokens."""
+    count: int  # for each opponent
+    token: Card
+    haste: bool = False
+    exile_at_end: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.attacking_tokens(controller, self.token, game.amount(self.count), self.haste,
+                              "exiled" if self.exile_at_end else None)
+
+
+@dataclass(frozen=True)
+class _TheyGainHaste:
+    """ "They gain haste until end of turn.": only ever after AttackingTokens."""
+
+
+@dataclass(frozen=True)
+class _ExileThemLater:
+    """ "Exile them at the beginning of the next end step.": only ever after AttackingTokens."""
+
+
+def _merge_attacking_tokens(effects: list) -> list | None:
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, (_TheyGainHaste, _ExileThemLater)):
+            if not (merged and isinstance(merged[-1], AttackingTokens)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], **({"haste": True} if isinstance(effect, _TheyGainHaste)
+                                                             else {"exile_at_end": True}))
+        else:
+            merged.append(effect)
+    return merged
+
+
+def _attacking_tokens(m: re.Match) -> AttackingTokens | None:
+    parsed = _token(m[1] + '."' if m[2] else m[1])
+    return AttackingTokens(*parsed) if parsed else None
+
+
 POPULATE_PROMPT = "Populate: copy which token? "
 
 
@@ -3420,6 +3463,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:{_SELF}) gets? {_PT_X} until end of turn\."),
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
+    (re.compile(r'for each opponent, create (.+) that attack that opponent this turn if able\.("?)', re.I), _attacking_tokens),
+    (re.compile(r"they gain haste until end of turn\.", re.I), lambda m: _TheyGainHaste()),
+    (re.compile(r"exile them at the beginning of the next end step\.", re.I), lambda m: _ExileThemLater()),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
     (re.compile(r'(?i:(?:its|that creature\'s) controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
@@ -3669,7 +3715,7 @@ def _parse(sentences: list[str]) -> list | None:
         if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
             return None  # "instead" has to change the effect just before it
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_attacking_tokens):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None

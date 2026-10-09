@@ -8,7 +8,7 @@ cuts off with "..." were completed from memory (marked "completed from memory" b
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (Amount, CopyToken, CreateTokens, DefineX, DestroyAll, Draw, ExileAll, GiveBack,
+from infernal_machine.effects import (Amount, AttackingTokens, CopyToken, CreateTokens, DefineX, DestroyAll, Draw, ExileAll, GiveBack,
                                       MassFilter, ReturnAllToHand, TREASURE, TargetControllerCreatesTokens,
                                       spell_effects, static_abilities, triggered_abilities)
 from infernal_machine.game import CAST, Permanent, StackItem
@@ -55,6 +55,11 @@ DEEKAH = Card(  # the trigger's second sentence is completed from memory
     oracle_text="Magecraft \u2014 Whenever you cast or copy an instant or sorcery spell, create a 0/0 green and blue "
                 "Fractal creature token. Put X +1/+1 counters on it, where X is the amount of mana spent to cast that "
                 "spell.\n{3}{U}: Target creature token can't be blocked this turn.")
+FURYGALE_FLOCKING = Card(  # the second sentence ends "un..." in the issue; the rest is completed from memory
+    name="Furygale Flocking", mana_cost="{3}{U}{R}", type_line="Sorcery", colors=("U", "R"), cmc=5,
+    oracle_text="For each opponent, create two 3/3 blue and red Elemental creature tokens with flying that attack that "
+                "opponent this turn if able. They gain haste until end of turn. Exile them at the beginning of the next "
+                "end step.")
 STORM_KILN_ARTIST = Card(name="Storm-Kiln Artist", mana_cost="{3}{R}", type_line="Creature — Dwarf Shaman", power="2",
                          toughness="2", colors=("R",), cmc=4,
                          oracle_text="This creature gets +1/+0 for each artifact you control.\nMagecraft — Whenever you "
@@ -214,3 +219,31 @@ class DeekahTests(unittest.TestCase):
         run_stack(game)
         game._check_state()
         self.assertEqual(count(a, "Fractal"), 2)  # the copy's Fractal came in 0/0 with no counters and died
+
+
+ELEMENTAL = Card(name="Elemental", type_line="Token Creature — Elemental", colors=("U", "R"), power="3", toughness="3",
+                 oracle_text="Flying")
+
+
+class FurygaleFlockingTests(unittest.TestCase):
+    def test_parse(self):
+        self.assertEqual(spell_effects(FURYGALE_FLOCKING), [AttackingTokens(2, ELEMENTAL, haste=True, exile_at_end=True)])
+        self.assertEqual(unsupported_lines(FURYGALE_FLOCKING), [])
+        half = Card(name="Half", type_line="Sorcery", oracle_text="They gain haste until end of turn.")
+        self.assertIsNone(spell_effects(half))  # "they" has no tokens to mean
+
+    def test_two_hasty_flyers_per_opponent_that_must_attack_them_and_are_exiled_at_end_of_turn(self):
+        game, _ = table3(pick(CAST))
+        a, b, c = game.seats
+        a.hand, a.battlefield = [FURYGALE_FLOCKING], lands(5)
+        game._priority_round(a)
+        elementals = [p for p in a.battlefield if p.card.name == "Elemental"]
+        self.assertEqual([p.must_attack for p in elementals], [b, b, c, c])
+        self.assertTrue(all(game.has_keyword(p, "haste") and game.has_keyword(p, "flying") for p in elementals))
+        game.step = "declare_attackers"
+        game._turn_based_actions(a)
+        self.assertEqual(sorted((att.attacker.card.name, att.defender.index) for att in game.combat.attacks),
+                         [("Elemental", 1), ("Elemental", 1), ("Elemental", 2), ("Elemental", 2)])
+        game.step = "end"
+        game._turn_based_actions(a)
+        self.assertEqual((count(a, "Elemental"), a.graveyard, a.exile), (0, [FURYGALE_FLOCKING], []))  # tokens just stop existing

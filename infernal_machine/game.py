@@ -2323,16 +2323,25 @@ class Game:
         self.broadcast({"event": "encore", "seat": seat.index, "card": card.name})
         self._move_card(seat, card, "exile")
         self._left_graveyard(seat)
-        token = dataclasses.replace(card, type_line="Token " + card.type_line)
+        self.attacking_tokens(seat, dataclasses.replace(card, type_line="Token " + card.type_line), 1, True, "sacrificed")
+
+    def attacking_tokens(self, seat: Seat, token: Card, count: int, haste: bool, at_end: str | None) -> None:
+        """For each opponent, `count` tokens that attack that opponent this turn if able (Encore, Furygale Flocking);
+        with `haste` until end of turn, and `at_end` ("sacrificed" or "exiled") at the beginning of the next end step."""
         made = []
         for opponent in self.opponents(seat):
-            copy = Permanent(token, sick=True, must_attack=opponent)
-            self._enter(seat, copy)
-            self.modify_until_end_of_turn(copy, Modifier(keywords=frozenset({"haste"})))
-            made.append(copy)
-        fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
-        self.at_end_step.append((fire_turn, lambda: self._leave_together(
-            [(p, "sacrificed") for p in made if self.on_battlefield(p)])))
+            for _ in range(count * self._factor(seat, "tokens")):
+                copy = Permanent(token, sick=True, must_attack=opponent)
+                self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
+                                "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
+                self._enter(seat, copy)
+                if haste:
+                    self.modify_until_end_of_turn(copy, Modifier(keywords=frozenset({"haste"})))
+                made.append(copy)
+        if at_end:
+            fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+            self.at_end_step.append((fire_turn, lambda: self._leave_together(
+                [(p, at_end) for p in made if self.on_battlefield(p)], "exile" if at_end == "exiled" else "graveyard")))
 
     def grant_abilities(self, permanent: Permanent, text: str) -> None:
         """The permanent gains the abilities written in `text` until end of turn (Backup); like a crewed Vehicle, its
