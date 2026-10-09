@@ -1072,6 +1072,10 @@ _DOUBLE_COUNTERS_OLD = ("If an effect would put one or more counters on a perman
                         "many of those counters instead.")  # the wording before the Oracle update
 _PLUS_ONE_OTHERS = ("If one or more +1/+1 counters would be put on another creature you control, that many plus one "
                     "+1/+1 counters are put on it instead.")
+_PLUS_ONE_PERMANENTS = ("If one or more +1/+1 counters would be put on a permanent you control, that many plus one "
+                        "+1/+1 counters are put on that permanent instead.")
+_PLUS_ONE_ARTIFACTS = ("If one or more +1/+1 counters would be put on an artifact or creature you control, that many plus "
+                       "one +1/+1 counters are put on it instead.")
 _PLUS_ONE_COUNTERS = ("If one or more +1/+1 counters would be put on a creature you control, that many plus one "
                       "+1/+1 counters are put on it instead.")
 _EXTRA_TRIGGER = re.compile(r"If (an artifact or creature|a permanent) entering(?: the battlefield)? causes a triggered "
@@ -1086,6 +1090,8 @@ class Replacements:
     counters: int = 1  # how many times as many counters go on its controller's permanents
     plus_one: int = 0  # extra +1/+1 counters on its controller's creatures
     plus_one_others: int = 0  # the same, but not on the permanent itself (Benevolent Hydra)
+    plus_one_permanents: int = 0  # the same on any permanent you control (Kami of Whispered Hopes)
+    plus_one_artifacts: int = 0  # the same on an artifact or creature you control (Ozolith, the Shattered Spire)
     extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice;
     #                                    "spell": casting or copying an instant or sorcery does
 
@@ -1104,6 +1110,10 @@ def replacement_effects(card: Card) -> Replacements:
             found["counters"] = found.get("counters", 1) * 2
         elif line == _PLUS_ONE_COUNTERS:
             found["plus_one"] = found.get("plus_one", 0) + 1
+        elif line == _PLUS_ONE_PERMANENTS:
+            found["plus_one_permanents"] = found.get("plus_one_permanents", 0) + 1
+        elif line == _PLUS_ONE_ARTIFACTS:
+            found["plus_one_artifacts"] = found.get("plus_one_artifacts", 0) + 1
         elif line == _PLUS_ONE_OTHERS:
             found["plus_one_others"] = found.get("plus_one_others", 0) + 1
         elif m := _EXTRA_TRIGGER.fullmatch(line):
@@ -1120,7 +1130,7 @@ _EXTRA_TRIGGER_SPELL = re.compile(r"If you casting or copying an instant or sorc
 
 def is_replacement_line(line: str) -> bool:
     return (_EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
-                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
+                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
 
 
 _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy of "
@@ -4317,6 +4327,14 @@ def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozens
     return units
 
 
+_ADD_POWER = re.compile(_TAP + r"X mana of any one color, where X is this creature's power\." + _IF_TAIL)
+
+
+def makes_mana_by_power(card: Card) -> bool:
+    """Kami of Whispered Hopes: "{T}: Add X mana of any one color, where X is this creature's power." """
+    return any(_ADD_POWER.fullmatch(line) for line in rules_lines(card))
+
+
 def mana_ability_sacrifices(card: Card) -> bool:
     """Whether using the card's mana ability sacrifices it (Treasure)."""
     line = _mana_line(card)
@@ -4355,7 +4373,7 @@ _PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add (one mana of any color
 
 
 def is_mana_ability(line: str) -> bool:
-    return (_mana_match(line) is not None or _PER_COUNT.fullmatch(line) is not None
+    return (_mana_match(line) is not None or _ADD_POWER.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
             or _FILTER.fullmatch(line) is not None
             or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))

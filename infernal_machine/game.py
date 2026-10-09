@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -783,7 +783,9 @@ class Game:
                 lands.extend([ManaSource(permanent, _snowy(permanent, types), pain, damage)] + extra)
             elif not (permanent.sick and "Creature" in card.type_line):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
-                for mana in mana_ability(card, seat.color_identity) or []:
+                units = ([frozenset("WUBRG")] * max(0, self.power(permanent)) if makes_mana_by_power(card)
+                         else mana_ability(card, seat.color_identity) or [])  # (the power's worth need not be one color here)
+                for mana in units:
                     bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage))
         return pooled + abilities + lands + sacrifices
 
@@ -3101,10 +3103,15 @@ class Game:
                          receiver: Permanent | None = None) -> int:
         """Counters going onto a permanent `seat` controls: +1/+1 counters get Hardened Scales' extra one first
         (Benevolent Hydra's only for other creatures), then Doubling Season doubles."""
-        if counter == "+1/+1" and "Creature" in card.type_line:
+        if counter == "+1/+1":
+            creature = "Creature" in card.type_line
             for p in seat.battlefield:
                 replacements = replacement_effects(p.card)
-                count += replacements.plus_one + (replacements.plus_one_others if p is not receiver else 0)
+                count += replacements.plus_one_permanents
+                if creature or "Artifact" in card.type_line:
+                    count += replacements.plus_one_artifacts
+                if creature:
+                    count += replacements.plus_one + (replacements.plus_one_others if p is not receiver else 0)
         return count * self._factor(seat, "counters")
 
     def _trigger_times(self, controller: Seat, event: str, entering: Card | None, cause: Seat | None = None) -> int:
