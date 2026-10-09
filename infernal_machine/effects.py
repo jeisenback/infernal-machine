@@ -83,6 +83,7 @@ _WHOLE_LINE = re.compile(
     r"Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
     r"you or planeswalkers you control for as long as it has a vow counter on it\."
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
+    r"|Shuffle your library\. As many times as you choose, you may exile the top card of your library\. .*"
     r"|Remove all counters from target nonland permanent you control\. Draw a card for each counter removed this way\."
     r"|You may put a \+1/\+1 counter on a creature\. Then choose odd or even\. Return each creature with power of the chosen "
     r"quality to its owner's hand\.", re.I)
@@ -1564,6 +1565,66 @@ def _merge_token_copies(effects: list) -> list | None:
         merged.append(effects[i])
         i += 1
     return merged
+
+
+@dataclass(frozen=True)
+class ThreeWaySplit:
+    """Expressive Iteration: "Look at the top three cards of your library. Put one of them into your hand, put one of them
+    on the bottom of your library, and exile one of them. You may play the exiled card this turn." (three sentences, folded
+    together by _merge_three_way)"""
+    count: int
+    play: bool
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.three_way_split(controller, self.count, self.play)
+
+
+@dataclass(frozen=True)
+class _SplitTop:
+    """ "Put one of them into your hand, put one of them on the bottom of your library, and exile one of them." """
+
+
+@dataclass(frozen=True)
+class _PlayTheExiledCard:
+    """ "You may play the exiled card this turn." """
+
+
+def _merge_three_way(effects: list) -> list | None:
+    merged: list = []
+    i = 0
+    while i < len(effects):
+        effect = effects[i]
+        if isinstance(effect, LookAtTop) and i + 1 < len(effects) and isinstance(effects[i + 1], _SplitTop):
+            play = i + 2 < len(effects) and isinstance(effects[i + 2], _PlayTheExiledCard)
+            merged.append(ThreeWaySplit(effect.count, play))
+            i += 3 if play else 2
+            continue
+        if isinstance(effect, (_SplitTop, _PlayTheExiledCard)):
+            return None
+        merged.append(effect)
+        i += 1
+    return merged
+
+
+@dataclass(frozen=True)
+class TargetControllerManifests:
+    """Reality Shift: "Exile target creature. Its controller manifests the top card of their library." """
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target.last_controller is not None:
+            game.manifest(target.last_controller)
+
+
+@dataclass(frozen=True)
+class DanceWithCalamity:
+    """ "Shuffle your library. As many times as you choose, you may exile the top card of your library. If the total mana
+    value of the cards exiled this way is 13 or less, you may cast any number of spells from among those cards without
+    paying their mana costs." """
+    limit: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.dance_with_calamity(controller, self.limit)
 
 
 @dataclass(frozen=True)
@@ -3674,7 +3735,7 @@ class FetchBasicLand:
         game.fetch_basic_land(controller)
 
 
-_PERMANENT_KIND = (r"((?:creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
+_PERMANENT_KIND = (r"((?:monocolored permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact) creature|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker|(?-i:[A-Z][a-z]+) creature)(?: an opponent controls| you don't control| you control| you own)?"
@@ -3894,6 +3955,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"create a token that's a copy of another target {_PERMANENT_KIND}\.", re.I),
      lambda m: CopyToken(m[1].lower(), another=True)),
     (re.compile(rf"create a token that's a copy of {_SELF}, tapped and attacking\.", re.I), lambda m: CopyTokenAttacking()),
+    (re.compile(r"put one of them into your hand, put one of them on the bottom of your library, and exile one of them\.",
+                re.I), lambda m: _SplitTop()),
+    (re.compile(r"you may play the exiled card this turn\.", re.I), lambda m: _PlayTheExiledCard()),
+    (re.compile(r"its controller manifests the top card of their library\.", re.I), lambda m: TargetControllerManifests()),
+    (re.compile(rf"shuffle your library\. as many times as you choose, you may exile the top card of your library\. if the "
+                rf"total mana value of the cards exiled this way is {_N} or less, you may cast any number of spells from among "
+                r"those cards without paying their mana costs\.", re.I), lambda m: DanceWithCalamity(_count(m[1]))),
     (re.compile(r"target (player|opponent) loses half their life, rounded (up|down)\.", re.I),
      lambda m: TargetLoseHalfLife(m[1].lower(), m[2].lower() == "up")),
     (re.compile(rf"double the number of {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
@@ -4315,7 +4383,7 @@ def _parse(sentences: list[str]) -> list | None:
         if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
             return None  # "instead" has to change the effect just before it
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
+    for merge in (_merge_three_way, _merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None

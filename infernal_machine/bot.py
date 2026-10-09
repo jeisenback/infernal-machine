@@ -15,7 +15,7 @@ from .undercity import HELPS_ITS_TARGET
 from .effects import MOVE_COUNTERS_PROMPT
 from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PLAY_EXILE, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
-                   MULTIKICKER_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, REPLICATE_PROMPT)
+                   MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, REPLICATE_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
@@ -109,6 +109,8 @@ class BotPlayer:
             return self._block(prompt, options)
         if prompt.startswith(SHOCK_PROMPT):
             return 0 if self._life.get(self._seat, 0) > 10 else 1  # pay life only while healthy
+        if prompt.startswith(DANCE_PROMPT):  # Dance with Calamity: keep exiling while the total is well under the limit
+            return 0 if _prompt_number(prompt, "(") < 4 and _prompt_number(prompt, "total mana value ") < 9 else 1
         if prompt.startswith(DEVOUR_PROMPT):  # the bot keeps its creatures
             return len(options) - 1
         if prompt.startswith(REPLICATE_PROMPT):
@@ -269,6 +271,12 @@ def _equip_needed(action: str) -> bool:
     label says "attached to ...", so the bot doesn't equip over and over)."""
     label, text = action.split("): ", 1)
     return text.startswith(("Equip ", "Equip\u2014")) and " attached to " not in label
+
+
+def _prompt_number(prompt: str, after: str) -> int:
+    """The number that follows `after` in a prompt ("... total mana value 8)" -> 8), or 0."""
+    m = re.search(re.escape(after) + r"(\d+)", prompt)
+    return int(m[1]) if m else 0
 
 
 def _stats(label: str) -> tuple[int, int]:
