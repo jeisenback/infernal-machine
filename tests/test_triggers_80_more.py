@@ -112,3 +112,52 @@ class NetherTraitorTests(unittest.TestCase):
     def test_an_opponents_creature_dying_does_nothing(self):
         a = self.die(1)
         self.assertEqual((self.creatures(a), "Nether Traitor" in self.graveyard(a)), ([], True))
+
+
+PIANIST = Card(name="Prismari Pianist", mana_cost="{3}{U}{R}", type_line="Creature — Human Wizard", power="3", toughness="4",
+               oracle_text="Whenever you cast an instant or sorcery spell, create a 1/1 blue and red Elemental creature token. If "
+                           "that spell's mana value is 5 or greater, create three of those tokens instead.")
+
+
+def spell(name, mana_value, type_line="Instant", x=False):
+    return Card(name=name, mana_cost=("{X}" if x else "") + "{%d}" % mana_value if mana_value else "", cmc=float(mana_value),
+                type_line=type_line, oracle_text="Draw a card.")
+
+
+class PrismariPianistTests(unittest.TestCase):
+    def cast(self, card, caster=0, x=0):
+        from infernal_machine.game import CAST
+        policy = lambda prompt, options: (min(x, len(options) - 1) if prompt.startswith("Choose X") else
+                                          next((i for i, o in enumerate(options) if o.startswith(CAST)), 0))
+        game, _ = table3(policy, policy)
+        a, b, c = game.seats
+        a.battlefield = [Permanent(PIANIST)]
+        game.seats[caster].battlefield += lands(9)
+        game.seats[caster].hand = [card]
+        game.seats[caster].library = [BEAR] * 5
+        game.active, game.step = caster, "main1"
+        game._perform(game.seats[caster], CAST + card.name)
+        run_stack(game)
+        return [p for p in a.battlefield if p.card.name == "Elemental"]
+
+    def test_it_is_supported(self):
+        self.assertEqual(unsupported_lines(PIANIST), [])
+
+    def test_a_small_spell_makes_one_token(self):
+        self.assertEqual(len(self.cast(spell("Small", 2))), 1)
+
+    def test_a_spell_with_mana_value_four_still_makes_one(self):
+        self.assertEqual(len(self.cast(spell("Four", 4))), 1)
+
+    def test_a_spell_with_mana_value_five_makes_three(self):
+        self.assertEqual(len(self.cast(spell("Five", 5, "Sorcery"))), 3)
+
+    def test_an_x_spell_counts_its_x_in_the_mana_value(self):
+        self.assertEqual(len(self.cast(spell("Blast", 2, x=True), x=3)), 3)  # {X}{2} with X = 3 is mana value 5
+        self.assertEqual(len(self.cast(spell("Blast", 2, x=True), x=1)), 1)
+
+    def test_a_creature_spell_makes_none(self):
+        self.assertEqual(self.cast(spell("Ogre", 6, "Creature — Ogre")), [])
+
+    def test_an_opponents_spell_makes_none(self):
+        self.assertEqual(self.cast(spell("Five", 5), caster=1), [])

@@ -2174,6 +2174,9 @@ class Game:
             return any(lands(o) > lands(seat) for o in self.opponents(seat))
         if kind == "opponent_dealt_noncombat_damage":  # Whiplash Wordsmith
             return any(o.noncombat_damage_turn == self.turn for o in self.opponents(seat))
+        if kind == "spell_mv_at_least":  # Prismari Pianist: "if that spell's mana value is 5 or greater" (the spell that set it off)
+            spell = self.resolving_item.carried if self.resolving_item is not None else None
+            return isinstance(spell, StackItem) and int(spell.card.cmc) + spell.x >= condition.count
         if kind == "target_power_at_least":  # Yavimaya Bloomsage: "if that creature has power 7 or greater"
             target = self.resolving_target
             return isinstance(target, Permanent) and self.on_battlefield(target) and self.power(target) >= condition.count

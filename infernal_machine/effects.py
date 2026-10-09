@@ -1771,14 +1771,17 @@ class CreateTokens:
     token: Card
     counters: tuple[int | str, str] | None = None  # "Create a 0/0 ... token. Put X +1/+1 counters on it."
     tapped: bool = False  # "Create a number of tapped Treasure tokens ..." (Goldvein Hydra)
+    more: int = 0  # Prismari Pianist: "If that spell's mana value is 5 or greater, create three of those tokens instead."
+    more_if: "Condition | None" = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        count = self.more if self.more_if and game.condition_holds(self.more_if, controller, game.resolving_source) else self.count
         token = self.token
         if "X" in (token.power, token.toughness):  # "an X/X ... token": its size is fixed as it's created
             token = dataclasses.replace(token, power=str(game.amount(token.power)),
                                         toughness=str(game.amount(token.toughness)))
         counters = (game.amount(self.counters[0]), self.counters[1]) if self.counters else None
-        game.create_tokens(controller, token, game.amount(self.count), counters, tapped=self.tapped)
+        game.create_tokens(controller, token, game.amount(count), counters, tapped=self.tapped)
 
 
 @dataclass(frozen=True)
@@ -3258,6 +3261,13 @@ class _InsteadDraw:
 
 
 @dataclass(frozen=True)
+class _InsteadTokens:
+    """ "If that spell's mana value is 5 or greater, create three of those tokens instead." (see _merge_conditional)"""
+    condition: "Condition"
+    count: int
+
+
+@dataclass(frozen=True)
 class _UntapThatLand:
     """ "Then if you control four or more lands, untap that land." """
     condition: "Condition"
@@ -3340,6 +3350,10 @@ def _merge_conditional(effects: list) -> list | None:
     for effect in effects:
         if isinstance(effect, _InsteadDraw):
             if not (merged and isinstance(merged[-1], Draw)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], more=effect.count, more_if=effect.condition)
+        elif isinstance(effect, _InsteadTokens):
+            if not (merged and isinstance(merged[-1], CreateTokens)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], more=effect.count, more_if=effect.condition)
         elif isinstance(effect, _UntapThatLand):
@@ -4859,6 +4873,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
     (re.compile(rf"if (.+), draw {_N} cards instead\.", re.I),
      lambda m: _InsteadDraw(c, _count(m[2])) if (c := _condition(m[1])) else None),
+    (re.compile(rf"if (.+), create {_N} of those tokens instead\.", re.I),
+     lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
     (re.compile(rf"exile {_N} cards from your graveyard\.", re.I), lambda m: ExileOwnGraveyard(_count(m[1]))),
@@ -5707,7 +5723,7 @@ class TriggeredAbility:
 @dataclass(frozen=True)
 class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
-    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
+    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
     #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
     count: int = 0
@@ -5725,6 +5741,7 @@ _CONDITIONS = [
     (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
     (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),
+    (re.compile(rf"that spell's mana value is {_N} or greater"), lambda m: Condition("spell_mv_at_least", _count(m[1]))),
     (re.compile(rf"that creature has power {_N} or greater"), lambda m: Condition("target_power_at_least", _count(m[1]))),
     (re.compile(r"you've cast an? (instant or sorcery spell|creature spell|noncreature spell|spell) this turn"),
      lambda m: Condition("cast_this_turn", what=m[1])),
