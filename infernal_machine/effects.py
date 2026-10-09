@@ -1419,8 +1419,9 @@ def _conditional(line: str) -> tuple[str, str] | None:
 def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
     buffs = []
     for line in rules_lines(card):
-        sentence, condition = line, None
-        if split := _conditional(line):
+        bare = _ABILITY_WORD.sub("", line)  # "Threshold — ": the word names the condition but changes nothing
+        sentence, condition = bare, None
+        if split := _conditional(bare):
             sentence, text = split
             if (condition := _condition(text)) is None:
                 continue
@@ -5621,7 +5622,7 @@ class TriggeredAbility:
 @dataclass(frozen=True)
 class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
-    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "target_power_at_least", "cast_this_turn", "control_at_least",
+    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
     #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
     count: int = 0
@@ -5672,6 +5673,8 @@ _CONDITIONS = [
     (re.compile(r"you were the monarch as the turn began"), lambda m: Condition("monarch_at_turn_start")),
     # Eminence: the ability only works from those two zones, which is where the game looks for it.
     (re.compile(rf"{_SELF} is in the command zone or on the battlefield"), lambda m: Condition("eminence")),
+    (re.compile(rf"there are {_N} or more cards in your graveyard"), lambda m: Condition("graveyard_at_least", _count(m[1]), "card")),
+    (re.compile(r"an opponent was dealt noncombat damage this turn"), lambda m: Condition("opponent_dealt_noncombat_damage")),
     (re.compile(rf"there are {_N} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
      lambda m: Condition("graveyard_at_least", _count(m[1]), m[2].replace(" and/or ", " or "))),
     (re.compile(rf"a player has {_N} or fewer cards in hand"), lambda m: Condition("any_hand_at_most", _count(m[1]))),

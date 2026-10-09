@@ -310,6 +310,7 @@ class Seat:
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
+    noncombat_damage_turn: int | None = None  # the last turn this player was dealt damage that wasn't combat damage
     life_lost_amount: int = 0  # how much they lost on life_lost_turn
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
     suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
@@ -2116,6 +2117,8 @@ class Game:
         if kind == "opponent_more_lands":
             lands = lambda s: sum(is_land(p.card) for p in s.battlefield)
             return any(lands(o) > lands(seat) for o in self.opponents(seat))
+        if kind == "opponent_dealt_noncombat_damage":  # Whiplash Wordsmith
+            return any(o.noncombat_damage_turn == self.turn for o in self.opponents(seat))
         if kind == "target_power_at_least":  # Yavimaya Bloomsage: "if that creature has power 7 or greater"
             target = self.resolving_target
             return isinstance(target, Permanent) and self.on_battlefield(target) and self.power(target) >= condition.count
@@ -2436,6 +2439,8 @@ class Game:
                 self.create_tokens(target, target.combat_shield_token, amount)
             return
         if isinstance(target, Seat):
+            if amount > 0 and not combat:
+                target.noncombat_damage_turn = self.turn
             self.change_life(target, -amount)
             if combat and controller:
                 self.trigger("combat_damage_to_player", source, controller)
