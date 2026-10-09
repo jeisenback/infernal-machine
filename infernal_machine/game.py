@@ -1163,6 +1163,8 @@ class Game:
         available = [i for i, effects in enumerate(modal.modes) if self._targets_exist(seat, effects, colors, source)]
         if len(available) < modal.min:
             return [], ""
+        if modal.optional and seat.player.choose(OPTIONAL_PROMPT + card.name, YES_NO) != 0:
+            return [], ""  # "you may choose two": declined
         entwine, escalate = (entwine_cost(card), escalate_cost(card)) if casting else (None, None)
         if modal.commander_both and any(p.card.name in (p.owner or seat).commander_names for p in seat.battlefield):
             modal = dataclasses.replace(modal, max=len(modal.modes))  # "if you control a commander ... you may choose both"

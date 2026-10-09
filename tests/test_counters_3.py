@@ -7,7 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
 from infernal_machine.effects import (HYPOTHESIS_COUNTER_PROMPT, PARITY_PROMPT, Counter, OpponentsLoseCounters,
                                       RemoveAllCountersDraw, VowCounters, ZimonesHypothesis, spell_effects)
-from infernal_machine.game import CAST, MODE_PROMPT, X_PROMPT, Permanent, StackItem
+from infernal_machine.game import CAST, MODE_PROMPT, OPTIONAL_PROMPT, X_PROMPT, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
@@ -367,3 +367,28 @@ class NilsTests(unittest.TestCase):
         run_stack(game)
         nils = a.battlefield[0]
         self.assertEqual([nils.counters] + [p.counters for p in bears[1:]], [{"+1/+1": 1}] * 3)  # (the first choice was Nils)
+
+
+class ShadrixTests(unittest.TestCase):
+    SHADRIX = REAL["Shadrix Silverquill"]
+
+    def test_it_is_understood(self):
+        self.assertEqual(unsupported_lines(self.SHADRIX), [])
+
+    def test_two_modes_for_two_different_players(self):
+        game, _ = table3(lambda prompt, options: 0)
+        a, b, c = game.seats
+        a.battlefield = [Permanent(self.SHADRIX)]
+        b.library = [BEAR] * 3
+        game.trigger("combat", a.battlefield[0], a)
+        run_stack(game)
+        self.assertEqual([p.card.name for p in a.battlefield], ["Shadrix Silverquill", "Inkling"])
+        self.assertEqual((b.life, len(b.hand), a.life), (39, 1, 40))  # a different player drew and lost life
+
+    def test_the_controller_may_decline(self):
+        game, _ = table3(lambda prompt, options: 1 if prompt.startswith(OPTIONAL_PROMPT) else 0)
+        a, b, c = game.seats
+        a.battlefield = [Permanent(self.SHADRIX)]
+        game.trigger("combat", a.battlefield[0], a)
+        run_stack(game)
+        self.assertEqual(len(a.battlefield), 1)

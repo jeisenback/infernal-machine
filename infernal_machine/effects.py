@@ -54,7 +54,8 @@ def _rules_text(card: Card) -> str:
 
 
 # "When this creature enters, choose one —" and "{T}: Choose one —" are followed by their modes on separate lines.
-_MODAL_LEAD = re.compile(r".+[,:] choose (?:one or both|one or more|one|two|three) \u2014", re.I)
+_MODAL_LEAD = re.compile(r".+[,:] choose (?:one or both|one or more|one|two|three) \u2014"
+                         r"|.+, you may choose two\. Each mode must target a different player\.", re.I)
 
 
 def _join_modes(text: str) -> str:
@@ -312,6 +313,7 @@ class TargetDrawLose:
     draws: int | str
     loses: int | str
     target: str = "player"
+    distinct: bool = False  # "each mode must target a different player"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -424,6 +426,7 @@ class Modal:
     modes: tuple[tuple, ...]  # the effects of each mode
     texts: tuple[str, ...]
     commander_both: bool = False  # "If you control a commander as you cast this spell, you may choose both instead."
+    optional: bool = False  # "you may choose two": the controller may choose none
 
 
 _MODAL_COUNTS = {"one": (1, 1), "two": (2, 2), "three": (3, 3), "one or both": (1, 2), "one or more": (1, 0)}
@@ -455,6 +458,7 @@ def _parse_modal(how: str, lines: list[str]) -> list | None:
     return [Modal(low, high, tuple(modes), tuple(texts))] if len(modes) >= max(low, 1) else None
 
 
+_MODAL_DIFFERENT = re.compile(r"you may choose two\. Each mode must target a different player\. (\u2022 .+)")
 _MODAL_INLINE = re.compile(r"choose (one or both|one or more|one|two|three) \u2014 (\u2022 .+)", re.I)
 
 
@@ -1475,11 +1479,26 @@ class EachCreatesTokens:
 
 
 @dataclass(frozen=True)
+class TargetPutsCountersOnEach:
+    """Shadrix Silverquill: "Target player puts a +1/+1 counter on each creature they control." """
+    counter: str
+    target: str = "player"
+    distinct: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            for permanent in list(target.battlefield):
+                if "Creature" in permanent.card.type_line:
+                    game.put_counters(permanent, self.counter, 1)
+
+
+@dataclass(frozen=True)
 class TargetCreatesTokens:
     """ "Target opponent creates a Treasure token." """
     count: int
     token: Card
     target: str  # "player" or "opponent"
+    distinct: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -3428,6 +3447,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(rf"target player puts an? {_COUNTER} on each creature they control\.", re.I),
+     lambda m: TargetPutsCountersOnEach(_counter_name(m[1]))),
     (re.compile(rf"for each player, put an? {_COUNTER} on up to one target creature that player controls\.", re.I),
      lambda m: PutCounterPerPlayer(_counter_name(m[1]))),
     (re.compile(r"each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures "
@@ -4280,6 +4301,13 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
             return None, False, False, None
     if _MODAL_INLINE.fullmatch(rest):
         return _parse_modal_inline(rest), False, False, condition
+    if m := _MODAL_DIFFERENT.fullmatch(rest):  # Shadrix Silverquill
+        modal = _parse_modal("two", ["\u2022 " + part for part in m[1].removeprefix("\u2022 ").split(" \u2022 ")])
+        if modal is None:
+            return None, False, False, None
+        different = tuple(tuple(dataclasses.replace(e, distinct=True) if hasattr(e, "distinct") else e for e in mode)
+                          for mode in modal[0].modes)
+        return [dataclasses.replace(modal[0], modes=different, optional=True)], False, False, condition
     once = rest.endswith(_TRIGGERS_ONCE)
     rest = rest.removesuffix(_TRIGGERS_ONCE)
     optional = rest.lower().startswith("you may ")
