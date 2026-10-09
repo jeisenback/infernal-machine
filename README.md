@@ -499,9 +499,11 @@ winner = game.play()
     discard, and "mill a card, then exile a card from your graveyard at random. You may play the exiled card this turn".
     Built for #80 so far: Tomik, Nether Traitor, Prismari Pianist, Manaform Hellkite, Killian's "enchanted creatures attack" line,
     Hateful Eidolon, Pearl-Ear (a spell that targets a modified permanent), and Venerable Warsinger (the combat damage dealt is
-    passed to the trigger as X, so "mana value X or less" resolves against it).
-    Not built (see #80): phasing (Guardian of Faith), Laelia, Unbound Flourishing, Firemane Commando, Forgotten Ancient, Fractal
-    Harness (an ETB trigger gets no X), and one of Killian's and Conspiracy Theorist's lines.
+    passed to the trigger as X, so "mana value X or less" resolves against it), Skyclave Apparition (the exiled card's owner gets a
+    token when it leaves), Keen Duelist, Conspiracy Theorist (once per discard, not per card), and Laelia (cards exiled from your
+    library and/or graveyard; cascade does not count yet).
+    Not built (see #80): phasing (Guardian of Faith), Unbound Flourishing, Firemane Commando, Forgotten Ancient, Fractal
+    Harness (an ETB trigger gets no X), and one of Killian's lines.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
     card can be turned face up at any time you have priority for its mana cost ("Turn face up: ..."; not a stack
     action). It goes to the graveyard as the real card, and only its controller is shown what it is
