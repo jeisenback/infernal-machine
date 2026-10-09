@@ -7,11 +7,11 @@ from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
 from infernal_machine.effects import (HYPOTHESIS_COUNTER_PROMPT, PARITY_PROMPT, Counter, OpponentsLoseCounters,
                                       RemoveAllCountersDraw, ZimonesHypothesis, spell_effects)
-from infernal_machine.game import MODE_PROMPT, Permanent, StackItem
+from infernal_machine.game import CAST, MODE_PROMPT, X_PROMPT, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
-from tests.test_effects import lands
+from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 
@@ -280,3 +280,32 @@ class ManaBloomTests(unittest.TestCase):
         game.trigger("upkeep", bloom, a)
         run_stack(game)
         self.assertEqual((a.battlefield, a.hand), ([bloom], []))
+
+
+class SilkguardTests(unittest.TestCase):
+    def test_it_is_understood(self):
+        self.assertEqual(unsupported_lines(REAL["Silkguard"]), [])
+
+    def test_counters_on_up_to_x_creatures_and_hexproof_for_the_modified(self):
+        def policy(prompt, options):
+            if prompt.startswith(X_PROMPT):
+                return 2
+            return pick(CAST)(prompt, options)
+        game, _ = table3(policy)
+        a = game.seats[0]
+        one, two, three = Permanent(BEAR), Permanent(BEAR), Permanent(BEAR)
+        aura = Permanent(REAL["Pacifism"], attached_to=three)
+        a.hand, a.battlefield = [REAL["Silkguard"]], [one, two, three, aura, *lands(3)]
+        game._priority_round(a)
+        run_stack(game)
+        self.assertEqual([p.counters for p in (one, two, three)], [{"+1/+1": 1}, {"+1/+1": 1}, {}])
+        self.assertEqual([game.has_keyword(p, "hexproof") for p in (one, two, three, aura)], [True, True, True, True])
+
+    def test_x_zero_targets_nothing(self):
+        game, _ = table3(lambda prompt, options: 0 if prompt.startswith(X_PROMPT) else pick(CAST)(prompt, options))
+        a = game.seats[0]
+        bear = Permanent(BEAR)
+        a.hand, a.battlefield = [REAL["Silkguard"]], [bear, *lands(2)]
+        game._priority_round(a)
+        run_stack(game)
+        self.assertEqual((bear.counters, game.has_keyword(bear, "hexproof")), ({}, False))

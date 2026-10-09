@@ -324,6 +324,7 @@ class Game:
         self.graveyarded_turn, self.graveyarded_count = 0, 0  # permanents put into a graveyard this turn (Gravestorm)
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
+        self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
@@ -1196,6 +1197,21 @@ class Game:
             if not kind:
                 continue
             kind = self._fixed_kind(kind, source)
+            if getattr(effect, "up_to_x", False):  # "up to X target creatures": one target slot holding a list
+                picked: list = []
+                taken_here = set()
+                for _ in range(self.targeting_x):
+                    pool = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors)) if i not in taken_here]
+                    if not pool:
+                        break
+                    pick = seat.player.choose(TARGET_PROMPT + source_name, [o[1][0] for o in pool] + [NO_TARGET])
+                    if pick == len(pool):
+                        break
+                    taken_here.add(pool[pick][0])
+                    picked.append(pool[pick][1][1])
+                targets.append(picked)
+                labels.append(", ".join(self.label(p) for p in picked) or NO_TARGET)
+                continue
             taken = chosen.setdefault(kind, set())
             options = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors))
                        if not (getattr(effect, "another", False) and o[1] is source)
@@ -1235,13 +1251,14 @@ class Game:
         if replicated:
             extra += replicate_cost(card) * replicated
         effects = kicked_effects(effects, kicked, kickers)
-        targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
-        x = 0
+        x = 0  # announced before the targets (CR 601.2b-c): "up to X target creatures" needs it
         if alternative is None and parse_cost(paying.mana_cost).x:  # casting without paying the mana cost makes X 0
             options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kickers, extra) + 1)]
             x = seat.player.choose(X_PROMPT + card.name, options)
         elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
             x = seat.player.choose(LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
+        self.targeting_x = x
+        targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
         delve = 0
         if alternative is None and not graveyard and has_keyword(card, "delve"):  # exile as few cards as will do
             delve = next(k for k in range(self._delve_max(seat, paying) + 1)
@@ -1525,7 +1542,10 @@ class Game:
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
         colors = source_qualities(item.card)
-        legal = [(t is None and getattr(e, "optional_target", False))
+        for index, (e, t) in enumerate(zip([e for e in item.effects if target_kind(e)], item.targets)):
+            if getattr(e, "up_to_x", False):  # keep only the targets that are still legal
+                item.targets[index] = [p for p in t if self.is_legal_target(target_kind(e), p, seat, colors)]
+        legal = [(t is None and getattr(e, "optional_target", False)) or getattr(e, "up_to_x", False)
                  or self.is_legal_target(self._fixed_kind(target_kind(e), item.source), t, seat, colors)
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
         about = {"seat": seat.index, "card": item.card.name}

@@ -555,6 +555,33 @@ class ZimonesHypothesis:
 
 
 @dataclass(frozen=True)
+class PutCountersOnEachUpToX:
+    """Silkguard: "Put a +1/+1 counter on each of up to X target creatures you control." The targets are one list."""
+    counter: str
+    target: str = "creature you control"
+    up_to_x = True
+    optional_target = True  # it needs no target to be cast
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in target or []:
+            game.put_counters(permanent, self.counter, 1)
+
+
+@dataclass(frozen=True)
+class ModifiedGainHexproof:
+    """Silkguard: "Auras, Equipment, and modified creatures you control gain hexproof until end of turn." (Counters,
+    Equipment and your Auras on a creature are modifications.)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        hexproof = Modifier(keywords=frozenset({"hexproof"}))
+        for permanent in list(controller.battlefield):
+            attached = any(a.attached_to is permanent for a in controller.battlefield)
+            is_attachment = any(t in permanent.card.type_line for t in ("Aura", "Equipment"))
+            if is_attachment or ("Creature" in permanent.card.type_line and (any(permanent.counters.values()) or attached)):
+                game.modify_until_end_of_turn(permanent, hexproof)
+
+
+@dataclass(frozen=True)
 class MoveCountersFrom:
     """The first target of "Move a +1/+1 counter from target creature onto another target creature." """
     target: str
@@ -3352,6 +3379,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(rf"put an? {_COUNTER} on each of up to X target creatures you control\.", re.I),
+     lambda m: PutCountersOnEachUpToX(_counter_name(m[1]))),
+    (re.compile(r"Auras, Equipment, and modified creatures you control gain hexproof until end of turn\.", re.I),
+     lambda m: ModifiedGainHexproof()),
     (re.compile(r"move all counters from target (nonland permanent you control) onto another target (nonland permanent you control)\.",
                 re.I), lambda m: [MoveCountersFrom(m[1].lower()), MoveCountersOnto(None, None, m[2].lower())]),
     (re.compile(r"remove all counters from target (nonland permanent you control)\. Draw a card for each counter removed this "
