@@ -1302,7 +1302,7 @@ class Game:
         elif action.startswith(PLAY_PARAGON):
             card = _take(seat.graveyard, action.removeprefix(PLAY_PARAGON))
             self._used_paragon(seat, card)
-            self._left_graveyard(seat)
+            self._left_graveyard(seat, [card])
             self._enter(seat, Permanent(card, sick=True))
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "graveyard"})
@@ -1430,7 +1430,7 @@ class Game:
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
         self._move_card(seat, card, "exile")
-        self._left_graveyard(seat)
+        self._left_graveyard(seat, [card])
         self._exiled_from_library_or_graveyard(seat)
         if play_this_turn and card in seat.exile:
             seat.exile_play.append((card, self.turn))
@@ -1937,7 +1937,7 @@ class Game:
                 seat.graveyard = [c for c in seat.graveyard if c is not card]
                 seat.hand.append(card)
                 self.broadcast({"event": "returned_to_hand", "seat": seat.index, "card": card.name})
-                self._left_graveyard(seat)
+                self._left_graveyard(seat, [card])
                 return
 
     def attach(self, attachment: Permanent, creature: Permanent) -> None:
@@ -2731,7 +2731,7 @@ class Game:
             return
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": to})
-        self._left_graveyard(seat)
+        self._left_graveyard(seat, [card])
         if to == "hand":
             seat.hand.append(card)
         elif to in ("library_top", "library_bottom"):
@@ -2870,7 +2870,7 @@ class Game:
             target = options[pick][1]
             holder.graveyard = [c for c in holder.graveyard if c is not card]
             self.broadcast({"event": "left_graveyard", "seat": holder.index, "card": card.name, "to": "battlefield"})
-            self._left_graveyard(holder)
+            self._left_graveyard(holder, [card])
             self._enter(controller, Permanent(card, sick=True, attached_to=target, owner=holder))
             self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
 
@@ -2905,7 +2905,7 @@ class Game:
                 owners.append(target.seat)
         for owner in dict.fromkeys(owners):
             self.rng.shuffle(owner.library)
-            self._left_graveyard(owner)
+            self._left_graveyard(owner, [t.card for t in targets if t.seat is owner])
 
     def exile_from_graveyard(self, target: GraveyardTarget) -> bool:
         """Exile the card from its graveyard; whether it was still there."""
@@ -2915,15 +2915,16 @@ class Game:
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
         self._move_card(seat, card, "exile")
-        self._left_graveyard(seat)
+        self._left_graveyard(seat, [card])
         self._exiled_from_library_or_graveyard(seat)
         return True
 
-    def _left_graveyard(self, seat: Seat) -> None:
-        """One or more cards just left `seat`'s graveyard, as one event."""
+    def _left_graveyard(self, seat: Seat, cards: list[Card] | tuple = ()) -> None:
+        """One or more cards just left `seat`'s graveyard, as one event. `cards` are those that left, when the caller
+        knows them (Spirit of Resilience copies one); a cost paid by exiling cards does not say."""
         seat.graveyard_left_turn = self.turn
         for permanent in list(seat.battlefield):
-            self.trigger("graveyard_leave", permanent, seat)
+            self.trigger("graveyard_leave", permanent, seat, spell=tuple(cards))
 
     def _exiled_from_library_or_graveyard(self, seat: Seat) -> None:
         """One or more of `seat`'s cards were just put into exile from its library and/or graveyard, as one event (Laelia)."""
@@ -3168,7 +3169,7 @@ class Game:
             return
         seat.graveyard.remove(dead.card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": dead.card.name, "to": "battlefield"})
-        self._left_graveyard(seat)
+        self._left_graveyard(seat, [dead.card])
         self._enter(seat, Permanent(dead.card, sick=True, loyalty=_starting_loyalty(dead.card), counters={counter: 1}))
 
     def _encore(self, seat: Seat, card: Card) -> None:
@@ -3179,7 +3180,7 @@ class Game:
         seat.graveyard.remove(card)
         self.broadcast({"event": "encore", "seat": seat.index, "card": card.name})
         self._move_card(seat, card, "exile")
-        self._left_graveyard(seat)
+        self._left_graveyard(seat, [card])
         self.attacking_tokens(seat, dataclasses.replace(card, type_line="Token " + card.type_line), 1, True, "sacrificed")
 
     def attacking_tokens(self, seat: Seat, token: Card, count: int, haste: bool, at_end: str | None) -> None:
@@ -3216,6 +3217,16 @@ class Game:
                 permanent.card = chosen.card
                 self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.original.name,
                                 "as": chosen.card.name})
+
+    def may_become_copy(self, seat: Seat, permanent: Permanent, cards: list[Card]) -> None:
+        """`permanent` may become a copy of one of `cards` until end of turn (like a crewed Vehicle, its card comes back at
+        cleanup). Counters and damage stay where they are."""
+        pick = seat.player.choose(CLONE_PROMPT + permanent.card.name, [c.name for c in cards] + [NOT_A_COPY])
+        if pick == len(cards):
+            return
+        permanent.original = permanent.original or permanent.card
+        permanent.card = cards[pick]
+        self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.original.name, "as": cards[pick].name})
 
     def grant_abilities(self, permanent: Permanent, text: str) -> None:
         """The permanent gains the abilities written in `text` until end of turn (Backup); like a crewed Vehicle, its
@@ -3438,7 +3449,7 @@ class Game:
         for card in cards:
             self._move_card(seat, card, "exile")
         if cards:
-            self._left_graveyard(seat)
+            self._left_graveyard(seat, cards)
 
     def counter(self, item: StackItem, exile: bool = False) -> None:
         self.stack.remove(item)
@@ -4240,7 +4251,7 @@ class Game:
                 self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
                 self._move_card(seat, card, "exile")
             if cards:
-                self._left_graveyard(seat)
+                self._left_graveyard(seat, cards)
 
     def _factor(self, seat: Seat, attribute: str) -> int:
         """How many times as many tokens or counters `seat`'s replacement effects make (Doubling Season stacks)."""

@@ -3281,6 +3281,22 @@ class ExileDiscarded:
 
 
 @dataclass(frozen=True)
+class MayCopyLeftCard:
+    """Spirit of Resilience: "... you may have this creature become a copy of an artifact or creature card from among those
+    cards until end of turn." (the cards that left the graveyard ride along with the trigger)"""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        carried = item.carried if item is not None else None
+        options = [c for c in (carried if isinstance(carried, tuple) else ())
+                   if "Creature" in c.type_line or "Artifact" in c.type_line]
+        if target is None or not options:
+            return
+        game.may_become_copy(controller, target, options)
+
+
+@dataclass(frozen=True)
 class TapAndGoad:
     """Killian, Decisive Mentor: "Tap up to one target creature and goad it." """
     target: str = "creature"
@@ -4921,6 +4937,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"create a token that's a copy of {_SELF}\.", re.I), lambda m: CopySelfToken()),
     (re.compile(r"exile (?:that card|one of them) from your graveyard\.(?: if you do, you may (?:play|cast) (?:that card|it) this turn\.)?", re.I),
      lambda m: ExileDiscarded(play="you may" in m[0].lower())),
+    (re.compile(r"you may have (?:this creature|CARDNAME) become a copy of an artifact or creature card from among those cards "
+                r"until end of turn\.", re.I), lambda m: MayCopyLeftCard()),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
     (re.compile(r"attach (?:this Aura|CARDNAME) to it\.", re.I), lambda m: AttachThisToSubject()),
     (re.compile(r"if that enchantment is an Aura, you may attach it to the token\.", re.I), lambda m: _AttachItToToken()),
