@@ -70,7 +70,7 @@ class Combat:
                     walker = walkers[choice - 1 - len(opponents)]
                     defender = self.game.controller_of(walker)
             if not self.game.has_keyword(permanent, "vigilance"):
-                permanent.tapped = True
+                self.game.tap(permanent)
             if tax := self._attack_tax(permanent, defender):  # Nils: pay {X} to attack, X the counters on the attacker
                 self.game._spend_mana(seat, self.game._pay_cost(seat, Cost(generic=tax)))
             self.attacks.append(Attack(permanent, seat, defender, walker=walker))
@@ -95,6 +95,15 @@ class Combat:
         if len(self.attacks) >= 2:
             for permanent in list(seat.battlefield):
                 self.game.trigger("attack_with_two", permanent, seat)
+        if self.attacks:
+            for permanent in list(seat.battlefield):
+                self.game.trigger("creatures_attack", permanent, seat)
+            if len(self.attacks) == 1:  # "Whenever you attack with a creature alone"
+                self.game._trigger_each("attack_alone", seat, subject=self.attacks[0].attacker)
+            for other in self.game.opponents(seat):  # "Whenever an opponent attacks with creatures"
+                at_them = sum(1 for a in self.attacks if a.defender is other)
+                for permanent in list(other.battlefield):
+                    self.game.trigger("opponent_attacks", permanent, other, player=seat, x=at_them)
 
     def _attack_tax(self, permanent: Permanent, defender: Seat) -> int:
         """What attacking `defender` costs `permanent`: Nils makes each counter on the attacker cost {1}."""

@@ -2551,7 +2551,7 @@ class Tap:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            target.tapped = True
+            game.tap(target)
 
 
 @dataclass(frozen=True)
@@ -2561,7 +2561,7 @@ class TapThat:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            target.tapped = True
+            game.tap(target)
 
 
 _CONTROL_AURA = "You control enchanted creature."
@@ -2705,7 +2705,7 @@ class TapAll:
         for seat in game.opponents(controller):
             for permanent in seat.battlefield:
                 if "Creature" in permanent.card.type_line:
-                    permanent.tapped = True
+                    game.tap(permanent)
 
 
 @dataclass(frozen=True)
@@ -3636,6 +3636,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
     (re.compile(rf"if this spell was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?, (.+)", re.I), _kicked),
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
+    (re.compile(r"draw an additional card\.", re.I), lambda m: Draw(1)),
     (re.compile(rf"you gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
@@ -4376,6 +4377,10 @@ _CONDITIONS = [
     (re.compile(r"you have the city's blessing"), lambda m: Condition("citys_blessing")),
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
     (re.compile(rf"{_SELF} is tapped"), lambda m: Condition("source_tapped")),
+    (re.compile(r"you control no other ([A-Za-z]+)"), lambda m: Condition("control_no_other", what=_singular(m[1]))),
+    (re.compile(r"a modified creature died under your control this turn"), lambda m: Condition("modified_died")),
+    (re.compile(rf"{_N} or more of those creatures are attacking you and/or planeswalkers you control"),
+     lambda m: Condition("attackers_at_least", _count(m[1]))),
     (re.compile(r"you were the monarch as the turn began"), lambda m: Condition("monarch_at_turn_start")),
     # Eminence: the ability only works from those two zones, which is where the game looks for it.
     (re.compile(rf"{_SELF} is in the command zone or on the battlefield"), lambda m: Condition("eminence")),
@@ -4406,6 +4411,9 @@ class Watch:
     with_copy: bool = False  # "cast or copy" (magecraft)
     mv_at_least: int = 0  # "a spell with mana value 5 or greater"
     from_hand: bool = False  # "... from your hand"
+    from_zone: str = ""  # "graveyard" ("from your graveyard", "from their graveyard") or "not_hand" ("from anywhere other than your hand")
+    qualifier: str = ""  # "with power 4 or greater" ("power>=4"), "with flying" ("flying"), "with a +1/+1 counter on it" ("counter:+1/+1")
+    expend: int = 0  # "Whenever you expend 4": the total mana spent on spells this turn that it waits for
 
 
 _TRIGGERS = {
@@ -4444,6 +4452,15 @@ _TRIGGERS = {
                                       re.I),
     "host_attacks": re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I),
     "attack_with_two": re.compile(r"Whenever you attack with two or more creatures, (.+)", re.I),
+    "attack_alone": re.compile(r"Whenever (?:you attack with a creature alone|a creature you control attacks alone), (.+)", re.I),
+    "creatures_attack": re.compile(r"Whenever one or more creatures you control attack, (.+)", re.I),
+    "opponent_attacks": re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I),
+    "cycle": re.compile(r"Whenever you cycle a card, (.+)", re.I),
+    "scry": re.compile(r"Whenever you scry, (.+)", re.I),
+    "surveil": re.compile(r"Whenever you surveil, (.+)", re.I),
+    "draw_step": re.compile(r"At the beginning of your draw step, (.+)", re.I),
+    "opponent_upkeep": re.compile(r"At the beginning of each opponent's upkeep, (.+)", re.I),
+    "opponent_end_step": re.compile(r"At the beginning of (?:each|an) opponent's end step, (.+)", re.I),
     "graveyard_leave": re.compile(r"Whenever one or more cards leave your graveyard, (.+)", re.I),
     "any_sacrifice": re.compile(r"Whenever a player sacrifices a permanent, (.+)", re.I),
     "other_sacrifice": re.compile(r"Whenever a player sacrifices another permanent, (.+)", re.I),
@@ -4478,30 +4495,38 @@ _SEVERAL_EVENTS = re.compile(rf"When(?:ever)? {_SELF} ({_ANY_SELF_EVENT}(?: or {
 
 _WHO = rf"(?:({_SELF}) or another|(another)|an?)"
 _TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
-_PERMANENT_WATCH = rf"(nontoken creature|creature token|token|creature|land|artifact|enchantment|{_TRIBE})"
+_PERMANENT_WATCH = rf"(nontoken creature|creature token|token|creature|land|artifact|enchantment|permanent|{_TRIBE})"
 _WATCHES = {
     "permanent_enters": re.compile(
-        rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? enters(?: the battlefield)?( under your control)?, (.+)", re.I),
+        rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? enters(?: the battlefield)?"
+        rf"( under your control| under an opponent's control)?, (.+)", re.I),
     "creature_dies": re.compile(rf"Whenever {_WHO} (nontoken creature|creature token|token|creature|{_TRIBE})"
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
-    "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? leaves the battlefield, (.+)", re.I),
+    "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? leaves the battlefield, (.+)", re.I),
+    "permanent_taps": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? becomes tapped, (.+)", re.I),
     "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:(an?|another)|(?:your|their) (first|second|third)) "
-                       r"((?:white|blue|black|red|green) spell"
+                       r"((?:white|blue|black|red|green) spell|multicolored spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
                        r"|(?-i:[A-Z][a-z]+) spell)"  # a creature type: "another Vampire spell"
-                       r"(?: with mana value (\d+) or greater)?( from your hand)?(?(3) each turn), (.+)", re.I),
+                       r"(?: with mana value (\d+) or greater)?"
+                       r"( from your hand| from your graveyard| from their graveyard| from anywhere other than your hand)?"
+                       r"(?(3) each turn), (.+)", re.I),
+    "card_to_graveyard": re.compile(rf"Whenever an? ([a-z ]+?) card is put into your graveyard from anywhere, (.+)", re.I),
+    "expend": re.compile(r"Whenever you expend (\d+), (.+)", re.I),
 }
+_WATCH_QUALIFIER = re.compile(r" with (power (\d+) or greater|flying|a \+1/\+1 counter on it)"
+                              r"(?= (?:enters|dies|leaves the battlefield|becomes tapped))")
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
-_SUBJECT_EVENTS = {"permanent_enters", "creature_dies"}
+_SUBJECT_EVENTS = {"permanent_enters", "creature_dies", "permanent_taps"}
 # Triggers about some other creature: there "it" and "that creature" mean that creature, not the source.
 _OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat_damage", "token_combat_damage",
-                  "host_attacks", "host_combat_damage"}
+                  "host_attacks", "host_combat_damage", "attack_alone"}
 # The creature is already gone when it dies, so "it" there has nothing to point at (the line isn't understood).
 _HOST_GONE = {"host_dies"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
 _PLAYER_EVENTS = {"opponent_draw", "opponent_second_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
-                  "opponent_discard", "opponent_search"}
+                  "opponent_discard", "opponent_search", "opponent_attacks"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
 _CONTROLLER = r"(?:its|that (?:creature|permanent|land)'s) controller"
 _PLAYER_PRONOUNS = [
@@ -4530,19 +4555,32 @@ _AURA_RETURNS = [
 
 def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     line = _ABILITY_WORD.sub("", line)
+    qualifier = ""
+    if q := _WATCH_QUALIFIER.search(line):  # "a creature you control with power 4 or greater enters"
+        qualifier = f"power>={q[2]}" if q[2] else "flying" if q[1] == "flying" else "counter:+1/+1"
+        line = line[:q.start()] + line[q.end():]
     if m := _WATCHES["cast"].fullmatch(line):
         caster = {"you cast or copy": "you", "you cast": "you", "a player casts": "player",
                   "an opponent casts": "opponent"}[m[1].lower()]
         nth = {"first": 1, "second": 2, "third": 3}.get((m[3] or "").lower(), 0)
+        origin = (m[6] or "").strip()
         watch = Watch(m[4].lower(), other=(m[2] or "").lower() == "another", caster=caster, nth_each_turn=nth,
-                      with_copy=m[1].lower() == "you cast or copy", mv_at_least=int(m[5] or 0), from_hand=bool(m[6]))
+                      with_copy=m[1].lower() == "you cast or copy", mv_at_least=int(m[5] or 0),
+                      from_hand=origin == "from your hand",
+                      from_zone="graveyard" if "graveyard" in origin else "not_hand" if "other than" in origin else "")
         return "cast", watch, m[7]
-    for event in ("permanent_enters", "creature_dies", "permanent_leaves"):
+    if m := _WATCHES["card_to_graveyard"].fullmatch(line):
+        return "card_to_graveyard", Watch(m[1].lower(), yours=True), m[2]
+    if m := _WATCHES["expend"].fullmatch(line):
+        return "expend", Watch("expend", yours=True, expend=int(m[1])), m[2]
+    for event in ("permanent_enters", "creature_dies", "permanent_leaves", "permanent_taps"):
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()
-            yours = m[4] == " you control" or (event == "permanent_enters" and bool(m[5]))
+            under = m[5] if event == "permanent_enters" else None
+            yours = m[4] == " you control" or under == " under your control"
+            theirs = m[4] == " an opponent controls" or under == " under an opponent's control"
             watch = Watch(kind.removeprefix("nontoken "), other=bool(another) and not self_or_other,
-                          yours=yours, nontoken=kind.startswith("nontoken"), theirs=m[4] == " an opponent controls")
+                          yours=yours, nontoken=kind.startswith("nontoken"), theirs=theirs, qualifier=qualifier)
             return event, watch, m[len(m.groups())]
     return None
 
