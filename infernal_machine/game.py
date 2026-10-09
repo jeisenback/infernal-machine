@@ -307,6 +307,7 @@ class Seat:
     delayed_mana: int = 0  # {C} to add at the beginning of this player's next main phase (Mana Drain)
     combat_shield_turn: int | None = None  # Inkshield: the turn combat damage to this player is prevented
     combat_shield_token: Card | None = None  # ... and the token made for each point prevented
+    copy_next_turn: int | None = None  # the turn the next instant or sorcery this player casts is copied (Pigment Wrangler)
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
     spent_turn: int | None = None  # the turn `spent_amount` counts for
     spent_amount: int = 0  # the mana this player spent casting spells that turn ("Whenever you expend 4")
@@ -658,11 +659,13 @@ class Game:
             return False
         if self._life_cost(seat, ability) > seat.life:  # CR 119.4
             return False
-        if len(seat.hand) < ability.discard or len(seat.graveyard) < ability.exile_graveyard:
+        if len(seat.hand) < ability.discard or len(self._exile_cost_choices(seat, ability)) < ability.exile_graveyard:
             return False
         if ability.sacrifice_other and len(self._sacrifice_choices(seat, permanent, ability)) < ability.sacrifice_count:
             return False
         if ability.remove_counter and not permanent.counters.get(ability.remove_counter, 0):
+            return False
+        if ability.tap_creatures and len(self._crew_candidates(seat, permanent)) < ability.tap_creatures:
             return False
         if ability.condition and not self.condition_holds(ability.condition, seat, permanent):
             return False
@@ -678,6 +681,10 @@ class Game:
         if self._ability_payment(seat, permanent, ability) is None:
             return False
         return self._effects_possible(seat, ability.effects, source_qualities(card), permanent)
+
+    def _exile_cost_choices(self, seat: Seat, ability: ActivatedAbility) -> list[Card]:
+        """The cards of `seat`'s graveyard that could be exiled to pay the ability's "Exile a creature card" cost."""
+        return [c for c in seat.graveyard if _card_matches(ability.exile_graveyard_kind or "card", c)]
 
     def _life_cost(self, seat: Seat, ability: ActivatedAbility) -> int:
         return ability.life + (len(seat.color_identity) if ability.life_identity else 0)
@@ -743,13 +750,17 @@ class Game:
                 member = options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])]
                 self.tap(member)
                 crewed += self.power(member)
+        for _ in range(ability.tap_creatures):  # like crewing, but a fixed number of creatures
+            options = self._crew_candidates(seat, source)
+            self.tap(options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])])
         for _ in range(ability.discard):
             card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT + name, [c.name for c in seat.hand])]
             seat.hand.remove(card)
             self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
             self._move_card(seat, card, "graveyard")
         for _ in range(ability.exile_graveyard):
-            card = seat.graveyard[seat.player.choose(EXILE_COST_PROMPT + name, [c.name for c in seat.graveyard])]
+            options = self._exile_cost_choices(seat, ability)
+            card = options[seat.player.choose(EXILE_COST_PROMPT + name, [c.name for c in options])]
             seat.graveyard.remove(card)
             self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
             self._move_card(seat, card, "exile")
@@ -1476,6 +1487,10 @@ class Game:
         if has_keyword(card, "cascade") and prepared is None:  # the trigger goes on the stack above the spell
             ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
+        if seat.copy_next_turn == self.turn and ("Instant" in card.type_line or "Sorcery" in card.type_line):
+            seat.copy_next_turn = None  # a delayed trigger: it copies the spell, with new targets
+            ability = TriggeredAbility("cast", (CopySpellTimes(1),), False, "Copy that spell")
+            self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         self._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared,
                       prepared=prepared is not None, spell=item, from_graveyard=graveyard is not None)
         if seat.spent_turn != self.turn:
@@ -2309,6 +2324,11 @@ class Game:
         else:
             self._enter(controller, Permanent(card, sick=True, tapped=tapped, loyalty=_starting_loyalty(card), owner=seat))
 
+    def return_all_from_graveyard(self, seat: Seat, kind: str, to: str) -> None:
+        """"Return all enchantment cards from your graveyard to the battlefield.": they all come back at once."""
+        for card in [c for c in seat.graveyard if _card_matches(kind, c)]:
+            self.return_from_graveyard(GraveyardTarget(card, seat), seat, to)
+
     def graveyard_target(self, card: Card, seat: Seat) -> "GraveyardTarget":
         return GraveyardTarget(card, seat)
 
@@ -2436,6 +2456,19 @@ class Game:
             fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
             self.at_end_step.append((fire_turn, bring_back))
 
+    def exile_own_graveyard(self, seat: Seat, count: int) -> bool:
+        """Exile `count` cards of the player's choice from their graveyard; False (and nothing happens) if they have fewer."""
+        if len(seat.graveyard) < count:
+            return False
+        for _ in range(count):
+            card = seat.graveyard[seat.player.choose(EXILE_COST_PROMPT, [c.name for c in seat.graveyard])]
+            seat.graveyard.remove(card)
+            self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
+            self._move_card(seat, card, "exile")
+        if count:
+            self._left_graveyard(seat)
+        return True
+
     def shuffle_into_library(self, seat: Seat, targets: list[GraveyardTarget]) -> None:
         """The chosen cards of a graveyard go into their owner's library, which is then shuffled."""
         owners = []
@@ -2481,6 +2514,8 @@ class Game:
             return
         if to == "hand":
             seat.hand.append(found)
+        elif to == "graveyard":
+            self._move_card(seat, found, "graveyard")
         else:
             seat.library.insert(0, found)
         self.broadcast({"event": "searched", "seat": seat.index, "found": True, "to": to,
@@ -2787,6 +2822,8 @@ class Game:
                 made.append(permanent)
         if any("Creature" in p.card.type_line for p in made):
             self._trigger_each("tokens_created", seat)
+        if made:
+            self._trigger_each("tokens_enter", seat)
         return made
 
     def copy_tokens(self, seat: Seat, sources: list[Permanent], haste: bool, exile_at_end: bool) -> None:
@@ -3335,12 +3372,20 @@ class Game:
         self._move_card(victim, card, "graveyard")
         self._discarded(victim)
 
-    def mill(self, seat: Seat, count: int) -> None:
-        """Put the top `count` cards of the library into the graveyard (fewer if there aren't that many)."""
+    def mill(self, seat: Seat, count: int) -> list[Card]:
+        """Put the top `count` cards of the library into the graveyard (fewer if there aren't that many); the cards milled."""
         milled = [seat.library.pop(0) for _ in range(min(count, len(seat.library)))]
         self.broadcast({"event": "milled", "seat": seat.index, "cards": [c.name for c in milled]})
         for card in milled:
             self._move_card(seat, card, "graveyard")
+        return milled
+
+    def return_chosen_from(self, seat: Seat, among: list[Card], kind: str, to: str) -> None:
+        """"Put a creature card from among them onto the battlefield.": one of `among` that is still in the graveyard."""
+        options = [c for c in among if c in seat.graveyard and _card_matches(kind, c)]
+        if options:
+            card = options[0] if len(options) == 1 else options[seat.player.choose(RETURN_CHOSEN_PROMPT, [c.name for c in options])]
+            self.return_from_graveyard(GraveyardTarget(card, seat), seat, to)
 
     # --- helpers -------------------------------------------------------------
 
@@ -3869,6 +3914,8 @@ def _permanent_matches(kind: str, card: Card) -> bool:
         has = m[1].capitalize() in card.type_line if m[1] in ("artifact", "creature", "land", "enchantment") else {
             "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[m[1]] in card.colors
         return not has and _permanent_matches(m[2], card)
+    if m := re.fullmatch(r"non-(\w+) (.+)", kind):  # "non-Pilot creature"
+        return m[1].capitalize() not in card.type_line.partition("\u2014")[2].split() and _permanent_matches(m[2], card)
     if " or " in kind and any(part.startswith("non") for part in kind.split(" or ")):  # "noncreature artifact or noncreature enchantment"
         return any(_permanent_matches(part, card) for part in kind.split(" or "))
     if kind == "any":

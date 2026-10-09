@@ -56,7 +56,7 @@ def _rules_text(card: Card) -> str:
 
 
 # "When this creature enters, choose one —" and "{T}: Choose one —" are followed by their modes on separate lines.
-_MODAL_LEAD = re.compile(r".+[,:] choose (?:one or both|one or more|one|two|three) \u2014"
+_MODAL_LEAD = re.compile(r".+[,:] choose (?:one or both|one or more|up to one|one|two|three) \u2014"
                          r"|.+, you may choose two\. Each mode must target a different player\.", re.I)
 
 
@@ -85,6 +85,7 @@ _WHOLE_LINE = re.compile(
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
     r"|Shuffle your library\. As many times as you choose, you may exile the top card of your library\. .*"
     r"|Remove all counters from target nonland permanent you control\. Draw a card for each counter removed this way\."
+    r"|When you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the copy\."
     r"|You may put a \+1/\+1 counter on a creature\. Then choose odd or even\. Return each creature with power of the chosen "
     r"quality to its owner's hand\.", re.I)
 
@@ -458,8 +459,8 @@ class Modal:
     optional: bool = False  # "you may choose two": the controller may choose none
 
 
-_MODAL_COUNTS = {"one": (1, 1), "two": (2, 2), "three": (3, 3), "one or both": (1, 2), "one or more": (1, 0)}
-_MODAL_HEADER = re.compile(r"Choose (one or both|one or more|one|two|three) \u2014", re.I)
+_MODAL_COUNTS = {"one": (1, 1), "up to one": (0, 1), "two": (2, 2), "three": (3, 3), "one or both": (1, 2), "one or more": (1, 0)}
+_MODAL_HEADER = re.compile(r"Choose (one or both|one or more|up to one|one|two|three) \u2014", re.I)
 _MODAL_COMMANDER = re.compile(r"Choose one\. If you control a commander as you cast this spell, you may choose both instead\.")
 
 
@@ -488,7 +489,7 @@ def _parse_modal(how: str, lines: list[str]) -> list | None:
 
 
 _MODAL_DIFFERENT = re.compile(r"you may choose two\. Each mode must target a different player\. (\u2022 .+)")
-_MODAL_INLINE = re.compile(r"choose (one or both|one or more|one|two|three) \u2014 (\u2022 .+)", re.I)
+_MODAL_INLINE = re.compile(r"choose (one or both|one or more|up to one|one|two|three) \u2014 (\u2022 .+)", re.I)
 
 
 def _parse_modal_inline(text: str) -> list | None:
@@ -594,6 +595,7 @@ class PutCountersOnEachUpToX:
     """Silkguard: "Put a +1/+1 counter on each of up to X target creatures you control." The targets are one list."""
     counter: str
     target: str = "creature you control"
+    grant: frozenset[str] = frozenset()  # "Those creatures gain flying until end of turn."
     up_to_x = True
     multi_target = True  # its one target slot holds a list
     optional_target = True  # it needs no target to be cast
@@ -601,6 +603,8 @@ class PutCountersOnEachUpToX:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for permanent in target or []:
             game.put_counters(permanent, self.counter, 1)
+            if self.grant:
+                game.modify_until_end_of_turn(permanent, Modifier(keywords=self.grant))
 
 
 @dataclass(frozen=True)
@@ -742,11 +746,14 @@ class PutCountersOnEach:
     count: int
     counter: str
     kind: str = ""  # a creature type, "" for every creature
+    grant: frozenset[str] = frozenset()  # Ursine Guide's spell: "They gain trample until end of turn."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for permanent in list(controller.battlefield):
             if "Creature" in permanent.card.type_line and self.kind in permanent.card.type_line:
                 game.put_counters(permanent, self.counter, game.amount(self.count))
+                if self.grant:
+                    game.modify_until_end_of_turn(permanent, Modifier(keywords=self.grant))
 
 
 @dataclass(frozen=True)
@@ -885,7 +892,8 @@ _WARD_DASH = re.compile(r"ward\u2014(.+?)\.?", re.I)  # "Ward\u2014Pay 3 life."
 def ward_fields(cost: str) -> dict[str, Any] | None:
     """A ward cost as the fields of an activated ability's cost: only mana, life, discarding and sacrificing."""
     fields = _cost_fields(cost[:1].upper() + cost[1:])  # the report reads lowercased text
-    if fields is None or fields.get("tap") or fields.get("sacrifice") or fields.get("exile_graveyard"):
+    if fields is None or any(fields.get(key) for key in ("tap", "sacrifice", "exile_graveyard", "tap_creatures", "exile_source",
+                                                         "bounce_source", "life_identity")):
         return None
     if fields.get("discard", 0) > 1 or fields.get("sacrifice_count", 1) > 1:  # ward pays one card or permanent
         return None
@@ -1502,13 +1510,21 @@ class CopyToken:
     target: str
     count: int = 1  # Rite of Replication: "If this spell was kicked, create five of those tokens instead."
     another: bool = False  # "a copy of another target creature you control": not the source itself
+    haste: bool = False  # Inspired Skypainter's spell: "That token gains haste until end of turn."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             card = target.card
             if not card.type_line.startswith("Token"):
                 card = dataclasses.replace(card, type_line="Token " + card.type_line)
-            game.create_tokens(controller, card, game.amount(self.count))
+            for token in game.create_tokens(controller, card, game.amount(self.count)):
+                if self.haste:
+                    game.modify_until_end_of_turn(token, Modifier(keywords=frozenset({"haste"})))
+
+
+@dataclass(frozen=True)
+class _TokenGainsHaste:
+    """ "That token gains haste until end of turn." after a CopyToken (see _merge_conditional)."""
 
 
 @dataclass(frozen=True)
@@ -2586,15 +2602,42 @@ class ShuffleIntoLibrary:
 
 
 @dataclass(frozen=True)
+class ReturnAllFromGraveyard:
+    """Eiganjo Dynastorian's spell: "Return all enchantment cards from your graveyard to the battlefield." (or to your hand)"""
+    kind: str  # a card kind, "enchantment"
+    to: str = "battlefield"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.return_all_from_graveyard(controller, self.kind, self.to)
+
+
+@dataclass(frozen=True)
 class ExileFromGraveyard:
     target: str
     if_type: str = ""  # Feral Appetite: "If a creature card is exiled this way, create a ... token": the card type
     then: Any = None  # ... and what happens then
+    copy_token: bool = False  # Lorehold Archivist's spell: "Create a token that's a copy of it."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and game.exile_from_graveyard(target) and self.then \
-                and self.if_type.capitalize() in target.card.type_line:
+        if target is None or not game.exile_from_graveyard(target):
+            return
+        if self.then and self.if_type.capitalize() in target.card.type_line:
             self.then.resolve(game, controller, None)
+        if self.copy_token:
+            card = target.card
+            game.create_tokens(controller, card if card.type_line.startswith("Token") else
+                               dataclasses.replace(card, type_line="Token " + card.type_line), 1)
+
+
+@dataclass(frozen=True)
+class _TheyGain:
+    """ "Those creatures gain flying until end of turn." / "They gain trample ..." after counters on several creatures."""
+    keywords: frozenset[str]
+
+
+@dataclass(frozen=True)
+class _CopyOfIt:
+    """ "Create a token that's a copy of it." after an exile (see _merge_conditional)."""
 
 
 @dataclass(frozen=True)
@@ -2617,6 +2660,65 @@ class _IfExiledThen:
     effect: Any
 
 
+@dataclass(frozen=True)
+class Conditional:
+    """ "Then if there are three or more creature cards in your graveyard, this creature becomes prepared.": the effect
+    happens only if the condition holds as it resolves."""
+    condition: "Condition"
+    effect: Any
+
+    @property
+    def uses_source(self) -> bool:
+        return uses_source(self.effect)
+
+    @property
+    def uses_subject(self) -> bool:
+        return uses_subject(self.effect)
+
+    @property
+    def uses_player(self) -> bool:
+        return uses_player(self.effect)
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.condition_holds(self.condition, controller, game.resolving_source):
+            self.effect.resolve(game, controller, target)
+
+
+@dataclass(frozen=True)
+class ExileOwnGraveyard:
+    """Emeritus of Ideation: "Exile eight cards from your graveyard. If you do, this creature becomes prepared." (the
+    trigger is "you may"); nothing happens if there are fewer cards than that."""
+    count: int
+    then: Any = None
+
+    @property
+    def uses_source(self) -> bool:
+        return uses_source(self.then) if self.then else False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.exile_own_graveyard(controller, self.count) and self.then:
+            self.then.resolve(game, controller, target)
+
+
+@dataclass(frozen=True)
+class _IfYouDo:
+    """ "If you do, <effect>." after an effect that can be declined or fail (see _merge_conditional)."""
+    effect: Any
+
+
+def _if_you_do(m: re.Match) -> Any:
+    inner = _parse([m[1][:1].upper() + m[1][1:] + "."])
+    return _IfYouDo(inner[0]) if inner and len(inner) == 1 and isinstance(inner[0], BecomePrepared) else None
+
+
+def _then_if(m: re.Match) -> Any:
+    condition = _condition(m[1])
+    inner = _parse([m[2][:1].upper() + m[2][1:] + "."]) if condition else None
+    if not inner or len(inner) != 1 or target_kind(inner[0]):
+        return None
+    return Conditional(condition, inner[0])
+
+
 def _merge_conditional(effects: list) -> list | None:
     """The sentences that qualify the effect before them: a bigger draw, an untap, a token for an exiled creature card."""
     merged: list = []
@@ -2629,6 +2731,26 @@ def _merge_conditional(effects: list) -> list | None:
             if not (merged and isinstance(merged[-1], FetchBasicLand)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], untap_if=effect.condition)
+        elif isinstance(effect, _PutFromAmongThem):
+            if not (merged and isinstance(merged[-1], Mill)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], put=effect.kind)
+        elif isinstance(effect, _TheyGain):
+            if not (merged and isinstance(merged[-1], (PutCountersOnEach, PutCountersOnEachUpToX))):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], grant=effect.keywords)
+        elif isinstance(effect, _CopyOfIt):
+            if not (merged and isinstance(merged[-1], ExileFromGraveyard)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], copy_token=True)
+        elif isinstance(effect, _TokenGainsHaste):
+            if not (merged and isinstance(merged[-1], CopyToken)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], haste=True)
+        elif isinstance(effect, _IfYouDo):
+            if not (merged and isinstance(merged[-1], ExileOwnGraveyard)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], then=effect.effect)
         elif isinstance(effect, _IfExiledThen):
             if not (merged and isinstance(merged[-1], ExileFromGraveyard)):
                 return None
@@ -2745,6 +2867,15 @@ class CopySpell:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.copy_spell(target, controller, self.new_targets)
+
+
+@dataclass(frozen=True)
+class CopyNextSpell:
+    """Pigment Wrangler's spell: "When you next cast an instant or sorcery spell this turn, copy that spell. You may choose new
+    targets for the copy." (see Game._cast)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.copy_next_turn = game.turn
 
 
 @dataclass(frozen=True)
@@ -3254,11 +3385,20 @@ class Mill:
     """ "Mill three cards." / "Each opponent mills three cards." / "Each player mills three cards." """
     count: int | str
     who: str  # "you", "each opponent" or "each player"
+    put: str = ""  # Vastlands Scavenger: "Then put a creature card from among them onto the battlefield." (the card kind)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for seat in game.turn_order_from_active():
             if self.who == "each player" or (self.who == "you") == (seat is controller):
-                game.mill(seat, game.amount(self.count))
+                milled = game.mill(seat, game.amount(self.count))
+                if self.put:
+                    game.return_chosen_from(seat, milled, self.put, "battlefield")
+
+
+@dataclass(frozen=True)
+class _PutFromAmongThem:
+    """ "Then put a creature card from among them onto the battlefield." after a Mill (see _merge_conditional)."""
+    kind: str
 
 
 @dataclass(frozen=True)
@@ -3827,7 +3967,7 @@ def _land_types(text: str) -> tuple[str, ...]:
 _MANA_VALUE = r"(?: with mana value \d+(?: or less| or greater)?)?"
 _SUBTYPE_WORD = r"(?-i:[A-Z][a-z]+)"  # a creature type or other subtype, capitalized: "an Elf card", "a Dragon card"
 _SUBTYPE_CARDS = "aura or equipment|aura|equipment|vehicle|saga|" + _SUBTYPE_WORD
-_CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|artifact|enchantment|land|permanent"
+_CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|artifact or creature|creature|artifact|enchantment|land|permanent"
               rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
 _SEARCH_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|land|artifact|enchantment|planeswalker"
                 rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
@@ -3860,7 +4000,7 @@ class FetchBasicLand:
 
 _PERMANENT_KIND = (r"((?:monocolored permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact) creature|noncreature artifact or noncreature enchantment"
-                   r"|noncreature, nonland permanent|creature|artifact"
+                   r"|noncreature, nonland permanent|non-(?-i:[A-Z][a-z]+) creature|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker|(?-i:[A-Z][a-z]+) creature)(?: an opponent controls| you don't control| you control| you own)?"
                    r"(?: with mana value \d+ or (?:less|greater))?)")
@@ -3908,10 +4048,20 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell")),
     (re.compile(r"exile enchanted creature\.", re.I), lambda m: ExileEnchanted()),
+    (re.compile(r"that token gains haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
+    (re.compile(r"create a token that's a copy of it\.", re.I), lambda m: _CopyOfIt()),
+    (re.compile(r"when you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the "
+                r"copy\.", re.I), lambda m: CopyNextSpell()),
+    (re.compile(rf"(?:then )?put an? {_CARD_TYPE} from among them onto the battlefield\.", re.I),
+     lambda m: _PutFromAmongThem(_card_kind(m[1]))),
+    (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
     (re.compile(rf"if (.+), draw {_N} cards instead\.", re.I),
      lambda m: _InsteadDraw(c, _count(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
+    (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
+    (re.compile(rf"exile {_N} cards from your graveyard\.", re.I), lambda m: ExileOwnGraveyard(_count(m[1]))),
+    (re.compile(r"if you do, (.+)\.", re.I), _if_you_do),
     (re.compile(r'if an? (creature) card is exiled this way, (create .+?)(\."?)', re.I), _if_exiled),
     (re.compile(rf"return (?:CARDNAME|this card) from your graveyard to the battlefield( tapped)?\.", re.I),
      lambda m: ReturnThisFromGraveyard(bool(m[1]))),
@@ -3965,6 +4115,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnToHand(m[2].lower(), (m[1] or "").lower() == "another ", (m[1] or "").lower() == "up to one ",
                             distinct=(m[1] or "").lower() == "another ")),
     (re.compile(rf"return {_UP_TO} target {_PLURAL_KIND} to their owners' hands\.", re.I), lambda m: _up_to(ReturnToHand, m)),
+    (re.compile(rf"return all {_CARDS_PLURAL} from your graveyard to (the battlefield|your hand)\.", re.I),
+     lambda m: ReturnAllFromGraveyard(_card_kind(m[1].removesuffix("s")), "battlefield" if m[2].lower() == "the battlefield" else "hand")),
     (re.compile(rf"return all {_MASS_FILTERED} to their owners' hands\.", re.I), lambda m: _mass_effect(ReturnAllToHand, m)),
     (re.compile(rf"return {_UP_TO} target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),
      lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand",
@@ -3979,9 +4131,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "library_bottom" if m[2].lower() == "the bottom" else "library_top")),
     (re.compile(rf"exile target {_CARD_TYPE} from a graveyard\.", re.I),
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"))),
+    (re.compile(rf"exile target {_CARD_TYPE} from your graveyard\.", re.I),
+     lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "yours"))),
     (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal it, )?(?:put (?:it|that card) into your hand, "
                 r"then shuffle|then shuffle and put (?:it|that card|the card) on top(?: of your library)?)\.", re.I),
      lambda m: SearchLibrary(_card_kind(m[1]), "hand" if "into your hand" in m[0] else "top", "reveal it" in m[0].lower())),
+    (re.compile(r"search your library for a land card, put it into your graveyard, then shuffle\.", re.I),
+     lambda m: SearchLibrary("land", "graveyard", False)),
     (re.compile(r"search your library for a land card, put it onto the battlefield( tapped)?, then shuffle\.", re.I),
      lambda m: SearchForLands(1, ("*",), 1, bool(m[1]), False)),
     (re.compile(r"search your library for a nonbasic land card, put it onto the battlefield( tapped)?, then shuffle\.", re.I),
@@ -4044,8 +4200,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures "
                 r"can't attack you or planeswalkers you control for as long as it has a vow counter on it\.", re.I),
      lambda m: VowCounters()),
-    (re.compile(rf"put an? {_COUNTER} on each of up to X target creatures you control\.", re.I),
-     lambda m: PutCountersOnEachUpToX(_counter_name(m[1]))),
+    (re.compile(rf"put an? {_COUNTER} on each of up to X target creatures( you control)?\.", re.I),
+     lambda m: PutCountersOnEachUpToX(_counter_name(m[1]), "creature you control" if m[2] else "creature")),
     (re.compile(r"Auras, Equipment, and modified creatures you control gain hexproof until end of turn\.", re.I),
      lambda m: ModifiedGainHexproof()),
     (re.compile(r"move all counters from target (nonland permanent you control) onto another target (nonland permanent you control)\.",
@@ -4309,10 +4465,12 @@ def _times_x(text: str) -> tuple[str, int]:
     """"draw a card" -> "draw X cards", "create a 1/1 ... token" -> "create X 1/1 ... tokens", ...;
     and how many replacements were made (0: the amount has nothing to apply to)."""
     total = 0
+    parts = re.split(r'("[^"]*")', text)  # what a token says in quotes ("you gain 1 life") is not multiplied
     for pattern, replacement in _TIMES_X:
-        text, n = re.subn(pattern, replacement, text, flags=re.I)
-        total += n
-    return text, total
+        for i in range(0, len(parts), 2):
+            parts[i], n = re.subn(pattern, replacement, parts[i], flags=re.I)
+            total += n
+    return "".join(parts), total
 
 
 def _clauses(sentence: str) -> list[str]:
@@ -4329,6 +4487,8 @@ def _clauses(sentence: str) -> list[str]:
     if m := re.fullmatch(r"(.+) (?:equal to|for each) (.+)\.", sentence):
         body, count = _times_x(m[1])
         return [f"Let X be {m[2]}."] + _clauses(body + ".") if count and _amount(m[2]) else [sentence]
+    if m := re.fullmatch(r"For each opponent, you (create .+?)(\.\"?)", sentence):  # Eccentric Pestfinder's spell
+        return _clauses(f"Create {m[1][len('create '):]}{m[2]} for each opponent.")
     if m := re.fullmatch(r"(Create .+ tokens?), then (put .+ counters? on it\.)", sentence):
         return [m[1] + ".", m[2].capitalize()]
     if m := re.fullmatch(r"(Create .+ tokens?), then populate\.", sentence):
@@ -4724,6 +4884,7 @@ _TRIGGERS = {
     "attacked_or_walker": re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),
     "enters_untapped": re.compile(rf"When {_SELF} enters untapped, (.+)", re.I),
     "tokens_created": re.compile(r"Whenever you create one or more creature tokens, (.+)", re.I),
+    "tokens_enter": re.compile(r"Whenever one or more tokens you control enter, (.+)", re.I),
     "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
     "opponent_gain_life": re.compile(r"Whenever an opponent gains life, (.+)", re.I),
@@ -5073,10 +5234,21 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     return effects, optional, once, condition
 
 
+_COMPOUND_TRIGGER = re.compile(r"(When|Whenever) ([^,]+?) and whenever ([^,]+), (.+)")
+
+
+def _split_compound_trigger(line: str) -> list[tuple[str, str]]:
+    """ "When this creature enters and whenever one or more tokens you control enter, <effect>" is two triggers with the same
+    effect; each is read as a line of its own, as (line to read, the card's own line)."""
+    if m := _COMPOUND_TRIGGER.fullmatch(line):
+        return [(f"{m[1]} {m[2]}, {m[4]}", line), (f"Whenever {m[3]}, {m[4]}", line)]
+    return [(line, line)]
+
+
 def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
     abilities = []
-    for line in _rules_text(card).splitlines():
-        line = line.strip()
+    lines = [part for raw in _rules_text(card).splitlines() for part in _split_compound_trigger(raw.strip())]
+    for line, text in lines:
         bare = _ABILITY_WORD.sub("", line)  # patterns read the line without "Council's dilemma — "; its text stays whole
         if watched := _watch_trigger(line):
             event, watch, rest = watched
@@ -5084,14 +5256,14 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
                 rest, event in _SUBJECT_EVENTS,
                 (event == "cast" and watch.caster != "you") or event in _SUBJECT_EVENTS)
             if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, watch, once, condition))
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, text, watch, once, condition))
             continue
         if several := _SEVERAL_EVENTS.fullmatch(bare):
             effects, optional, once, condition = _trigger_body(several[2])
             if effects is not None:
                 for event, pattern in _SELF_EVENTS.items():
                     if any(re.fullmatch(pattern, part, re.I) for part in several[1].split(" or ")):
-                        abilities.append(TriggeredAbility(event, tuple(effects), optional, line, once_per_turn=once,
+                        abilities.append(TriggeredAbility(event, tuple(effects), optional, text, once_per_turn=once,
                                                           condition=condition))
             continue
         for event, pattern in _TRIGGERS.items():
@@ -5110,7 +5282,7 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
             if effects is not None and event != "dies" and any(isinstance(e, ReturnSelfToBattlefield) for e in effects):
                 effects = None  # "return it to the battlefield": it is only gone when the creature has died
             if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, line, once_per_turn=once,
+                abilities.append(TriggeredAbility(event, tuple(effects), optional, text, once_per_turn=once,
                                                   condition=condition))
             break
     return abilities
@@ -5132,6 +5304,7 @@ class ActivatedAbility:
     sacrifice_count: int = 1  # "Sacrifice two creatures"
     discard: int = 0  # "Discard a card": how many
     exile_graveyard: int = 0  # "Exile a card from your graveyard": how many
+    exile_graveyard_kind: str = ""  # "Exile a creature card from your graveyard": of this kind ("" for any card)
     crew: int = 0  # "Crew N": tap untapped creatures you control with total power N or more
     reconfigure: str = ""  # "attach" (only with another creature to attach to) or "unattach" (only while attached)
     remove_counter: str = ""  # "Remove a +1/+1 counter from this creature": the kind of counter
@@ -5139,6 +5312,7 @@ class ActivatedAbility:
     discard_self: bool = False  # "Discard this card": activated from the hand, like cycling (Magma Opus)
     exile_source: bool = False  # "Exile this artifact": the source is exiled as a cost (Perpetual Timepiece)
     bounce_source: bool = False  # "Return CARDNAME to its owner's hand": likewise (Rootha)
+    tap_creatures: int = 0  # "Tap two untapped creatures you control": other creatures than the source (Harmonized Trio)
     life_identity: bool = False  # "Pay life equal to the number of colors in your commanders' color identity" (War Room)
     from_graveyard: bool = False  # the ability works from the graveyard ("Return this card from your graveyard ...")
 
@@ -5154,9 +5328,10 @@ _SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature
 _REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
 _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
+_TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) untapped creatures? you control")
 _EXILE_SELF = re.compile(r"Exile (?:CARDNAME|this (?:artifact|creature|permanent|enchantment|land))")
 _BOUNCE_SELF = re.compile(r"Return (?:CARDNAME|this (?:artifact|creature|permanent|enchantment|land)) to its owner's hand")
-_EXILE_COST = re.compile(rf"Exile {_CARDS} cards? from your graveyard")
+_EXILE_COST = re.compile(rf"Exile {_CARDS} (?:(creature|artifact|land|instant|sorcery|enchantment) )?cards? from your graveyard")
 _NUMBER = {"a": 1, "an": 1, "two": 2, "three": 3, "four": 4}
 _LOYALTY = re.compile(r"([+\u2212-]?)(\d+)")
 _SORCERY_ONLY = "Activate only as a sorcery."
@@ -5217,12 +5392,14 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["discard"] = _NUMBER[m[1]]
         elif _DISCARD_SELF.fullmatch(part):
             fields["discard_self"] = True
+        elif m := _TAP_CREATURES.fullmatch(part):
+            fields["tap_creatures"] = _NUMBER[m[1]]
         elif _EXILE_SELF.fullmatch(part):
             fields["exile_source"] = True
         elif _BOUNCE_SELF.fullmatch(part):
             fields["bounce_source"] = True
         elif m := _EXILE_COST.fullmatch(part):
-            fields["exile_graveyard"] = _NUMBER[m[1]]
+            fields.update(exile_graveyard=_NUMBER[m[1]], exile_graveyard_kind=m[2] or "")
         elif m := _REMOVE_COUNTER_COST.fullmatch(part):
             fields["remove_counter"] = _counter_name(m[1])
         else:
