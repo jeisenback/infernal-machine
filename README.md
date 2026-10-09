@@ -481,7 +481,7 @@ winner = game.play()
     "Arcane Denial"'s draws at the next upkeep, Flashback with a life payment, casting from the graveyard "by paying {2}{W}",
     cost reductions ("costs {2} less if you gained life this turn", "{X} less where X is the total power of your creatures",
     Aura spells, spells that target a creature, affinity for Auras), Pest Rescuer's extra life, haste while an opponent is at 10 or
-    less life, and combat limits: Ghostly Prison's tax per attacker, "Inklings can't attack you", creatures enchanted by your Auras
+    less life, and combat limits: Ghostly Prison's tax per attacker (the taxes of all your attackers are added up and paid once, after they are chosen and tapped, as CR 508.1h-i says; a creature that taps to attack can't help pay it, and you are only offered an attacker if the new total is still affordable), "Inklings can't attack you", creatures enchanted by your Auras
     can't attack you, "can block only creatures with flying" and "creatures with power less than this creature's power can't block it".
     Not built (see #81): the Class level lines, Anger and Cursed Mirror, Drumbellower, Galazeth Prismari and Goldspan Dragon (they give
     mana abilities to other permanents), Harmonic Prodigy, Flickering Ward, spell mastery, and Quandrix Command's shuffle-back mode.
