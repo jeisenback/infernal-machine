@@ -89,7 +89,7 @@ winner = game.play()
 - **Mulligans:** London mulligan. The first one is free in games with 3 or more players (CR 103.5c).
 - **Turns:** all twelve steps. Priority goes around the table, and a step ends only when every
   player passes in a row. There's no priority in untap or cleanup.
-- **Draw:** the first player skips their first draw only in a two-player game (CR 103.8).
+- **Draw:** the first player skips their first draw only in a two-player game (CR 103.8a).
 - **Cleanup:** discard down to seven cards.
 - **Losing:** a player loses at 0 life or when drawing from an empty library.
   The last player standing wins.
@@ -481,7 +481,7 @@ winner = game.play()
     "Arcane Denial"'s draws at the next upkeep, Flashback with a life payment, casting from the graveyard "by paying {2}{W}",
     cost reductions ("costs {2} less if you gained life this turn", "{X} less where X is the total power of your creatures",
     Aura spells, spells that target a creature, affinity for Auras), Pest Rescuer's extra life, haste while an opponent is at 10 or
-    less life, and combat limits: Ghostly Prison's tax per attacker, "Inklings can't attack you", creatures enchanted by your Auras
+    less life, and combat limits: Ghostly Prison's tax per attacker (the taxes of all your attackers are added up and paid once, after they are chosen and tapped, as CR 508.1h-i says; a creature that taps to attack can't help pay it, and you are only offered an attacker if the new total is still affordable), "Inklings can't attack you", creatures enchanted by your Auras
     can't attack you, "can block only creatures with flying" and "creatures with power less than this creature's power can't block it".
     Not built (see #81): the Class level lines, Anger and Cursed Mirror, Drumbellower, Galazeth Prismari and Goldspan Dragon (they give
     mana abilities to other permanents), Harmonic Prodigy, Flickering Ward, spell mastery, and Quandrix Command's shuffle-back mode.
@@ -494,7 +494,7 @@ winner = game.play()
     this spell, you gain half X life and draw half X cards", tapped Treasures equal to its power, "gets +X/+0 where X is that spell's
     mana value", "creatures you control gain flying and get +X/+X", "You may pay {2}. If you do, ..." (including a target), "pay {1}
     and discard a card", "remove a counter from it. If you do, draw a card", "It has "Sacrifice this token: Add {C}."", populate with
-    a hasty token that is sacrificed at the end step, "put into a graveyard from the battlefield", "becomes the target of a spell",
+    a hasty token that is sacrificed at the end step, "put into a graveyard from the battlefield" (a token that dies counts, as the rules say; "nontoken" watchers ignore it), "becomes the target of a spell",
     decayed, "return this card from your graveyard to your hand" at upkeep (Squee), "exile that card from your graveyard" after a
     discard, and "mill a card, then exile a card from your graveyard at random. You may play the exiled card this turn".
     Not built (see #80): phasing (Guardian of Faith), Hateful Eidolon, Laelia, Pearl-Ear's modified permanents, Unbound Flourishing,

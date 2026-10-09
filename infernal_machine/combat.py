@@ -43,14 +43,17 @@ class Combat:
         self.damage_watches: list[tuple[Permanent, Permanent, Any]] = []  # (creature, watcher, effect): Stensian Sanguinist
 
     def declare_attackers(self, seat: Seat) -> None:
-        """Ask the active player, creature by creature, whether and whom to attack (CR 508.1)."""
+        """Ask the active player, creature by creature, whether and whom to attack (CR 508.1). The costs to attack are
+        added up as the attackers are chosen and tapped, then paid once, after the last one (CR 508.1h-i)."""
         opponents = self.game.opponents(seat)
         self.game.send_state(seat)
         all_walkers = [p for o in opponents for p in o.battlefield if p.loyalty is not None]
+        owed = 0  # the total cost to attack so far
+        declared: list[tuple[Permanent, Seat, Permanent | None]] = []
         for permanent in list(seat.battlefield):
             if not self._can_attack(permanent):
                 continue
-            opponents, walkers = self._attackable(seat, permanent, self.game.opponents(seat), all_walkers)
+            opponents, walkers = self._attackable(seat, permanent, self.game.opponents(seat), all_walkers, owed)
             if not opponents:
                 continue
             options = ([NO_ATTACK] + [f"Attack Player: {o.name} (seat {o.index})" for o in opponents]
@@ -73,10 +76,13 @@ class Combat:
                     defender = self.game.controller_of(walker)
             if not self.game.has_keyword(permanent, "vigilance"):
                 self.game.tap(permanent)
-            if tax := self._attack_tax(permanent, defender):  # Nils: pay {X} to attack, X the counters on the attacker
-                self.game._spend_mana(seat, self.game._pay_cost(seat, Cost(generic=tax)))
+            owed += self._attack_tax(permanent, defender)  # Nils: {X} to attack, X the counters on the attacker
             self.attacks.append(Attack(permanent, seat, defender, walker=walker))
             permanent.attacked_turn = self.game.turn
+            declared.append((permanent, defender, walker))
+        if owed:  # every attacker was chosen so that this can be paid (see _attackable)
+            self.game._spend_mana(seat, self.game._pay_cost(seat, Cost(generic=owed)))
+        for permanent, defender, walker in declared:
             self.game.trigger("attacks", permanent, seat)
             if walker is None:
                 self.game.trigger("attacks_player", permanent, seat, player=defender)
@@ -128,12 +134,15 @@ class Combat:
         return False
 
     def _attackable(self, seat: Seat, permanent: Permanent, opponents: list[Seat],
-                    walkers: list[Permanent]) -> tuple[list[Seat], list[Permanent]]:
+                    walkers: list[Permanent], owed: int = 0) -> tuple[list[Seat], list[Permanent]]:
         """The players (and their planeswalkers) `permanent` may attack: not the one a vow counter keeps it from
-        (Promise of Loyalty), and not one whose attack tax the attacking player can't pay."""
+        (Promise of Loyalty), and not one whose attack tax the attacking player can't pay on top of the `owed` that the
+        attackers chosen before it already cost. It taps to attack (unless it has vigilance), so its own mana is out."""
         barred = permanent.vow_of if permanent.counters.get("vow") else None
+        untapped = permanent if not self.game.has_keyword(permanent, "vigilance") else None
         allowed = [o for o in opponents if o is not barred and not self._barred_from_attacking(permanent, o) and (
-            not (tax := self._attack_tax(permanent, o)) or self.game._pay_cost(seat, Cost(generic=tax)) is not None)]
+            not (tax := self._attack_tax(permanent, o))
+            or self.game._pay_cost(seat, Cost(generic=owed + tax), untapped) is not None)]
         return allowed, [w for w in walkers if self.game.controller_of(w) in allowed]
 
     def add_attacker(self, permanent: Permanent, controller: Seat, defender: Seat) -> None:
@@ -164,7 +173,7 @@ class Combat:
                     self.game.broadcast({"event": "block", "seat": seat.index, "card": permanent.card.name,
                                          "attacker": attack.attacker.card.name})
         for attack in self.attacks:
-            # Menace: a creature blocked by only one creature is unblocked instead (CR 702.110b).
+            # Menace: a creature blocked by only one creature is unblocked instead (CR 702.111b).
             if self.game.has_keyword(attack.attacker, "menace") and len(attack.blockers) == 1:
                 self.game.broadcast({"event": "block_removed", "card": attack.blockers[0].card.name,
                                      "reason": "menace"})
