@@ -1622,7 +1622,7 @@ def _merge_wipe_gift(effects: list) -> list | None:
         if isinstance(effect, GiveBack):
             if not (merged and isinstance(merged[-1], (DestroyAll, ExileAll))):
                 return None
-            merged[-1] = dataclasses.replace(merged[-1], gives=(effect.count, effect.token))
+            merged[-1] = dataclasses.replace(merged[-1], gives=(effect.count, effect.token, effect.only))
         else:
             merged.append(effect)
     return merged
@@ -1741,10 +1741,10 @@ class DestroyAll:
     kind: str  # "creature", "artifact or enchantment", "creature you don't control", ...
     restriction: MassFilter | None = None  # "... with flying"
     no_regen: bool = False  # "They can't be regenerated."
-    gives: "tuple[int, Card] | None" = None  # "For each creature destroyed this way, its controller creates a 1/1 token"
+    gives: "tuple | None" = None  # "For each creature destroyed this way, its controller creates a 1/1 token": (count, token[, only])
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen, self.gives)
+        game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen, self.gives, controller)
 
 
 @dataclass(frozen=True)
@@ -1763,6 +1763,7 @@ class GiveBack:
     end of a DestroyAll or ExileAll (see _merge_wipe_gift)."""
     count: int
     token: Card
+    only: str = ""  # "yours_nontoken": Ceaseless Conflict gives them for each nontoken creature of yours that was destroyed
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         raise NotImplementedError("a lone give-back is never built")
@@ -3619,6 +3620,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: EachSacrifices(m[1].lower(), _PLURAL_SACRIFICE[m[2].lower()], None)),
     (re.compile(rf"sacrifice all {_SACRIFICE_PLURAL} you control\.", re.I),
      lambda m: SacrificeAll(_PLURAL_SACRIFICE[m[1].lower()])),
+    (re.compile(r"then create (.+) for each nontoken creature you controlled that was destroyed this way\.", re.I),
+     lambda m: (lambda parsed: GiveBack(*parsed, only="yours_nontoken") if parsed else None)(_token(m[1]))),
     (re.compile(r"for each (creature|permanent) (?:destroyed|exiled) this way, its controller creates (.+)\.(\"?)", re.I),
      lambda m: _gift(_GiftMatch(m[2], m[3]))),
     (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),

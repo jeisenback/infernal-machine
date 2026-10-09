@@ -2076,26 +2076,31 @@ class Game:
         """Whether an "except for ..." filter describes this permanent (so it is left alone)."""
         return self._passes(permanent, spared)
 
-    def destroy_all(self, permanents: list[Permanent], no_regen: bool = False, gives: tuple[int, Card] | None = None) -> None:
+    def destroy_all(self, permanents: list[Permanent], no_regen: bool = False, gives: tuple | None = None,
+                    caster: Seat | None = None) -> None:
         """Destroy them all at once; indestructible ones survive, and so do ones with a regeneration shield
         unless they "can't be regenerated". `gives`: each controller then gets tokens for each one destroyed."""
         doomed = [p for p in permanents if not self.has_keyword(p, "indestructible")
                   and (no_regen or not self._regenerated(p))]
         self._leave_together([(p, "destroyed") for p in doomed])
-        self._give_back(doomed, gives)
+        self._give_back(doomed, gives, caster)
 
     def exile_all(self, permanents: list[Permanent], gives: tuple[int, Card] | None = None) -> None:
         self._leave_together([(p, "exiled") for p in permanents], destination="exile")
         self._give_back(permanents, gives)
 
-    def _give_back(self, gone: list[Permanent], gives: tuple[int, Card] | None) -> None:
+    def _give_back(self, gone: list[Permanent], gives: tuple | None, caster: Seat | None = None) -> None:
         """"For each creature destroyed this way, its controller creates a token": for each one that left."""
         if gives is None:
             return
-        count, token = gives
+        count, token, *rest = gives
+        only = rest[0] if rest else ""
         for permanent in gone:
-            if permanent.last_controller is not None and not self.on_battlefield(permanent):
-                self.create_tokens(permanent.last_controller, token, count)
+            if permanent.last_controller is None or self.on_battlefield(permanent):
+                continue
+            if only == "yours_nontoken" and (permanent.last_controller is not caster or _is_token(permanent.card)):
+                continue  # Ceaseless Conflict: only the caster's nontoken creatures count
+            self.create_tokens(permanent.last_controller, token, count)
 
     def return_to_hand(self, permanent: Permanent) -> None:
         """Bounce: a permanent goes to its owner's hand (a token just stops existing)."""
