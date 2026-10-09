@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -58,6 +58,7 @@ CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
+SUSPEND = "Suspend: "  # followed by the card's name
 CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
@@ -225,6 +226,7 @@ class StackItem:
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
     player: "Seat | None" = None  # for a watching trigger: the player whose action set it off ("that player")
+    suspend_after: int = 0  # "Exile it with N time counters on it" once it has resolved
     escaped: bool = False  # cast for its escape cost
     bestowed: bool = False  # cast for its bestow cost: an Aura spell that may resolve as a creature
     sacrificed_power: int = 0  # for an ability: the power of the creature sacrificed to pay for it
@@ -274,6 +276,8 @@ class Seat:
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
+    keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
+    suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
     player_counters: dict[str, int] = field(default_factory=dict)  # counters on the player: poison, energy, ...
     died_turn: int | None = None  # the turn `died` counts for
     died: int = 0  # creatures that died under this player's control that turn
@@ -457,6 +461,7 @@ class Game:
                     what()
             if self.step == "upkeep":
                 self._pay_upkeep_costs(seat)
+                self._tick_suspend(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
             for other in self.live_seats():  # "At the beginning of each upkeep / end step"
@@ -562,6 +567,10 @@ class Game:
             for cast in graveyard_casts(card)[:1]:
                 if not is_land(card) and (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card, graveyard=cast):
                     actions.append(CAST_GRAVEYARD + card.name)
+        for card in _unique(seat.hand):  # Suspend N: pay the cost, exile it with time counters
+            if (suspend := suspend_of(card)) and (sorcery_timing or _instant_speed(card)) \
+                    and self._payment(seat, dataclasses.replace(card, mana_cost=suspend[1])) is not None:
+                actions.append(SUSPEND + card.name)
         if sorcery_timing:
             for card in _unique(seat.graveyard):
                 if (cost := encore_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
@@ -748,8 +757,25 @@ class Game:
         seat.mana_pool.extend(units)
         self.broadcast({"event": "mana_added", "seat": seat.index, "mana": ["".join(sorted(u)) for u in units]})
 
+    def _tick_suspend(self, seat: Seat) -> None:
+        """At the beginning of its owner's upkeep a suspended card loses a time counter; when the last is gone it is cast
+        without paying its mana cost, if the owner chooses to."""
+        for entry in list(seat.suspended):
+            entry[1] -= 1
+            if entry[1] > 0:
+                continue
+            seat.suspended.remove(entry)
+            card = entry[0]
+            if card in seat.exile and seat.player.choose(CASCADE_PROMPT + card.name, YES_NO) == 0:
+                self._cast(seat, card, seat.exile, free=True)
+            elif card in seat.exile:
+                seat.exile.remove(card)  # not cast: it stays exiled for good
+                seat.exile.append(card)
+
     def _empty_pools(self) -> None:
         for seat in self.seats:
+            if seat.keep_pool_turn == self.turn and self.step != "cleanup":  # "you don't lose this mana ... until end of turn"
+                continue
             seat.mana_pool.clear()
 
     def _mana_sources(self, seat: Seat, exclude: Permanent | None = None) -> list[ManaSource]:
@@ -1050,6 +1076,14 @@ class Game:
         elif action.startswith(CAST_GRAVEYARD):
             card = next(c for c in seat.graveyard if c.name == action.removeprefix(CAST_GRAVEYARD))
             self._cast(seat, card, seat.graveyard, graveyard=graveyard_casts(card)[0])
+        elif action.startswith(SUSPEND):
+            card = next(c for c in seat.hand if c.name == action.removeprefix(SUSPEND))
+            counters, cost = suspend_of(card)
+            self._spend_mana(seat, self._payment(seat, dataclasses.replace(card, mana_cost=cost)))
+            seat.hand.remove(card)
+            seat.exile.append(card)
+            seat.suspended.append([card, counters])
+            self.broadcast({"event": "suspended", "seat": seat.index, "card": card.name, "counters": counters})
         elif action.startswith(ENCORE):
             self._encore(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ENCORE)))
         elif action.startswith(CAST_PREPARED):
@@ -1417,7 +1451,11 @@ class Game:
                 self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
             return
         self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard (or exile, after flashback)
-        if not item.is_copy:
+        if item.suspend_after and not item.is_copy:  # "Exile it with three time counters on it"
+            seat.exile.append(card)
+            seat.suspended.append([card, item.suspend_after])
+            self.broadcast({"event": "suspended", "seat": seat.index, "card": card.name, "counters": item.suspend_after})
+        elif not item.is_copy:
             self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
 
     def _resolve_bestow(self, item: StackItem) -> None:

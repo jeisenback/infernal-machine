@@ -1685,6 +1685,44 @@ class MassFilter:
 
 
 @dataclass(frozen=True)
+class AddManaPerCardInHand:
+    """Rousing Refrain: "Add {R} for each card in target opponent's hand." """
+    symbol: str
+    target: str = "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.add_mana(controller, tuple(frozenset(self.symbol) for _ in target.hand))
+
+
+@dataclass(frozen=True)
+class KeepManaThisTurn:
+    """ "Until end of turn, you don't lose this mana as steps and phases end." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.keep_pool_turn = game.turn
+
+
+@dataclass(frozen=True)
+class ExileWithTimeCounters:
+    """Rousing Refrain: "Exile Rousing Refrain with three time counters on it." The spell is suspended instead of going
+    to the graveyard once it has resolved."""
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.suspend_after = self.count
+
+
+_SUSPEND = re.compile(r"Suspend (\d+)—((?:\{[^}]+\})+)")
+
+
+def suspend_of(card: Card) -> tuple[int, str] | None:
+    """Suspend N—{cost}: (the time counters, the cost to exile it from your hand with them)."""
+    return next(((int(m[1]), m[2]) for line in rules_lines(card) if (m := _SUSPEND.fullmatch(line))), None)
+
+
+@dataclass(frozen=True)
 class OpponentsLoseCounters:
     """Final Act: "Each opponent loses all counters." (the counters on players: poison, energy, experience, ...)"""
 
@@ -3168,7 +3206,7 @@ _SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate)(?:, (?:Delve
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY))
 
@@ -3447,6 +3485,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(r"add \{([WUBRGC])\} for each card in target opponent's hand\.", re.I), lambda m: AddManaPerCardInHand(m[1].upper())),
+    (re.compile(r"until end of turn, you don't lose this mana as steps and phases end\.", re.I), lambda m: KeepManaThisTurn()),
+    (re.compile(r"exile (?:CARDNAME|this spell) with (a|two|three|four|five|\d+) time counters? on it\.", re.I),
+     lambda m: ExileWithTimeCounters(_count(m[1]))),
     (re.compile(rf"target player puts an? {_COUNTER} on each creature they control\.", re.I),
      lambda m: TargetPutsCountersOnEach(_counter_name(m[1]))),
     (re.compile(rf"for each player, put an? {_COUNTER} on up to one target creature that player controls\.", re.I),

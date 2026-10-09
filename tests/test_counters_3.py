@@ -6,8 +6,8 @@ from dataclasses import replace
 from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
 from infernal_machine.effects import (HYPOTHESIS_COUNTER_PROMPT, PARITY_PROMPT, Counter, OpponentsLoseCounters,
-                                      RemoveAllCountersDraw, VowCounters, ZimonesHypothesis, spell_effects)
-from infernal_machine.game import CAST, MODE_PROMPT, OPTIONAL_PROMPT, X_PROMPT, Permanent, StackItem
+                                      RemoveAllCountersDraw, VowCounters, ZimonesHypothesis, spell_effects, suspend_of)
+from infernal_machine.game import CAST, MODE_PROMPT, OPTIONAL_PROMPT, SUSPEND, X_PROMPT, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
@@ -392,3 +392,50 @@ class ShadrixTests(unittest.TestCase):
         game.trigger("combat", a.battlefield[0], a)
         run_stack(game)
         self.assertEqual(len(a.battlefield), 1)
+
+
+class RousingRefrainTests(unittest.TestCase):
+    REFRAIN = REAL["Rousing Refrain"]
+
+    def test_it_is_understood(self):
+        self.assertEqual(unsupported_lines(self.REFRAIN), [])
+        self.assertEqual(suspend_of(self.REFRAIN), (3, "{1}{R}"))
+
+    def test_casting_it_adds_red_for_the_opponents_hand_and_suspends_it(self):
+        game, _ = table3(pick(CAST, "Player: B"))
+        a, b, _c = game.seats
+        b.hand = [BEAR] * 4
+        a.hand, a.battlefield = [self.REFRAIN], lands(5)
+        game._priority_round(a)
+        run_stack(game)
+        self.assertEqual(len(a.mana_pool), 4)
+        self.assertEqual(([c.name for c in a.exile], a.suspended, a.graveyard), (["Rousing Refrain"], [[self.REFRAIN, 3]], []))
+
+    def test_the_mana_lasts_through_the_steps_of_the_turn_and_goes_at_cleanup(self):
+        game, _ = table3()
+        a = game.seats[0]
+        game.add_mana(a, (frozenset("R"),) * 3)
+        a.keep_pool_turn = game.turn
+        game.step = "main1"
+        game._empty_pools()
+        self.assertEqual(len(a.mana_pool), 3)
+        game.step = "cleanup"
+        game._empty_pools()
+        self.assertEqual(a.mana_pool, [])
+
+    def test_suspend_from_hand_then_it_is_cast_free_when_the_last_counter_goes(self):
+        game, _ = table3(pick(CAST, "Player: B"))
+        a, b, _c = game.seats
+        b.hand = [BEAR] * 2
+        a.hand, a.battlefield = [self.REFRAIN], lands(2)
+        self.assertIn(SUSPEND + "Rousing Refrain", game.legal_actions(a))
+        game._perform(a, SUSPEND + "Rousing Refrain")
+        self.assertEqual((a.hand, a.suspended), ([], [[self.REFRAIN, 3]]))
+        for upkeep in (1, 2):
+            game._tick_suspend(a)
+            self.assertEqual(a.suspended[0][1], 3 - upkeep)
+        game.step = "upkeep"
+        game._tick_suspend(a)
+        run_stack(game)
+        self.assertEqual(len(a.mana_pool), 2)  # cast without paying, naming the opponent with two cards
+        self.assertEqual(a.suspended, [[self.REFRAIN, 3]])  # and it exiled itself with three counters again
