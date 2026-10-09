@@ -1,0 +1,11 @@
+session: claude-code infernal-engine-wt
+branch: feature/exile-4
+task: issue #79 (exile effects: face-down piles, manifest, play-from-graveyard, exile-until)
+status: started
+updated: 2026-10-09T14:38:52Z
+status: 4 lines left: Abstract Performance, Fateful Tempest, Serra Paragon, Surge to Victory
+updated: 2026-10-09T14:39:55Z
+status: Serra Paragon engine done, writing tests/test_exile_4.py
+updated: 2026-10-09T14:41:06Z
+status: Serra Paragon done with tests; next Surge to Victory, Abstract Performance, Fateful Tempest
+updated: 2026-10-09T14:41:25Z
