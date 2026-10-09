@@ -146,6 +146,8 @@ SHUFFLE_PROMPT = "Shuffle your library? "
 DEVOUR_PROMPT = "Devour: sacrifice which creature to "  # followed by the creature's name; the last option is DEVOUR_DONE
 DEVOUR_DONE = "Done"
 REPLICATE_PROMPT = "Choose how many times to replicate "  # followed by the spell's name; options are "0", "1", ...
+PILE_PROMPT = "Put which pile into the graveyard? "  # an opponent chooses; the options are the piles
+PILE_CAST_PROMPT = "Cast a spell from the pile for free? "  # the options are the cards, then "None"
 CASCADE_PROMPT = "Cast for free (cascade): "  # followed by the card's name; Yes or No
 DELVE_PROMPT = "Exile which card from your graveyard to pay for "  # followed by the spell's name
 UPKEEP_PROMPT = "Pay the cumulative upkeep of "  # followed by the permanent's name; Yes or No (No sacrifices it)
@@ -1262,6 +1264,34 @@ class Game:
             sorcery_timing = seat.index == self.active and self.step in ("main1", "main2") and not self.stack
             permanent, ability = self._activations(seat, sorcery_timing)[action]
             self._activate(seat, permanent, ability)
+
+    def choose_piles(self, seat: Seat) -> None:
+        """Abstract Performance: two piles of four exiled cards (one face down); an opponent chooses which goes to the
+        graveyard, then `seat` may cast a spell from the other one for free and puts the rest into their hand."""
+        piles = []
+        for face in ("face-down", "face-up"):
+            pile = [seat.library.pop(0) for _ in range(min(4, len(seat.library)))]
+            piles.append(pile)
+            self.broadcast({"event": "exiled_pile", "seat": seat.index, "face": face,
+                            "cards": [] if face == "face-down" else [c.name for c in pile]})
+        opponents = self.opponents(seat)
+        chooser = opponents[0] if opponents else seat
+        lost = piles[chooser.player.choose(PILE_PROMPT, [f"The face-down pile ({len(piles[0])} cards)",
+                                                           "The face-up pile: " + ", ".join(c.name for c in piles[1])])]
+        kept = piles[1] if lost is piles[0] else piles[0]
+        for card in lost:
+            self._move_card(seat, card, "graveyard")
+        for card in kept:
+            seat.exile.append(card)
+        options = [c for c in kept if not is_land(c)]
+        if options:
+            pick = seat.player.choose(PILE_CAST_PROMPT, [c.name for c in options] + ["None"])
+            if pick < len(options):
+                self._cast(seat, options[pick], seat.exile, free=True)
+        for card in kept:
+            if card in seat.exile:
+                seat.exile.remove(card)
+                seat.hand.append(card)
 
     def cast_copy_free(self, seat: Seat, card: Card) -> None:
         """Cast a copy of `card` without paying its mana cost (Surge to Victory); the copy stops existing afterwards."""

@@ -198,3 +198,51 @@ class FatefulTempestTests(unittest.TestCase):
         life = seat.life
         cast_tempest(game, seat)
         self.assertEqual(seat.life, life)
+
+
+def piles_table(choose_pile, cast=None):
+    """A has Abstract Performance; the library is eight cards, then two more. B (the opponent) picks `choose_pile` (0: the
+    face-down pile goes to the graveyard, 1: the face-up one)."""
+    def player_a(prompt, options):
+        if prompt.startswith("Cast a spell from the pile"):
+            return options.index(cast) if cast else len(options) - 1
+        return options.index("Cast: Abstract Performance") if "Cast: Abstract Performance" in options else 0
+    game, a, b = table(player_a, lambda prompt, options: choose_pile if prompt.startswith("Put which pile") else 0)
+    seat = game.seats[0]
+    seat.hand = [REAL["Abstract Performance"]]
+    seat.battlefield = lands(6)
+    names = [f"Down {i}" for i in range(4)] + [f"Up {i}" for i in range(4)] + ["Extra 1", "Extra 2"]
+    seat.library = [Card(name=n, mana_cost="{1}", cmc=1, type_line="Sorcery", oracle_text="Draw a card.") for n in names]
+    return game, seat
+
+
+def cast_performance(game, seat):
+    game._perform(seat, "Cast: Abstract Performance")
+    run_stack(game)
+
+
+class AbstractPerformanceTests(unittest.TestCase):
+    def test_the_chosen_pile_goes_to_the_graveyard_and_the_other_to_your_hand(self):
+        game, seat = piles_table(0)
+        cast_performance(game, seat)
+        self.assertEqual([c.name for c in seat.graveyard if c.name.startswith("Down")], [f"Down {i}" for i in range(4)])
+        self.assertEqual(sorted(c.name for c in seat.hand), [f"Up {i}" for i in range(4)])
+        self.assertEqual([c.name for c in seat.library], ["Extra 1", "Extra 2"])
+
+    def test_choosing_the_face_up_pile_keeps_the_face_down_one(self):
+        game, seat = piles_table(1)
+        cast_performance(game, seat)
+        self.assertEqual(sorted(c.name for c in seat.hand), [f"Down {i}" for i in range(4)])
+        self.assertEqual([c.name for c in seat.graveyard if c.name.startswith("Up")], [f"Up {i}" for i in range(4)])
+
+    def test_you_may_cast_a_spell_from_the_other_pile_for_free(self):
+        game, seat = piles_table(0, cast="Up 2")
+        cast_performance(game, seat)
+        self.assertEqual(sorted(c.name for c in seat.hand), ["Extra 1", "Up 0", "Up 1", "Up 3"])  # Up 2 drew Extra 1
+        self.assertIn("Up 2", [c.name for c in seat.graveyard])  # cast and resolved
+
+    def test_a_land_cannot_be_cast_and_goes_to_your_hand(self):
+        game, seat = piles_table(0)
+        seat.library[4:8] = [Card(name=f"Forest {i}", type_line="Basic Land — Forest") for i in range(4)]
+        cast_performance(game, seat)
+        self.assertEqual(sorted(c.name for c in seat.hand), [f"Forest {i}" for i in range(4)])
