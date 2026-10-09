@@ -1694,8 +1694,12 @@ class Game:
                                                        extra + strive * (more + 1)) is not None:
                 more += 1
             self.targeting_max = more + 1
-        targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
+        chosen_targets = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
         self.targeting_max = None
+        if chosen_targets is None:  # no legal target (a free cast: cascade, suspend ...): it isn't cast, and stays where it is
+            self.broadcast({"event": "cant_cast", "seat": seat.index, "card": card.name})
+            return
+        targets, labels = chosen_targets
         if strive:
             chosen = sum(len(t) for e, t in zip([e for e in effects or [] if target_kind(e)], targets)
                          if getattr(e, "any_number", False))
