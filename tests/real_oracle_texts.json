@@ -1651,6 +1651,209 @@
     "R",
     "U"
    ]
+  },
+  {
+   "name": "Kami of Whispered Hopes",
+   "mana_cost": "{2}{G}",
+   "type_line": "Creature — Spirit",
+   "oracle_text": "If one or more +1/+1 counters would be put on a permanent you control, that many plus one +1/+1 counters are put on that permanent instead.\n{T}: Add X mana of any one color, where X is this creature's power.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Ozolith, the Shattered Spire",
+   "mana_cost": "{1}{G}",
+   "type_line": "Legendary Artifact",
+   "oracle_text": "If one or more +1/+1 counters would be put on an artifact or creature you control, that many plus one +1/+1 counters are put on it instead.\n{1}{G}, {T}: Put a +1/+1 counter on target artifact or creature you control. Activate only as a sorcery.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Altered Ego",
+   "mana_cost": "{X}{2}{G}{U}",
+   "type_line": "Creature — Shapeshifter",
+   "oracle_text": "This spell can't be countered.\nYou may have this creature enter as a copy of any creature on the battlefield, except it enters with X additional +1/+1 counters on it.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Primo, the Unbounded",
+   "mana_cost": "{X}{G}{G}{U}",
+   "type_line": "Legendary Creature — Fractal Wolf",
+   "oracle_text": "Trample\nPrimo enters with twice X +1/+1 counters on it.\nWhenever one or more creatures you control with base power 0 deal combat damage to a player, create a 0/0 green and blue Fractal creature token. Put a number of +1/+1 counters on it equal to the damage dealt.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Woe Strider",
+   "mana_cost": "{2}{B}",
+   "type_line": "Creature — Horror",
+   "oracle_text": "When this creature enters, create a 0/1 white Goat creature token.\nSacrifice another creature: Scry 1.\nEscape—{3}{B}{B}, Exile four other cards from your graveyard. (You may cast this card from your graveyard for its escape cost.)\nThis creature escapes with two +1/+1 counters on it.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Primordial Hydra",
+   "mana_cost": "{X}{G}{G}",
+   "type_line": "Creature — Hydra",
+   "oracle_text": "This creature enters with X +1/+1 counters on it.\nAt the beginning of your upkeep, double the number of +1/+1 counters on this creature.\nThis creature has trample as long as it has ten or more +1/+1 counters on it.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Nev, the Practical Dean",
+   "mana_cost": "{2}{G}",
+   "type_line": "Legendary Creature — Merfolk Wizard",
+   "oracle_text": "Creatures you control with counters on them have trample.\nWhenever you cast your first spell with {X} in its mana cost each turn, put X +1/+1 counters on Nev.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Gorma, the Gullet",
+   "mana_cost": "{1}{B}{G}",
+   "type_line": "Legendary Creature — Pest Frog",
+   "oracle_text": "Lifelink\nWhenever another creature you control dies, put a +1/+1 counter on Gorma.\nNontoken creatures you control enter with an additional +1/+1 counter on them for each creature that died under your control this turn.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B",
+    "G"
+   ]
+  },
+  {
+   "name": "Zimone, Infinite Analyst",
+   "mana_cost": "{1}{G}{U}",
+   "type_line": "Legendary Creature — Human Wizard",
+   "oracle_text": "The first spell you cast with {X} in its mana cost each turn costs {1} less to cast for each +1/+1 counter on Zimone.\nWhenever you cast your first spell with {X} in its mana cost each turn, put two +1/+1 counters on Zimone.",
+   "power": "0",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Final Act",
+   "mana_cost": "{4}{B}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Choose one or more —\n• Destroy all creatures.\n• Destroy all planeswalkers.\n• Destroy all battles.\n• Exile all graveyards.\n• Each opponent loses all counters.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Nexus Mentality",
+   "mana_cost": "{3}{U}",
+   "type_line": "Instant",
+   "oracle_text": "Choose one. If you control a commander as you cast this spell, you may choose both instead.\n• Move all counters from target nonland permanent you control onto another target nonland permanent you control.\n• Remove all counters from target nonland permanent you control. Draw a card for each counter removed this way.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Zimone's Hypothesis",
+   "mana_cost": "{3}{U}{U}",
+   "type_line": "Instant",
+   "oracle_text": "You may put a +1/+1 counter on a creature. Then choose odd or even. Return each creature with power of the chosen quality to its owner's hand. (Zero is even.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Mana Bloom",
+   "mana_cost": "{X}{G}",
+   "type_line": "Enchantment",
+   "oracle_text": "This enchantment enters with X charge counters on it.\nRemove a charge counter from this enchantment: Add one mana of any color. Activate only once each turn.\nAt the beginning of your upkeep, if this enchantment has no charge counters on it, return it to its owner's hand.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Silkguard",
+   "mana_cost": "{X}{G}",
+   "type_line": "Instant",
+   "oracle_text": "Put a +1/+1 counter on each of up to X target creatures you control.\nAuras, Equipment, and modified creatures you control gain hexproof until end of turn. (Equipment, Auras you control, and counters are modifications.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Promise of Loyalty",
+   "mana_cost": "{4}{W}",
+   "type_line": "Sorcery",
+   "oracle_text": "Each player puts a vow counter on a creature they control and sacrifices the rest. Each of those creatures can't attack you or planeswalkers you control for as long as it has a vow counter on it.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Nils, Discipline Enforcer",
+   "mana_cost": "{2}{W}",
+   "type_line": "Legendary Creature — Human Cleric",
+   "oracle_text": "At the beginning of your end step, for each player, put a +1/+1 counter on up to one target creature that player controls.\nEach creature with one or more counters on it can't attack you or planeswalkers you control unless its controller pays {X}, where X is the number of counters on that creature.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Shadrix Silverquill",
+   "mana_cost": "{3}{W}{B}",
+   "type_line": "Legendary Creature — Elder Dragon",
+   "oracle_text": "Flying, double strike\nAt the beginning of combat on your turn, you may choose two. Each mode must target a different player.\n• Target player creates a 2/1 white and black Inkling creature token with flying.\n• Target player draws a card and loses 1 life.\n• Target player puts a +1/+1 counter on each creature they control.",
+   "power": "2",
+   "toughness": "5",
+   "colors": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Rousing Refrain",
+   "mana_cost": "{3}{R}{R}",
+   "type_line": "Sorcery",
+   "oracle_text": "Add {R} for each card in target opponent's hand. Until end of turn, you don't lose this mana as steps and phases end. Exile Rousing Refrain with three time counters on it.\nSuspend 3—{1}{R} (Rather than cast this card from your hand, you may pay {1}{R} and exile it with three time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "R"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
