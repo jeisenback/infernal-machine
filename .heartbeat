@@ -1,5 +1,5 @@
 session: claude-code nice-albattani
 branch: claude/nice-albattani-8ps1nk
-task: issue #25 (real Scryfall data: wording gaps found by the report on the five precons)
-status: in progress
-updated: 2026-10-09T20:49:05Z
+task: issue #25 (real Scryfall data: wording gaps, bot games, X-target crash)
+status: in progress, second bot batch running
+updated: 2026-10-09T20:53:11Z

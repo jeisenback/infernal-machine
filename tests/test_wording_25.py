@@ -292,3 +292,83 @@ class WitchOfTheMoorsTests(unittest.TestCase):
     def test_nothing_happens_without_gaining_life(self):
         a, b, c = self.end_step(False, [BEAR])
         self.assertEqual((len(b.battlefield), len(c.battlefield), a.hand), (1, 1, []))
+
+
+DRUMBELLOWER = Card(name="Drumbellower", mana_cost="{1}{R}{W}", type_line="Creature — Spirit", power="2", toughness="3",
+                    oracle_text="Untap all creatures you control during each other player's untap step.")
+
+
+class DrumbellowerTests(unittest.TestCase):
+    def untap_step_of(self, index, with_drumbellower=True):
+        game, _ = table3()
+        a, b, c = game.seats
+        drum = Permanent(DRUMBELLOWER, tapped=True)
+        mine, theirs = Permanent(BEAR, tapped=True), Permanent(BEAR, tapped=True)
+        a.battlefield = ([drum] if with_drumbellower else []) + [mine]
+        b.battlefield = [theirs]
+        game.active, game.step = index, "untap"
+        game._turn_based_actions(game.seats[index])
+        return drum, mine, theirs
+
+    def test_it_is_supported(self):
+        self.assertEqual(unsupported_lines(DRUMBELLOWER), [])
+
+    def test_your_creatures_untap_in_another_players_untap_step(self):
+        drum, mine, theirs = self.untap_step_of(1)
+        self.assertEqual((drum.tapped, mine.tapped), (False, False))
+
+    def test_the_other_players_creatures_untap_as_usual_and_not_for_free_in_a_third_players_step(self):
+        drum, mine, theirs = self.untap_step_of(2)  # seat 2's untap step: seat 1's creature is not untapped by it
+        self.assertEqual((drum.tapped, mine.tapped, theirs.tapped), (False, False, True))
+
+    def test_without_it_your_creatures_stay_tapped(self):
+        drum, mine, theirs = self.untap_step_of(1, with_drumbellower=False)
+        self.assertEqual(mine.tapped, True)
+
+
+QUANDRIX_APPRENTICE = Card(name="Quandrix Apprentice", mana_cost="{G}{U}", type_line="Creature — Human Wizard", power="1", toughness="2",
+                           oracle_text="Magecraft — Whenever you cast or copy an instant or sorcery spell, look at the top three cards "
+                                       "of your library. You may reveal a land card from among them and put that card into your hand. "
+                                       "Put the rest on the bottom of your library in a random order.")
+SHOCK = Card(name="Shock", mana_cost="{R}", cmc=1.0, type_line="Instant", oracle_text="Shock deals 2 damage to any target.")
+
+
+class QuandrixApprenticeTests(unittest.TestCase):
+    def cast(self, policy, library):
+        game, _ = table3(policy)
+        a = game.seats[0]
+        apprentice = Permanent(QUANDRIX_APPRENTICE)
+        a.battlefield = [apprentice]
+        a.library = list(library)
+        a.cast_log.append((game.turn, SHOCK))
+        game._observe("cast", SHOCK, a)
+        run_stack(game)
+        return a
+
+    def test_it_is_supported(self):
+        self.assertEqual(unsupported_lines(QUANDRIX_APPRENTICE), [])
+
+    def test_a_land_among_the_top_three_goes_to_the_hand_and_the_rest_to_the_bottom(self):
+        a = self.cast(pick("Forest"), [BEAR, FOREST, OGRE, PLAINS])
+        self.assertEqual(([c.name for c in a.hand], len(a.library)), (["Forest"], 3))
+        self.assertEqual(a.library[0].name, "Plains")  # the fourth card was never looked at, so it is still on top
+
+    def test_the_land_is_optional(self):
+        from infernal_machine.game import NONE_TAKEN
+        a = self.cast(pick(NONE_TAKEN), [BEAR, FOREST, OGRE])
+        self.assertEqual((a.hand, len(a.library)), ([], 3))
+
+    def test_only_a_land_can_be_taken(self):
+        a = self.cast(pick("Bear", "Ogre"), [BEAR, OGRE, BEAR, FOREST])
+        self.assertEqual(a.hand, [])  # no land among the top three: nothing to take, and the Forest was not looked at
+
+    def test_a_noninstant_noncopy_spell_does_not_trigger_it(self):
+        game, _ = table3(pick("Forest"))
+        a = game.seats[0]
+        a.battlefield = [Permanent(QUANDRIX_APPRENTICE)]
+        a.library = [FOREST, FOREST, FOREST]
+        creature_spell = Card(name="Ogre Spell", mana_cost="{2}", cmc=2.0, type_line="Creature — Ogre", power="3", toughness="3")
+        a.cast_log.append((game.turn, creature_spell))
+        game._observe("cast", creature_spell, a)
+        run_stack(game)
+        self.assertEqual(a.hand, [])

@@ -884,7 +884,12 @@ class Game:
         if not self._cast_ways(seat, card, from_command_zone, graveyard):
             return False
         effects, colors = kicked_effects(_effects(card), 0) or [], source_qualities(card)
-        return self._effects_possible(seat, effects, colors)
+        if not self._effects_possible(seat, effects, colors):
+            return False
+        if parse_cost(card.mana_cost).x and any((kind := target_kind(e)) and kind.endswith(" with mana value x") for e in effects):
+            # "target creature with mana value X": some X it can pay for has to match a creature
+            return bool(self._x_values_with_targets(seat, effects, colors, self._max_x(seat, card, from_command_zone, ())))
+        return True
 
     def tap(self, permanent: Permanent) -> None:
         """Tap a permanent. A tapped one stays as it is; one that becomes tapped is seen by "Whenever a creature you
@@ -1507,6 +1512,22 @@ class Game:
         elif ability.exile_source:  # "Exile this land" (Tomb Fortress)
             self.exile(permanent)
 
+    def _x_values_with_targets(self, seat: Seat, effects, colors: frozenset[str], most: int) -> list[int]:
+        """The X from 0 to `most` for which every "target creature with mana value X" has a legal target. Any X will do
+        for a spell whose targets don't depend on X."""
+        kinds = [kind for e in effects or [] if (kind := target_kind(e)) and kind.endswith(" with mana value x")]
+        if not kinds:
+            return list(range(most + 1))
+        saved, good = self.targeting_x, []
+        try:
+            for n in range(most + 1):
+                self.targeting_x = n
+                if all(self.target_options(self._fixed_kind(kind, None), seat, colors) for kind in kinds):
+                    good.append(n)
+        finally:
+            self.targeting_x = saved
+        return good
+
     def _effects_possible(self, seat: Seat, effects, colors: frozenset[str] = frozenset(),
                           source: Permanent | None = None) -> bool:
         """Whether the targets exist: for a modal spell or ability, for enough of its modes."""
@@ -1659,7 +1680,10 @@ class Game:
             for cost in additional_costs(card):  # "sacrifice X creatures": there have to be X of them
                 if cost.sacrifice_x:
                     most = min(most, sum(_permanent_matches(cost.sacrifice, p.card) for p in seat.battlefield))
-            x = seat.player.choose(X_PROMPT + card.name, [str(n) for n in range(most + 1)])
+            choices = self._x_values_with_targets(seat, effects, source_qualities(card), most)
+            if not choices:  # nothing could be targeted for any X that can be paid
+                return
+            x = choices[seat.player.choose(X_PROMPT + card.name, [str(n) for n in choices])]
         elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
             x = seat.player.choose(LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
         self.targeting_x = x

@@ -1214,16 +1214,22 @@ _QUEST_UNTAP = re.compile(r"As long as there are (\w+) or more (\w+) counters on
                           r"control during each other player's untap step\.")
 
 
+_ALWAYS_UNTAP = re.compile(r"Untap all creatures you control during each other player's untap step\.")  # Drumbellower
+
+
 def untaps_in_other_untap_steps(card: Card) -> tuple[str, int] | None:
-    """Quest for Renewal: (the counter, how many of it) while which your creatures untap in everyone's untap step."""
+    """Quest for Renewal: (the counter, how many of it) while which your creatures untap in everyone's untap step.
+    Drumbellower does it always: ("", 0), which any permanent satisfies."""
     for line in rules_lines(card):
         if m := _QUEST_UNTAP.fullmatch(line):
             return m[2], _count(m[1])
+        if _ALWAYS_UNTAP.fullmatch(line):
+            return "", 0
     return None
 
 
 def is_quest_untap_line(line: str) -> bool:
-    return _QUEST_UNTAP.fullmatch(line) is not None
+    return _QUEST_UNTAP.fullmatch(line) is not None or _ALWAYS_UNTAP.fullmatch(line) is not None
 
 
 _ANNIHILATOR = re.compile(r"Annihilator (\d+)", re.I)
@@ -4989,7 +4995,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: LookAtTop(_count(m[1] or "one"))),
     (re.compile(r"put one of them into your hand and the rest on the bottom of your library in any order\.", re.I),
      lambda m: TakeFromTop(None)),
-    (re.compile(rf"you may reveal an? {_SEARCH_TYPE} from among them and put it into your hand\.", re.I),
+    (re.compile(rf"you may reveal an? {_SEARCH_TYPE} from among them and put (?:it|that card) into your hand\.", re.I),
      lambda m: TakeFromTop(_card_kind(m[1]))),
     (re.compile(r"put the rest on the bottom of your library in (?:a random|any) order\.", re.I),
      lambda m: RestOnBottom()),
