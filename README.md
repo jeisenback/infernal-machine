@@ -275,6 +275,10 @@ winner = game.play()
 | Create N P/T color Subtype (artifact) creature token(s) (with flying, vigilance, ...). | Raise the Alarm |
 | Create a P/T ... creature token with (flying and) "<an ability we understand>" | Pest: "When this creature dies, you gain 1 life." |
 | Create N Treasure / Clue / Food token(s). | Smothering Tithe |
+| Exile target monocolored permanent. | Vanishing Verse |
+| Look at the top three cards of your library. Put one of them into your hand, put one of them on the bottom of your library, and exile one of them. You may play the exiled card this turn. (with fewer cards, the hand and the bottom come first) | Expressive Iteration |
+| Exile target creature. Its controller manifests the top card of their library. | Reality Shift |
+| Shuffle your library. As many times as you choose, you may exile the top card of your library. If the total mana value of the cards exiled this way is 13 or less, you may cast any number of spells from among those cards without paying their mana costs. (you are asked after each card, shown the running total; bots stop at 4 cards or total 9) | Dance with Calamity |
 | Create a token that's a copy of target creature (you control). / Populate. | Growing Ranks |
 | Create a 3/3 ... token, then populate. (the new token may be the one copied) | |
 | Create a token that's a copy of another target creature you control. (not the source itself) | |
@@ -430,6 +434,10 @@ winner = game.play()
   - **Prepare cards** (Secrets of Strixhaven, e.g. Eiganjo Dynastorian // Replenish): a creature whose card also has a spell half. "This creature enters prepared" and "... becomes prepared" (from any trigger the engine fires) make it prepared; while it is, you get a "Cast prepared: <spell>" action (with the spell's own timing and cost). It casts a copy of the spell, which ends instead of going to a graveyard, and the creature stops being prepared. The report checks both halves. "Target creature becomes prepared / unprepared" (Skycoach Waypoint, Hexhaven Dueling Arena's "creature that attacked this turn"), "each creature you control becomes prepared" (Codie) and the conditions "if this creature isn't prepared", "three or more artifact and/or creature cards in your graveyard", "a player has one or fewer cards in hand" and "an opponent has more cards in hand than you" work. Not built yet: see #85.
   - Abilities from the hand: "{U/R}{U/R}, Discard this card: Create a Treasure token." (Magma Opus) is offered as
     "Activate from hand: <card>" at instant speed; the card is discarded as the cost and the effect goes on the stack.
+  - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
+    card can be turned face up at any time you have priority for its mana cost ("Turn face up: ..."; not a stack
+    action). It goes to the graveyard as the real card, and only its controller is shown what it is
+    (`face_down_as` in the board).
   - Cycling {N}: an ability you can use from your hand at instant speed. Pay, discard the card, draw.
     Basic landcycling {N} and Plainscycling / Islandcycling / Swampcycling / Mountaincycling / Forestcycling {N}
     fetch a land to your hand instead (basic land, or any land with that type). The cost can be mana or "Pay N life"

@@ -81,6 +81,11 @@ SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+SPLIT_HAND_PROMPT = "Put which card into your hand? "
+SPLIT_BOTTOM_PROMPT = "Put which card on the bottom of your library? "
+DANCE_PROMPT = "Exile the top card of your library? "  # followed by "(N exiled, total mana value M)"; Yes or No
+DANCE_CAST_PROMPT = "Cast for free: "  # followed by the card's name; Yes or No
+TURN_UP = "Turn face up: "  # followed by the manifested creature's label
 PUT_FROM_HAND_PROMPT = "Put a card from your hand onto the battlefield: "
 RETURN_CHOSEN_PROMPT = "Return which card from your graveyard? "
 DECLINE = "Don't"
@@ -175,6 +180,7 @@ class Permanent:
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     chosen_color: str | None = None  # "As this enters, choose a color." (a color letter)
+    manifested: bool = False  # a face-down 2/2 whose real card is `real_card`; a creature card can be turned face up
     bestowed_from: "Card | None" = None  # a bestowed Aura: the creature card it goes back to when its creature leaves
     must_attack: "Seat | None" = None  # an Encore token: it attacks this player this turn if able
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
@@ -607,6 +613,7 @@ class Game:
         for spell in _unique([p.card.prepare for p in seat.battlefield if p.prepared and p.card.prepare]):
             if (sorcery_timing or _instant_speed(spell)) and self._can_cast(seat, spell):
                 actions.append(CAST_PREPARED + spell.name)
+        actions += [TURN_UP + self.label(p) for p in self._turn_up_options(seat)]  # manifested creature cards
         for card in _unique(seat.hand):
             if (found := cycling(card)) and self._can_cycle(seat, found[1], found[3]):
                 actions.append(CYCLE + card.name)
@@ -1110,6 +1117,9 @@ class Game:
             card = next(c for c in seat.exile if c.name == action.removeprefix(CAST_EXILE))
             self._used_exile_permission(seat, card)
             self._cast(seat, card, seat.exile)
+        elif action.startswith(TURN_UP):
+            permanent = next(p for p in self._turn_up_options(seat) if self.label(p) == action.removeprefix(TURN_UP))
+            self.turn_face_up(seat, permanent)
         elif action.startswith(CYCLE):
             self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
         elif action.startswith(ACTIVATE_HAND):
@@ -1495,11 +1505,11 @@ class Game:
                 "command_zone": [{"name": c.name, "tax": self.commander_tax(s, c)} for c in s.command_zone],
                 "commander_damage": [{"from_seat": seat, "commander": name, "damage": dmg}
                                      for (seat, name), dmg in s.commander_damage.items()],
-                "battlefield": [self._permanent_view(p) for p in s.battlefield],
+                "battlefield": [self._permanent_view(p, viewer if viewer is s else None) for p in s.battlefield],
             } for s in self.seats],
         }
 
-    def _permanent_view(self, p: Permanent) -> dict:
+    def _permanent_view(self, p: Permanent, owner_viewing: Seat | None = None) -> dict:
         creature = "Creature" in p.card.type_line
         host = p.attached_to
         return {
@@ -1508,6 +1518,8 @@ class Game:
             "power": self.power(p) if creature else None, "toughness": self.toughness(p) if creature else None,
             "damage": p.damage, "loyalty": p.loyalty, "counters": {k: v for k, v in p.counters.items() if v},
             "attached_to": host.card.name if host is not None and self.on_battlefield(host) else None,
+            # a manifested card is face down for everyone but the player who controls it
+            "face_down_as": p.real_card.name if p.manifested and p.real_card is not None and owner_viewing is not None else None,
         }
 
     def send_state(self, seat: Seat) -> None:
@@ -2280,6 +2292,61 @@ class Game:
         if holder is not None:
             self.return_from_graveyard(GraveyardTarget(dead.card, holder), holder if under_owner else controller,
                                        "battlefield", tapped)
+
+    def three_way_split(self, seat: Seat, count: int, play: bool) -> None:
+        """Expressive Iteration: look at the top `count` cards; one to your hand, one to the bottom of your library, one
+        exiled (and playable this turn, if `play`)."""
+        top = seat.library[:count]
+        del seat.library[:len(top)]
+        if not top:
+            return
+        hand = top.pop(seat.player.choose(SPLIT_HAND_PROMPT, [c.name for c in top]) if len(top) > 1 else 0)
+        seat.hand.append(hand)
+        bottom = top.pop(seat.player.choose(SPLIT_BOTTOM_PROMPT, [c.name for c in top]) if len(top) > 1 else 0) if top else None
+        if bottom is not None:
+            seat.library.append(bottom)
+        for exiled in top:
+            self._move_card(seat, exiled, "exile")
+            if play and exiled in seat.exile:
+                seat.exile_play.append((exiled, self.turn))
+        self.broadcast({"event": "split_top", "seat": seat.index, "count": count})
+
+    def manifest(self, seat: Seat) -> None:
+        """Manifest the top card of the library: it enters face down as a 2/2 creature with no abilities. A creature card
+        can be turned face up (TURN_UP) for its mana cost; it goes to the graveyard as itself."""
+        if not seat.library:
+            return
+        real = seat.library.pop(0)
+        face_down = Card(name="Face-down creature", type_line="Creature", power="2", toughness="2")
+        self.broadcast({"event": "manifested", "seat": seat.index})
+        self._enter(seat, Permanent(face_down, sick=True, real_card=real, manifested=True, owner=seat))
+
+    def _turn_up_options(self, seat: Seat) -> list[Permanent]:
+        """Manifested creature cards of `seat` that it can afford to turn face up."""
+        return [p for p in seat.battlefield if p.manifested and p.real_card is not None
+                and "Creature" in p.real_card.type_line and self._payment(seat, p.real_card) is not None]
+
+    def turn_face_up(self, seat: Seat, permanent: Permanent) -> None:
+        self._spend_mana(seat, self._payment(seat, permanent.real_card))
+        permanent.card, permanent.real_card, permanent.manifested = permanent.real_card, None, False
+        self.broadcast({"event": "turned_face_up", "seat": seat.index, "card": permanent.card.name})
+
+    def dance_with_calamity(self, seat: Seat, limit: int) -> None:
+        """Shuffle, exile the top card as many times as you choose; if the total mana value is `limit` or less, cast any
+        number of the spells among them for free. Cards not cast stay exiled."""
+        self.rng.shuffle(seat.library)
+        exiled: list[Card] = []
+        while seat.library:
+            total = int(sum(c.cmc for c in exiled))
+            if seat.player.choose(f"{DANCE_PROMPT}({len(exiled)} exiled, total mana value {total})", YES_NO) != 0:
+                break
+            card = seat.library.pop(0)
+            exiled.append(card)
+            self._move_card(seat, card, "exile")
+        if exiled and sum(c.cmc for c in exiled) <= limit:
+            for card in [c for c in exiled if not is_land(c)]:
+                if card in seat.exile and seat.player.choose(DANCE_CAST_PROMPT + card.name, YES_NO) == 0:
+                    self._cast(seat, card, seat.exile, free=True)
 
     def copy_attacking(self, seat: Seat, source: Permanent) -> None:
         """A token that's a copy of `source`, tapped and attacking whom it attacks."""
@@ -3751,6 +3818,8 @@ def _permanent_matches(kind: str, card: Card) -> bool:
         return True
     if kind == "nonland permanent":
         return not is_land(card)
+    if kind == "monocolored permanent":
+        return len(card.colors) == 1
     if kind == "nonbasic land":
         return "Land" in card.type_line and "Basic" not in card.type_line
     if kind.endswith(" token"):  # "creature token"
