@@ -2276,6 +2276,8 @@ class Game:
                     continue
                 if buff.with_counters and not any(permanent.counters.values()):
                     continue
+                if buff.tokens_only and not _is_token(permanent.card):
+                    continue
                 wanted = source.chosen_type if buff.subtype == "chosen" else buff.subtype
                 if (buff.other and source is permanent) or (wanted and wanted not in subtypes) or (buff.subtype == "chosen" and not wanted):
                     continue

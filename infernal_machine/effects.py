@@ -94,8 +94,16 @@ _WHOLE_LINE = re.compile(
     r"quality to its owner's hand\.", re.I)
 
 
+_JOINED = {  # two sentences that are one effect (Brudiclad), written as one
+    "Then you may choose a token you control. If you do, each other token you control becomes a copy of that token.":
+        "Then you may choose a token you control, and each other token you control becomes a copy of it.",
+}
+
+
 def _split_sentences(text: str) -> list[str]:
     """The sentences of each line; a few effects (Creative Technique's) are one template across several sentences."""
+    for long, short in _JOINED.items():
+        text = text.replace(long, short)
     return [s.strip() for line in text.splitlines()
             for s in ([line] if _WHOLE_LINE.fullmatch(line.strip()) else re.split(r"(?<=\.)\s+", line)) if s.strip()]
 
@@ -1058,6 +1066,7 @@ class StaticBuff:
     attacking: bool = False  # "Attacking Pests you control": only while they are attacking
     per: tuple[str, str] | None = None  # "... for each artifact you control": (what to count, its type); see Game.modifiers
     everyone: bool = False  # "White creatures get +1/+1": every player's, not just its controller's
+    tokens_only: bool = False  # "Creature tokens you control have haste" (Brudiclad)
     with_counters: bool = False  # "Creatures you control with counters on them have trample"
 
 
@@ -1073,12 +1082,12 @@ def is_choose_type_line(line: str) -> bool:
     return _CHOOSE_TYPE.fullmatch(line) is not None
 
 
-_AFFECTED = (r"Creatures you control of the chosen type|Creatures you control with counters on them|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+_AFFECTED = (r"Creatures you control of the chosen type|Creature tokens you control|Creatures you control with counters on them|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
                                r"this game\.")
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
-_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<counters>Creatures you control with counters on them)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
@@ -1128,7 +1137,7 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     "chosen" if who["chosen"] else who["sub"] or who["tribe"], line,
                                     condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
                                     attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]),
-                                    with_counters=bool(who["counters"])))
+                                    with_counters=bool(who["counters"]), tokens_only=bool(who["tokens"])))
         elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
             who = _AFFECTED_WHO.fullmatch(m[1])
             buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
@@ -1821,6 +1830,28 @@ class HastyCopiesUntilEndStep:
         fire_turn = game.turn + 1 if game.step in ("end", "cleanup") else game.turn
         game.at_end_step.append((fire_turn, lambda: game._leave_together(
             [(p, "exiled") for p in made if game.on_battlefield(p)], destination="exile")))
+
+
+CHOOSE_TOKEN_PROMPT = "Choose a token you control to copy (each other token becomes a copy of it)"
+
+
+@dataclass(frozen=True)
+class OtherTokensBecomeCopies:
+    """Brudiclad: "Then you may choose a token you control. If you do, each other token you control becomes a copy of that
+    token." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        tokens = [p for p in controller.battlefield if p.card.type_line.startswith("Token")]
+        if len(tokens) < 2:
+            return
+        pick = controller.player.choose(CHOOSE_TOKEN_PROMPT, [game.label(p) for p in tokens] + ["None"])
+        if pick == len(tokens):
+            return
+        chosen = tokens[pick]
+        for token in tokens:
+            if token is not chosen:
+                token.card = chosen.card
+        game.broadcast({"event": "tokens_became_copies", "seat": controller.index, "card": chosen.card.name})
 
 
 @dataclass(frozen=True)
@@ -3596,6 +3627,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(r"then you may choose a token you control, and each other token you control becomes a copy of it\.", re.I),
+     lambda m: OtherTokensBecomeCopies()),
     (re.compile(r"choose any number of target creatures you control\. For each of them, create a token that's a copy of that "
                 r"creature, except it has haste\. Exile those tokens at the beginning of the next end step\.", re.I),
      lambda m: HastyCopiesUntilEndStep()),
