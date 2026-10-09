@@ -235,9 +235,9 @@ class CodieTests(unittest.TestCase):
         run_stack(game)
         self.assertEqual(len(a.hand), 4)  # Draw two cards, twice: the spell and its copy
         a.hand.clear()
-        spell = Card(name="Study", mana_cost="{1}", type_line="Instant", oracle_text="Draw two cards.")
+        spell = Card(name="Quick Recall", mana_cost="{1}", type_line="Instant", oracle_text="Draw two cards.")
         a.hand = [spell]
         a.battlefield += lands(1)
-        game._perform(a, CAST + "Study")
+        game._perform(a, CAST + "Quick Recall")
         run_stack(game)
         self.assertEqual(len(a.hand), 2)  # no copy of a spell that was not prepared

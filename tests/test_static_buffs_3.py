@@ -145,7 +145,7 @@ class VanguardOfTheRestlessTests(unittest.TestCase):
 
 class VeyranTests(unittest.TestCase):
     VEYRAN = REAL["Veyran, Voice of Duality"]
-    STUDY = Card(name="Study", mana_cost="{1}", type_line="Instant", oracle_text="Draw a card.")
+    STUDY = Card(name="Quick Recall", mana_cost="{1}", type_line="Instant", oracle_text="Draw a card.")
 
     def cast(self, game, seat, card):
         seat.cast_log.append((game.turn, card))

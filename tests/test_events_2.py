@@ -15,7 +15,7 @@ from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 
 CYCLER = REAL["Generous Ent"]  # forestcycling {1}
-ONE_DRAW = Card(name="Study", mana_cost="{1}", cmc=1.0, type_line="Instant", oracle_text="Draw a card.")
+ONE_DRAW = Card(name="Quick Recall", mana_cost="{1}", cmc=1.0, type_line="Instant", oracle_text="Draw a card.")
 
 
 class CreatureTappedTests(unittest.TestCase):

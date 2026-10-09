@@ -76,7 +76,7 @@ class DeekahTests(unittest.TestCase):
         game, _ = table3()
         a = game.seats[0]
         a.battlefield = [Permanent(REAL["Deekah, Fractal Theorist"])]
-        spell = Card(name="Study", mana_cost="{1}{U}", cmc=2.0, type_line="Instant", oracle_text="Draw a card.")
+        spell = Card(name="Quick Recall", mana_cost="{1}{U}", cmc=2.0, type_line="Instant", oracle_text="Draw a card.")
         a.cast_log.append((game.turn, spell))
         game._observe("cast", spell, a, spell=StackItem(spell, a, []))
         run_stack(game)

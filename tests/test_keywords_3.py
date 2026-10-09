@@ -70,7 +70,7 @@ class DemonstrateTests(unittest.TestCase):
     def test_creative_technique_casts_the_first_nonland_card_free(self):
         game, _ = table3(lambda prompt, options: 1 if prompt.startswith(DEMONSTRATE_PROMPT) else pick(CAST)(prompt, options))
         a = game.seats[0]
-        bolt = Card(name="Study", mana_cost="{5}{G}", type_line="Instant", oracle_text="Draw a card.")
+        bolt = Card(name="Quick Recall", mana_cost="{5}{G}", type_line="Instant", oracle_text="Draw a card.")
         a.hand, a.battlefield = [REAL["Creative Technique"]], lands(5)
         a.library = [FOREST, bolt, FOREST, FOREST]  # the only nonland card, wherever the shuffle puts it
         game._priority_round(a)
