@@ -110,7 +110,8 @@ _WHOLE_LINE = re.compile(
     r"|Create (?:a token that's a copy of|five tokens that are copies of) another target creature you control(?:, except it "
     r"isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the next end step\."
     r"|Target player draws cards equal to half the number of cards in their library and loses half their life\. "
-    r"Round up each time\.", re.I)
+    r"Round up each time\."
+    r"|Until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\.", re.I)
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -3884,6 +3885,23 @@ class PrepareEach:
 
 
 @dataclass(frozen=True)
+class ExtraMountainMana:
+    """Pyre Rhymer's Molten Tide: "Until end of turn, whenever you tap a Mountain for mana, add an additional {R}." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.extra_mountain_mana_turn = game.turn
+
+
+@dataclass(frozen=True)
+class PayLifeForMana:
+    """Yavimaya Bloomsage's Channel: "Until end of turn, any time you could activate a mana ability, you may pay 1 life. If
+    you do, add {C}." Paying for something uses it automatically, after the mana that costs nothing."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.life_mana_turn = game.turn
+
+
+@dataclass(frozen=True)
 class Conjure:
     """Alchemy: "Conjure a card named Storm Crow onto the battlefield." The card was looked up when the deck loaded."""
     name: str
@@ -5044,6 +5062,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutAttackingFromHand(tuple(re.findall(r"[A-Z][a-z]+", m[1])))),
     (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
     (re.compile(r"conjure a card named (.+?) onto the battlefield\.", re.I), lambda m: Conjure(m[1])),
+    (re.compile(r"until end of turn, whenever you tap a mountain for mana, add an additional \{R\}\.", re.I),
+     lambda m: ExtraMountainMana()),
+    (re.compile(r"until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\.",
+                re.I), lambda m: PayLifeForMana()),
     (re.compile(rf"whenever that creature deals combat damage to a player this combat, ({_SELF} becomes prepared)\.", re.I),
      lambda m: WhenThatDealsCombatDamage(BecomePrepared())),
     (re.compile(r"each creature you control becomes prepared\.", re.I), lambda m: PrepareEach()),

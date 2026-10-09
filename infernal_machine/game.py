@@ -136,6 +136,7 @@ RETURN_CARD_PROMPT = "Return which card from your graveyard: "  # followed by th
 KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom", "Put into your graveyard"
 MAX_TARGETS = 30  # a bound on "any number of target ..."
 MAX_X = 30  # stop looking for a bigger affordable X here
+MAX_LIFE_MANA = 10  # Channel: how many life-paid {C} the payer offers at once
 YES_NO = ["Yes", "No"]
 LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
 REMOVE_COUNTER_PROMPT = "Remove a counter to draw a card? "  # followed by the permanent's name
@@ -311,6 +312,8 @@ class Seat:
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
+    extra_mountain_mana_turn: int | None = None  # Molten Tide: this turn, a Mountain tapped for mana adds an additional {R}
+    life_mana_turn: int | None = None  # Channel: this turn, 1 life buys {C} any time
     conjurable: dict[str, Card] = field(default_factory=dict)  # Alchemy: the cards this player's deck can conjure, by name
     noncombat_damage_turn: int | None = None  # the last turn this player was dealt damage that wasn't combat damage
     life_lost_amount: int = 0  # how much they lost on life_lost_turn
@@ -986,6 +989,8 @@ class Game:
                           for mana in granted_mana(a.card)]  # "Enchanted land has "{T}: Add {G}{G}."": the better of the two
                 extra = [ManaSource(permanent, mana, pain, damage) for other in self.seats for a in other.battlefield
                          if a.attached_to is permanent for mana in additional_land_mana(a.card)]  # Wild Growth
+                if seat.extra_mountain_mana_turn == self.turn and "Mountain" in card.type_line:  # Molten Tide
+                    extra.append(ManaSource(permanent, frozenset("R"), pain, damage))
                 if units := land_mana_units(card):  # a bounceland or Ancient Tomb makes several mana in one tap
                     lands.extend([ManaSource(permanent, mana, pain, damage) for mana in units] + extra)
                     continue
@@ -1206,6 +1211,13 @@ class Game:
                 chosen = self._pay_with_filters(cost, sources, combo)
                 if chosen is not None:
                     return chosen
+        if seat.life_mana_turn == self.turn and seat.life > 1:  # Channel: only when nothing that costs nothing will do
+            lives = [ManaSource(None, frozenset("C"), frozenset("C"), 1, life=True) for _ in range(min(seat.life - 1, MAX_LIFE_MANA))]
+            for size in range(len(filters) + 1):
+                for combo in combinations(filters, size):
+                    chosen = self._pay_with_filters(cost, sources + lives, combo)
+                    if chosen is not None and chosen.life < seat.life:  # never down to 0
+                        return chosen
         return None
 
     def _pay_with_filters(self, cost: Cost, sources: list[ManaSource], combo) -> Payment | None:
@@ -1238,14 +1250,15 @@ class Game:
         # A permanent that makes several mana (Sol Ring) is tapped once. Mana already in the pool has no permanent.
         permanents = [s.permanent for s, _ in used if s.permanent is not None] + [p for p, _, _ in ordered]
         payment = Payment({id(p): p for p in permanents}.values())
-        payment.pool = tuple(s.types for s, _ in used if s.permanent is None)
+        payment.pool = tuple(s.types for s, _ in used if s.permanent is None and not s.life)  # a life-paid {C} (Channel) isn't pooled
         payment.filters = tuple(p for p, _, _ in ordered)
         # A permanent hurts (or costs life) once per tap, however many of its mana are used.
         hurt: dict[int, int] = {}
         paid_life: dict[int, int] = {}
         for source, symbol in used:
             into = paid_life if source.life else hurt
-            into[id(source.permanent)] = max(into.get(id(source.permanent), 0), _pain(source, symbol))
+            key = id(source) if source.permanent is None else id(source.permanent)  # each life-paid {C} costs its own life
+            into[key] = max(into.get(key, 0), _pain(source, symbol))
         payment.pain, payment.life = sum(hurt.values()), sum(paid_life.values())
         return payment
 
