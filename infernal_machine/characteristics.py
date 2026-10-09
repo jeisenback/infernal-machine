@@ -15,12 +15,16 @@ PLUS = "+1/+1"
 MINUS = "-1/-1"
 
 
+LOSES_HEXPROOF = "loses hexproof and shroud"  # a pseudo-keyword: "creatures your opponents control lose hexproof and shroud"
+
+
 @dataclass(frozen=True)
 class Modifier:
     power: int = 0
     toughness: int = 0
     keywords: frozenset[str] = frozenset()  # lowercase, e.g. {"flying"}
     set_pt: tuple[int, int] | None = None  # "becomes a 4/4": its base power and toughness (counters and bonuses still apply)
+    your_turn: bool = False  # only counts during its controller's turn ("During your turn, this creature has first strike.")
 
 
 def source_qualities(card) -> frozenset[str]:
