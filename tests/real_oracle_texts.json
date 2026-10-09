@@ -1887,6 +1887,141 @@
     "U",
     "W"
    ]
+  },
+  {
+   "name": "Aven Squire",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Bird Soldier",
+   "oracle_text": "Flying\nExalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Black Panther, Claws of Bast",
+   "mana_cost": "{2}{W}",
+   "type_line": "Legendary Creature — Human Warrior Hero",
+   "oracle_text": "Lifelink (Damage dealt by this creature also causes you to gain that much life.)\nWhenever a creature you control attacks alone, put a +1/+1 counter on it.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Blood Seeker",
+   "mana_cost": "{1}{B}",
+   "type_line": "Creature — Vampire Shaman",
+   "oracle_text": "Whenever a creature an opponent controls enters, you may have that player lose 1 life.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Denzilore Fatehold",
+   "mana_cost": "{1}{W}{U}{U}",
+   "type_line": "Legendary Creature — Elder Sphinx",
+   "oracle_text": "Flash\nFlying\nWhenever you scry or surveil, put a +1/+1 counter on each creature you control.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Drannith Healer",
+   "mana_cost": "{1}{W}",
+   "type_line": "Creature — Human Cleric",
+   "oracle_text": "Whenever you cycle another card, you gain 1 life.\nCycling {1} ({1}, Discard this card: Draw a card.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Junkblade Bruiser",
+   "mana_cost": "{3}{R/G}{R/G}",
+   "type_line": "Creature — Raccoon Berserker",
+   "oracle_text": "Trample\nWhenever you expend 4, this creature gets +2/+1 until end of turn. (You expend 4 as you spend your fourth total mana to cast spells during a turn.)",
+   "power": "4",
+   "toughness": "5",
+   "colors": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Nimrodel Watcher",
+   "mana_cost": "{1}{U}",
+   "type_line": "Creature — Elf Scout",
+   "oracle_text": "Whenever you scry, this creature gets +1/+0 until end of turn and can't be blocked this turn. This ability triggers only once each turn.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Pitiless Vizier",
+   "mana_cost": "{3}{B}",
+   "type_line": "Creature — Minotaur Cleric",
+   "oracle_text": "Whenever you cycle or discard a card, this creature gains indestructible until end of turn. (Damage and effects that say \"destroy\" don't destroy it. If its toughness is 0 or less, it still dies.)",
+   "power": "4",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Quest for Renewal",
+   "mana_cost": "{1}{G}",
+   "type_line": "Enchantment",
+   "oracle_text": "Whenever a creature you control becomes tapped, you may put a quest counter on this enchantment.\nAs long as there are four or more quest counters on this enchantment, untap all creatures you control during each other player's untap step.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Secrets of the Dead",
+   "mana_cost": "{2}{U}",
+   "type_line": "Enchantment",
+   "oracle_text": "Whenever you cast a spell from your graveyard, draw a card.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Teapot Slinger",
+   "mana_cost": "{3}{R}",
+   "type_line": "Creature — Raccoon Warrior",
+   "oracle_text": "Menace\nWhenever you expend 4, this creature deals 2 damage to each opponent. (You expend 4 as you spend your fourth total mana to cast spells during a turn.)",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Wandertale Mentor",
+   "mana_cost": "{R}{G}",
+   "type_line": "Creature — Raccoon Bard",
+   "oracle_text": "Whenever you expend 4, put a +1/+1 counter on this creature. (You expend 4 as you spend your fourth total mana to cast spells during a turn.)\n{T}: Add {R} or {G}.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G",
+    "R"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",
