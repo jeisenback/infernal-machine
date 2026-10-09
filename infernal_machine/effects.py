@@ -341,7 +341,22 @@ class Exile:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.exile(target)
+            game.exile_noting(target, game.resolving_source)
+
+
+@dataclass(frozen=True)
+class ExiledOwnerGetsToken:
+    """Skyclave Apparition: "the exiled card's owner creates an X/X ... token, where X is the mana value of the exiled
+    card." The target is the source, which has already left the battlefield."""
+    token: Card
+    uses_dead_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        for owner, card in target.exiled_with:
+            size = str(int(card.cmc))
+            game.create_tokens(owner, dataclasses.replace(self.token, power=size, toughness=size), 1)
 
 
 @dataclass(frozen=True)
@@ -4931,6 +4946,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PlayExiled("this turn")),
     (re.compile(r"until (?:the )?end of your next turn, you may play (?:it|that card|those cards|them)\.", re.I),
      lambda m: PlayExiled("next turn")),
+    (re.compile(r"the exiled card's owner creates an X/X (\w+) (\w+) creature token, where X is the mana value of the exiled card\.", re.I),
+     lambda m: ExiledOwnerGetsToken(Card(name=m[2], type_line=f"Token Creature — {m[2]}", power="0", toughness="0",
+                                         colors=(_COLOR_WORDS[m[1].lower()],)))),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND} until {_SELF} leaves the battlefield\.", re.I),
      lambda m: ExileUntilLeaves(m[2].lower(), bool(m[1]))),
     (re.compile(rf"target (player|opponent) draws {_N} cards?\.", re.I), lambda m: TargetDraw(_count(m[2]), m[1].lower())),

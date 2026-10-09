@@ -182,6 +182,7 @@ class Permanent:
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
+    exiled_with: list = field(default_factory=list)  # (owner seat, card) this permanent's abilities exiled for good
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
     kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
     regeneration: int = 0  # regeneration shields, which last until end of turn
@@ -3359,6 +3360,14 @@ class Game:
                 continue
             card = options[seat.player.choose(RETURN_CARD_PROMPT + kind, [c.name for c in options])]
             self.return_from_graveyard(GraveyardTarget(card, seat), seat, to, tapped)
+
+    def exile_noting(self, target: Permanent, source: Permanent | None) -> None:
+        """Exile `target` and remember the card on `source` ("the exiled card's owner ..."). Tokens are not remembered."""
+        owner = target.owner or self.controller_of(target)
+        card, before = target.card, len(owner.exile)
+        self.exile(target)
+        if source is not None and not _is_token(card) and len(owner.exile) > before:
+            source.exiled_with.append((owner, card))
 
     def exile_until_leaves(self, target: Permanent, source: Permanent | None) -> None:
         """Exile `target` until `source` leaves the battlefield. If the source is already gone, nothing
