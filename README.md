@@ -375,6 +375,16 @@ winner = game.play()
     intervening "if you control no other creatures". "Power and toughness are each equal to the number of cards in your hand"
     (Overbeing of Myth) is its base size. "Players have no maximum hand size" and "Your maximum hand size is equal to the number
     of hour counters" (Midnight Oil) decide who discards at cleanup.
+  - More effects: "Create a token, then populate" (a token's second step is no longer swallowed into its text), "Create a
+    token that's a copy of another target creature you control. It gains haste. Sacrifice it at the beginning of the next end
+    step" (also five tokens, and "except it isn't legendary": Orthion, Tempestra), "loses half their life, rounded up / down" and
+    "draws cards equal to half the number of cards in their library" (Quietus Spike, Peer into the Abyss), "double the number of
+    +1/+1 counters on target creature" and "put a counter on enchanted creature" (Tanazir Quandrix, Seismic Tutelage),
+    "return it to the battlefield tapped ... at the beginning of their next upkeep" (Phytotitan), "You may put a creature card
+    from your hand onto the battlefield. If you do, sacrifice it unless you pay its mana cost reduced by {2}" (Flash),
+    "Mill four cards, then return a creature card (and a land card) from your graveyard to your hand / the battlefield"
+    (Sudden Reclamation, Tomb Fortress, Port of Karfell; "Exile this land" is a cost), tokens that are goaded for the rest of the
+    game (Life of the Party), and a creature that remembers the life you lost when it entered (Soulgorger Orgg).
 - **Current power, toughness and keywords:** printed values plus counters, static abilities and
   "until end of turn" effects. They count everywhere: combat, damage, targeting (granted hexproof),
   destroy (granted indestructible), state checks, and the labels players see ("Bear 4/4").

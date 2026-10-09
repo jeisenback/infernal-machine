@@ -116,6 +116,8 @@ SURVEIL_PROMPT = "Surveil: "  # options are KEEP_ON_TOP and PUT_IN_GRAVEYARD
 ORDER_TOP_PROMPT = "Put on top next"  # options are card names; asked while two or more cards stay on top
 LOOK_PROMPT = "Take a card from the top of your library"  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
+PUT_CREATURE_PROMPT = "Put a creature card from your hand onto the battlefield"
+RETURN_CARD_PROMPT = "Return which card from your graveyard: "  # followed by the kind of card
 KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom", "Put into your graveyard"
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
@@ -172,6 +174,8 @@ class Permanent:
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
     prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
+    stored: int = 0  # a number it remembers (the life Soulgorger Orgg's controller lost)
+    goad_forever: "Seat | None" = None  # goaded for the rest of the game by this player
     tap_events: int = 0  # how many times it became tapped (entering tapped doesn't count)
     tap_seen: int = 0  # ... and how many of those the game has put triggers on the stack for
 
@@ -340,6 +344,7 @@ class Game:
         self.initiative: Seat | None = None
         self.graveyarded_turn, self.graveyarded_count = 0, 0  # permanents put into a graveyard this turn (Gravestorm)
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
+        self.at_upkeep: list[tuple[Seat, int, Callable[[], None]]] = []  # (whose upkeep, the turn it was set up, what to do)
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
         self.targeting_afford = None  # Strive: whether the spell with this many targets can still be paid for
@@ -486,6 +491,10 @@ class Game:
                     what()
             if self.step == "upkeep":
                 self._pay_upkeep_costs(seat)
+                due = [fn for owner, born, fn in self.at_upkeep if owner is seat and born < self.turn]
+                self.at_upkeep = [(o, b, fn) for o, b, fn in self.at_upkeep if not (o is seat and b < self.turn)]
+                for what in due:
+                    what()
                 self._tick_suspend(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
@@ -755,7 +764,7 @@ class Game:
                          x: int = 0) -> list[Permanent] | None:
         cost = (parse_cost(ability.mana_cost) if ability.mana_cost else Cost()).with_x(x)
         # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
-        return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice else None)
+        return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice or ability.exile_source else None)
 
     def commander_tax(self, seat: Seat, card: Card) -> int:
         return COMMANDER_TAX * seat.commander_casts.get(card.name, 0)
@@ -1211,6 +1220,8 @@ class Game:
         self._check_ward(item)
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
+        elif ability.exile_source:
+            self.exile(permanent)
 
     def _effects_possible(self, seat: Seat, effects, colors: frozenset[str] = frozenset(),
                           source: Permanent | None = None) -> bool:
@@ -1815,6 +1826,8 @@ class Game:
             return self.active == seat.index
         if kind == "monarch":
             return self.monarch is seat
+        if kind == "source_not_token":
+            return source is not None and not _is_token(source.card)
         if kind == "control_no_other":
             return not any("Creature" in p.card.type_line and p is not source for p in seat.battlefield)
         if kind == "player_cast_none":  # "that player didn't cast a creature spell this turn"
@@ -2108,7 +2121,7 @@ class Game:
                 for holder in self.live_seats():  # "Whenever equipped (enchanted) creature deals combat damage to a player"
                     for attachment in list(holder.battlefield):
                         if attachment.attached_to is source:
-                            self.trigger("host_combat_damage", attachment, holder, source)
+                            self.trigger("host_combat_damage", attachment, holder, source, player=target)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
@@ -2432,6 +2445,8 @@ class Game:
 
     def goader_of(self, permanent: Permanent) -> Seat | None:
         """Who is goading this creature: the player who goaded it, or the controller of an Aura that says it is goaded."""
+        if permanent.goad_forever:
+            return permanent.goad_forever
         if permanent.goaded_by:
             return permanent.goaded_by
         for seat in self.seats:
@@ -2596,15 +2611,62 @@ class Game:
                 self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
                                 "added": -removed, "total": permanent.counters.get(kind, 0)})
 
-    def create_hasty_copy(self, seat: Seat, original: Permanent) -> Permanent:
-        """A token that's a copy of `original`, except it has haste (Twinflame)."""
+    def create_copy_token(self, seat: Seat, card: Card) -> Permanent:
+        """A token that's a copy of `card`, summoning sick."""
+        made = Permanent(card, sick=True)
+        self._enter(seat, made)
+        return made
+
+    def create_hasty_copy(self, seat: Seat, original: Permanent, not_legendary: bool = False) -> Permanent:
+        """A token that's a copy of `original`, except it has haste (Twinflame, Orthion); `not_legendary` drops the
+        supertype (Tempestra)."""
         card = original.card
         if not card.type_line.startswith("Token"):
             card = dataclasses.replace(card, type_line="Token " + card.type_line)
-        made = Permanent(card, sick=True)
-        self._enter(seat, made)
+        if not_legendary:
+            card = dataclasses.replace(card, type_line=card.type_line.replace("Legendary ", ""))
+        made = self.create_copy_token(seat, card)
         self.modify_until_end_of_turn(made, Modifier(keywords=frozenset({"haste"})))
         return made
+
+    def return_at_next_upkeep(self, dead: Permanent) -> None:
+        """Phytotitan: its card comes back tapped at the beginning of its owner's next upkeep."""
+        owner = dead.owner or dead.last_controller
+        card, born = dead.card, self.turn
+        self.at_upkeep.append((owner, born, lambda: self._return_card_tapped(owner, card)))
+
+    def _return_card_tapped(self, owner: Seat, card: Card) -> None:
+        if any(c is card for c in owner.graveyard):
+            self.return_from_graveyard(GraveyardTarget(card, owner), owner, "battlefield", tapped=True)
+
+    def put_creature_from_hand(self, seat: Seat, reduction: int) -> None:
+        """Flash: put a creature card from hand onto the battlefield; sacrifice it unless its mana cost, reduced, is paid."""
+        options = [c for c in _unique(seat.hand) if "Creature" in c.type_line]
+        if not options:
+            return
+        pick = seat.player.choose(PUT_CREATURE_PROMPT, [c.name for c in options] + [NONE_TAKEN])
+        if pick == len(options):
+            return
+        card = options[pick]
+        seat.hand.remove(card)
+        entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card))
+        self._enter(seat, entering)
+        cost = parse_cost(card.mana_cost).reduced(reduction) if card.mana_cost else Cost()
+        paid = self._pay_cost(seat, cost) if cost.generic or cost.colored else []
+        if paid is not None and (not paid or seat.player.choose(UNLESS_PROMPT + card.name, [f"Pay the reduced cost", "Sacrifice it"]) == 0):
+            self._spend_mana(seat, paid)
+        else:
+            self._leave_battlefield(entering, "sacrificed")
+
+    def mill_then_return(self, seat: Seat, count: int, kinds: tuple[str, ...], to: str, tapped: bool) -> None:
+        """Mill, then return a card of each kind from the graveyard (the player picks, among everything there)."""
+        self.mill(seat, count)
+        for kind in kinds:
+            options = [c for c in _unique(seat.graveyard) if _card_matches(kind, c)]
+            if not options:
+                continue
+            card = options[seat.player.choose(RETURN_CARD_PROMPT + kind, [c.name for c in options])]
+            self.return_from_graveyard(GraveyardTarget(card, seat), seat, to, tapped)
 
     def create_attacking_token(self, seat: Seat, token: Card, opponent: Seat) -> None:
         """A token with haste that attacks `opponent` this turn if able (Furygale Flocking)."""
@@ -3331,6 +3393,7 @@ class Game:
                 if self.graveyarded_turn != self.turn:
                     self.graveyarded_turn, self.graveyarded_count = self.turn, 0
                 self.graveyarded_count += 1
+            self.trigger("leaves", permanent, controller)  # "When this creature leaves the battlefield"
             if destination == "graveyard" and not _is_token(permanent.card):  # Rancor: "put into a graveyard from the battlefield"
                 self.trigger("put_into_graveyard", permanent, controller)
             if destination == "graveyard" and "Creature" in permanent.card.type_line:
