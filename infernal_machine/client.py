@@ -274,9 +274,12 @@ class Client:
 
     def _choose(self, message: dict) -> None:
         prompt, options = message["prompt"], message["options"]
-        if self.auto_pass and options == ["Pass"]:
-            self._send({"type": "response", "id": message["id"], "choice": 0})
-            return
+        choice = 0 if self.auto_pass and options == ["Pass"] else self.decide(prompt, options)
+        self._send({"type": "response", "id": message["id"], "choice": choice})
+
+    def decide(self, prompt: str, options: list[str]) -> int:
+        """Ask the player to pick one of `options` (the index back). At the terminal: the board when it changed, the
+        options numbered from 1, Enter to pass. The web client asks in the browser instead."""
         if prompt.startswith("Priority"):
             self._show_board(only_if_changed=True)
         self.show(f"\n{prompt}")
@@ -296,7 +299,7 @@ class Client:
                 break
             else:
                 self.show(f"Enter a number from 1 to {len(options)}.")
-        self._send({"type": "response", "id": message["id"], "choice": choice - 1})
+        return choice - 1
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -14,6 +14,8 @@ python -m infernal_machine.server --humans 1 --bots 2 --bot-deck examples/red_de
 
 # terminal 2: join it
 python -m infernal_machine.client --name Alice --deck examples/green_deck.txt
+# or play in your browser instead
+python -m infernal_machine.web --name Alice --deck examples/green_deck.txt
 ```
 
 For real decks, leave out `--cache examples/demo_cards.json` and `--no-check`. The server then fetches cards
@@ -834,7 +836,11 @@ stats = goldfish(deck, games=5000, turns=5)
 
 Each human sends their decklist when they connect. The server fetches the cards, checks the deck, and either
 seats the player or explains why not (wrong size, a card outside the commander's colors, an unknown card, a name
-already in use), leaving the seat open. If a human disconnects during the game, a bot takes over their seat.
+already in use), leaving the seat open. If a human disconnects during the game, a bot takes over their seat until
+they come back: the server keeps listening, and connecting again with the same name (no deck needed) gives them
+their seat back. The welcome says `rejoined`, the seats are introduced again, and the board arrives with their next
+decision. A connection still open under that name is dropped, since it may be dead without the server knowing; there
+is no password yet, so anyone who knows a player's name can take their seat. Someone else is told the game has started.
 
 **Client** (`python -m infernal_machine.client --name Alice --deck deck.txt [--host H] [--port P]`):
 - Events are printed as sentences ("Bot 1 casts Sol Ring.", "You lose 3 life (25).").
@@ -843,7 +849,19 @@ already in use), leaving the seat open. If a human disconnects during the game, 
 - Prompts where passing is your only option are answered for you.
 - Your hand is shown to you only. Opponents' hands and libraries appear as counts.
 
-Both can also be run as `infernal-server` and `infernal-client` after `pip install .`.
+**Browser client** (`python -m infernal_machine.web --name Alice --deck deck.txt [--host H] [--port P] [--listen 8765] [--no-browser]`):
+- Joins the table like the terminal client, then serves a page at `http://127.0.0.1:8765/` (`--listen` picks the
+  port) and opens it in your browser (`--no-browser` just prints the address). Nothing beyond the standard library.
+- The page shows each seat's life, hand and library counts, graveyard and exile (hover for the cards), command zone
+  and commander damage, the permanents as cards (tapped ones tilt, summoning-sick ones are marked, with counters,
+  damage and attachments) and the lands as counted chips; the stack; your hand; the log of events as sentences.
+  Your seat is at the bottom. It follows your light or dark theme and fits a phone.
+- A decision shows its prompt with one button per option (Pass stands out). The page asks the client for changes
+  (`GET /state?since=N`, answered when something changed) and answers with `POST /choose` (`{"id", "choice"}`).
+- Prompts where passing is your only option are answered for you, as in the terminal client.
+- Dropping and reconnecting works the same way: run it again with the same name.
+
+All three can also be run as `infernal-server`, `infernal-client` and `infernal-web` after `pip install .`.
 
 ## TCP players
 
@@ -863,7 +881,7 @@ Each message is one JSON object per line:
 | Direction | Message |
 |---|---|
 | client -> server | `{"type": "hello", "name": "Alice", "deck": "<decklist text>"}` (must come first; the deck is optional, but the game server needs it) |
-| server -> client | `{"type": "welcome", "seat": 0}` |
+| server -> client | `{"type": "welcome", "seat": 0}` (`"rejoined": true` when a dropped player took their seat back) |
 | server -> client | `{"type": "event", ...}` (no reply) |
 | server -> client | `{"type": "event", "event": "state", ...}`: the whole board, sent before each of your decisions. It has `turn`, `step`, `active`, `you`, your `hand`, the `stack`, and for each seat its life, hand and library counts, graveyard, exile, command zone (with commander tax), commander damage, and battlefield (with current power and toughness, counters and attachments) |
 | server -> client | `{"type": "choose", "id": 1, "prompt": "...", "options": ["Keep", "Mulligan"]}` |
