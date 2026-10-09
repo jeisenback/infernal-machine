@@ -12,7 +12,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .characteristics import source_qualities
-from .effects import CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, Annihilate, TriggeredAbility, attack_tax_per_counter
+from .effects import (CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, Annihilate, TriggeredAbility, attack_tax_per_counter, combat_restrictions,
+                      flat_attack_tax)
 from .mana import Cost
 
 if TYPE_CHECKING:
@@ -108,14 +109,28 @@ class Combat:
     def _attack_tax(self, permanent: Permanent, defender: Seat) -> int:
         """What attacking `defender` costs `permanent`: Nils makes each counter on the attacker cost {1}."""
         counters = sum(permanent.counters.values())
-        return counters * sum(attack_tax_per_counter(p.card) for p in defender.battlefield) if counters else 0
+        tax = counters * sum(attack_tax_per_counter(p.card) for p in defender.battlefield) if counters else 0
+        return tax + sum(flat_attack_tax(p.card) for p in defender.battlefield)  # Ghostly Prison: {2} for each attacker
+
+    def _barred_from_attacking(self, permanent: Permanent, defender: Seat) -> bool:
+        """Whether a static ability of the defender's keeps `permanent` from attacking them (or their planeswalkers)."""
+        subtypes = self.game.subtypes(permanent)
+        for source in defender.battlefield:
+            for restriction in combat_restrictions(source.card):
+                if restriction.kind == "no_attack_tribe" and restriction.what in subtypes:
+                    return True
+                if restriction.kind == "no_attack_enchanted" and any(
+                        a.attached_to is permanent and "Aura" in a.card.type_line and self.game.controller_of(a) is defender
+                        for seat in self.game.seats for a in seat.battlefield):
+                    return True
+        return False
 
     def _attackable(self, seat: Seat, permanent: Permanent, opponents: list[Seat],
                     walkers: list[Permanent]) -> tuple[list[Seat], list[Permanent]]:
         """The players (and their planeswalkers) `permanent` may attack: not the one a vow counter keeps it from
         (Promise of Loyalty), and not one whose attack tax the attacking player can't pay."""
         barred = permanent.vow_of if permanent.counters.get("vow") else None
-        allowed = [o for o in opponents if o is not barred and (
+        allowed = [o for o in opponents if o is not barred and not self._barred_from_attacking(permanent, o) and (
             not (tax := self._attack_tax(permanent, o)) or self.game._pay_cost(seat, Cost(generic=tax)) is not None)]
         return allowed, [w for w in walkers if self.game.controller_of(w) in allowed]
 
@@ -249,6 +264,11 @@ class Combat:
             return False
         if self._has(attacker, "skulk") and self.game.power(blocker) > self.game.power(attacker):
             return False
+        if any(r.kind == "block_only_flying" for r in combat_restrictions(blocker.card)) and not self._has(attacker, "flying"):
+            return False  # Brazen Borrower
+        if any(r.kind == "weaker_cant_block" for r in combat_restrictions(attacker.card)) \
+                and self.game.power(blocker) < self.game.power(attacker):
+            return False  # Elusive Otter
         if self.game.protected_from(attacker, source_qualities(blocker.card)):  # can't be blocked by those colors
             return False
         if self._has(attacker, "flying"):

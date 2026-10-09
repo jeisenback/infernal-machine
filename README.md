@@ -446,6 +446,20 @@ winner = game.play()
     (Fabled Passage), a token if the exiled card is a creature (Feral Appetite), "draw two cards instead" with a condition
     (Zimone) and Quintorius's "draw two cards, then mill a card". Still unsupported from #73: mana abilities that spend
     other resources or restrict what the mana buys, Level up, Priest of Forgotten Gods and Currency Converter.
+  - Rules text of #81: "Counter target spell unless its controller pays {N}" (the controller is asked), "Destroy target artifact,
+    enchantment, or planeswalker", "Return six target nonland permanents ...", "target creature with mana value X",
+    "gets +X/+X and gains hexproof and indestructible", "Then it fights up to one target creature", "Proliferate X times",
+    Dig Through Time's look-seven-take-two, Commander's Insight, Culling Ritual (mana for each permanent destroyed), Mana Geyser,
+    Biomass Mutation, Wave of Reckoning, Winds of Rath ("that aren't enchanted"), Volcanic Torrent (creatures and planeswalkers),
+    damage to "each of one or two targets", draw-then-discard, mill-then-return, "You may sacrifice a permanent. If you do, draw two
+    cards", "sacrifice X creatures" as an additional cost (Immoral Bargain), X limited by the number of players (Open the Way),
+    "Arcane Denial"'s draws at the next upkeep, Flashback with a life payment, casting from the graveyard "by paying {2}{W}",
+    cost reductions ("costs {2} less if you gained life this turn", "{X} less where X is the total power of your creatures",
+    Aura spells, spells that target a creature, affinity for Auras), Pest Rescuer's extra life, haste while an opponent is at 10 or
+    less life, and combat limits: Ghostly Prison's tax per attacker, "Inklings can't attack you", creatures enchanted by your Auras
+    can't attack you, "can block only creatures with flying" and "creatures with power less than this creature's power can't block it".
+    Not built (see #81): the Class level lines, Anger and Cursed Mirror, Drumbellower, Galazeth Prismari and Goldspan Dragon (they give
+    mana abilities to other permanents), Harmonic Prodigy, Flickering Ward, spell mastery, and Quandrix Command's shuffle-back mode.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
     card can be turned face up at any time you have priority for its mana cost ("Turn face up: ..."; not a stack
     action). It goes to the graveyard as the real card, and only its controller is shown what it is
