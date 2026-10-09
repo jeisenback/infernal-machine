@@ -84,7 +84,14 @@ def rules_lines(card: Card) -> list[str]:
 
 
 _WHOLE_LINE = re.compile(
-    r"Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
+    r"Exile the top four cards of your library in a face-down pile, then exile the top four cards of your library in a face-up pile\. An opponent chooses one of those piles\. Put that pile into your graveyard\. Look at the cards in the other pile\. You may cast a spell from among them without paying its mana cost\. Put the rest into your hand\."
+    r"|Council's dilemma — Starting with you, each player votes for past or present\. You mill a card for each past vote, "
+    r"then CARDNAME deals damage to each opponent equal to the total mana value of cards milled this way\. Exile the top card "
+    r"of your library for each present vote\. Until the end of your next turn, you may play the exiled cards\."
+    r"|Exile target instant or sorcery card from your graveyard\. Creatures you control get \+X/\+0 until end of turn, where X is "
+    r"that card's mana value\. Whenever a creature you control deals combat damage to a player this turn, copy the exiled card\. "
+    r"You may cast the copy without paying its mana cost\."
+    r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
     r"you or planeswalkers you control for as long as it has a vow counter on it\."
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
     r"|Shuffle your library\. As many times as you choose, you may exile the top card of your library\. .*"
@@ -2320,6 +2327,57 @@ def suspend_of(card: Card) -> tuple[int, str] | None:
 
 
 @dataclass(frozen=True)
+class PilesOfFour:
+    """Abstract Performance: exile the top four cards face down and the next four face up; an opponent chooses one pile to
+    put into your graveyard; you may cast a spell from the other for free and put the rest into your hand."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.choose_piles(controller)
+
+
+@dataclass(frozen=True)
+class PastOrPresentVote:
+    """Fateful Tempest: each player votes for past or present. You mill a card for each past vote, then it deals damage to each
+    opponent equal to the total mana value of the cards milled; you exile the top card for each present vote and may play
+    those cards until the end of your next turn."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        past, present = game.vote(controller, ["past", "present"])
+        milled = sum(int(card.cmc) for card in game.mill(controller, past))
+        if milled:
+            for opponent in game.opponents(controller):
+                game.damage(opponent, milled)
+        if present:
+            game.exile_top(controller, present, "next turn")
+
+
+@dataclass(frozen=True)
+class SurgeToVictory:
+    """ "Exile target instant or sorcery card from your graveyard. Creatures you control get +X/+0 until end of turn, where X
+    is that card's mana value. Whenever a creature you control deals combat damage to a player this turn, copy the exiled
+    card. You may cast the copy without paying its mana cost." """
+    target: str = "graveyard:instant or sorcery:yours"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None or not game.exile_from_graveyard(target):
+            return
+        card = target.card
+        for permanent in controller.battlefield:
+            if "Creature" in permanent.card.type_line:
+                game.modify_until_end_of_turn(permanent, Modifier(int(card.cmc), 0))
+        controller.surge = (game.turn, card)
+
+
+@dataclass(frozen=True)
+class CastExiledCopy:
+    """The delayed trigger of Surge to Victory: cast a copy of the exiled card without paying its mana cost."""
+    card: Card
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.cast_copy_free(controller, self.card)
+
+
+@dataclass(frozen=True)
 class OpponentsLoseCounters:
     """Final Act: "Each opponent loses all counters." (the counters on players: poison, energy, experience, ...)"""
 
@@ -4304,6 +4362,21 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
     return found
 
 
+# Serra Paragon: one land or cheap permanent spell from the graveyard each turn; the permanent is exiled if it goes back.
+_PARAGON = re.compile(r"Once during each of your turns, you may play a land from your graveyard or cast a permanent spell with "
+                      r"mana value (\d+) or less from your graveyard\. If you do, it gains \"When this permanent is put into a "
+                      r"graveyard from the battlefield, exile it and you gain (\d+) life\.\"")
+
+
+def graveyard_permission(card: Card) -> tuple[int, int] | None:
+    """Serra Paragon: (the most mana value of the permanent spell, the life gained when it goes to the graveyard)."""
+    return next(((int(m[1]), int(m[2])) for line in rules_lines(card) if (m := _PARAGON.fullmatch(line))), None)
+
+
+def is_graveyard_permission_line(line: str) -> bool:
+    return _PARAGON.fullmatch(line) is not None
+
+
 def additional_costs(card: Card) -> list[AdditionalCost]:
     costs = []
     for line in rules_lines(card):
@@ -4709,6 +4782,15 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(r"Exile the top four cards of your library in a face-down pile, then exile the top four cards of your library in a face-up pile\. An opponent chooses one of those piles\. Put that pile into your graveyard\. Look at the cards in the other pile\. You may cast a spell from among them without paying its mana cost\. Put the rest into your hand\.", re.I), lambda m: PilesOfFour()),
+    (re.compile(r"Council's dilemma — Starting with you, each player votes for past or present\. You mill a card for each "
+                r"past vote, then (?:CARDNAME|[A-Z][\w' ]+) deals damage to each opponent equal to the total mana value of cards milled "
+                r"this way\. Exile the top card of your library for each present vote\. Until the end of your next turn, you may "
+                r"play the exiled cards\."), lambda m: PastOrPresentVote()),
+    (re.compile(r"Exile target instant or sorcery card from your graveyard\. Creatures you control get "
+                                     r"\+X/\+0 until end of turn, where X is that card's mana value\. Whenever a creature you control "
+                                     r"deals combat damage to a player this turn, copy the exiled card\. You may cast the copy "
+                                     r"without paying its mana cost\.", re.I), lambda m: SurgeToVictory()),
     (re.compile(rf"remove {_N} ([a-z]+) counters? from (?:{_SELF})\.", re.I),
      lambda m: RemoveCountersFromSource(_count(m[1]), m[2].lower())),
     (re.compile(rf"(?:{_SELF}) deals damage to target (player|opponent) equal to (.+)\.", re.I),
