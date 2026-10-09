@@ -547,6 +547,17 @@ class MoveCountersOnto:
 
 
 @dataclass(frozen=True)
+class DoubleCountersOnSource:
+    """ "Double the number of +1/+1 counters on this creature." """
+    counter: str
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target.counters.get(self.counter):
+            game.put_counters(target, self.counter, target.counters[self.counter])
+
+
+@dataclass(frozen=True)
 class DoubleCounters:
     """ "Double the number of +1/+1 counters on each creature you control." """
     counter: str
@@ -917,6 +928,7 @@ class StaticBuff:
     attacking: bool = False  # "Attacking Pests you control": only while they are attacking
     per: tuple[str, str] | None = None  # "... for each artifact you control": (what to count, its type); see Game.modifiers
     everyone: bool = False  # "White creatures get +1/+1": every player's, not just its controller's
+    with_counters: bool = False  # "Creatures you control with counters on them have trample"
 
 
 _CHOOSE_TYPE = re.compile(r"As (?:CARDNAME|this [a-z]+) enters, choose a creature type\.")
@@ -931,12 +943,12 @@ def is_choose_type_line(line: str) -> bool:
     return _CHOOSE_TYPE.fullmatch(line) is not None
 
 
-_AFFECTED = (r"Creatures you control of the chosen type|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+_AFFECTED = (r"Creatures you control of the chosen type|Creatures you control with counters on them|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
                                r"this game\.")
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
-_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<counters>Creatures you control with counters on them)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
@@ -985,7 +997,8 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             buffs.append(StaticBuff(_modifier(m, 2), who["other"] is not None,
                                     "chosen" if who["chosen"] else who["sub"] or who["tribe"], line,
                                     condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
-                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"])))
+                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]),
+                                    with_counters=bool(who["counters"])))
         elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
             who = _AFFECTED_WHO.fullmatch(m[1])
             buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
@@ -3426,6 +3439,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RemoveCounters(None, _counter_name(m[1]), m[2].lower())),
     (re.compile(rf"remove all counters from target {_PERMANENT_KIND}\.", re.I),
      lambda m: RemoveCounters(None, None, m[1].lower())),
+    (re.compile(rf"double the number of {_COUNTER} on (?:{_SELF})\.", re.I),
+     lambda m: DoubleCountersOnSource(_counter_name(m[1]))),
     (re.compile(rf"double the number of {_COUNTER} on each creature you control\.", re.I),
      lambda m: DoubleCounters(_counter_name(m[1]))),
     (re.compile(r'(each opponent|each player) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
@@ -3808,6 +3823,8 @@ _CONDITIONS = [
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
     (re.compile(r"you control an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, _singular(m[1]))),
     (re.compile(r"it's your turn"), lambda m: Condition("your_turn")),
+    (re.compile(rf"it has {_N} or more {_COUNTER} on it"),
+     lambda m: Condition("source_counters_at_least", _count(m[1]), _counter_name(m[2]))),
     (re.compile(r"you're the monarch"), lambda m: Condition("monarch")),
     (re.compile(rf"you have {_N} or more cards in hand"), lambda m: Condition("hand_at_least", _count(m[1]))),
     (re.compile(r"you have no cards in hand"), lambda m: Condition("hand_none")),

@@ -109,3 +109,28 @@ class AlteredEgoTests(unittest.TestCase):
         game.stack.append(spell)
         Counter().resolve(game, b, spell)
         self.assertIn(spell, game.stack)
+
+
+class PrimordialHydraTests(unittest.TestCase):
+    def test_it_doubles_each_upkeep_and_tramples_from_ten_counters(self):
+        game, _ = table3()
+        a = game.seats[0]
+        hydra = Permanent(REAL["Primordial Hydra"], counters={"+1/+1": 3})
+        a.battlefield = [hydra]
+        self.assertFalse(game.has_keyword(hydra, "trample"))
+        game.trigger("upkeep", hydra, a)
+        run_stack(game)
+        self.assertEqual((hydra.counters, game.has_keyword(hydra, "trample")), ({"+1/+1": 6}, False))
+        game.trigger("upkeep", hydra, a)
+        run_stack(game)
+        self.assertEqual((hydra.counters, game.has_keyword(hydra, "trample")), ({"+1/+1": 12}, True))
+
+
+class NevTests(unittest.TestCase):
+    def test_creatures_with_counters_have_trample(self):
+        game, _ = table3()
+        a, b, _c = game.seats
+        with_counter, without, theirs = Permanent(BEAR, counters={"+1/+1": 1}), Permanent(BEAR), Permanent(BEAR, counters={"+1/+1": 1})
+        a.battlefield = [Permanent(REAL["Nev, the Practical Dean"]), with_counter, without]
+        b.battlefield = [theirs]
+        self.assertEqual([game.has_keyword(p, "trample") for p in (with_counter, without, theirs)], [True, False, False])

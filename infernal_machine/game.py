@@ -1601,6 +1601,8 @@ class Game:
             return self.active == seat.index
         if kind == "monarch":
             return self.monarch is seat
+        if kind == "source_counters_at_least":
+            return source is not None and source.counters.get(condition.what, 0) >= condition.count
         if kind == "monarch_at_turn_start":
             return self.monarch_at_turn_start is seat
         if kind == "hand_at_least":
@@ -2141,6 +2143,8 @@ class Game:
         for owner, source in [(s, p) for s in self.seats for p in s.battlefield]:
             for buff in static_abilities(source.card):
                 if owner is not controller and not buff.everyone:
+                    continue
+                if buff.with_counters and not any(permanent.counters.values()):
                     continue
                 wanted = source.chosen_type if buff.subtype == "chosen" else buff.subtype
                 if (buff.other and source is permanent) or (wanted and wanted not in subtypes) or (buff.subtype == "chosen" and not wanted):
