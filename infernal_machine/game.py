@@ -2189,6 +2189,9 @@ class Game:
             return any(len(s.hand) <= condition.count for s in self.live_seats())
         if kind == "opponent_more_cards":
             return any(len(o.hand) > len(seat.hand) for o in self.opponents(seat))
+        if kind == "control_none_token":  # Pest Rescuer: "you don't control a Pest creature token"
+            return not any(_is_token(p.card) and "Creature" in p.card.type_line and _has_type(p.card, condition.what)
+                           for p in seat.battlefield)
         matching = sum(_has_type(p.card, condition.what) for p in seat.battlefield)
         return matching >= condition.count if kind == "control_at_least" else matching == 0
 
@@ -3417,15 +3420,16 @@ class Game:
             return
         self.counter(item)
 
-    def fetch_basic_land(self, seat: Seat, optional: bool = False, untap_if: "Condition | None" = None) -> None:
+    def fetch_basic_land(self, seat: Seat, optional: bool = False, untap_if: "Condition | None" = None,
+                         tapped: bool = True) -> None:
         if optional and seat.player.choose(SEARCH_OPTIONAL_PROMPT, YES_NO) != 0:
             return
         basics = _unique([c for c in seat.library if "Basic" in c.type_line and "Land" in c.type_line])
         if basics:
             choice = basics[seat.player.choose(SEARCH_PROMPT, [c.name for c in basics])]
             seat.library.remove(choice)
-            self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": True})
-            land = Permanent(choice, tapped=True)
+            self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": tapped})
+            land = Permanent(choice, tapped=tapped)
             self._enter(seat, land)
             if untap_if and self.condition_holds(untap_if, seat, self.resolving_source):
                 land.tapped = False
@@ -3797,11 +3801,17 @@ class Game:
             if mill:
                 self.mill(seat, mill)
 
-    def may_sacrifice_draw(self, seat: Seat, kind: str, draw: int) -> None:
-        """ "You may sacrifice a permanent. If you do, draw two cards." """
+    def may_sacrifice(self, seat: Seat, kind: str) -> bool:
+        """ "You may sacrifice a permanent." Whether they did (they need one to sacrifice, and to want to)."""
         if any(_permanent_matches(kind, p.card) for p in seat.battlefield) \
                 and seat.player.choose(SACRIFICE_DRAW_PROMPT, YES_NO) == 0:
             self.sacrifice(seat, kind, 1)
+            return True
+        return False
+
+    def may_sacrifice_draw(self, seat: Seat, kind: str, draw: int) -> None:
+        """ "You may sacrifice a permanent. If you do, draw two cards." """
+        if self.may_sacrifice(seat, kind):
             self.draw(seat, draw)
 
     def draw_at_next_upkeep(self, seat: Seat, count: int, up_to: bool) -> None:

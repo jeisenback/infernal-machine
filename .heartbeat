@@ -1,5 +1,5 @@
 session: claude-code nice-albattani
 branch: claude/nice-albattani-8ps1nk
-task: issue #85 Infinite Coursework (commit missed PR 139, needs its own PR)
-status: done, pushed, PR not open
-updated: 2026-10-09T20:40:52Z
+task: issue #25 (real Scryfall data: wording gaps found by the report on the five precons)
+status: in progress
+updated: 2026-10-09T20:49:05Z

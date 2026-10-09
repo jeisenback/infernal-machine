@@ -476,6 +476,17 @@ class MaySacrificeThenDraw:
 
 
 @dataclass(frozen=True)
+class MaySacrificeThen:
+    """Springbloom Druid: "You may sacrifice a land. If you do, search your library for up to two basic land cards, ..." """
+    kind: str
+    then: Any
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.may_sacrifice(controller, self.kind):
+            self.then.resolve(game, controller, target)
+
+
+@dataclass(frozen=True)
 class MayRemoveCounterThenDraw:
     """Ingenious Prodigy: "You may remove a +1/+1 counter from it. If you do, draw a card." """
     counter: str
@@ -643,12 +654,14 @@ class TargetControllerGainsLifeEqualToPower:
 
 @dataclass(frozen=True)
 class TargetControllerMayFetchBasicLand:
-    """Path to Exile: "Its controller may search their library for a basic land card, ..." """
+    """Path to Exile: "Its controller may search their library for a basic land card, put it onto the battlefield tapped, ..."
+    (Assassin's Trophy puts it onto the battlefield untapped)"""
+    tapped: bool = True
     follows_target = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.last_controller is not None:
-            game.fetch_basic_land(target.last_controller, optional=True)
+            game.fetch_basic_land(target.last_controller, optional=True, tapped=self.tapped)
 
 
 @dataclass(frozen=True)
@@ -3299,7 +3312,7 @@ class _IfYouDo:
 
 def _if_you_do(m: re.Match) -> Any:
     inner = _parse([m[1][:1].upper() + m[1][1:] + "."])
-    return _IfYouDo(inner[0]) if inner and len(inner) == 1 and isinstance(inner[0], BecomePrepared) else None
+    return _IfYouDo(inner[0]) if inner and len(inner) == 1 and isinstance(inner[0], (BecomePrepared, SearchForLands)) else None
 
 
 def _then_if(m: re.Match) -> Any:
@@ -4831,7 +4844,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if that enchantment is an Aura, you may attach it to the token\.", re.I), lambda m: _AttachItToToken()),
     (re.compile(r"the token created this way gains haste\.", re.I), lambda m: _PopulatedTokenRider(haste=True)),
     (re.compile(r"sacrifice it at the beginning of the next end step\.", re.I), lambda m: _PopulatedTokenRider(sacrifice=True)),
-    (re.compile(r'it has "(.+)"', re.I), lambda m: _ItHas(m[1]) if _is_known_ability(m[1]) else None),
+    (re.compile(r'(?:it has|they have) "(.+)"', re.I), lambda m: _ItHas(m[1]) if _is_known_ability(m[1]) else None),
     (re.compile(r"when you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the "
                 r"copy\.", re.I), lambda m: CopyNextSpell()),
     (re.compile(rf"(?:then )?put an? {_CARD_TYPE} from among them onto the battlefield\.", re.I),
@@ -4910,6 +4923,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"return {_UP_TO} target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),
      lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand",
                                     optional_target=True, distinct=n > 0) for n in range(_count(m[1]))]),
+    (re.compile(rf"return up to one target {_CARD_TYPE} from your graveyard to your hand\.", re.I),  # Witch of the Moors
+     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand", optional_target=True)),
     (re.compile(rf"return target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand")),
     (re.compile(rf"(?:return|put) target {_CARD_TYPE} from (your|a) graveyard (?:to|onto) the battlefield( tapped)?"
@@ -4937,6 +4952,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"search your library for up to (two|three|four) basic {_LAND_TYPES_PLURAL}, reveal (?:them|those cards), put them "
                 r"into your hand, then shuffle\.", re.I),  # Archaeomancer's Map
      lambda m: SearchForLands(_count(m[1]), _land_types(m[2]), 0, False, True, basic_only=True)),
+    (re.compile(r"search your library for up to (two|three|four) basic land cards, reveal (?:them|those cards), put them into "
+                r"your hand, then shuffle\.", re.I),  # Land Tax
+     lambda m: SearchForLands(_count(m[1]), (), 0, False, True)),
     (re.compile(r"you lose life equal to (?:its|that card's) mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
     (re.compile(rf"you lose {_N} life\.", re.I), lambda m: LoseLife(_count(m[1]))),
     (re.compile(r"search your library for up to two basic land cards, reveal those cards, put one onto the battlefield "
@@ -5295,19 +5313,20 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'(?i:(?:its|that creature\'s) controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
     (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
-                r"battlefield tapped, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand()),
+                r"battlefield( tapped)?, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand(tapped=bool(m[1]))),
     (re.compile(r"search your library for a basic land card, put (?:it|that card) onto the battlefield tapped, "
                 r"then shuffle\.", re.I),
      lambda m: FetchBasicLand()),
 ]
 
 
-_YOUR_ACTION = rf"(?:draw (?:a card|{_N} cards)|gain {_N} life|lose {_N} life)"
+_YOUR_ACTION = (rf"(?:draw (?:a card|{_N} cards)|gain {_N} life|lose {_N} life"
+                r"|return (?:up to one )?target (?:[a-z]+ )?card from your graveyard to your hand)")  # Witch of the Moors
 
 
 def _you_do(phrase: str) -> str:
     """A sentence for something you do: "draw a card" -> "Draw a card.", "lose 1 life" -> "You lose 1 life." """
-    return phrase[:1].upper() + phrase[1:] + "." if phrase.lower().startswith("draw") else f"You {phrase}."
+    return phrase[:1].upper() + phrase[1:] + "." if phrase.lower().startswith(("draw", "return")) else f"You {phrase}."
 
 
 _TIMES_X = [
@@ -5481,6 +5500,10 @@ def _merge_loot(effects: list) -> list | None:
             i += 2
             continue
         if isinstance(effects[i], _MaySacrifice):
+            if i + 1 < len(effects) and isinstance(effects[i + 1], _IfYouDo):  # Springbloom Druid
+                merged.append(MaySacrificeThen(effects[i].kind, effects[i + 1].effect))
+                i += 2
+                continue
             if not (i + 1 < len(effects) and isinstance(effects[i + 1], _IfYouDoDraw)):
                 return None
             merged.append(MaySacrificeThenDraw(effects[i].kind, effects[i + 1].draw))
@@ -5679,7 +5702,7 @@ class TriggeredAbility:
 class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
-    #            "control_none", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
+    #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
     #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
@@ -5705,6 +5728,7 @@ _CONDITIONS = [
      lambda m: Condition("control_at_least", _count(m[1]), _singular(m[2]))),
     (re.compile(r"you control no creatures with ([a-z]+)"), lambda m: Condition("control_none_keyword", what=m[1])),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
+    (re.compile(r"you don't control an? ([A-Za-z]+) creature token"), lambda m: Condition("control_none_token", what=m[1])),
     (re.compile(r"you control an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, _singular(m[1]))),
     (re.compile(r"it's your turn"), lambda m: Condition("your_turn")),
     (re.compile(r"it's not a token"), lambda m: Condition("source_not_token")),
@@ -6166,6 +6190,9 @@ _PUT_IT = re.compile(r"\bsearch your library for [^.]*?, (?:reveal (?:it|them), 
                      r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b", re.I)
 
 
+_TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')
+
+
 def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | None, bool, bool, Condition | None]:
     """Like _trigger_body for a trigger about another object or player. "It" means the permanent that set it off
     (only if every effect is about "it"), "that player" / "they" the player who did it (only for effects that
@@ -6199,7 +6226,9 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
             replaced = pattern.sub(replacement, replaced)
         about_player, rest = about_player or replaced != rest, replaced
     # "the amount of mana spent to cast that spell" is an amount the trigger carries, not an effect on the spell.
-    about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", rest))))), re.I) is not None
+    # (a created token's own ability, "It has "Sacrifice this token: Add {C}."", is about the token, not the creature that died)
+    without_token_ability = _TOKEN_HAS.sub("", rest) if re.search(r"\btokens?\b", rest, re.I) else rest
+    about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?copy (it|that spell)\.", rest, re.I) is not None  # Codie: "it" is the spell cast
     effects, optional, once, condition = _trigger_body(rest)
     if effects is None:
