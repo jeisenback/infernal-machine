@@ -3,8 +3,11 @@
 Protocol (one JSON object per line, UTF-8):
 
   client -> server  {"type": "hello", "name": "Alice", "deck": "<decklist text>"}   first message
-                                                                (the deck is optional; the game server needs it)
-  server -> client  {"type": "welcome", "seat": 0}                ("rejoined": true when you took your seat back)
+                                                                (the deck is optional; the game server needs it;
+                                                                 "password": "..." if the table has one;
+                                                                 "spectate": true to watch instead of play)
+  server -> client  {"type": "welcome", "seat": 0}                ("rejoined": true when you took your seat back;
+                                                                 {"type": "welcome", "spectator": true} for a watcher)
   server -> client  {"type": "event", ...}                      no reply expected
   server -> client  {"type": "event", "event": "state", ...}    the whole board, sent before your decisions
   server -> client  {"type": "choose", "id": 1, "prompt": "...", "options": [...]}   ("seconds": 60 when a clock runs)
@@ -98,6 +101,9 @@ class TcpPlayer:
 
     def welcome(self, seat: int, rejoined: bool = False) -> None:
         self._send({"type": "welcome", "seat": seat, **({"rejoined": True} if rejoined else {})})
+
+    def welcome_spectator(self) -> None:
+        self._send({"type": "welcome", "spectator": True})
 
     def handshake(self, seat: int) -> None:
         self.read_hello()

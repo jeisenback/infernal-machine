@@ -318,6 +318,7 @@ class Game:
         self.initiative: Seat | None = None
         self.graveyarded_turn, self.graveyarded_count = 0, 0  # permanents put into a graveyard this turn (Gravestorm)
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
+        self.spectators: list = []  # watchers with notify(event): they see every public event and the board, never a hand
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.x_value = 0  # X of the spell resolving right now
@@ -1301,14 +1302,15 @@ class Game:
 
     # --- what players see ----------------------------------------------------
 
-    def snapshot(self, viewer: Seat) -> dict:
+    def snapshot(self, viewer: Seat | None) -> dict:
         """The board as `viewer` may see it: everything public, plus their own hand. Opponents' hands and
-        libraries show as counts only. It's plain data, ready to send as JSON."""
+        libraries show as counts only. A spectator (no viewer) sees no hand at all. It's plain data, ready to send
+        as JSON."""
         return {
-            "turn": self.turn, "step": self.step, "active": self.active, "you": viewer.index,
+            "turn": self.turn, "step": self.step, "active": self.active, "you": viewer.index if viewer else -1,
             "stack": [{"card": i.card.name, "seat": i.controller.index, "ability": _shown(i.ability.text, i.card) if i.ability else None}
                       for i in self.stack],
-            "hand": [c.name for c in viewer.hand],
+            "hand": [c.name for c in viewer.hand] if viewer else [],
             "seats": [{
                 "seat": s.index, "name": s.name, "life": s.life, "lost": s.lost,
                 "mana_pool": ["".join(sorted(u)) for u in s.mana_pool],
@@ -1336,6 +1338,10 @@ class Game:
         """Show the board to a player who wants to see it (TCP players do; bots don't)."""
         if getattr(seat.player, "wants_state", False):
             seat.player.notify({"event": "state", **self.snapshot(seat)})
+        if self.spectators:
+            board = {"event": "state", **self.snapshot(None)}
+            for spectator in self.spectators:
+                spectator.notify(board)
 
     def _resolve(self, item: StackItem) -> None:
         seat, card = item.controller, item.card
@@ -3233,6 +3239,8 @@ class Game:
         for seat in self.seats:
             if seat is not skip:
                 seat.player.notify(event)
+        for spectator in self.spectators:
+            spectator.notify(event)
 
 
 def _has_type(card: Card, kind: str) -> bool:

@@ -193,8 +193,9 @@
     const order = state.seats.filter(s => s.seat !== state.you).concat(state.seats.filter(s => s.seat === state.you));
     for (const seat of order) seats.appendChild(seatPanel(seat, state, names));
     const hand = document.getElementById("hand");
-    hand.hidden = false;
+    hand.hidden = state.you < 0;  // a spectator has no hand
     hand.replaceChildren();
+    if (state.you < 0) return;
     const row = el("div", "row");
     row.appendChild(el("span", "label", "Your hand (" + state.hand.length + ")"));
     if (!state.hand.length) row.appendChild(el("span", "chip", "empty"));
@@ -202,10 +203,11 @@
     hand.appendChild(row);
   }
 
-  function renderPrompt(prompt, over) {
+  function renderPrompt(prompt, over, spectator) {
     const box = document.getElementById("prompt");
     box.replaceChildren();
     if (over) { box.appendChild(el("span", "waiting", "The connection to the game is closed.")); return; }
+    if (spectator) { box.appendChild(el("span", "waiting", "You are watching this game. Hands stay hidden.")); return; }
     if (!prompt) { box.appendChild(el("span", "waiting", "Waiting for the other players...")); return; }
     box.appendChild(el("h2", "", prompt.prompt));
     if (prompt.seconds) {
@@ -233,9 +235,9 @@
   }
 
   function render(view) {
-    document.getElementById("who").textContent = view.name + (view.me === null ? "" : ", seat " + view.me);
+    document.getElementById("who").textContent = view.spectator ? "Spectating" : view.name + (view.me === null ? "" : ", seat " + view.me);
     if (view.state) renderBoard(view.state);
-    renderPrompt(view.prompt, view.over);
+    renderPrompt(view.prompt, view.over, view.spectator);
     renderLog(view.lines);
   }
 

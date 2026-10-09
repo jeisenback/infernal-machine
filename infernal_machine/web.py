@@ -1,6 +1,7 @@
 """Browser client for a game server: the board, the log and your choices as buttons, on a local web page.
 
     python -m infernal_machine.web --name Alice --deck deck.txt [--host H] [--port P] [--listen 8765] [--no-browser]
+    python -m infernal_machine.web --spectate [--host H] [--port P]        (watch: no name or deck needed)
 
 It joins the table like the terminal client and serves the page at http://127.0.0.1:8765 with nothing beyond the
 standard library. The page asks the client for changes (long polling) and a click answers the open prompt.
@@ -31,8 +32,10 @@ class WebClient(Client):
     and `decide` waits for the page's answer. The game socket is read on one thread; the web server's threads call
     `view` and `answer`."""
 
-    def __init__(self, sock: socket.socket, name: str, deck_text: str | None = None, auto_pass: bool = True):
-        super().__init__(sock, name, deck_text, show=self._add_line, auto_pass=auto_pass)
+    def __init__(self, sock: socket.socket, name: str, deck_text: str | None = None, auto_pass: bool = True,
+                 spectate: bool = False, password: str | None = None):
+        super().__init__(sock, name, deck_text, show=self._add_line, auto_pass=auto_pass, spectate=spectate,
+                         password=password)
         self.lines: list[str] = []
         self.prompt: dict | None = None  # {"id", "prompt", "options"} while a decision is open
         self.over = False  # the game socket closed
@@ -93,6 +96,7 @@ class WebClient(Client):
         with self._changed:
             self._changed.wait_for(lambda: self.version > since or self.over, timeout)
             return {"version": self.version, "name": self.name, "me": self.narrator.me, "over": self.over,
+                    "spectator": self.spectate,
                     "state": self.state, "lines": list(self.lines), "prompt": self.prompt}
 
 
@@ -153,19 +157,25 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m infernal_machine.web", description=__doc__.split("\n\n")[0])
     parser.add_argument("--host", default="localhost", help="the game server")
     parser.add_argument("--port", type=int, default=4000)
-    parser.add_argument("--name", required=True)
-    parser.add_argument("--deck", required=True, metavar="FILE", help="your decklist (Commander / Deck sections)")
+    parser.add_argument("--name", help="your name at the table (needed to play; spectators may leave it out)")
+    parser.add_argument("--deck", metavar="FILE", help="your decklist (Commander / Deck sections); players need one")
+    parser.add_argument("--spectate", action="store_true", help="watch the game instead of playing in it")
+    parser.add_argument("--password", help="the table's password, if it has one")
     parser.add_argument("--listen", type=int, default=8765, help="the local port the page is served on")
     parser.add_argument("--no-browser", action="store_true", help="don't open the page in your browser")
     args = parser.parse_args(argv)
-    with open(args.deck) as f:
-        deck_text = f.read()
+    if not args.spectate and not (args.name and args.deck):
+        parser.error("--name and --deck are needed to play (or use --spectate)")
+    deck_text = None
+    if args.deck:
+        with open(args.deck) as f:
+            deck_text = f.read()
     try:
         sock = socket.create_connection((args.host, args.port))
     except OSError as err:
         print(f"Couldn't connect to {args.host}:{args.port}: {err}", file=sys.stderr)
         return 1
-    client = WebClient(sock, args.name, deck_text)
+    client = WebClient(sock, args.name or "Spectator", deck_text, spectate=args.spectate, password=args.password)
     try:
         httpd = WebServer(client, port=args.listen)
     except OSError as err:
@@ -173,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
         sock.close()
         return 1
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    print(f"Playing as {args.name}; the table is at {httpd.url}")
+    print(f"{'Watching' if args.spectate else 'Playing as ' + args.name}; the table is at {httpd.url}")
     if not args.no_browser:
         webbrowser.open(httpd.url)
     try:

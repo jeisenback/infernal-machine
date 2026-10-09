@@ -92,3 +92,28 @@ class WebClientTests(unittest.TestCase):
         while not (view := self.view(view["version"]))["over"]:
             pass
         self.assertEqual(self.view(view["version"])["over"], True)  # answers at once rather than waiting the poll out
+
+
+class WebSpectatorTests(unittest.TestCase):
+    def test_a_spectator_says_so_in_its_hello_and_sees_the_board_without_a_hand(self):
+        server = FakeServer()
+        client = WebClient(server.client_sock, "Eve", spectate=True, password="swordfish")
+        thread = threading.Thread(target=client.run)
+        thread.start()
+        self.assertEqual(server.receive(), {"type": "hello", "name": "Eve", "password": "swordfish", "spectate": True})
+        server.send({"type": "welcome", "spectator": True})
+        game, _, _ = table()
+        server.send({"type": "event", "event": "state", **game.snapshot(None)})
+        httpd = WebServer(client, port=0, poll_seconds=0.2)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.shutdown)
+        conn = http.client.HTTPConnection(*httpd.server_address[:2], timeout=10)
+        view = {"state": None}
+        while view["state"] is None:
+            conn.request("GET", "/state?since=-1")
+            view = json.loads(conn.getresponse().read())
+        conn.close()
+        self.assertEqual((view["spectator"], view["prompt"], view["state"]["you"], view["state"]["hand"]), (True, None, -1, []))
+        self.assertTrue(any("Watching the table" in line for line in view["lines"]))
+        server.close()
+        thread.join(10)

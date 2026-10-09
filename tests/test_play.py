@@ -257,7 +257,7 @@ def wait_for(lines, text, seconds=10):
 class TableHarness:
     """A real server on a real socket, running a game in a thread."""
 
-    def __init__(self, test, humans, bot_decks, source, check=True, max_turns=3, seed=1, timer=0):
+    def __init__(self, test, humans, bot_decks, source, check=True, max_turns=3, seed=1, timer=0, password=None):
         self.server = listen("127.0.0.1", 0)
         self.server.settimeout(15)
         self.port = self.server.getsockname()[1]
@@ -266,7 +266,8 @@ class TableHarness:
         def run():
             try:
                 self.result["winner"] = run_table(self.server, humans, bot_decks, source, seed=seed, check_decks=check,
-                                                  max_turns=max_turns, log=self.log.append, timer=timer)
+                                                  max_turns=max_turns, log=self.log.append, timer=timer,
+                                                  password=password)
             except BaseException as err:  # reported by finish()
                 self.error.append(err)
 
@@ -274,14 +275,15 @@ class TableHarness:
         self.thread.start()
         test.addCleanup(self.server.close)
 
-    def client(self, name, deck, answer="1"):
-        """Connect a client that answers every question with `answer`; returns (thread, lines)."""
+    def client(self, name, deck, answer="1", **options):
+        """Connect a client that answers every question with `answer`; returns (thread, lines). `options` go to
+        Client (spectate=True, password=...)."""
         lines = []
 
         def run():
             sock = socket.create_connection(("127.0.0.1", self.port))
             sock.settimeout(20)
-            Client(sock, name, deck, ask=lambda hint: answer, show=lines.append).run()
+            Client(sock, name, deck, ask=lambda hint: answer, show=lines.append, **options).run()
 
         thread = threading.Thread(target=run)
         thread.start()
@@ -423,6 +425,127 @@ class ServerTests(unittest.TestCase):
         self.addCleanup(server.close)
         with self.assertRaises(ValueError):
             run_table(server, 1, [], DictSource(CARDS))
+
+
+class SpectatorTests(unittest.TestCase):
+    def test_a_watcher_is_told_every_public_event_and_the_board_but_never_a_hand(self):
+        class Watcher:
+            def __init__(self):
+                self.events = []
+
+            def notify(self, event):
+                self.events.append(event)
+
+        src = offline_source()
+        green, red = load_deck(demo_deck("green"), src), load_deck(demo_deck("red"), src)
+        watcher = Watcher()
+        game = Game([(BotPlayer("A", green), green), (BotPlayer("B", red), red)], seed=2)
+        game.spectators.append(watcher)
+        for seat in game.seats:
+            seat.player.wants_state = True  # so the game sends boards, which a watcher is sent too
+        game.play(max_turns=6)
+        kinds = {e["event"] for e in watcher.events}
+        self.assertTrue({"seat", "turn", "state", "cast", "game_over"} <= kinds)
+        self.assertFalse(kinds & {"draw", "opening_hand"}, kinds)  # what a player is told in private
+        boards = [e for e in watcher.events if e["event"] == "state"]
+        self.assertTrue(all(b["hand"] == [] and b["you"] == -1 for b in boards))
+        self.assertGreater(len(boards), 5)
+        json.dumps(boards)
+
+    def test_a_spectator_watches_a_whole_game_over_tcp(self):
+        src = offline_source()
+        table_ = TableHarness(self, 1, [demo_deck("red")], src, check=False, max_turns=8)
+        watcher, seen = table_.client("Eve", None, spectate=True)
+        wait_for(seen, "Watching the table")  # welcomed in the lobby, before any seat is taken
+        player, _ = table_.client("Alice", demo_deck("green"))
+        winner, log = table_.finish(player)
+        watcher.join(20)
+        text = "\n".join(seen)
+        self.assertIn("Seat 0: Alice", text)
+        self.assertIn("=== Turn", text)  # the board comes with each turn
+        self.assertIn("Game over", text)
+        self.assertNotIn("Your hand", text)
+        self.assertNotIn("You draw", text)
+        self.assertIn("Eve is watching", log)
+
+    def test_a_late_spectator_is_told_who_sits_where_and_the_board(self):
+        src = offline_source()
+        table_ = TableHarness(self, 1, [demo_deck("red")], src, check=False, max_turns=10)
+        stuck, released = [], threading.Event()
+
+        def player():  # holds the game on its first decision, so the spectator joins mid-game
+            sock = socket.create_connection(("127.0.0.1", table_.port))
+            sock.settimeout(30)
+
+            def hang(hint):
+                released.wait(20)
+                return "1"
+            Client(sock, "Alice", demo_deck("green"), ask=hang, show=stuck.append).run()
+
+        thread = threading.Thread(target=player)
+        thread.start()
+        wait_for(stuck, "Your hand")
+        watcher, seen = table_.client("Eve", None, spectate=True)
+        wait_for(seen, "Seat 1: Bot 1")
+        released.set()
+        table_.finish(thread)
+        watcher.join(20)
+        self.assertTrue(any("Seat 0: Alice" in line for line in seen))
+        self.assertTrue(any("Game over" in line for line in seen))
+
+    def test_the_spectator_command_line_needs_no_name_or_deck(self):
+        from infernal_machine.client import main as client_main
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            client_main(["--name", "Alice"])  # a player needs a deck as well
+
+
+class PasswordTests(unittest.TestCase):
+    def test_a_table_with_a_password_turns_away_the_wrong_one_and_seats_the_right_one(self):
+        table_ = TableHarness(self, 1, [LEGAL_DECK], DictSource(CARDS), password="swordfish", max_turns=2)
+        for tries in ({}, {"password": "swordfisk"}):
+            thread, lines = table_.client("Mallory", LEGAL_DECK, **tries)
+            thread.join(20)
+            self.assertTrue(any("Wrong password." in line for line in lines), lines)
+        spy, spy_lines = table_.client("Eve", None, spectate=True, password="nope")
+        spy.join(20)
+        self.assertTrue(any("Wrong password." in line for line in spy_lines))
+        good, good_lines = table_.client("Alice", LEGAL_DECK, password="swordfish")
+        table_.finish(good)
+        self.assertIn("Joined the table at seat 0.", good_lines)
+
+    def test_rejoining_during_the_game_needs_the_password_too(self):
+        src = offline_source()
+        table_ = TableHarness(self, 1, [demo_deck("red")], src, check=False, max_turns=12, password="swordfish")
+        stuck, released = [], threading.Event()
+
+        def first_connection():
+            sock = socket.create_connection(("127.0.0.1", table_.port))
+            sock.settimeout(30)
+
+            def hang(hint):
+                released.wait(20)
+                raise EOFError
+            Client(sock, "Alice", demo_deck("green"), ask=hang, show=stuck.append, password="swordfish").run()
+
+        thread = threading.Thread(target=first_connection)
+        thread.start()
+        wait_for(stuck, "Your hand")
+        thief, thief_lines = table_.client("Alice", None, password="wrong")  # knows the name, not the password
+        thief.join(20)
+        self.assertTrue(any("Wrong password." in line for line in thief_lines))
+        back, back_lines = table_.client("Alice", None, password="swordfish")
+        winner, log = table_.finish(back)
+        released.set()
+        thread.join(20)
+        self.assertIn("Rejoined the table at seat 0.", back_lines)
+
+    def test_password_ok(self):
+        from infernal_machine.server import password_ok
+        self.assertTrue(password_ok({}, None))
+        self.assertTrue(password_ok({"password": "x"}, "x"))
+        self.assertFalse(password_ok({"password": "y"}, "x"))
+        self.assertFalse(password_ok({}, "x"))
+        self.assertFalse(password_ok({"password": 5}, "x"))
 
 
 class AutoPilotTests(unittest.TestCase):
