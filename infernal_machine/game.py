@@ -310,6 +310,7 @@ class Seat:
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
+    conjurable: dict[str, Card] = field(default_factory=dict)  # Alchemy: the cards this player's deck can conjure, by name
     noncombat_damage_turn: int | None = None  # the last turn this player was dealt damage that wasn't combat damage
     life_lost_amount: int = 0  # how much they lost on life_lost_turn
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
@@ -361,6 +362,7 @@ class Game:
                 command_zone=list(deck.commanders),
                 commander_names={c.name for c in deck.commanders},
                 color_identity=frozenset(color for c in deck.commanders for color in c.color_identity),
+                conjurable=dict(deck.conjured),
             )
             for i, (player, deck) in enumerate(seats)
         ]
@@ -2219,6 +2221,8 @@ class Game:
                     continue
                 if watch.nontoken and _is_token(card):
                     continue
+                if watch.not_starting_deck and not card.conjured:
+                    continue
                 if watch.kind == "prepared spell":  # cast as a prepared creature's spell, whatever kind of spell it is
                     if not prepared:
                         continue
@@ -3125,6 +3129,18 @@ class Game:
                     del permanent.counters[kind]
                 self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
                                 "added": -removed, "total": permanent.counters.get(kind, 0)})
+
+    def conjure(self, seat: Seat, name: str) -> None:
+        """Alchemy: create the named card, from the cards this player's deck can conjure, onto the battlefield. A card the
+        deck has no definition for is not conjured."""
+        card = seat.conjurable.get(name)
+        if card is None:
+            self.broadcast({"event": "conjure_failed", "seat": seat.index, "card": name})
+            return
+        self.broadcast({"event": "conjure", "seat": seat.index, "card": name})
+        self._enter(seat, Permanent(dataclasses.replace(card, conjured=True), sick=True))
+        for permanent in list(seat.battlefield):
+            self.trigger("conjure", permanent, seat)
 
     def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None,
                       tapped: bool = False) -> list[Permanent]:

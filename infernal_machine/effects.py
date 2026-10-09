@@ -3883,6 +3883,15 @@ class PrepareEach:
 
 
 @dataclass(frozen=True)
+class Conjure:
+    """Alchemy: "Conjure a card named Storm Crow onto the battlefield." The card was looked up when the deck loaded."""
+    name: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.conjure(controller, self.name)
+
+
+@dataclass(frozen=True)
 class WhenThatDealsCombatDamage:
     """Stensian Sanguinist: "Whenever that creature deals combat damage to a player this combat, this creature becomes
     prepared." The creature is the last one targeted; the watch lives on this combat, so it ends with it."""
@@ -5033,6 +5042,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield tapped and attacking that opponent\.)"),
      lambda m: PutAttackingFromHand(tuple(re.findall(r"[A-Z][a-z]+", m[1])))),
     (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
+    (re.compile(r"conjure a card named (.+?) onto the battlefield\.", re.I), lambda m: Conjure(m[1])),
     (re.compile(rf"whenever that creature deals combat damage to a player this combat, ({_SELF} becomes prepared)\.", re.I),
      lambda m: WhenThatDealsCombatDamage(BecomePrepared())),
     (re.compile(r"each creature you control becomes prepared\.", re.I), lambda m: PrepareEach()),
@@ -5703,6 +5713,7 @@ class Watch:
     with_copy: bool = False  # "cast or copy" (magecraft)
     mv_at_least: int = 0  # "a spell with mana value 5 or greater"
     from_hand: bool = False  # "... from your hand"
+    not_starting_deck: bool = False  # "a spell that isn't from your starting deck": a conjured card
     from_zone: str = ""  # "graveyard" ("from your graveyard", "from their graveyard") or "not_hand" ("from anywhere other than your hand")
     qualifier: str = ""  # "with power 4 or greater" ("power>=4"), "with flying" ("flying"), "with a +1/+1 counter on it" ("counter:+1/+1")
     expend: int = 0  # "Whenever you expend 4": the total mana spent on spells this turn that it waits for
@@ -5750,6 +5761,7 @@ _TRIGGERS = {
     "host_attacks": re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I),
     "attack_with_two": re.compile(r"Whenever you attack with two or more creatures, (.+)", re.I),
     "attack_alone": re.compile(r"Whenever (?:you attack with a creature alone|a creature you control attacks alone), (.+)", re.I),
+    "conjure": re.compile(r"Whenever you conjure one or more cards, (.+)", re.I),
     "creatures_attack": re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I),
     "opponent_attacks": re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I),
     "cycle": re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I),
@@ -5813,7 +5825,8 @@ _WATCHES = {
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
                        r"|(?-i:[A-Z][a-z]+) spell)"  # a creature type: "another Vampire spell"
                        r"(?: with mana value (\d+) or greater)?"
-                       r"( from your hand| from your graveyard| from their graveyard| from anywhere other than your hand)?"
+                       r"( from your hand| from your graveyard| from their graveyard| from anywhere other than your hand"
+                       r"| that isn't from your starting deck)?"
                        r"(?(3) each turn), (.+)", re.I),
     "card_to_graveyard": re.compile(rf"Whenever an? ([a-z ]+?) card is put into your graveyard from anywhere, (.+)", re.I),
     "creature_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
@@ -5888,6 +5901,7 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         watch = Watch(m[4].lower(), other=(m[2] or "").lower() == "another", caster=caster, nth_each_turn=nth,
                       with_copy=m[1].lower() == "you cast or copy", mv_at_least=int(m[5] or 0),
                       from_hand=origin == "from your hand",
+                      not_starting_deck=origin == "that isn't from your starting deck",
                       from_zone="graveyard" if "graveyard" in origin else "not_hand" if "other than" in origin else "")
         return "cast", watch, m[7]
     if m := _WATCHES["card_to_graveyard"].fullmatch(line):
