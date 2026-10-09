@@ -5893,8 +5893,8 @@ _WATCHES = {
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
     "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? leaves the battlefield, (.+)", re.I),
     "permanent_taps": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? becomes tapped, (.+)", re.I),
-    "permanent_to_graveyard": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? is put into a graveyard "
-                                         r"from the battlefield, (.+)", re.I),
+    "permanent_to_graveyard": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? is put into (?:a|(your)) "
+                                         r"graveyard from the battlefield, (.+)", re.I),
     "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:(an?|another)|(?:your|their) (first|second|third)) "
                        r"((?:white|blue|black|red|green) spell|multicolored spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
@@ -5937,6 +5937,7 @@ _PLAYER_PRONOUNS = [
     (re.compile(r"\bthat player (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
     (re.compile(r"\bhave that player (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bto that player\b", re.I), "to target player"),
+    (re.compile(r"\bthat opponent (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),  # Tomik
 ]
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
 
@@ -5990,7 +5991,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         if m := _WATCHES[event].fullmatch(line):
             self_or_other, another, kind = m[1], m[2], m[3].lower()
             under = m[5] if event == "permanent_enters" else None
-            yours = m[4] == " you control" or under == " under your control"
+            own_graveyard = event == "permanent_to_graveyard" and m[5] is not None  # Nether Traitor: "into your graveyard"
+            yours = m[4] == " you control" or under == " under your control" or own_graveyard
             theirs = m[4] == " an opponent controls" or under == " under an opponent's control"
             watch = Watch(kind.removeprefix("nontoken "), other=bool(another) and not self_or_other,
                           yours=yours, nontoken=kind.startswith("nontoken"), theirs=theirs, qualifier=qualifier)
