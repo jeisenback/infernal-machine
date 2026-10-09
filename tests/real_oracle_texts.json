@@ -2206,6 +2206,184 @@
    "colors": [
     "G"
    ]
+  },
+  {
+   "name": "Coursers' Accord",
+   "mana_cost": "{4}{G}{W}",
+   "type_line": "Sorcery",
+   "oracle_text": "Create a 3/3 green Centaur creature token, then populate. (Create a token that's a copy of a creature token you control.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Flash",
+   "mana_cost": "{1}{U}",
+   "type_line": "Instant",
+   "oracle_text": "You may put a creature card from your hand onto the battlefield. If you do, sacrifice it unless you pay its mana cost reduced by {2}.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "U"
+   ]
+  },
+  {
+   "name": "Horncaller's Chant",
+   "mana_cost": "{7}{G}",
+   "type_line": "Sorcery",
+   "oracle_text": "Create a 4/4 green Rhino creature token with trample, then populate. (Create a token that's a copy of a creature token you control.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Life of the Party",
+   "mana_cost": "{3}{R}",
+   "type_line": "Creature — Elemental",
+   "oracle_text": "First strike, trample, haste\nWhenever this creature attacks, it gets +X/+0 until end of turn, where X is the number of creatures you control.\nWhen this creature enters, if it's not a token, each opponent creates a token that's a copy of it. The tokens are goaded for the rest of the game. (They attack each combat if able and attack a player other than you if able.)",
+   "power": "0",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Orthion, Hero of Lavabrink",
+   "mana_cost": "{3}{R}",
+   "type_line": "Legendary Creature — Human Soldier",
+   "oracle_text": "{1}{R}, {T}: Create a token that's a copy of another target creature you control. It gains haste. Sacrifice it at the beginning of the next end step. Activate only as a sorcery.\n{6}{R}{R}{R}, {T}: Create five tokens that are copies of another target creature you control. They gain haste. Sacrifice them at the beginning of the next end step. Activate only as a sorcery.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Peer into the Abyss",
+   "mana_cost": "{4}{B}{B}{B}",
+   "type_line": "Sorcery",
+   "oracle_text": "Target player draws cards equal to half the number of cards in their library and loses half their life. Round up each time.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "B"
+   ]
+  },
+  {
+   "name": "Phytotitan",
+   "mana_cost": "{4}{G}{G}",
+   "type_line": "Creature — Plant Elemental",
+   "oracle_text": "When this creature dies, return it to the battlefield tapped under its owner's control at the beginning of their next upkeep.",
+   "power": "7",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Quietus Spike",
+   "mana_cost": "{3}",
+   "type_line": "Artifact — Equipment",
+   "oracle_text": "Equipped creature has deathtouch.\nWhenever equipped creature deals combat damage to a player, that player loses half their life, rounded up.\nEquip {3}",
+   "power": null,
+   "toughness": null,
+   "colors": []
+  },
+  {
+   "name": "Seismic Tutelage",
+   "mana_cost": "{3}{G}",
+   "type_line": "Enchantment — Aura",
+   "oracle_text": "Enchant creature\nWhen this Aura enters, put a +1/+1 counter on enchanted creature.\nWhenever enchanted creature attacks, double the number of +1/+1 counters on it.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Soulgorger Orgg",
+   "mana_cost": "{3}{R}{R}",
+   "type_line": "Creature — Nightmare Orgg",
+   "oracle_text": "Trample\nWhen this creature enters, you lose all but 1 life.\nWhen this creature leaves the battlefield, you gain life equal to the life you lost when it entered.",
+   "power": "6",
+   "toughness": "6",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Sudden Reclamation",
+   "mana_cost": "{3}{G}",
+   "type_line": "Instant",
+   "oracle_text": "Mill four cards, then return a creature card and a land card from your graveyard to your hand.",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "G"
+   ]
+  },
+  {
+   "name": "Tanazir Quandrix",
+   "mana_cost": "{3}{G}{U}",
+   "type_line": "Legendary Creature — Elder Dragon",
+   "oracle_text": "Flying, trample\nWhen Tanazir Quandrix enters, double the number of +1/+1 counters on target creature you control.\nWhenever Tanazir Quandrix attacks, you may have the base power and toughness of other creatures you control become equal to Tanazir Quandrix's power and toughness until end of turn.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "U"
+   ]
+  },
+  {
+   "name": "Tempestra, Dame of Games",
+   "mana_cost": "{1}{R}",
+   "type_line": "Legendary Creature — Elemental Illusion",
+   "oracle_text": "{2}{R}, {T}, Sacrifice an artifact: Create a token that's a copy of another target creature you control, except it isn't legendary. It gains haste. Sacrifice it at the beginning of the next end step.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ]
+  },
+  {
+   "name": "Wake the Reflections",
+   "mana_cost": "{W}",
+   "type_line": "Sorcery",
+   "oracle_text": "Populate. (Create a token that's a copy of a creature token you control.)",
+   "power": null,
+   "toughness": null,
+   "colors": [
+    "W"
+   ]
+  },
+  {
+   "name": "Tomb Fortress",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "This land enters tapped.\n{T}: Add {B}.\n{2}{B}{B}{B}, {T}, Exile this land: Mill four cards, then return a creature card from your graveyard to the battlefield. Activate only as a sorcery.",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "B"
+   ]
+  },
+  {
+   "name": "Port of Karfell",
+   "mana_cost": "",
+   "type_line": "Land",
+   "oracle_text": "This land enters tapped.\n{T}: Add {U}.\n{3}{U}{B}{B}, {T}, Sacrifice this land: Mill four cards, then return a creature card from your graveyard to the battlefield tapped. (To mill a card, put the top card of your library into your graveyard.)",
+   "power": null,
+   "toughness": null,
+   "colors": [],
+   "produced_mana": [
+    "U"
+   ]
   }
  ],
  "undercity": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle.",

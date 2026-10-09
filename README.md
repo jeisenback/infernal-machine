@@ -280,7 +280,16 @@ winner = game.play()
 | Exile target creature. Its controller manifests the top card of their library. | Reality Shift |
 | Shuffle your library. As many times as you choose, you may exile the top card of your library. If the total mana value of the cards exiled this way is 13 or less, you may cast any number of spells from among those cards without paying their mana costs. (you are asked after each card, shown the running total; bots stop at 4 cards or total 9) | Dance with Calamity |
 | Create a token that's a copy of target creature (you control). / Populate. | Growing Ranks |
-| Create a 3/3 ... token, then populate. (the new token may be the one copied) | |
+| Create a 3/3 ... token, then populate. (the new token may be the one copied; "token with trample, then populate" too) | Horncaller's Chant |
+| Create a token that's a copy of another target creature you control(, except it isn't legendary). It gains haste. Sacrifice it at the beginning of the next end step. (also five tokens) | Orthion, Tempestra |
+| Target player draws cards equal to half the number of cards in their library and loses half their life. Round up each time. | Peer into the Abyss |
+| Whenever equipped creature deals combat damage to a player, that player loses half their life, rounded up. ("that player" is who was hit) | Quietus Spike |
+| When this Aura enters, put a +1/+1 counter on enchanted creature. / Have the base power and toughness of other creatures you control become equal to CARDNAME's power and toughness until end of turn. | Seismic Tutelage, Tanazir Quandrix |
+| When this creature dies, return it to the battlefield tapped under its owner's control at the beginning of their next upkeep. | Phytotitan |
+| You may put a creature card from your hand onto the battlefield. If you do, sacrifice it unless you pay its mana cost reduced by {2}. | Flash |
+| Mill four cards, then return a creature card and a land card from your graveyard to your hand / a creature card to the battlefield (tapped). ("Exile this land" as a cost works) | Sudden Reclamation, Tomb Fortress, Port of Karfell |
+| When this creature enters, if it's not a token, each opponent creates a token that's a copy of it. The tokens are goaded for the rest of the game. | Life of the Party |
+| You lose all but 1 life. / When this creature leaves the battlefield, you gain life equal to the life you lost when it entered. | Soulgorger Orgg |
 | Create a token that's a copy of another target creature you control. (not the source itself) | |
 | Create a token that's a copy of it, tapped and attacking. (the copy attacks whom the source attacks; it is never declared, so attack triggers don't see it) | |
 | Target player loses half their life, rounded up / rounded down. | |
