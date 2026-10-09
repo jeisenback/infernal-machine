@@ -6193,7 +6193,7 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
     return ActivatedAbility(line, tuple(effects), **fields)
 
 
-_TAP = r"\{T\}(, Sacrifice (?:CARDNAME|this (?:artifact|creature|permanent|land)))?: Add "  # group 1: sacrifice
+_TAP = r"\{T\}(, Sacrifice (?:CARDNAME|this (?:artifact|creature|permanent|land)))?(?:, (?:Sacrifice a Food|Mill a card))?: Add "  # group 1: sacrifice
 # Each may end with "Activate only if <condition>." (Temple of the False God, Spire of Industry): that is always the
 # last group of the match, None when it is absent.
 _IF_TAIL = r"(?: Activate only if (.+)\.)?"
@@ -6228,10 +6228,49 @@ def mana_spent_trigger(card: Card) -> ManaSpentTrigger | None:
     return None
 
 
+# Troyan, Elementalist's Palette: "Spend this mana only ..." limits what the mana can pay for.
+_RESTRICTION = re.compile(r" Spend this mana only (to cast spells with mana value 5 or greater or spells with \{X\} in their "
+                          r"mana costs|on costs that contain \{X\})\.")
+_RESTRICTIONS = {"to cast spells with mana value 5 or greater or spells with {X} in their mana costs": "big_or_x",
+                 "on costs that contain {X}": "x_cost"}
+
+
 def _without_spent_rider(line: str) -> str:
-    """The mana ability alone, without its "When that mana is spent ..." sentence."""
+    """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
     m = _SPENT_RIDER.fullmatch(line)
-    return m[1] if m else line
+    return _RESTRICTION.sub("", m[1] if m else line)
+
+
+def mana_restriction(card: Card) -> str | None:
+    """What the card's plain mana ability limits its mana to: "big_or_x" (spells of mana value 5 or more, or with {X} in
+    their cost) or "x_cost" (costs containing {X})."""
+    line = _mana_line(card)
+    m = _RESTRICTION.search(line) if line else None
+    return _RESTRICTIONS[m[1]] if m else None
+
+
+_EXTRA_COST = re.compile(r"\{T\}, (Sacrifice a Food|Mill a card): Add ")
+
+
+def mana_extra_cost(card: Card) -> str | None:
+    """"food" or "mill" when the card's mana ability costs a Food sacrifice (Gilded Goose) or a milled card (Millikin)."""
+    line = _mana_line(card)
+    m = _EXTRA_COST.match(line) if line else None
+    return None if m is None else ("food" if m[1].startswith("Sacrifice") else "mill")
+
+
+# Astral Cornucopia, Elementalist's Palette: one mana for each charge counter.
+_CHARGE_MANA = re.compile(r"\{T\}: (Choose a color\. Add one mana of that color|Add \{C\}) for each charge counter on "
+                          r"(?:CARDNAME|this [a-z]+)\.(?: Spend this mana only on costs that contain \{X\}\.)?")
+
+
+def charge_mana(card: Card) -> tuple[frozenset[str], str | None] | None:
+    """The types of the mana per charge counter this permanent makes when tapped, and its spending restriction."""
+    for line in rules_lines(card):
+        if m := _CHARGE_MANA.fullmatch(line):
+            return (frozenset("WUBRG") if m[1].startswith("Choose") else frozenset("C"),
+                    "x_cost" if "Spend" in line else None)
+    return None
 
 
 def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
@@ -6311,6 +6350,7 @@ def is_mana_ability(line: str) -> bool:
     line = _without_spent_rider(line)
     return (_mana_match(line) is not None or _ADD_POWER.fullmatch(line) is not None
             or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
+            or _CHARGE_MANA.fullmatch(line) is not None
             or _FILTER.fullmatch(line) is not None
             or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))
@@ -6403,6 +6443,7 @@ def filter_mana_ability(card: Card) -> tuple[str, list[frozenset[str]]] | None:
 
 
 def _mana_from_line(line: str, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
+    line = _without_spent_rider(line)
     if m := _ADD_SYMBOLS.fullmatch(line):
         return [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2])]
     if m := _ADD_EITHER.fullmatch(line):

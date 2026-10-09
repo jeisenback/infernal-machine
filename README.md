@@ -429,6 +429,17 @@ winner = game.play()
     commander (Study Hall scries the number of times it has been cast from the command zone, counting this cast) or
     a creature spell sharing a creature type with your commander (Path of Ancestry scries 1). The trigger goes on
     the stack above the spell. Study Hall tapped for its plain {C} spends no such mana, so it doesn't trigger then.
+  - Mana with strings attached: "Spend this mana only to cast spells with mana value 5 or greater or spells with {X}" (Troyan)
+    and "only on costs that contain {X}" (Elementalist's Palette) are only used for what they may pay for; "{T}, Sacrifice a
+    Food: Add one mana of any color" (Gilded Goose, one Food per Goose) and "{T}, Mill a card: Add {C}" (Millikin, needs a
+    library) pay their extra cost when the mana is spent; "Add one mana ... for each charge counter" (Astral Cornucopia,
+    Palette) makes one mana per counter (the mana of one tap may be spent as different colors).
+  - Exile and graveyard effects: Serra Paragon (once each turn, play a land or cast a permanent spell of mana value 3 or
+    less from your graveyard; that permanent is exiled, and you gain 2 life, if it goes to the graveyard). Surge to
+    Victory (exile an instant or sorcery from your graveyard, creatures get +X/+0, and each creature that connects this
+    turn lets you cast a free copy of it). Fateful Tempest (a past-or-present vote: mill and damage, or exile cards you
+    may play until your next turn ends). Abstract Performance (two piles of four; an opponent sends one to your
+    graveyard, you may cast a spell from the other for free and take the rest).
   - Ancient Tomb ("{T}: Add {C}{C}. ... deals 2 damage to you."): two mana from one tap, and the damage is dealt
     once per tap however much of the mana is used. Bouncelands ("{T}: Add {B}{G}.") make both colors the same way.
   - City of Brass ("Whenever this land becomes tapped, it deals 1 damage to you."): hurts every time it's tapped
