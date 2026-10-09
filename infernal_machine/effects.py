@@ -175,7 +175,7 @@ class Counter:
     delayed_mana: bool = False  # Mana Drain: at your next main phase, add {C} equal to that spell's mana value
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
+        if target is not None and not cant_be_countered(target.card):
             if self.delayed_mana:
                 controller.delayed_mana += int(target.card.cmc) + target.x
             game.counter(target, self.exile)
@@ -635,12 +635,14 @@ def _counter_name(text: str) -> str:
     return text.replace("\u2212", "-")
 
 
-_ENTERS_WITH = re.compile(rf"{_SELF} enters with {_N} {_COUNTER} on it\.", re.I)
+_ENTERS_WITH = re.compile(rf"{_SELF} enters with (twice X|{_N}) {_COUNTER} on it\.", re.I)
+_ESCAPES_WITH = re.compile(rf"{_SELF} escapes with {_N} {_COUNTER} on it\.", re.I)  # Woe Strider
+_CLONE_EXTRA = re.compile(r".*, except it enters with X additional \+1/\+1 counters on it\.")  # Altered Ego
 _IF_KICKED = re.compile(rf"if {_SELF} was kicked, ", re.I)
 _ENTERS_PER_KICK = re.compile(rf"{_SELF} enters with an? {_COUNTER} on it for each time it was kicked\.", re.I)
 
 
-def enters_with_counters(card: Card, kicked: int = 0) -> dict[str, int | str]:
+def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False) -> dict[str, int | str]:
     """Counters from "This creature enters with N (or X) +1/+1 counters on it.", plus, when `kicked` (the number
     of times), "If this creature was kicked, it enters with N +1/+1 counters on it." and multikicker's
     "... enters with a +1/+1 counter on it for each time it was kicked." """
@@ -649,8 +651,12 @@ def enters_with_counters(card: Card, kicked: int = 0) -> dict[str, int | str]:
         if kicked and (k := _IF_KICKED.match(line)):
             line = line[k.end():]
         if m := _ENTERS_WITH.fullmatch(line):
-            name, count = _counter_name(m[2]), _count(m[1])
-            counters[name] = count if count == "X" else counters.get(name, 0) + count
+            name = _counter_name(m[3])
+            count = "2X" if m[1].lower() == "twice x" else _count(m[2])  # "2X": twice the X paid
+            counters[name] = count if count in ("X", "2X") else counters.get(name, 0) + count
+        elif escaped and (m := _ESCAPES_WITH.fullmatch(line)):
+            name = _counter_name(m[2])
+            counters[name] = counters.get(name, 0) + _count(m[1])
         elif kicked and (m := _ENTERS_PER_KICK.fullmatch(line)):
             name = _counter_name(m[1])
             counters[name] = counters.get(name, 0) + kicked
@@ -660,7 +666,15 @@ def enters_with_counters(card: Card, kicked: int = 0) -> dict[str, int | str]:
 def is_enters_with_counters(line: str) -> bool:
     if k := _IF_KICKED.match(line):
         line = line[k.end():]
-    return _ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None
+    return (_ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None
+            or _ESCAPES_WITH.fullmatch(line) is not None)
+
+
+_CANT_COUNTER = re.compile(r"This spell can't be countered\.")
+
+
+def cant_be_countered(card: Card) -> bool:
+    return any(_CANT_COUNTER.fullmatch(line) for line in rules_lines(card))
 
 
 def _signed(text: str) -> int:
@@ -1134,7 +1148,13 @@ def is_replacement_line(line: str) -> bool:
 
 
 _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy of "
-                    r"(?:any (creature|artifact|enchantment|land) on the battlefield|a (creature) you control)\.")
+                    r"(?:any (creature|artifact|enchantment|land) on the battlefield|a (creature) you control)"
+                    r"(, except it enters with X additional \+1/\+1 counters on it)?\.")
+
+
+def clone_extra_counters(card: Card) -> bool:
+    """Altered Ego: a copy "except it enters with X additional +1/+1 counters on it"."""
+    return any((m := _CLONE.fullmatch(line)) and m[3] for line in rules_lines(card))
 
 
 def clone_kind(card: Card) -> tuple[str, bool] | None:
@@ -2980,7 +3000,7 @@ _SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate)(?:, (?:Delve
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY))
 
@@ -3251,6 +3271,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
      lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
+    (re.compile(r"put a number of \+1/\+1 counters on it equal to the damage dealt\.", re.I),
+     lambda m: PutCountersOnSource("X", "+1/+1")),  # X is the damage the trigger saw
     (re.compile(r"you may choose new targets for the copy\.", re.I), lambda m: NewTargets()),
     (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
      lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
@@ -3870,6 +3892,8 @@ _TRIGGERS = {
     "first_life_loss": re.compile(r"Whenever you lose life for the first time each turn, (.+)", re.I),
     "creatures_combat_damage": re.compile(r"Whenever one or more creatures you control deal combat damage to a player, (.+)",
                                           re.I),
+    "zero_power_combat_damage": re.compile(r"Whenever one or more creatures you control with base power 0 deal combat damage "
+                                           r"to a player, (.+)", re.I),
     "tokens_combat_damage": re.compile(r"Whenever one or more creature tokens you control deal combat damage to a player, "
                                        r"(.+)", re.I),
     "first_life_gain": re.compile(r"Whenever you gain life for the first time each turn, (.+)", re.I),

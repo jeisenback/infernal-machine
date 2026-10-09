@@ -152,15 +152,21 @@ class Combat:
                 if self._deals_damage_now(blocker, first_strike_step):
                     hits.append((blocker, attacker, max(0, self.game.power(blocker))))
         hit_players: dict[tuple[int, int], tuple[Seat, list[Permanent]]] = {}  # (hitter, player hit) -> who did it
+        dealt: dict[tuple[int, int], dict[int, int]] = {}  # the same key -> how much each of them dealt
         for source, target, amount in hits:
             if amount > 0:
                 hitter = self.game.controller_of(source)
                 self.game.damage(target, amount, source=source, combat=True)
                 if hitter is not None and not hasattr(target, "card"):  # a player, not a permanent
                     hit_players.setdefault((hitter.index, target.index), (hitter, []))[1].append(source)
-        for hitter, sources in hit_players.values():  # "Whenever one or more creatures you control deal combat damage ..."
+                    dealt.setdefault((hitter.index, target.index), {})[id(source)] = amount
+        for key, (hitter, sources) in hit_players.items():  # "Whenever one or more creatures you control deal combat damage ..."
+            zero_power = [s for s in sources if s.card.power == "0"]  # base power 0 (Primo): the damage they dealt
             for permanent in list(hitter.battlefield):
                 self.game.trigger("creatures_combat_damage", permanent, hitter, subject=sources[0])
+                if zero_power:
+                    self.game.trigger("zero_power_combat_damage", permanent, hitter, subject=zero_power[0],
+                                      x=sum(dealt[key][id(s)] for s in zero_power))
                 if any(s.card.type_line.startswith("Token") for s in sources):
                     self.game.trigger("tokens_combat_damage", permanent, hitter, subject=sources[0])
 

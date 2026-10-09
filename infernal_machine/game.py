@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -162,6 +162,7 @@ class Permanent:
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
     attacked_turn: int | None = None  # the last turn it attacked
+    escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     bestowed_from: "Card | None" = None  # a bestowed Aura: the creature card it goes back to when its creature leaves
     must_attack: "Seat | None" = None  # an Encore token: it attacks this player this turn if able
@@ -223,6 +224,7 @@ class StackItem:
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
     player: "Seat | None" = None  # for a watching trigger: the player whose action set it off ("that player")
+    escaped: bool = False  # cast for its escape cost
     bestowed: bool = False  # cast for its bestow cost: an Aura spell that may resolve as a creature
     sacrificed_power: int = 0  # for an ability: the power of the creature sacrificed to pay for it
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
@@ -1240,6 +1242,7 @@ class Game:
         self._pay_extras(seat, card, alternative, graveyard, x, kicked)
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after),
                          is_copy=prepared is not None, evoked=bool(alternative and alternative.evoke),
+                         escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow))
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
@@ -1352,7 +1355,8 @@ class Game:
             return
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-            entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers)
+            entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers,
+                                 escaped=item.escaped)
             if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
                 self._queue(EVOKE_SACRIFICE, entering, seat)
             self._enter(seat, entering, x=item.x)
@@ -1539,13 +1543,13 @@ class Game:
     # --- triggered abilities -------------------------------------------------
 
     def trigger(self, event: str, permanent: Permanent, controller: Seat, subject: Permanent | None = None,
-                player: Seat | None = None) -> None:
+                player: Seat | None = None, x: int = 0) -> None:
         """Note that `permanent`'s abilities for `event` triggered; they go on the stack
         the next time a player would get priority (CR 603.3)."""
         for ability in triggered_abilities(permanent.card):
             if ability.event == event and ability.watch is None:
                 for _ in range(self._trigger_times(controller, event, permanent.card)):
-                    self._queue(ability, permanent, controller, subject=subject, player=player)
+                    self._queue(ability, permanent, controller, x=x, subject=subject, player=player)
 
     def _trigger_each(self, event: str, seat: Seat, subject: Permanent | None = None,
                       player: Seat | None = None) -> None:
@@ -2890,10 +2894,16 @@ class Game:
     # --- helpers -------------------------------------------------------------
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
+        extra_when_copy = False
         if clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
+            extra_when_copy = clone_extra_counters(permanent.card)
             self._become_copy(seat, permanent, *clone)
-        for counter, count in enters_with_counters(permanent.card, permanent.kicked).items():  # CR 614.1c: it arrives with them
-            number = self._counters_to_add(seat, permanent.card, counter, x if count == "X" else count, permanent)
+        counters = {counter: (x if count == "X" else 2 * x if count == "2X" else count)
+                    for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped).items()}
+        if extra_when_copy and permanent.real_card is not None:  # Altered Ego: X additional counters on the copy
+            counters["+1/+1"] = counters.get("+1/+1", 0) + x
+        for counter, amount in counters.items():  # CR 614.1c: it arrives with them
+            number = self._counters_to_add(seat, permanent.card, counter, amount, permanent)
             permanent.counters[counter] = permanent.counters.get(counter, 0) + number
         permanent.owner = permanent.owner or seat
         if chooses_creature_type(permanent.card):
