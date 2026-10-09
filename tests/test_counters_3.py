@@ -5,8 +5,9 @@ from dataclasses import replace
 
 from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
-from infernal_machine.effects import Counter
-from infernal_machine.game import Permanent, StackItem
+from infernal_machine.effects import (HYPOTHESIS_COUNTER_PROMPT, PARITY_PROMPT, Counter, OpponentsLoseCounters,
+                                      RemoveAllCountersDraw, ZimonesHypothesis, spell_effects)
+from infernal_machine.game import MODE_PROMPT, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
@@ -167,3 +168,78 @@ class ZimoneTests(unittest.TestCase):
         self.assertEqual(game.cost_reduction(a, BEAR), 0)  # not an X spell
         a.cast_log.append((game.turn, self.X_SPELL))
         self.assertEqual(game.cost_reduction(a, self.X_SPELL), 0)  # only the first
+
+
+class FinalActTests(unittest.TestCase):
+    def test_it_is_understood(self):
+        self.assertEqual(unsupported_lines(REAL["Final Act"]), [])
+
+    def test_opponents_lose_their_counters_and_you_keep_yours(self):
+        game, _ = table3()
+        a, b, c = game.seats
+        a.player_counters, b.player_counters, c.player_counters = {"poison": 1}, {"poison": 3}, {"energy": 2}
+        OpponentsLoseCounters().resolve(game, a, None)
+        self.assertEqual((a.player_counters, b.player_counters, c.player_counters), ({"poison": 1}, {}, {}))
+
+
+class NexusMentalityTests(unittest.TestCase):
+    CARD = REAL["Nexus Mentality"]
+
+    def modes(self, with_commander):
+        def policy(prompt, options):
+            return 0
+        game, _ = table3(policy)
+        a = game.seats[0]
+        a.battlefield = [Permanent(RELIC), Permanent(RELIC)]  # something for each mode to target
+        if with_commander:
+            a.battlefield.append(Permanent(Card(name="Omnath", type_line="Legendary Creature", power="1", toughness="1")))
+        modal = spell_effects(self.CARD)[0]
+        _effects, _ = game._choose_modes(a, self.CARD, modal, casting=True)
+        return [p for p, o in game.seats[0].player.prompts if p.startswith(MODE_PROMPT)]
+
+    def test_it_is_understood(self):
+        self.assertEqual(unsupported_lines(self.CARD), [])
+
+    def test_one_mode_normally_and_both_with_a_commander(self):
+        self.assertEqual(len(self.modes(False)), 1)
+        self.assertEqual(len(self.modes(True)), 2)
+
+    def test_move_all_counters_of_every_kind(self):
+        game, _ = table3()
+        a = game.seats[0]
+        source, destination = Permanent(RELIC, counters={"+1/+1": 2, "charge": 3}), Permanent(RELIC, counters={"charge": 1})
+        game.move_counters(source, destination, None, None)
+        self.assertEqual((source.counters, destination.counters), ({}, {"+1/+1": 2, "charge": 4}))
+
+    def test_remove_all_counters_and_draw_that_many(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.library = [BEAR] * 6
+        relic = Permanent(RELIC, counters={"+1/+1": 2, "charge": 3})
+        a.battlefield = [relic]
+        RemoveAllCountersDraw("nonland permanent you control").resolve(game, a, relic)
+        self.assertEqual((relic.counters, len(a.hand)), ({}, 5))
+
+
+class ZimonesHypothesisTests(unittest.TestCase):
+    def cast(self, counter_on, parity):
+        def policy(prompt, options):
+            if prompt.startswith(HYPOTHESIS_COUNTER_PROMPT):
+                return counter_on
+            if prompt.startswith(PARITY_PROMPT):
+                return parity
+            return 0
+        game, _ = table3(policy)
+        a, b, _c = game.seats
+        two, three, four = Permanent(BEAR), Permanent(replace(BEAR, power="3")), Permanent(replace(BEAR, power="4"))
+        a.battlefield, b.battlefield = [two, three], [four]
+        ZimonesHypothesis().resolve(game, a, None)
+        return a, b
+
+    def test_even_returns_the_even_power_creatures(self):
+        a, b = self.cast(counter_on=0, parity=1)  # a counter on the first creature: it is a 3/3 now; even: only the 4-power one
+        self.assertEqual(([p.card.power for p in a.battlefield], len(b.battlefield)), (["2", "3"], 0))
+
+    def test_odd_returns_the_odd_power_creatures_and_zero_is_even(self):
+        a, b = self.cast(counter_on=3, parity=0)  # no counter (the last option); odd: the 3-power one
+        self.assertEqual(([p.card.power for p in a.battlefield], len(b.battlefield)), (["2"], 1))

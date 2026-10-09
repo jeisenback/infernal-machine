@@ -273,6 +273,7 @@ class Seat:
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
+    player_counters: dict[str, int] = field(default_factory=dict)  # counters on the player: poison, energy, ...
     died_turn: int | None = None  # the turn `died` counts for
     died: int = 0  # creatures that died under this player's control that turn
     creatures_entered_turn: int | None = None  # the turn `creatures_entered` counts for
@@ -661,6 +662,10 @@ class Game:
     def move_counters(self, source: Permanent, destination: Permanent, counter: str, count: int | None) -> None:
         """Move up to `count` counters (all of them if None) from one permanent to another. They are moved, not put
         on it, so nothing that doubles counters applies."""
+        if counter is None:  # Nexus Mentality: all counters, of every kind
+            for kind in list(source.counters):
+                self.move_counters(source, destination, kind, count)
+            return
         moved = min(source.counters.get(counter, 0), source.counters.get(counter, 0) if count is None else count)
         if not moved:
             return
@@ -1149,6 +1154,8 @@ class Game:
         if len(available) < modal.min:
             return [], ""
         entwine, escalate = (entwine_cost(card), escalate_cost(card)) if casting else (None, None)
+        if modal.commander_both and any(p.card.name in (p.owner or seat).commander_names for p in seat.battlefield):
+            modal = dataclasses.replace(modal, max=len(modal.modes))  # "if you control a commander ... you may choose both"
         if (entwine and len(available) == len(modal.modes) > 1
                 and self._payment(seat, card, from_command_zone, extra=entwine) is not None
                 and seat.player.choose(ENTWINE_PROMPT + card.name, YES_NO) == 0):

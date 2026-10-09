@@ -76,7 +76,11 @@ def rules_lines(card: Card) -> list[str]:
     return [line.strip() for line in _rules_text(card).splitlines() if line.strip()]
 
 
-_WHOLE_LINE = re.compile(r"Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*", re.I)
+_WHOLE_LINE = re.compile(
+    r"Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
+    r"|Remove all counters from target nonland permanent you control\. Draw a card for each counter removed this way\."
+    r"|You may put a \+1/\+1 counter on a creature\. Then choose odd or even\. Return each creature with power of the chosen "
+    r"quality to its owner's hand\.", re.I)
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -417,14 +421,16 @@ class Modal:
     max: int
     modes: tuple[tuple, ...]  # the effects of each mode
     texts: tuple[str, ...]
+    commander_both: bool = False  # "If you control a commander as you cast this spell, you may choose both instead."
 
 
 _MODAL_COUNTS = {"one": (1, 1), "two": (2, 2), "three": (3, 3), "one or both": (1, 2), "one or more": (1, 0)}
 _MODAL_HEADER = re.compile(r"Choose (one or both|one or more|one|two|three) \u2014", re.I)
+_MODAL_COMMANDER = re.compile(r"Choose one\. If you control a commander as you cast this spell, you may choose both instead\.")
 
 
 def is_modal_header(line: str) -> bool:
-    return _MODAL_HEADER.fullmatch(line) is not None
+    return _MODAL_HEADER.fullmatch(line) is not None or _MODAL_COMMANDER.fullmatch(line) is not None
 
 
 def mode_text(line: str) -> str:
@@ -513,6 +519,42 @@ class RemoveCounters:
 
 
 @dataclass(frozen=True)
+class RemoveAllCountersDraw:
+    """Nexus Mentality: "Remove all counters from target nonland permanent you control. Draw a card for each counter removed
+    this way." """
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            removed = sum(target.counters.values())
+            game.remove_counters(target, None, None)
+            game.draw(controller, removed)
+
+
+PARITY_PROMPT = "Choose odd or even for "  # followed by the spell's name; options: "Odd", "Even"
+HYPOTHESIS_COUNTER_PROMPT = "Put a +1/+1 counter on a creature for "  # followed by the spell's name
+
+
+@dataclass(frozen=True)
+class ZimonesHypothesis:
+    """Zimone's Hypothesis: "You may put a +1/+1 counter on a creature. Then choose odd or even. Return each creature with
+    power of the chosen quality to its owner's hand." (Zero is even.)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        name = game.resolving_item.card.name if game.resolving_item is not None else "Zimone's Hypothesis"
+        creatures = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line]
+        if creatures:
+            options = [game.label(p) for p in creatures] + ["No counter"]
+            pick = controller.player.choose(HYPOTHESIS_COUNTER_PROMPT + name, options)
+            if pick < len(creatures):
+                game.put_counters(creatures[pick], "+1/+1", 1)
+        parity = controller.player.choose(PARITY_PROMPT + name, ["Odd", "Even"])
+        chosen = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line
+                  and game.power(p) % 2 == (1 if parity == 0 else 0)]
+        game.return_all_to_hand(chosen)
+
+
+@dataclass(frozen=True)
 class MoveCountersFrom:
     """The first target of "Move a +1/+1 counter from target creature onto another target creature." """
     target: str
@@ -529,7 +571,7 @@ MOVE_COUNTERS_PROMPT = "Move how many "  # followed by the counter's name; optio
 class MoveCountersOnto:
     """The second target: the counters (up to `count`, or all if None) move from the first target to this one."""
     count: int | str | None  # a number, None for all of them, or "any" for a number the controller chooses
-    counter: str
+    counter: str | None  # None: every kind
     target: str
     another: bool = True
     same_controller: bool = False  # "... with the same controller": the second creature is under the first one's controller
@@ -1548,6 +1590,15 @@ class MassFilter:
 
 
 @dataclass(frozen=True)
+class OpponentsLoseCounters:
+    """Final Act: "Each opponent loses all counters." (the counters on players: poison, energy, experience, ...)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for opponent in game.opponents(controller):
+            opponent.player_counters.clear()
+
+
+@dataclass(frozen=True)
 class DestroyAll:
     """ "Destroy all creatures." Indestructible permanents survive; they all die together."""
     kind: str  # "creature", "artifact or enchantment", "creature you don't control", ...
@@ -1829,11 +1880,11 @@ class TargetSacrifices:
             game.sacrifice(target, self.kind)
 
 
-_MASS_KINDS = {"creatures": "creature", "creature tokens": "creature", "artifacts": "artifact", "enchantments": "enchantment",
+_MASS_KINDS = {"battles": "battle", "creatures": "creature", "creature tokens": "creature", "artifacts": "artifact", "enchantments": "enchantment",
                "planeswalkers": "planeswalker", "lands": "land", "nonland permanents": "nonland permanent",
                "artifacts and enchantments": "artifact or enchantment",
                "creatures and planeswalkers": "creature or planeswalker"}
-_MASS = (r"(artifacts and enchantments|creatures and planeswalkers|nonland permanents|creatures|artifacts"
+_MASS = (r"(battles|artifacts and enchantments|creatures and planeswalkers|nonland permanents|creatures|artifacts"
          r"|enchantments|planeswalkers|lands)( you don't control| you control| an opponent controls| your opponents control)?")
 
 
@@ -1855,7 +1906,7 @@ _THAT_ARE = r"(?: that are (one or more colors|colorless|multicolored|monocolore
 
 
 # The same, with an optional color adjective before and "with flying" etc. after (destroy and exile only).
-_MASS_NOUN = (r"(artifacts and enchantments|creatures and planeswalkers|nonland permanents|creature tokens|creatures|artifacts"
+_MASS_NOUN = (r"(battles|artifacts and enchantments|creatures and planeswalkers|nonland permanents|creature tokens|creatures|artifacts"
               r"|enchantments|planeswalkers|lands)")
 _MASS_FILTERED = rf"{_COLOR_ADJECTIVE}{_MASS_NOUN}(?: {_RESTRICTION})?( you don't control| you control| an opponent controls| your opponents control)?{_EXCEPT}{_THAT_ARE}"
 
@@ -3296,6 +3347,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
+    (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(r"move all counters from target (nonland permanent you control) onto another target (nonland permanent you control)\.",
+                re.I), lambda m: [MoveCountersFrom(m[1].lower()), MoveCountersOnto(None, None, m[2].lower())]),
+    (re.compile(r"remove all counters from target (nonland permanent you control)\. Draw a card for each counter removed this "
+                r"way\.", re.I), lambda m: RemoveAllCountersDraw(m[1].lower())),
+    (re.compile(r"you may put a \+1/\+1 counter on a creature\. Then choose odd or even\. Return each creature with power of "
+                r"the chosen quality to its owner's hand\.", re.I), lambda m: ZimonesHypothesis()),
     (re.compile(r"shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. Exile that "
                 r"card and put the rest on the bottom of your library in a random order\. You may cast the exiled card "
                 r"without paying its mana cost\.", re.I), lambda m: ShuffleRevealCast()),
@@ -3793,6 +3851,9 @@ def spell_effects(card: Card) -> list | None:
     lines = [line for line in rules_lines(card) if not is_casting_cost_line(line)]
     if lines and (m := _MODAL_HEADER.fullmatch(lines[0])):
         return _parse_modal(m[1].lower(), lines[1:])
+    if lines and _MODAL_COMMANDER.fullmatch(lines[0]):
+        modal = _parse_modal("one", lines[1:])
+        return [dataclasses.replace(modal[0], commander_both=True)] if modal else None
     return _parse(_split_sentences("\n".join(lines)))
 
 
