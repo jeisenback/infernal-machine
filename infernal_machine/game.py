@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -727,6 +727,10 @@ class Game:
         """Tap the chosen mana sources; ones whose mana ability sacrifices them (Treasure) are sacrificed,
         and painlands and Talismans that made painful mana damage the payer."""
         for source in sources:
+            if (kind := counter_mana(source.card)) is not None:  # no {T} in the cost: it isn't tapped
+                self.remove_counters(source, kind, 1)
+                source.activated_turn["counter mana"] = self.turn
+                continue
             source.tapped = True
             if not is_land(source.card) and mana_ability_sacrifices(source.card):
                 self._leave_battlefield(source, "sacrificed")
@@ -792,6 +796,10 @@ class Game:
                 lands.extend([ManaSource(permanent, _snowy(permanent, types), pain, damage)] + extra)
             elif not (permanent.sick and "Creature" in card.type_line):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
+                if (kind := counter_mana(card)) is not None:  # Mana Bloom: a counter for one mana, once each turn
+                    if permanent.counters.get(kind, 0) and permanent.activated_turn.get("counter mana") != self.turn:
+                        bucket.append(ManaSource(permanent, frozenset("WUBRG")))
+                    continue
                 units = ([frozenset("WUBRG")] * max(0, self.power(permanent)) if makes_mana_by_power(card)
                          else mana_ability(card, seat.color_identity) or [])  # (the power's worth need not be one color here)
                 for mana in units:
@@ -1612,6 +1620,8 @@ class Game:
             return self.active == seat.index
         if kind == "monarch":
             return self.monarch is seat
+        if kind == "source_no_counters":
+            return source is not None and source.counters.get(condition.what, 0) == 0
         if kind == "source_counters_at_least":
             return source is not None and source.counters.get(condition.what, 0) >= condition.count
         if kind == "monarch_at_turn_start":

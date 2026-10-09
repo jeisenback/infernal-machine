@@ -2460,7 +2460,11 @@ class ReturnSelfToHand:
     uses_dead_source = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
+        if target is None:
+            return
+        if game.on_battlefield(target):  # Mana Bloom: "return it to its owner's hand" from the battlefield
+            game.return_to_hand(target)
+        else:
             game.return_to_hand_from_graveyard(target.card)
 
 
@@ -3902,6 +3906,7 @@ _CONDITIONS = [
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
     (re.compile(r"you control an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, _singular(m[1]))),
     (re.compile(r"it's your turn"), lambda m: Condition("your_turn")),
+    (re.compile(rf"(?:{_SELF}) has no {_COUNTER} on it"), lambda m: Condition("source_no_counters", what=_counter_name(m[1]))),
     (re.compile(rf"it has {_N} or more {_COUNTER} on it"),
      lambda m: Condition("source_counters_at_least", _count(m[1]), _counter_name(m[2]))),
     (re.compile(r"you're the monarch"), lambda m: Condition("monarch")),
@@ -4447,6 +4452,15 @@ def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozens
     return units
 
 
+_COUNTER_MANA = re.compile(r"Remove an? ([a-z]+) counter from (?:CARDNAME|this [a-z]+): Add one mana of any color\. "
+                           r"Activate only once each turn\.")
+
+
+def counter_mana(card: Card) -> str | None:
+    """Mana Bloom: the counter its mana ability removes (it makes one mana of any color, once each turn)."""
+    return next((m[1] for line in rules_lines(card) if (m := _COUNTER_MANA.fullmatch(line))), None)
+
+
 _ADD_POWER = re.compile(_TAP + r"X mana of any one color, where X is this creature's power\." + _IF_TAIL)
 
 
@@ -4493,7 +4507,8 @@ _PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add (one mana of any color
 
 
 def is_mana_ability(line: str) -> bool:
-    return (_mana_match(line) is not None or _ADD_POWER.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
+    return (_mana_match(line) is not None or _ADD_POWER.fullmatch(line) is not None
+            or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
             or _FILTER.fullmatch(line) is not None
             or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))

@@ -243,3 +243,40 @@ class ZimonesHypothesisTests(unittest.TestCase):
     def test_odd_returns_the_odd_power_creatures_and_zero_is_even(self):
         a, b = self.cast(counter_on=3, parity=0)  # no counter (the last option); odd: the 3-power one
         self.assertEqual(([p.card.power for p in a.battlefield], len(b.battlefield)), (["2"], 1))
+
+
+class ManaBloomTests(unittest.TestCase):
+    BLOOM = REAL["Mana Bloom"]
+
+    def test_it_is_understood(self):
+        self.assertEqual(unsupported_lines(self.BLOOM), [])
+
+    def test_a_counter_makes_one_mana_once_each_turn(self):
+        game, _ = table3()
+        a = game.seats[0]
+        bloom = Permanent(self.BLOOM)
+        game._enter(a, bloom, x=3)
+        a.battlefield = [bloom]
+        one = Card(name="One", mana_cost="{R}", type_line="Sorcery")
+        two = Card(name="Two", mana_cost="{R}{R}", type_line="Sorcery")
+        self.assertIsNone(game._payment(a, two))  # one mana a turn
+        payment = game._payment(a, one)
+        game._spend_mana(a, payment)
+        self.assertEqual((bloom.counters, bloom.tapped), ({"charge": 2}, False))
+        self.assertIsNone(game._payment(a, one))  # already used this turn
+        game.turn += 1
+        self.assertIsNotNone(game._payment(a, one))
+
+    def test_with_no_counters_it_returns_to_hand_at_upkeep(self):
+        game, _ = table3()
+        a = game.seats[0]
+        bloom = Permanent(self.BLOOM)
+        a.battlefield = [bloom]
+        game.trigger("upkeep", bloom, a)
+        run_stack(game)
+        self.assertEqual((a.battlefield, a.hand), ([], [self.BLOOM]))
+        bloom = Permanent(self.BLOOM, counters={"charge": 1})
+        a.battlefield, a.hand = [bloom], []
+        game.trigger("upkeep", bloom, a)
+        run_stack(game)
+        self.assertEqual((a.battlefield, a.hand), ([bloom], []))
