@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, PayToReturnSelf, annihilator_of, chooses_creature_type, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -57,6 +57,7 @@ PLAY_LAND = "Play land: "
 CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
+ENCORE = "Encore: "  # followed by the card's name
 CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
@@ -162,6 +163,8 @@ class Permanent:
     reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
     attacked_turn: int | None = None  # the last turn it attacked
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
+    bestowed_from: "Card | None" = None  # a bestowed Aura: the creature card it goes back to when its creature leaves
+    must_attack: "Seat | None" = None  # an Encore token: it attacks this player this turn if able
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
     prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
@@ -220,6 +223,7 @@ class StackItem:
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
     player: "Seat | None" = None  # for a watching trigger: the player whose action set it off ("that player")
+    bestowed: bool = False  # cast for its bestow cost: an Aura spell that may resolve as a creature
     sacrificed_power: int = 0  # for an ability: the power of the creature sacrificed to pay for it
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
 
@@ -551,6 +555,10 @@ class Game:
             for cast in graveyard_casts(card)[:1]:
                 if not is_land(card) and (sorcery_timing or _instant_speed(card)) and self._can_cast(seat, card, graveyard=cast):
                     actions.append(CAST_GRAVEYARD + card.name)
+        if sorcery_timing:
+            for card in _unique(seat.graveyard):
+                if (cost := encore_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
+                    actions.append(ENCORE + card.name)
         for card in _unique([c for c, until in seat.exile_play if self.turn <= until and c in seat.exile]):
             if is_land(card):
                 if sorcery_timing and seat.lands_played < 1:
@@ -829,9 +837,12 @@ class Game:
         if graveyard:
             paying = dataclasses.replace(card, mana_cost=graveyard.cost)
             others = len(seat.graveyard) - (card in seat.graveyard)
+            if graveyard.discard_land and not any(is_land(c) for c in seat.hand):
+                return []
             return [None] if others >= graveyard.exile and self._payment(seat, paying) is not None else []
         return [way for way in [None, *alternative_costs(card)]
                 if self._can_pay_extras(seat, card, way)
+                and not (way and way.bestow and not self.target_options("creature", seat, source_qualities(card)))
                 and self._payment(seat, card, from_command_zone, alternative=way,
                                   delve=self._delve_max(seat, card) if way is None else 0) is not None]
 
@@ -873,6 +884,12 @@ class Game:
             self._move_card(seat, exiled, "exile")
         if graveyard and graveyard.exile:
             self._left_graveyard(seat)
+        if graveyard and graveyard.discard_land:  # Retrace
+            lands = [c for c in seat.hand if is_land(c)]
+            discarded = lands[seat.player.choose(DISCARD_PROMPT, [c.name for c in lands])]
+            seat.hand.remove(discarded)
+            self.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
+            self._move_card(seat, discarded, "graveyard")
         if alternative and alternative.exile_color:
             options = [c for c in seat.hand if alternative.exile_color in c.colors]
             exiled = options[seat.player.choose(PITCH_PROMPT, [c.name for c in options])]
@@ -1010,6 +1027,8 @@ class Game:
         elif action.startswith(CAST_GRAVEYARD):
             card = next(c for c in seat.graveyard if c.name == action.removeprefix(CAST_GRAVEYARD))
             self._cast(seat, card, seat.graveyard, graveyard=graveyard_casts(card)[0])
+        elif action.startswith(ENCORE):
+            self._encore(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ENCORE)))
         elif action.startswith(CAST_PREPARED):
             name = action.removeprefix(CAST_PREPARED)
             permanent = next(p for p in seat.battlefield if p.prepared and p.card.prepare and p.card.prepare.name == name)
@@ -1106,7 +1125,8 @@ class Game:
                  if (kind := target_kind(e)) and not getattr(e, "optional_target", False)]
         for i, (kind, distinct, another) in enumerate(kinds):
             needed = 1 + (sum(k == kind for k, _, _ in kinds[:i]) if distinct else 0)
-            options = [o for _, o in self.target_options(kind, seat, colors) if not (another and o is source)]
+            options = [o for _, o in self.target_options(self._fixed_kind(kind, source), seat, colors)
+                       if not (another and o is source)]
             if len(options) < needed:
                 return False
         return True
@@ -1152,6 +1172,7 @@ class Game:
             kind = target_kind(effect)
             if not kind:
                 continue
+            kind = self._fixed_kind(kind, source)
             taken = chosen.setdefault(kind, set())
             options = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors))
                        if not (getattr(effect, "another", False) and o[1] is source)
@@ -1182,6 +1203,8 @@ class Game:
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
             alternative = ways[seat.player.choose(COST_PROMPT + card.name, options)]
+        if alternative and alternative.bestow:  # an Aura spell that must target a creature
+            effects = [AttachAura("creature")]
         if alternative and alternative.overload:  # every "target" is "each": no targets
             effects = overloaded_effects(card) or effects
         kicked, kickers = (0, ()) if graveyard else self._choose_kicks(seat, card, effects, from_command_zone, alternative)
@@ -1214,7 +1237,8 @@ class Game:
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked)
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after),
-                         is_copy=prepared is not None, evoked=bool(alternative and alternative.evoke))
+                         is_copy=prepared is not None, evoked=bool(alternative and alternative.evoke),
+                         bestowed=bool(alternative and alternative.bestow))
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -1233,6 +1257,9 @@ class Game:
             copies += (len(before) - 1) if storm == "storm" else (self.graveyarded_count if self.graveyarded_turn == self.turn else 0)
         if copies and prepared is None:  # Replicate, Storm, Gravestorm: a trigger above the spell copies it
             ability = TriggeredAbility("cast", (CopySpellTimes(copies),), False, "Copy this spell")
+            self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
+        if has_keyword(card, "demonstrate") and prepared is None:
+            ability = TriggeredAbility("cast", (Demonstrate(),), False, "Demonstrate")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         if has_keyword(card, "cascade") and prepared is None:  # the trigger goes on the stack above the spell
             ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
@@ -1315,6 +1342,9 @@ class Game:
         if item.ability:
             self._resolve_ability(item)
             return
+        if item.bestowed:
+            self._resolve_bestow(item)
+            return
         if _is_permanent(card) and aura_kind(card):
             self._resolve_aura(item)
             return
@@ -1333,6 +1363,19 @@ class Game:
         self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard (or exile, after flashback)
         if not item.is_copy:
             self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
+
+    def _resolve_bestow(self, item: StackItem) -> None:
+        """A bestow spell enters attached to its creature as an Aura. If that creature is no longer a legal target,
+        it resolves as a creature spell instead (CR 702.103e)."""
+        seat, card = item.controller, item.card
+        target = item.targets[0] if item.targets else None
+        aura = bestow_aura(card)
+        self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
+        if target is not None and self.is_legal_target("creature", target, seat, source_qualities(card)):
+            self._enter(seat, Permanent(aura, sick=True, attached_to=target, bestowed_from=card, kicked=item.kicked))
+            self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
+        else:
+            self._enter(seat, Permanent(card, sick=True), x=item.x)
 
     def _resolve_aura(self, item: StackItem) -> None:
         """An Aura spell enters attached to its target, or goes to the graveyard if the target
@@ -1457,7 +1500,8 @@ class Game:
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
         colors = source_qualities(item.card)
-        legal = [(t is None and getattr(e, "optional_target", False)) or self.is_legal_target(target_kind(e), t, seat, colors)
+        legal = [(t is None and getattr(e, "optional_target", False))
+                 or self.is_legal_target(self._fixed_kind(target_kind(e), item.source), t, seat, colors)
                  for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
         about = {"seat": seat.index, "card": item.card.name}
         if item.ability:
@@ -2245,6 +2289,40 @@ class Game:
         self._left_graveyard(seat)
         self._enter(seat, Permanent(dead.card, sick=True, loyalty=_starting_loyalty(dead.card), counters={counter: 1}))
 
+    def _encore(self, seat: Seat, card: Card) -> None:
+        """Encore: pay its cost and exile it from the graveyard; for each opponent, a token copy with haste attacks that
+        opponent this turn if able and is sacrificed at the beginning of the next end step."""
+        tapped = self._payment(seat, dataclasses.replace(card, mana_cost=encore_cost(card)))
+        self._spend_mana(seat, tapped)
+        seat.graveyard.remove(card)
+        self.broadcast({"event": "encore", "seat": seat.index, "card": card.name})
+        self._move_card(seat, card, "exile")
+        self._left_graveyard(seat)
+        token = dataclasses.replace(card, type_line="Token " + card.type_line)
+        made = []
+        for opponent in self.opponents(seat):
+            copy = Permanent(token, sick=True, must_attack=opponent)
+            self._enter(seat, copy)
+            self.modify_until_end_of_turn(copy, Modifier(keywords=frozenset({"haste"})))
+            made.append(copy)
+        fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+        self.at_end_step.append((fire_turn, lambda: self._leave_together(
+            [(p, "sacrificed") for p in made if self.on_battlefield(p)])))
+
+    def grant_abilities(self, permanent: Permanent, text: str) -> None:
+        """The permanent gains the abilities written in `text` until end of turn (Backup); like a crewed Vehicle, its
+        card is replaced and comes back at end of turn."""
+        permanent.original = permanent.original or permanent.card
+        permanent.card = dataclasses.replace(permanent.card, oracle_text=permanent.card.oracle_text + "\n" + text)
+        self.broadcast({"event": "gained_abilities", "card": permanent.card.name, "text": text})
+
+    def _fixed_kind(self, kind: str, source: Permanent | None) -> str:
+        """A target kind with "mv<=power" turned into the source creature's power right now."""
+        if "mv<=power" in kind and source is not None:
+            power = self.power(source) if self.on_battlefield(source) else source.last_power
+            return kind.replace("mv<=power", f"mv<={max(power, 0)}")
+        return kind
+
     def put_counters(self, permanent: Permanent, counter: str, count: int) -> None:
         holder = self.controller_of(permanent)
         if holder is not None:
@@ -2517,14 +2595,14 @@ class Game:
         self._enter(seat, germ)
         self.attach(equipment, germ)
 
-    def cascade(self, seat: Seat, value: int) -> None:
+    def cascade(self, seat: Seat, value: int | None) -> None:
         """Exile cards from the top of the library until a nonland card that costs less than `value` is exiled; the
         player may cast it for free, and the rest go to the bottom of the library in a random order."""
         passed: list[Card] = []
         found = None
         while seat.library:
             card = seat.library.pop(0)
-            if not is_land(card) and card.cmc < value:
+            if not is_land(card) and (value is None or card.cmc < value):
                 found = card
                 break
             passed.append(card)
@@ -3112,8 +3190,13 @@ class Game:
                         self.detach(permanent)  # CR 704.5n: Equipment stays, unattached
                         host = None
                     if "Aura" in permanent.card.type_line and host is None:
-                        dying.append((permanent, "unattached"))  # CR 704.5m
-                        continue
+                        if permanent.bestowed_from is not None:  # CR 702.103f: it becomes a creature again
+                            permanent.card, permanent.bestowed_from = permanent.bestowed_from, None
+                            self.broadcast({"event": "bestow_ended", "card": permanent.card.name})
+                            changed = True
+                        else:
+                            dying.append((permanent, "unattached"))  # CR 704.5m
+                            continue
                     chapters = saga_chapters(permanent.card)
                     if (chapters and permanent.counters.get("lore", 0) >= max(chapters)
                             and not self._chapter_pending(permanent)):  # CR 714.4: done once the last chapter has resolved
@@ -3208,6 +3291,8 @@ def _card_matches(kind: str, card: Card) -> bool:
         return True
     if kind == "permanent":
         return _is_permanent(card)
+    if kind == "nonland permanent":
+        return _is_permanent(card) and not is_land(card)
     if kind == "basic land":
         return "Basic" in card.type_line and "Land" in card.type_line
     if kind == "nonbasic land":

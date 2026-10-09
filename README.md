@@ -137,6 +137,17 @@ winner = game.play()
     other cards you choose, which counts as cards leaving your graveyard. It isn't exiled afterwards, so an escaped
     creature stays. Only one graveyard-casting ability per card is used (the first on the card). Kicker and
     commander tax don't apply to a graveyard cast.
+  - Retrace (Throes of Chaos): cast it from the graveyard for its mana cost and a land card discarded from your hand;
+    it goes back to the graveyard afterwards, so it can be cast again.
+  - Demonstrate (Replication Technique, Creative Technique): when you cast the spell you may copy it, and if you do you
+    choose an opponent who also copies it. Each copy's controller chooses new targets.
+  - Backup N (Guardian Scalelord): when it enters, put N +1/+1 counters on a target creature; if that is another
+    creature, it gains the abilities written below the Backup line until end of turn.
+  - Encore {N} (Angel of Indemnity): at sorcery speed, pay it and exile the card from your graveyard; each opponent gets
+    a token copy with haste that attacks that opponent this turn if able and is sacrificed at the next end step.
+  - Bestow {N} (Eidolon of Countless Battles): an alternative cost, offered when you control a creature to enchant. It
+    resolves as an Aura attached to that creature (as a creature if the target is gone), and becomes a creature again
+    when the creature it enchants leaves.
   - Kicker {N}: the caster chooses whether to pay it, before choosing targets. "If this spell was kicked, ..."
     effects on instants and sorceries happen only when it was, and can target (kicker is only offered when those
     targets exist). A kicked permanent (Auras too) remembers it: "If this creature was kicked, it enters with

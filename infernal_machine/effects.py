@@ -76,8 +76,13 @@ def rules_lines(card: Card) -> list[str]:
     return [line.strip() for line in _rules_text(card).splitlines() if line.strip()]
 
 
+_WHOLE_LINE = re.compile(r"Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*", re.I)
+
+
 def _split_sentences(text: str) -> list[str]:
-    return [s.strip() for line in text.splitlines() for s in re.split(r"(?<=\.)\s+", line) if s.strip()]
+    """The sentences of each line; a few effects (Creative Technique's) are one template across several sentences."""
+    return [s.strip() for line in text.splitlines()
+            for s in ([line] if _WHOLE_LINE.fullmatch(line.strip()) else re.split(r"(?<=\.)\s+", line)) if s.strip()]
 
 
 def target_kind(effect: Any) -> str | None:
@@ -921,11 +926,15 @@ _AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
-_PER = {"artifact you control": ("permanent", "artifact"), "creature card in your graveyard": ("graveyard", "creature"),
+_PER = {"artifact you control": ("permanent", "artifact"), "creature you control": ("permanent", "creature"),
+        "Aura you control": ("permanent", "Aura"), "creature card in your graveyard": ("graveyard", "creature"),
         "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", "")}
 _PER_LOWER = {k.lower(): v for k, v in _PER.items()}
 _PER_WORDS = "|".join(re.escape(k) for k in _PER)
 _SELF_SCALED = re.compile(rf"{_SELF} gets {_PT} for each ({_PER_WORDS})\.", re.I)
+# Eidolon of Countless Battles: both the creature and the one it enchants, for two counts added together.
+_BOTH_SCALED = re.compile(rf"This creature and enchanted creature each get {_PT} for each creature you control and {_PT} "
+                          r"for each Aura you control\.")
 _ATTACHED_SCALED = re.compile(rf"Enchanted creature gets {_PT} for each ({_PER_WORDS})\.")
 _ATTACHED_TYPED = re.compile(rf"Enchanted creature gets {_PT}, has ({_KW}(?: and {_KW})*), and is an? ([A-Z][a-z]+) in addition "
                              r"to its other types\.")
@@ -967,6 +976,9 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             who = _AFFECTED_WHO.fullmatch(m[1])
             buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
                                     who["sub"] or who["tribe"], line, condition=condition, per=("commander_casts", "")))
+        elif m := _BOTH_SCALED.fullmatch(sentence):
+            buffs.append(StaticBuff(Modifier(_signed(m[1]), _signed(m[2])), False, None, line, self_only=True, per=_PER["creature you control"]))
+            buffs.append(StaticBuff(Modifier(_signed(m[3]), _signed(m[4])), False, None, line, self_only=True, per=_PER["Aura you control"]))
         elif m := _SELF_SCALED.fullmatch(sentence):  # "This creature gets +1/+0 for each artifact you control."
             modifier = Modifier(_signed(m[1]), _signed(m[2]))
             buffs.append(StaticBuff(modifier, False, None, line, self_only=True, condition=condition,
@@ -1228,6 +1240,9 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
         elif m := _ATTACHED_GOADED.fullmatch(line):
             keywords = _keyword_list(m[3]) if m[3] else frozenset()
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), keywords), line, goaded=True))
+        elif m := _BOTH_SCALED.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2])), line, per=_PER["creature you control"]))
+            buffs.append(AttachedBuff(Modifier(_signed(m[3]), _signed(m[4])), line, per=_PER["Aura you control"]))
         elif m := _ATTACHED_SCALED.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2])), line, per=_PER[m[3]]))
     return tuple(buffs)
@@ -1643,6 +1658,53 @@ class LivingWeapon:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.living_weapon(target)
+
+
+DEMONSTRATE_PROMPT = "Copy it with demonstrate? "  # followed by the spell's name; options are YES_NO
+DEMONSTRATE_OPPONENT_PROMPT = "Choose an opponent to also copy "  # followed by the spell's name
+
+
+@dataclass(frozen=True)
+class Backup:
+    """Backup N: "When this creature enters, put N +1/+1 counters on target creature. If that's another creature, it
+    gains the following abilities until end of turn." `granted` is the rest of the card's rules text."""
+    count: int
+    granted: str
+    target: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.put_counters(target, "+1/+1", self.count)
+            if target is not game.resolving_source:
+                game.grant_abilities(target, self.granted)
+
+
+@dataclass(frozen=True)
+class Demonstrate:
+    """Demonstrate: "When you cast this spell, you may copy it. If you do, choose an opponent to also copy it." The
+    spell cast is `carried`; each copy's controller chooses new targets."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        spell = game.resolving_item.carried if game.resolving_item is not None else None
+        if spell is None or controller.player.choose(DEMONSTRATE_PROMPT + spell.card.name, ["Yes", "No"]) != 0:
+            return
+        game.copy_spell(spell, controller, new_targets=True)
+        opponents = game.opponents(controller)
+        if opponents:
+            pick = controller.player.choose(DEMONSTRATE_OPPONENT_PROMPT + spell.card.name,
+                                            [f"Player: {o.name} (seat {o.index})" for o in opponents])
+            game.copy_spell(spell, opponents[pick], new_targets=True)
+
+
+@dataclass(frozen=True)
+class ShuffleRevealCast:
+    """Creative Technique: "Shuffle your library, then reveal cards from the top of it until you reveal a nonland card.
+    Exile that card and put the rest on the bottom of your library in a random order. You may cast the exiled card
+    without paying its mana cost." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.rng.shuffle(controller.library)
+        game.cascade(controller, None)
 
 
 @dataclass(frozen=True)
@@ -2675,6 +2737,7 @@ class AlternativeCost:
     mana_cost: str = ""  # an alternative cost that is mana ("Evoke {2}{U}", "Overload {6}{U}"), paid instead of the mana cost
     evoke: bool = False  # the creature is sacrificed when it enters
     overload: bool = False  # every "target" in the spell becomes "each"
+    bestow: bool = False  # cast as an Aura spell with enchant creature
 
 
 @dataclass(frozen=True)
@@ -2698,6 +2761,19 @@ _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifi
 _ENTWINE = re.compile(r"Entwine ((?:\{[^}]+\})+)")
 _ESCALATE = re.compile(r"Escalate ((?:\{[^}]+\})+)")  # "Escalate\u2014Discard a card." (a cost that isn't mana) isn't supported
 _FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
+_RETRACE = re.compile(r"Retrace")
+_BESTOW = re.compile(r"Bestow ((?:\{[^}]+\})+)")
+_ENCORE = re.compile(r"Encore ((?:\{[^}]+\})+)")
+
+
+def bestow_aura(card: Card) -> Card:
+    """The card as it is while a bestow spell or an Aura permanent: an Aura with enchant creature, not a creature."""
+    return dataclasses.replace(card, type_line="Enchantment " + chr(0x2014) + " Aura", oracle_text=card.oracle_text + chr(10) + "Enchant creature")
+
+
+def encore_cost(card: Card) -> str | None:
+    """Encore {cost}: from the graveyard, for each opponent a token copy attacks that opponent this turn."""
+    return next((m[1] for line in rules_lines(card) if (m := _ENCORE.fullmatch(line))), None)
 _ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four|five|six) other cards? from your graveyard\.")
 _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery) )?spells "
                         r"you cast cost \{(\d+)\} less to cast\.", re.I)
@@ -2834,6 +2910,9 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
             if overloaded_effects(card):
                 costs.append(AlternativeCost(f"Overload {m[1]}", mana_cost=m[1], overload=True))
             continue
+        if m := _BESTOW.fullmatch(line):
+            costs.append(AlternativeCost(f"Bestow {m[1]}", mana_cost=m[1], bestow=True))
+            continue
         if _FREE_WITH_COMMANDER.fullmatch(line):
             costs.append(AlternativeCost("Cast without paying its mana cost", commander=True))
         elif m := _PITCH.fullmatch(line):
@@ -2850,6 +2929,7 @@ class GraveyardCast:
     cost: str  # the mana cost to pay instead of the card's own
     exile: int = 0  # other cards to exile from the graveyard (Escape)
     exile_after: bool = False  # exile it instead of putting it in the graveyard when it leaves the stack (Flashback)
+    discard_land: bool = False  # Retrace: discard a land card in addition to the cost
 
 
 def graveyard_casts(card: Card) -> list[GraveyardCast]:
@@ -2859,6 +2939,8 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
             found.append(GraveyardCast("Flashback", m[1], exile_after=True))
         elif m := _ESCAPE.fullmatch(line):
             found.append(GraveyardCast("Escape", m[1], exile=_count(m[2])))
+        elif _RETRACE.fullmatch(line):
+            found.append(GraveyardCast("Retrace", card.mana_cost, discard_land=True))
     return found
 
 
@@ -2883,12 +2965,12 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
     return found
 
 
-_SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid)(?:, (?:Delve|Cascade|Devoid))*")  # rules for casting, not effects
+_SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate)(?:, (?:Delve|Cascade|Devoid|Demonstrate))*")  # rules for casting, not effects
 
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY))
 
@@ -3022,6 +3104,9 @@ def _up_to(cls: type, m: re.Match, **fixed: Any) -> list:
 _DAMAGE_KIND = (r"(any target|target creature|target player|target opponent|target creature or planeswalker"
                 r"|target player or planeswalker)")
 
+_RETURN_UP_TO_POWER = re.compile(r"return target nonland permanent card with mana value X or less from your graveyard to the "
+                                 r"battlefield, where X is (?:this creature's|CARDNAME's|its) power\.", re.I)
+
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
     (re.compile(rf"if this spell was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?, (.+)", re.I), _kicked),
@@ -3148,7 +3233,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
+    (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
+    (re.compile(r"shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. Exile that "
+                r"card and put the rest on the bottom of your library in a random order\. You may cast the exiled card "
+                r"without paying its mana cost\.", re.I), lambda m: ShuffleRevealCast()),
     (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
      lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
@@ -3363,6 +3452,8 @@ def _clauses(sentence: str) -> list[str]:
     sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
     "You create" add nothing."""
     sentence = sentence.replace(" of their choice.", ".")
+    if _RETURN_UP_TO_POWER.fullmatch(sentence):  # one effect: X is looked at when the target is chosen
+        return [sentence]
     if m := re.fullmatch(r"Create a number of (.+?) tokens? equal to (.+)\.", sentence, re.I):  # Gyome's Food
         return [f"Let X be {m[2]}.", f"Create X {m[1]} tokens."] if _amount(m[2]) else [sentence]
     if m := re.fullmatch(r"(.+), where X is (.+)\.", sentence):
@@ -3909,6 +4000,10 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     abilities = _triggered_abilities(card)
     for number, (effects, line) in saga_chapters(card).items():  # a lore counter makes the chapter trigger
         abilities.append(TriggeredAbility(f"chapter_{number}", effects, False, line))
+    lines = rules_lines(card)
+    for number, line in enumerate(lines):  # Backup N gives the abilities written below it
+        if m := _BACKUP.fullmatch(line):
+            abilities.append(TriggeredAbility("enters", (Backup(int(m[1]), "\n".join(lines[number + 1:])),), False, line))
     for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard
         words = {word.strip().lower() for word in line.split(",")}
         if "prowess" in words:  # whenever you cast a noncreature spell, this gets +1/+1 until end of turn
@@ -3931,6 +4026,7 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
 
 
 _TRIGGERS_ONCE = " This ability triggers only once each turn."
+_BACKUP = re.compile(r"Backup (\d+)")
 
 
 _PAY_TO_RETURN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, return this card from your graveyard to the "
