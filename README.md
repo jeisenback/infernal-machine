@@ -494,7 +494,7 @@ winner = game.play()
     this spell, you gain half X life and draw half X cards", tapped Treasures equal to its power, "gets +X/+0 where X is that spell's
     mana value", "creatures you control gain flying and get +X/+X", "You may pay {2}. If you do, ..." (including a target), "pay {1}
     and discard a card", "remove a counter from it. If you do, draw a card", "It has "Sacrifice this token: Add {C}."", populate with
-    a hasty token that is sacrificed at the end step, "put into a graveyard from the battlefield", "becomes the target of a spell",
+    a hasty token that is sacrificed at the end step, "put into a graveyard from the battlefield" (a token that dies counts, as the rules say; "nontoken" watchers ignore it), "becomes the target of a spell",
     decayed, "return this card from your graveyard to your hand" at upkeep (Squee), "exile that card from your graveyard" after a
     discard, and "mill a card, then exile a card from your graveyard at random. You may play the exiled card this turn".
     Not built (see #80): phasing (Guardian of Faith), Hateful Eidolon, Laelia, Pearl-Ear's modified permanents, Unbound Flourishing,

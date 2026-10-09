@@ -4064,7 +4064,7 @@ class Game:
                     self.graveyarded_turn, self.graveyarded_count = self.turn, 0
                 self.graveyarded_count += 1
             self.trigger("leaves", permanent, controller)  # "When this creature leaves the battlefield" (Soulgorger Orgg)
-            if destination == "graveyard" and not _is_token(permanent.card):  # Rancor: "put into a graveyard from the battlefield"
+            if destination == "graveyard":  # Rancor: "put into a graveyard from the battlefield"; a token does too (CR 111.7)
                 self.trigger("put_into_graveyard", permanent, controller)
                 self._observe("permanent_to_graveyard", permanent.card, controller, subject=permanent, extra=gone)
             if destination == "graveyard" and "Creature" in permanent.card.type_line:
