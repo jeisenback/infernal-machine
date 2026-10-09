@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -81,6 +81,9 @@ SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
 COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
+CHOOSE_COLOR_PROMPT = "Choose a color for "  # followed by the card's name; white, blue, black, red, green
+KAROO_PROMPT = "Return a land or sacrifice "  # followed by the card's name; the last option is SACRIFICE_IT
+SACRIFICE_IT = "Sacrifice it"
 CHOOSE_TYPE_PROMPT = "Choose a creature type for "  # followed by the card's name; options are the types, most common first
 CLONE_PROMPT = "Choose what to copy for "  # followed by the card's name; the last option is NOT_A_COPY
 NOT_A_COPY = "Don't copy anything"
@@ -168,6 +171,7 @@ class Permanent:
     vow_of: "Seat | None" = None  # Promise of Loyalty: while it has a vow counter it can't attack this player
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
+    chosen_color: str | None = None  # "As this enters, choose a color." (a color letter)
     bestowed_from: "Card | None" = None  # a bestowed Aura: the creature card it goes back to when its creature leaves
     must_attack: "Seat | None" = None  # an Encore token: it attacks this player this turn if able
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
@@ -328,6 +332,7 @@ class Game:
         self._plan: list[str] = list(STEPS)  # the steps of the current turn, extended by extra combat phases
         self._plan_index = 0
         self.regular = 0  # the seat whose regular turn it is (or was, during an extra turn)
+        self.starting_seat = 0  # who took the first turn ("if you were the starting player")
         self.monarch: Seat | None = None
         self.monarch_at_turn_start: Seat | None = None  # who was the monarch as this turn began
         self.initiative: Seat | None = None
@@ -359,7 +364,7 @@ class Game:
     # --- setup ---------------------------------------------------------------
 
     def setup(self) -> None:
-        self.active = self.rng.randrange(len(self.seats))
+        self.active = self.starting_seat = self.rng.randrange(len(self.seats))
         for seat in self.seats:
             self.rng.shuffle(seat.library)
             self.broadcast({"event": "seat", "seat": seat.index, "name": seat.name,
@@ -1772,6 +1777,8 @@ class Game:
             return self.deaths_turn == self.turn and self.deaths_count >= condition.count
         if kind == "citys_blessing":
             return seat.citys_blessing
+        if kind == "source_tapped":
+            return source is not None and source.tapped
         if kind == "not_prepared":
             return source is not None and not source.prepared
         if kind == "graveyard_at_least":
@@ -3141,6 +3148,9 @@ class Game:
         permanent.owner = permanent.owner or seat
         if chooses_creature_type(permanent.card):
             permanent.chosen_type = self._choose_creature_type(seat, permanent.card)
+        if chooses_color(permanent.card):
+            names = {"White": "W", "Blue": "U", "Black": "B", "Red": "R", "Green": "G"}
+            permanent.chosen_color = names[list(names)[seat.player.choose(CHOOSE_COLOR_PROMPT + permanent.card.name, list(names))]]
         if enters_prepared(permanent.card):
             permanent.prepared = True
         if echo_cost(permanent.card):
@@ -3236,6 +3246,15 @@ class Game:
             return sum(1 for p in seat.battlefield if rule.types[0] in p.card.type_line) < rule.count
         if rule.kind == "unless_opponent_lands":
             return sum(1 for o in self.opponents(seat) for p in o.battlefield if is_land(p.card)) < rule.count
+        if rule.kind == "unless_control":  # a planeswalker, a basic land, a Mountain, a legendary creature, a Mount or Vehicle
+            return not any(any(all(_has_type(p.card, word) for word in alternative.split("+")) for alternative in rule.types)
+                           for p in seat.battlefield)
+        if rule.kind == "unless_a_player_life":
+            return not any(s.life <= rule.count for s in self.live_seats())
+        if rule.kind == "if_lands_at_least":
+            return lands >= rule.count
+        if rule.kind == "if_starting_player":
+            return seat.index == self.starting_seat
         if rule.kind == "reveal":  # a Snarl: show a matching card from your hand or enter tapped
             matching = [c for c in seat.hand if any(t in c.type_line for t in rule.types)]
             if matching and seat.player.choose(REVEAL_PROMPT + card.name, [f"Reveal {matching[0].name}", "Enter tapped"]) == 0:
@@ -3248,6 +3267,19 @@ class Game:
             self.change_life(seat, -rule.life)
             return False
         return True
+
+    def karoo(self, seat: Seat, source: Permanent, land_type: str) -> None:
+        """The Karoo cycle: return an untapped land of the type you control to its owner's hand, or sacrifice the Karoo."""
+        if not self.on_battlefield(source):
+            return
+        options = [p for p in seat.battlefield if p is not source and not p.tapped and _has_type(p.card, land_type)]
+        if options:
+            pick = seat.player.choose(KAROO_PROMPT + source.card.name,
+                                      [f"Return {self.label(p)}" for p in options] + [SACRIFICE_IT])
+            if pick < len(options):
+                self.return_to_hand(options[pick])
+                return
+        self._leave_battlefield(source, "sacrificed")
 
     def _leave_battlefield(self, permanent: Permanent, reason: str, destination: str = "graveyard") -> None:
         self._leave_together([(permanent, reason)], destination)

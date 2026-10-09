@@ -395,6 +395,18 @@ winner = game.play()
     basic lands", "unless you control three or more other Islands", "unless your opponents control eight or more lands"
     (their lands added together), and the Snarls ("you may reveal a Mountain or Plains card from your hand"; you are
     asked, and it enters tapped if you decline or have no such card). Fetched and reanimated lands follow the same rules.
+    More conditions: "unless you control a planeswalker / a basic land / a legendary creature / a Mount or Vehicle / a
+    Mountain" (one type of land works for any of the five), "unless a player has 13 or less life" (any player, you
+    included), "If you control two or more other lands, this land enters tapped", "If you were the starting player, this
+    land enters tapped" (the game remembers who started), and a reveal of any one creature type ("you may reveal an
+    Elemental card from your hand", with the Snarl wording kept for two land types).
+  - "This land enters tapped with two charge (depletion, ...) counters on it": tapped, with the counters.
+  - "This land enters tapped. As it enters, choose a color.": you choose one of the five as it enters and the land
+    remembers it. Mana from "the chosen color" is not built yet.
+  - Karoos: "When this land enters, sacrifice it unless you return an untapped Mountain you control to its owner's
+    hand." You are asked which land to return (or to sacrifice it); with no untapped land of the type it is sacrificed.
+  - "At the beginning of your upkeep, if this land is tapped, put a storage counter on it" (the condition "if this
+    land is tapped" works on any trigger).
   - Shocklands: you may pay 2 life or the land enters tapped. Life you can't spare (2 or less) isn't offered.
   - Painlands and Talismans: 1 damage when tapped for a colored mana. Colorless mana from them is free, and
     the payer picks painless sources first. Talismans make their colors now (they used to make colorless only).
