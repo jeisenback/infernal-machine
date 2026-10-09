@@ -424,6 +424,11 @@ winner = game.play()
   - Painlands and Talismans: 1 damage when tapped for a colored mana. Colorless mana from them is free, and
     the payer picks painless sources first. Talismans make their colors now (they used to make colorless only).
   - Command Tower: only makes your commander's colors, whatever the card data lists.
+  - Study Hall and Path of Ancestry: mana abilities with a "When that mana is spent to cast ..., scry" rider. The
+    rider triggers when the auto-payer tapped the land for that ability while paying for the right spell: your
+    commander (Study Hall scries the number of times it has been cast from the command zone, counting this cast) or
+    a creature spell sharing a creature type with your commander (Path of Ancestry scries 1). The trigger goes on
+    the stack above the spell. Study Hall tapped for its plain {C} spends no such mana, so it doesn't trigger then.
   - Ancient Tomb ("{T}: Add {C}{C}. ... deals 2 damage to you."): two mana from one tap, and the damage is dealt
     once per tap however much of the mana is used. Bouncelands ("{T}: Add {B}{G}.") make both colors the same way.
   - City of Brass ("Whenever this land becomes tapped, it deals 1 damage to you."): hurts every time it's tapped
