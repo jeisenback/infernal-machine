@@ -674,7 +674,7 @@ _PROTECTION_FROM = (_COLOR_NAMES + "|everything|all colors|monocolored|multicolo
 _PROT = (rf"protection from (?:{_PROTECTION_FROM})(?:(?:, and |, | and )(?:from )?(?:{_PROTECTION_FROM}))*")
 _WARD_MANA = r"(?:\{\d+\}|\{[WUBRGC]\})+"
 PROTECTION = re.compile(_PROT, re.I)  # "protection from red", "protection from red and from blue"
-_KW = rf"(?:{_PROT}|ward {_WARD_MANA}|[a-z]+(?: [a-z]+)?)"  # one keyword
+_KW = rf"(?:{_PROT}|ward {_WARD_MANA}|annihilator \d+|[a-z]+(?: [a-z]+)?)"  # one keyword
 
 
 def _protection_keywords(text: str) -> frozenset[str]:
@@ -795,6 +795,26 @@ class PumpSourceX:
             game.modify_until_end_of_turn(target, Modifier(self.power * x, self.toughness * x))
 
 
+_ANNIHILATOR = re.compile(r"Annihilator (\d+)", re.I)
+
+
+def annihilator_of(card: Card) -> int:
+    """The N of the card's own "Annihilator N" keyword lines."""
+    return sum(int(m[1]) for line in rules_lines(card) for part in line.split(", ") if (m := _ANNIHILATOR.fullmatch(part)))
+
+
+@dataclass(frozen=True)
+class Annihilate:
+    """Annihilator N: "Whenever this creature attacks, defending player sacrifices N permanents." The defending player
+    is the player the trigger was about."""
+    count: int
+    uses_player = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.sacrifice(target, "permanent", self.count)
+
+
 @dataclass(frozen=True)
 class PumpEach:
     """ "Creatures you control get +3/+3 and gain trample until end of turn." Affects only the
@@ -885,10 +905,24 @@ class StaticBuff:
     everyone: bool = False  # "White creatures get +1/+1": every player's, not just its controller's
 
 
-_AFFECTED = (r"(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+_CHOOSE_TYPE = re.compile(r"As (?:CARDNAME|this [a-z]+) enters, choose a creature type\.")
+
+
+def chooses_creature_type(card: Card) -> bool:
+    """Patchwork Banner: "As this artifact enters, choose a creature type." """
+    return any(_CHOOSE_TYPE.fullmatch(line) for line in rules_lines(card))
+
+
+def is_choose_type_line(line: str) -> bool:
+    return _CHOOSE_TYPE.fullmatch(line) is not None
+
+
+_AFFECTED = (r"Creatures you control of the chosen type|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
+_COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
+                               r"this game\.")
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
-_AFFECTED_WHO = re.compile(r"(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
@@ -902,6 +936,8 @@ _SELF_SCALED = re.compile(rf"{_SELF} gets {_PT} for each ({_PER_WORDS})\.", re.I
 _BOTH_SCALED = re.compile(rf"This creature and enchanted creature each get {_PT} for each creature you control and {_PT} "
                           r"for each Aura you control\.")
 _ATTACHED_SCALED = re.compile(rf"Enchanted creature gets {_PT} for each ({_PER_WORDS})\.")
+_ATTACHED_TYPED = re.compile(rf"Enchanted creature gets {_PT}, has ({_KW}(?: and {_KW})*), and is an? ([A-Z][a-z]+) in addition "
+                             r"to its other types\.")
 _ATTACHED_GOADED = re.compile(rf"Enchanted creature gets {_PT}(?:, has ({_KW}),)? and is goaded\.")
 
 
@@ -932,9 +968,14 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
         if m := _STATIC.fullmatch(sentence):
             who = _AFFECTED_WHO.fullmatch(m[1])
             colors = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
-            buffs.append(StaticBuff(_modifier(m, 2), who["other"] is not None, who["sub"] or who["tribe"], line,
+            buffs.append(StaticBuff(_modifier(m, 2), who["other"] is not None,
+                                    "chosen" if who["chosen"] else who["sub"] or who["tribe"], line,
                                     condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
                                     attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"])))
+        elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
+            who = _AFFECTED_WHO.fullmatch(m[1])
+            buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
+                                    who["sub"] or who["tribe"], line, condition=condition, per=("commander_casts", "")))
         elif m := _BOTH_SCALED.fullmatch(sentence):
             buffs.append(StaticBuff(Modifier(_signed(m[1]), _signed(m[2])), False, None, line, self_only=True, per=_PER["creature you control"]))
             buffs.append(StaticBuff(Modifier(_signed(m[3]), _signed(m[4])), False, None, line, self_only=True, per=_PER["Aura you control"]))
@@ -1045,7 +1086,8 @@ class Replacements:
     counters: int = 1  # how many times as many counters go on its controller's permanents
     plus_one: int = 0  # extra +1/+1 counters on its controller's creatures
     plus_one_others: int = 0  # the same, but not on the permanent itself (Benevolent Hydra)
-    extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice
+    extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice;
+    #                                    "spell": casting or copying an instant or sorcery does
 
 
 @lru_cache(maxsize=None)
@@ -1066,11 +1108,18 @@ def replacement_effects(card: Card) -> Replacements:
             found["plus_one_others"] = found.get("plus_one_others", 0) + 1
         elif m := _EXTRA_TRIGGER.fullmatch(line):
             found["extra_trigger"] = m[1].removeprefix("an ").removeprefix("a ")
+        elif _EXTRA_TRIGGER_SPELL.fullmatch(line):
+            found["extra_trigger"] = "spell"
     return Replacements(**found)
 
 
+# Veyran, Voice of Duality (the card's own wording has "you casting").
+_EXTRA_TRIGGER_SPELL = re.compile(r"If you casting or copying an instant or sorcery spell causes a triggered ability of a "
+                                  r"permanent you control to trigger, that ability triggers an additional time\.")
+
+
 def is_replacement_line(line: str) -> bool:
-    return (line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (_EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS) or _EXTRA_TRIGGER.fullmatch(line) is not None)
 
 
@@ -1121,6 +1170,7 @@ class AttachedBuff:
     text: str
     per: tuple[str, str] | None = None  # "... for each Aura you control that's attached to a creature"
     goaded: bool = False  # "Enchanted creature gets +1/+1 and is goaded."
+    subtype: str | None = None  # "... and is an Angel in addition to its other types."
 
 
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
@@ -1129,7 +1179,8 @@ CANT_ATTACK, CANT_BLOCK = "can't attack", "can't block"  # pseudo-keywords, so c
 CANT_BE_BLOCKED = "can't be blocked"
 
 
-_GRANT = re.compile(r'(?:Equipped|Enchanted) (?:creature|land|permanent) has "(.+)"\.?')  # the quote's own full stop is inside it
+_GRANT = re.compile(rf'(?:Equipped|Enchanted) (?:creature|land|permanent) has (?:{_KEYWORDS_BARE} and )?"(.+)"\.?')
+_ATTACHED_AND_GRANT = re.compile(rf'(?:Equipped|Enchanted) creature has ({_KEYWORDS}) and ".+"\.?')  # Fallen Ideal  # the quote's own full stop is inside it
 
 
 def is_granting_line(line: str) -> bool:
@@ -1182,6 +1233,10 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             else:
                 modifier = _modifier(m, 1)
             buffs.append(AttachedBuff(modifier, line))
+        elif m := _ATTACHED_AND_GRANT.fullmatch(line):  # the keywords; granted_abilities has the quoted ability
+            buffs.append(AttachedBuff(Modifier(keywords=_keyword_list(m[1])), line))
+        elif m := _ATTACHED_TYPED.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[3])), line, subtype=m[4]))
         elif m := _ATTACHED_GOADED.fullmatch(line):
             keywords = _keyword_list(m[3]) if m[3] else frozenset()
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), keywords), line, goaded=True))
@@ -3974,9 +4029,29 @@ _TRIGGERS_ONCE = " This ability triggers only once each turn."
 _BACKUP = re.compile(r"Backup (\d+)")
 
 
+_PAY_TO_RETURN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, return this card from your graveyard to the "
+                            r"battlefield\.", re.I)
+
+
+@dataclass(frozen=True)
+class PayToReturnSelf:
+    """Vanguard of the Restless: "you may pay {2}{W}. If you do, return this card from your graveyard to the
+    battlefield." It works from the graveyard, so the game looks for it there."""
+    cost: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        card = item.card if item is not None else None
+        if card is not None and any(c is card for c in controller.graveyard) \
+                and game.pays_unless(controller, self.cost, card):
+            game.return_from_graveyard(game.graveyard_target(card, controller), controller, "battlefield")
+
+
 def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]:
     """The part of a trigger after its event: (effects, or None if not understood; "you may";
     "only once each turn"; an intervening "if" clause)."""
+    if m := _PAY_TO_RETURN.fullmatch(rest):
+        return [PayToReturnSelf(m[1])], False, False, None
     condition = None
     if rest.startswith("if ") and ", " in rest:
         text, rest = rest[3:].split(", ", 1)

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .characteristics import source_qualities
-from .effects import CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK
+from .effects import CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, Annihilate, TriggeredAbility
 
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
@@ -72,6 +72,9 @@ class Combat:
             self.game.trigger("attacks", permanent, seat)
             if walker is None:
                 self.game.trigger("attacks_player", permanent, seat, player=defender)
+            if n := self.game.annihilator(permanent):
+                self.game._queue(TriggeredAbility("attacks", (Annihilate(n),), False, f"Annihilator {n}"), permanent, seat,
+                                 player=defender)
             self.game._trigger_each("ally_attacks", seat, subject=permanent)
             self.game._trigger_each("attacked_or_walker", defender, subject=permanent)
             if walker is None:
