@@ -501,9 +501,12 @@ winner = game.play()
     Hateful Eidolon, Pearl-Ear (a spell that targets a modified permanent), and Venerable Warsinger (the combat damage dealt is
     passed to the trigger as X, so "mana value X or less" resolves against it), Skyclave Apparition (the exiled card's owner gets a
     token when it leaves), Keen Duelist, Conspiracy Theorist (once per discard, not per card), and Laelia (cards exiled from your
-    library and/or graveyard; cascade does not count yet).
-    Not built (see #80): phasing (Guardian of Faith), Unbound Flourishing, Firemane Commando, Forgotten Ancient, Fractal
-    Harness (an ETB trigger gets no X), and one of Killian's lines.
+    library and/or graveyard; cascade does not count yet), Spirit of Resilience, Zimone (a prime number of lands), Firemane
+    Commando, Breena and Combat Calligrapher (another player's attack; the trigger carries the seat attacked), Claim Jumper and
+    Archaeomancer's Map (land counts), and Goldspan Dragon and Galazeth Prismari (mana abilities given to your Treasures or
+    artifacts; Goldspan's two mana need not be the same color).
+    Not built (see #80): phasing (Guardian of Faith), Unbound Flourishing, Forgotten Ancient, Fractal Harness (an ETB trigger
+    gets no X), and one of Killian's lines.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
     card can be turned face up at any time you have priority for its mana cost ("Turn face up: ..."; not a stack
     action). It goes to the graveyard as the real card, and only its controller is shown what it is

@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -97,6 +97,7 @@ CHOOSE_COLOR_PROMPT = "Choose a color for "  # followed by the card's name; whit
 KAROO_PROMPT = "Return a land or sacrifice "  # followed by the card's name; the last option is SACRIFICE_IT
 SACRIFICE_IT = "Sacrifice it"
 CHOOSE_TYPE_PROMPT = "Choose a creature type for "  # followed by the card's name; options are the types, most common first
+_PRIMES = frozenset({2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97})
 CLONE_PROMPT = "Choose what to copy for "  # followed by the card's name; the last option is NOT_A_COPY
 NOT_A_COPY = "Don't copy anything"
 CREW_PROMPT = "Choose a creature to tap to crew "  # followed by the Vehicle's name
@@ -326,6 +327,7 @@ class Seat:
     died: int = 0  # creatures that died under this player's control that turn
     creatures_entered_turn: int | None = None  # the turn `creatures_entered` counts for
     creatures_entered: int = 0  # nontoken creatures that entered under this player's control that turn
+    land_entered_turn: int | None = None  # the last turn a land entered the battlefield under this player's control
     life_gained_turn: int | None = None
     life_gained_amount: int = 0  # how much life this player gained on life_gained_turn
     delayed_mana: int = 0  # {C} to add at the beginning of this player's next main phase (Mana Drain)
@@ -967,6 +969,8 @@ class Game:
         spell = self._spending_spell
         if restriction == "not_from_hand":  # Heartwood Crafter: only spells cast from hand are off limits
             return not self._spending_from_hand
+        if restriction == "instant_or_sorcery":  # Galazeth Prismari
+            return spell is not None and ("Instant" in spell.type_line or "Sorcery" in spell.type_line)
         if restriction == "x_cost":
             return self._spending_x or (spell is not None and "{X}" in spell.mana_cost)
         return spell is not None and (spell.cmc >= 5 or "{X}" in spell.mana_cost)
@@ -977,10 +981,13 @@ class Game:
         abilities, lands, sacrifices = [], [], []
         pooled = [ManaSource(None, unit) for unit in seat.mana_pool]
         foods = sum(_has_type(p.card, "food") for p in seat.battlefield)  # Gilded Goose: one Food per use
+        grants = [g for p in seat.battlefield if not self.loses_abilities(p) for g in group_mana_grants(p.card)]
         for permanent in seat.battlefield:
             if permanent.tapped or permanent is exclude or self.loses_abilities(permanent):
                 continue
             card = permanent.card
+            if grants and not is_land(card) and (given := tuple(line for kind, line in grants if kind in card.type_line)):
+                card = with_granted_mana(card, given)  # Goldspan Dragon, Galazeth Prismari
             pain, damage = mana_pain(card) or (frozenset(), 0)
             if (condition := mana_condition(card)) and not self.condition_holds(condition, seat, permanent):
                 continue  # "Activate only if you control five or more lands."
@@ -1302,7 +1309,7 @@ class Game:
         elif action.startswith(PLAY_PARAGON):
             card = _take(seat.graveyard, action.removeprefix(PLAY_PARAGON))
             self._used_paragon(seat, card)
-            self._left_graveyard(seat)
+            self._left_graveyard(seat, [card])
             self._enter(seat, Permanent(card, sick=True))
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "graveyard"})
@@ -1430,7 +1437,7 @@ class Game:
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
         self._move_card(seat, card, "exile")
-        self._left_graveyard(seat)
+        self._left_graveyard(seat, [card])
         self._exiled_from_library_or_graveyard(seat)
         if play_this_turn and card in seat.exile:
             seat.exile_play.append((card, self.turn))
@@ -1937,7 +1944,7 @@ class Game:
                 seat.graveyard = [c for c in seat.graveyard if c is not card]
                 seat.hand.append(card)
                 self.broadcast({"event": "returned_to_hand", "seat": seat.index, "card": card.name})
-                self._left_graveyard(seat)
+                self._left_graveyard(seat, [card])
                 return
 
     def attach(self, attachment: Permanent, creature: Permanent) -> None:
@@ -2158,6 +2165,17 @@ class Game:
         number the event carried (how many attackers went at the controller, for "two or more of those creatures");
         `player` is the player the trigger is about ("that player")."""
         kind = condition.kind
+        if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
+            return False
+        if kind == "attackers_at_most":
+            return x <= condition.count
+        if kind == "defender_more_life":  # Breena: x is the seat attacked; it has more life than another of the opponents
+            defender = self.seats[x]
+            return any(defender.life > other.life for other in self.opponents(seat) if other is not defender)
+        if kind == "land_entered":
+            return seat.land_entered_turn == self.turn
+        if kind == "lands_prime":
+            return sum("Land" in p.card.type_line for p in seat.battlefield) in _PRIMES
         if kind == "source_not_token":  # Life of the Party: its copies don't copy themselves again
             return source is not None and not _is_token(source.card)
         if kind == "control_no_other":  # Lone Revenant
@@ -2188,6 +2206,9 @@ class Game:
         if kind == "opponent_more_lands":
             lands = lambda s: sum(is_land(p.card) for p in s.battlefield)
             return any(lands(o) > lands(seat) for o in self.opponents(seat))
+        if kind == "player_more_lands":  # Archaeomancer's Map: the player whose land entered
+            lands = lambda s: sum(is_land(p.card) for p in s.battlefield)
+            return player is not None and lands(player) > lands(seat)
         if kind == "opponent_dealt_noncombat_damage":  # Whiplash Wordsmith
             return any(o.noncombat_damage_turn == self.turn for o in self.opponents(seat))
         if kind == "spell_mv_at_least":  # Prismari Pianist: "if that spell's mana value is 5 or greater" (the spell that set it off)
@@ -2731,7 +2752,7 @@ class Game:
             return
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": to})
-        self._left_graveyard(seat)
+        self._left_graveyard(seat, [card])
         if to == "hand":
             seat.hand.append(card)
         elif to in ("library_top", "library_bottom"):
@@ -2832,6 +2853,13 @@ class Game:
                 self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
                 self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": attack.defender.index})
 
+    def token_attacking(self, seat: Seat, token: Card, defender: Seat) -> None:
+        """A token created for `seat`, tapped and attacking `defender`; it was never declared, so attack triggers don't see it."""
+        for made in self.create_tokens(seat, token, 1):
+            made.tapped = True
+            self.combat.attacks.append(Attack(made, seat, defender))
+            self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": defender.index})
+
     def put_from_hand(self, seat: Seat, kind: str, tapped: bool = False) -> None:
         """"You may put a creature card from your hand onto the battlefield.": you choose one, or none."""
         options = [c for c in seat.hand if _card_matches(kind, c)]
@@ -2870,7 +2898,7 @@ class Game:
             target = options[pick][1]
             holder.graveyard = [c for c in holder.graveyard if c is not card]
             self.broadcast({"event": "left_graveyard", "seat": holder.index, "card": card.name, "to": "battlefield"})
-            self._left_graveyard(holder)
+            self._left_graveyard(holder, [card])
             self._enter(controller, Permanent(card, sick=True, attached_to=target, owner=holder))
             self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
 
@@ -2905,7 +2933,7 @@ class Game:
                 owners.append(target.seat)
         for owner in dict.fromkeys(owners):
             self.rng.shuffle(owner.library)
-            self._left_graveyard(owner)
+            self._left_graveyard(owner, [t.card for t in targets if t.seat is owner])
 
     def exile_from_graveyard(self, target: GraveyardTarget) -> bool:
         """Exile the card from its graveyard; whether it was still there."""
@@ -2915,15 +2943,16 @@ class Game:
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
         self._move_card(seat, card, "exile")
-        self._left_graveyard(seat)
+        self._left_graveyard(seat, [card])
         self._exiled_from_library_or_graveyard(seat)
         return True
 
-    def _left_graveyard(self, seat: Seat) -> None:
-        """One or more cards just left `seat`'s graveyard, as one event."""
+    def _left_graveyard(self, seat: Seat, cards: list[Card] | tuple = ()) -> None:
+        """One or more cards just left `seat`'s graveyard, as one event. `cards` are those that left, when the caller
+        knows them (Spirit of Resilience copies one); a cost paid by exiling cards does not say."""
         seat.graveyard_left_turn = self.turn
         for permanent in list(seat.battlefield):
-            self.trigger("graveyard_leave", permanent, seat)
+            self.trigger("graveyard_leave", permanent, seat, spell=tuple(cards))
 
     def _exiled_from_library_or_graveyard(self, seat: Seat) -> None:
         """One or more of `seat`'s cards were just put into exile from its library and/or graveyard, as one event (Laelia)."""
@@ -3168,7 +3197,7 @@ class Game:
             return
         seat.graveyard.remove(dead.card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": dead.card.name, "to": "battlefield"})
-        self._left_graveyard(seat)
+        self._left_graveyard(seat, [dead.card])
         self._enter(seat, Permanent(dead.card, sick=True, loyalty=_starting_loyalty(dead.card), counters={counter: 1}))
 
     def _encore(self, seat: Seat, card: Card) -> None:
@@ -3179,7 +3208,7 @@ class Game:
         seat.graveyard.remove(card)
         self.broadcast({"event": "encore", "seat": seat.index, "card": card.name})
         self._move_card(seat, card, "exile")
-        self._left_graveyard(seat)
+        self._left_graveyard(seat, [card])
         self.attacking_tokens(seat, dataclasses.replace(card, type_line="Token " + card.type_line), 1, True, "sacrificed")
 
     def attacking_tokens(self, seat: Seat, token: Card, count: int, haste: bool, at_end: str | None) -> None:
@@ -3216,6 +3245,16 @@ class Game:
                 permanent.card = chosen.card
                 self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.original.name,
                                 "as": chosen.card.name})
+
+    def may_become_copy(self, seat: Seat, permanent: Permanent, cards: list[Card]) -> None:
+        """`permanent` may become a copy of one of `cards` until end of turn (like a crewed Vehicle, its card comes back at
+        cleanup). Counters and damage stay where they are."""
+        pick = seat.player.choose(CLONE_PROMPT + permanent.card.name, [c.name for c in cards] + [NOT_A_COPY])
+        if pick == len(cards):
+            return
+        permanent.original = permanent.original or permanent.card
+        permanent.card = cards[pick]
+        self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.original.name, "as": cards[pick].name})
 
     def grant_abilities(self, permanent: Permanent, text: str) -> None:
         """The permanent gains the abilities written in `text` until end of turn (Backup); like a crewed Vehicle, its
@@ -3438,7 +3477,7 @@ class Game:
         for card in cards:
             self._move_card(seat, card, "exile")
         if cards:
-            self._left_graveyard(seat)
+            self._left_graveyard(seat, cards)
 
     def counter(self, item: StackItem, exile: bool = False) -> None:
         self.stack.remove(item)
@@ -4017,6 +4056,8 @@ class Game:
         if saga_chapters(permanent.card):  # a Saga arrives with a lore counter, which triggers chapter I
             permanent.counters["lore"] = permanent.counters.get("lore", 0) + 1
         seat.battlefield.append(permanent)
+        if "Land" in permanent.card.type_line:
+            seat.land_entered_turn = self.turn
         if "Creature" in permanent.card.type_line and not _is_token(permanent.card):
             if seat.creatures_entered_turn != self.turn:
                 seat.creatures_entered_turn, seat.creatures_entered = self.turn, 0
@@ -4240,7 +4281,7 @@ class Game:
                 self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
                 self._move_card(seat, card, "exile")
             if cards:
-                self._left_graveyard(seat)
+                self._left_graveyard(seat, cards)
 
     def _factor(self, seat: Seat, attribute: str) -> int:
         """How many times as many tokens or counters `seat`'s replacement effects make (Doubling Season stacks)."""

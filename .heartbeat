@@ -1,5 +1,5 @@
-session: claude-code triggers-80
-branch: claude/triggers-80
-task: issue #80 (trigger effects the precon decks need), stacked on PR 140
-status: pull request open
-updated: 2026-10-09T23:25:00Z
+session: claude-code triggers-80-cheap
+branch: claude/triggers-80-cheap
+task: issue #80 third batch (attack events, land counts, granted abilities), stacked on claude/triggers-80-more
+status: three families done, README updated
+updated: 2026-10-09T22:37:58Z
