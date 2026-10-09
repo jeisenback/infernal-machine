@@ -2355,6 +2355,23 @@ class Game:
             self.at_end_step.append((fire_turn, lambda: self._leave_together(
                 [(p, at_end) for p in made if self.on_battlefield(p)], "exile" if at_end == "exiled" else "graveyard")))
 
+    def tokens_become_copies(self, seat: Seat) -> None:
+        """Brudiclad: `seat` may choose a token they control; each other token they control becomes a copy of it until
+        end of turn (like a crewed Vehicle, the card comes back at cleanup). Counters and damage stay where they are."""
+        tokens = [p for p in seat.battlefield if _is_token(p.card)]
+        if not tokens:
+            return
+        pick = seat.player.choose(CLONE_PROMPT + "tokens", [self.label(p) for p in tokens] + [NOT_A_COPY])
+        if pick == len(tokens):
+            return
+        chosen = tokens[pick]
+        for permanent in tokens:
+            if permanent is not chosen:
+                permanent.original = permanent.original or permanent.card
+                permanent.card = chosen.card
+                self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.original.name,
+                                "as": chosen.card.name})
+
     def grant_abilities(self, permanent: Permanent, text: str) -> None:
         """The permanent gains the abilities written in `text` until end of turn (Backup); like a crewed Vehicle, its
         card is replaced and comes back at end of turn."""

@@ -8,7 +8,7 @@ cuts off with "..." were completed from memory (marked "completed from memory" b
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (Amount, AttackingTokens, CopyToken, CreateTokens, DefineX, DestroyAll, Draw, ExileAll, GiveBack,
+from infernal_machine.effects import (Amount, AttackingTokens, CopyToken, TokensBecomeCopies, CreateTokens, DefineX, DestroyAll, Draw, ExileAll, GiveBack,
                                       MassFilter, PreventCombatDamageToYou, ReturnAllToHand, TREASURE, TargetControllerCreatesTokens,
                                       spell_effects, static_abilities, triggered_abilities)
 from infernal_machine.game import CAST, Permanent, StackItem
@@ -279,3 +279,39 @@ class InkshieldTests(unittest.TestCase):
         game.turn += 1
         game.damage(a, 2, source=bear, combat=True)
         self.assertEqual((a.life, count(a, "Inkling")), (36, 3))
+
+
+MYR = Card(name="Myr", type_line="Token Artifact Creature — Myr", colors=("U",), power="2", toughness="1")
+
+
+class BrudicladTests(unittest.TestCase):
+    def test_parse(self):
+        [trigger] = triggered_abilities(BRUDICLAD)
+        self.assertEqual((trigger.event, trigger.effects), ("combat", (CreateTokens(1, MYR), TokensBecomeCopies())))
+        self.assertEqual(unsupported_lines(BRUDICLAD), [])
+        half = Card(name="Half", type_line="Creature — Test", oracle_text="When this creature enters, you may choose a token you control.")
+        self.assertEqual(triggered_abilities(half), ())
+
+    def combat(self, policy):
+        game, _ = table3(policy)
+        a = game.seats[0]
+        treasure, bear, ogre = Permanent(TREASURE), Permanent(TOKEN_BEAR, counters={"+1/+1": 1}), Permanent(OGRE)
+        a.battlefield = [Permanent(BRUDICLAD), treasure, bear, ogre]
+        game.step = "beginning_of_combat"
+        game._turn_based_actions(a)
+        run_stack(game)
+        return game, a, treasure, bear, ogre
+
+    def test_the_other_tokens_become_the_chosen_one_until_end_of_turn(self):
+        game, a, treasure, bear, ogre = self.combat(pick("Bear"))
+        myr = next(p for p in a.battlefield if p.original is not None and p.original.name == "Myr")
+        self.assertEqual([p.card.name for p in (treasure, myr, bear, ogre)], ["Bear", "Bear", "Bear", "Ogre"])
+        self.assertEqual((game.power(treasure), game.power(bear), bear.counters), (2, 3, {"+1/+1": 1}))
+        self.assertTrue(game.has_keyword(treasure, "haste"))  # it is a creature token now
+        game.step = "cleanup"
+        game._turn_based_actions(a)
+        self.assertEqual([p.card.name for p in (treasure, myr, bear)], ["Treasure", "Myr", "Bear"])
+
+    def test_choosing_nothing_leaves_them_alone(self):
+        game, a, treasure, bear, ogre = self.combat(pick("Don't copy"))
+        self.assertEqual(sorted(p.card.name for p in a.battlefield), ["Bear", "Brudiclad, Telchor Engineer", "Myr", "Ogre", "Treasure"])
