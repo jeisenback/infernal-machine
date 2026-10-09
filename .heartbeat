@@ -1,5 +1,0 @@
-session: claude-code infernal-engine-wt
-branch: feature/exile-4
-task: issue #79 (exile effects)
-status: done, PR #136 open, merged main in
-updated: 2026-10-09T15:59:43Z
