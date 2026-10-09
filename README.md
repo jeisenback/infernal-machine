@@ -890,6 +890,7 @@ stats = goldfish(deck, games=5000, turns=5)
 | `--seed N` | repeat the same shuffles |
 | `--max-turns N` (default 300) | end the game with no winner after this many turns |
 | `--timer SECONDS` | a clock on every decision: when it runs out, a bot answers for the player (default: no limit) |
+| `--password TEXT` | players and spectators must give it to join (see below) |
 | `--cache FILE` | where fetched cards are saved (default `.cache/cards.json`) |
 | `--no-check` | accept decks that aren't legal Commander decks |
 
@@ -901,6 +902,17 @@ their seat back. The welcome says `rejoined`, the seats are introduced again, an
 decision. A connection still open under that name is dropped, since it may be dead without the server knowing; there
 is no password yet, so anyone who knows a player's name can take their seat. Someone else is told the game has started.
 
+**Password.** With `--password`, every hello (a player's, a rejoin, a spectator's) must carry `"password"`; otherwise
+the connection gets `Wrong password.` and is dropped, and a seat stays open. This also stops someone who only knows a
+player's name from taking their seat on a rejoin. The password is sent as plain text over an unencrypted connection, so it
+keeps out the curious, not someone who can read the network traffic.
+
+**Spectators.** A hello with `"spectate": true` (no deck needed; `--name` is optional on the clients) watches the game
+instead of playing: the welcome is `{"type": "welcome", "spectator": true}`, and from then on they are sent every public
+event and the board (`state`, with `"you": -1` and an empty `hand`) whenever it changes. They can join in the lobby or
+during the game (they are told who sits where and the current board first), and are never sent a hand, a card drawn
+privately, an opening hand or what a scry or a search found. They are never asked to choose anything.
+
 With `--timer`, each decision is sent with its time limit (`"seconds"` in the `choose` message). A player who hasn't
 answered by then gets a `timed_out` event saying what the bot chose for them, and keeps their seat for the next
 decision; the terminal client shows the limit in the prompt's hint and the browser client counts it down. An answer
@@ -910,6 +922,9 @@ that arrives late is refused, like any answer to a question that is no longer op
 - Events are printed as sentences ("Bot 1 casts Sol Ring.", "You lose 3 life (25).").
 - When you have a decision, the board is shown and the options are numbered. Type a number.
   At a priority prompt, Enter passes. Type `b` to show the board again.
+- `--spectate` (no `--name` or `--deck` needed) watches a table instead: the events are printed, and the board comes
+  with each turn.
+- `--password TEXT` joins a table that has one.
 - Prompts where passing is your only option are answered for you.
 - Your hand is shown to you only. Opponents' hands and libraries appear as counts.
 - On a table with `--timer`, the hint shows the seconds you have; when they run out a bot answers and you are told
@@ -927,6 +942,8 @@ that arrives late is refused, like any answer to a question that is no longer op
   (`GET /state?since=N`, answered when something changed) and answers with `POST /choose` (`{"id", "choice"}`).
 - Prompts where passing is your only option are answered for you, as in the terminal client.
 - Dropping and reconnecting works the same way: run it again with the same name.
+- `--spectate` and `--password` work as in the terminal client; a spectator's page shows the board and the log with
+  no hand and no buttons.
 
 All three can also be run as `infernal-server`, `infernal-client` and `infernal-web` after `pip install .`.
 

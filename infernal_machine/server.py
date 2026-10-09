@@ -7,11 +7,14 @@ does this). The server fetches the cards, checks the deck against the Commander 
 seats the player or tells them why not. If a human disconnects mid-game, a bot takes over their seat until they
 connect again with the same name: the server keeps listening during the game, and a hello with a seated player's name
 gives them their seat back (a deck isn't needed, and a connection still open under that name is dropped).
+`--password` makes every hello carry it. A hello with "spectate": true watches the game: the public events and the
+board, never anyone's hand.
 """
 
 from __future__ import annotations
 
 import argparse
+import hmac
 import socket
 import sys
 import threading
@@ -90,6 +93,56 @@ class AutoPilotPlayer:
             self._human = None
 
 
+class Spectators:
+    """The watchers of a game: connections that are sent every public event and the board (the game calls `notify`).
+    Someone joining late is sent who sits where and the latest board first."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._watchers: list[TcpPlayer] = []
+        self._introductions: list[dict] = []
+        self._board: dict | None = None
+
+    def notify(self, event: dict) -> None:
+        with self._lock:
+            if event.get("event") == "seat":
+                self._introductions.append(event)
+            elif event.get("event") == "state":
+                if event == self._board:
+                    return  # nothing changed since the last board sent
+                self._board = event
+            for watcher in list(self._watchers):
+                try:
+                    watcher.notify(event)
+                except Disconnected:
+                    self._drop(watcher)
+
+    def add(self, watcher: TcpPlayer) -> None:
+        with self._lock:
+            watcher.welcome_spectator()
+            for event in [*self._introductions, *([self._board] if self._board else [])]:
+                watcher.notify(event)
+            self._watchers.append(watcher)
+
+    def close(self) -> None:
+        with self._lock:
+            for watcher in self._watchers:
+                watcher.close()
+            self._watchers.clear()
+
+    def _drop(self, watcher: TcpPlayer) -> None:
+        watcher.close()
+        self._watchers.remove(watcher)
+
+
+def password_ok(hello: dict, password: str | None) -> bool:
+    """Whether a hello carries the table's password (always, if the table has none)."""
+    if not password:
+        return True
+    given = hello.get("password")
+    return isinstance(given, str) and hmac.compare_digest(given.encode(), password.encode())
+
+
 def _reject_message(problems: list[str]) -> str:
     shown = problems[:MAX_PROBLEMS_SHOWN]
     more = len(problems) - len(shown)
@@ -110,9 +163,10 @@ def load_human_deck(hello: dict, source: CardSource, check: bool) -> Deck:
 
 
 def seat_humans(server: socket.socket, count: int, source: CardSource, check: bool, taken_names: set[str],
-                log: Callable[[str], None] = print, handshake_timeout: float = 10.0) -> list[tuple[TcpPlayer, Deck]]:
+                log: Callable[[str], None] = print, handshake_timeout: float = 10.0, password: str | None = None,
+                spectators: Spectators | None = None) -> list[tuple[TcpPlayer, Deck]]:
     """Accept connections until `count` players with usable decks and unused names are seated.
-    Anyone else is told why and dropped, and their place stays open."""
+    Anyone else is told why and dropped, and their place stays open. Spectators are welcomed and wait for the game."""
     seated: list[tuple[TcpPlayer, Deck]] = []
     names = set(taken_names)
     while len(seated) < count:
@@ -121,6 +175,14 @@ def seat_humans(server: socket.socket, count: int, source: CardSource, check: bo
         player = TcpPlayer(conn)
         try:
             hello = player.read_hello()
+            if not password_ok(hello, password):
+                player.send_error("Wrong password.")
+                raise Disconnected("bad password")
+            if hello.get("spectate") is True and spectators is not None:
+                conn.settimeout(None)
+                spectators.add(player)
+                log(f"{player.name} is watching")
+                continue
             name = hello["name"].strip()
             if not name or name in names:
                 player.send_error(f"The name {name!r} is empty or already taken; pick another.")
@@ -152,10 +214,11 @@ def seat_humans(server: socket.socket, count: int, source: CardSource, check: bo
 
 
 def rejoin_players(server: socket.socket, pilots: dict[str, AutoPilotPlayer], over: threading.Event,
-                   log: Callable[[str], None] = print, handshake_timeout: float = 10.0) -> None:
+                   log: Callable[[str], None] = print, handshake_timeout: float = 10.0, password: str | None = None,
+                   spectators: Spectators | None = None) -> None:
     """Keep accepting connections during the game: a hello with a seated player's name gives them their seat back
-    (`AutoPilotPlayer.reconnect`); anyone else is told the game has started. Ends when `over` is set or the
-    listening socket is closed."""
+    (`AutoPilotPlayer.reconnect`), a spectator's watches; anyone else is told the game has started. Ends when `over`
+    is set or the listening socket is closed."""
     while not over.is_set():
         try:
             conn, _ = server.accept()
@@ -166,7 +229,16 @@ def rejoin_players(server: socket.socket, pilots: dict[str, AutoPilotPlayer], ov
         conn.settimeout(handshake_timeout)
         player = TcpPlayer(conn)
         try:
-            name = player.read_hello()["name"].strip()
+            hello = player.read_hello()
+            if not password_ok(hello, password):
+                player.send_error("Wrong password.")
+                raise Disconnected("bad password")
+            if hello.get("spectate") is True and spectators is not None and not over.is_set():
+                conn.settimeout(None)
+                spectators.add(player)
+                log(f"{player.name} is watching")
+                continue
+            name = hello["name"].strip()
             pilot = pilots.get(name)
             if pilot is None or over.is_set():
                 player.send_error(f"The game has started and {name!r} isn't playing in it.")
@@ -180,11 +252,11 @@ def rejoin_players(server: socket.socket, pilots: dict[str, AutoPilotPlayer], ov
 
 def run_table(server: socket.socket, humans: int, bot_decks: list[str], source: CardSource, seed: int | None = None,
               check_decks: bool = True, max_turns: int = 300, log: Callable[[str], None] = print,
-              handshake_timeout: float = 10.0, timer: float = 0) -> str | None:
+              handshake_timeout: float = 10.0, timer: float = 0, password: str | None = None) -> str | None:
     """Wait for `humans` players on `server`, add one bot per entry of `bot_decks` (decklist texts), play the
     game, and return the winner's name (None if nobody won within `max_turns`). While the game runs, a player who
-    dropped can connect again and take their seat back. With `timer`, each decision has that many seconds before
-    the bot answers it."""
+    dropped can connect again and take their seat back, and anyone can watch. With `timer`, each decision has that
+    many seconds before the bot answers it. With `password`, every hello has to carry it."""
     if humans + len(bot_decks) < 2:
         raise ValueError("A table needs at least two players")
     bots: list[tuple[str, Deck]] = []
@@ -195,21 +267,26 @@ def run_table(server: socket.socket, humans: int, bot_decks: list[str], source: 
         bots.append((f"Bot {n}", deck))
 
     log(f"Waiting for {humans} player(s); {len(bots)} bot(s) will fill the other seats.")
-    seated = seat_humans(server, humans, source, check_decks, {name for name, _ in bots}, log, handshake_timeout)
+    spectators = Spectators()
+    seated = seat_humans(server, humans, source, check_decks, {name for name, _ in bots}, log, handshake_timeout,
+                         password, spectators)
     over = threading.Event()
     pilots = [AutoPilotPlayer(human, BotPlayer(human.name, deck), seat, timer)
               for seat, (human, deck) in enumerate(seated)]
     try:
         players = [(pilot, deck) for pilot, (_, deck) in zip(pilots, seated)]
         players += [(BotPlayer(name, deck), deck) for name, deck in bots]
-        threading.Thread(target=rejoin_players, args=(server, {p.name: p for p in pilots}, over, log, handshake_timeout),
-                         daemon=True).start()
+        game = Game(players, seed=seed)
+        game.spectators.append(spectators)
+        threading.Thread(target=rejoin_players, args=(server, {p.name: p for p in pilots}, over, log, handshake_timeout,
+                                                      password, spectators), daemon=True).start()
         log("Starting the game.")
-        winner = Game(players, seed=seed).play(max_turns=max_turns)
+        winner = game.play(max_turns=max_turns)
         log(f"Game over: {winner.name} wins." if winner else f"Game over: no winner after {max_turns} turns.")
         return winner.name if winner else None
     finally:
         over.set()
+        spectators.close()
         for pilot in pilots:
             if pilot._human is not None:
                 pilot._human.close()
@@ -225,6 +302,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="a decklist for the bots; repeat for several (bots take them in turn)")
     parser.add_argument("--seed", type=int, help="make shuffles repeatable")
     parser.add_argument("--max-turns", type=int, default=300)
+    parser.add_argument("--password", help="players and spectators have to give this to join (sent as plain text: "
+                        "TCP here is not encrypted, so it keeps out the curious, not an eavesdropper)")
     parser.add_argument("--timer", type=float, default=0, metavar="SECONDS",
                         help="how long a player has for each decision before a bot answers it (default: no limit)")
     parser.add_argument("--cache", default=".cache/cards.json", help="where fetched cards are saved")
@@ -245,7 +324,8 @@ def main(argv: list[str] | None = None) -> int:
     server = listen(args.host, args.port)
     print(f"Listening on {args.host}:{server.getsockname()[1]}")
     try:
-        run_table(server, args.humans, bot_decks, source, args.seed, not args.no_check, args.max_turns, timer=args.timer)
+        run_table(server, args.humans, bot_decks, source, args.seed, not args.no_check, args.max_turns, timer=args.timer,
+                  password=args.password)
     except (ValueError, CardNotFound, OSError) as err:
         print(f"Error: {err}", file=sys.stderr)
         return 1

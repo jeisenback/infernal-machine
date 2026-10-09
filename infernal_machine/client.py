@@ -70,7 +70,8 @@ def render_board(state: dict) -> str:
         lines.append("  Permanents: " + (_grouped(others) if others else "none"))
         if seat["graveyard"]:
             lines.append("  Graveyard: " + ", ".join(seat["graveyard"][-8:]) + (" ..." if len(seat["graveyard"]) > 8 else ""))
-    lines.append("Your hand: " + (", ".join(f"{n}. {c}" for n, c in enumerate(state["hand"], 1)) or "empty"))
+    if me >= 0:  # a spectator has no hand
+        lines.append("Your hand: " + (", ".join(f"{n}. {c}" for n, c in enumerate(state["hand"], 1)) or "empty"))
     return "\n".join(lines)
 
 
@@ -213,11 +214,15 @@ class Narrator:
 
 class Client:
     def __init__(self, sock: socket.socket, name: str, deck_text: str | None = None,
-                 ask: Callable[[str], str] = input, show: Callable[[str], None] = print, auto_pass: bool = True):
+                 ask: Callable[[str], str] = input, show: Callable[[str], None] = print, auto_pass: bool = True,
+                 spectate: bool = False, password: str | None = None):
         self.sock = sock
         send_promptly(sock)
         self.name = name
         self.deck_text = deck_text
+        self.spectate = spectate  # watch instead of play: no seat, no decisions, no hands
+        self.board_as_text = True  # a spectator is shown the board as text with each turn (the web page draws it instead)
+        self.password = password
         self.ask = ask
         self.show = show
         self.auto_pass = auto_pass  # answer prompts whose only option is Pass without asking
@@ -231,6 +236,10 @@ class Client:
         hello = {"type": "hello", "name": self.name}
         if self.deck_text:
             hello["deck"] = self.deck_text
+        if self.password:
+            hello["password"] = self.password
+        if self.spectate:
+            hello["spectate"] = True
         self._send(hello)
         try:
             for line in self._reader:
@@ -239,7 +248,9 @@ class Client:
                 except ValueError:
                     continue
                 kind = message.get("type")
-                if kind == "welcome":
+                if kind == "welcome" and message.get("spectator"):
+                    self.show("Watching the table. You see what the players do, never their hands.")
+                elif kind == "welcome":
                     self.narrator.me = message["seat"]
                     self.show(f"{'Rejoined' if message.get('rejoined') else 'Joined'} the table at seat {message['seat']}.")
                 elif kind == "error":
@@ -264,6 +275,8 @@ class Client:
         if event["event"] == "state":
             self.state = event
             return
+        if self.spectate and self.board_as_text and event["event"] == "turn":
+            self._show_board(only_if_changed=True)  # a spectator is never asked anything, so the board comes with each turn
         text = self.narrator.narrate(event)
         if text:
             self.show(text)
@@ -314,17 +327,23 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m infernal_machine.client", description=__doc__.split("\n\n")[0])
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=4000)
-    parser.add_argument("--name", required=True)
-    parser.add_argument("--deck", required=True, metavar="FILE", help="your decklist (Commander / Deck sections)")
+    parser.add_argument("--name", help="your name at the table (needed to play; spectators may leave it out)")
+    parser.add_argument("--deck", metavar="FILE", help="your decklist (Commander / Deck sections); players need one")
+    parser.add_argument("--spectate", action="store_true", help="watch the game instead of playing in it")
+    parser.add_argument("--password", help="the table's password, if it has one")
     args = parser.parse_args(argv)
-    with open(args.deck) as f:
-        deck_text = f.read()
+    if not args.spectate and not (args.name and args.deck):
+        parser.error("--name and --deck are needed to play (or use --spectate)")
+    deck_text = None
+    if args.deck:
+        with open(args.deck) as f:
+            deck_text = f.read()
     try:
         sock = socket.create_connection((args.host, args.port))
     except OSError as err:
         print(f"Couldn't connect to {args.host}:{args.port}: {err}", file=sys.stderr)
         return 1
-    Client(sock, args.name, deck_text).run()
+    Client(sock, args.name or "Spectator", deck_text, spectate=args.spectate, password=args.password).run()
     return 0
 
 
