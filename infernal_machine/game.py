@@ -2124,12 +2124,20 @@ class Game:
         for opponent in self.opponents(seat):
             self._trigger_each("opponent_search", opponent, player=seat)
 
-    def _discarded(self, seat: Seat, card: Card | None = None) -> None:
-        """`seat` discarded a card: "Whenever you discard a card" and "Whenever an opponent discards a card"."""
+    def _discarded(self, seat: Seat, card: Card | None = None, together: bool = False) -> None:
+        """`seat` discarded a card: "Whenever you discard a card" and "Whenever an opponent discards a card". Cards
+        discarded `together` set off "one or more nonland cards" once, which the caller reports (_discarded_nonland)."""
         self._trigger_each("discard", seat, spell=card)
+        if not together and card is not None:
+            self._discarded_nonland(seat, [card])
         self._trigger_each("cycle_or_discard", seat)
         for opponent in self.opponents(seat):
             self._trigger_each("opponent_discard", opponent, player=seat)
+
+    def _discarded_nonland(self, seat: Seat, cards: list[Card]) -> None:
+        """"Whenever you discard one or more nonland cards": once, carrying the nonland cards among those discarded."""
+        if nonland := tuple(c for c in cards if "Land" not in c.type_line):
+            self._trigger_each("discard_nonland", seat, spell=nonland)
 
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0,
                subject: Permanent | None = None, player: Seat | None = None, spell: "StackItem | None" = None) -> None:
@@ -3917,6 +3925,7 @@ class Game:
 
     def discard(self, seat: Seat, count: int | None, random: bool = False) -> None:
         """Discard `count` cards (the whole hand if None); the player chooses which unless it says "at random"."""
+        discarded = []
         for _ in range(len(seat.hand) if count is None else min(count, len(seat.hand))):
             if count is None:
                 card = seat.hand.pop(0)  # all of them go, so there is nothing to choose
@@ -3926,7 +3935,9 @@ class Game:
                 card = seat.hand.pop(seat.player.choose(DISCARD_CARD_PROMPT, [c.name for c in seat.hand]))
             self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
             self._move_card(seat, card, "graveyard")
-            self._discarded(seat, card)
+            discarded.append(card)
+            self._discarded(seat, card, together=True)
+        self._discarded_nonland(seat, discarded)
 
     def reveal_and_discard(self, chooser: Seat, victim: Seat, excluded: tuple[str, ...], max_mv: int | None) -> None:
         """Thoughtseize: `victim` reveals their hand and `chooser` picks a card from it that isn't one of the

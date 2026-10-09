@@ -101,7 +101,7 @@ _WHOLE_LINE = re.compile(
     r"|When you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the copy\."
     r"|You gain half X life and draw half X cards\. Round down each time\."
     r"|Mill a card, then exile a card from your graveyard at random\. You may play the exiled card this turn\."
-    r"|Exile that card from your graveyard\. If you do, you may (?:play|cast) that card this turn\."
+    r"|Exile (?:that card|one of them) from your graveyard\. If you do, you may (?:play|cast) (?:that card|it) this turn\."
     r"|Look at the top (?:six|seven|eight) cards of your library\. Put (?:two|three) of them into your hand and the rest on the "
     r"bottom of your library in any order\."
     r"|You may put a \+1/\+1 counter on a creature\. Then choose odd or even\. Return each creature with power of the chosen "
@@ -741,6 +741,7 @@ class RemoveAllCountersDraw:
             game.draw(controller, removed)
 
 
+EXILE_DISCARDED_PROMPT = "Exile which discarded card from your graveyard?"
 PARITY_PROMPT = "Choose odd or even for "  # followed by the spell's name; options: "Odd", "Even"
 HYPOTHESIS_COUNTER_PROMPT = "Put a +1/+1 counter on a creature for "  # followed by the spell's name
 
@@ -3268,9 +3269,15 @@ class ExileDiscarded:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         item = game.resolving_item
-        card = item.carried if item is not None else None
-        if isinstance(card, Card) and any(c is card for c in controller.graveyard):
-            game.exile_card_from_graveyard(controller, card, play_this_turn=self.play)
+        carried = item.carried if item is not None else None
+        cards = carried if isinstance(carried, tuple) else (carried,)  # "one of them" when several were discarded together
+        options = [c for c in cards if isinstance(c, Card) and any(g is c for g in controller.graveyard)]
+        if not options:
+            return
+        card = options[0]
+        if len(options) > 1:
+            card = options[controller.player.choose(EXILE_DISCARDED_PROMPT, [c.name for c in options])]
+        game.exile_card_from_graveyard(controller, card, play_this_turn=self.play)
 
 
 @dataclass(frozen=True)
@@ -4912,7 +4919,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"mill a card, then exile a card from your graveyard at random\. you may play the exiled card this turn\.", re.I),
      lambda m: MillThenExileRandomPlay()),
     (re.compile(rf"create a token that's a copy of {_SELF}\.", re.I), lambda m: CopySelfToken()),
-    (re.compile(r"exile that card from your graveyard\.(?: if you do, you may (?:play|cast) that card this turn\.)?", re.I),
+    (re.compile(r"exile (?:that card|one of them) from your graveyard\.(?: if you do, you may (?:play|cast) (?:that card|it) this turn\.)?", re.I),
      lambda m: ExileDiscarded(play="you may" in m[0].lower())),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
     (re.compile(r"attach (?:this Aura|CARDNAME) to it\.", re.I), lambda m: AttachThisToSubject()),
@@ -5898,6 +5905,7 @@ _TRIGGERS = {
     "become_monarch": re.compile(r"Whenever you become the monarch, (.+)", re.I),
     "opponent_become_monarch": re.compile(r"Whenever an opponent becomes the monarch, (.+)", re.I),
     "discard": re.compile(r"Whenever you discard a card, (.+)", re.I),
+    "discard_nonland": re.compile(r"Whenever you discard one or more nonland cards, (.+)", re.I),
     "opponent_discard": re.compile(r"Whenever an opponent discards a card, (.+)", re.I),
     "opponent_search": re.compile(r"Whenever an opponent searches their library, (.+)", re.I),
     "opponent_sacrifice_creature": re.compile(r"Whenever an opponent sacrifices a creature, (.+)", re.I),
