@@ -4939,6 +4939,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ExileDiscarded(play="you may" in m[0].lower())),
     (re.compile(r"you may have (?:this creature|CARDNAME) become a copy of an artifact or creature card from among those cards "
                 r"until end of turn\.", re.I), lambda m: MayCopyLeftCard()),
+    (re.compile(r"create Primo, the Indivisible, a legendary 0/0 green and blue Fractal creature token, then put that many "
+                r"\+1/\+1 counters on it\.", re.I),
+     lambda m: [DefineX(Amount("you_control", "land")),  # "that many": the lands you control
+                CreateTokens(1, Card(name="Primo, the Indivisible", type_line="Legendary Token Creature — Fractal",
+                                     colors=("G", "U"), power="0", toughness="0"), counters=("X", "+1/+1"))]),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
     (re.compile(r"attach (?:this Aura|CARDNAME) to it\.", re.I), lambda m: AttachThisToSubject()),
     (re.compile(r"if that enchantment is an Aura, you may attach it to the token\.", re.I), lambda m: _AttachItToToken()),
@@ -5813,9 +5818,10 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
+    also: "Condition | None" = None  # "if A and B": this one and that one must both hold
 
 
 def _singular(word: str) -> str:
@@ -5824,6 +5830,8 @@ def _singular(word: str) -> str:
 
 _CONDITIONS = [
     (re.compile(r"a card left your graveyard this turn"), lambda m: Condition("graveyard_left")),
+    (re.compile(r"a land entered the battlefield under your control this turn"), lambda m: Condition("land_entered")),
+    (re.compile(r"you control a prime number of lands"), lambda m: Condition("lands_prime")),
     (re.compile(r"you gained life this turn"), lambda m: Condition("gained_life")),
     (re.compile(rf"you gained {_N} or more life this turn"), lambda m: Condition("gained_life_at_least", _count(m[1]))),
     (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
@@ -5878,6 +5886,12 @@ def _condition(text: str) -> Condition | None:
     for pattern, build in _CONDITIONS:
         if m := pattern.fullmatch(text):
             return build(m)
+    first, _, rest = text.partition(" and ")  # "if A and B": both must hold (Zimone)
+    while rest:
+        if (head := _condition(first)) is not None and (tail := _condition(rest)) is not None:
+            return dataclasses.replace(head, also=tail)
+        more, _, rest = rest.partition(" and ")
+        first = f"{first} and {more}"
     return None
 
 

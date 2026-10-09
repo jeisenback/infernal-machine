@@ -97,6 +97,7 @@ CHOOSE_COLOR_PROMPT = "Choose a color for "  # followed by the card's name; whit
 KAROO_PROMPT = "Return a land or sacrifice "  # followed by the card's name; the last option is SACRIFICE_IT
 SACRIFICE_IT = "Sacrifice it"
 CHOOSE_TYPE_PROMPT = "Choose a creature type for "  # followed by the card's name; options are the types, most common first
+_PRIMES = frozenset({2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97})
 CLONE_PROMPT = "Choose what to copy for "  # followed by the card's name; the last option is NOT_A_COPY
 NOT_A_COPY = "Don't copy anything"
 CREW_PROMPT = "Choose a creature to tap to crew "  # followed by the Vehicle's name
@@ -326,6 +327,7 @@ class Seat:
     died: int = 0  # creatures that died under this player's control that turn
     creatures_entered_turn: int | None = None  # the turn `creatures_entered` counts for
     creatures_entered: int = 0  # nontoken creatures that entered under this player's control that turn
+    land_entered_turn: int | None = None  # the last turn a land entered the battlefield under this player's control
     life_gained_turn: int | None = None
     life_gained_amount: int = 0  # how much life this player gained on life_gained_turn
     delayed_mana: int = 0  # {C} to add at the beginning of this player's next main phase (Mana Drain)
@@ -2158,6 +2160,12 @@ class Game:
         number the event carried (how many attackers went at the controller, for "two or more of those creatures");
         `player` is the player the trigger is about ("that player")."""
         kind = condition.kind
+        if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
+            return False
+        if kind == "land_entered":
+            return seat.land_entered_turn == self.turn
+        if kind == "lands_prime":
+            return sum("Land" in p.card.type_line for p in seat.battlefield) in _PRIMES
         if kind == "source_not_token":  # Life of the Party: its copies don't copy themselves again
             return source is not None and not _is_token(source.card)
         if kind == "control_no_other":  # Lone Revenant
@@ -4028,6 +4036,8 @@ class Game:
         if saga_chapters(permanent.card):  # a Saga arrives with a lore counter, which triggers chapter I
             permanent.counters["lore"] = permanent.counters.get("lore", 0) + 1
         seat.battlefield.append(permanent)
+        if "Land" in permanent.card.type_line:
+            seat.land_entered_turn = self.turn
         if "Creature" in permanent.card.type_line and not _is_token(permanent.card):
             if seat.creatures_entered_turn != self.turn:
                 seat.creatures_entered_turn, seat.creatures_entered = self.turn, 0
