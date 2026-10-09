@@ -156,6 +156,9 @@ winner = game.play()
     each time it was kicked." counts them (Gnarlid Pack).
   - Kicked "instead" wordings change the effect just before them: "it deals N damage instead" (Burst Lightning),
     "create N of those tokens instead" (Saproling Migration) and "draw N cards instead".
+  - Strive {cost} (Twinflame): "This spell costs {2}{R} more to cast for each target beyond the first." With "any
+    number of target creatures you control" you are offered only as many targets as the mana can pay for, and the extra
+    cost is added once they are chosen.
   - Kicker costs that aren't mana: "Kicker—Sacrifice a land / a creature / ...", "Kicker—Discard a card." and
     "Kicker—Pay N life." are paid like additional costs, and only offered when they can be paid.
   - Two kicker costs ("Kicker {R} and/or {W}"): each is offered separately, when it can be paid, and
@@ -278,6 +281,9 @@ winner = game.play()
 | Prevent all combat damage that would be dealt to you this turn. For each 1 damage prevented this way, create a 2/1 ... token with flying. | Inkshield |
 | CARDNAME deals 4 damage divided as you choose among any number of targets. (a point at a time: the first to a target, the rest to targets or nowhere) | Magma Opus |
 | Tap two target permanents. | Magma Opus |
+| Exile X target creatures. For each creature exiled this way, its controller creates a 2/2 ... token. | Curse of the Swine |
+| Destroy up to X target artifacts and/or enchantments. Create twice X 1/1 ... tokens with "<an ability we understand>". | Pest Infestation |
+| Choose any number of target creatures you control. For each of them, create a token that's a copy of that creature, except it has haste. Exile those tokens at the beginning of the next end step. | Twinflame |
 | Put N +1/+1 (or -1/-1) counters on target creature / on each creature you control / on it. | |
 | This creature enters with N +1/+1 counters on it. | Hydras |
 | Target creature gets +N/+N (and gains keywords) / gains keywords until end of turn. | Giant Growth |
@@ -318,6 +324,12 @@ winner = game.play()
   Creature (and Artifact), the stated subtypes, colors, power and toughness, and keywords; "with all creature types"
   adds no subtype. It goes back to a plain card at end of turn. A land is summoning sick the turn it comes in, so it
   can't attack or use {T} abilities if animated that turn. Bots never activate these abilities.
+- **Targets in a list:** "X target creatures" (Curse of the Swine) has exactly X targets, so X is limited to how many
+  legal targets there are; "up to X target artifacts and/or enchantments" (Pest Infestation) and "any number of target
+  creatures" (Twinflame) may have fewer, or none. Each is one list, and a list whose targets are all gone by the time the
+  spell resolves makes it fizzle (a list that never had any still resolves, so "twice X tokens" still happens with no
+  targets). "Create twice X ..." is twice the spell's X. A copy "except it has haste" has haste for good, and copies made
+  together count as one "one or more creature tokens" event.
 - **Tokens for other players:** "Each opponent (or player) creates ..." and "Target opponent creates ...". A token
   with "This creature can't block / attack / attack or block." gets that restriction.
 - **Static abilities:** "(Other) (Elf) creatures you control get +1/+1 (and have flying)",

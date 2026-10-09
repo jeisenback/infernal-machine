@@ -31,9 +31,11 @@ _SELF = (r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|plane
 
 
 def _count(word: str) -> int | str:
-    """A number from rules text; "X" stays "X" and the game fills it in (Game.amount)."""
+    """A number from rules text; "X" stays "X" ("twice X" is "2X") and the game fills it in (Game.amount)."""
     if word == "X":
         return "X"
+    if word == "twice X":
+        return "2X"
     return int(word) if word.isdigit() else _NUMBERS[word.lower()]
 
 
@@ -1644,8 +1646,9 @@ HEARTWOOD = Card(name="Heartwood", type_line="Token Artifact — Heartwood", ora
 _NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "heartwood": HEARTWOOD}
 _COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 _COLOR = r"(?:white|blue|black|red|green)"
+_TOKEN_COUNT = _N.replace("|X)", "|X|twice X)")  # "Create twice X 1/1 ... tokens" (Pest Infestation)
 _CREATURE_TOKEN = re.compile(
-    rf"{_N} (\d+|X)/(\d+|X) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact )?"
+    rf"{_TOKEN_COUNT} (\d+|X)/(\d+|X) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact )?"
     r"creature tokens?(?: named ([A-Z][\w'-]*))?"  # "named Cadet"
     r"(?: with (?:([a-z ,]+?)(?:,? and |, |$))?(?:\"(.+)\")?)?"  # keywords and/or a quoted ability
 )
@@ -1737,7 +1740,7 @@ def _merge_wipe_gift(effects: list) -> list | None:
     merged: list = []
     for effect in effects:
         if isinstance(effect, GiveBack):
-            if not (merged and isinstance(merged[-1], (DestroyAll, ExileAll))):
+            if not (merged and isinstance(merged[-1], (DestroyAll, ExileAll, ExileX))):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], gives=effect)
         else:
@@ -1872,6 +1875,91 @@ class ExileAll:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.exile_all(game.mass_targets(self.kind, controller, self.restriction), self.gives, controller)
+
+
+@dataclass(frozen=True)
+class ExileX:
+    """Curse of the Swine: "Exile X target creatures. For each creature exiled this way, its controller creates a 2/2
+    Boar." Exactly X targets, in one list; X can't be more than there are legal targets."""
+    target: str
+    gives: "GiveBack | None" = None
+    up_to_x = True
+    exact_x = True
+    multi_target = True  # its one target slot holds a list
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_all(list(target or []), self.gives, controller)
+
+
+@dataclass(frozen=True)
+class DestroyUpToX:
+    """Pest Infestation: "Destroy up to X target artifacts and/or enchantments." Up to X targets, in one list."""
+    target: str
+    up_to_x = True
+    multi_target = True
+    optional_target = True  # it needs no target to be cast
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.destroy_all(list(target or []))
+
+
+@dataclass(frozen=True)
+class CopyTokensOfTargets:
+    """Twinflame: "Choose any number of target creatures you control. For each of them, create a token that's a copy of that
+    creature, except it has haste. Exile those tokens at the beginning of the next end step." The three sentences are
+    folded together by _merge_target_copies. Each target beyond the first costs the strive cost more (see strive_cost)."""
+    target: str
+    haste: bool = False
+    exile_at_end: bool = False
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.copy_tokens(controller, list(target or []), self.haste, self.exile_at_end)
+
+
+@dataclass(frozen=True)
+class _ChooseAnyNumber:
+    """ "Choose any number of target creatures you control.": only ever before _CopyEachWithHaste."""
+    target: str
+
+
+@dataclass(frozen=True)
+class _CopyEachWithHaste:
+    """ "For each of them, create a token that's a copy of that creature, except it has haste." """
+
+
+@dataclass(frozen=True)
+class _ExileThoseTokens:
+    """ "Exile those tokens at the beginning of the next end step." """
+
+
+def _merge_target_copies(effects: list) -> list | None:
+    merged: list = []
+    i = 0
+    while i < len(effects):
+        effect = effects[i]
+        if isinstance(effect, _ChooseAnyNumber):
+            if not (i + 1 < len(effects) and isinstance(effects[i + 1], _CopyEachWithHaste)):
+                return None
+            exile = i + 2 < len(effects) and isinstance(effects[i + 2], _ExileThoseTokens)
+            merged.append(CopyTokensOfTargets(effect.target, True, exile))
+            i += 3 if exile else 2
+            continue
+        if isinstance(effect, (_CopyEachWithHaste, _ExileThoseTokens)):
+            return None
+        merged.append(effect)
+        i += 1
+    return merged
+
+
+_STRIVE = re.compile(r"Strive \u2014 This spell costs ((?:\{[^}]+\})+) more to cast for each target beyond the first\.")
+
+
+def strive_cost(card: Card) -> str | None:
+    """Twinflame's "Strive": the mana added for each target beyond the first, or None."""
+    return next((m[1] for line in rules_lines(card) if (m := _STRIVE.fullmatch(line))), None)
 
 
 @dataclass(frozen=True)
@@ -3346,7 +3434,7 @@ def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
-                                           _AFFINITY))
+                                           _AFFINITY, _STRIVE))
 
 
 _X_DISCOUNT = re.compile(r"The first spell you cast with \{X\} in its mana cost each turn costs \{1\} less to cast for each "
@@ -3519,6 +3607,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[2].lower(), bool(m[1]))),
     (re.compile(rf"exile {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Exile, m)),
+    (re.compile(rf"exile X target {_PLURAL_KIND}\.", re.I), lambda m: ExileX(_PLURAL_KINDS[m[1].lower()] + (m[2] or ""))),
+    (re.compile(r"destroy up to X target artifacts and/or enchantments\.", re.I),
+     lambda m: DestroyUpToX("artifact or enchantment")),
+    (re.compile(r"choose any number of target creatures you control\.", re.I), lambda m: _ChooseAnyNumber("creature you control")),
+    (re.compile(r"for each of them, create a token that's a copy of that creature, except it has haste\.", re.I),
+     lambda m: _CopyEachWithHaste()),
+    (re.compile(r"exile those tokens at the beginning of the next end step\.", re.I), lambda m: _ExileThoseTokens()),
     (re.compile(rf"exile up to one target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower(), optional_target=True)),
     (re.compile(r"exile target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell", exile=True)),
@@ -4082,7 +4177,7 @@ def _parse(sentences: list[str]) -> list | None:
         if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
             return None  # "instead" has to change the effect just before it
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_attacking_tokens, _merge_prevention, _merge_token_copies):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None

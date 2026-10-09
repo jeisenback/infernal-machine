@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, hand_abilities, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -117,6 +117,7 @@ ORDER_TOP_PROMPT = "Put on top next"  # options are card names; asked while two 
 LOOK_PROMPT = "Take a card from the top of your library"  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
 KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom", "Put into your graveyard"
+MAX_TARGETS = 30  # a bound on "any number of target ..."
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
 LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
@@ -334,6 +335,7 @@ class Game:
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
+        self.targeting_max: int | None = None  # how many targets "any number of target ..." may have (Strive: what the mana pays for)
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
@@ -1276,14 +1278,19 @@ class Game:
                 targets.append(picked)
                 labels.append(", ".join(self.label(p) for p in picked) or NO_TARGET)
                 continue
-            if getattr(effect, "up_to_x", False):  # "up to X target creatures": one target slot holding a list
+            if getattr(effect, "up_to_x", False) or getattr(effect, "any_number", False):
+                # "up to X target creatures", "X target creatures", "any number of target creatures": one slot holding a list
                 picked: list = []
                 taken_here = set()
-                for _ in range(self.targeting_x):
+                exact = getattr(effect, "exact_x", False)  # "X target creatures": no stopping early
+                limit = self.targeting_x if getattr(effect, "up_to_x", False) else (
+                    self.targeting_max if self.targeting_max is not None else MAX_TARGETS)
+                for _ in range(limit):
                     pool = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors)) if i not in taken_here]
                     if not pool:
                         break
-                    pick = seat.player.choose(TARGET_PROMPT + source_name, [o[1][0] for o in pool] + [NO_TARGET])
+                    pick = seat.player.choose(TARGET_PROMPT + source_name,
+                                              [o[1][0] for o in pool] + ([] if exact else [NO_TARGET]))
                     if pick == len(pool):
                         break
                     taken_here.add(pool[pick][0])
@@ -1332,12 +1339,27 @@ class Game:
         effects = kicked_effects(effects, kicked, kickers)
         x = 0  # announced before the targets (CR 601.2b-c): "up to X target creatures" needs it
         if alternative is None and parse_cost(paying.mana_cost).x:  # casting without paying the mana cost makes X 0
-            options = [str(n) for n in range(self._max_x(seat, paying, from_command_zone, kickers, extra) + 1)]
-            x = seat.player.choose(X_PROMPT + card.name, options)
+            most = self._max_x(seat, paying, from_command_zone, kickers, extra)
+            for effect in effects or []:  # "Exile X target creatures": there have to be X legal targets
+                if getattr(effect, "exact_x", False):
+                    most = min(most, len(self.target_options(target_kind(effect), seat, source_qualities(card))))
+            x = seat.player.choose(X_PROMPT + card.name, [str(n) for n in range(most + 1)])
         elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
             x = seat.player.choose(LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
         self.targeting_x = x
+        strive = strive_cost(card)
+        if strive:  # as many targets as the mana will pay for: each one beyond the first costs more
+            more = 0
+            while more < MAX_TARGETS and self._payment(seat, paying, from_command_zone, x, alternative, kickers,
+                                                       extra + strive * (more + 1)) is not None:
+                more += 1
+            self.targeting_max = more + 1
         targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
+        self.targeting_max = None
+        if strive:
+            chosen = sum(len(t) for e, t in zip([e for e in effects or [] if target_kind(e)], targets)
+                         if getattr(e, "any_number", False))
+            extra += strive * max(0, chosen - 1)
         delve = 0
         if alternative is None and not graveyard and has_keyword(card, "delve"):  # exile as few cards as will do
             delve = next(k for k in range(self._delve_max(seat, paying) + 1)
@@ -1614,8 +1636,8 @@ class Game:
         raise ValueError(f"unknown amount {kind}")
 
     def amount(self, value: int | str) -> int:
-        """A number from an effect; "X" is the resolving spell's X."""
-        return self.x_value if value == "X" else value
+        """A number from an effect; "X" is the resolving spell's X, "2X" twice it."""
+        return self.x_value if value == "X" else 2 * self.x_value if value == "2X" else value
 
     def _apply_effects(self, item: StackItem) -> bool:
         """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""
@@ -1630,12 +1652,15 @@ class Game:
     def _apply_effects_now(self, item: StackItem) -> bool:
         seat = item.controller
         colors = source_qualities(item.card)
+        declared = {}  # a target list that had targets when the spell was put on the stack
         for index, (e, t) in enumerate(zip([e for e in item.effects if target_kind(e)], item.targets)):
             if getattr(e, "multi_target", False):  # keep only the targets that are still legal
+                declared[index] = bool(t)
                 item.targets[index] = [p for p in t if self.is_legal_target(target_kind(e), p, seat, colors)]
-        legal = [(t is None and getattr(e, "optional_target", False)) or getattr(e, "multi_target", False)
-                 or self.is_legal_target(self._fixed_kind(target_kind(e), item.source), t, seat, colors)
-                 for e, t in zip([e for e in item.effects if target_kind(e)], item.targets)]
+        legal = [(index in declared and (not declared[index] or bool(t)))  # a list with none chosen still resolves
+                 or (t is None and getattr(e, "optional_target", False))
+                 or (index not in declared and self.is_legal_target(self._fixed_kind(target_kind(e), item.source), t, seat, colors))
+                 for index, (e, t) in enumerate(zip([e for e in item.effects if target_kind(e)], item.targets))]
         about = {"seat": seat.index, "card": item.card.name}
         if item.ability:
             about["ability"] = _shown(item.ability.text, item.card)
@@ -2529,16 +2554,39 @@ class Game:
                 self.broadcast({"event": "counters", "card": permanent.card.name, "counter": kind,
                                 "added": -removed, "total": permanent.counters.get(kind, 0)})
 
-    def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None) -> None:
-        for _ in range(count * self._factor(seat, "tokens")):
-            self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
-                            "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
-            made = Permanent(token, sick=True)
-            self._enter(seat, made)
-            if counters:
-                self.put_counters(made, counters[1], counters[0])
-        if count and "Creature" in token.type_line:  # once for the whole batch: "one or more creature tokens"
+    def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None) -> list[Permanent]:
+        return self.create_token_batch(seat, [token] * count, counters)
+
+    def create_token_batch(self, seat: Seat, tokens: list[Card], counters: tuple[int, str] | None = None) -> list[Permanent]:
+        """Create tokens at once, each as many times as the replacement effects say (Doubling Season). Watchers of "one or
+        more creature tokens" see the whole batch as one event."""
+        made = []
+        for token in tokens:
+            for _ in range(self._factor(seat, "tokens")):
+                self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
+                                "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
+                permanent = Permanent(token, sick=True)
+                self._enter(seat, permanent)
+                if counters:
+                    self.put_counters(permanent, counters[1], counters[0])
+                made.append(permanent)
+        if any("Creature" in p.card.type_line for p in made):
             self._trigger_each("tokens_created", seat)
+        return made
+
+    def copy_tokens(self, seat: Seat, sources: list[Permanent], haste: bool, exile_at_end: bool) -> None:
+        """Twinflame: a token that's a copy of each of `sources`, except it has haste, exiled as the next end step begins."""
+        cards = []
+        for source in sources:
+            card = source.card if _is_token(source.card) else dataclasses.replace(source.card, type_line="Token " + source.card.type_line)
+            if haste:
+                card = dataclasses.replace(card, oracle_text=(card.oracle_text + "\nHaste").strip())
+            cards.append(card)
+        made = self.create_token_batch(seat, cards)
+        if made and exile_at_end:
+            fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+            self.at_end_step.append((fire_turn, lambda: self._leave_together(
+                [(p, "exiled") for p in made if self.on_battlefield(p)], "exile")))
 
     def exile(self, permanent: Permanent) -> None:
         self._leave_battlefield(permanent, "exiled", destination="exile")
