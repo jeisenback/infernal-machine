@@ -1362,6 +1362,7 @@ class StaticBuff:
     everyone: bool = False  # "White creatures get +1/+1": every player's, not just its controller's
     token: bool = False  # "Creature tokens you control have haste": only tokens
     with_counters: bool = False  # "Creatures you control with counters on them have trample"
+    plus_counter: bool = False  # "Each creature you control with a +1/+1 counter on it has vigilance": that counter only
 
 
 _CHOOSE_TYPE = re.compile(r"As (?:CARDNAME|this [a-z]+) enters, choose a creature type\.")
@@ -1376,12 +1377,12 @@ def is_choose_type_line(line: str) -> bool:
     return _CHOOSE_TYPE.fullmatch(line) is not None
 
 
-_AFFECTED = (r"Creatures you control of the chosen type|Creature tokens you control|Creatures you control with counters on them|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+_AFFECTED = (r"Creatures you control of the chosen type|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
                                r"this game\.")
-_STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|have {_KEYWORDS})\.")
-_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+_STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|(?:have|has) {_KEYWORDS})\.")
+_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
@@ -1433,7 +1434,7 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
                                     attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]),
                                     token=bool(who["tokens"]),
-                                    with_counters=bool(who["counters"])))
+                                    with_counters=bool(who["counters"]), plus_counter=bool(who["plus"])))
         elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
             who = _AFFECTED_WHO.fullmatch(m[1])
             buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
@@ -6424,10 +6425,11 @@ def mana_spent_trigger(card: Card) -> ManaSpentTrigger | None:
 
 
 # Troyan, Elementalist's Palette: "Spend this mana only ..." limits what the mana can pay for.
-_RESTRICTION = re.compile(r" Spend this mana only (to cast spells with mana value 5 or greater or spells with \{X\} in their "
-                          r"mana costs|on costs that contain \{X\})\.")
-_RESTRICTIONS = {"to cast spells with mana value 5 or greater or spells with {X} in their mana costs": "big_or_x",
-                 "on costs that contain {X}": "x_cost"}
+_RESTRICTIONS = {"Spend this mana only to cast spells with mana value 5 or greater or spells with {X} in their mana costs":
+                 "big_or_x",
+                 "Spend this mana only on costs that contain {X}": "x_cost",
+                 "This mana can't be spent to cast spells from your hand": "not_from_hand"}  # Heartwood Crafter
+_RESTRICTION = re.compile(" (" + "|".join(re.escape(k) for k in _RESTRICTIONS) + r")\.")
 
 
 def _without_spent_rider(line: str) -> str:
@@ -6438,7 +6440,7 @@ def _without_spent_rider(line: str) -> str:
 
 def mana_restriction(card: Card) -> str | None:
     """What the card's plain mana ability limits its mana to: "big_or_x" (spells of mana value 5 or more, or with {X} in
-    their cost) or "x_cost" (costs containing {X})."""
+    their cost), "x_cost" (costs containing {X}) or "not_from_hand" (not spells cast from hand)."""
     line = _mana_line(card)
     m = _RESTRICTION.search(line) if line else None
     return _RESTRICTIONS[m[1]] if m else None

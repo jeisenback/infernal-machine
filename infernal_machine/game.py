@@ -10,6 +10,7 @@ other rules text is not implemented yet.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import random
 import re
@@ -349,6 +350,7 @@ class Game:
     # ability whose cost has {X}.
     _spending_spell: Card | None = None
     _spending_x: bool = False
+    _spending_from_hand: bool = False  # ... and whether that spell is being cast from its owner's hand
 
     def __init__(self, seats: list[tuple[Player, Deck]], seed: int | None = None):
         if len(seats) < 2:
@@ -937,11 +939,22 @@ class Game:
                 continue
             seat.mana_pool.clear()
 
+    @contextlib.contextmanager
+    def _paying_for(self, seat: Seat, card: Card):
+        """While mana is paid for casting `card`, which is still in the zone it is cast from."""
+        self._spending_spell, self._spending_from_hand = card, any(c is card for c in seat.hand)
+        try:
+            yield
+        finally:
+            self._spending_spell, self._spending_from_hand = None, False
+
     def _restriction_ok(self, restriction: str | None) -> bool:
         """Whether mana limited by `restriction` can pay for what is being paid for now."""
         if restriction is None:
             return True
         spell = self._spending_spell
+        if restriction == "not_from_hand":  # Heartwood Crafter: only spells cast from hand are off limits
+            return not self._spending_from_hand
         if restriction == "x_cost":
             return self._spending_x or (spell is not None and "{X}" in spell.mana_cost)
         return spell is not None and (spell.cmc >= 5 or "{X}" in spell.mana_cost)
@@ -1033,11 +1046,8 @@ class Game:
         cost = self._cast_cost(seat, card, from_command_zone, x, alternative, kickers, extra, delve)
         if cost is None:
             return None
-        self._spending_spell = card
-        try:
+        with self._paying_for(seat, card):
             return self._pay_cost(seat, cost)
-        finally:
-            self._spending_spell = None
 
     def _cast_cost(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
                    alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",
@@ -1655,11 +1665,8 @@ class Game:
             delve = next(k for k in range(self._delve_max(seat, paying) + 1)
                          if self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=k) is not None)
         cost = self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve)
-        self._spending_spell = paying
-        try:
+        with self._paying_for(seat, paying):
             tapped = self._pay_cost(seat, cost)
-        finally:
-            self._spending_spell = None
         self._spend_mana(seat, tapped)
         spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
         for _ in range(delve):
@@ -2888,6 +2895,8 @@ class Game:
         for owner, source in [(s, p) for s in self.seats for p in s.battlefield]:
             for buff in static_abilities(source.card):
                 if owner is not controller and not buff.everyone:
+                    continue
+                if buff.plus_counter and not permanent.counters.get("+1/+1"):
                     continue
                 if buff.with_counters and not any(permanent.counters.values()):
                     continue
