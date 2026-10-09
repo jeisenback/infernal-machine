@@ -497,8 +497,11 @@ winner = game.play()
     a hasty token that is sacrificed at the end step, "put into a graveyard from the battlefield" (a token that dies counts, as the rules say; "nontoken" watchers ignore it), "becomes the target of a spell",
     decayed, "return this card from your graveyard to your hand" at upkeep (Squee), "exile that card from your graveyard" after a
     discard, and "mill a card, then exile a card from your graveyard at random. You may play the exiled card this turn".
-    Not built (see #80): phasing (Guardian of Faith), Hateful Eidolon, Laelia, Pearl-Ear's modified permanents, Unbound Flourishing,
-    Firemane Commando, Forgotten Ancient, Fractal Harness (an ETB trigger gets no X), and two of Killian's and Conspiracy Theorist's lines.
+    Built for #80 so far: Tomik, Nether Traitor, Prismari Pianist, Manaform Hellkite, Killian's "enchanted creatures attack" line,
+    Hateful Eidolon, Pearl-Ear (a spell that targets a modified permanent), and Venerable Warsinger (the combat damage dealt is
+    passed to the trigger as X, so "mana value X or less" resolves against it).
+    Not built (see #80): phasing (Guardian of Faith), Laelia, Unbound Flourishing, Firemane Commando, Forgotten Ancient, Fractal
+    Harness (an ETB trigger gets no X), and one of Killian's and Conspiracy Theorist's lines.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
     card can be turned face up at any time you have priority for its mana cost ("Turn face up: ..."; not a stack
     action). It goes to the graveyard as the real card, and only its controller is shown what it is
