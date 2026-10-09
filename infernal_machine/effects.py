@@ -139,6 +139,7 @@ class OpponentsLoseLife:
 class Damage:
     amount: int
     target: str
+    optional_target: bool = False  # one point of "4 damage divided as you choose among any number of targets"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -2223,6 +2224,17 @@ class UntapThat:
 
 
 @dataclass(frozen=True)
+class Tap:
+    """ "Tap two target permanents.": one effect per target, each a different permanent."""
+    target: str
+    distinct: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.tapped = True
+
+
+@dataclass(frozen=True)
 class TapThat:
     """ "Tap it." / "Tap that creature.": the target of the effect before it."""
     follows_target = True
@@ -3241,6 +3253,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
+    (re.compile(rf"{_SELF} deals (\d+) damage divided as you choose among any number of targets\.", re.I),
+     lambda m: [Damage(1, "any", optional_target=n > 0) for n in range(int(m[1]))]),  # a point at a time
+    (re.compile(rf"tap (two|three) target {_PLURAL_KIND}\.", re.I),
+     lambda m: [Tap(_PLURAL_KINDS[m[2].lower()] + (m[3] or ""), distinct=n > 0) for n in range(_count(m[1]))]),
     (re.compile(rf"destroy (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[2].lower(), bool(m[1]))),
     (re.compile(rf"destroy each {_PERMANENT_KIND}\.", re.I), lambda m: DestroyAll(m[1].lower())),
     (re.compile(r"destroy each artifact, creature, and enchantment with mana value X or less\.", re.I),
@@ -3867,10 +3883,16 @@ def _merge_no_regen(effects: list) -> list:
 def spell_effects(card: Card) -> list | None:
     """Effects of an instant or sorcery, in order; None if any sentence isn't understood. A modal spell
     ("Choose one — ...") gives a single Modal effect."""
-    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line)]
+    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line) and not _is_hand_ability_line(line)]
     if lines and (m := _MODAL_HEADER.fullmatch(lines[0])):
         return _parse_modal(m[1].lower(), lines[1:])
     return _parse(_split_sentences("\n".join(lines)))
+
+
+def _is_hand_ability_line(line: str) -> bool:
+    """Magma Opus's "{U/R}{U/R}, Discard this card: ...": an ability of the card, not a sentence of the spell."""
+    m = _ACTIVATED.fullmatch(line)
+    return m is not None and bool((_cost_fields(m[1]) or {}).get("discard_self"))
 
 
 def line_effects(line: str) -> list | None:
@@ -4326,6 +4348,7 @@ class ActivatedAbility:
     reconfigure: str = ""  # "attach" (only with another creature to attach to) or "unattach" (only while attached)
     remove_counter: str = ""  # "Remove a +1/+1 counter from this creature": the kind of counter
     condition: "Condition | None" = None  # "Activate only if you control two or more white permanents."
+    discard_self: bool = False  # "Discard this card": activated from the hand, like cycling (Magma Opus)
 
 
 _CREW = re.compile(r"Crew (\d+)")
@@ -4337,6 +4360,7 @@ _CARDS = r"(an?|two|three|four)"
 _SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|Food|Treasure|Clue)s?")
 _REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
+_DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
 _EXILE_COST = re.compile(rf"Exile {_CARDS} cards? from your graveyard")
 _NUMBER = {"a": 1, "an": 1, "two": 2, "three": 3, "four": 4}
 _LOYALTY = re.compile(r"([+\u2212-]?)(\d+)")
@@ -4373,6 +4397,11 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
     return tuple(abilities)
 
 
+def hand_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
+    """The activated abilities a card has in your hand: those whose cost discards it (Magma Opus)."""
+    return tuple(a for a in activated_abilities(card) if a.discard_self)
+
+
 def _cost_fields(cost: str) -> dict[str, Any] | None:
     """The fields of an ActivatedAbility that a cost sets ("{1}, {T}, Pay 2 life"), or None if any part isn't understood."""
     fields: dict[str, Any] = {}
@@ -4389,6 +4418,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another", sacrifice_count=_NUMBER.get(m[1], 1))
         elif m := _DISCARD_COST.fullmatch(part):
             fields["discard"] = _NUMBER[m[1]]
+        elif _DISCARD_SELF.fullmatch(part):
+            fields["discard_self"] = True
         elif m := _EXILE_COST.fullmatch(part):
             fields["exile_graveyard"] = _NUMBER[m[1]]
         elif m := _REMOVE_COUNTER_COST.fullmatch(part):

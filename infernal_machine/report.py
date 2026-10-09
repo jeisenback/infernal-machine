@@ -76,7 +76,7 @@ def unsupported_lines(card: Card) -> list[str]:
             continue
         if _is_keyword_line(line) or _DECKBUILDING.fullmatch(line) or is_cycling_line(line):
             continue
-        if is_casting_cost_line(line):
+        if is_casting_cost_line(line) or line in abilities:  # a spell can have an ability that works from the hand
             continue
         if spell and (is_modal_header(line) or line_effects(mode_text(line)) is not None):
             continue  # a sentence of the spell, or the "Choose one —" line, or one of its modes

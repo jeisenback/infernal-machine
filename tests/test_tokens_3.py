@@ -8,10 +8,10 @@ cuts off with "..." were completed from memory (marked "completed from memory" b
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (Amount, AttackingTokens, CopyToken, TokensBecomeCopies, CreateTokens, DefineX, DestroyAll, Draw, ExileAll, GiveBack,
+from infernal_machine.effects import (Amount, AttackingTokens, CopyToken, Damage, Tap, TokensBecomeCopies, hand_abilities, CreateTokens, DefineX, DestroyAll, Draw, ExileAll, GiveBack,
                                       MassFilter, PreventCombatDamageToYou, ReturnAllToHand, TREASURE, TargetControllerCreatesTokens,
                                       spell_effects, static_abilities, triggered_abilities)
-from infernal_machine.game import CAST, Permanent, StackItem
+from infernal_machine.game import ACTIVATE_HAND, CAST, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR
 from tests.test_effects import lands, pick
@@ -64,6 +64,11 @@ INKSHIELD = Card(  # the second sentence ends "wi..." in the issue; the rest is 
     name="Inkshield", mana_cost="{3}{W}{B}", type_line="Instant", colors=("W", "B"), cmc=5,
     oracle_text="Prevent all combat damage that would be dealt to you this turn. For each 1 damage prevented this way, "
                 "create a 2/1 white and black Inkling creature token with flying.")
+MAGMA_OPUS = Card(  # the first line ends "D..." in the issue; "Draw two cards" and the second line are completed from memory
+    name="Magma Opus", mana_cost="{6}{U}{R}", type_line="Instant", colors=("U", "R"), cmc=8,
+    oracle_text="Magma Opus deals 4 damage divided as you choose among any number of targets. Tap two target permanents. "
+                "Create a 4/4 blue and red Elemental creature token. Draw two cards.\n"
+                "{U/R}{U/R}, Discard this card: Create a Treasure token.")
 STORM_KILN_ARTIST = Card(name="Storm-Kiln Artist", mana_cost="{3}{R}", type_line="Creature — Dwarf Shaman", power="2",
                          toughness="2", colors=("R",), cmc=4,
                          oracle_text="This creature gets +1/+0 for each artifact you control.\nMagecraft — Whenever you "
@@ -315,3 +320,43 @@ class BrudicladTests(unittest.TestCase):
     def test_choosing_nothing_leaves_them_alone(self):
         game, a, treasure, bear, ogre = self.combat(pick("Don't copy"))
         self.assertEqual(sorted(p.card.name for p in a.battlefield), ["Bear", "Brudiclad, Telchor Engineer", "Myr", "Ogre", "Treasure"])
+
+
+BIG_ELEMENTAL = Card(name="Elemental", type_line="Token Creature — Elemental", colors=("U", "R"), power="4", toughness="4")
+
+
+class MagmaOpusTests(unittest.TestCase):
+    def test_parse(self):
+        self.assertEqual(spell_effects(MAGMA_OPUS),
+                         [Damage(1, "any"), Damage(1, "any", optional_target=True), Damage(1, "any", optional_target=True),
+                          Damage(1, "any", optional_target=True), Tap("permanent"), Tap("permanent", distinct=True),
+                          CreateTokens(1, BIG_ELEMENTAL), Draw(2)])
+        [discard] = hand_abilities(MAGMA_OPUS)
+        self.assertEqual((discard.mana_cost, discard.discard_self, discard.effects), ("{U/R}{U/R}", True, (CreateTokens(1, TREASURE),)))
+        self.assertEqual(unsupported_lines(MAGMA_OPUS), [])
+
+    def test_the_damage_is_divided_a_point_at_a_time_and_two_permanents_are_tapped(self):
+        bear, ogre = Permanent(BEAR), Permanent(OGRE)
+        answers = iter([CAST, "Ogre", "Bear", "No target", "No target", "Ogre", "Bear"])  # one point each, two nowhere; tap both
+
+        def policy(prompt, options):
+            return pick(next(answers, "Pass"))(prompt, options)
+
+        game, _ = table3(policy)
+        a, b, _c = game.seats
+        a.hand, a.battlefield = [MAGMA_OPUS], lands(8)
+        b.battlefield = [ogre, bear]
+        game._priority_round(a)
+        self.assertEqual((ogre.damage, bear.damage, ogre.tapped, bear.tapped), (1, 1, True, True))
+        self.assertEqual((count(a, "Elemental"), len(a.hand)), (1, 2))
+
+    def test_discarding_it_from_hand_makes_a_treasure(self):
+        game, _ = table3(pick(ACTIVATE_HAND))
+        a = game.seats[0]
+        a.hand, a.battlefield = [MAGMA_OPUS], lands(2)
+        self.assertIn(ACTIVATE_HAND + "Magma Opus", game.legal_actions(a))
+        game._priority_round(a)
+        self.assertEqual((count(a, "Treasure"), a.hand, a.graveyard), (1, [], [MAGMA_OPUS]))
+        a.hand, a.battlefield = [MAGMA_OPUS], lands(1)
+        self.assertNotIn(ACTIVATE_HAND + "Magma Opus", game.legal_actions(a))  # {U/R}{U/R} needs two mana
+        self.assertNotIn("Magma Opus", [p.card.name for p in a.battlefield])

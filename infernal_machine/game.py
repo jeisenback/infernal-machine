@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, hand_abilities, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -62,6 +62,7 @@ CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
 CYCLE = "Cycle: "
+ACTIVATE_HAND = "Activate from hand: "  # followed by the card's name: "{U/R}{U/R}, Discard this card: ..." (Magma Opus)
 REVEAL_PROMPT = "Reveal a card from your hand for "  # followed by the land's name
 SHOCK_PROMPT = "Pay life so it enters untapped? "  # followed by the land's name
 ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
@@ -574,6 +575,10 @@ class Game:
         for card in _unique(seat.hand):
             if (found := cycling(card)) and self._can_cycle(seat, found[1], found[3]):
                 actions.append(CYCLE + card.name)
+            for ability in hand_abilities(card)[:1]:
+                if self._pay_cost(seat, parse_cost(ability.mana_cost)) is not None \
+                        and self._effects_possible(seat, ability.effects, source_qualities(card)):
+                    actions.append(ACTIVATE_HAND + card.name)
         actions += list(self._activations(seat, sorcery_timing))
         return actions
 
@@ -584,7 +589,7 @@ class Game:
             granted = [a for other in self.seats for attachment in other.battlefield if attachment.attached_to is permanent
                        for a in granted_abilities(attachment.card)]
             for ability in [*activated_abilities(permanent.card), *granted]:
-                if self._can_activate(seat, permanent, ability, sorcery_timing):
+                if not ability.discard_self and self._can_activate(seat, permanent, ability, sorcery_timing):
                     text = ability.text.replace("CARDNAME", permanent.card.name)
                     options[f"{ACTIVATE}{self.label(permanent)}: {text}"] = (permanent, ability)
         return options
@@ -1029,6 +1034,8 @@ class Game:
             self._cast(seat, card, seat.exile)
         elif action.startswith(CYCLE):
             self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
+        elif action.startswith(ACTIVATE_HAND):
+            self._activate_from_hand(seat, _take(seat.hand, action.removeprefix(ACTIVATE_HAND)))
         elif action.startswith(CAST_COMMANDER):
             name = action.removeprefix(CAST_COMMANDER)
             card = next(c for c in seat.command_zone if c.name == name)
@@ -1086,6 +1093,20 @@ class Game:
         self.stack.append(StackItem(card, seat, list(effects), [], ability))
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
+
+    def _activate_from_hand(self, seat: Seat, card: Card) -> None:
+        """"{U/R}{U/R}, Discard this card: Create a Treasure token.": like cycling, the card is discarded as a cost and
+        the ability goes on the stack."""
+        ability = hand_abilities(card)[0]
+        effects = list(ability.effects)
+        targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
+        tapped = self._pay_cost(seat, parse_cost(ability.mana_cost)) if ability.mana_cost else []
+        self._spend_mana(seat, tapped)
+        self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cost"})
+        self._move_card(seat, card, "graveyard")
+        self.stack.append(StackItem(card, seat, effects, targets, ability))
+        self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
+                        "targets": labels, "tapped": [p.card.name for p in tapped]})
 
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
         effects = list(ability.effects)
