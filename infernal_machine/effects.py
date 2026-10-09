@@ -4687,7 +4687,7 @@ def self_cost_reduction(card: Card) -> tuple[int, str] | None:
 
 _IF_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast if (.+)\.")  # Mortality Spear
 _POWER_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, where X is the total power of creatures you control\.")
-_GRANTED_AFFINITY = re.compile(r"(Enchantment) spells you cast have affinity for Auras\.")  # Pearl-Ear, Imperial Advisor
+_GRANTED_AFFINITY = re.compile(r"(Enchantment|Aura) spells you cast have affinity for Auras\.")  # Pearl-Ear, Imperial Advisor
 
 
 def conditional_cost_reduction(card: Card) -> tuple[int, Condition] | None:
@@ -4704,7 +4704,7 @@ def reduced_by_total_power(card: Card) -> bool:
 
 
 def granted_affinity(card: Card) -> str | None:
-    """Pearl-Ear: the kind of spell you cast that has affinity for Auras ("enchantment")."""
+    """Pearl-Ear: the kind of spell you cast that has affinity for Auras ("aura")."""
     return next((m[1].lower() for line in rules_lines(card) if (m := _GRANTED_AFFINITY.fullmatch(line))), None)
 
 
@@ -6002,6 +6002,9 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         qualifier = (f"{q[2]}{'>=' if q[4] == 'greater' else '<='}{q[3]}" if q[2] else "flying" if q[1] == "flying"
                      else f"mv<={q[5]}" if q[5] else "counter:+1/+1")
         line = line[:q.start()] + line[q.end():]
+    if " that targets a modified permanent you control" in line:  # Pearl-Ear: about the spell's targets
+        line = line.replace(" that targets a modified permanent you control", "")
+        qualifier = "targets_modified"
     if m := _WATCHES["cast"].fullmatch(line):
         caster = {"you cast or copy": "you", "you cast": "you", "a player casts": "player",
                   "an opponent casts": "opponent"}[m[1].lower()]
@@ -6009,7 +6012,7 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         origin = (m[6] or "").strip()
         watch = Watch(m[4].lower(), other=(m[2] or "").lower() == "another", caster=caster, nth_each_turn=nth,
                       with_copy=m[1].lower() == "you cast or copy", mv_at_least=int(m[5] or 0),
-                      from_hand=origin == "from your hand",
+                      from_hand=origin == "from your hand", qualifier=qualifier,
                       not_starting_deck=origin == "that isn't from your starting deck",
                       from_zone="graveyard" if "graveyard" in origin else "not_hand" if "other than" in origin else "")
         return "cast", watch, m[7]

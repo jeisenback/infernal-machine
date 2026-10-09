@@ -326,3 +326,80 @@ class EnchantedCreatureDiesTests(unittest.TestCase):
 
     def test_a_creature_without_one_does_not(self):
         self.assertEqual(self.die(0), 40)
+
+
+PEARL_EAR = Card(name="Pearl-Ear, Imperial Advisor", mana_cost="{2}{W}", type_line="Legendary Creature — Human Advisor", power="2",
+                 toughness="2", oracle_text="Aura spells you cast have affinity for Auras. (They cost {1} less to cast for each Aura "
+                                            "you control.)\nWhenever you cast an Aura spell that targets a modified permanent you "
+                                            "control, draw a card.")
+GLOW = Card(name="Glow", mana_cost="{1}", cmc=1.0, type_line="Enchantment — Aura", oracle_text="Enchant creature")
+SWORD = Card(name="Sword", type_line="Artifact — Equipment", oracle_text="Equipped creature gets +1/+1.\nEquip {2}")
+JOLT = Card(name="Jolt", mana_cost="{1}", cmc=1.0, type_line="Instant", oracle_text="Jolt deals 1 damage to target creature.")
+
+
+class PearlEarTests(unittest.TestCase):
+    def cast(self, spell_card, target_owner=0, counters=None, equipped=False, enchanted=False):
+        from infernal_machine.game import CAST
+        policy = lambda prompt, options: (next((i for i, o in enumerate(options) if o.startswith(CAST)), 0)
+                                          if not prompt.startswith("Choose a target") else
+                                          next((i for i, o in enumerate(options) if o.startswith("Ogre")), 0))
+        game, _ = table3(policy, policy)
+        a, b, c = game.seats
+        a.battlefield = [Permanent(PEARL_EAR), *lands(4)]
+        a.library = [BEAR] * 5
+        target = Permanent(OGRE, counters=dict(counters or {}))
+        game.seats[target_owner].battlefield.append(target)
+        if equipped:
+            game.seats[target_owner].battlefield.append(Permanent(SWORD, attached_to=target))
+        if enchanted:
+            game.seats[target_owner].battlefield.append(Permanent(GLOW, attached_to=target))
+        a.hand = [spell_card]
+        game.active, game.step = 0, "main1"
+        game._perform(a, CAST + spell_card.name)
+        run_stack(game)
+        return a
+
+    def test_it_is_supported(self):
+        self.assertEqual(unsupported_lines(PEARL_EAR), [])
+
+    def test_an_aura_on_a_creature_with_a_counter_draws_a_card(self):
+        self.assertEqual(len(self.cast(GLOW, counters={"+1/+1": 1}).hand), 1)
+
+    def test_an_aura_on_an_equipped_creature_draws_a_card(self):
+        self.assertEqual(len(self.cast(GLOW, equipped=True).hand), 1)
+
+    def test_an_aura_on_a_creature_already_enchanted_by_your_aura_draws_a_card(self):
+        self.assertEqual(len(self.cast(GLOW, enchanted=True).hand), 1)
+
+    def test_an_aura_on_an_unmodified_creature_does_not(self):
+        self.assertEqual(self.cast(GLOW).hand, [])
+
+    def test_a_modified_creature_of_an_opponent_does_not_count(self):
+        self.assertEqual(self.cast(GLOW, target_owner=1, counters={"+1/+1": 2}).hand, [])
+
+    def test_a_spell_that_is_not_an_aura_does_not(self):
+        self.assertEqual(self.cast(JOLT, counters={"+1/+1": 1}).hand, [])
+
+
+class PearlEarAffinityTests(unittest.TestCase):
+    """The first line of the real card: Aura spells you cast have affinity for Auras."""
+
+    def payable(self, spell_card, auras, lands_in_play=1, with_pearl_ear=True):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield = ([Permanent(PEARL_EAR)] if with_pearl_ear else []) + lands(lands_in_play)
+        a.battlefield += [Permanent(GLOW, attached_to=Permanent(OGRE)) for _ in range(auras)]
+        return game._payment(a, spell_card) is not None
+
+    BIG_AURA = Card(name="Big Aura", mana_cost="{2}", cmc=2.0, type_line="Enchantment — Aura", oracle_text="Enchant creature")
+    SHRINE = Card(name="Shrine", mana_cost="{2}", cmc=2.0, type_line="Enchantment", oracle_text="")
+
+    def test_an_aura_costs_one_less_for_each_aura_you_control(self):
+        self.assertTrue(self.payable(self.BIG_AURA, auras=1))
+        self.assertFalse(self.payable(self.BIG_AURA, auras=0))
+
+    def test_a_plain_enchantment_gets_nothing(self):
+        self.assertFalse(self.payable(self.SHRINE, auras=1))
+
+    def test_without_pearl_ear_there_is_no_discount(self):
+        self.assertFalse(self.payable(self.BIG_AURA, auras=1, with_pearl_ear=False))

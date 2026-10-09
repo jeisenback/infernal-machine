@@ -2265,7 +2265,10 @@ class Game:
                 if event in ("cast", "copy") and ((watch.from_zone == "graveyard" and not from_graveyard)
                                                   or (watch.from_zone == "not_hand" and from_hand)):
                     continue
-                if watch.qualifier and (subject is None or not self._qualifies(watch.qualifier, subject)):
+                if watch.qualifier == "targets_modified":  # a cast of a spell that targets a modified permanent you control
+                    if not self._targets_modified(spell, watcher_seat):
+                        continue
+                elif watch.qualifier and (subject is None or not self._qualifies(watch.qualifier, subject)):
                     continue
                 if watch.batch and self._batch is not None:  # "one or more": once for everything that happened together
                     if (id(watcher), id(ability)) in self._batch:
@@ -2298,6 +2301,21 @@ class Game:
                     continue
                 for _ in range(self._trigger_times(watcher_seat, event, card, seat)):
                     self._queue(ability, watcher, watcher_seat, x, subject, seat, spell)
+
+    def _is_modified(self, permanent: Permanent, controller: Seat | None = None) -> bool:
+        """CR 700.9: it has a counter, or an Equipment or an Aura its controller controls is attached to it."""
+        controller = controller or self.controller_of(permanent)
+        return bool(permanent.counters and any(permanent.counters.values())) or any(
+            a.attached_to is permanent and self.controller_of(a) is controller
+            and ("Equipment" in a.card.type_line or "Aura" in a.card.type_line)
+            for s in self.live_seats() for a in s.battlefield)
+
+    def _targets_modified(self, spell: "StackItem | Card | None", seat: Seat) -> bool:
+        """Whether the spell targets a modified permanent that `seat` controls (Pearl-Ear)."""
+        targets = spell.targets if isinstance(spell, StackItem) else []
+        flat = [t for target in targets for t in (target if isinstance(target, list) else [target])]
+        return any(isinstance(t, Permanent) and self.on_battlefield(t) and self.controller_of(t) is seat and self._is_modified(t, seat)
+                   for t in flat)
 
     def _qualifies(self, qualifier: str, permanent: Permanent) -> bool:
         """A watch's "with power 4 or greater" / "with flying" / "with a +1/+1 counter on it": for a creature that is
@@ -4135,10 +4153,7 @@ class Game:
                 self.trigger("put_into_graveyard", permanent, controller)
                 self._observe("permanent_to_graveyard", permanent.card, controller, subject=permanent, extra=gone)
             if destination == "graveyard" and "Creature" in permanent.card.type_line:
-                if permanent.counters and any(permanent.counters.values()) or any(  # CR 700.9: modified
-                        a.attached_to is permanent and self.controller_of(a) is controller
-                        and ("Equipment" in a.card.type_line or "Aura" in a.card.type_line)
-                        for s_ in self.live_seats() for a in s_.battlefield):
+                if self._is_modified(permanent, controller):
                     controller.modified_died_turn = self.turn
                 if self.deaths_turn != self.turn:
                     self.deaths_turn, self.deaths_count = self.turn, 0
