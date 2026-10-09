@@ -237,6 +237,7 @@ winner = game.play()
 | Untap all creatures that attacked this turn. / Untap all creatures you control. | Aggravated Assault |
 | Untap target land (permanent, creature, ...). / Untap another target creature. / Untap up to two target lands. | |
 | Untap all lands (artifacts, permanents, enchantments) you control. | |
+| Return all creature tokens / all nontoken creatures to their owners' hands. | Perplexing Test |
 | Untap it. / Untap this creature. (in "Whenever this creature attacks, untap it", or "equipped creature ... untap it") | |
 | You become the monarch. | Thorn of the Black Rose |
 | You take the initiative. | Underdark Explorer |
@@ -270,7 +271,13 @@ winner = game.play()
 | Create a P/T ... creature token with (flying and) "<an ability we understand>" | Pest: "When this creature dies, you gain 1 life." |
 | Create N Treasure / Clue / Food token(s). | Smothering Tithe |
 | Create a token that's a copy of target creature (you control). / Populate. | Growing Ranks |
-| Destroy target permanent. Its controller creates a 3/3 green Beast creature token. | Beast Within |
+| Destroy target permanent. Its controller creates a 3/3 green Beast creature token. / That creature's controller creates ... | Beast Within, Rapid Hybridization, Resculpt |
+| Draw two cards and create two Treasure tokens. | Big Score, Seize the Spoils |
+| Create a token that's a copy of target creature. If this spell was kicked, create five of those tokens instead. | Rite of Replication |
+| For each opponent, create two 3/3 ... tokens with flying that attack that opponent this turn if able. They gain haste until end of turn. Exile them at the beginning of the next end step. | Furygale Flocking |
+| Prevent all combat damage that would be dealt to you this turn. For each 1 damage prevented this way, create a 2/1 ... token with flying. | Inkshield |
+| CARDNAME deals 4 damage divided as you choose among any number of targets. (a point at a time: the first to a target, the rest to targets or nowhere) | Magma Opus |
+| Tap two target permanents. | Magma Opus |
 | Put N +1/+1 (or -1/-1) counters on target creature / on each creature you control / on it. | |
 | This creature enters with N +1/+1 counters on it. | Hydras |
 | Target creature gets +N/+N (and gains keywords) / gains keywords until end of turn. | Giant Growth |
@@ -313,8 +320,9 @@ winner = game.play()
   can't attack or use {T} abilities if animated that turn. Bots never activate these abilities.
 - **Tokens for other players:** "Each opponent (or player) creates ..." and "Target opponent creates ...". A token
   with "This creature can't block / attack / attack or block." gets that restriction.
-- **Static abilities:** "(Other) (Elf) creatures you control get +1/+1 (and have flying)" and
-  "Creatures you control have haste". These apply only while their source is on the battlefield.
+- **Static abilities:** "(Other) (Elf) creatures you control get +1/+1 (and have flying)",
+  "Creatures you control have haste" and "Creature tokens you control have haste" (Brudiclad). These apply only
+  while their source is on the battlefield.
   - Either can be conditional, written "As long as X, ..." or "... as long as X.", and a creature can buff
     itself ("As long as you control an artifact, this creature gets +1/+1 and has flying."). The buff is checked
     every time power, toughness or keywords are looked at, so it switches on and off as the game changes.
@@ -345,6 +353,11 @@ winner = game.play()
   "Create a 0/0 Fractal token. Put X +1/+1 counters on it." (or ", then put three ... on it") gives the new token the
   counters. Clue and Food work through their activated abilities. A token with a quoted ability
   ("When this token dies, you gain 1 life.") works when that ability is understood; otherwise the card isn't.
+  "Put X +1/+1 counters on it, where X is the amount of mana spent to cast that spell." (Deekah) reads the mana paid
+  for the spell that set off the magecraft trigger; a copy of a spell was never cast, so its Fractal gets none.
+  Brudiclad's "Then you may choose a token you control. If you do, each other token you control becomes a copy of
+  that token until end of turn." asks which token (or none); the others keep their counters and damage and get
+  their own card back at cleanup.
 - **Lands:**
   - Entering tapped: "This land enters tapped" (taplands, gain-lands, temples, triomes), and the conditional
     kinds: checklands ("unless you control an Island or a Swamp"; any land with that land type counts),
@@ -365,6 +378,8 @@ winner = game.play()
   - Bouncelands: "enters tapped" plus "When this land enters, return a land you control to its owner's hand."
     You choose the land and it can be itself; bots return the newest land.
   - **Prepare cards** (Secrets of Strixhaven, e.g. Eiganjo Dynastorian // Replenish): a creature whose card also has a spell half. "This creature enters prepared" and "... becomes prepared" (from any trigger the engine fires) make it prepared; while it is, you get a "Cast prepared: <spell>" action (with the spell's own timing and cost). It casts a copy of the spell, which ends instead of going to a graveyard, and the creature stops being prepared. The report checks both halves. "Target creature becomes prepared / unprepared" (Skycoach Waypoint, Hexhaven Dueling Arena's "creature that attacked this turn"), "each creature you control becomes prepared" (Codie) and the conditions "if this creature isn't prepared", "three or more artifact and/or creature cards in your graveyard", "a player has one or fewer cards in hand" and "an opponent has more cards in hand than you" work. Not built yet: see #85.
+  - Abilities from the hand: "{U/R}{U/R}, Discard this card: Create a Treasure token." (Magma Opus) is offered as
+    "Activate from hand: <card>" at instant speed; the card is discarded as the cost and the effect goes on the stack.
   - Cycling {N}: an ability you can use from your hand at instant speed. Pay, discard the card, draw.
     Basic landcycling {N} and Plainscycling / Islandcycling / Swampcycling / Mountaincycling / Forestcycling {N}
     fetch a land to your hand instead (basic land, or any land with that type). The cost can be mana or "Pay N life"
@@ -631,7 +646,11 @@ winner = game.play()
     in all of them.
   - **Wipes that give something back:** "Destroy all creatures. For each creature destroyed this way, its controller
     creates a 1/1 white Spirit creature token." (also for exile): a token per creature that really left, to its
-    last controller; an indestructible survivor gives nothing.
+    last controller; an indestructible survivor gives nothing. "Then create a 3/2 ... token for each nontoken creature
+    you controlled that was destroyed this way." (Ceaseless Conflict) pays only the caster, and "Each player creates a
+    0/0 ... Fractal creature token and puts a number of +1/+1 counters on it equal to the total power of the creatures
+    they controlled that were exiled this way." (Oversimplify) gives everyone one token, as big as what they lost (as
+    it last was); with no counters it dies at once.
   - **Sacrifice:** "Each player (opponent) sacrifices two lands", "...a nonland permanent", "...an artifact or
     enchantment", "...all creatures they control", "...a creature with the greatest power among creatures they
     control" (they choose among the tied greatest), and "Sacrifice all creatures you control." With fewer
