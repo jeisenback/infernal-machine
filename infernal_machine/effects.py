@@ -3883,13 +3883,13 @@ def _merge_no_regen(effects: list) -> list:
 def spell_effects(card: Card) -> list | None:
     """Effects of an instant or sorcery, in order; None if any sentence isn't understood. A modal spell
     ("Choose one — ...") gives a single Modal effect."""
-    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line) and not _is_hand_ability_line(line)]
+    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line) and not is_hand_ability_line(line)]
     if lines and (m := _MODAL_HEADER.fullmatch(lines[0])):
         return _parse_modal(m[1].lower(), lines[1:])
     return _parse(_split_sentences("\n".join(lines)))
 
 
-def _is_hand_ability_line(line: str) -> bool:
+def is_hand_ability_line(line: str) -> bool:
     """Magma Opus's "{U/R}{U/R}, Discard this card: ...": an ability of the card, not a sentence of the spell."""
     m = _ACTIVATED.fullmatch(line)
     return m is not None and bool((_cost_fields(m[1]) or {}).get("discard_self"))
