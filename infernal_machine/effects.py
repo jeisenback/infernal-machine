@@ -1855,6 +1855,47 @@ class OtherTokensBecomeCopies:
 
 
 @dataclass(frozen=True)
+class DividedDamage:
+    """Magma Opus: "CARDNAME deals 4 damage divided as you choose among any number of targets." The targets are one list;
+    the damage is split as the controller chooses, a point at a time, when the spell resolves."""
+    total: int
+    target: str = "any"
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        targets = list(target or [])
+        if not targets:
+            return
+        shares = [0] * len(targets)
+        for point in range(self.total):
+            if len(targets) == 1:
+                shares[0] = self.total
+                break
+            pick = controller.player.choose(f"{DIVIDE_PROMPT}{self.total - point} damage left",
+                                            [game._target_text(t) for t in targets])
+            shares[pick] += 1
+        for victim, amount in zip(targets, shares):
+            if amount:
+                game.damage(victim, amount)
+
+
+DIVIDE_PROMPT = "Assign 1 damage to: "  # followed by how much is left; options are the targets
+
+
+@dataclass(frozen=True)
+class TapTarget:
+    """ "Tap target permanent." / "Tap two target permanents." (the second is a different one)"""
+    target: str
+    distinct: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and hasattr(target, "tapped"):
+            target.tapped = True
+
+
+@dataclass(frozen=True)
 class OpponentsLoseCounters:
     """Final Act: "Each opponent loses all counters." (the counters on players: poison, energy, experience, ...)"""
 
@@ -3627,6 +3668,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(rf"(?:{_SELF}) deals (\d+) damage divided as you choose among any number of targets\.", re.I),
+     lambda m: DividedDamage(int(m[1]))),
+    (re.compile(r"tap two target permanents\.", re.I), lambda m: [TapTarget("permanent"), TapTarget("permanent", distinct=True)]),
     (re.compile(r"then you may choose a token you control, and each other token you control becomes a copy of it\.", re.I),
      lambda m: OtherTokensBecomeCopies()),
     (re.compile(r"choose any number of target creatures you control\. For each of them, create a token that's a copy of that "
@@ -4165,7 +4209,8 @@ def _merge_no_regen(effects: list) -> list:
 def spell_effects(card: Card) -> list | None:
     """Effects of an instant or sorcery, in order; None if any sentence isn't understood. A modal spell
     ("Choose one — ...") gives a single Modal effect."""
-    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line)]
+    in_hand = {a.text for a in hand_abilities(card)}  # Magma Opus: an ability of the card in your hand, not part of the spell
+    lines = [line for line in rules_lines(card) if not is_casting_cost_line(line) and line not in in_hand]
     if lines and (m := _MODAL_HEADER.fullmatch(lines[0])):
         return _parse_modal(m[1].lower(), lines[1:])
     if lines and _MODAL_COMMANDER.fullmatch(lines[0]):
@@ -4635,6 +4680,7 @@ class ActivatedAbility:
     reconfigure: str = ""  # "attach" (only with another creature to attach to) or "unattach" (only while attached)
     remove_counter: str = ""  # "Remove a +1/+1 counter from this creature": the kind of counter
     condition: "Condition | None" = None  # "Activate only if you control two or more white permanents."
+    discard_self: bool = False  # "Discard this card": an ability of a card in your hand (Magma Opus)
 
 
 _CREW = re.compile(r"Crew (\d+)")
@@ -4654,8 +4700,18 @@ _ONCE_EACH_TURN = "Activate only once each turn."
 _ACTIVATE_ONLY_IF = re.compile(r"Activate only (as a sorcery and only )?if (.+)\.")
 
 
-@lru_cache(maxsize=None)
 def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
+    """The abilities a permanent can activate on the battlefield."""
+    return tuple(a for a in _all_activated(card) if not a.discard_self)
+
+
+def hand_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
+    """The abilities with "Discard this card" in the cost: activated from the hand ({U/R}{U/R}, Discard this card: ...)."""
+    return tuple(a for a in _all_activated(card) if a.discard_self)
+
+
+@lru_cache(maxsize=None)
+def _all_activated(card: Card) -> tuple[ActivatedAbility, ...]:
     """Activated abilities ("{1}, {T}, Sacrifice this artifact: Draw a card.") whose
     costs and effects are all understood. Mana abilities are handled by mana_ability."""
     planeswalker = "Planeswalker" in card.type_line
@@ -4692,6 +4748,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["tap"] = True
         elif _SACRIFICE_SELF.fullmatch(part):
             fields["sacrifice"] = True
+        elif part == "Discard this card":
+            fields["discard_self"] = True
         elif (m := _PAY_LIFE.fullmatch(part)) and m[1] != "X":
             fields["life"] = _count(m[1])
         elif m := _SACRIFICE_OTHER.fullmatch(part):

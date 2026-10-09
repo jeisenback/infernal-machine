@@ -24,7 +24,7 @@ from .characteristics import MINUS, PLUS, Modifier, source_qualities
 from .combat import Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, strive_cost, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, additional_land_mana, hand_abilities, strive_cost, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, alternative_costs, cost_reductions, cycling, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield,
                       overloaded_effects, SacrificeSelf,
@@ -63,6 +63,7 @@ CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
 CYCLE = "Cycle: "
+HAND_ABILITY = "Activate from hand: "  # followed by the card's name
 REVEAL_PROMPT = "Reveal a card from your hand for "  # followed by the land's name
 SHOCK_PROMPT = "Pay life so it enters untapped? "  # followed by the land's name
 ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
@@ -590,6 +591,9 @@ class Game:
         for card in _unique(seat.hand):
             if (found := cycling(card)) and self._can_cycle(seat, found[1], found[3]):
                 actions.append(CYCLE + card.name)
+            for ability in hand_abilities(card)[:1]:  # {U/R}{U/R}, Discard this card: Create a Treasure token.
+                if self._pay_cost(seat, parse_cost(ability.mana_cost) if ability.mana_cost else Cost()) is not None:
+                    actions.append(HAND_ABILITY + card.name)
         actions += list(self._activations(seat, sorcery_timing))
         return actions
 
@@ -1069,6 +1073,16 @@ class Game:
             card = next(c for c in seat.exile if c.name == action.removeprefix(CAST_EXILE))
             self._used_exile_permission(seat, card)
             self._cast(seat, card, seat.exile)
+        elif action.startswith(HAND_ABILITY):
+            card = _take(seat.hand, action.removeprefix(HAND_ABILITY))
+            ability = hand_abilities(card)[0]
+            tapped = self._pay_cost(seat, parse_cost(ability.mana_cost) if ability.mana_cost else Cost())
+            self._spend_mana(seat, tapped)
+            self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "ability"})
+            self._move_card(seat, card, "graveyard")
+            self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
+            self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
+                            "targets": [], "tapped": [p.card.name for p in tapped]})
         elif action.startswith(CYCLE):
             self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
         elif action.startswith(CAST_COMMANDER):
@@ -1225,6 +1239,10 @@ class Game:
         extra = escalate * (len(chosen) - 1) if escalate and len(chosen) > 1 else ""
         return [effect for i in sorted(chosen) for effect in modal.modes[i]], extra
 
+    def _target_text(self, target: Any) -> str:
+        """A target for the log: a permanent's label, or a player."""
+        return self.label(target) if isinstance(target, Permanent) else f"Player: {target.name} (seat {target.index})"
+
     def _choose_targets(self, seat: Seat, effects, source_name: str, source: Permanent | None = None,
                         colors: frozenset[str] = frozenset()) -> tuple[list, list[str]] | None:
         """Ask `seat` for a target per targeting effect: (targets, labels), or None if one has no legal target.
@@ -1246,7 +1264,7 @@ class Game:
                         if pick < len(pool):
                             picked.append(pool[pick][1])
                 targets.append(picked)
-                labels.append(", ".join(self.label(p) for p in picked) or NO_TARGET)
+                labels.append(", ".join(self._target_text(p) for p in picked) or NO_TARGET)
                 continue
             if getattr(effect, "any_number", False):  # "any number of target creatures": a list, paid for with strive
                 picked = []
@@ -1261,7 +1279,7 @@ class Game:
                     taken_here.add(pool[pick][0])
                     picked.append(pool[pick][1][1])
                 targets.append(picked)
-                labels.append(", ".join(self.label(p) for p in picked) or NO_TARGET)
+                labels.append(", ".join(self._target_text(p) for p in picked) or NO_TARGET)
                 continue
             if getattr(effect, "up_to_x", False):  # "up to X target creatures": one target slot holding a list
                 picked: list = []
@@ -1276,7 +1294,7 @@ class Game:
                     taken_here.add(pool[pick][0])
                     picked.append(pool[pick][1][1])
                 targets.append(picked)
-                labels.append(", ".join(self.label(p) for p in picked) or NO_TARGET)
+                labels.append(", ".join(self._target_text(p) for p in picked) or NO_TARGET)
                 continue
             taken = chosen.setdefault(kind, set())
             options = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors))

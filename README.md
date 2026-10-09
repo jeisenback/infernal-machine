@@ -348,6 +348,16 @@ winner = game.play()
   - Shadrix Silverquill chooses two modes for two different players, or none. Rousing Refrain adds {R} for each card in an
     opponent's hand, keeps the mana until end of turn and suspends itself; Suspend N—{cost} exiles a card from your hand
     with time counters, one comes off each upkeep, and the last one casts it for free.
+  - Tokens: "Draw two cards and create two Treasure tokens", "its controller creates ..." after a destroy (Rapid
+    Hybridization), "Return all creature tokens / nontoken creatures to their owners' hands" (Perplexing Test), a Fractal
+    sized by the spell's mana value (Deekah) or the power exiled (Oversimplify), tokens for each nontoken creature of
+    yours that was destroyed (Ceaseless Conflict), "Exile X target creatures" and "Destroy up to X targets, create twice X
+    tokens" (Curse of the Swine, Pest Infestation; X is chosen before the targets), "if kicked, five tokens" (Rite of
+    Replication), tokens that attack each opponent (Furygale Flocking), a hasty copy of each of any number of creatures,
+    with Strive adding to the cost for each target beyond the first and the targets offered only while you can pay
+    (Twinflame), preventing combat damage to you and making an Inkling for each point (Inkshield), and Brudiclad's
+    hasty tokens that copy one another. Magma Opus divides 4 damage among any number of targets one point at a time,
+    and has an ability that works from your hand ("{U/R}{U/R}, Discard this card: Create a Treasure token").
 - **Current power, toughness and keywords:** printed values plus counters, static abilities and
   "until end of turn" effects. They count everywhere: combat, damage, targeting (granted hexproof),
   destroy (granted indestructible), state checks, and the labels players see ("Bear 4/4").

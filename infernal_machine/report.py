@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 from .analysis import is_land
 from .cards import Card, Deck
-from .effects import (PROTECTION, activated_abilities, attached_abilities, is_casting_cost_line, is_cost_reduction_line,
+from .effects import (PROTECTION, hand_abilities, activated_abilities, attached_abilities, is_casting_cost_line, is_cost_reduction_line,
                       is_clone_line, is_replacement_line, is_control_aura_line, is_cycling_line, is_enchant_line, is_granting_line, is_cast_keyword_line, is_cumulative_upkeep_line, is_echo_line, is_reanimation_aura_line, is_enters_prepared_line, is_overload_line, overloaded_effects, is_extra_vote_line, is_no_max_hand_line, is_enters_tapped_line, is_enters_with_counters, is_mana_ability, is_modal_header,
                       is_additional_mana_line, is_choose_type_line, is_x_discount_line, is_attack_tax_line, is_opening_hand_line, is_return_exiled_line, is_ward_line, line_effects, mode_text, rules_lines, static_abilities,
                       triggered_abilities)
@@ -75,6 +75,8 @@ def unsupported_lines(card: Card) -> list[str]:
                 problems.append(line)  # the overloaded text ("each" for "target") isn't understood
             continue
         if _is_keyword_line(line) or _DECKBUILDING.fullmatch(line) or is_cycling_line(line):
+            continue
+        if any(a.text == line for a in hand_abilities(card)):
             continue
         if is_casting_cost_line(line):
             continue

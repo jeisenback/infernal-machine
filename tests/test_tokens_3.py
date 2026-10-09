@@ -5,7 +5,7 @@ from dataclasses import replace
 
 from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
-from infernal_machine.game import CAST, MODE_PROMPT, Permanent, StackItem
+from infernal_machine.game import CAST, HAND_ABILITY, MODE_PROMPT, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
@@ -201,3 +201,57 @@ class TwinflameTests(unittest.TestCase):
         game._priority_round(a)
         run_stack(game)
         self.assertEqual(sum(p.card.type_line.startswith("Token") for p in a.battlefield), 1)  # only {1}{R} was affordable
+
+
+class MagmaOpusTests(unittest.TestCase):
+    OPUS = REAL["Magma Opus"]
+
+    def test_divided_damage_taps_a_token_and_cards(self):
+        picks = {"targets": 0}
+
+        def policy(prompt, options):
+            if prompt.startswith("Choose a target"):
+                if options[-1] == "No target" and picks["targets"] >= 2:  # stop after two damage targets
+                    return len(options) - 1
+                picks["targets"] += 1
+                return 0
+            if prompt.startswith("Assign 1 damage"):
+                return 0  # all four points to the first target
+            return pick(CAST)(prompt, options)
+        game, _ = table3(policy)
+        a, b, _c = game.seats
+        a.hand, a.battlefield, a.library = [self.OPUS], lands(8), [BEAR] * 4
+        b.battlefield = [Permanent(replace(BEAR, power="4", toughness="4"))]
+        game._priority_round(a)
+        run_stack(game)
+        self.assertEqual(len(a.hand), 2)
+        self.assertEqual(sum(p.card.name == "Elemental" for p in a.battlefield), 1)
+
+    def test_the_hand_ability_makes_a_treasure(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.hand, a.battlefield = [self.OPUS], lands(2)
+        self.assertIn(HAND_ABILITY + "Magma Opus", game.legal_actions(a))
+        game._perform(a, HAND_ABILITY + "Magma Opus")
+        run_stack(game)
+        self.assertEqual((a.hand, a.graveyard, names(a)), ([], [self.OPUS], ["Treasure"]))
+
+    def test_it_is_understood(self):
+        self.assertEqual(unsupported_lines(self.OPUS), [])
+
+
+class BrudicladTests(unittest.TestCase):
+    BRUDICLAD = REAL["Brudiclad, Telchor Engineer"]
+
+    def test_tokens_have_haste_and_the_beginning_of_combat_makes_one_and_copies_it(self):
+        game, _ = table3(lambda prompt, options: 0)
+        a = game.seats[0]
+        goblin = Permanent(replace(BEAR, name="Goblin", type_line="Token Creature " + chr(0x2014) + " Goblin"))
+        a.battlefield = [Permanent(self.BRUDICLAD), goblin]
+        self.assertTrue(game.has_keyword(goblin, "haste"))
+        self.assertFalse(game.has_keyword(a.battlefield[0], "haste"))  # not a token
+        game.trigger("combat", a.battlefield[0], a)
+        run_stack(game)
+        tokens = [p for p in a.battlefield if p.card.type_line.startswith("Token")]
+        self.assertEqual(len(tokens), 2)
+        self.assertEqual(len({t.card.name for t in tokens}), 1)  # the new Myr and the Goblin are now the same card
