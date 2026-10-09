@@ -1,5 +1,5 @@
-session: claude-code triggers-80
-branch: claude/triggers-80
-task: issue #80 (trigger effects the precon decks need), stacked on PR 140
-status: pull request open
-updated: 2026-10-09T23:25:00Z
+session: claude-code triggers-80-more
+branch: claude/triggers-80-more
+task: issue #80 second batch (Spirit of Resilience next), stacked on PR 141
+status: in progress
+updated: 2026-10-09T21:59:03Z
