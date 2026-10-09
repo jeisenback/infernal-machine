@@ -4304,6 +4304,17 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
     return found
 
 
+# Serra Paragon: one land or cheap permanent spell from the graveyard each turn; the permanent is exiled if it goes back.
+_PARAGON = re.compile(r"Once during each of your turns, you may play a land from your graveyard or cast a permanent spell with "
+                      r"mana value (\d+) or less from your graveyard\. If you do, it gains \"When this permanent is put into a "
+                      r"graveyard from the battlefield, exile it and you gain (\d+) life\.\"")
+
+
+def graveyard_permission(card: Card) -> tuple[int, int] | None:
+    """Serra Paragon: (the most mana value of the permanent spell, the life gained when it goes to the graveyard)."""
+    return next(((int(m[1]), int(m[2])) for line in rules_lines(card) if (m := _PARAGON.fullmatch(line))), None)
+
+
 def additional_costs(card: Card) -> list[AdditionalCost]:
     costs = []
     for line in rules_lines(card):
