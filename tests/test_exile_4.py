@@ -148,3 +148,53 @@ class SurgeToVictoryTests(unittest.TestCase):
     def test_needs_an_instant_or_sorcery_in_the_graveyard(self):
         game, seat = surge_table([BEAR])
         self.assertNotIn("Cast: Surge to Victory", game.legal_actions(seat))
+
+
+def votes(word):
+    return lambda prompt, options: options.index(word) if word in options else 0
+
+
+def tempest_table(vote_a, vote_b):
+    game, a, b = table(votes(vote_a), votes(vote_b))
+    seat = game.seats[0]
+    seat.hand = [REAL["Fateful Tempest"]]
+    seat.battlefield = lands(3)
+    seat.library = [Card(name=f"Spell {n}", mana_cost="{" + str(n) + "}", cmc=n, type_line="Sorcery") for n in (2, 3, 5, 1)]
+    return game, seat
+
+
+def cast_tempest(game, seat):
+    game._perform(seat, "Cast: Fateful Tempest")
+    run_stack(game)
+
+
+class FatefulTempestTests(unittest.TestCase):
+    def test_past_votes_mill_and_damage_each_opponent_by_the_milled_mana_value(self):
+        game, seat = tempest_table("past", "past")
+        life = game.seats[1].life
+        cast_tempest(game, seat)
+        self.assertEqual([c.name for c in seat.graveyard][:2], ["Spell 2", "Spell 3"])
+        self.assertEqual(game.seats[1].life, life - 5)
+        self.assertEqual(seat.exile, [])
+
+    def test_present_votes_exile_cards_you_may_play_until_your_next_turn_ends(self):
+        game, seat = tempest_table("present", "present")
+        life = game.seats[1].life
+        cast_tempest(game, seat)
+        self.assertEqual([c.name for c in seat.exile], ["Spell 2", "Spell 3"])
+        self.assertEqual(len(seat.exile_play), 2)
+        self.assertEqual(game.seats[1].life, life)  # nothing was milled
+        self.assertTrue(all(until >= game.turn + 2 for _, until in seat.exile_play))
+
+    def test_a_split_vote_does_both(self):
+        game, seat = tempest_table("past", "present")
+        life = game.seats[1].life
+        cast_tempest(game, seat)
+        self.assertEqual(([c.name for c in seat.exile], game.seats[1].life), (["Spell 3"], life - 2))
+        self.assertIn("Spell 2", [c.name for c in seat.graveyard])
+
+    def test_the_damage_is_only_to_opponents(self):
+        game, seat = tempest_table("past", "past")
+        life = seat.life
+        cast_tempest(game, seat)
+        self.assertEqual(seat.life, life)

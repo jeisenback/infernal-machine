@@ -84,7 +84,10 @@ def rules_lines(card: Card) -> list[str]:
 
 
 _WHOLE_LINE = re.compile(
-    r"Exile target instant or sorcery card from your graveyard\. Creatures you control get \+X/\+0 until end of turn, where X is "
+    r"Council's dilemma — Starting with you, each player votes for past or present\. You mill a card for each past vote, "
+    r"then CARDNAME deals damage to each opponent equal to the total mana value of cards milled this way\. Exile the top card "
+    r"of your library for each present vote\. Until the end of your next turn, you may play the exiled cards\."
+    r"|Exile target instant or sorcery card from your graveyard\. Creatures you control get \+X/\+0 until end of turn, where X is "
     r"that card's mana value\. Whenever a creature you control deals combat damage to a player this turn, copy the exiled card\. "
     r"You may cast the copy without paying its mana cost\."
     r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
@@ -2320,6 +2323,22 @@ _SUSPEND = re.compile(r"Suspend (\d+)—((?:\{[^}]+\})+)")
 def suspend_of(card: Card) -> tuple[int, str] | None:
     """Suspend N—{cost}: (the time counters, the cost to exile it from your hand with them)."""
     return next(((int(m[1]), m[2]) for line in rules_lines(card) if (m := _SUSPEND.fullmatch(line))), None)
+
+
+@dataclass(frozen=True)
+class PastOrPresentVote:
+    """Fateful Tempest: each player votes for past or present. You mill a card for each past vote, then it deals damage to each
+    opponent equal to the total mana value of the cards milled; you exile the top card for each present vote and may play
+    those cards until the end of your next turn."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        past, present = game.vote(controller, ["past", "present"])
+        milled = sum(int(card.cmc) for card in game.mill(controller, past))
+        if milled:
+            for opponent in game.opponents(controller):
+                game.damage(opponent, milled)
+        if present:
+            game.exile_top(controller, present, "next turn")
 
 
 @dataclass(frozen=True)
@@ -4749,6 +4768,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
+    (re.compile(r"Council's dilemma — Starting with you, each player votes for past or present\. You mill a card for each "
+                r"past vote, then (?:CARDNAME|[A-Z][\w' ]+) deals damage to each opponent equal to the total mana value of cards milled "
+                r"this way\. Exile the top card of your library for each present vote\. Until the end of your next turn, you may "
+                r"play the exiled cards\."), lambda m: PastOrPresentVote()),
     (re.compile(r"Exile target instant or sorcery card from your graveyard\. Creatures you control get "
                                      r"\+X/\+0 until end of turn, where X is that card's mana value\. Whenever a creature you control "
                                      r"deals combat damage to a player this turn, copy the exiled card\. You may cast the copy "
