@@ -9,7 +9,7 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.effects import (Amount, AttackingTokens, CopyToken, CreateTokens, DefineX, DestroyAll, Draw, ExileAll, GiveBack,
-                                      MassFilter, ReturnAllToHand, TREASURE, TargetControllerCreatesTokens,
+                                      MassFilter, PreventCombatDamageToYou, ReturnAllToHand, TREASURE, TargetControllerCreatesTokens,
                                       spell_effects, static_abilities, triggered_abilities)
 from infernal_machine.game import CAST, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
@@ -60,6 +60,10 @@ FURYGALE_FLOCKING = Card(  # the second sentence ends "un..." in the issue; the 
     oracle_text="For each opponent, create two 3/3 blue and red Elemental creature tokens with flying that attack that "
                 "opponent this turn if able. They gain haste until end of turn. Exile them at the beginning of the next "
                 "end step.")
+INKSHIELD = Card(  # the second sentence ends "wi..." in the issue; the rest is completed from memory
+    name="Inkshield", mana_cost="{3}{W}{B}", type_line="Instant", colors=("W", "B"), cmc=5,
+    oracle_text="Prevent all combat damage that would be dealt to you this turn. For each 1 damage prevented this way, "
+                "create a 2/1 white and black Inkling creature token with flying.")
 STORM_KILN_ARTIST = Card(name="Storm-Kiln Artist", mana_cost="{3}{R}", type_line="Creature — Dwarf Shaman", power="2",
                          toughness="2", colors=("R",), cmc=4,
                          oracle_text="This creature gets +1/+0 for each artifact you control.\nMagecraft — Whenever you "
@@ -247,3 +251,31 @@ class FurygaleFlockingTests(unittest.TestCase):
         game.step = "end"
         game._turn_based_actions(a)
         self.assertEqual((count(a, "Elemental"), a.graveyard, a.exile), (0, [FURYGALE_FLOCKING], []))  # tokens just stop existing
+
+
+INKLING = Card(name="Inkling", type_line="Token Creature — Inkling", colors=("W", "B"), power="2", toughness="1",
+               oracle_text="Flying")
+
+
+class InkshieldTests(unittest.TestCase):
+    def test_parse(self):
+        self.assertEqual(spell_effects(INKSHIELD), [PreventCombatDamageToYou(INKLING)])
+        self.assertEqual(unsupported_lines(INKSHIELD), [])
+        half = Card(name="Half", type_line="Instant", oracle_text="For each 1 damage prevented this way, create a Treasure token.")
+        self.assertIsNone(spell_effects(half))
+
+    def test_combat_damage_to_you_this_turn_becomes_inklings(self):
+        game, _ = table3()
+        a, b, _c = game.seats
+        bear = Permanent(BEAR)
+        b.battlefield = [bear]
+        PreventCombatDamageToYou(INKLING).resolve(game, a, None)
+        game.damage(a, 3, source=bear, combat=True)
+        self.assertEqual((a.life, count(a, "Inkling")), (40, 3))
+        self.assertTrue(game.has_keyword(a.battlefield[0], "flying"))
+        game.damage(a, 2, source=bear)  # not combat damage
+        game.damage(b, 2, source=bear, combat=True)  # not you
+        self.assertEqual((a.life, b.life), (38, 38))
+        game.turn += 1
+        game.damage(a, 2, source=bear, combat=True)
+        self.assertEqual((a.life, count(a, "Inkling")), (36, 3))

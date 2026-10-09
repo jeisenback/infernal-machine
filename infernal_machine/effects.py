@@ -1322,6 +1322,40 @@ def _attacking_tokens(m: re.Match) -> AttackingTokens | None:
     return AttackingTokens(*parsed) if parsed else None
 
 
+@dataclass(frozen=True)
+class PreventCombatDamageToYou:
+    """Inkshield: "Prevent all combat damage that would be dealt to you this turn. For each 1 damage prevented this way,
+    create a 2/1 white and black Inkling creature token with flying." The second sentence is folded in by
+    _merge_prevention; the game creates the tokens as the damage is prevented."""
+    token: Card | None = None  # one for each point of damage prevented
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.prevent_combat_damage(controller, self.token)
+
+
+@dataclass(frozen=True)
+class _TokenPerPrevented:
+    """ "For each 1 damage prevented this way, create ...": only ever after PreventCombatDamageToYou."""
+    token: Card
+
+
+def _merge_prevention(effects: list) -> list | None:
+    merged: list = []
+    for effect in effects:
+        if isinstance(effect, _TokenPerPrevented):
+            if not (merged and isinstance(merged[-1], PreventCombatDamageToYou) and merged[-1].token is None):
+                return None
+            merged[-1] = PreventCombatDamageToYou(effect.token)
+        else:
+            merged.append(effect)
+    return merged
+
+
+def _token_per_prevented(m: re.Match) -> _TokenPerPrevented | None:
+    parsed = _token(m[1] + '."' if m[2] else m[1])
+    return _TokenPerPrevented(parsed[1]) if parsed and parsed[0] == 1 else None
+
+
 POPULATE_PROMPT = "Populate: copy which token? "
 
 
@@ -3466,6 +3500,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'for each opponent, create (.+) that attack that opponent this turn if able\.("?)', re.I), _attacking_tokens),
     (re.compile(r"they gain haste until end of turn\.", re.I), lambda m: _TheyGainHaste()),
     (re.compile(r"exile them at the beginning of the next end step\.", re.I), lambda m: _ExileThemLater()),
+    (re.compile(r"prevent all combat damage that would be dealt to you this turn\.", re.I),
+     lambda m: PreventCombatDamageToYou()),
+    (re.compile(r'for each 1 damage prevented this way, create (.+)\.("?)', re.I), _token_per_prevented),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
     (re.compile(r'(?i:(?:its|that creature\'s) controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
@@ -3715,7 +3752,7 @@ def _parse(sentences: list[str]) -> list | None:
         if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
             return None  # "instead" has to change the effect just before it
     merged = _merge_no_regen(effects)
-    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_attacking_tokens):  # each returns None for a line it rejects
+    for merge in (_merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_attacking_tokens, _merge_prevention):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None

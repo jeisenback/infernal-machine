@@ -277,6 +277,8 @@ class Seat:
     life_gained_turn: int | None = None
     life_gained_amount: int = 0  # how much life this player gained on life_gained_turn
     delayed_mana: int = 0  # {C} to add at the beginning of this player's next main phase (Mana Drain)
+    combat_shield_turn: int | None = None  # Inkshield: the turn combat damage to this player is prevented
+    combat_shield_token: Card | None = None  # ... and the token made for each point prevented
     citys_blessing: bool = False  # Ascend: ten permanents, for the rest of the game
     graveyard_left_turn: int | None = None  # the last turn a card left this player's graveyard
     cast_log: list[tuple[int, Card]] = field(default_factory=list)  # (turn, spell) for every spell cast
@@ -1868,6 +1870,11 @@ class Game:
             self.broadcast({"event": "damage_prevented", "card": target.card.name, "amount": amount})
             return
         controller = self.controller_of(source) if source else None
+        if isinstance(target, Seat) and combat and target.combat_shield_turn == self.turn:  # Inkshield
+            self.broadcast({"event": "damage_prevented", "seat": target.index, "amount": amount})
+            if target.combat_shield_token is not None and amount > 0:
+                self.create_tokens(target, target.combat_shield_token, amount)
+            return
         if isinstance(target, Seat):
             self.change_life(target, -amount)
             if combat and controller:
@@ -1900,6 +1907,11 @@ class Game:
                             "source": source.card.name if source else None})
         if controller and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
+
+    def prevent_combat_damage(self, seat: Seat, token: Card | None) -> None:
+        """Inkshield: no combat damage is dealt to `seat` this turn; `token` is created for each point prevented."""
+        seat.combat_shield_turn, seat.combat_shield_token = self.turn, token
+        self.broadcast({"event": "combat_shield", "seat": seat.index})
 
     def destroy(self, permanent: Permanent, no_regen: bool = False) -> None:
         if self.has_keyword(permanent, "indestructible"):
