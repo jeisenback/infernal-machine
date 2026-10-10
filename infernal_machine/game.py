@@ -342,6 +342,7 @@ class Seat:
     creatures_entered: int = 0  # nontoken creatures that entered under this player's control that turn
     land_entered_turn: int | None = None  # the last turn a land entered the battlefield under this player's control
     life_gained_turn: int | None = None
+    phased_out: list = field(default_factory=list)  # permanents (with what is attached to them) that phased out; back at its untap step
     life_gained_amount: int = 0  # how much life this player gained on life_gained_turn
     delayed_mana: int = 0  # {C} to add at the beginning of this player's next main phase (Mana Drain)
     combat_shield_turn: int | None = None  # Inkshield: the turn combat damage to this player is prevented
@@ -526,6 +527,8 @@ class Game:
     def _turn_based_actions(self, seat: Seat) -> None:
         if self.step == "untap":
             self.combat = Combat(self)
+            seat.battlefield += seat.phased_out  # they phase in first, then untap with everything else
+            seat.phased_out = []
             for permanent in seat.battlefield:
                 if not self.has_keyword(permanent, NO_UNTAP):  # Infinite Coursework
                     permanent.tapped = False
@@ -4045,6 +4048,21 @@ class Game:
         source.exiled_with = [pair for pair in source.exiled_with if pair[1] is not card]
         self._move_card(owner, card, "graveyard")
         return card
+
+    def phase_out(self, permanent: Permanent) -> None:
+        """The permanent, and every Aura and Equipment attached to it, phase out: they are not on the battlefield (nothing leaves it) until
+        their controller's next untap step, when they come back as the same objects."""
+        seat = self.controller_of(permanent)
+        if seat is None:
+            return
+        together = [permanent] + [a for s in self.seats for a in s.battlefield if a.attached_to is permanent]
+        for one in together:
+            holder = self.controller_of(one)
+            holder.battlefield = [p for p in holder.battlefield if p is not one]
+            holder.phased_out.append(one)
+        left = {id(p) for p in together}
+        self.combat.attacks = [a for a in self.combat.attacks if id(a.attacker) not in left]
+        self.broadcast({"event": "phased_out", "seat": seat.index, "card": permanent.card.name})
 
     def create_attached_token(self, seat: Seat, token: Card, host: Permanent) -> None:
         """An Aura token created attached to `host`, under `seat`'s control."""

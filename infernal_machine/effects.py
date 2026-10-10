@@ -3436,6 +3436,21 @@ class ContractAttack:
 
 
 @dataclass(frozen=True)
+class PhaseOut:
+    """Guardian of Faith: "any number of other target creatures you control phase out." They (and what is attached to them) are treated
+    as though they don't exist until their controller's next untap step."""
+    target: str = "creature you control"
+    another = True
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for creature in target or []:
+            game.phase_out(creature)
+
+
+@dataclass(frozen=True)
 class TragicArrogance:
     """Tragic Arrogance: "For each player, you choose from among the permanents that player controls an artifact, a creature, an
     enchantment, and a planeswalker. Then each player sacrifices all other nonland permanents they control." """
@@ -5854,6 +5869,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"any number of other target creatures you control phase out\.", re.I), lambda m: PhaseOut()),
     (re.compile(r"create a white Aura enchantment token named Contract attached to target creature an opponent controls\. The token has "
                 r"enchant creature and \"Whenever enchanted creature attacks, it gets \+2/\+0 until end of turn if it's attacking one of "
                 r"your opponents\. Otherwise, its controller loses 2 life\.\"", re.I), lambda m: CreateContract()),

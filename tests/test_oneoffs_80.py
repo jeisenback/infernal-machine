@@ -623,3 +623,98 @@ class ScrivTests(unittest.TestCase):
         game.combat.declare_attackers(b)  # option 1 is seat 0: the Aura's controller
         run_stack(game)
         self.assertEqual(b.life, 38)
+
+
+GUARDIAN = Card(name="Guardian of Faith", mana_cost="{1}{W}{W}", cmc=3.0, type_line="Creature — Spirit Knight", power="2", toughness="3",
+                oracle_text="Flash\nVigilance\nWhen this creature enters, any number of other target creatures you control phase out. "
+                            "(Treat them and anything attached to them as though they don't exist until their controller's next turn.)")
+BOON_AURA = Card(name="Boon", mana_cost="{1}{W}", cmc=2.0, type_line="Enchantment — Aura", oracle_text="Enchant creature")
+
+
+class GuardianOfFaithTests(unittest.TestCase):
+    def enter(self, *answers, extra=()):
+        game, _ = table3(script(*answers))
+        a, b, _ = game.seats
+        self.bear, self.ogre = Permanent(BEAR), Permanent(OGRE)
+        self.theirs = Permanent(OGRE)
+        self.guardian = Permanent(GUARDIAN, sick=True)
+        a.battlefield = [self.bear, self.ogre, *extra]
+        b.battlefield = [self.theirs]
+        game._enter(a, self.guardian)
+        run_stack(game)
+        return game, a, b
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(GUARDIAN), [])
+
+    def test_the_targets_leave_the_battlefield_without_leaving_it(self):
+        game, a, b = self.enter("Bear", "Ogre", "No target")
+        self.assertEqual(sorted(p.card.name for p in a.battlefield), ["Guardian of Faith"])
+        self.assertEqual(len(a.phased_out), 2)
+
+    def test_they_do_not_exist_while_phased_out(self):
+        game, a, b = self.enter("Bear", "No target")
+        self.assertIsNone(game.controller_of(self.bear))
+        self.assertEqual([c.name for c in a.graveyard], [])  # nothing died
+
+    def test_leaving_and_entering_triggers_do_not_fire(self):
+        watcher = Card(name="Watcher", type_line="Enchantment", oracle_text="Whenever a creature you control dies, you gain 3 life.\n"
+                       "Whenever another creature enters the battlefield under your control, you gain 1 life.")
+        game, a, b = self.enter("Bear", "No target", extra=[Permanent(watcher)])
+        life = a.life
+        game.step = "untap"
+        game._turn_based_actions(a)
+        run_stack(game)
+        self.assertEqual(a.life, life)
+
+    def test_they_phase_in_at_their_controllers_next_untap_step(self):
+        game, a, b = self.enter("Bear", "No target")
+        game.step = "untap"
+        game._turn_based_actions(a)
+        self.assertIn(self.bear, a.battlefield)
+        self.assertEqual(a.phased_out, [])
+
+    def test_they_do_not_phase_in_during_another_players_untap_step(self):
+        game, a, b = self.enter("Bear", "No target")
+        game.step = "untap"
+        game._turn_based_actions(b)
+        self.assertNotIn(self.bear, a.battlefield)
+
+    def test_auras_on_them_phase_out_and_in_with_them(self):
+        game, _ = table3(script("Bear", "No target"))
+        a, b, _ = game.seats
+        bear = Permanent(BEAR)
+        aura = Permanent(BOON_AURA, attached_to=bear)
+        a.battlefield = [bear, aura]
+        game._enter(a, Permanent(GUARDIAN, sick=True))
+        run_stack(game)
+        self.assertEqual(sorted(p.card.name for p in a.battlefield), ["Guardian of Faith"])
+        game.step = "untap"
+        game._turn_based_actions(a)
+        self.assertIn(aura, a.battlefield)
+        self.assertIs(aura.attached_to, bear)
+
+    def test_a_creature_that_phases_out_is_removed_from_combat(self):
+        from infernal_machine.combat import Attack
+        game, _ = table3(script("Bear", "No target"))
+        a, b, _ = game.seats
+        bear = Permanent(BEAR)
+        a.battlefield = [bear]
+        game.combat.attacks = [Attack(bear, a, b)]
+        game._enter(a, Permanent(GUARDIAN, sick=True))
+        run_stack(game)
+        self.assertEqual(game.combat.attacks, [])
+
+    def test_only_your_other_creatures_can_be_chosen(self):
+        offered = []
+
+        def policy(prompt, options):
+            offered.append(list(options))
+            return len(options) - 1
+        game, _ = table3(policy)
+        a, b, _ = game.seats
+        a.battlefield = [Permanent(BEAR)]
+        b.battlefield = [Permanent(OGRE)]
+        game._enter(a, Permanent(GUARDIAN, sick=True))
+        run_stack(game)
+        self.assertEqual(len(offered[0]), 2)  # the Bear, and "No target": not the Ogre, not the Guardian itself
