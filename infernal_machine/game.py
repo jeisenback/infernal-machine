@@ -136,6 +136,7 @@ CAST_FREE_PROMPT = "Cast an Aura spell from among the exiled cards without payin
 PUT_PERMANENT_PROMPT = "Put a nonland permanent card onto the battlefield"  # then NONE_TAKEN to stop
 SET_ASIDE_PROMPT = "Choose a nonland card exiled this way; it can't be cast"
 CAST_FREE_EXILED_PROMPT = "Cast a spell from among the other exiled cards without paying its mana cost"  # then NONE_TAKEN
+CHOOSE_EXILED_WITH_PROMPT = "Choose a card exiled with this permanent"
 LOOK_PROMPT = "Take a card from the top of your library"  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
 PUT_CREATURE_PROMPT = "Put a creature card from your hand onto the battlefield"  # options are card names, then NONE_TAKEN
@@ -267,6 +268,8 @@ class StackItem:
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     mana_spent: int = 0  # the mana paid to cast it (Deekah: "the amount of mana spent to cast that spell")
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
+    from_graveyard: bool = False  # cast from a graveyard (flashback and the like): Sevinne's Reclamation asks
+    bottom_after: bool = False  # Quintorius: put on the bottom of its owner's library instead of into the graveyard
     is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
@@ -1452,6 +1455,7 @@ class Game:
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
         self._move_card(seat, card, "exile")
+        self._note_exiled_with(seat, card)
         self._left_graveyard(seat, [card])
         self._exiled_from_library_or_graveyard(seat)
         if play_this_turn and card in seat.exile:
@@ -1678,7 +1682,7 @@ class Game:
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
               graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False,
-              copy: bool = False) -> None:
+              copy: bool = False, bottom_after: bool = False) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
         extra = ""
@@ -1754,7 +1758,7 @@ class Game:
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked)
-        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after),
+        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after, from_graveyard=graveyard is not None,
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent)
@@ -1913,7 +1917,7 @@ class Game:
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
             if not item.is_copy:
-                self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
+                self._finish_spell(item)
             return
         self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard (or exile, after flashback)
         if item.suspend_after and not item.is_copy:  # "Exile it with three time counters on it"
@@ -1921,7 +1925,15 @@ class Game:
             seat.suspended.append([card, item.suspend_after])
             self.broadcast({"event": "suspended", "seat": seat.index, "card": card.name, "counters": item.suspend_after})
         elif not item.is_copy:
-            self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
+            self._finish_spell(item)
+
+    def _finish_spell(self, item: StackItem) -> None:
+        """A resolved instant or sorcery goes to its graveyard; exiled after flashback; or, cast with Quintorius, to the bottom of
+        its owner's library."""
+        if item.bottom_after and item.card.name not in item.controller.commander_names:
+            item.controller.library.append(item.card)
+            return
+        self._move_card(item.controller, item.card, "exile" if item.exile_after else "graveyard")
 
     def _resolve_bestow(self, item: StackItem) -> None:
         """A bestow spell enters attached to its creature as an Aura. If that creature is no longer a legal target,
@@ -2194,6 +2206,8 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
             return False
+        if kind == "has_exiled_with":  # Currency Converter, Quintorius: "a card exiled with this"
+            return source is not None and any(any(c is card for c in owner.exile) for owner, card in source.exiled_with)
         if kind == "x_at_least":  # Kinetic Ooze: the X the resolving spell or ability carries
             return self.x_value >= condition.count
         if kind == "attackers_at_most":
@@ -2778,7 +2792,8 @@ class Game:
     def return_all_to_hand(self, permanents: list[Permanent]) -> None:
         self._leave_together([(p, "returned") for p in permanents], destination="hand")
 
-    def return_from_graveyard(self, target: GraveyardTarget, controller: Seat, to: str, tapped: bool = False) -> None:
+    def return_from_graveyard(self, target: GraveyardTarget, controller: Seat, to: str, tapped: bool = False,
+                              finality: bool = False) -> None:
         """Move a card out of a graveyard to its owner's hand, or onto the battlefield under
         `controller`'s control (it stays its owner's card)."""
         seat, card = target.seat, target.card
@@ -2791,8 +2806,22 @@ class Game:
             seat.hand.append(card)
         elif to in ("library_top", "library_bottom"):
             seat.library.insert(0, card) if to == "library_top" else seat.library.append(card)
+        elif finality:
+            self._enter(controller, self._finality_spirit(card, seat))
         else:
             self._enter(controller, Permanent(card, sick=True, tapped=tapped, loyalty=_starting_loyalty(card), owner=seat))
+
+    def _finality_spirit(self, card: Card, owner: Seat) -> Permanent:
+        """Excava, the Risen Past: the card returns with a finality counter, as a 1/1 Spirit creature with flying in addition to its
+        other types. It is still the same card when it leaves (`real_card`)."""
+        head, dash, tail = card.type_line.partition("\u2014")
+        types = head.split()
+        if "Creature" not in types:
+            types.append("Creature")
+        became = dataclasses.replace(card, power="1", toughness="1", type_line=" ".join(types) + f" {dash} {tail.strip()} Spirit".rstrip()
+                                     if dash else " ".join(types) + " \u2014 Spirit",
+                                     oracle_text=(card.oracle_text + "\nFlying").strip())
+        return Permanent(became, sick=True, owner=owner, real_card=card, counters={"finality": 1})
 
     def return_all_from_graveyard(self, seat: Seat, kind: str, to: str) -> None:
         """"Return all enchantment cards from your graveyard to the battlefield.": they all come back at once."""
@@ -3015,9 +3044,16 @@ class Game:
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
         self._move_card(seat, card, "exile")
+        self._note_exiled_with(seat, card)
         self._left_graveyard(seat, [card])
         self._exiled_from_library_or_graveyard(seat)
         return True
+
+    def _note_exiled_with(self, owner: Seat, card: Card) -> None:
+        """The card in `owner`'s exile was exiled by the ability that is resolving: "a card exiled with this artifact"."""
+        source = self.resolving_source
+        if source is not None and not _is_token(card) and any(c is card for c in owner.exile):
+            source.exiled_with.append((owner, card))
 
     def _left_graveyard(self, seat: Seat, cards: list[Card] | tuple = ()) -> None:
         """One or more cards just left `seat`'s graveyard, as one event. `cards` are those that left, when the caller
@@ -3927,6 +3963,43 @@ class Game:
         seat.library += top
         self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
 
+    def cast_exiled_with_free(self, seat: Seat, source: Permanent, bottom_after: bool) -> None:
+        """Quintorius: you may cast a card exiled with `source` without paying its mana cost (this turn; it is done as the ability
+        resolves). A spell that would go to a graveyard goes to the bottom of its owner's library when `bottom_after`."""
+        options = [(owner, card) for owner, card in source.exiled_with if any(c is card for c in owner.exile)]
+        if not options:
+            return
+        pick = seat.player.choose(CHOOSE_EXILED_WITH_PROMPT, [card.name for _, card in options] + [NONE_TAKEN])
+        if pick >= len(options):
+            return
+        owner, card = options[pick]
+        source.exiled_with = [pair for pair in source.exiled_with if pair[1] is not card]
+        self._cast(seat, card, owner.exile, free=True, bottom_after=bottom_after)
+
+    def each_player_exiles_graveyard_card(self, starting: Seat) -> int:
+        """Augusta, Order Returned: each player exiles a card from their graveyard (their choice); returns how many of the cards
+        exiled were nonland."""
+        nonland = 0
+        for seat in [s for s in self._turn_order(starting.index) if not s.lost]:
+            if not seat.graveyard:
+                continue
+            card = seat.graveyard[seat.player.choose(EXILE_COST_PROMPT, [c.name for c in seat.graveyard])]
+            self.exile_card_from_graveyard(seat, card, False)
+            nonland += "Land" not in card.type_line
+        return nonland
+
+    def put_exiled_with_into_graveyard(self, seat: Seat, source: Permanent) -> Card | None:
+        """Currency Converter: a card exiled with `source` (the player chooses) goes to its owner's graveyard; returns it."""
+        options = [(owner, card) for owner, card in source.exiled_with if any(c is card for c in owner.exile)]
+        if not options:
+            return None
+        pick = 0 if len(options) == 1 else seat.player.choose(CHOOSE_EXILED_WITH_PROMPT, [card.name for _, card in options])
+        owner, card = options[pick]
+        owner.exile = [c for c in owner.exile if c is not card]
+        source.exiled_with = [pair for pair in source.exiled_with if pair[1] is not card]
+        self._move_card(owner, card, "graveyard")
+        return card
+
     def reveal_lands(self, seat: Seat, count: int, until_lands: bool, untap_if: "Condition | None") -> None:
         """Animist's Awakening and Open the Way: reveal the top `count` cards (or cards until `count` lands); the lands go onto the
         battlefield tapped (untapped, if `untap_if` holds), the rest to the bottom of the library in a random order."""
@@ -4405,7 +4478,7 @@ class Game:
         """Put a copy of a spell on the stack under `controller`'s control; it resolves first. It isn't cast, and it
         stops existing instead of going to the graveyard. With `new_targets` the copy's controller chooses its
         targets again (the old ones are still legal choices)."""
-        if item not in self.stack or item.ability:
+        if (item not in self.stack and item is not self.resolving_item) or item.ability:  # (a spell may copy itself as it resolves)
             return
         targets = list(item.targets)
         if new_targets and (chosen := self._choose_targets(controller, item.effects, item.card.name,
@@ -4514,8 +4587,11 @@ class Game:
                 self.trigger("any_sacrifice", watcher, watcher_seat)
                 if watcher is not permanent:
                     self.trigger("other_sacrifice", watcher, watcher_seat)
+        destination_all = destination
         for permanent, _ in leaving:
             controller = permanent.last_controller
+            destination = ("exile" if destination_all == "graveyard" and permanent.counters.get("finality")
+                           and "Creature" in permanent.card.type_line else destination_all)  # a finality counter: exiled, not dying
             if destination == "graveyard":
                 if self.graveyarded_turn != self.turn:
                     self.graveyarded_turn, self.graveyarded_count = self.turn, 0
@@ -4807,7 +4883,13 @@ def _card_matches(kind: str, card: Card) -> bool:
         return kind[3:].capitalize() not in card.type_line
     if kind.startswith("legendary"):  # "legendary creature": legendary, and the rest of the kind
         return "Legendary" in card.type_line and _card_matches(kind.removeprefix("legendary").strip() or "card", card)
-    return any(t.capitalize() in card.type_line for t in kind.split(" or "))
+    return any(_type_part_matches(t, card) for t in kind.split(" or "))
+
+
+def _type_part_matches(part: str, card: Card) -> bool:
+    if part == "non-aura enchantment":  # Excava
+        return "Enchantment" in card.type_line and "Aura" not in card.type_line
+    return part.capitalize() in card.type_line
 
 
 def _shown(ability_text: str, card: Card) -> str:

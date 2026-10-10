@@ -1,5 +1,5 @@
-session: claude-code triggers-80-x
-branch: claude/triggers-80-x
-task: issue #80 sixth batch (X family), stacked on claude/triggers-80-copy
-status: X family done, README updated
-updated: 2026-10-10T05:45:31Z
+session: claude-code triggers-80-graveyard
+branch: claude/triggers-80-graveyard
+task: issue #80 seventh batch (graveyard exile, return and cast), stacked on claude/triggers-80-x (PR 144)
+status: graveyard group done, README updated
+updated: 2026-10-10T15:05:19Z

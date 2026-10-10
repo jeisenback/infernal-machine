@@ -101,7 +101,17 @@ _WHOLE_LINE = re.compile(
     r"|Each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a nonland "
     r"card exiled this way\. You may cast up to (?:two|three) spells from among the other cards exiled this way without paying "
     r"their mana costs\."
+    r"|Return up to one target artifact, creature, or non-Aura enchantment card with mana value (\d+) or less from your graveyard to "
+    r"the battlefield with a finality counter on it\. It's a 1/1 Spirit creature with flying in addition to its other types\."
+    r"|Choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana cost\. If "
+    r"that spell would be put into a graveyard, put it on the bottom of its owner's library instead\."
+    r"|Exile up to one target instant or sorcery card from your graveyard and copy it\. You may cast the copy without paying its "
+    r"mana cost\."
+    r"|Each player exiles a card from their graveyard\. When one or more nonland cards are exiled this way, put that many \+1/\+1 "
+    r"counters on target attacking creature\."
     r"|Copy that ability\. You may choose new targets for the copy\."
+    r"|Put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a Treasure token\. "
+    r"If it's a nonland card, create an? .+ token\."
     r"|Reveal the top X cards of your library\. Put all land cards from among them onto the battlefield tapped and the rest on the "
     r"bottom of your library in a random order\."
     r"|Reveal cards from the top of your library until you reveal X land cards\. Put those land cards onto the battlefield tapped "
@@ -2226,6 +2236,79 @@ class DoubleCountersOnTarget:
 
 
 @dataclass(frozen=True)
+class PutExiledWithIntoGraveyard:
+    """Currency Converter: "Put a card exiled with this artifact into its owner's graveyard. If it's a land card, create a Treasure
+    token. If it's a nonland card, create a 2/2 black Rogue creature token." """
+    land_token: Card
+    nonland_token: Card
+    uses_source = True
+    needs_exiled_with = True  # it can only be activated while a card is exiled with it
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        card = game.put_exiled_with_into_graveyard(controller, target)
+        if card is not None:
+            game.create_tokens(controller, self.land_token if "Land" in card.type_line else self.nonland_token, 1)
+
+
+@dataclass(frozen=True)
+class CastExiledWithFree:
+    """Quintorius: "Choose target card exiled with Quintorius. You may cast that card this turn without paying its mana cost. If
+    that spell would be put into a graveyard, put it on the bottom of its owner's library instead." (chosen as it resolves)"""
+    bottom_after: bool = True
+    uses_source = True
+    needs_exiled_with = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.cast_exiled_with_free(controller, target, self.bottom_after)
+
+
+@dataclass(frozen=True)
+class EachExilesGraveyardCardCounters:
+    """Augusta, Order Returned: "each player exiles a card from their graveyard. When one or more nonland cards are exiled this way,
+    put that many +1/+1 counters on target attacking creature." (the target is chosen with the trigger)"""
+    target: str = "attacking creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        count = game.each_player_exiles_graveyard_card(controller)
+        if count and target is not None and game.on_battlefield(target):
+            game.put_counters(target, "+1/+1", count)
+
+
+@dataclass(frozen=True)
+class ExileThenCastCopy:
+    """Renegade Bull: "Exile up to one target instant or sorcery card from your graveyard and copy it. You may cast the copy without
+    paying its mana cost." """
+    target: str = "graveyard:instant or sorcery:yours"
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None or not game.exile_from_graveyard(target):
+            return
+        if controller.player.choose(CAST_COPY_PROMPT + target.card.name, ["Yes", "No"]) == 0:
+            game.cast_copy_free(controller, target.card)
+
+
+CAST_COPY_PROMPT = "Cast a copy without paying its mana cost: "  # followed by the card's name; Yes or No
+
+
+@dataclass(frozen=True)
+class MayCopyThisSpellFromGraveyard:
+    """Sevinne's Reclamation: "If this spell was cast from a graveyard, you may copy this spell and may choose a new target for the
+    copy." The copy is not cast, so it does not copy itself."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if item is not None and item.from_graveyard and controller.player.choose(COPY_THIS_PROMPT + item.card.name, ["Yes", "No"]) == 0:
+            game.copy_spell(item, controller, new_targets=True)
+
+
+COPY_THIS_PROMPT = "Copy this spell: "  # followed by its name; Yes or No
+
+
+@dataclass(frozen=True)
 class DoubleCountersOnTargets:
     """Kinetic Ooze: "If X is 10 or more, double the number of +1/+1 counters on any number of other target creatures." Targets
     are chosen whatever X is; nothing is doubled below `min_x`."""
@@ -3357,10 +3440,11 @@ class ReturnFromGraveyard:
     tapped: bool = False  # "... to the battlefield tapped"
     optional_target: bool = False  # "Return up to two target creature cards ...": each may be left out
     distinct: bool = False
+    finality: bool = False  # Excava: "with a finality counter on it. It's a 1/1 Spirit creature with flying in addition ..."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.return_from_graveyard(target, controller, self.to, self.tapped)
+            game.return_from_graveyard(target, controller, self.to, self.tapped, self.finality)
 
 
 @dataclass(frozen=True)
@@ -5580,6 +5664,25 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"if this spell was cast from a graveyard, you may copy this spell and may choose a new target for the copy\.", re.I),
+     lambda m: MayCopyThisSpellFromGraveyard()),
+    (re.compile(r"return target permanent card with mana value (\d+) or less from your graveyard to the battlefield\.", re.I),
+     lambda m: ReturnFromGraveyard(f"graveyard:permanent|mv<={m[1]}:yours", "battlefield")),
+    (re.compile(r"exile up to one target instant or sorcery card from your graveyard and copy it\. You may cast the copy without "
+                r"paying its mana cost\.", re.I), lambda m: ExileThenCastCopy()),
+    (re.compile(r"each player exiles a card from their graveyard\. When one or more nonland cards are exiled this way, put that many "
+                r"\+1/\+1 counters on target attacking creature\.", re.I), lambda m: EachExilesGraveyardCardCounters()),
+    (re.compile(r"return up to one target artifact, creature, or non-Aura enchantment card with mana value (\d+) or less from your "
+                r"graveyard to the battlefield with a finality counter on it\. It's a 1/1 Spirit creature with flying in addition to "
+                r"its other types\.", re.I),
+     lambda m: ReturnFromGraveyard(f"graveyard:artifact or creature or non-aura enchantment|mv<={m[1]}:yours", "battlefield",
+                                   optional_target=True, finality=True)),
+    (re.compile(r"choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana "
+                r"cost\. If that spell would be put into a graveyard, put it on the bottom of its owner's library instead\.", re.I),
+     lambda m: CastExiledWithFree()),
+    (re.compile(r"put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a "
+                r"Treasure token\. If it's a nonland card, create an? (.+ creature token)\.", re.I),
+     lambda m: PutExiledWithIntoGraveyard(TREASURE, made[1]) if (made := _token("a " + m[1])) else None),
     (re.compile(r"put a number of \+1/\+1 counters on it equal to the damage dealt\.", re.I),
      lambda m: PutCountersOnSource("X", "+1/+1")),  # X is the damage the trigger saw
     (re.compile(r"you may choose new targets for the copy\.", re.I), lambda m: NewTargets()),
@@ -6230,7 +6333,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -6917,7 +7020,7 @@ _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE_IDENTITY = re.compile(r"Pay life equal to the number of colors in your commanders?'s? color identity")
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
 _CARDS = r"(an?|two|three|four)"
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue)s?")
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+)s?")
 _REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
 _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
@@ -7031,6 +7134,8 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
         return None
     if any(isinstance(e, ReturnThisFromGraveyard) for e in effects):
         fields["from_graveyard"] = True
+    if any(getattr(e, "needs_exiled_with", False) for e in effects):
+        fields["condition"] = Condition("has_exiled_with")
     if fields.get("condition") and any(isinstance(e, AddMana) for e in effects):
         return None  # a conditional mana ability (Temple of the False God) isn't a stack ability: auto-pay couldn't use it
     return ActivatedAbility(line, tuple(effects), **fields)
