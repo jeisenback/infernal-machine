@@ -483,8 +483,11 @@ winner = game.play()
     Aura spells, spells that target a creature, affinity for Auras), Pest Rescuer's extra life, haste while an opponent is at 10 or
     less life, and combat limits: Ghostly Prison's tax per attacker (the taxes of all your attackers are added up and paid once, after they are chosen and tapped, as CR 508.1h-i says; a creature that taps to attack can't help pay it, and you are only offered an attacker if the new total is still affordable), "Inklings can't attack you", creatures enchanted by your Auras
     can't attack you, "can block only creatures with flying" and "creatures with power less than this creature's power can't block it".
-    Not built (see #81): the Class level lines, Anger and Cursed Mirror, Drumbellower, Galazeth Prismari and Goldspan Dragon (they give
-    mana abilities to other permanents), Harmonic Prodigy, Flickering Ward, spell mastery, and Quandrix Command's shuffle-back mode.
+    The rest of #81's lines (the Class levels, Anger, Cursed Mirror, Galazeth Prismari, Goldspan Dragon, Harmonic Prodigy,
+    Flickering Ward, spell mastery and Quandrix Command) were built with #80. Guardian Augmenter's "Commander creatures you control
+    get +2/+2" and "Commanders you control have hexproof" apply to your commander (a role, not a creature type; a token copy
+    doesn't count), Bloodghast's landfall brings it back from the graveyard, and a flashback that pays 3 life is legal at 3 life.
+    `tests/test_rules_text_81.py` plays the real Oracle text of the cards in #81 that no earlier test named.
   - Trigger effects of #80: "sacrifice two lands", a search whose "it" is the card found (Bitterthorn), "Whenever one or more
     creatures die / enter" (once for everything that happens together, with "with mana value 3 or less" and "only once each turn"),
     "its controller loses 2 life and you gain 2 life" (Parasitic Impetus), "you may attach this Aura to that creature" and

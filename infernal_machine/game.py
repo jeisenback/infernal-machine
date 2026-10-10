@@ -2357,7 +2357,7 @@ class Game:
                     continue
                 if in_command_zone and not ability.text.startswith("Eminence"):
                     continue
-                if in_graveyard and not any(isinstance(effect, PayToReturnSelf) for effect in ability.effects):
+                if in_graveyard and not any(isinstance(effect, (PayToReturnSelf, ReturnThisFromGraveyard)) for effect in ability.effects):
                     continue
                 if watch.other and event in ("cast", "copy") and card is watcher.card:
                     continue  # "another" spell: not the one that has this ability

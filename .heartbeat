@@ -1,5 +1,5 @@
 session: claude-code rules-text-81
 branch: claude/rules-text-81
-task: issue #81 rules text, stacked on claude/triggers-80-level (PRs 146/147 merged into stacked bases, not main)
-status: started, auditing which #81 lines are still unsupported
-updated: 2026-10-10T16:23:22Z
+task: issue #81 test pass (real Oracle text), stacked on claude/triggers-80-level (PR 148 open against main)
+status: tests + 3 engine fixes done, README updated, suite passes
+updated: 2026-10-10T16:33:26Z
