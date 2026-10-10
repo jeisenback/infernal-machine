@@ -1146,7 +1146,7 @@ class Game:
             others = len(seat.graveyard) - (card in seat.graveyard)
             if graveyard.discard_land and not any(is_land(c) for c in seat.hand):
                 return []
-            return [None] if others >= graveyard.exile and graveyard.life < seat.life and self._payment(seat, paying) is not None else []
+            return [None] if others >= graveyard.exile and graveyard.life <= seat.life and self._payment(seat, paying) is not None else []
         return [way for way in [None, *alternative_costs(card)]
                 if self._can_pay_extras(seat, card, way)
                 and not (way and way.bestow and not self.target_options("creature", seat, source_qualities(card)))
@@ -2357,7 +2357,7 @@ class Game:
                     continue
                 if in_command_zone and not ability.text.startswith("Eminence"):
                     continue
-                if in_graveyard and not any(isinstance(effect, PayToReturnSelf) for effect in ability.effects):
+                if in_graveyard and not any(isinstance(effect, (PayToReturnSelf, ReturnThisFromGraveyard)) for effect in ability.effects):
                     continue
                 if watch.other and event in ("cast", "copy") and card is watcher.card:
                     continue  # "another" spell: not the one that has this ability
@@ -3173,7 +3173,10 @@ class Game:
                 if buff.with_counters and not any(permanent.counters.values()):
                     continue
                 wanted = source.chosen_type if buff.subtype == "chosen" else buff.subtype
-                if (buff.other and source is permanent) or (wanted and wanted not in subtypes) or (buff.subtype == "chosen" and not wanted):
+                if wanted == "Commander":  # Guardian Augmenter: not a creature type, a role
+                    if _is_token(permanent.card) or not any(permanent.card.name in s.commander_names for s in self.seats):
+                        continue
+                elif (buff.other and source is permanent) or (wanted and wanted not in subtypes) or (buff.subtype == "chosen" and not wanted):
                     continue
                 if buff.self_only and source is not permanent:
                     continue
