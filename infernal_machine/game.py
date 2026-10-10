@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -194,7 +194,8 @@ class Permanent:
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
     kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
     regeneration: int = 0  # regeneration shields, which last until end of turn
-    real_card: "Card | None" = None  # a Clone's own card, while it is a copy of something else
+    real_card: "Card | None" = None  # a Clone's own card, while it is a copy of something else; a Class's whole card
+    level: int = 1  # a Class's level
     control_origin: "Seat | None" = None  # who controlled it before a control-change effect took it
     control_aura: "Permanent | None" = None  # the Aura (Control Magic) that holds control of it
     control_eot: bool = False  # control changes back at end of turn (Threaten)
@@ -1117,6 +1118,8 @@ class Game:
         for p in seat.battlefield:  # Pearl-Ear, Imperial Advisor: affinity for Auras
             if (kind := granted_affinity(p.card)) and _spell_matches(kind, card):
                 reduction += sum(_has_type(a.card, "aura") for a in seat.battlefield)
+        if not any(c is card for c in seat.hand):  # Advanced Reconstruction: spells cast from anywhere other than your hand
+            reduction += sum(non_hand_cost_reduction(p.card) for p in seat.battlefield)
         if (conditional := conditional_cost_reduction(card)) and self.condition_holds(conditional[1], seat):
             reduction += conditional[0]
         if reduced_by_total_power(card):
@@ -3988,6 +3991,15 @@ class Game:
             nonland += "Land" not in card.type_line
         return nonland
 
+    def class_level_up(self, permanent: Permanent) -> None:
+        """A Class gains its next level: it reads as the abilities of that level from now on."""
+        if permanent.real_card is None or not self.on_battlefield(permanent):
+            return
+        permanent.level += 1
+        permanent.card = class_view(permanent.real_card, permanent.level)
+        self.broadcast({"event": "class_level", "seat": self.controller_of(permanent).index, "card": permanent.real_card.name,
+                        "level": permanent.level})
+
     def put_exiled_with_into_graveyard(self, seat: Seat, source: Permanent) -> Card | None:
         """Currency Converter: a card exiled with `source` (the player chooses) goes to its owner's graveyard; returns it."""
         options = [(owner, card) for owner, card in source.exiled_with if any(c is card for c in owner.exile)]
@@ -4349,6 +4361,8 @@ class Game:
     # --- helpers -------------------------------------------------------------
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
+        if is_class(permanent.card):  # a Class enters at level 1: it reads as the abilities of that level
+            permanent.real_card, permanent.card, permanent.level = permanent.card, class_view(permanent.card, 1), 1
         extra_when_copy = False
         if keyword := temporary_clone_keyword(permanent.card):  # Cursed Mirror
             self._become_temporary_copy(seat, permanent, keyword)
