@@ -87,3 +87,42 @@ class AngerTests(unittest.TestCase):
         game, a, b = self.table([ANGER], [Permanent(MOUNTAIN)])
         a.graveyard = []
         self.assertFalse(game.has_keyword(self.bear, "haste"))
+
+
+COMMAND = Card(name="Quandrix Command", mana_cost="{1}{G}{U}", cmc=3.0, type_line="Instant",
+               oracle_text="Choose two —\n• Return target creature or planeswalker to its owner's hand.\n• Counter target "
+                           "artifact or enchantment spell.\n• Put two +1/+1 counters on target creature.\n• Target player "
+                           "shuffles up to three target cards from their graveyard into their library.")
+
+
+class QuandrixCommandTests(unittest.TestCase):
+    def cast(self, graveyard, *choices):
+        game, _ = table3(pick(*choices))
+        a = game.seats[0]
+        self.bear = Permanent(BEAR)
+        a.battlefield = [self.bear] + lands(3)
+        a.hand = [COMMAND]
+        a.graveyard = list(graveyard)
+        a.library = [FOREST] * 5
+        game._perform(a, CAST + "Quandrix Command")
+        run_stack(game)
+        return game, a
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(COMMAND), [])
+
+    def test_up_to_three_cards_are_shuffled_into_the_library(self):
+        game, a = self.cast([RELIC, SHRINE, FOREST, OGRE_CARD], "Put two", "Target player", "Relic", "Shrine", "Forest", "Ogre")
+        self.assertEqual(sorted(c.name for c in a.graveyard), ["Ogre", "Quandrix Command"])
+        self.assertEqual(len(a.library), 8)
+
+    def test_it_pairs_with_the_counter_mode(self):
+        game, a = self.cast([RELIC], "Put two", "Target player", "Bear", "Relic")
+        self.assertEqual((self.bear.counters.get("+1/+1"), [c.name for c in a.graveyard]), (2, ["Quandrix Command"]))
+
+    def test_it_may_shuffle_nothing(self):
+        game, a = self.cast([RELIC], "Put two", "Target player", "Bear", "No target")
+        self.assertEqual([c.name for c in a.graveyard], ["Relic", "Quandrix Command"])
+
+
+OGRE_CARD = Card(name="Ogre", mana_cost="{3}", cmc=3.0, type_line="Creature — Ogre", power="3", toughness="3")

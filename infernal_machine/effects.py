@@ -3499,8 +3499,10 @@ class LoseLifeEqualToManaValue:
 
 @dataclass(frozen=True)
 class ShuffleIntoLibrary:
-    """Perpetual Timepiece: "Shuffle any number of target cards from your graveyard into your library." """
+    """Perpetual Timepiece: "Shuffle any number of target cards from your graveyard into your library." Quandrix Command: "Target
+    player shuffles up to three target cards from their graveyard into their library." (always you, and your graveyard)"""
     target: str = "graveyard:card:yours"
+    max_targets: int = 0  # "up to three"
     any_number = True
     multi_target = True
     optional_target = True
@@ -5712,6 +5714,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(rf"target player shuffles up to {_N} target cards from their graveyard into their library\.", re.I),
+     lambda m: ShuffleIntoLibrary(max_targets=_count(m[1]))),
     (re.compile(r"level \d", re.I), lambda m: LevelUp()),
     (re.compile(r"if this spell was cast from a graveyard, you may copy this spell and may choose a new target for the copy\.", re.I),
      lambda m: MayCopyThisSpellFromGraveyard()),

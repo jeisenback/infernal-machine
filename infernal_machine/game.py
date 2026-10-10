@@ -1650,7 +1650,7 @@ class Game:
                 taken_here = set()
                 exact = getattr(effect, "exact_x", False)  # "X target creatures": no stopping early
                 limit = self.targeting_x if getattr(effect, "up_to_x", False) else (
-                    self.targeting_max if self.targeting_max is not None else MAX_TARGETS)
+                    getattr(effect, "max_targets", 0) or (self.targeting_max if self.targeting_max is not None else MAX_TARGETS))
                 for _ in range(limit):
                     pool = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors)) if i not in taken_here
                             and not (getattr(effect, "another", False) and o[1] is source)]  # "other target creatures"
