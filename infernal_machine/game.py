@@ -1932,6 +1932,8 @@ class Game:
             return
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
+            if item.is_copy:  # a copy of a permanent spell becomes a token (CR 707.10f)
+                card = dataclasses.replace(card, type_line="Token " + card.type_line.removeprefix("Token "))
             entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers,
                                  escaped=item.escaped,
                                  extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0))
