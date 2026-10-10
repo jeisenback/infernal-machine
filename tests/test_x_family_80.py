@@ -11,7 +11,7 @@ from tests.test_combat import BEAR, OGRE
 from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import fire
+from tests.test_prepare_85 import activate, fire
 from tests.test_x_targets import script
 from tests.test_triggers_80 import FOREST, PLAINS, RELIC, SHRINE, card
 
@@ -312,3 +312,128 @@ class RevealLandsTests(unittest.TestCase):
         game, a = self.cast(AWAKENING, 1, [FOREST], graveyard=[INSTANT_CARD, SORCERY_CARD])
         others = [p for p in a.battlefield if p.card.name != "Forest"]
         self.assertTrue(all(p.tapped for p in others))  # they paid for the spell
+
+
+OVERSIMPLIFY = Card(name="Oversimplify", mana_cost="{3}{G}{U}", type_line="Sorcery",
+                    oracle_text="Exile all creatures. Each player creates a 0/0 green and blue Fractal creature token and puts a "
+                                "number of +1/+1 counters on it equal to the total power of creatures they controlled that were "
+                                "exiled this way.")
+
+
+class OversimplifyTests(unittest.TestCase):
+    def test_the_current_wording_is_read(self):
+        self.assertEqual(unsupported_lines(OVERSIMPLIFY), [])
+
+    def test_each_player_gets_a_fractal_as_big_as_the_power_they_lost(self):
+        game, _ = table3(pick())
+        a, b, c = game.seats
+        a.battlefield, b.battlefield = [Permanent(BEAR), Permanent(OGRE)], [Permanent(BEAR)]
+        a.hand = [OVERSIMPLIFY]
+        a.battlefield += lands(5)
+        game._perform(a, CAST + "Oversimplify")
+        run_stack(game)
+        game._check_state()
+        sizes = {s.index: sorted(p.counters.get("+1/+1", 0) for p in s.battlefield if p.card.name == "Fractal") for s in game.seats}
+        self.assertEqual(sizes, {0: [5], 1: [2], 2: []})  # the third player lost nothing: a 0/0 that died
+
+
+FLOURISHING = Card(name="Unbound Flourishing", mana_cost="{2}{G}", type_line="Enchantment",
+                   oracle_text="Whenever you cast a permanent spell with a mana cost that contains {X}, double the value of X.\n"
+                               "Whenever you cast an instant or sorcery spell or activate an ability, if that spell's mana cost or "
+                               "that ability's activation cost contains {X}, copy that spell or ability. You may choose new targets "
+                               "for the copy.")
+SPRING = Card(name="Spring", mana_cost="{2}", cmc=2.0, type_line="Artifact",
+              oracle_text="{X}, {T}: You gain X life.\n{2}, {T}: You gain 1 life.")
+
+
+class UnboundFlourishingTests(unittest.TestCase):
+    def table(self, *extra, x=2, lands_in_play=8):
+        game, _ = table3(script(str(x)), script(str(x)))
+        a, b, _ = game.seats
+        a.battlefield = [Permanent(FLOURISHING)] + list(extra) + lands(lands_in_play)
+        a.library = [FOREST] * 10
+        return game, a, b
+
+    def cast(self, game, seat, card):
+        seat.hand = [card]
+        game._perform(seat, CAST + card.name)
+        run_stack(game)
+
+    def fractals(self, seat):
+        return sorted(p.counters.get("+1/+1", 0) for p in seat.battlefield if p.card.name == "Fractal")
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(FLOURISHING), [])
+        self.assertEqual(unsupported_lines(SPRING), [])
+
+    def test_a_permanent_spell_with_x_doubles_it(self):
+        game, a, b = self.table(x=2)
+        self.cast(game, a, HARNESS)
+        self.assertEqual(self.fractals(a), [4])
+
+    def test_without_it_x_stays(self):
+        game, a, b = self.table(x=2)
+        a.battlefield.remove(a.battlefield[0])
+        self.cast(game, a, HARNESS)
+        self.assertEqual(self.fractals(a), [2])
+
+    def test_a_permanent_spell_without_x_is_not_doubled(self):
+        game, a, b = self.table(x=2)
+        self.cast(game, a, Card(name="Ogre Card", mana_cost="{3}", cmc=3.0, type_line="Creature — Ogre", power="3", toughness="3"))
+        self.assertEqual([p.card.name for p in a.battlefield if p.card.name == "Ogre Card"], ["Ogre Card"])
+
+    def test_an_instant_or_sorcery_with_x_is_copied(self):
+        game, a, b = self.table()
+        self.cast(game, a, Card(name="Study", mana_cost="{X}{1}", type_line="Sorcery", oracle_text="Draw a card."))
+        self.assertEqual(len(a.hand), 2)  # the spell and its copy each drew one
+
+    def test_an_instant_or_sorcery_does_not_have_its_x_doubled(self):
+        game, a, b = self.table(x=2)
+        life = a.life
+        self.cast(game, a, Card(name="Tonic", mana_cost="{X}", type_line="Sorcery", oracle_text="You gain X life."))
+        self.assertEqual(a.life - life, 4)  # X=2 for the spell and for its copy, not 4 each
+
+    def test_an_instant_without_x_is_not_copied(self):
+        game, a, b = self.table()
+        self.cast(game, a, Card(name="Study", mana_cost="{1}", cmc=1.0, type_line="Sorcery", oracle_text="Draw a card."))
+        self.assertEqual(len(a.hand), 1)
+
+    def test_an_opponents_x_spell_is_not_copied_or_doubled(self):
+        game, a, b = self.table()
+        b.battlefield = lands(6)
+        b.library = [FOREST] * 10
+        self.cast(game, b, Card(name="Study", mana_cost="{X}{1}", type_line="Sorcery", oracle_text="Draw a card."))
+        self.assertEqual(len(b.hand), 1)
+
+    def test_an_ability_with_x_in_its_cost_is_copied(self):
+        spring = Permanent(SPRING)
+        game, a, b = self.table(spring, x=3)
+        life = a.life
+        activate(game, a, "You gain X life")
+        run_stack(game)
+        self.assertEqual(a.life - life, 6)  # the ability and its copy
+
+    def test_an_ability_without_x_is_not_copied(self):
+        spring = Permanent(SPRING)
+        game, a, b = self.table(spring)
+        life = a.life
+        activate(game, a, "You gain 1 life")
+        run_stack(game)
+        self.assertEqual(a.life - life, 1)
+
+
+class OpenTheWayLimitTests(unittest.TestCase):
+    def test_x_cannot_be_greater_than_the_number_of_players(self):
+        offered = []
+
+        def policy(prompt, options):
+            if prompt.startswith("Choose X"):
+                offered.append(list(options))
+            return 0
+        game, _ = table3(policy)
+        a = game.seats[0]
+        a.battlefield = lands(10)
+        a.hand = [OPEN_THE_WAY]
+        a.library = [FOREST] * 10
+        game._perform(a, CAST + "Open the Way")
+        self.assertEqual(offered, [["0", "1", "2", "3"]])  # three players

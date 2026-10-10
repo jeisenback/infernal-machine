@@ -101,6 +101,7 @@ _WHOLE_LINE = re.compile(
     r"|Each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a nonland "
     r"card exiled this way\. You may cast up to (?:two|three) spells from among the other cards exiled this way without paying "
     r"their mana costs\."
+    r"|Copy that ability\. You may choose new targets for the copy\."
     r"|Reveal the top X cards of your library\. Put all land cards from among them onto the battlefield tapped and the rest on the "
     r"bottom of your library in a random order\."
     r"|Reveal cards from the top of your library until you reveal X land cards\. Put those land cards onto the battlefield tapped "
@@ -3890,6 +3891,28 @@ class CopyTriggeringSpell:
 
 
 @dataclass(frozen=True)
+class CopyTriggeringAbility:
+    """Unbound Flourishing: "... activate an ability, if that ability's activation cost contains {X}, copy that ability. You may
+    choose new targets for the copy." The ability that set the trigger off is `carried`."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        ability = game.resolving_item.carried if game.resolving_item is not None else None
+        if ability is not None:
+            game.copy_ability(ability, controller)
+
+
+@dataclass(frozen=True)
+class DoubleXOfTriggeringSpell:
+    """Unbound Flourishing: "Whenever you cast a permanent spell with a mana cost that contains {X}, double the value of X." The
+    spell that set the trigger off is `carried`; it is still on the stack, so what it enters with is doubled."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        spell = game.resolving_item.carried if game.resolving_item is not None else None
+        if spell is not None and spell in game.stack:
+            spell.x *= 2
+
+
+@dataclass(frozen=True)
 class NewTargets:
     """ "You may choose new targets for the copy." Only meaningful after a copy effect (_merge_copy folds it in)."""
     follows_target = True
@@ -5555,6 +5578,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
      lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
+    (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
+    (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
     (re.compile(r"put a number of \+1/\+1 counters on it equal to the damage dealt\.", re.I),
      lambda m: PutCountersOnSource("X", "+1/+1")),  # X is the damage the trigger saw
     (re.compile(r"you may choose new targets for the copy\.", re.I), lambda m: NewTargets()),
@@ -5712,7 +5737,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _gift(_GiftMatch(m[2], m[3]))),
     (re.compile(r"(?:then )?create (.+) for each nontoken creature you controlled that was destroyed this way\.(\"?)", re.I),
      lambda m: _gift(_GiftMatch(m[1], m[2]), who="you", nontoken=True)),
-    (re.compile(r"each player creates (.+) and puts a number of \+1/\+1 counters on it equal to the total power of the "
+    (re.compile(r"each player creates (.+) and puts a number of \+1/\+1 counters on it equal to the total power of (?:the )?"
                 r"creatures they controlled that were exiled this way\.(\"?)", re.I),
      lambda m: _gift(_GiftMatch(m[1], m[2]), who="each player", power_counters=True)),
     (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),
@@ -6354,6 +6379,7 @@ _TRIGGERS = {
     "enchanted_attack": re.compile(r"Whenever one or more creatures that are enchanted by an Aura you control attack, (.+)", re.I),
     "creatures_attack": re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I),
     "opponent_attacks": re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I),
+    "activate_x": re.compile(r"Whenever you activate an ability with \{X\} in its activation cost, (.+)", re.I),
     "other_attacks_two": re.compile(r"Whenever another player attacks with two or more creatures, (.+)", re.I),
     "attacks_opponent": re.compile(r"Whenever a player attacks one of your opponents, (.+)", re.I),  # x: the seat attacked
     "cycle": re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I),
@@ -6415,6 +6441,7 @@ _WATCHES = {
                        r"((?:white|blue|black|red|green) spell|multicolored spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
+                       r"|permanent spell with a mana cost that contains \{X\}|instant or sorcery spell with \{X\} in its mana cost"
                        r"|(?-i:[A-Z][a-z]+) spell)"  # a creature type: "another Vampire spell"
                        r"(?: with mana value (\d+) or greater)?"
                        r"( from your hand| from your graveyard| from their graveyard| from anywhere other than your hand"
@@ -6793,9 +6820,19 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
 _COMPOUND_TRIGGER = re.compile(r"(When|Whenever) ([^,]+?) and whenever ([^,]+), (.+)")
 
 
+_UNBOUND_COPY = re.compile(r"Whenever you cast an instant or sorcery spell or activate an ability, if that spell's mana cost or that "
+                           r"ability's activation cost contains \{X\}, copy that spell or ability\. You may choose new targets for "
+                           r"the copy\.")
+
+
 def _split_compound_trigger(line: str) -> list[tuple[str, str]]:
     """ "When this creature enters and whenever one or more tokens you control enter, <effect>" is two triggers with the same
     effect; each is read as a line of its own, as (line to read, the card's own line)."""
+    if _UNBOUND_COPY.fullmatch(line):  # Unbound Flourishing: one sentence for a spell and for an ability
+        return [("Whenever you cast an instant or sorcery spell with {X} in its mana cost, copy that spell. You may choose new targets "
+                 "for the copy.", line),
+                ("Whenever you activate an ability with {X} in its activation cost, copy that ability. You may choose new targets for "
+                 "the copy.", line)]
     if m := _COMPOUND_TRIGGER.fullmatch(line):
         return [(f"{m[1]} {m[2]}, {m[4]}", line), (f"Whenever {m[3]}, {m[4]}", line)]
     return [(line, line)]

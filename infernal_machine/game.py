@@ -1533,6 +1533,8 @@ class Game:
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
                         "tapped": [p.card.name for p in tapped]})
+        if ability.mana_cost and parse_cost(ability.mana_cost).x:  # Unbound Flourishing
+            self._trigger_each("activate_x", seat, spell=item)
         self._check_ward(item)
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
@@ -4373,6 +4375,15 @@ class Game:
         self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.real_card.name,
                         "as": permanent.card.name})
 
+    def copy_ability(self, item: StackItem, controller: Seat) -> None:
+        """Put a copy of an activated ability on the stack under `controller`'s control; it resolves first, with the same
+        targets and X (new targets are not chosen)."""
+        if item not in self.stack:
+            return
+        self.stack.append(StackItem(item.card, controller, item.effects, list(item.targets), item.ability, item.source, x=item.x,
+                                    sacrificed_power=item.sacrificed_power))
+        self.broadcast({"event": "copied_ability", "seat": controller.index, "card": item.card.name})
+
     def copy_spell_for_each_other_creature(self, item: StackItem, caster: Seat, source: Permanent) -> None:
         """Mirrorwing Dragon: `caster` copies the spell once for each other creature they control that it could target; each
         copy targets that creature instead of `source`."""
@@ -4732,6 +4743,10 @@ def _watch_type_matches(kind: str, card: Card) -> bool:
     "historic spell", "aura, equipment, or vehicle spell", ..."""
     if kind == "spell with {x} in its mana cost":
         return "{X}" in card.mana_cost
+    if kind == "permanent spell with a mana cost that contains {x}":
+        return "{X}" in card.mana_cost and not ("Instant" in card.type_line or "Sorcery" in card.type_line)
+    if kind == "instant or sorcery spell with {x} in its mana cost":
+        return "{X}" in card.mana_cost and ("Instant" in card.type_line or "Sorcery" in card.type_line)
     kind = kind.removesuffix(" spell").removesuffix("spell").strip()
     if not kind or kind in ("expend", "permanent"):  # (an expend watch has no kind of card; a permanent is any)
         return True

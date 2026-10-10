@@ -511,8 +511,12 @@ winner = game.play()
     The copy family: Brudiclad (the other tokens become copies for good in the current wording; the older "until end of turn"
     wording still works), Rionya, Redoubled Stormsinger, Muddle (and the myriad keyword), Cursed Mirror, Thunderclap Drake,
     Hofri Ghostforge and Mirrorwing Dragon.
-    Not built (see #80): phasing (Guardian of Faith), Unbound Flourishing, Forgotten Ancient, Fractal Harness (an ETB trigger
-    gets no X), and one of Killian's lines.
+    The X family: a permanent that enters carries the X it was cast with, so Fractal Harness and Kinetic Ooze read it (Kinetic
+    Ooze's "mana value X or less", "if X is 5 or more" and "if X is 10 or more"); Lattice Library, Brass Infiniscope (its mana
+    sets up "when you next cast a spell with {X} this turn", for a spell that uses its mana too), Open the Way and Animist's
+    Awakening (with Spell mastery), Unbound Flourishing (doubles X of a permanent spell; copies an instant or sorcery, or an
+    activated ability, with {X} in its cost; a copied ability keeps its targets), and Oversimplify's current wording.
+    Not built (see #80): phasing (Guardian of Faith), Forgotten Ancient and one of Killian's lines.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
     card can be turned face up at any time you have priority for its mana cost ("Turn face up: ..."; not a stack
     action). It goes to the graveyard as the real card, and only its controller is shown what it is
