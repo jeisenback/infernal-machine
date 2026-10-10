@@ -402,3 +402,54 @@ class HofriGhostforgeTests(unittest.TestCase):
         a.graveyard.clear()  # exiled or returned before the trigger resolves
         run_stack(game)
         self.assertEqual(self.spirits(a), [])
+
+
+DRAGON = Card(name="Mirrorwing Dragon", mana_cost="{3}{R}{R}", type_line="Creature — Dragon", power="4", toughness="5",
+              oracle_text="Flying\nWhenever a player casts an instant or sorcery spell that targets only this creature, that player "
+                          "copies that spell for each other creature they control that the spell could target. Each copy targets a "
+                          "different one of those creatures.")
+GROWTH = Card(name="Growth", mana_cost="{G}", cmc=1.0, type_line="Instant", colors=("G",),
+              oracle_text="Target creature gets +3/+3 until end of turn.")
+WARDED_BEAR = Card(name="Warded Bear", type_line="Creature — Bear", power="2", toughness="2", oracle_text="Protection from green")
+
+
+class MirrorwingDragonTests(unittest.TestCase):
+    def cast(self, target, caster=0, others=("Bear", "Ogre"), spell=GROWTH):
+        game, _ = table3(pick(target), pick(target))
+        a, b, _ = game.seats
+        self.dragon = Permanent(DRAGON)
+        mine = {"Bear": BEAR_CARD, "Ogre": Card(name="Ogre", type_line="Creature — Ogre", power="3", toughness="3"),
+                "Warded": WARDED_BEAR}
+        self.others = [Permanent(mine[n]) for n in others]
+        a.battlefield = [self.dragon] + (self.others if caster == 0 else [])
+        b.battlefield = self.others if caster == 1 else []
+        seat = game.seats[caster]
+        seat.hand, seat.battlefield = [spell], seat.battlefield + lands(2)
+        from infernal_machine.game import CAST as _CAST
+        game._perform(seat, _CAST + spell.name)
+        run_stack(game)
+        return game
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(DRAGON), [])
+
+    def test_every_other_creature_you_control_gets_a_copy(self):
+        game = self.cast("Mirrorwing Dragon")
+        self.assertEqual([game.power(self.dragon)] + [game.power(p) for p in self.others], [7, 5, 6])
+
+    def test_the_caster_is_the_one_who_copies(self):
+        game = self.cast("Mirrorwing Dragon", caster=1)  # the opponent aims it at the dragon; their own creatures get the copies
+        self.assertEqual([game.power(self.dragon)] + [game.power(p) for p in self.others], [7, 5, 6])
+
+    def test_a_creature_the_spell_could_not_target_gets_no_copy(self):
+        game = self.cast("Mirrorwing Dragon", others=("Warded", "Ogre"))
+        self.assertEqual([game.power(p) for p in self.others], [2, 6])
+
+    def test_a_spell_aimed_at_another_creature_is_not_copied(self):
+        game = self.cast("Bear")
+        self.assertEqual([game.power(self.dragon)] + [game.power(p) for p in self.others], [4, 5, 3])
+
+    def test_a_spell_that_is_not_an_instant_or_sorcery_does_not_trigger_it(self):
+        aura_like = Card(name="Growth Wish", mana_cost="{G}", cmc=1.0, type_line="Enchantment", colors=("G",), oracle_text="Target creature gets +3/+3 until end of turn.")
+        game = self.cast("Mirrorwing Dragon", spell=aura_like)
+        self.assertEqual([game.power(p) for p in self.others], [2, 3])

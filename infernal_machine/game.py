@@ -2315,6 +2315,11 @@ class Game:
                 if watch.qualifier == "targets_modified":  # a cast of a spell that targets a modified permanent you control
                     if not self._targets_modified(spell, watcher_seat):
                         continue
+                elif watch.qualifier == "targets_only_source":  # Mirrorwing Dragon: the spell targets only the watcher
+                    flat = [t for target in (spell.targets if isinstance(spell, StackItem) else [])
+                            for t in (target if isinstance(target, list) else [target])]
+                    if not flat or any(t is not watcher for t in flat):
+                        continue
                 elif watch.qualifier and (subject is None or not self._qualifies(watch.qualifier, subject)):
                     continue
                 if watch.batch and self._batch is not None:  # "one or more": once for everything that happened together
@@ -4333,6 +4338,23 @@ class Game:
         permanent.card = dataclasses.replace(copied, type_line=copied.type_line.removeprefix("Token "))
         self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.real_card.name,
                         "as": permanent.card.name})
+
+    def copy_spell_for_each_other_creature(self, item: StackItem, caster: Seat, source: Permanent) -> None:
+        """Mirrorwing Dragon: `caster` copies the spell once for each other creature they control that it could target; each
+        copy targets that creature instead of `source`."""
+        if item not in self.stack:
+            return
+        kind = next((target_kind(e) for e in item.effects if target_kind(e)), None)
+        if kind is None:
+            return
+        legal = [p for _, p in self.target_options(kind, caster, source_qualities(item.card))]
+        for creature in [p for p in caster.battlefield if "Creature" in p.card.type_line and p is not source and p in legal]:
+            targets = [[creature if t is source else t for t in target] if isinstance(target, list) else
+                       creature if target is source else target for target in item.targets]
+            self.stack.append(StackItem(item.card, caster, item.effects, targets, x=item.x, kicked=item.kicked,
+                                        kickers=item.kickers, is_copy=True))
+            self.broadcast({"event": "copied_spell", "seat": caster.index, "card": item.card.name})
+            self._observe("copy", item.card, caster)
 
     def copy_spell(self, item: StackItem, controller: Seat, new_targets: bool = False) -> None:
         """Put a copy of a spell on the stack under `controller`'s control; it resolves first. It isn't cast, and it

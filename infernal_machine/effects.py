@@ -127,6 +127,8 @@ _WHOLE_LINE = re.compile(
     r"|Each opponent creates a token that's a copy of it\. The tokens are goaded for the rest of the game\."
     r"|Create (?:a token that's a copy of|five tokens that are copies of) another target creature you control(?:, except it "
     r"isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the next end step\."
+    r"|That player copies that spell for each other creature they control that the spell could target\. Each copy targets a "
+    r"different one of those creatures\."
     r"|Exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature), except it's a Spirit in addition "
     r"to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard\.\""
     r"|For each creature token you control that entered this turn, create a tapped and attacking token that's a copy of that token\. "
@@ -2124,6 +2126,18 @@ class AttackerCreatesAttackingToken:
         item = game.resolving_item
         if target is not None and item is not None and game.combat is not None:
             game.token_attacking(target, self.token, game.seats[item.x])
+
+
+@dataclass(frozen=True)
+class CopySpellForEachOtherCreature:
+    """Mirrorwing Dragon: "that player copies that spell for each other creature they control that the spell could target. Each
+    copy targets a different one of those creatures." The target is the caster; the spell rides along with the trigger."""
+    uses_player = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if target is not None and item is not None and hasattr(item.carried, "targets"):
+            game.copy_spell_for_each_other_creature(item.carried, target, item.source)
 
 
 @dataclass(frozen=True)
@@ -5392,6 +5406,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(, except it isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the "
                 r"next end step\.", re.I),
      lambda m: CopiesOfAnotherCreature(5 if m[1] else 1, bool(m[2]))),
+    (re.compile(r"that player copies that spell for each other creature they control that the spell could target\. Each copy "
+                r"targets a different one of those creatures\.", re.I), lambda m: CopySpellForEachOtherCreature()),
     (re.compile(r"exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature), except it's a Spirit in "
                 r"addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its "
                 r"owner's graveyard\.\"", re.I), lambda m: ExileDeadMakeSpiritCopy()),
@@ -6378,6 +6394,9 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         qualifier = (f"{q[2]}{'>=' if q[4] == 'greater' else '<='}{q[3]}" if q[2] else "flying" if q[1] == "flying"
                      else f"mv<={q[5]}" if q[5] else "counter:+1/+1")
         line = line[:q.start()] + line[q.end():]
+    if " that targets only this creature" in line:  # Mirrorwing Dragon: about the spell's targets
+        line = line.replace(" that targets only this creature", "")
+        qualifier = "targets_only_source"
     if " that targets a modified permanent you control" in line:  # Pearl-Ear: about the spell's targets
         line = line.replace(" that targets a modified permanent you control", "")
         qualifier = "targets_modified"
@@ -6610,7 +6629,7 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
 _PUT_IT = re.compile(r"\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
-                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it, except it's a Spirit in addition to its other types and it has\b", re.I)
+                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bthat player copies that spell for each other creature they control that the spell could target\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it, except it's a Spirit in addition to its other types and it has\b", re.I)
 
 
 _TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')

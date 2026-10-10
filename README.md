@@ -508,6 +508,9 @@ winner = game.play()
     Armored Skyhunter, Songbirds' Blessing, Herald of Amity, Forum Filibuster, Ao the Dawn Sky and Plargg and Nassari (look at,
     reveal or exile cards from the top of the library, then put or cast from among them; an Aura enters on a host you choose,
     an Equipment may be attached; Forum Filibuster's graveyard return is chosen on resolution, not targeted).
+    The copy family: Brudiclad (the other tokens become copies for good in the current wording; the older "until end of turn"
+    wording still works), Rionya, Redoubled Stormsinger, Muddle (and the myriad keyword), Cursed Mirror, Thunderclap Drake,
+    Hofri Ghostforge and Mirrorwing Dragon.
     Not built (see #80): phasing (Guardian of Faith), Unbound Flourishing, Forgotten Ancient, Fractal Harness (an ETB trigger
     gets no X), and one of Killian's lines.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
