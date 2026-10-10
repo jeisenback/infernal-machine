@@ -1,5 +1,5 @@
-session: claude-code triggers-80-graveyard
-branch: claude/triggers-80-graveyard
-task: issue #80 seventh batch (graveyard exile, return and cast), stacked on claude/triggers-80-x (PR 144)
-status: graveyard group done, README updated
-updated: 2026-10-10T15:05:19Z
+session: claude-code triggers-80-level
+branch: claude/triggers-80-level
+task: issue #80 eighth batch (level up), stacked on claude/triggers-80-graveyard (PR 145)
+status: in progress
+updated: 2026-10-10T15:06:26Z
