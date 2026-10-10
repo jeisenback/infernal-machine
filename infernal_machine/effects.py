@@ -757,10 +757,13 @@ class PutCounters:
     counter: str  # "+1/+1" or "-1/-1"
     target: str
     another: bool = False  # "on another target creature you control": not the source itself
+    grant: frozenset[str] = frozenset()  # Pack a Punch: "It gains trample until end of turn." (it is the creature that got them)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.put_counters(target, self.counter, game.amount(self.count))
+            if self.grant:
+                game.modify_until_end_of_turn(target, Modifier(keywords=self.grant))
 
 
 @dataclass(frozen=True)
@@ -3686,6 +3689,12 @@ class ExileFromGraveyard:
 
 
 @dataclass(frozen=True)
+class _ItGains:
+    """ "It gains trample until end of turn.": the creature that just got counters, or else the source itself."""
+    keywords: frozenset[str]
+
+
+@dataclass(frozen=True)
 class _TheyGain:
     """ "Those creatures gain flying until end of turn." / "They gain trample ..." after counters on several creatures."""
     keywords: frozenset[str]
@@ -3967,6 +3976,11 @@ def _merge_conditional(effects: list) -> list | None:
             if not (merged and isinstance(merged[-1], Mill)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], put=effect.kind)
+        elif isinstance(effect, _ItGains):
+            if merged and isinstance(merged[-1], PutCounters) and not merged[-1].grant:
+                merged[-1] = dataclasses.replace(merged[-1], grant=effect.keywords)
+            else:
+                merged.append(PumpSource(Modifier(keywords=effect.keywords)))
         elif isinstance(effect, _TheyGain):
             if not (merged and isinstance(merged[-1], (PutCountersOnEach, PutCountersOnEachUpToX))):
                 return None
@@ -5627,6 +5641,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?:then )?put an? {_CARD_TYPE} from among them onto the battlefield\.", re.I),
      lambda m: _PutFromAmongThem(_card_kind(m[1]))),
     (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),
+    (re.compile(rf"it gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ItGains(_keyword_list(m[1]))),
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
     (re.compile(rf"if (.+), draw {_N} cards instead\.", re.I),
      lambda m: _InsteadDraw(c, _count(m[2])) if (c := _condition(m[1])) else None),

@@ -1,5 +1,5 @@
-session: claude-code activated-73
-branch: claude/activated-73
-task: issue #73 activated abilities; audit found every line already built with #80
-status: README fixed, checklist not yet ticked
-updated: 2026-10-10T17:02:36Z
+session: claude-code sweep-151
+branch: claude/sweep-151
+task: issue #151 play the 9 prepare creatures from real Oracle text
+status: tests + one engine fix done, committing
+updated: 2026-10-10T17:18:05Z
