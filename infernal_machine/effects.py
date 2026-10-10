@@ -111,6 +111,7 @@ _WHOLE_LINE = re.compile(
     r"counters on target attacking creature\."
     r"|Each player sacrifices a creature or planeswalker of their choice\. If you sacrificed a permanent this way, you may return "
     r"another permanent card from your graveyard to your hand\."
+    r"|Any number of target players each lose 2 life and sacrifice a creature of their choice\. You add \{B\}\{B\} and draw a card\."
     r"|Copy that ability\. You may choose new targets for the copy\."
     r"|Put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a Treasure token\. "
     r"If it's a nonland card, create an? .+ token\."
@@ -3362,6 +3363,26 @@ class EachSacrificesThenReturn:
 
 
 @dataclass(frozen=True)
+class PlayersLoseSacrificeAddManaDraw:
+    """Priest of Forgotten Gods: "Any number of target players each lose 2 life and sacrifice a creature of their choice. You add {B}{B}
+    and draw a card." """
+    life: int
+    units: tuple[frozenset[str], ...]
+    target: str = "player"
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in target or []:
+            if not seat.lost:
+                game.change_life(seat, -self.life)
+                game.sacrifice(seat, "creature")
+        game.add_mana(controller, self.units)
+        game.draw(controller, 1)
+
+
+@dataclass(frozen=True)
 class SacrificeAll:
     """ "Sacrifice all creatures you control." """
     kind: str = "creature"
@@ -5762,6 +5783,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(rf"any number of target players each lose {_N} life and sacrifice a creature of their choice\. You add ((?:\{{[WUBRGC]\}})+) and "
+                r"draw a card\.", re.I),
+     lambda m: PlayersLoseSacrificeAddManaDraw(_count(m[1]), tuple(frozenset(x) for x in re.findall(r"[WUBRGC]", m[2])))),
     (re.compile(r"each player sacrifices a (creature or planeswalker) of their choice\. If you sacrificed a permanent this way, you may "
                 r"return another permanent card from your graveyard to your hand\.", re.I),
      lambda m: EachSacrificesThenReturn(m[1].lower())),
@@ -7129,7 +7153,7 @@ _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE_IDENTITY = re.compile(r"Pay life equal to the number of colors in your commanders?'s? color identity")
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
 _CARDS = r"(an?|two|three|four)"
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+)s?")
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (?:other )?(creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+)s?")
 _REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
 _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
@@ -7192,7 +7216,7 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
         elif _PAY_LIFE_IDENTITY.fullmatch(part):
             fields["life_identity"] = True
         elif m := _SACRIFICE_OTHER.fullmatch(part):
-            fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another", sacrifice_count=_NUMBER.get(m[1], 1))
+            fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another" or " other " in part, sacrifice_count=_NUMBER.get(m[1], 1))
         elif m := _DISCARD_COST.fullmatch(part):
             fields["discard"] = _NUMBER[m[1]]
         elif _DISCARD_SELF.fullmatch(part):

@@ -348,3 +348,44 @@ class DeadlyBrewTests(unittest.TestCase):
     def test_the_return_is_optional(self):
         game, a, b, c = self.cast([BEAR], [], [RELIC], "Bear", "Take none")
         self.assertEqual(a.hand, [])
+
+
+PRIEST = Card(name="Priest of Forgotten Gods", mana_cost="{1}{B}", cmc=2.0, type_line="Creature — Human Cleric", power="2", toughness="2",
+              oracle_text="{T}, Sacrifice two other creatures: Any number of target players each lose 2 life and sacrifice a creature of "
+                          "their choice. You add {B}{B} and draw a card. (Activate only as an instant.)")
+
+
+class PriestOfForgottenGodsTests(unittest.TestCase):
+    def table(self, mine=(BEAR, BEAR), theirs=(OGRE,)):
+        game, _ = table3(script("Yes"))
+        a, b, c = game.seats
+        self.priest = Permanent(PRIEST, sick=False)
+        a.battlefield = [self.priest] + [Permanent(x) for x in mine]
+        b.battlefield = [Permanent(x) for x in theirs]
+        a.library = [FOREST] * 5
+        return game, a, b, c
+
+    def activate(self, game, a, *answers):
+        game.seats[0].player.policy = script(*answers)
+        activate(game, a, "Any number of target players")
+        run_stack(game)
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(PRIEST), [])
+
+    def test_the_targeted_players_lose_life_and_sacrifice_and_you_get_mana_and_a_card(self):
+        game, a, b, c = self.table(theirs=(OGRE,))
+        self.activate(game, a, "Player: B", "Player: C", "No target", "Bear", "Bear")
+        self.assertEqual((b.life, c.life, b.battlefield), (38, 38, []))
+        self.assertEqual(sorted("".join(sorted(u)) for u in a.mana_pool), ["B", "B"])
+        self.assertEqual(len(a.hand), 1)
+        self.assertEqual([p.card.name for p in a.battlefield], ["Priest of Forgotten Gods"])  # both Bears were the cost
+
+    def test_it_can_target_no_one_and_still_pays_out(self):
+        game, a, b, c = self.table()
+        self.activate(game, a, "No target", "Bear", "Bear")
+        self.assertEqual((b.life, len(a.mana_pool), len(a.hand)), (40, 2, 1))
+
+    def test_it_needs_two_other_creatures(self):
+        game, a, b, c = self.table(mine=(BEAR,))
+        self.assertFalse([x for x in game.legal_actions(a) if "Any number of target players" in x])
