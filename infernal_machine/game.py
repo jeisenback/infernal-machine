@@ -23,14 +23,14 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
+from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, temporary_clone_keyword, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
-                      filter_mana_ability, follows_target, mana_ability, mana_extra_cost, mana_restriction, charge_mana, mana_ability_sacrifices, mana_spent_trigger, Scry, spell_effects, static_abilities, target_kind,
+                      filter_mana_ability, follows_target, mana_ability, mana_extra_cost, mana_restriction, charge_mana, mana_ability_sacrifices, mana_spent_trigger, has_next_x_rider, Scry, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
 from .mana import SNOW, Cost, parse_cost, pay
@@ -340,6 +340,8 @@ class Seat:
     combat_shield_turn: int | None = None  # Inkshield: the turn combat damage to this player is prevented
     combat_shield_token: Card | None = None  # ... and the token made for each point prevented
     copy_next_turn: int | None = None  # the turn the next instant or sorcery this player casts is copied (Pigment Wrangler)
+    x_rider_turn: int | None = None  # Brass Infiniscope: the turn its delayed "next spell with {X}" triggers were set up
+    x_rider_count: int = 0
     copy_next_per_commander: bool = False  # ... once per time the commander was cast from the command zone (Thunderclap Drake)
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
     spent_turn: int | None = None  # the turn `spent_amount` counts for
@@ -923,6 +925,9 @@ class Game:
                 source.activated_turn["counter mana"] = self.turn
                 continue
             self.tap(source)
+            if has_next_x_rider(source.card):  # Brass Infiniscope
+                seat.x_rider_count = (seat.x_rider_count if seat.x_rider_turn == self.turn else 0) + 1
+                seat.x_rider_turn = self.turn
             if not is_land(source.card) and mana_ability_sacrifices(source.card):
                 self._leave_battlefield(source, "sacrificed")
             if (extra := mana_extra_cost(source.card)) == "mill":
@@ -1782,6 +1787,11 @@ class Game:
                 count = seat.commander_casts.get(card.name, 0) + 1 if scry == "commander_casts" else scry
                 ability = TriggeredAbility("cast", (Scry("X"),), False, f"Scry {count}")
                 self.stack.append(StackItem(source.card, seat, list(ability.effects), [], ability, source, x=count))
+        if seat.x_rider_turn == self.turn and seat.x_rider_count and "{X}" in card.mana_cost:  # Brass Infiniscope
+            ability = TriggeredAbility("cast", (Draw(1), GainLife("hX")), False, "Draw a card and gain half X life")
+            for _ in range(seat.x_rider_count):
+                self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, x=x))
+            seat.x_rider_count = 0
         if has_keyword(card, "cascade") and prepared is None:  # the trigger goes on the stack above the spell
             ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))

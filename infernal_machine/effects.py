@@ -7009,9 +7009,20 @@ _RESTRICTIONS = {"Spend this mana only to cast spells with mana value 5 or great
 _RESTRICTION = re.compile(" (" + "|".join(re.escape(k) for k in _RESTRICTIONS) + r")\.")
 
 
+# Brass Infiniscope: a delayed trigger that the mana ability sets up.
+_NEXT_X_RIDER = re.compile(r"(.+\.) When you next cast a spell with \{X\} in its mana cost this turn, you draw a card and gain "
+                           r"half X life, rounded down\.")
+
+
+def has_next_x_rider(card: Card) -> bool:
+    """Brass Infiniscope: tapping it for mana makes "when you next cast a spell with {X} in its mana cost this turn, you draw a
+    card and gain half X life, rounded down"."""
+    return any(_NEXT_X_RIDER.fullmatch(line) for line in rules_lines(card))
+
+
 def _without_spent_rider(line: str) -> str:
     """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
-    m = _SPENT_RIDER.fullmatch(line)
+    m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line)
     return _RESTRICTION.sub("", m[1] if m else line)
 
 

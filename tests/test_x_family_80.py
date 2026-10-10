@@ -12,6 +12,7 @@ from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 from tests.test_prepare_85 import fire
+from tests.test_x_targets import script
 from tests.test_triggers_80 import FOREST, PLAINS, RELIC, SHRINE, card
 
 HARNESS = Card(name="Fractal Harness", mana_cost="{X}{2}{G}", type_line="Artifact — Equipment",
@@ -177,3 +178,70 @@ class LatticeLibraryTests(unittest.TestCase):
         library.counters["study"] = 5
         self.cast(game, a, X_SPELL)
         self.assertEqual(self.fractals(a), [2, 5])
+
+
+INFINISCOPE = Card(name="Brass Infiniscope", mana_cost="{4}", cmc=4.0, type_line="Artifact",
+                   oracle_text="{T}: Add {C}{C}. When you next cast a spell with {X} in its mana cost this turn, you draw a card and "
+                               "gain half X life, rounded down.")
+BLAST = Card(name="Blast", mana_cost="{X}{R}", type_line="Sorcery", oracle_text="Draw a card.")
+
+
+class BrassInfiniscopeTests(unittest.TestCase):
+    def play(self, spell, x, lands_in_play=3, scopes=1, tap_scope=True):
+        game, _ = table3(script(str(x)))
+        a = game.seats[0]
+        a.battlefield = [Permanent(INFINISCOPE) for _ in range(scopes)] + lands(lands_in_play)
+        a.library = [FOREST] * 10
+        a.hand = [spell]
+        life = a.life
+        game._perform(a, CAST + spell.name)
+        run_stack(game)
+        return game, a, a.life - life
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(INFINISCOPE), [])
+
+    def test_it_makes_two_colorless_mana(self):
+        game, _ = table3(pick())
+        a = game.seats[0]
+        a.battlefield = [Permanent(INFINISCOPE)]
+        self.assertEqual(len(game._mana_sources(a)), 2)
+
+    def test_casting_an_x_spell_with_its_mana_draws_and_gains_half_x(self):
+        game, a, gained = self.play(BLAST, 4, lands_in_play=3)  # X=4 and {R} take five mana: the scope's two and three lands
+        self.assertEqual(gained, 2)
+        self.assertEqual(len(a.hand), 2)  # the rider's card and the spell's own
+
+    def test_half_x_is_rounded_down(self):
+        game, a, gained = self.play(BLAST, 3, lands_in_play=2)
+        self.assertEqual(gained, 1)
+
+    def test_a_spell_without_x_does_not_trigger_it(self):
+        game, a, gained = self.play(Card(name="Flat", mana_cost="{1}{R}", cmc=2.0, type_line="Sorcery", oracle_text="Draw a card."), 0)
+        self.assertEqual((gained, len(a.hand)), (0, 1))
+
+    def test_paying_with_lands_alone_does_not_arm_it(self):
+        game, a, gained = self.play(BLAST, 1, lands_in_play=3, scopes=0)
+        self.assertEqual((gained, len(a.hand)), (0, 1))
+
+    def test_it_is_only_for_the_next_x_spell(self):
+        game, a, gained = self.play(BLAST, 1, lands_in_play=3)
+        a.hand.append(Card(name="Blast Two", mana_cost="{X}{U}", type_line="Sorcery", oracle_text="Draw a card."))
+        before = (a.life, len(a.hand))
+        for p in a.battlefield:
+            p.tapped = p.card.name == "Brass Infiniscope"  # only the lands are untapped: the scope arms nothing again
+        game._perform(a, CAST + "Blast Two")
+        run_stack(game)
+        self.assertEqual(a.life, before[0])
+
+    def test_a_trigger_set_up_on_an_earlier_turn_is_forgotten(self):
+        game, a, gained = self.play(Card(name="Flat", mana_cost="{4}", cmc=4.0, type_line="Sorcery", oracle_text="Draw a card."), 0, lands_in_play=2)
+        game.turn += 1
+        for p in a.battlefield:
+            p.tapped = False
+        a.hand = [BLAST]
+        a.library = [FOREST] * 10
+        a.life = 40
+        game._perform(a, CAST + "Blast")
+        run_stack(game)
+        self.assertEqual((a.life - 40, len(a.hand)), (0, 1))  # X=0 gains nothing, but a second leftover trigger would draw
