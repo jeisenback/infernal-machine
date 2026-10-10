@@ -7586,9 +7586,31 @@ def chosen_color_mana(card: Card) -> tuple[str | None] | None:
     return next(((m[1],) for line in rules_lines(card) if (m := _ADD_CHOSEN.fullmatch(line))), None)
 
 
+# Vivid Crag: "{T}, Remove a charge counter from this land: Add one mana of any color." Hickory Woodlot: "{T}, Remove a
+# depletion counter from this land: Add {G}{G}. If there are no depletion counters on this land, sacrifice it."
+_REMOVE_COUNTER_MANA = re.compile(r"\{T\}, Remove an? ([a-z]+) counter from (?:CARDNAME|this land): Add "
+                                  r"(one mana of any color|(?:\{[WUBRGC]\})+)\.( If there are no \1 counters on (?:CARDNAME|this land), sacrifice it\.)?")
+
+
+@dataclass(frozen=True)
+class CounterMana:
+    counter: str  # the counter removed for the mana
+    mana: tuple[frozenset[str], ...]  # one set of types per mana
+    sacrifice_at_zero: bool  # the land is sacrificed when the last counter is gone
+
+
+def counter_removal_mana(card: Card) -> CounterMana | None:
+    """A land whose mana costs a counter (the Vivid lands, the depletion lands), or None."""
+    for line in rules_lines(card):
+        if m := _REMOVE_COUNTER_MANA.fullmatch(line):
+            mana = (frozenset("WUBRG"),) if m[2].startswith("one") else tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2]))
+            return CounterMana(m[1], mana, m[3] is not None)
+    return None
+
+
 def is_mana_ability(line: str) -> bool:
     line = _without_spent_rider(line)
-    return (_mana_match(line) is not None or _ADD_CHOSEN.fullmatch(line) is not None or _ADD_POWER.fullmatch(line) is not None
+    return (_mana_match(line) is not None or _ADD_CHOSEN.fullmatch(line) is not None or _REMOVE_COUNTER_MANA.fullmatch(line) is not None or _ADD_POWER.fullmatch(line) is not None
             or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
             or _CHARGE_MANA.fullmatch(line) is not None
             or _FILTER.fullmatch(line) is not None

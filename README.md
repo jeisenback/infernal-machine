@@ -422,7 +422,11 @@ winner = game.play()
     included), "If you control two or more other lands, this land enters tapped", "If you were the starting player, this
     land enters tapped" (the game remembers who started), and a reveal of any one creature type ("you may reveal an
     Elemental card from your hand", with the Snarl wording kept for two land types).
-  - "This land enters tapped with two charge (depletion, ...) counters on it": tapped, with the counters.
+  - "This land enters tapped with two charge (depletion, ...) counters on it": tapped, with the counters. The Vivid lands
+    ("{T}, Remove a charge counter: Add one mana of any color") make their own color for free and any color for a counter,
+    and only a mana of another color uses one (generic mana and the land's own color do not). The depletion lands ("{T},
+    Remove a depletion counter: Add {G}{G}. If there are no depletion counters, sacrifice it") make two mana per tap and
+    are sacrificed when the last counter goes; a land with none left makes no mana.
   - "This land enters tapped. As it enters, choose a color.": you choose one of the five as it enters and the land
     remembers it, and "{T}: Add one mana of the chosen color" makes only that color (Room of Refuge, not the five colors
     Scryfall lists for it). The Thriving lands and Gates, "choose a color other than red" and "{T}: Add {R} or one mana of
