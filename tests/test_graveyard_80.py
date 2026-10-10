@@ -141,3 +141,68 @@ class QuintoriusTests(unittest.TestCase):
         self.assertFalse([x for x in game.legal_actions(a) if "Choose target card exiled" in x])  # nothing exiled, no Spirit
         a.battlefield.append(Permanent(Card(name="Spirit", type_line="Token Creature — Spirit", power="3", toughness="2")))
         self.assertFalse([x for x in game.legal_actions(a) if "Choose target card exiled" in x])  # a Spirit, nothing exiled
+
+
+EXCAVA = Card(name="Excava, the Risen Past", mana_cost="{2}{R}{W}", type_line="Legendary Creature — Spirit Horse", power="3", toughness="3",
+              oracle_text="Flying, haste\nWhenever Excava attacks, return up to one target artifact, creature, or non-Aura "
+                          "enchantment card with mana value 3 or less from your graveyard to the battlefield with a finality "
+                          "counter on it. It's a 1/1 Spirit creature with flying in addition to its other types. (If a creature "
+                          "with a finality counter on it would die, exile it instead.)")
+BIG_GOLEM = Card(name="Big Golem", mana_cost="{4}", cmc=4.0, type_line="Artifact Creature — Golem", power="4", toughness="4")
+AURA = Card(name="Boon", mana_cost="{1}{W}", cmc=2.0, type_line="Enchantment — Aura", oracle_text="Enchant creature")
+SHRINE2 = Card(name="Shrine", mana_cost="{2}", cmc=2.0, type_line="Enchantment")
+
+
+class ExcavaTests(unittest.TestCase):
+    def attack(self, graveyard, *choices):
+        game, _ = table3(pick(*choices))
+        a = game.seats[0]
+        self.excava = Permanent(EXCAVA)
+        a.battlefield = [self.excava]
+        a.graveyard = list(graveyard)
+        fire(game, a, self.excava, "attacks")
+        return game, a
+
+    def returned(self, a):
+        return [p for p in a.battlefield if p is not self.excava]
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(EXCAVA), [])
+
+    def test_a_card_returns_as_a_1_1_flying_spirit_with_a_finality_counter(self):
+        game, a = self.attack([GOLEM], "Golem")
+        [back] = self.returned(a)
+        self.assertEqual((game.power(back), game.toughness(back), back.counters.get("finality")), (1, 1, 1))
+        self.assertIn("Spirit", back.card.type_line)
+        self.assertTrue(game.has_keyword(back, "flying"))
+        self.assertIn("Artifact", back.card.type_line)  # in addition to its other types
+
+    def test_when_it_would_die_it_is_exiled_as_the_real_card(self):
+        game, a = self.attack([GOLEM], "Golem")
+        [back] = self.returned(a)
+        game._leave_battlefield(back, "destroyed")
+        game._check_state()
+        self.assertEqual(([c.name for c in a.exile], a.graveyard), (["Golem"], []))
+        self.assertEqual(a.exile[0].power, "3")  # the card itself, not the 1/1
+
+    def test_the_card_type_and_mana_value_limits(self):
+        for card in (BIG_GOLEM, AURA, FOREST):
+            game, a = self.attack([card], card.name)
+            self.assertEqual(self.returned(a), [], card.name)
+
+    def test_a_non_aura_enchantment_may_return(self):
+        game, a = self.attack([SHRINE2], "Shrine")
+        [back] = self.returned(a)
+        self.assertEqual((game.power(back), "Spirit" in back.card.type_line), (1, True))
+
+    def test_up_to_one_it_may_return_nothing(self):
+        game, a = self.attack([GOLEM], "No target")
+        self.assertEqual((self.returned(a), [c.name for c in a.graveyard]), ([], ["Golem"]))
+
+    def test_an_ordinary_creature_without_a_finality_counter_goes_to_the_graveyard(self):
+        game, _ = table3(pick())
+        a = game.seats[0]
+        bear = Permanent(BEAR)
+        a.battlefield = [bear]
+        game._leave_battlefield(bear, "destroyed")
+        self.assertEqual(a.exile, [])

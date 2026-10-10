@@ -101,6 +101,8 @@ _WHOLE_LINE = re.compile(
     r"|Each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a nonland "
     r"card exiled this way\. You may cast up to (?:two|three) spells from among the other cards exiled this way without paying "
     r"their mana costs\."
+    r"|Return up to one target artifact, creature, or non-Aura enchantment card with mana value (\d+) or less from your graveyard to "
+    r"the battlefield with a finality counter on it\. It's a 1/1 Spirit creature with flying in addition to its other types\."
     r"|Choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana cost\. If "
     r"that spell would be put into a graveyard, put it on the bottom of its owner's library instead\."
     r"|Copy that ability\. You may choose new targets for the copy\."
@@ -3391,10 +3393,11 @@ class ReturnFromGraveyard:
     tapped: bool = False  # "... to the battlefield tapped"
     optional_target: bool = False  # "Return up to two target creature cards ...": each may be left out
     distinct: bool = False
+    finality: bool = False  # Excava: "with a finality counter on it. It's a 1/1 Spirit creature with flying in addition ..."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.return_from_graveyard(target, controller, self.to, self.tapped)
+            game.return_from_graveyard(target, controller, self.to, self.tapped, self.finality)
 
 
 @dataclass(frozen=True)
@@ -5614,6 +5617,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"return up to one target artifact, creature, or non-Aura enchantment card with mana value (\d+) or less from your "
+                r"graveyard to the battlefield with a finality counter on it\. It's a 1/1 Spirit creature with flying in addition to "
+                r"its other types\.", re.I),
+     lambda m: ReturnFromGraveyard(f"graveyard:artifact or creature or non-aura enchantment|mv<={m[1]}:yours", "battlefield",
+                                   optional_target=True, finality=True)),
     (re.compile(r"choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana "
                 r"cost\. If that spell would be put into a graveyard, put it on the bottom of its owner's library instead\.", re.I),
      lambda m: CastExiledWithFree()),

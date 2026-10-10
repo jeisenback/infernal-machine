@@ -2791,7 +2791,8 @@ class Game:
     def return_all_to_hand(self, permanents: list[Permanent]) -> None:
         self._leave_together([(p, "returned") for p in permanents], destination="hand")
 
-    def return_from_graveyard(self, target: GraveyardTarget, controller: Seat, to: str, tapped: bool = False) -> None:
+    def return_from_graveyard(self, target: GraveyardTarget, controller: Seat, to: str, tapped: bool = False,
+                              finality: bool = False) -> None:
         """Move a card out of a graveyard to its owner's hand, or onto the battlefield under
         `controller`'s control (it stays its owner's card)."""
         seat, card = target.seat, target.card
@@ -2804,8 +2805,22 @@ class Game:
             seat.hand.append(card)
         elif to in ("library_top", "library_bottom"):
             seat.library.insert(0, card) if to == "library_top" else seat.library.append(card)
+        elif finality:
+            self._enter(controller, self._finality_spirit(card, seat))
         else:
             self._enter(controller, Permanent(card, sick=True, tapped=tapped, loyalty=_starting_loyalty(card), owner=seat))
+
+    def _finality_spirit(self, card: Card, owner: Seat) -> Permanent:
+        """Excava, the Risen Past: the card returns with a finality counter, as a 1/1 Spirit creature with flying in addition to its
+        other types. It is still the same card when it leaves (`real_card`)."""
+        head, dash, tail = card.type_line.partition("\u2014")
+        types = head.split()
+        if "Creature" not in types:
+            types.append("Creature")
+        became = dataclasses.replace(card, power="1", toughness="1", type_line=" ".join(types) + f" {dash} {tail.strip()} Spirit".rstrip()
+                                     if dash else " ".join(types) + " \u2014 Spirit",
+                                     oracle_text=(card.oracle_text + "\nFlying").strip())
+        return Permanent(became, sick=True, owner=owner, real_card=card, counters={"finality": 1})
 
     def return_all_from_graveyard(self, seat: Seat, kind: str, to: str) -> None:
         """"Return all enchantment cards from your graveyard to the battlefield.": they all come back at once."""
@@ -4559,8 +4574,11 @@ class Game:
                 self.trigger("any_sacrifice", watcher, watcher_seat)
                 if watcher is not permanent:
                     self.trigger("other_sacrifice", watcher, watcher_seat)
+        destination_all = destination
         for permanent, _ in leaving:
             controller = permanent.last_controller
+            destination = ("exile" if destination_all == "graveyard" and permanent.counters.get("finality")
+                           and "Creature" in permanent.card.type_line else destination_all)  # a finality counter: exiled, not dying
             if destination == "graveyard":
                 if self.graveyarded_turn != self.turn:
                     self.graveyarded_turn, self.graveyarded_count = self.turn, 0
@@ -4852,7 +4870,13 @@ def _card_matches(kind: str, card: Card) -> bool:
         return kind[3:].capitalize() not in card.type_line
     if kind.startswith("legendary"):  # "legendary creature": legendary, and the rest of the kind
         return "Legendary" in card.type_line and _card_matches(kind.removeprefix("legendary").strip() or "card", card)
-    return any(t.capitalize() in card.type_line for t in kind.split(" or "))
+    return any(_type_part_matches(t, card) for t in kind.split(" or "))
+
+
+def _type_part_matches(part: str, card: Card) -> bool:
+    if part == "non-aura enchantment":  # Excava
+        return "Enchantment" in card.type_line and "Aura" not in card.type_line
+    return part.capitalize() in card.type_line
 
 
 def _shown(ability_text: str, card: Card) -> str:
