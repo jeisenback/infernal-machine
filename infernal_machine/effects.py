@@ -1836,10 +1836,15 @@ class AttachedBuff:
 
 _ATTACHED_LOSES = re.compile(r"(?:Equipped|Enchanted) creature (?:loses all abilities(?: and doesn't untap during its controller's "
                              r"untap step)?|doesn't untap during its controller's untap step)\.")
+_ATTACHED_CHOSEN_PROTECTION = re.compile(r"Enchanted creature has protection from the chosen color\. This effect doesn't remove this Aura\.")
+# Darksteel Mutation. Its card types and creature types are not replaced (only the size, indestructible and the lost abilities are).
+_ATTACHED_MUTATION = re.compile(r"Enchanted creature is an Insect artifact creature with base power and toughness 0/1 and has "
+                                r"indestructible, and it loses all other abilities, card types, and creature types\.")
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
                        r"|can't attack or block)\.")
 CANT_ATTACK, CANT_BLOCK = "can't attack", "can't block"  # pseudo-keywords, so combat can ask has_keyword
 LOSES_ALL, NO_UNTAP = "loses all abilities", "doesn't untap"  # pseudo-keywords of an Aura: Infinite Coursework
+PROTECTION_CHOSEN = "protection from the chosen color"  # Flickering Ward: Game.modifiers turns it into the Aura's color
 CANT_BE_BLOCKED = "can't be blocked"
 
 
@@ -1913,6 +1918,11 @@ def is_additional_mana_line(line: str) -> bool:
 
 
 @lru_cache(maxsize=None)
+def keeps_its_protection_aura(card: Card) -> bool:
+    """Flickering Ward: its protection "doesn't remove this Aura" (CR 704.5m would otherwise)."""
+    return any(_ATTACHED_CHOSEN_PROTECTION.fullmatch(line) for line in rules_lines(card))
+
+
 def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
     buffs = []
     for line in rules_lines(card):
@@ -1926,6 +1936,10 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             buffs.append(AttachedBuff(Modifier(keywords=_keyword_list(m[1])), line))
         elif m := _ATTACHED_TYPED.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[3])), line, subtype=m[4]))
+        elif _ATTACHED_CHOSEN_PROTECTION.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(keywords=frozenset({PROTECTION_CHOSEN})), line))
+        elif _ATTACHED_MUTATION.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(keywords=frozenset({"indestructible", LOSES_ALL}), set_pt=(0, 1)), line))
         elif _ATTACHED_LOSES.fullmatch(line):  # Infinite Coursework
             keywords = {LOSES_ALL} if "loses all abilities" in line else set()
             buffs.append(AttachedBuff(Modifier(keywords=frozenset(keywords | ({NO_UNTAP} if "untap" in line else set()))), line))

@@ -422,3 +422,72 @@ class PlumbTheForbiddenTests(unittest.TestCase):
     def test_with_no_creatures_nothing_is_offered(self):
         game, a = self.cast(0, 0)
         self.assertEqual(len(a.hand), 1)
+
+
+WARD = Card(name="Flickering Ward", mana_cost="{W}", cmc=1.0, type_line="Enchantment — Aura", colors=("W",),
+            oracle_text="Enchant creature\nAs this Aura enters, choose a color.\nEnchanted creature has protection from the chosen color. "
+                        "This effect doesn't remove this Aura.\n{W}: Return this Aura to its owner's hand.")
+MUTATION = Card(name="Darksteel Mutation", mana_cost="{1}{W}", cmc=2.0, type_line="Enchantment — Aura", colors=("W",),
+                oracle_text="Enchant creature\nEnchanted creature is an Insect artifact creature with base power and toughness 0/1 and "
+                            "has indestructible, and it loses all other abilities, card types, and creature types.")
+SHOCK_RED = frozenset({"R"})
+
+
+class FlickeringWardTests(unittest.TestCase):
+    def table(self, color):
+        game, _ = table3(pick(color))
+        a = game.seats[0]
+        self.bear = Permanent(BEAR)
+        a.battlefield = [self.bear] + lands(1)
+        self.ward = Permanent(WARD, sick=True, attached_to=self.bear)
+        game._enter(a, self.ward)
+        return game, a
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(WARD), [])
+
+    def test_the_creature_has_protection_from_the_chosen_color(self):
+        game, a = self.table("Red")
+        self.assertTrue(game.protected_from(self.bear, SHOCK_RED))
+        self.assertFalse(game.protected_from(self.bear, frozenset({"U"})))
+
+    def test_the_choice_decides_which_color(self):
+        game, a = self.table("Blue")
+        self.assertTrue(game.protected_from(self.bear, frozenset({"U"})))
+        self.assertFalse(game.protected_from(self.bear, SHOCK_RED))
+
+    def test_a_chosen_white_does_not_knock_the_white_aura_off(self):
+        game, a = self.table("White")
+        game._check_state()
+        self.assertIs(self.ward.attached_to, self.bear)
+        self.assertIn(self.ward, a.battlefield)
+
+    def test_it_can_return_itself_to_its_owners_hand(self):
+        game, a = self.table("Red")
+        activate(game, a, "Return this Aura")
+        run_stack(game)
+        self.assertEqual(([c.name for c in a.hand], [p.card.name for p in a.battlefield if p.card.name == "Flickering Ward"]),
+                         (["Flickering Ward"], []))
+
+
+class DarksteelMutationTests(unittest.TestCase):
+    def table(self):
+        game, _ = table3(pick())
+        a = game.seats[0]
+        self.dragon = Permanent(Card(name="Dragon", type_line="Creature — Dragon", power="5", toughness="5", oracle_text="Flying, haste"))
+        a.battlefield = [self.dragon]
+        return game, a
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(MUTATION), [])
+
+    def test_it_becomes_a_0_1_indestructible_without_abilities(self):
+        game, a = self.table()
+        a.battlefield.append(Permanent(MUTATION, attached_to=self.dragon))
+        self.assertEqual((game.power(self.dragon), game.toughness(self.dragon)), (0, 1))
+        self.assertTrue(game.has_keyword(self.dragon, "indestructible"))
+        self.assertFalse(game.has_keyword(self.dragon, "flying"))
+
+    def test_without_it_the_creature_is_unchanged(self):
+        game, a = self.table()
+        self.assertEqual((game.power(self.dragon), game.has_keyword(self.dragon, "flying")), (5, True))

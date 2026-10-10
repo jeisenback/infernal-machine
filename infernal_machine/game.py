@@ -23,9 +23,9 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
+from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -3186,9 +3186,18 @@ class Game:
         for seat in self.seats:  # Equipment and Auras attached to it
             for attachment in seat.battlefield:
                 if attachment.attached_to is permanent:
-                    mods.extend(self._scaled(buff.modifier, buff.per, permanent, controller)
+                    mods.extend(self._chosen_protection(self._scaled(buff.modifier, buff.per, permanent, controller), attachment)
                                 for buff in attached_abilities(attachment.card))
         return mods
+
+    @staticmethod
+    def _chosen_protection(modifier: Modifier, attachment: Permanent) -> Modifier:
+        """Flickering Ward: "protection from the chosen color" is protection from the color its Aura chose."""
+        if PROTECTION_CHOSEN not in modifier.keywords:
+            return modifier
+        name = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}.get(attachment.chosen_color or "")
+        kept = modifier.keywords - {PROTECTION_CHOSEN}
+        return dataclasses.replace(modifier, keywords=kept | ({f"protection from {name}"} if name else set()))
 
     def _scaled(self, modifier: Modifier, per: tuple[str, str] | None, permanent: Permanent, controller: Seat) -> Modifier:
         """A "for each ..." bonus times how many there are right now."""
@@ -4816,7 +4825,8 @@ class Game:
                         self.gain_control(host, seat, aura=permanent)
                         changed = True
                     if host is not None and (not self.on_battlefield(host)
-                                             or self.protected_from(host, source_qualities(permanent.card))):
+                                             or self.protected_from(host, source_qualities(permanent.card))
+                                             and not keeps_its_protection_aura(permanent.card)):  # Flickering Ward stays
                         self.detach(permanent)  # CR 704.5n: Equipment stays, unattached
                         host = None
                     if "Aura" in permanent.card.type_line and host is None:
