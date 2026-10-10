@@ -12,6 +12,7 @@ from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 from tests.test_prepare_85 import activate, fire
 from tests.test_x_targets import script
+from infernal_machine.effects import CONTRACT_TEXT
 from tests.test_triggers_80 import FOREST, RELIC, SHRINE, card
 
 BOGBEAST = Card(name="Blossoming Bogbeast", mana_cost="{4}{G}", type_line="Creature — Beast", power="5", toughness="5",
@@ -593,6 +594,19 @@ class ScrivTests(unittest.TestCase):
         game.trigger("host_attacks", contract, a, self.theirs, x=0)  # B's Ogre attacks A
         run_stack(game)
         self.assertEqual((game.power(self.theirs), b.life), (3, 38))
+
+    def test_in_real_combat_an_attack_on_a_third_player_gets_plus_two(self):
+        policy = lambda prompt, options: 2 if prompt.startswith("Attack") and len(options) > 1 else 0
+        game, _ = table3(None, policy)
+        a, b, c = game.seats
+        theirs = Permanent(OGRE, sick=False)
+        b.battlefield = [theirs]
+        a.battlefield = [Permanent(Card(name="Contract", type_line="Token Enchantment \u2014 Aura", colors=("W",), oracle_text=CONTRACT_TEXT),
+                                 attached_to=theirs)]
+        game.active = 1
+        game.combat.declare_attackers(b)  # option 2 is seat 2, an opponent of the Aura's controller
+        run_stack(game)
+        self.assertEqual((game.power(theirs), b.life), (5, 40))
 
     def test_in_real_combat_the_defender_is_passed(self):
         picks = iter([1])
