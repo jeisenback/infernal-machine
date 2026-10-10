@@ -109,6 +109,15 @@ _WHOLE_LINE = re.compile(
     r"mana cost\."
     r"|Each player exiles a card from their graveyard\. When one or more nonland cards are exiled this way, put that many \+1/\+1 "
     r"counters on target attacking creature\."
+    r"|Each player sacrifices a creature or planeswalker of their choice\. If you sacrificed a permanent this way, you may return "
+    r"another permanent card from your graveyard to your hand\."
+    r"|Any number of target players each lose 2 life and sacrifice a creature of their choice\. You add \{B\}\{B\} and draw a card\."
+    r"|For each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, and a "
+    r"planeswalker\. Then each player sacrifices all other nonland permanents they control\."
+    r"|Create a white Aura enchantment token named Contract attached to target creature an opponent controls\. The token has enchant "
+    r"creature and \"Whenever enchanted creature attacks, it gets \+2/\+0 until end of turn if it's attacking one of your opponents\. "
+    r"Otherwise, its controller loses 2 life\.\""
+    r"|It gets \+2/\+0 until end of turn if it's attacking one of your opponents\. Otherwise, its controller loses 2 life\."
     r"|Copy that ability\. You may choose new targets for the copy\."
     r"|Put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a Treasure token\. "
     r"If it's a nonland card, create an? .+ token\."
@@ -879,6 +888,29 @@ class MoveCountersFrom:
 
 
 MOVE_COUNTERS_PROMPT = "Move how many "  # followed by the counter's name; options are "0", "1", ...
+SHIFT_COUNTERS_PROMPT = "Shift how many counters off "  # then the creature's name; options are "0", "1", ... (a bot keeps them)
+SHIFT_ONTO_PROMPT = "Shift them onto which creature? "  # followed by the source's name
+
+
+@dataclass(frozen=True)
+class MoveCountersToOthers:
+    """Forgotten Ancient: "you may move any number of +1/+1 counters from this creature onto other creatures." (nothing is
+    targeted: you choose how many, and where, as it resolves)"""
+    counter: str
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        while (have := target.counters.get(self.counter, 0)) > 0:
+            others = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line and p is not target]
+            if not others:
+                return
+            number = controller.player.choose(SHIFT_COUNTERS_PROMPT + target.card.name, [str(n) for n in range(have + 1)])
+            if number == 0:
+                return
+            pick = controller.player.choose(SHIFT_ONTO_PROMPT + target.card.name, [game.label(p) for p in others])
+            game.move_counters(target, others[pick], self.counter, number)
 
 
 @dataclass(frozen=True)
@@ -1467,6 +1499,14 @@ def _modifier(m: re.Match, first: int) -> Modifier:
     return Modifier(_signed(p) if p else 0, _signed(t) if t else 0, _keyword_list(keywords) if keywords else frozenset())
 
 
+@lru_cache(maxsize=None)
+def graveyard_statics(card: Card) -> bool:
+    """Whether the card has a static ability that works from the graveyard ("As long as this card is in your graveyard ...")."""
+    return any(b.condition is not None and b.condition.kind == "in_graveyard"
+               or b.condition is not None and b.condition.also is not None and b.condition.also.kind == "in_graveyard"
+               for b in static_abilities(card))
+
+
 @dataclass(frozen=True)
 class StaticBuff:
     """ "(Other) (Elf) creatures you control get +1/+1 (and have flying)." while its source is on the battlefield."""
@@ -1709,6 +1749,8 @@ def replacement_effects(card: Card) -> Replacements:
             found["extra_trigger"] = m[1].removeprefix("an ").removeprefix("a ")
         elif _EXTRA_TRIGGER_SPELL.fullmatch(line):
             found["extra_trigger"] = "spell"
+        elif _EXTRA_TRIGGER_WIZARD.fullmatch(line):
+            found["extra_trigger"] = "wizard"
         elif line == _LIFE_GAIN_PLUS_ONE:
             found["life_gain_plus"] = found.get("life_gain_plus", 0) + 1
     return Replacements(**found)
@@ -1722,8 +1764,13 @@ _EXTRA_TRIGGER_SPELL = re.compile(r"If you casting or copying an instant or sorc
                                   r"permanent you control to trigger, that ability triggers an additional time\.")
 
 
+# Harmonic Prodigy.
+_EXTRA_TRIGGER_WIZARD = re.compile(r"If a triggered ability of a Shaman or another Wizard you control triggers, that ability triggers "
+                                   r"an additional time\.")
+
+
 def is_replacement_line(line: str) -> bool:
-    return (_EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (_EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE) or _EXTRA_TRIGGER.fullmatch(line) is not None)
 
 
@@ -1795,10 +1842,15 @@ class AttachedBuff:
 
 _ATTACHED_LOSES = re.compile(r"(?:Equipped|Enchanted) creature (?:loses all abilities(?: and doesn't untap during its controller's "
                              r"untap step)?|doesn't untap during its controller's untap step)\.")
+_ATTACHED_CHOSEN_PROTECTION = re.compile(r"Enchanted creature has protection from the chosen color\. This effect doesn't remove this Aura\.")
+# Darksteel Mutation. Its card types and creature types are not replaced (only the size, indestructible and the lost abilities are).
+_ATTACHED_MUTATION = re.compile(r"Enchanted creature is an Insect artifact creature with base power and toughness 0/1 and has "
+                                r"indestructible, and it loses all other abilities, card types, and creature types\.")
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
                        r"|can't attack or block)\.")
 CANT_ATTACK, CANT_BLOCK = "can't attack", "can't block"  # pseudo-keywords, so combat can ask has_keyword
 LOSES_ALL, NO_UNTAP = "loses all abilities", "doesn't untap"  # pseudo-keywords of an Aura: Infinite Coursework
+PROTECTION_CHOSEN = "protection from the chosen color"  # Flickering Ward: Game.modifiers turns it into the Aura's color
 CANT_BE_BLOCKED = "can't be blocked"
 
 
@@ -1872,6 +1924,11 @@ def is_additional_mana_line(line: str) -> bool:
 
 
 @lru_cache(maxsize=None)
+def keeps_its_protection_aura(card: Card) -> bool:
+    """Flickering Ward: its protection "doesn't remove this Aura" (CR 704.5m would otherwise)."""
+    return any(_ATTACHED_CHOSEN_PROTECTION.fullmatch(line) for line in rules_lines(card))
+
+
 def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
     buffs = []
     for line in rules_lines(card):
@@ -1885,6 +1942,10 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             buffs.append(AttachedBuff(Modifier(keywords=_keyword_list(m[1])), line))
         elif m := _ATTACHED_TYPED.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[3])), line, subtype=m[4]))
+        elif _ATTACHED_CHOSEN_PROTECTION.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(keywords=frozenset({PROTECTION_CHOSEN})), line))
+        elif _ATTACHED_MUTATION.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(keywords=frozenset({"indestructible", LOSES_ALL}), set_pt=(0, 1)), line))
         elif _ATTACHED_LOSES.fullmatch(line):  # Infinite Coursework
             keywords = {LOSES_ALL} if "loses all abilities" in line else set()
             buffs.append(AttachedBuff(Modifier(keywords=frozenset(keywords | ({NO_UNTAP} if "untap" in line else set()))), line))
@@ -2250,6 +2311,38 @@ class PutExiledWithIntoGraveyard:
         card = game.put_exiled_with_into_graveyard(controller, target)
         if card is not None:
             game.create_tokens(controller, self.land_token if "Land" in card.type_line else self.nonland_token, 1)
+
+
+_CLASS_LEVEL_LINE = re.compile(r"((?:\{[^}]+\})+): Level (\d)")
+
+
+def is_class(card: Card) -> bool:
+    return "Class" in card.type_line
+
+
+@lru_cache(maxsize=None)
+def class_view(card: Card, level: int) -> Card:
+    """A Class card as it reads at `level`: the abilities of the levels up to it, and the "{cost}: Level N" line that gains the next
+    level (rules_lines has the reminder text already removed)."""
+    kept, at = [], 1
+    for line in rules_lines(card):
+        if m := _CLASS_LEVEL_LINE.fullmatch(line):
+            at = int(m[2])
+            if at == level + 1:
+                kept.append(line)
+        elif at <= level:
+            kept.append(line)
+    return dataclasses.replace(card, oracle_text="\n".join(kept))
+
+
+@dataclass(frozen=True)
+class LevelUp:
+    """Class: "{1}{B}: Level 2": the Class gains the next level (only at sorcery speed, and only the level after its own)."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.class_level_up(target)
 
 
 @dataclass(frozen=True)
@@ -3274,6 +3367,99 @@ class EachSacrifices:
 
 
 @dataclass(frozen=True)
+class EachSacrificesThenReturn:
+    """Deadly Brew: "Each player sacrifices a creature or planeswalker of their choice. If you sacrificed a permanent this way, you
+    may return another permanent card from your graveyard to your hand." """
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        mine: list = []
+        for seat in game.turn_order_from_active():
+            gone = game.sacrifice(seat, self.kind)
+            if seat is controller:
+                mine = gone
+        if mine:
+            game.may_return_permanent_card(controller, [p.card for p in mine])
+
+
+@dataclass(frozen=True)
+class PlayersLoseSacrificeAddManaDraw:
+    """Priest of Forgotten Gods: "Any number of target players each lose 2 life and sacrifice a creature of their choice. You add {B}{B}
+    and draw a card." """
+    life: int
+    units: tuple[frozenset[str], ...]
+    target: str = "player"
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in target or []:
+            if not seat.lost:
+                game.change_life(seat, -self.life)
+                game.sacrifice(seat, "creature")
+        game.add_mana(controller, self.units)
+        game.draw(controller, 1)
+
+
+_CONTRACT_BODY = "it gets +2/+0 until end of turn if it's attacking one of your opponents. Otherwise, its controller loses 2 life."
+CONTRACT_TEXT = ("Enchant creature\nWhenever enchanted creature attacks, it gets +2/+0 until end of turn if it's attacking one of your "
+                 "opponents. Otherwise, its controller loses 2 life.")
+
+
+@dataclass(frozen=True)
+class CreateContract:
+    """Scriv, the Obligator: "Whenever Scriv enters or attacks, create a white Aura enchantment token named Contract attached to
+    target creature an opponent controls. The token has enchant creature and "Whenever enchanted creature attacks, ..."" """
+    target: str = "creature an opponent controls"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            token = Card(name="Contract", type_line="Token Enchantment \u2014 Aura", colors=("W",), oracle_text=CONTRACT_TEXT)
+            game.create_attached_token(controller, token, target)
+
+
+@dataclass(frozen=True)
+class ContractAttack:
+    """Contract: "it gets +2/+0 until end of turn if it's attacking one of your opponents. Otherwise, its controller loses 2 life."
+    The enchanted creature is the subject; the trigger's X is the seat it attacks."""
+    uses_subject = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if target is None or item is None:
+            return
+        if game.seats[item.x] is not controller:
+            game.modify_until_end_of_turn(target, Modifier(2, 0))
+        else:
+            game.change_life(game.controller_of(target), -2)
+
+
+@dataclass(frozen=True)
+class PhaseOut:
+    """Guardian of Faith: "any number of other target creatures you control phase out." They (and what is attached to them) are treated
+    as though they don't exist until their controller's next untap step."""
+    target: str = "creature you control"
+    another = True
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for creature in target or []:
+            game.phase_out(creature)
+
+
+@dataclass(frozen=True)
+class TragicArrogance:
+    """Tragic Arrogance: "For each player, you choose from among the permanents that player controls an artifact, a creature, an
+    enchantment, and a planeswalker. Then each player sacrifices all other nonland permanents they control." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.tragic_arrogance(controller)
+
+
+@dataclass(frozen=True)
 class SacrificeAll:
     """ "Sacrifice all creatures you control." """
     kind: str = "creature"
@@ -3459,8 +3645,10 @@ class LoseLifeEqualToManaValue:
 
 @dataclass(frozen=True)
 class ShuffleIntoLibrary:
-    """Perpetual Timepiece: "Shuffle any number of target cards from your graveyard into your library." """
+    """Perpetual Timepiece: "Shuffle any number of target cards from your graveyard into your library." Quandrix Command: "Target
+    player shuffles up to three target cards from their graveyard into their library." (always you, and your graveyard)"""
     target: str = "graveyard:card:yours"
+    max_targets: int = 0  # "up to three"
     any_number = True
     multi_target = True
     optional_target = True
@@ -5147,9 +5335,18 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
 _SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate)(?:, (?:Delve|Cascade|Devoid|Demonstrate))*")  # rules for casting, not effects
 
 
+_SACRIFICE_FOR_COPIES = re.compile(r"As an additional cost to cast this spell, you may sacrifice one or more creatures\. When you do, copy "
+                                   r"this spell for each creature sacrificed this way\.")
+
+
+def copies_per_sacrifice(card: Card) -> bool:
+    """Plumb the Forbidden: you may sacrifice creatures as you cast it, and it is copied for each."""
+    return any(_SACRIFICE_FOR_COPIES.fullmatch(line) for line in rules_lines(card))
+
+
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _X_LIMIT, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
@@ -5204,8 +5401,16 @@ def granted_affinity(card: Card) -> str | None:
     return next((m[1].lower() for line in rules_lines(card) if (m := _GRANTED_AFFINITY.fullmatch(line))), None)
 
 
+_NON_HAND_REDUCTION = re.compile(r"Spells you cast from anywhere other than your hand cost \{(\d)\} less to cast\.")
+
+
+def non_hand_cost_reduction(card: Card) -> int:
+    """Advanced Reconstruction's third level: spells you cast from anywhere other than your hand cost {2} less."""
+    return sum(int(m[1]) for line in rules_lines(card) if (m := _NON_HAND_REDUCTION.fullmatch(line)))
+
+
 def is_cost_reduction_line(line: str) -> bool:
-    return any(p.fullmatch(line) for p in (_REDUCTION, _PER_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY)) \
+    return any(p.fullmatch(line) for p in (_REDUCTION, _PER_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY, _NON_HAND_REDUCTION)) \
         or (m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None
 
 
@@ -5664,6 +5869,26 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"any number of other target creatures you control phase out\.", re.I), lambda m: PhaseOut()),
+    (re.compile(r"create a white Aura enchantment token named Contract attached to target creature an opponent controls\. The token has "
+                r"enchant creature and \"Whenever enchanted creature attacks, it gets \+2/\+0 until end of turn if it's attacking one of "
+                r"your opponents\. Otherwise, its controller loses 2 life\.\"", re.I), lambda m: CreateContract()),
+    (re.compile(r"it gets \+2/\+0 until end of turn if it's attacking one of your opponents\. Otherwise, its controller loses 2 "
+                r"life\.", re.I), lambda m: ContractAttack()),
+    (re.compile(r"for each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, "
+                r"and a planeswalker\. Then each player sacrifices all other nonland permanents they control\.", re.I),
+     lambda m: TragicArrogance()),
+    (re.compile(rf"any number of target players each lose {_N} life and sacrifice a creature of their choice\. You add ((?:\{{[WUBRGC]\}})+) and "
+                r"draw a card\.", re.I),
+     lambda m: PlayersLoseSacrificeAddManaDraw(_count(m[1]), tuple(frozenset(x) for x in re.findall(r"[WUBRGC]", m[2])))),
+    (re.compile(r"each player sacrifices a (creature or planeswalker) of their choice\. If you sacrificed a permanent this way, you may "
+                r"return another permanent card from your graveyard to your hand\.", re.I),
+     lambda m: EachSacrificesThenReturn(m[1].lower())),
+    (re.compile(r"move any number of ([+\-\u2212]1/[+\-\u2212]1) counters from (?:this creature|CARDNAME) onto other creatures\.", re.I),
+     lambda m: MoveCountersToOthers(_counter_name(m[1]))),
+    (re.compile(rf"target player shuffles up to {_N} target cards from their graveyard into their library\.", re.I),
+     lambda m: ShuffleIntoLibrary(max_targets=_count(m[1]))),
+    (re.compile(r"level \d", re.I), lambda m: LevelUp()),
     (re.compile(r"if this spell was cast from a graveyard, you may copy this spell and may choose a new target for the copy\.", re.I),
      lambda m: MayCopyThisSpellFromGraveyard()),
     (re.compile(r"return target permanent card with mana value (\d+) or less from your graveyard to the battlefield\.", re.I),
@@ -5992,6 +6217,8 @@ def _clauses(sentence: str) -> list[str]:
     sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
     "You create" add nothing."""
     sentence = sentence.replace(" of their choice.", ".")
+    if m := re.match(r"Then (?!if\b)(\w)", sentence):  # "Then creatures you control gain trample ..." (Blossoming Bogbeast): the order is the list's
+        sentence = m[1].upper() + sentence[m.end():]
     sentence = re.sub(r"\b(draws?) (an|a|one|two|three) additional cards?\b",  # Well of Ideas, Midnight Oil
                       lambda m: f"{m[1]} {'a card' if m[2] in ('an', 'a', 'one') else m[2] + ' cards'}", sentence, flags=re.I)
     if m := re.fullmatch(r"(.*)\bhalf X (.+?), rounded (up|down)\.", sentence):  # The Goose Mother: "create half X Food tokens, rounded up."
@@ -6333,7 +6560,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -6352,6 +6579,7 @@ _CONDITIONS = [
     (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
     (re.compile(rf"X is {_N} or more"), lambda m: Condition("x_at_least", _count(m[1]))),
+    (re.compile(r"this card is in your graveyard"), lambda m: Condition("in_graveyard")),
     (re.compile(r"that player controls more lands than you"), lambda m: Condition("player_more_lands")),
     (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),
     (re.compile(rf"that spell's mana value is {_N} or greater"), lambda m: Condition("spell_mv_at_least", _count(m[1]))),
@@ -6864,6 +7092,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     (only if every effect is about "it"), "that player" / "they" the player who did it (only for effects that
     target a player); where neither can be pointed at, the line isn't understood."""
     about_player = False
+    if subject_ok and rest == _CONTRACT_BODY:  # Contract: both sentences are about the enchanted creature
+        return [ContractAttack()], False, False, None
     if subject_ok and not player_ok and re.search(r"\bits controller (loses|gains|draws|discards|mills)\b", rest, re.I):
         # "Whenever enchanted creature attacks, its controller loses 2 life and you gain 2 life."
         rewritten = re.sub(r"\bits controller (loses|gains|draws|discards|mills)\b", r"target player \1", rest, flags=re.I)
@@ -7020,7 +7250,7 @@ _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE_IDENTITY = re.compile(r"Pay life equal to the number of colors in your commanders?'s? color identity")
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
 _CARDS = r"(an?|two|three|four)"
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+)s?")
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (?:other )?(creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+)s?")
 _REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
 _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
@@ -7083,7 +7313,7 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
         elif _PAY_LIFE_IDENTITY.fullmatch(part):
             fields["life_identity"] = True
         elif m := _SACRIFICE_OTHER.fullmatch(part):
-            fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another", sacrifice_count=_NUMBER.get(m[1], 1))
+            fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another" or " other " in part, sacrifice_count=_NUMBER.get(m[1], 1))
         elif m := _DISCARD_COST.fullmatch(part):
             fields["discard"] = _NUMBER[m[1]]
         elif _DISCARD_SELF.fullmatch(part):
@@ -7134,6 +7364,8 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
         return None
     if any(isinstance(e, ReturnThisFromGraveyard) for e in effects):
         fields["from_graveyard"] = True
+    if any(isinstance(e, LevelUp) for e in effects):
+        fields["sorcery_speed"] = True
     if any(getattr(e, "needs_exiled_with", False) for e in effects):
         fields["condition"] = Condition("has_exiled_with")
     if fields.get("condition") and any(isinstance(e, AddMana) for e in effects):
@@ -7161,15 +7393,23 @@ _SPENT_RIDER = re.compile(r"(.+\.) When (?:you spend this mana|that mana is spen
                           r"scry (1|X, where X is the number of times it's been cast from the command zone this game)\.")
 
 
+# Opal Palace: the rider puts counters on the commander as it enters instead.
+_COUNTERS_RIDER = re.compile(r"(.+\.) If you spend this mana to cast your commander, it enters with a number of additional \+1/\+1 "
+                             r"counters on it equal to the number of times it's been cast from the command zone this game\.")
+
+
 @dataclass(frozen=True)
 class ManaSpentTrigger:
     """ "When that mana is spent to cast <spell>, scry <n>." on a mana ability."""
     spell: str  # "commander" (your commander) or "shares_type_with_commander" (a creature spell sharing a type)
     scry: int | str  # a number, or "commander_casts": the times that commander has been cast from the command zone
+    counters: bool = False  # Opal Palace: no scry; the commander enters with that many +1/+1 counters more
 
 
 def mana_spent_trigger(card: Card) -> ManaSpentTrigger | None:
     for line in rules_lines(card):
+        if _COUNTERS_RIDER.fullmatch(line):
+            return ManaSpentTrigger("commander", 0, counters=True)
         if m := _SPENT_RIDER.fullmatch(line):
             return ManaSpentTrigger("commander" if m[2] == "your commander" else "shares_type_with_commander",
                                     1 if m[3] == "1" else "commander_casts")
@@ -7198,7 +7438,7 @@ def has_next_x_rider(card: Card) -> bool:
 
 def _without_spent_rider(line: str) -> str:
     """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
-    m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line)
+    m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line) or _COUNTERS_RIDER.fullmatch(line)
     return _RESTRICTION.sub("", m[1] if m else line)
 
 
@@ -7385,7 +7625,7 @@ def mana_per_count(card: Card) -> tuple[str, str, str] | None:
     return None
 
 
-_FILTER_ANY = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add one mana of any color\.")  # Hall of Oracles
+_FILTER_ANY = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add one mana of any color(?: in your commander's color identity)?\.")  # Hall of Oracles
 # A filter land: "{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}." Two mana, each of either color.
 _FILTER_LAND = re.compile(r"(\{[WUBRG]/[WUBRG]\}), \{T\}: Add \{([WUBRG])\}\{\2\}, \{\2\}\{([WUBRG])\}, or \{\3\}\{\3\}\.")
 
