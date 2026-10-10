@@ -491,3 +491,50 @@ class DarksteelMutationTests(unittest.TestCase):
     def test_without_it_the_creature_is_unchanged(self):
         game, a = self.table()
         self.assertEqual((game.power(self.dragon), game.has_keyword(self.dragon, "flying")), (5, True))
+
+
+ARROGANCE = Card(name="Tragic Arrogance", mana_cost="{3}{W}{W}", cmc=5.0, type_line="Sorcery",
+                 oracle_text="For each player, you choose from among the permanents that player controls an artifact, a creature, an "
+                             "enchantment, and a planeswalker. Then each player sacrifices all other nonland permanents they control.")
+GLORY = Card(name="Glory", mana_cost="{2}", cmc=2.0, type_line="Enchantment")
+
+
+class TragicArroganceTests(unittest.TestCase):
+    def cast(self, mine, theirs, *choices):
+        game, _ = table3(script(*choices))
+        a, b, c = game.seats
+        a.battlefield = [Permanent(x) for x in mine] + lands(5)
+        b.battlefield = [Permanent(x) for x in theirs]
+        a.hand = [ARROGANCE]
+        game._perform(a, CAST + "Tragic Arrogance")
+        run_stack(game)
+        game._check_state()
+        return game, a, b
+
+    def names(self, seat):
+        return sorted(p.card.name for p in seat.battlefield if "Land" not in p.card.type_line)
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(ARROGANCE), [])
+
+    def test_each_player_keeps_one_of_each_type_the_caster_chooses(self):
+        game, a, b = self.cast([BEAR, OGRE, RELIC, RELIC, GLORY], [BEAR, OGRE, WALKER, GLORY],
+                               "Relic", "Ogre", "Bear")  # A's artifact and creature, then B's creature
+        self.assertEqual(self.names(a), ["Glory", "Ogre", "Relic"])
+        self.assertEqual(self.names(b), ["Bear", "Glory", "Walker"])
+
+    def test_lands_are_never_sacrificed(self):
+        game, a, b = self.cast([BEAR], [FOREST_PERMANENT_CARD])
+        self.assertEqual(len([p for p in b.battlefield if "Land" in p.card.type_line]), 1)
+        self.assertEqual(len([p for p in a.battlefield if "Land" in p.card.type_line]), 5)
+
+    def test_the_opponents_pay_too(self):
+        game, a, b = self.cast([BEAR], [BEAR, OGRE, BEAR], "Bear", "Ogre")
+        self.assertEqual(len(b.battlefield), 1)
+
+    def test_a_type_with_no_permanent_keeps_nothing(self):
+        game, a, b = self.cast([BEAR], [GLORY])
+        self.assertEqual(self.names(b), ["Glory"])
+
+
+FOREST_PERMANENT_CARD = FOREST

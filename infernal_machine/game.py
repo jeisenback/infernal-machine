@@ -4046,6 +4046,19 @@ class Game:
         self._move_card(owner, card, "graveyard")
         return card
 
+    def tragic_arrogance(self, chooser: Seat) -> None:
+        """Tragic Arrogance: `chooser` picks, from each player's permanents, an artifact, a creature, an enchantment and a planeswalker
+        to keep; every other nonland permanent is sacrificed."""
+        keep: list[Permanent] = []
+        for seat in self.turn_order_from_active():
+            for kind in ("Artifact", "Creature", "Enchantment", "Planeswalker"):
+                options = [p for p in seat.battlefield if kind in p.card.type_line]
+                if options:
+                    pick = 0 if len(options) == 1 else chooser.player.choose(f"Choose a {kind.lower()} {seat.name} keeps", [self.label(p) for p in options])
+                    keep.append(options[pick])
+        doomed = [p for s in self.live_seats() for p in s.battlefield if "Land" not in p.card.type_line and not any(p is k for k in keep)]
+        self._leave_together([(p, "sacrificed") for p in doomed])
+
     def may_return_permanent_card(self, seat: Seat, other_than: list[Card]) -> None:
         """Deadly Brew: you may return a permanent card from your graveyard to your hand, another one than `other_than`."""
         options = _unique([c for c in seat.graveyard if _is_permanent(c) and not any(c is o for o in other_than)])

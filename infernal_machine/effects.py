@@ -112,6 +112,8 @@ _WHOLE_LINE = re.compile(
     r"|Each player sacrifices a creature or planeswalker of their choice\. If you sacrificed a permanent this way, you may return "
     r"another permanent card from your graveyard to your hand\."
     r"|Any number of target players each lose 2 life and sacrifice a creature of their choice\. You add \{B\}\{B\} and draw a card\."
+    r"|For each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, and a "
+    r"planeswalker\. Then each player sacrifices all other nonland permanents they control\."
     r"|Copy that ability\. You may choose new targets for the copy\."
     r"|Put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a Treasure token\. "
     r"If it's a nonland card, create an? .+ token\."
@@ -3397,6 +3399,15 @@ class PlayersLoseSacrificeAddManaDraw:
 
 
 @dataclass(frozen=True)
+class TragicArrogance:
+    """Tragic Arrogance: "For each player, you choose from among the permanents that player controls an artifact, a creature, an
+    enchantment, and a planeswalker. Then each player sacrifices all other nonland permanents they control." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.tragic_arrogance(controller)
+
+
+@dataclass(frozen=True)
 class SacrificeAll:
     """ "Sacrifice all creatures you control." """
     kind: str = "creature"
@@ -5806,6 +5817,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"for each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, "
+                r"and a planeswalker\. Then each player sacrifices all other nonland permanents they control\.", re.I),
+     lambda m: TragicArrogance()),
     (re.compile(rf"any number of target players each lose {_N} life and sacrifice a creature of their choice\. You add ((?:\{{[WUBRGC]\}})+) and "
                 r"draw a card\.", re.I),
      lambda m: PlayersLoseSacrificeAddManaDraw(_count(m[1]), tuple(frozenset(x) for x in re.findall(r"[WUBRGC]", m[2])))),
