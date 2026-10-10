@@ -3100,26 +3100,29 @@ class Game:
                         **({"card": found.name} if reveal else {})}, skip=seat)
         seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": to, "card": found.name})
 
-    def sacrifice(self, seat: Seat, kind: str = "creature", count: int | None = 1, greatest: bool = False) -> None:
+    def sacrifice(self, seat: Seat, kind: str = "creature", count: int | None = 1, greatest: bool = False) -> list[Permanent]:
         """`seat` chooses `count` of its permanents of `kind` (a creature, artifact, land, ...) and sacrifices them
         (all of them if `count` is None); with `greatest`, only a creature with the greatest power among its creatures
-        can be chosen. No targeting, so hexproof and indestructible don't help."""
+        can be chosen. No targeting, so hexproof and indestructible don't help. Returns what was sacrificed."""
         state = kind.split(" ")[0] if kind.split(" ")[0] in ("attacking", "tapped", "untapped") else ""
         base = kind.removeprefix(state + " ") if state else kind
         options = [p for p in seat.battlefield if _permanent_matches(base, p.card) and self._in_state(p, state)]
         if count is None:
             self._leave_together([(p, "sacrificed") for p in options])
-            return
+            return options
+        sacrificed = []
         for _ in range(count):
             options = [p for p in options if self.on_battlefield(p)]
             if greatest and options:
                 top = max(self.power(p) for p in options)
                 options = [p for p in options if self.power(p) == top]
             if not options:
-                return
+                return sacrificed
             prompt = SACRIFICE_PROMPT if kind == "creature" else f"Choose a {kind} to sacrifice"
             choice = options[seat.player.choose(prompt, [self.label(p) for p in options])]
             self._leave_together([(choice, "sacrificed")])
+            sacrificed.append(choice)
+        return sacrificed
 
     # --- characteristics -----------------------------------------------------
 
@@ -4020,6 +4023,15 @@ class Game:
         source.exiled_with = [pair for pair in source.exiled_with if pair[1] is not card]
         self._move_card(owner, card, "graveyard")
         return card
+
+    def may_return_permanent_card(self, seat: Seat, other_than: list[Card]) -> None:
+        """Deadly Brew: you may return a permanent card from your graveyard to your hand, another one than `other_than`."""
+        options = _unique([c for c in seat.graveyard if _is_permanent(c) and not any(c is o for o in other_than)])
+        if not options:
+            return
+        pick = seat.player.choose(RETURN_CHOSEN_PROMPT, [c.name for c in options] + [NONE_TAKEN])
+        if pick < len(options):
+            self.return_from_graveyard(GraveyardTarget(options[pick], seat), seat, "hand")
 
     def reveal_lands(self, seat: Seat, count: int, until_lands: bool, untap_if: "Condition | None") -> None:
         """Animist's Awakening and Open the Way: reveal the top `count` cards (or cards until `count` lands); the lands go onto the

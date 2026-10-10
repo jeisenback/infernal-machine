@@ -109,6 +109,8 @@ _WHOLE_LINE = re.compile(
     r"mana cost\."
     r"|Each player exiles a card from their graveyard\. When one or more nonland cards are exiled this way, put that many \+1/\+1 "
     r"counters on target attacking creature\."
+    r"|Each player sacrifices a creature or planeswalker of their choice\. If you sacrificed a permanent this way, you may return "
+    r"another permanent card from your graveyard to your hand\."
     r"|Copy that ability\. You may choose new targets for the copy\."
     r"|Put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a Treasure token\. "
     r"If it's a nonland card, create an? .+ token\."
@@ -3344,6 +3346,22 @@ class EachSacrifices:
 
 
 @dataclass(frozen=True)
+class EachSacrificesThenReturn:
+    """Deadly Brew: "Each player sacrifices a creature or planeswalker of their choice. If you sacrificed a permanent this way, you
+    may return another permanent card from your graveyard to your hand." """
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        mine: list = []
+        for seat in game.turn_order_from_active():
+            gone = game.sacrifice(seat, self.kind)
+            if seat is controller:
+                mine = gone
+        if mine:
+            game.may_return_permanent_card(controller, [p.card for p in mine])
+
+
+@dataclass(frozen=True)
 class SacrificeAll:
     """ "Sacrifice all creatures you control." """
     kind: str = "creature"
@@ -5744,6 +5762,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"each player sacrifices a (creature or planeswalker) of their choice\. If you sacrificed a permanent this way, you may "
+                r"return another permanent card from your graveyard to your hand\.", re.I),
+     lambda m: EachSacrificesThenReturn(m[1].lower())),
     (re.compile(r"move any number of ([+\-\u2212]1/[+\-\u2212]1) counters from (?:this creature|CARDNAME) onto other creatures\.", re.I),
      lambda m: MoveCountersToOthers(_counter_name(m[1]))),
     (re.compile(rf"target player shuffles up to {_N} target cards from their graveyard into their library\.", re.I),

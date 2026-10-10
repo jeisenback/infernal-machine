@@ -303,3 +303,48 @@ class ForgottenAncientTests(unittest.TestCase):
     def test_it_never_moves_counters_onto_itself(self):
         game, a = self.upkeep(2, "Yes", "2", "Forgotten")  # not offered: the first creature listed gets them
         self.assertEqual((self.count(self.ancient), self.count(self.bear)), (0, 2))
+
+
+BREW = Card(name="Deadly Brew", mana_cost="{B}{G}", cmc=2.0, type_line="Sorcery",
+            oracle_text="Each player sacrifices a creature or planeswalker of their choice. If you sacrificed a permanent this way, you "
+                        "may return another permanent card from your graveyard to your hand.")
+WALKER = Card(name="Walker", mana_cost="{3}", cmc=3.0, type_line="Legendary Planeswalker — Test", loyalty="4")
+
+
+class DeadlyBrewTests(unittest.TestCase):
+    def cast(self, mine, theirs, graveyard, *choices):
+        game, _ = table3(script(*choices))
+        a, b, c = game.seats
+        a.battlefield = [Permanent(x) for x in mine] + lands(2)
+        b.battlefield = [Permanent(x) for x in theirs]
+        a.graveyard = list(graveyard)
+        a.hand = [BREW]
+        game._perform(a, CAST + "Deadly Brew")
+        run_stack(game)
+        return game, a, b, c
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(BREW), [])
+
+    def test_each_player_sacrifices_and_you_return_another_permanent_card(self):
+        game, a, b, c = self.cast([BEAR], [OGRE], [RELIC, SHRINE], "Bear", "Ogre", "Relic")
+        self.assertEqual([p.card.name for p in a.battlefield if p.card.name in ("Bear",)], [])
+        self.assertEqual(b.battlefield, [])
+        self.assertEqual([x.name for x in a.hand], ["Relic"])
+
+    def test_a_planeswalker_may_be_the_sacrifice(self):
+        game, a, b, c = self.cast([WALKER], [], [RELIC], "Walker", "Relic")
+        self.assertEqual([p.card.name for p in a.battlefield if p.card.name == "Walker"], [])
+        self.assertEqual([x.name for x in a.hand], ["Relic"])
+
+    def test_if_you_had_nothing_to_sacrifice_you_return_nothing(self):
+        game, a, b, c = self.cast([], [OGRE], [RELIC], "Ogre", "Relic")
+        self.assertEqual((b.battlefield, a.hand), ([], []))
+
+    def test_the_card_you_sacrificed_is_not_another_card(self):
+        game, a, b, c = self.cast([BEAR], [], [], "Bear", "Bear")
+        self.assertEqual(a.hand, [])  # only the Bear is in the graveyard, and it is not "another"
+
+    def test_the_return_is_optional(self):
+        game, a, b, c = self.cast([BEAR], [], [RELIC], "Bear", "Take none")
+        self.assertEqual(a.hand, [])
