@@ -292,7 +292,7 @@ MYR = Card(name="Myr", type_line="Token Artifact Creature — Myr", colors=("U",
 class BrudicladTests(unittest.TestCase):
     def test_parse(self):
         [trigger] = triggered_abilities(BRUDICLAD)
-        self.assertEqual((trigger.event, trigger.effects), ("combat", (CreateTokens(1, MYR), TokensBecomeCopies())))
+        self.assertEqual((trigger.event, trigger.effects), ("combat", (CreateTokens(1, MYR), TokensBecomeCopies(True))))
         self.assertEqual(unsupported_lines(BRUDICLAD), [])
         half = Card(name="Half", type_line="Creature — Test", oracle_text="When this creature enters, you may choose a token you control.")
         self.assertEqual(triggered_abilities(half), ())

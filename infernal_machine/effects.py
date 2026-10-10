@@ -101,6 +101,11 @@ _WHOLE_LINE = re.compile(
     r"|Each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a nonland "
     r"card exiled this way\. You may cast up to (?:two|three) spells from among the other cards exiled this way without paying "
     r"their mana costs\."
+    r"|Copy that ability\. You may choose new targets for the copy\."
+    r"|Reveal the top X cards of your library\. Put all land cards from among them onto the battlefield tapped and the rest on the "
+    r"bottom of your library in a random order\."
+    r"|Reveal cards from the top of your library until you reveal X land cards\. Put those land cards onto the battlefield tapped "
+    r"and the rest on the bottom of your library in a random order\."
     r"|Reveal cards from the top of your library until you reveal an Aura card\. You may put that card onto the battlefield\. "
     r"If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\."
     r"|Look at the top (?:six|seven|eight) cards of your library\. You may put an Aura or Equipment card from among them onto "
@@ -113,6 +118,8 @@ _WHOLE_LINE = re.compile(
     r"|Shuffle your library\. As many times as you choose, you may exile the top card of your library\. .*"
     r"|Remove all counters from target nonland permanent you control\. Draw a card for each counter removed this way\."
     r"|When you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the copy\."
+    r"|When you next cast an instant or sorcery spell this turn, copy it for each time you've cast your commander from the command "
+    r"zone this game\. You may choose new targets for the copies\."
     r"|You gain half X life and draw half X cards\. Round down each time\."
     r"|Mill a card, then exile a card from your graveyard at random\. You may play the exiled card this turn\."
     r"|Exile (?:that card|one of them) from your graveyard\. If you do, you may (?:play|cast) (?:that card|it) this turn\."
@@ -125,6 +132,14 @@ _WHOLE_LINE = re.compile(
     r"|Each opponent creates a token that's a copy of it\. The tokens are goaded for the rest of the game\."
     r"|Create (?:a token that's a copy of|five tokens that are copies of) another target creature you control(?:, except it "
     r"isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the next end step\."
+    r"|That player copies that spell for each other creature they control that the spell could target\. Each copy targets a "
+    r"different one of those creatures\."
+    r"|Exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature), except it's a Spirit in addition "
+    r"to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard\.\""
+    r"|For each creature token you control that entered this turn, create a tapped and attacking token that's a copy of that token\. "
+    r"At the beginning of the next end step, sacrifice those tokens\."
+    r"|Create X tokens that are copies of another target creature you control, where X is one plus the number of instant and "
+    r"sorcery spells you've cast this turn\. They gain haste\. Exile them at the beginning of the next end step\."
     r"|Target player draws cards equal to half the number of cards in their library and loses half their life\. "
     r"Round up each time\."
     r"|Until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\."
@@ -1707,6 +1722,16 @@ _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy
                     r"(, except it enters with X additional \+1/\+1 counters on it)?\.")
 
 
+# Cursed Mirror: a copy only until end of turn, with a keyword added.
+_TEMP_CLONE = re.compile(rf"As {_SELF} enters, you may have it become a copy of any creature on the battlefield until end of turn, "
+                         r"except it has ([a-z]+)\.")
+
+
+def temporary_clone_keyword(card: Card) -> str | None:
+    """Cursed Mirror: the keyword a copy "until end of turn" gets, if the card enters that way."""
+    return next((m[1].capitalize() for line in rules_lines(card) if (m := _TEMP_CLONE.fullmatch(line))), None)
+
+
 def clone_extra_counters(card: Card) -> bool:
     """Altered Ego: a copy "except it enters with X additional +1/+1 counters on it"."""
     return any((m := _CLONE.fullmatch(line)) and m[3] for line in rules_lines(card))
@@ -1721,7 +1746,7 @@ def clone_kind(card: Card) -> tuple[str, bool] | None:
 
 
 def is_clone_line(line: str) -> bool:
-    return _CLONE.fullmatch(line) is not None
+    return _CLONE.fullmatch(line) is not None or _TEMP_CLONE.fullmatch(line) is not None
 
 
 def is_enchant_line(line: str) -> bool:
@@ -1989,10 +2014,11 @@ def _token_per_prevented(m: re.Match) -> _TokenPerPrevented | None:
 @dataclass(frozen=True)
 class TokensBecomeCopies:
     """Brudiclad: "Then you may choose a token you control. If you do, each other token you control becomes a copy of
-    that token until end of turn." (two sentences, folded together by _merge_token_copies)."""
+    that token." (two sentences, folded together by _merge_token_copies). The older wording ended "until end of turn"."""
+    until_end_of_turn: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.tokens_become_copies(controller)
+        game.tokens_become_copies(controller, self.until_end_of_turn)
 
 
 @dataclass(frozen=True)
@@ -2002,7 +2028,8 @@ class _ChooseToken:
 
 @dataclass(frozen=True)
 class _OthersBecomeCopies:
-    """ "If you do, each other token you control becomes a copy of that token until end of turn." """
+    """ "If you do, each other token you control becomes a copy of that token (until end of turn)." """
+    until_end_of_turn: bool = False
 
 
 def _merge_token_copies(effects: list) -> list | None:
@@ -2012,7 +2039,7 @@ def _merge_token_copies(effects: list) -> list | None:
         if isinstance(effects[i], _ChooseToken):
             if not (i + 1 < len(effects) and isinstance(effects[i + 1], _OthersBecomeCopies)):
                 return None
-            merged.append(TokensBecomeCopies())
+            merged.append(TokensBecomeCopies(effects[i + 1].until_end_of_turn))
             i += 2
             continue
         if isinstance(effects[i], _OthersBecomeCopies):
@@ -2107,6 +2134,65 @@ class AttackerCreatesAttackingToken:
 
 
 @dataclass(frozen=True)
+class CopySpellForEachOtherCreature:
+    """Mirrorwing Dragon: "that player copies that spell for each other creature they control that the spell could target. Each
+    copy targets a different one of those creatures." The target is the caster; the spell rides along with the trigger."""
+    uses_player = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if target is not None and item is not None and hasattr(item.carried, "targets"):
+            game.copy_spell_for_each_other_creature(item.carried, target, item.source)
+
+
+@dataclass(frozen=True)
+class ExileDeadMakeSpiritCopy:
+    """Hofri Ghostforge: "Exile it. If you do, create a token that's a copy of that creature, except it's a Spirit in addition to
+    its other types and it has "When this token leaves the battlefield, return the exiled card to its owner's graveyard."" """
+    uses_dead_subject = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_dead_make_spirit_copy(controller, target)
+
+
+@dataclass(frozen=True)
+class ReturnExiledToGraveyard:
+    """Hofri Ghostforge's token: "When this token leaves the battlefield, return the exiled card to its owner's graveyard." """
+    uses_dead_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.return_exiled_with_to_graveyard(target)
+
+
+@dataclass(frozen=True)
+class BecomeCopyUntilEndOfTurn:
+    """Muddle, the Ever-Changing: "... becomes a copy of up to one target nonlegendary creature you control until end of turn,
+    except it has myriad." The source takes on the target's card (and `keyword`) until cleanup."""
+    keyword: str
+    target: str = "nonlegendary creature you control"
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        source = game.resolving_source
+        if target is not None and source is not None and game.on_battlefield(source):
+            game.become_copy_until_end_of_turn(source, target, self.keyword)
+
+
+@dataclass(frozen=True)
+class CopyEnteredTokensAttacking:
+    """Redoubled Stormsinger: "For each creature token you control that entered this turn, create a tapped and attacking token
+    that's a copy of that token. At the beginning of the next end step, sacrifice those tokens." The copies attack whom the
+    attacking source attacks."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.copy_entered_tokens_attacking(controller, target)
+
+
+@dataclass(frozen=True)
 class CopyTokenAttacking:
     """ "Create a token that's a copy of it, tapped and attacking." (it: the attacking source). The token attacks the
     same player or planeswalker; it was never declared as an attacker, so attack triggers do not see it."""
@@ -2137,6 +2223,26 @@ class DoubleCountersOnTarget:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.counters.get(self.counter):
             game.put_counters(target, self.counter, target.counters[self.counter])
+
+
+@dataclass(frozen=True)
+class DoubleCountersOnTargets:
+    """Kinetic Ooze: "If X is 10 or more, double the number of +1/+1 counters on any number of other target creatures." Targets
+    are chosen whatever X is; nothing is doubled below `min_x`."""
+    counter: str
+    target: str
+    min_x: int
+    another = True
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.x_value < self.min_x:
+            return
+        for creature in target or []:
+            if game.on_battlefield(creature) and creature.counters.get(self.counter):
+                game.put_counters(creature, self.counter, creature.counters[self.counter])
 
 
 @dataclass(frozen=True)
@@ -2342,6 +2448,16 @@ def _animate(m: re.Match, target: str | None, offset: int = 0) -> Animate:
 
 
 def _merge_token_counters(effects: list) -> list | None:
+    if any(isinstance(e, _PutCountersAndAttach) for e in effects):  # Fractal Harness
+        merged_attach: list = []
+        for effect in effects:
+            if isinstance(effect, _PutCountersAndAttach):
+                if not (merged_attach and isinstance(merged_attach[-1], CreateTokens) and merged_attach[-1].count == 1):
+                    return None
+                merged_attach[-1] = CreateTokenAttachSource(merged_attach[-1].token, (effect.count, effect.counter))
+            else:
+                merged_attach.append(effect)
+        effects = merged_attach
     """"Create a 0/0 Fractal creature token. Put X +1/+1 counters on it." is one CreateTokens whose tokens come in with
     the counters (the second sentence means the new token, not the ability's source)."""
     merged: list = []
@@ -2617,14 +2733,15 @@ class EachOpponentGetsGoadedCopy:
 class CopiesOfAnotherCreature:
     """Orthion, Tempestra: "Create a token that's a copy of another target creature you control. It gains haste.
     Sacrifice it at the beginning of the next end step." (`count` tokens; `not_legendary` for Tempestra)"""
-    count: int = 1
+    count: int | str = 1
     not_legendary: bool = False
     target: str = "creature you control"
+    exile: bool = False  # Rionya: "Exile them at the beginning of the next end step." instead of sacrificing them
     another = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.copies_of_creature(controller, target, game.amount(self.count), self.not_legendary)
+            game.copies_of_creature(controller, target, game.amount(self.count), self.not_legendary, self.exile)
 
 
 @dataclass(frozen=True)
@@ -2908,7 +3025,7 @@ _AMOUNTS = [
      lambda m: Amount("auras_on_creatures")),
     (re.compile(r"the number of nontoken creatures you had enter the battlefield under your control this turn", re.I),
      lambda m: Amount("creatures_entered")),
-    (re.compile(r"(?:the number of )?([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters? on (?:it|this creature|this artifact|CARDNAME)",
+    (re.compile(r"(?:the number of )?([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters? on (?:it|this creature|this artifact|this enchantment|CARDNAME)",
                 re.I), lambda m: Amount("source_counters", _counter_name(m[1].lower()))),
     (re.compile(r"(?:the number of )?(?:(creature|land|artifact|enchantment|instant|sorcery|planeswalker) )?cards? in your graveyard",
                 re.I), lambda m: Amount("graveyard", (m[1] or "card").lower())),
@@ -3337,6 +3454,26 @@ class CreateTokenAttachSubject:
 
 
 @dataclass(frozen=True)
+class CreateTokenAttachSource:
+    """Fractal Harness: "Create a 0/0 ... Fractal creature token. Put X +1/+1 counters on it and attach this Equipment to it." """
+    token: Card
+    counters: tuple[int | str, str]
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for made in game.create_tokens(controller, self.token, 1, (game.amount(self.counters[0]), self.counters[1])):
+            if target is not None:
+                game.attach(target, made)
+
+
+@dataclass(frozen=True)
+class _PutCountersAndAttach:
+    """The second sentence of Fractal Harness: "Put X +1/+1 counters on it and attach this Equipment to it." """
+    count: int | str
+    counter: str
+
+
+@dataclass(frozen=True)
 class CreateTokenWithGraveyardAttachment:
     """Forum Filibuster: "Create a 2/1 ... token. When you do, return up to one target Aura or Equipment card from your
     graveyard to the battlefield attached to that token." (chosen as it resolves rather than targeted)"""
@@ -3538,6 +3675,10 @@ def _merge_conditional(effects: list) -> list | None:
             if not (merged and isinstance(merged[-1], CreateTokens)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], more=effect.count, more_if=effect.condition)
+        elif isinstance(effect, _UntapThoseLands):
+            if not (merged and isinstance(merged[-1], RevealLands)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], untap_if=effect.condition)
         elif isinstance(effect, _UntapThatLand):
             if not (merged and isinstance(merged[-1], FetchBasicLand)):
                 return None
@@ -3657,6 +3798,25 @@ class Scry:
 
 
 @dataclass(frozen=True)
+class RevealLands:
+    """Animist's Awakening: "Reveal the top X cards of your library. Put all land cards from among them onto the battlefield tapped
+    and the rest on the bottom of your library in a random order." Open the Way (`until_lands`): "Reveal cards from the top of your
+    library until you reveal X land cards. Put those land cards ..." Spell mastery (`untap_if`): "... untap those lands." """
+    count: int | str
+    until_lands: bool = False
+    untap_if: "Condition | None" = None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.reveal_lands(controller, game.amount(self.count), self.until_lands, self.untap_if)
+
+
+@dataclass(frozen=True)
+class _UntapThoseLands:
+    """Spell mastery: "If there are two or more instant and/or sorcery cards in your graveyard, untap those lands." """
+    condition: "Condition"
+
+
+@dataclass(frozen=True)
 class RevealTop:
     """ "Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield tapped.
     Otherwise, draw a card." (Thrasios). Only built by _merge_reveal_top."""
@@ -3709,10 +3869,13 @@ class CopySpell:
 @dataclass(frozen=True)
 class CopyNextSpell:
     """Pigment Wrangler's spell: "When you next cast an instant or sorcery spell this turn, copy that spell. You may choose new
-    targets for the copy." (see Game._cast)"""
+    targets for the copy." (see Game._cast). Thunderclap Drake copies it once for each time you've cast your commander from
+    the command zone this game instead (`per_commander_cast`)."""
+    per_commander_cast: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         controller.copy_next_turn = game.turn
+        controller.copy_next_per_commander = self.per_commander_cast
 
 
 @dataclass(frozen=True)
@@ -3725,6 +3888,28 @@ class CopyTriggeringSpell:
         spell = game.resolving_item.carried if game.resolving_item is not None else None
         if spell is not None:
             game.copy_spell(spell, controller, self.new_targets)
+
+
+@dataclass(frozen=True)
+class CopyTriggeringAbility:
+    """Unbound Flourishing: "... activate an ability, if that ability's activation cost contains {X}, copy that ability. You may
+    choose new targets for the copy." The ability that set the trigger off is `carried`."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        ability = game.resolving_item.carried if game.resolving_item is not None else None
+        if ability is not None:
+            game.copy_ability(ability, controller)
+
+
+@dataclass(frozen=True)
+class DoubleXOfTriggeringSpell:
+    """Unbound Flourishing: "Whenever you cast a permanent spell with a mana cost that contains {X}, double the value of X." The
+    spell that set the trigger off is `carried`; it is still on the stack, so what it enters with is doubled."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        spell = game.resolving_item.carried if game.resolving_item is not None else None
+        if spell is not None and spell in game.stack:
+            spell.x *= 2
 
 
 @dataclass(frozen=True)
@@ -5126,12 +5311,20 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a "
                 rf"nonland card exiled this way\. You may cast up to {_N} spells from among the other cards exiled this way without "
                 r"paying their mana costs\.", re.I), lambda m: ExileUntilNonlandCast(_count(m[1]))),
+    (re.compile(r"reveal the top X cards of your library\. Put all land cards from among them onto the battlefield tapped and the rest "
+                r"on the bottom of your library in a random order\.", re.I), lambda m: RevealLands("X")),
+    (re.compile(r"reveal cards from the top of your library until you reveal X land cards\. Put those land cards onto the "
+                r"battlefield tapped and the rest on the bottom of your library in a random order\.", re.I),
+     lambda m: RevealLands("X", until_lands=True)),
+    (re.compile(r"if (there are .+), untap those lands\.", re.I), lambda m: _UntapThoseLands(c) if (c := _condition(m[1])) else None),
     (re.compile(r"reveal cards from the top of your library until you reveal an Aura card\. You may put that card onto the "
                 r"battlefield\. If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\.",
                 re.I), lambda m: RevealUntilAura()),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
     (re.compile(r"attach (?:this Aura|CARDNAME) to it\.", re.I), lambda m: AttachThisToSubject()),
     (re.compile(r"if that enchantment is an Aura, you may attach it to the token\.", re.I), lambda m: _AttachItToToken()),
+    (re.compile(rf"put {_N} ([+\-\u2212]1/[+\-\u2212]1) counters? on it and attach (?:this Equipment|CARDNAME) to it\.", re.I),
+     lambda m: _PutCountersAndAttach(_count(m[1]), _counter_name(m[2]))),
     (re.compile(r"when you do, return up to one target Aura or Equipment card from your graveyard to the battlefield attached to "
                 r"that token\.", re.I), lambda m: _RecallAttachment()),
     (re.compile(r"the token created this way gains haste\.", re.I), lambda m: _PopulatedTokenRider(haste=True)),
@@ -5139,6 +5332,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'(?:it has|they have) "(.+)"', re.I), lambda m: _ItHas(m[1]) if _is_known_ability(m[1]) else None),
     (re.compile(r"when you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the "
                 r"copy\.", re.I), lambda m: CopyNextSpell()),
+    (re.compile(r"when you next cast an instant or sorcery spell this turn, copy it for each time you've cast your commander from "
+                r"the command zone this game\. You may choose new targets for the copies\.", re.I),
+     lambda m: CopyNextSpell(per_commander_cast=True)),
     (re.compile(rf"(?:then )?put an? {_CARD_TYPE} from among them onto the battlefield\.", re.I),
      lambda m: _PutFromAmongThem(_card_kind(m[1]))),
     (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),
@@ -5150,6 +5346,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
+    (re.compile(r"if (X is \d+ or more), (?!double the number)(.+)\.", re.I), _then_if),
+    (re.compile(rf"if X is {_N} or more, double the number of ([+\-\u2212]1/[+\-\u2212]1) counters on any number of other target "
+                r"creatures\.", re.I), lambda m: DoubleCountersOnTargets(_counter_name(m[2]), "creature", int(m[1]))),
+    (re.compile(r"destroy up to one target (artifact or enchantment) with mana value X or less\.", re.I),
+     lambda m: Destroy(f"{m[1].lower()} with mana value x or less", optional_target=True)),
     (re.compile(rf"exile {_N} cards from your graveyard\.", re.I), lambda m: ExileOwnGraveyard(_count(m[1]))),
     (re.compile(r"if you do, (.+)\.", re.I), _if_you_do),
     (re.compile(r'if an? (creature) card is exiled this way, (create .+?)(\."?)', re.I), _if_exiled),
@@ -5318,6 +5519,21 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(, except it isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the "
                 r"next end step\.", re.I),
      lambda m: CopiesOfAnotherCreature(5 if m[1] else 1, bool(m[2]))),
+    (re.compile(r"that player copies that spell for each other creature they control that the spell could target\. Each copy "
+                r"targets a different one of those creatures\.", re.I), lambda m: CopySpellForEachOtherCreature()),
+    (re.compile(r"exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature), except it's a Spirit in "
+                r"addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its "
+                r"owner's graveyard\.\"", re.I), lambda m: ExileDeadMakeSpiritCopy()),
+    (re.compile(r"return the exiled card to its owner's graveyard\.", re.I), lambda m: ReturnExiledToGraveyard()),
+    (re.compile(rf"{_SELF} becomes a copy of up to one target nonlegendary creature you control until end of turn, except it has "
+                r"([a-z]+)\.", re.I), lambda m: BecomeCopyUntilEndOfTurn(m[1].capitalize())),
+    (re.compile(r"for each creature token you control that entered this turn, create a tapped and attacking token that's a copy of that "
+                r"token\. At the beginning of the next end step, sacrifice those tokens\.", re.I),
+     lambda m: CopyEnteredTokensAttacking()),
+    (re.compile(r"create X tokens that are copies of another target creature you control, where X is one plus the number of instant "
+                r"and sorcery spells you've cast this turn\. They gain haste\. Exile them at the beginning of the next end step\.",
+                re.I), lambda m: [DefineX(Amount("one_plus_spells", "instant or sorcery spell")),
+                                  CopiesOfAnotherCreature("X", exile=True)]),
     (re.compile(r"target player draws cards equal to half the number of cards in their library and loses half their life\. "
                 r"Round up each time\.", re.I), lambda m: DrawHalfLibraryLoseHalfLife()),
     (re.compile(r"Exile the top four cards of your library in a face-down pile, then exile the top four cards of your library in a face-up pile\. An opponent chooses one of those piles\. Put that pile into your graveyard\. Look at the cards in the other pile\. You may cast a spell from among them without paying its mana cost\. Put the rest into your hand\.", re.I), lambda m: PilesOfFour()),
@@ -5362,6 +5578,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
      lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
+    (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
+    (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
     (re.compile(r"put a number of \+1/\+1 counters on it equal to the damage dealt\.", re.I),
      lambda m: PutCountersOnSource("X", "+1/+1")),  # X is the damage the trigger saw
     (re.compile(r"you may choose new targets for the copy\.", re.I), lambda m: NewTargets()),
@@ -5519,7 +5737,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _gift(_GiftMatch(m[2], m[3]))),
     (re.compile(r"(?:then )?create (.+) for each nontoken creature you controlled that was destroyed this way\.(\"?)", re.I),
      lambda m: _gift(_GiftMatch(m[1], m[2]), who="you", nontoken=True)),
-    (re.compile(r"each player creates (.+) and puts a number of \+1/\+1 counters on it equal to the total power of the "
+    (re.compile(r"each player creates (.+) and puts a number of \+1/\+1 counters on it equal to the total power of (?:the )?"
                 r"creatures they controlled that were exiled this way\.(\"?)", re.I),
      lambda m: _gift(_GiftMatch(m[1], m[2]), who="each player", power_counters=True)),
     (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),
@@ -5614,8 +5832,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PreventCombatDamageToYou()),
     (re.compile(r'for each 1 damage prevented this way, create (.+)\.("?)', re.I), _token_per_prevented),
     (re.compile(r"(?:then )?you may choose a token you control\.", re.I), lambda m: _ChooseToken()),
-    (re.compile(r"if you do, each other token you control becomes a copy of that token until end of turn\.", re.I),
-     lambda m: _OthersBecomeCopies()),
+    (re.compile(r"if you do, each other token you control becomes a copy of that token( until end of turn)?\.", re.I),
+     lambda m: _OthersBecomeCopies(bool(m[1]))),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
     (re.compile(r'(?i:(?:its|that creature\'s) controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
@@ -5643,6 +5861,7 @@ _TIMES_X = [
     (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
     (r"\b(creates?) a number of (.+?) tokens\b", r"\1 X \2 tokens"),
     (r"\b(put) (?:a|one) (\+1/\+1) counter\b", r"\1 X \2 counters"),
+    (r"\b(put) a number of (\+1/\+1) counters\b", r"\1 X \2 counters"),
     (r"\b(gets?) ([+\-\u2212])(\d+)/([+\-\u2212])(\d+)\b",  # "+2/+2" for each: +2X/+2X
      lambda m: f"{m[1]} {m[2]}{_times(m[3])}/{m[4]}{_times(m[5])}" if (m[3], m[5]) != ("0", "0") else m[0]),
 ]
@@ -5981,7 +6200,7 @@ def spell_effects(card: Card) -> list | None:
     if lines and _MODAL_COMMANDER.fullmatch(lines[0]):
         modal = _parse_modal("one", lines[1:])
         return [dataclasses.replace(modal[0], commander_both=True)] if modal else None
-    return _parse(_split_sentences("\n".join(lines)))
+    return _parse(_split_sentences("\n".join(_SPELL_MASTERY.sub("", line) for line in lines)))
 
 
 def is_hand_ability_line(line: str) -> bool:
@@ -5992,7 +6211,7 @@ def is_hand_ability_line(line: str) -> bool:
 
 def line_effects(line: str) -> list | None:
     """Effects of one line of spell text (from rules_lines); None if not understood."""
-    return _parse(_split_sentences(line))
+    return _parse(_split_sentences(_SPELL_MASTERY.sub("", line)))
 
 
 @dataclass(frozen=True)
@@ -6011,7 +6230,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -6029,6 +6248,7 @@ _CONDITIONS = [
     (re.compile(rf"you gained {_N} or more life this turn"), lambda m: Condition("gained_life_at_least", _count(m[1]))),
     (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
+    (re.compile(rf"X is {_N} or more"), lambda m: Condition("x_at_least", _count(m[1]))),
     (re.compile(r"that player controls more lands than you"), lambda m: Condition("player_more_lands")),
     (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),
     (re.compile(rf"that spell's mana value is {_N} or greater"), lambda m: Condition("spell_mv_at_least", _count(m[1]))),
@@ -6159,6 +6379,7 @@ _TRIGGERS = {
     "enchanted_attack": re.compile(r"Whenever one or more creatures that are enchanted by an Aura you control attack, (.+)", re.I),
     "creatures_attack": re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I),
     "opponent_attacks": re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I),
+    "activate_x": re.compile(r"Whenever you activate an ability with \{X\} in its activation cost, (.+)", re.I),
     "other_attacks_two": re.compile(r"Whenever another player attacks with two or more creatures, (.+)", re.I),
     "attacks_opponent": re.compile(r"Whenever a player attacks one of your opponents, (.+)", re.I),  # x: the seat attacked
     "cycle": re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I),
@@ -6220,6 +6441,7 @@ _WATCHES = {
                        r"((?:white|blue|black|red|green) spell|multicolored spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
+                       r"|permanent spell with a mana cost that contains \{X\}|instant or sorcery spell with \{X\} in its mana cost"
                        r"|(?-i:[A-Z][a-z]+) spell)"  # a creature type: "another Vampire spell"
                        r"(?: with mana value (\d+) or greater)?"
                        r"( from your hand| from your graveyard| from their graveyard| from anywhere other than your hand"
@@ -6260,6 +6482,7 @@ _PLAYER_PRONOUNS = [
     (re.compile(r"\bto that player\b", re.I), "to target player"),
     (re.compile(r"\bthat opponent (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),  # Tomik
 ]
+_SPELL_MASTERY = re.compile(r"^Spell mastery \u2014 ")  # the condition stays in the sentence; the ability word is only a label
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
 
 
@@ -6291,6 +6514,9 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         qualifier = (f"{q[2]}{'>=' if q[4] == 'greater' else '<='}{q[3]}" if q[2] else "flying" if q[1] == "flying"
                      else f"mv<={q[5]}" if q[5] else "counter:+1/+1")
         line = line[:q.start()] + line[q.end():]
+    if " that targets only this creature" in line:  # Mirrorwing Dragon: about the spell's targets
+        line = line.replace(" that targets only this creature", "")
+        qualifier = "targets_only_source"
     if " that targets a modified permanent you control" in line:  # Pearl-Ear: about the spell's targets
         line = line.replace(" that targets a modified permanent you control", "")
         qualifier = "targets_modified"
@@ -6523,7 +6749,7 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
 _PUT_IT = re.compile(r"\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
-                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b", re.I)
+                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bthat player copies that spell for each other creature they control that the spell could target\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it, except it's a Spirit in addition to its other types and it has\b", re.I)
 
 
 _TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')
@@ -6594,9 +6820,19 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
 _COMPOUND_TRIGGER = re.compile(r"(When|Whenever) ([^,]+?) and whenever ([^,]+), (.+)")
 
 
+_UNBOUND_COPY = re.compile(r"Whenever you cast an instant or sorcery spell or activate an ability, if that spell's mana cost or that "
+                           r"ability's activation cost contains \{X\}, copy that spell or ability\. You may choose new targets for "
+                           r"the copy\.")
+
+
 def _split_compound_trigger(line: str) -> list[tuple[str, str]]:
     """ "When this creature enters and whenever one or more tokens you control enter, <effect>" is two triggers with the same
     effect; each is read as a line of its own, as (line to read, the card's own line)."""
+    if _UNBOUND_COPY.fullmatch(line):  # Unbound Flourishing: one sentence for a spell and for an ability
+        return [("Whenever you cast an instant or sorcery spell with {X} in its mana cost, copy that spell. You may choose new targets "
+                 "for the copy.", line),
+                ("Whenever you activate an ability with {X} in its activation cost, copy that ability. You may choose new targets for "
+                 "the copy.", line)]
     if m := _COMPOUND_TRIGGER.fullmatch(line):
         return [(f"{m[1]} {m[2]}, {m[4]}", line), (f"Whenever {m[3]}, {m[4]}", line)]
     return [(line, line)]
@@ -6844,9 +7080,20 @@ _RESTRICTIONS = {"Spend this mana only to cast spells with mana value 5 or great
 _RESTRICTION = re.compile(" (" + "|".join(re.escape(k) for k in _RESTRICTIONS) + r")\.")
 
 
+# Brass Infiniscope: a delayed trigger that the mana ability sets up.
+_NEXT_X_RIDER = re.compile(r"(.+\.) When you next cast a spell with \{X\} in its mana cost this turn, you draw a card and gain "
+                           r"half X life, rounded down\.")
+
+
+def has_next_x_rider(card: Card) -> bool:
+    """Brass Infiniscope: tapping it for mana makes "when you next cast a spell with {X} in its mana cost this turn, you draw a
+    card and gain half X life, rounded down"."""
+    return any(_NEXT_X_RIDER.fullmatch(line) for line in rules_lines(card))
+
+
 def _without_spent_rider(line: str) -> str:
     """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
-    m = _SPENT_RIDER.fullmatch(line)
+    m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line)
     return _RESTRICTION.sub("", m[1] if m else line)
 
 

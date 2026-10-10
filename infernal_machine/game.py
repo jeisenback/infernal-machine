@@ -23,14 +23,14 @@ from .cards import Card, Deck, has_keyword
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
+from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, temporary_clone_keyword, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
-                      filter_mana_ability, follows_target, mana_ability, mana_extra_cost, mana_restriction, charge_mana, mana_ability_sacrifices, mana_spent_trigger, Scry, spell_effects, static_abilities, target_kind,
+                      filter_mana_ability, follows_target, mana_ability, mana_extra_cost, mana_restriction, charge_mana, mana_ability_sacrifices, mana_spent_trigger, has_next_x_rider, Scry, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
 from .mana import SNOW, Cost, parse_cost, pay
@@ -340,6 +340,9 @@ class Seat:
     combat_shield_turn: int | None = None  # Inkshield: the turn combat damage to this player is prevented
     combat_shield_token: Card | None = None  # ... and the token made for each point prevented
     copy_next_turn: int | None = None  # the turn the next instant or sorcery this player casts is copied (Pigment Wrangler)
+    x_rider_turn: int | None = None  # Brass Infiniscope: the turn its delayed "next spell with {X}" triggers were set up
+    x_rider_count: int = 0
+    copy_next_per_commander: bool = False  # ... once per time the commander was cast from the command zone (Thunderclap Drake)
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
     spent_turn: int | None = None  # the turn `spent_amount` counts for
     spent_amount: int = 0  # the mana this player spent casting spells that turn ("Whenever you expend 4")
@@ -601,6 +604,8 @@ class Game:
                       and self.on_battlefield(a.attacker)]
             if doomed:  # decayed: sacrifice it at end of combat
                 self._leave_together([(p, "sacrificed") for p in doomed])
+            if tokens := [p for p in self.combat.exile_at_end if self.on_battlefield(p)]:  # myriad
+                self._leave_together([(p, "exiled") for p in tokens], "exile")
             self.combat = Combat(self)  # CR 511.3: creatures leave combat
             self._add_delayed_mana(seat)
             for permanent in list(seat.battlefield):
@@ -920,6 +925,9 @@ class Game:
                 source.activated_turn["counter mana"] = self.turn
                 continue
             self.tap(source)
+            if has_next_x_rider(source.card):  # Brass Infiniscope
+                seat.x_rider_count = (seat.x_rider_count if seat.x_rider_turn == self.turn else 0) + 1
+                seat.x_rider_turn = self.turn
             if not is_land(source.card) and mana_ability_sacrifices(source.card):
                 self._leave_battlefield(source, "sacrificed")
             if (extra := mana_extra_cost(source.card)) == "mill":
@@ -1525,6 +1533,8 @@ class Game:
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
                         "tapped": [p.card.name for p in tapped]})
+        if ability.mana_cost and parse_cost(ability.mana_cost).x:  # Unbound Flourishing
+            self._trigger_each("activate_x", seat, spell=item)
         self._check_ward(item)
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
@@ -1635,7 +1645,8 @@ class Game:
                 limit = self.targeting_x if getattr(effect, "up_to_x", False) else (
                     self.targeting_max if self.targeting_max is not None else MAX_TARGETS)
                 for _ in range(limit):
-                    pool = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors)) if i not in taken_here]
+                    pool = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors)) if i not in taken_here
+                            and not (getattr(effect, "another", False) and o[1] is source)]  # "other target creatures"
                     if not pool:
                         break
                     pick = seat.player.choose(TARGET_PROMPT + source_name,
@@ -1778,13 +1789,20 @@ class Game:
                 count = seat.commander_casts.get(card.name, 0) + 1 if scry == "commander_casts" else scry
                 ability = TriggeredAbility("cast", (Scry("X"),), False, f"Scry {count}")
                 self.stack.append(StackItem(source.card, seat, list(ability.effects), [], ability, source, x=count))
+        if seat.x_rider_turn == self.turn and seat.x_rider_count and "{X}" in card.mana_cost:  # Brass Infiniscope
+            ability = TriggeredAbility("cast", (Draw(1), GainLife("hX")), False, "Draw a card and gain half X life")
+            for _ in range(seat.x_rider_count):
+                self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, x=x))
+            seat.x_rider_count = 0
         if has_keyword(card, "cascade") and prepared is None:  # the trigger goes on the stack above the spell
             ability = TriggeredAbility("cast", (Cascade(int(card.cmc) + x),), False, "Cascade")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
         if seat.copy_next_turn == self.turn and ("Instant" in card.type_line or "Sorcery" in card.type_line):
             seat.copy_next_turn = None  # a delayed trigger: it copies the spell, with new targets
-            ability = TriggeredAbility("cast", (CopySpellTimes(1),), False, "Copy that spell")
-            self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
+            copies = sum(seat.commander_casts.values()) if seat.copy_next_per_commander else 1
+            if copies:
+                ability = TriggeredAbility("cast", (CopySpellTimes(copies),), False, "Copy that spell")
+                self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         self._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared,
                       prepared=prepared is not None, spell=item, from_graveyard=graveyard is not None)
         if seat.spent_turn != self.turn:
@@ -2028,6 +2046,8 @@ class Game:
             return controller.life_gained_amount if controller.life_gained_turn == self.turn else 0
         if kind == "spells_cast":
             return len(this_turn)
+        if kind == "one_plus_spells":  # Rionya: one plus the instant and sorcery spells you've cast this turn
+            return 1 + sum(_watch_type_matches(amount.what, c) for c in this_turn)
         if kind == "greatest_mana_value_cast":
             return int(max((c.cmc for c in this_turn if _watch_type_matches(amount.what, c)), default=0))
         if kind == "opponents":
@@ -2174,6 +2194,8 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
             return False
+        if kind == "x_at_least":  # Kinetic Ooze: the X the resolving spell or ability carries
+            return self.x_value >= condition.count
         if kind == "attackers_at_most":
             return x <= condition.count
         if kind == "defender_more_life":  # Breena: x is the seat attacked; it has more life than another of the opponents
@@ -2307,6 +2329,11 @@ class Game:
                     continue
                 if watch.qualifier == "targets_modified":  # a cast of a spell that targets a modified permanent you control
                     if not self._targets_modified(spell, watcher_seat):
+                        continue
+                elif watch.qualifier == "targets_only_source":  # Mirrorwing Dragon: the spell targets only the watcher
+                    flat = [t for target in (spell.targets if isinstance(spell, StackItem) else [])
+                            for t in (target if isinstance(target, list) else [target])]
+                    if not flat or any(t is not watcher for t in flat):
                         continue
                 elif watch.qualifier and (subject is None or not self._qualifies(watch.qualifier, subject)):
                     continue
@@ -2867,6 +2894,44 @@ class Game:
             self.combat.attacks.append(Attack(made, seat, defender))
             self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": defender.index})
 
+    def exile_dead_make_spirit_copy(self, seat: Seat, dead: Permanent) -> None:
+        """Hofri Ghostforge: exile the creature that just died from its owner's graveyard; if that works, `seat` creates a token
+        that's a copy of it, a Spirit too, which sends the exiled card back to the graveyard when it leaves."""
+        owner = dead.owner or dead.last_controller
+        if owner is None or not self.exile_from_graveyard(GraveyardTarget(dead.card, owner)):
+            return
+        card = dead.card
+        text = (card.oracle_text + "\nWhen this token leaves the battlefield, return the exiled card to its owner's graveyard.").strip()
+        head, dash, tail = card.type_line.partition("\u2014")
+        spirit = dataclasses.replace(card, type_line=f"Token {head.strip()} {dash} {tail.strip()} Spirit" if dash else f"Token {head.strip()}",
+                                     oracle_text=text)
+        for made in self.create_tokens(seat, spirit, 1):
+            made.exiled_with.append((owner, card))
+
+    def return_exiled_with_to_graveyard(self, leaver: Permanent) -> None:
+        """The exiled card a Hofri Ghostforge token was made from goes to its owner's graveyard."""
+        for owner, card in leaver.exiled_with:
+            if any(c is card for c in owner.exile):
+                owner.exile = [c for c in owner.exile if c is not card]
+                self._move_card(owner, card, "graveyard")
+        leaver.exiled_with = []
+
+    def copy_entered_tokens_attacking(self, seat: Seat, source: Permanent) -> None:
+        """Redoubled Stormsinger: for each creature token `seat` controls that entered this turn, a tapped and attacking copy
+        attacks whom `source` attacks; the copies are sacrificed as the next end step begins."""
+        attack = next((a for a in self.combat.attacks if a.attacker is source), None)
+        originals = [p for p in seat.battlefield if "Creature" in p.card.type_line and _is_token(p.card) and p.entered_turn == self.turn]
+        copies = []
+        for original in originals:
+            for made in self.create_tokens(seat, original.card, 1):
+                made.tapped = True
+                if attack is not None:
+                    self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
+                    self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": attack.defender.index})
+                copies.append(made)
+        if copies:
+            self.leave_at_next_end_step(copies, "sacrificed", "graveyard")
+
     def put_from_hand(self, seat: Seat, kind: str, tapped: bool = False) -> None:
         """"You may put a creature card from your hand onto the battlefield.": you choose one, or none."""
         options = [c for c in seat.hand if _card_matches(kind, c)]
@@ -3236,9 +3301,10 @@ class Game:
             self.at_end_step.append((fire_turn, lambda: self._leave_together(
                 [(p, at_end) for p in made if self.on_battlefield(p)], "exile" if at_end == "exiled" else "graveyard")))
 
-    def tokens_become_copies(self, seat: Seat) -> None:
-        """Brudiclad: `seat` may choose a token they control; each other token they control becomes a copy of it until
-        end of turn (like a crewed Vehicle, the card comes back at cleanup). Counters and damage stay where they are."""
+    def tokens_become_copies(self, seat: Seat, until_end_of_turn: bool = False) -> None:
+        """Brudiclad: `seat` may choose a token they control; each other token they control becomes a copy of it, for good or
+        (the older wording) until end of turn, when like a crewed Vehicle the card comes back at cleanup. Counters and damage
+        stay where they are."""
         tokens = [p for p in seat.battlefield if _is_token(p.card)]
         if not tokens:
             return
@@ -3248,10 +3314,22 @@ class Game:
         chosen = tokens[pick]
         for permanent in tokens:
             if permanent is not chosen:
-                permanent.original = permanent.original or permanent.card
+                was = permanent.card
+                if until_end_of_turn:
+                    permanent.original = permanent.original or permanent.card
                 permanent.card = chosen.card
-                self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.original.name,
+                self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": was.name,
                                 "as": chosen.card.name})
+
+    def become_copy_until_end_of_turn(self, permanent: Permanent, copied: Permanent, keyword: str, seat: Seat | None = None) -> None:
+        """`permanent` becomes a copy of `copied`, except it has `keyword`, until end of turn (the card comes back at cleanup).
+        Counters and damage stay where they are."""
+        permanent.original = permanent.original or permanent.card
+        card = copied.card
+        text = (card.oracle_text + f"\n{keyword}").strip()
+        permanent.card = dataclasses.replace(card, type_line=card.type_line.removeprefix("Token "), oracle_text=text)
+        self.broadcast({"event": "copied_permanent", "seat": (seat or self.controller_of(permanent)).index,
+                        "card": permanent.original.name, "as": card.name})
 
     def may_become_copy(self, seat: Seat, permanent: Permanent, cards: list[Card]) -> None:
         """`permanent` may become a copy of one of `cards` until end of turn (like a crewed Vehicle, its card comes back at
@@ -3367,16 +3445,16 @@ class Game:
     def exile(self, permanent: Permanent) -> None:
         self._leave_battlefield(permanent, "exiled", destination="exile")
 
-    def copies_of_creature(self, seat: Seat, original: Permanent, count: int, not_legendary: bool) -> None:
-        """Orthion, Tempestra: `count` tokens that are copies of `original` with haste (not legendary for Tempestra),
-        sacrificed as the next end step begins."""
+    def copies_of_creature(self, seat: Seat, original: Permanent, count: int, not_legendary: bool, exile: bool = False) -> None:
+        """Orthion, Tempestra, Rionya: `count` tokens that are copies of `original` with haste (not legendary for Tempestra),
+        sacrificed (or exiled, for Rionya) as the next end step begins."""
         card = original.card if _is_token(original.card) else dataclasses.replace(original.card, type_line="Token " + original.card.type_line)
         card = dataclasses.replace(card, oracle_text=(card.oracle_text + "\nHaste").strip())
         if not_legendary:
             card = dataclasses.replace(card, type_line=card.type_line.replace("Legendary ", ""))
         made = self.create_token_batch(seat, [card] * count)
         if made:
-            self.leave_at_next_end_step(made, "sacrificed", "graveyard")
+            self.leave_at_next_end_step(made, "exiled" if exile else "sacrificed", "exile" if exile else "graveyard")
 
     def goaded_copies_for_opponents(self, seat: Seat, original: Permanent) -> None:
         """Life of the Party: each opponent gets a token copy, goaded by `seat` for the rest of the game."""
@@ -3849,6 +3927,27 @@ class Game:
         seat.library += top
         self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
 
+    def reveal_lands(self, seat: Seat, count: int, until_lands: bool, untap_if: "Condition | None") -> None:
+        """Animist's Awakening and Open the Way: reveal the top `count` cards (or cards until `count` lands); the lands go onto the
+        battlefield tapped (untapped, if `untap_if` holds), the rest to the bottom of the library in a random order."""
+        revealed, found = [], []
+        while seat.library and (len(found) < count if until_lands else len(revealed) + len(found) < count):
+            card = seat.library.pop(0)
+            (found if "Land" in card.type_line else revealed).append(card)
+        self.broadcast({"event": "revealed", "seat": seat.index, "count": len(found) + len(revealed),
+                        "cards": [c.name for c in found + revealed]})
+        entered = []
+        for card in found:
+            self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": True})
+            permanent = Permanent(card, tapped=True)
+            self._enter(seat, permanent)
+            entered.append(permanent)
+        if untap_if is not None and self.condition_holds(untap_if, seat, self.resolving_source):
+            for permanent in entered:
+                permanent.tapped = False
+        self.rng.shuffle(revealed)
+        seat.library += revealed
+
     def reveal_until_aura(self, seat: Seat) -> None:
         """Songbirds' Blessing: reveal cards from the top until an Aura; you may put it onto the battlefield, else it goes to
         your hand; the rest go to the bottom in a random order."""
@@ -4178,7 +4277,9 @@ class Game:
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
         extra_when_copy = False
-        if clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
+        if keyword := temporary_clone_keyword(permanent.card):  # Cursed Mirror
+            self._become_temporary_copy(seat, permanent, keyword)
+        elif clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
             extra_when_copy = clone_extra_counters(permanent.card)
             self._become_copy(seat, permanent, *clone)
         counters = {counter: (x if count == "X" else 2 * x if count == "2X" else count)
@@ -4220,7 +4321,7 @@ class Game:
             if seat.creatures_entered_turn != self.turn:
                 seat.creatures_entered_turn, seat.creatures_entered = self.turn, 0
             seat.creatures_entered += 1
-        self.trigger("enters", permanent, seat)
+        self.trigger("enters", permanent, seat, x=x)  # the X it was cast with ("destroy ... with mana value X or less")
         if not permanent.tapped:
             self.trigger("enters_untapped", permanent, seat)
         if saga_chapters(permanent.card):
@@ -4248,6 +4349,16 @@ class Game:
             permanent.prepared = False
             self.broadcast({"event": "unprepared", "card": permanent.card.name})
 
+    def _become_temporary_copy(self, seat: Seat, permanent: Permanent, keyword: str) -> None:
+        """Cursed Mirror: as it enters, it may become a copy of any creature on the battlefield until end of turn, except it has
+        `keyword`."""
+        options = [p for s in self.live_seats() for p in s.battlefield if "Creature" in p.card.type_line]
+        if not options:
+            return
+        pick = seat.player.choose(CLONE_PROMPT + permanent.card.name, [self.label(p) for p in options] + [NOT_A_COPY])
+        if pick < len(options):
+            self.become_copy_until_end_of_turn(permanent, options[pick], keyword, seat)
+
     def _become_copy(self, seat: Seat, permanent: Permanent, kind: str, yours: bool) -> None:
         """Clone: choose a permanent on the battlefield and enter as a copy of it. A copy gets the other card's
         printed characteristics (not its counters, damage or changes); a token's copy isn't a token."""
@@ -4263,6 +4374,32 @@ class Game:
         permanent.card = dataclasses.replace(copied, type_line=copied.type_line.removeprefix("Token "))
         self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.real_card.name,
                         "as": permanent.card.name})
+
+    def copy_ability(self, item: StackItem, controller: Seat) -> None:
+        """Put a copy of an activated ability on the stack under `controller`'s control; it resolves first, with the same
+        targets and X (new targets are not chosen)."""
+        if item not in self.stack:
+            return
+        self.stack.append(StackItem(item.card, controller, item.effects, list(item.targets), item.ability, item.source, x=item.x,
+                                    sacrificed_power=item.sacrificed_power))
+        self.broadcast({"event": "copied_ability", "seat": controller.index, "card": item.card.name})
+
+    def copy_spell_for_each_other_creature(self, item: StackItem, caster: Seat, source: Permanent) -> None:
+        """Mirrorwing Dragon: `caster` copies the spell once for each other creature they control that it could target; each
+        copy targets that creature instead of `source`."""
+        if item not in self.stack:
+            return
+        kind = next((target_kind(e) for e in item.effects if target_kind(e)), None)
+        if kind is None:
+            return
+        legal = [p for _, p in self.target_options(kind, caster, source_qualities(item.card))]
+        for creature in [p for p in caster.battlefield if "Creature" in p.card.type_line and p is not source and p in legal]:
+            targets = [[creature if t is source else t for t in target] if isinstance(target, list) else
+                       creature if target is source else target for target in item.targets]
+            self.stack.append(StackItem(item.card, caster, item.effects, targets, x=item.x, kicked=item.kicked,
+                                        kickers=item.kickers, is_copy=True))
+            self.broadcast({"event": "copied_spell", "seat": caster.index, "card": item.card.name})
+            self._observe("copy", item.card, caster)
 
     def copy_spell(self, item: StackItem, controller: Seat, new_targets: bool = False) -> None:
         """Put a copy of a spell on the stack under `controller`'s control; it resolves first. It isn't cast, and it
@@ -4606,6 +4743,10 @@ def _watch_type_matches(kind: str, card: Card) -> bool:
     "historic spell", "aura, equipment, or vehicle spell", ..."""
     if kind == "spell with {x} in its mana cost":
         return "{X}" in card.mana_cost
+    if kind == "permanent spell with a mana cost that contains {x}":
+        return "{X}" in card.mana_cost and not ("Instant" in card.type_line or "Sorcery" in card.type_line)
+    if kind == "instant or sorcery spell with {x} in its mana cost":
+        return "{X}" in card.mana_cost and ("Instant" in card.type_line or "Sorcery" in card.type_line)
     kind = kind.removesuffix(" spell").removesuffix("spell").strip()
     if not kind or kind in ("expend", "permanent"):  # (an expend watch has no kind of card; a permanent is any)
         return True
@@ -4729,8 +4870,8 @@ def _split_controller(kind: str) -> tuple[str, str | None]:
 
 def _permanent_matches(kind: str, card: Card) -> bool:
     kind = re.sub(r", (?=non)", " ", kind)  # "noncreature, nonland permanent", "nonland, nontoken permanent"
-    if m := re.fullmatch(r"non(white|blue|black|red|green|artifact|creature|land|enchantment) (.+)", kind):  # "nonblack creature"
-        has = m[1].capitalize() in card.type_line if m[1] in ("artifact", "creature", "land", "enchantment") else {
+    if m := re.fullmatch(r"non(white|blue|black|red|green|artifact|creature|land|enchantment|legendary) (.+)", kind):  # "nonblack creature"
+        has = m[1].capitalize() in card.type_line if m[1] in ("artifact", "creature", "land", "enchantment", "legendary") else {
             "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[m[1]] in card.colors
         return not has and _permanent_matches(m[2], card)
     if m := re.fullmatch(r"non-(\w+) (.+)", kind):  # "non-Pilot creature"

@@ -8,6 +8,7 @@ and keywords are read through the game so modifiers count.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -19,6 +20,7 @@ from .mana import Cost
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
 
+MYRIAD_PROMPT = "Myriad: create a token copy of "  # followed by the creature and the opponent; Yes or No
 ATTACK_PROMPT = "Attack with "  # followed by the creature's label
 BLOCK_PROMPT = "Block with "
 ASSIGN_PROMPT = "Damage first to a blocker of "  # followed by the attacker's label
@@ -41,6 +43,7 @@ class Combat:
         self.game = game
         self.attacks: list[Attack] = []
         self.damage_watches: list[tuple[Permanent, Permanent, Any]] = []  # (creature, watcher, effect): Stensian Sanguinist
+        self.exile_at_end: list[Permanent] = []  # myriad tokens: exiled at end of combat
 
     def declare_attackers(self, seat: Seat) -> None:
         """Ask the active player, creature by creature, whether and whom to attack (CR 508.1). The costs to attack are
@@ -84,6 +87,8 @@ class Combat:
             self.game._spend_mana(seat, self.game._pay_cost(seat, Cost(generic=owed)))
         for permanent, defender, walker in declared:
             self.game.trigger("attacks", permanent, seat)
+            if self.game.has_keyword(permanent, "myriad"):
+                self._myriad(permanent, seat, defender)
             if walker is None:
                 self.game.trigger("attacks_player", permanent, seat, player=defender)
             if n := self.game.annihilator(permanent):
@@ -125,6 +130,20 @@ class Combat:
                     if defender is not watcher:
                         for permanent in list(watcher.battlefield):
                             self.game.trigger("attacks_opponent", permanent, watcher, player=seat, x=defender.index)
+
+    def _myriad(self, permanent: Permanent, seat: Seat, defender: Seat) -> None:
+        """Myriad: for each opponent other than the defending player, you may create a token copy of the creature that's tapped
+        and attacking that player; the tokens are exiled at end of combat."""
+        for opponent in self.game.opponents(seat):
+            if opponent is defender or seat.player.choose(MYRIAD_PROMPT + self.game.label(permanent) + f" attacking {opponent.name}?", ["Yes", "No"]) != 0:
+                continue
+            card = permanent.card if permanent.card.type_line.startswith("Token") else dataclasses.replace(
+                permanent.card, type_line="Token " + permanent.card.type_line)
+            for made in self.game.create_tokens(seat, card, 1):
+                made.tapped = True
+                self.attacks.append(Attack(made, seat, opponent))
+                self.exile_at_end.append(made)
+                self.game.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": opponent.index})
 
     @staticmethod
     def _enchanted_by(creature: Permanent, holder: Seat) -> bool:
