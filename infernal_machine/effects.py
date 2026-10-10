@@ -6033,6 +6033,8 @@ def _clauses(sentence: str) -> list[str]:
     sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
     "You create" add nothing."""
     sentence = sentence.replace(" of their choice.", ".")
+    if m := re.match(r"Then (?!if\b)(\w)", sentence):  # "Then creatures you control gain trample ..." (Blossoming Bogbeast): the order is the list's
+        sentence = m[1].upper() + sentence[m.end():]
     sentence = re.sub(r"\b(draws?) (an|a|one|two|three) additional cards?\b",  # Well of Ideas, Midnight Oil
                       lambda m: f"{m[1]} {'a card' if m[2] in ('an', 'a', 'one') else m[2] + ' cards'}", sentence, flags=re.I)
     if m := re.fullmatch(r"(.*)\bhalf X (.+?), rounded (up|down)\.", sentence):  # The Goose Mother: "create half X Food tokens, rounded up."

@@ -74,7 +74,7 @@ class ParseTests(unittest.TestCase):
 
     def test_any_unknown_sentence_means_unsupported(self):
         self.assertIsNone(spell_effects(WEIRD))
-        self.assertIsNone(spell_effects(Card(name="x", oracle_text="Draw two cards. Then discard a card.")))
+        self.assertIsNone(spell_effects(Card(name="x", oracle_text="Draw two cards. Then frobnicate the widget.")))
 
     def test_mana_abilities(self):
         identity = frozenset("GU")
