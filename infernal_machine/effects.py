@@ -4965,6 +4965,17 @@ class SacrificeUnlessReturnLand:
 
 
 @dataclass(frozen=True)
+class SacrificeUnlessPay:
+    """Gateway Plaza and the like: "When this land enters, sacrifice it unless you pay {1}." """
+    cost: str
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target) and not game.pays_unless(controller, self.cost, target.card):
+            game._leave_battlefield(target, "sacrificed")
+
+
+@dataclass(frozen=True)
 class EntersTapped:
     """How a permanent (usually a land) may enter tapped. `kind` is one of: "always",
     "unless_land_types" (checklands), "unless_lands_at_most" (fastlands), "unless_lands_at_least"
@@ -6096,6 +6107,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: EachSacrifices("you", _PLURAL_SACRIFICE[m[2].lower()], _count(m[1]))),
     (re.compile(rf"sacrifice {_SELF} unless you return an untapped ({_LAND_TYPE}) you control to its owner's hand\.", re.I),
      lambda m: SacrificeUnlessReturnLand(m[1].capitalize())),
+    (re.compile(rf"sacrifice {_SELF} unless you pay ((?:\{{[0-9WUBRGC]+\}})+)\.", re.I), lambda m: SacrificeUnlessPay(m[1])),
     (re.compile(r"Let X be (.+)\."), lambda m: DefineX(a) if (a := _amount(m[1])) else None),
     (re.compile(rf"target (player|opponent) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
      lambda m: TargetSacrifices(m[1].lower(), m[2].lower())),
@@ -7400,6 +7412,8 @@ _TAP = r"\{T\}(, Sacrifice (?:CARDNAME|this (?:artifact|creature|permanent|land)
 _IF_TAIL = r"(?: Activate only if (.+)\.)?"
 _ADD_SYMBOLS = re.compile(_TAP + r"((?:\{[WUBRGC]\})+)\." + _IF_TAIL)
 _ADD_EITHER = re.compile(_TAP + r"\{([WUBRGC])\} or \{([WUBRGC])\}\." + _IF_TAIL)
+# Arcane Sanctum, the Cragganwick-style tri-lands: three colors, one mana.
+_ADD_THREE = re.compile(_TAP + r"\{([WUBRGC])\}, \{([WUBRGC])\}, or \{([WUBRGC])\}\." + _IF_TAIL)
 _ADD_ANY = re.compile(_TAP + r"one mana of any color\." + _IF_TAIL)
 _ADD_IDENTITY = re.compile(_TAP + r"one mana of any color in your commander's color identity\." + _IF_TAIL)
 # Gilded Lotus. The engine keeps one option set per mana, so the three are chosen independently: auto-pay may spend
@@ -7567,7 +7581,7 @@ def mana_condition(card: Card) -> "Condition | None":
     return _condition(text) if text else None
 
 
-_MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_ANY, _ADD_IDENTITY, _ADD_ANY_N)
+_MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_THREE, _ADD_ANY, _ADD_IDENTITY, _ADD_ANY_N)
 _PAIN = re.compile(rf"\{{T\}}: Add \{{([WUBRGC])\}} or \{{([WUBRGC])\}}\. {_SELF} deals {_N} damage to you\.", re.I)
 # Ancient Tomb: two mana, and the damage is dealt once however much of it is used.
 _PAIN_MULTI = re.compile(rf"\{{T\}}: Add ((?:\{{[WUBRGC]\}}){{2,}})\. {_SELF} deals {_N} damage to you\.", re.I)
@@ -7710,6 +7724,8 @@ def _mana_from_line(line: str, commander_identity: frozenset[str]) -> list[froze
         return [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2])]
     if m := _ADD_EITHER.fullmatch(line):
         return [frozenset((m[2], m[3]))]
+    if m := _ADD_THREE.fullmatch(line):
+        return [frozenset((m[2], m[3], m[4]))]
     if _ADD_ANY.fullmatch(line):
         return [frozenset("WUBRG")]
     if m := _ADD_ANY_N.fullmatch(line):
