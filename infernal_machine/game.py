@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -2209,6 +2209,8 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
             return False
+        if kind == "in_graveyard":  # Anger: "As long as this card is in your graveyard"
+            return source is not None and any(c is source.card for c in seat.graveyard)
         if kind == "has_exiled_with":  # Currency Converter, Quintorius: "a card exiled with this"
             return source is not None and any(any(c is card for c in owner.exile) for owner, card in source.exiled_with)
         if kind == "x_at_least":  # Kinetic Ooze: the X the resolving spell or ability carries
@@ -3134,7 +3136,8 @@ class Game:
         if controller is None or "Creature" not in permanent.card.type_line:
             return mods
         subtypes = self.subtypes(permanent)
-        for owner, source in [(s, p) for s in self.seats for p in s.battlefield]:
+        in_graveyards = [(s, Permanent(c)) for s in self.seats for c in s.graveyard if graveyard_statics(c)]  # Anger
+        for owner, source in [(s, p) for s in self.seats for p in s.battlefield] + in_graveyards:
             if self.loses_abilities(source):
                 continue
             for buff in static_abilities(source.card):

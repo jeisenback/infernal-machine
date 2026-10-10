@@ -1467,6 +1467,14 @@ def _modifier(m: re.Match, first: int) -> Modifier:
     return Modifier(_signed(p) if p else 0, _signed(t) if t else 0, _keyword_list(keywords) if keywords else frozenset())
 
 
+@lru_cache(maxsize=None)
+def graveyard_statics(card: Card) -> bool:
+    """Whether the card has a static ability that works from the graveyard ("As long as this card is in your graveyard ...")."""
+    return any(b.condition is not None and b.condition.kind == "in_graveyard"
+               or b.condition is not None and b.condition.also is not None and b.condition.also.kind == "in_graveyard"
+               for b in static_abilities(card))
+
+
 @dataclass(frozen=True)
 class StaticBuff:
     """ "(Other) (Elf) creatures you control get +1/+1 (and have flying)." while its source is on the battlefield."""
@@ -6376,7 +6384,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -6395,6 +6403,7 @@ _CONDITIONS = [
     (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
     (re.compile(rf"X is {_N} or more"), lambda m: Condition("x_at_least", _count(m[1]))),
+    (re.compile(r"this card is in your graveyard"), lambda m: Condition("in_graveyard")),
     (re.compile(r"that player controls more lands than you"), lambda m: Condition("player_more_lands")),
     (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),
     (re.compile(rf"that spell's mana value is {_N} or greater"), lambda m: Condition("spell_mv_at_least", _count(m[1]))),

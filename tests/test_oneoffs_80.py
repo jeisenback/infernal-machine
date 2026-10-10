@@ -40,3 +40,43 @@ class BlossomingBogbeastTests(unittest.TestCase):
     def test_the_bonus_counts_all_the_life_gained_this_turn(self):
         game, a = self.attack(gained_before=3)
         self.assertEqual((game.power(self.beast), game.power(self.bear)), (10, 7))  # 3 + 2
+
+
+ANGER = Card(name="Anger", mana_cost="{3}{R}", type_line="Creature — Incarnation", power="2", toughness="2",
+             oracle_text="Haste\nAs long as this card is in your graveyard and you control a Mountain, creatures you control have haste.")
+MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
+
+
+class AngerTests(unittest.TestCase):
+    def table(self, graveyard=(), battlefield=()):
+        game, _ = table3(pick())
+        a, b, _ = game.seats
+        self.bear = Permanent(BEAR, sick=True)
+        a.battlefield = [self.bear, *battlefield]
+        a.graveyard = list(graveyard)
+        return game, a, b
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(ANGER), [])
+
+    def test_in_the_graveyard_with_a_mountain_your_creatures_have_haste(self):
+        game, a, b = self.table([ANGER], [Permanent(MOUNTAIN)])
+        self.assertTrue(game.has_keyword(self.bear, "haste"))
+
+    def test_without_a_mountain_it_does_nothing(self):
+        game, a, b = self.table([ANGER], [Permanent(FOREST)])
+        self.assertFalse(game.has_keyword(self.bear, "haste"))
+
+    def test_on_the_battlefield_it_gives_no_haste_to_others(self):
+        game, a, b = self.table([], [Permanent(ANGER), Permanent(MOUNTAIN)])
+        self.assertFalse(game.has_keyword(self.bear, "haste"))
+
+    def test_in_an_opponents_graveyard_it_does_nothing_for_you(self):
+        game, a, b = self.table([], [Permanent(MOUNTAIN)])
+        b.graveyard = [ANGER]
+        self.assertFalse(game.has_keyword(self.bear, "haste"))
+
+    def test_it_stops_when_the_card_leaves_the_graveyard(self):
+        game, a, b = self.table([ANGER], [Permanent(MOUNTAIN)])
+        a.graveyard = []
+        self.assertFalse(game.has_keyword(self.bear, "haste"))
