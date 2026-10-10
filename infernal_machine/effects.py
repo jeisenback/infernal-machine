@@ -1989,10 +1989,11 @@ def _token_per_prevented(m: re.Match) -> _TokenPerPrevented | None:
 @dataclass(frozen=True)
 class TokensBecomeCopies:
     """Brudiclad: "Then you may choose a token you control. If you do, each other token you control becomes a copy of
-    that token until end of turn." (two sentences, folded together by _merge_token_copies)."""
+    that token." (two sentences, folded together by _merge_token_copies). The older wording ended "until end of turn"."""
+    until_end_of_turn: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.tokens_become_copies(controller)
+        game.tokens_become_copies(controller, self.until_end_of_turn)
 
 
 @dataclass(frozen=True)
@@ -2002,7 +2003,8 @@ class _ChooseToken:
 
 @dataclass(frozen=True)
 class _OthersBecomeCopies:
-    """ "If you do, each other token you control becomes a copy of that token until end of turn." """
+    """ "If you do, each other token you control becomes a copy of that token (until end of turn)." """
+    until_end_of_turn: bool = False
 
 
 def _merge_token_copies(effects: list) -> list | None:
@@ -2012,7 +2014,7 @@ def _merge_token_copies(effects: list) -> list | None:
         if isinstance(effects[i], _ChooseToken):
             if not (i + 1 < len(effects) and isinstance(effects[i + 1], _OthersBecomeCopies)):
                 return None
-            merged.append(TokensBecomeCopies())
+            merged.append(TokensBecomeCopies(effects[i + 1].until_end_of_turn))
             i += 2
             continue
         if isinstance(effects[i], _OthersBecomeCopies):
@@ -5614,8 +5616,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PreventCombatDamageToYou()),
     (re.compile(r'for each 1 damage prevented this way, create (.+)\.("?)', re.I), _token_per_prevented),
     (re.compile(r"(?:then )?you may choose a token you control\.", re.I), lambda m: _ChooseToken()),
-    (re.compile(r"if you do, each other token you control becomes a copy of that token until end of turn\.", re.I),
-     lambda m: _OthersBecomeCopies()),
+    (re.compile(r"if you do, each other token you control becomes a copy of that token( until end of turn)?\.", re.I),
+     lambda m: _OthersBecomeCopies(bool(m[1]))),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
     (re.compile(r'(?i:(?:its|that creature\'s) controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),

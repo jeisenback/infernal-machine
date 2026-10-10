@@ -3236,9 +3236,10 @@ class Game:
             self.at_end_step.append((fire_turn, lambda: self._leave_together(
                 [(p, at_end) for p in made if self.on_battlefield(p)], "exile" if at_end == "exiled" else "graveyard")))
 
-    def tokens_become_copies(self, seat: Seat) -> None:
-        """Brudiclad: `seat` may choose a token they control; each other token they control becomes a copy of it until
-        end of turn (like a crewed Vehicle, the card comes back at cleanup). Counters and damage stay where they are."""
+    def tokens_become_copies(self, seat: Seat, until_end_of_turn: bool = False) -> None:
+        """Brudiclad: `seat` may choose a token they control; each other token they control becomes a copy of it, for good or
+        (the older wording) until end of turn, when like a crewed Vehicle the card comes back at cleanup. Counters and damage
+        stay where they are."""
         tokens = [p for p in seat.battlefield if _is_token(p.card)]
         if not tokens:
             return
@@ -3248,9 +3249,11 @@ class Game:
         chosen = tokens[pick]
         for permanent in tokens:
             if permanent is not chosen:
-                permanent.original = permanent.original or permanent.card
+                was = permanent.card
+                if until_end_of_turn:
+                    permanent.original = permanent.original or permanent.card
                 permanent.card = chosen.card
-                self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.original.name,
+                self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": was.name,
                                 "as": chosen.card.name})
 
     def may_become_copy(self, seat: Seat, permanent: Permanent, cards: list[Card]) -> None:
