@@ -3020,7 +3020,7 @@ _AMOUNTS = [
      lambda m: Amount("auras_on_creatures")),
     (re.compile(r"the number of nontoken creatures you had enter the battlefield under your control this turn", re.I),
      lambda m: Amount("creatures_entered")),
-    (re.compile(r"(?:the number of )?([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters? on (?:it|this creature|this artifact|CARDNAME)",
+    (re.compile(r"(?:the number of )?([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters? on (?:it|this creature|this artifact|this enchantment|CARDNAME)",
                 re.I), lambda m: Amount("source_counters", _counter_name(m[1].lower()))),
     (re.compile(r"(?:the number of )?(?:(creature|land|artifact|enchantment|instant|sorcery|planeswalker) )?cards? in your graveyard",
                 re.I), lambda m: Amount("graveyard", (m[1] or "card").lower())),
@@ -5803,6 +5803,7 @@ _TIMES_X = [
     (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
     (r"\b(creates?) a number of (.+?) tokens\b", r"\1 X \2 tokens"),
     (r"\b(put) (?:a|one) (\+1/\+1) counter\b", r"\1 X \2 counters"),
+    (r"\b(put) a number of (\+1/\+1) counters\b", r"\1 X \2 counters"),
     (r"\b(gets?) ([+\-\u2212])(\d+)/([+\-\u2212])(\d+)\b",  # "+2/+2" for each: +2X/+2X
      lambda m: f"{m[1]} {m[2]}{_times(m[3])}/{m[4]}{_times(m[5])}" if (m[3], m[5]) != ("0", "0") else m[0]),
 ]

@@ -109,3 +109,71 @@ class KineticOozeTests(unittest.TestCase):
         grown = Permanent(BEAR, counters={"+1/+1": 3})
         game, a, b, ooze = self.enter(9, "Bear", mine=[grown])
         self.assertEqual(grown.counters.get("+1/+1"), 3)
+
+
+LIBRARY = Card(name="Lattice Library", mana_cost="{X}{G}{G}", type_line="Enchantment",
+               oracle_text="This enchantment enters with X study counters on it.\nWhen this enchantment enters and whenever you cast "
+                           "your first spell with {X} in its mana cost each turn, create a 0/0 green and blue Fractal creature "
+                           "token. Put a number of +1/+1 counters on it equal to the number of study counters on this enchantment.")
+X_SPELL = Card(name="Blast", mana_cost="{X}{R}", type_line="Sorcery")
+X_SPELL2 = Card(name="Blast Two", mana_cost="{X}{U}", type_line="Instant")
+FLAT_SPELL = Card(name="Flat", mana_cost="{2}{R}", cmc=3.0, type_line="Sorcery")
+
+
+class LatticeLibraryTests(unittest.TestCase):
+    def enter(self, x):
+        game, _ = table3(pick())
+        a = game.seats[0]
+        library = Permanent(LIBRARY, sick=True)
+        game._enter(a, library, x=x)
+        run_stack(game)
+        return game, a, library
+
+    def fractals(self, seat):
+        return sorted(p.counters.get("+1/+1", 0) for p in seat.battlefield if p.card.name == "Fractal")
+
+    def cast(self, game, seat, spell):
+        seat.cast_log.append((game.turn, spell))
+        game._observe("cast", spell, seat)
+        run_stack(game)
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(LIBRARY), [])
+
+    def test_it_enters_with_study_counters_and_makes_a_fractal_of_that_size(self):
+        game, a, library = self.enter(3)
+        self.assertEqual((library.counters.get("study"), self.fractals(a)), (3, [3]))
+
+    def test_the_first_x_spell_each_turn_makes_another(self):
+        game, a, library = self.enter(2)
+        self.cast(game, a, X_SPELL)
+        self.assertEqual(self.fractals(a), [2, 2])
+
+    def test_the_second_x_spell_the_same_turn_does_not(self):
+        game, a, library = self.enter(2)
+        self.cast(game, a, X_SPELL)
+        self.cast(game, a, X_SPELL2)
+        self.assertEqual(self.fractals(a), [2, 2])
+
+    def test_the_next_turn_counts_again(self):
+        game, a, library = self.enter(2)
+        self.cast(game, a, X_SPELL)
+        game.turn += 1
+        self.cast(game, a, X_SPELL2)
+        self.assertEqual(self.fractals(a), [2, 2, 2])
+
+    def test_a_spell_without_x_does_not(self):
+        game, a, library = self.enter(2)
+        self.cast(game, a, FLAT_SPELL)
+        self.assertEqual(self.fractals(a), [2])
+
+    def test_an_opponents_x_spell_does_not(self):
+        game, a, library = self.enter(2)
+        self.cast(game, game.seats[1], X_SPELL)
+        self.assertEqual(self.fractals(a), [2])
+
+    def test_the_fractal_is_as_big_as_the_study_counters_now(self):
+        game, a, library = self.enter(2)
+        library.counters["study"] = 5
+        self.cast(game, a, X_SPELL)
+        self.assertEqual(self.fractals(a), [2, 5])
