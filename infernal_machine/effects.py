@@ -94,6 +94,18 @@ _WHOLE_LINE = re.compile(
     r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
     r"you or planeswalkers you control for as long as it has a vow counter on it\."
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
+    r"|Exile the top (?:eight|seven|six|five) cards of your library\. You may cast an Aura spell from among them without paying its "
+    r"mana cost\. Then put the rest on the bottom of your library in a random order\."
+    r"|Look at the top (?:seven|six|five) cards of your library\. Put any number of nonland permanent cards with total mana value "
+    r"\d+ or less from among them onto the battlefield\. Put the rest on the bottom of your library in a random order\."
+    r"|Each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a nonland "
+    r"card exiled this way\. You may cast up to (?:two|three) spells from among the other cards exiled this way without paying "
+    r"their mana costs\."
+    r"|Reveal cards from the top of your library until you reveal an Aura card\. You may put that card onto the battlefield\. "
+    r"If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\."
+    r"|Look at the top (?:six|seven|eight) cards of your library\. You may put an Aura or Equipment card from among them onto "
+    r"the battlefield\. If an Equipment is put onto the battlefield this way, you may attach it to a creature you control\. "
+    r"Put the rest of those cards on the bottom of your library in a random order\."
     r"|Search your library for a [A-Z][a-z]+ card and put it onto the battlefield tapped\. Then if an opponent controls more "
     r"lands than you, repeat this process once\. If you search your library this way, shuffle\."
     r"|You and target opponent each reveal the top card of your library\. You each lose life equal to the mana value of the "
@@ -979,10 +991,12 @@ class PutCountersOnEach:
     counter: str
     kind: str = ""  # a creature type, "" for every creature
     grant: frozenset[str] = frozenset()  # Ursine Guide's spell: "They gain trample until end of turn."
+    or_vehicle: bool = False  # Ao: "each permanent you control that's a creature or Vehicle"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for permanent in list(controller.battlefield):
-            if "Creature" in permanent.card.type_line and self.kind in permanent.card.type_line:
+            if ("Creature" in permanent.card.type_line or self.or_vehicle and "Vehicle" in permanent.card.type_line) \
+                    and self.kind in permanent.card.type_line:
                 game.put_counters(permanent, self.counter, game.amount(self.count))
                 if self.grant:
                     game.modify_until_end_of_turn(permanent, Modifier(keywords=self.grant))
@@ -3323,6 +3337,23 @@ class CreateTokenAttachSubject:
 
 
 @dataclass(frozen=True)
+class CreateTokenWithGraveyardAttachment:
+    """Forum Filibuster: "Create a 2/1 ... token. When you do, return up to one target Aura or Equipment card from your
+    graveyard to the battlefield attached to that token." (chosen as it resolves rather than targeted)"""
+    token: Card
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for made in game.create_tokens(controller, self.token, 1):
+            game.return_attachment_to(controller, made)
+
+
+@dataclass(frozen=True)
+class _RecallAttachment:
+    """The "When you do, return up to one target Aura or Equipment card from your graveyard to the battlefield attached to
+    that token." sentence; only ever the second step of a CreateTokenWithGraveyardAttachment (see _merge_conditional)."""
+
+
+@dataclass(frozen=True)
 class _AttachItToToken:
     """ "If that enchantment is an Aura, you may attach it to the token." after a CreateTokens (see _merge_conditional)."""
 
@@ -3527,6 +3558,10 @@ def _merge_conditional(effects: list) -> list | None:
             if not (merged and isinstance(merged[-1], (PutCountersOnEach, PutCountersOnEachUpToX))):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], grant=effect.keywords)
+        elif isinstance(effect, _RecallAttachment):
+            if not (merged and isinstance(merged[-1], CreateTokens) and merged[-1].count == 1):
+                return None
+            merged[-1] = CreateTokenWithGraveyardAttachment(merged[-1].token)
         elif isinstance(effect, _AttachItToToken):
             if not (merged and isinstance(merged[-1], CreateTokens) and merged[-1].count == 1):
                 return None
@@ -4235,6 +4270,60 @@ class Impulse:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.look_at_top(controller, game.amount(self.count), self.card_type)
+
+
+@dataclass(frozen=True)
+class LookPutAttachment:
+    """Armored Skyhunter: "Look at the top six cards of your library. You may put an Aura or Equipment card from among them
+    onto the battlefield. If an Equipment is put onto the battlefield this way, you may attach it to a creature you control.
+    Put the rest of those cards on the bottom of your library in a random order." """
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.look_and_put_attachment(controller, self.count)
+
+
+@dataclass(frozen=True)
+class RevealUntilAura:
+    """Songbirds' Blessing: "Reveal cards from the top of your library until you reveal an Aura card. You may put that card
+    onto the battlefield. If you don't, put it into your hand. Put the rest on the bottom of your library in a random
+    order." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.reveal_until_aura(controller)
+
+
+@dataclass(frozen=True)
+class ExileTopCastAura:
+    """Herald of Amity: "Exile the top eight cards of your library. You may cast an Aura spell from among them without paying
+    its mana cost. Then put the rest on the bottom of your library in a random order." """
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_top_cast_aura(controller, self.count)
+
+
+@dataclass(frozen=True)
+class LookPutPermanents:
+    """Ao, the Dawn Sky: "Look at the top seven cards of your library. Put any number of nonland permanent cards with total
+    mana value 4 or less from among them onto the battlefield. Put the rest on the bottom of your library in a random
+    order." """
+    count: int
+    total_mv: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.look_and_put_permanents(controller, self.count, self.total_mv)
+
+
+@dataclass(frozen=True)
+class ExileUntilNonlandCast:
+    """Plargg and Nassari: "Each player exiles cards from the top of their library until they exile a nonland card. An
+    opponent chooses a nonland card exiled this way. You may cast up to two spells from among the other cards exiled this way
+    without paying their mana costs." """
+    casts: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_until_nonland_and_cast(controller, self.casts)
 
 
 @dataclass(frozen=True)
@@ -5022,9 +5111,29 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                                      colors=("G", "U"), power="0", toughness="0"), counters=("X", "+1/+1"))]),
     (re.compile(rf"(?:you )?put {_N} \+1/\+1 counters? on a creature you control\.", re.I),
      lambda m: PutCountersOnChosenCreature(_count(m[1]), "+1/+1")),
+    (re.compile(rf"look at the top {_N} cards of your library\. you may put an Aura or Equipment card from among them onto the "
+                r"battlefield\. If an Equipment is put onto the battlefield this way, you may attach it to a creature you control\. "
+                r"Put the rest of those cards on the bottom of your library in a random order\.", re.I),
+     lambda m: LookPutAttachment(_count(m[1]))),
+    (re.compile(rf"exile the top {_N} cards of your library\. You may cast an Aura spell from among them without paying its mana "
+                r"cost\. Then put the rest on the bottom of your library in a random order\.", re.I),
+     lambda m: ExileTopCastAura(_count(m[1]))),
+    (re.compile(rf"look at the top {_N} cards of your library\. Put any number of nonland permanent cards with total mana value "
+                r"(\d+) or less from among them onto the battlefield\. Put the rest on the bottom of your library in a random order\.",
+                re.I), lambda m: LookPutPermanents(_count(m[1]), int(m[2]))),
+    (re.compile(rf"put {_N} ([+\-\u2212]1/[+\-\u2212]1) counters? on each permanent you control that's a creature or Vehicle\.", re.I),
+     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), or_vehicle=True)),
+    (re.compile(rf"each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a "
+                rf"nonland card exiled this way\. You may cast up to {_N} spells from among the other cards exiled this way without "
+                r"paying their mana costs\.", re.I), lambda m: ExileUntilNonlandCast(_count(m[1]))),
+    (re.compile(r"reveal cards from the top of your library until you reveal an Aura card\. You may put that card onto the "
+                r"battlefield\. If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\.",
+                re.I), lambda m: RevealUntilAura()),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
     (re.compile(r"attach (?:this Aura|CARDNAME) to it\.", re.I), lambda m: AttachThisToSubject()),
     (re.compile(r"if that enchantment is an Aura, you may attach it to the token\.", re.I), lambda m: _AttachItToToken()),
+    (re.compile(r"when you do, return up to one target Aura or Equipment card from your graveyard to the battlefield attached to "
+                r"that token\.", re.I), lambda m: _RecallAttachment()),
     (re.compile(r"the token created this way gains haste\.", re.I), lambda m: _PopulatedTokenRider(haste=True)),
     (re.compile(r"sacrifice it at the beginning of the next end step\.", re.I), lambda m: _PopulatedTokenRider(sacrifice=True)),
     (re.compile(r'(?:it has|they have) "(.+)"', re.I), lambda m: _ItHas(m[1]) if _is_known_ability(m[1]) else None),
@@ -6414,7 +6523,7 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
 _PUT_IT = re.compile(r"\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
-                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b", re.I)
+                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b", re.I)
 
 
 _TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')
