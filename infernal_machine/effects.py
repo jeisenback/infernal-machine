@@ -2252,6 +2252,38 @@ class PutExiledWithIntoGraveyard:
             game.create_tokens(controller, self.land_token if "Land" in card.type_line else self.nonland_token, 1)
 
 
+_CLASS_LEVEL_LINE = re.compile(r"((?:\{[^}]+\})+): Level (\d)")
+
+
+def is_class(card: Card) -> bool:
+    return "Class" in card.type_line
+
+
+@lru_cache(maxsize=None)
+def class_view(card: Card, level: int) -> Card:
+    """A Class card as it reads at `level`: the abilities of the levels up to it, and the "{cost}: Level N" line that gains the next
+    level (rules_lines has the reminder text already removed)."""
+    kept, at = [], 1
+    for line in rules_lines(card):
+        if m := _CLASS_LEVEL_LINE.fullmatch(line):
+            at = int(m[2])
+            if at == level + 1:
+                kept.append(line)
+        elif at <= level:
+            kept.append(line)
+    return dataclasses.replace(card, oracle_text="\n".join(kept))
+
+
+@dataclass(frozen=True)
+class LevelUp:
+    """Class: "{1}{B}: Level 2": the Class gains the next level (only at sorcery speed, and only the level after its own)."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.class_level_up(target)
+
+
 @dataclass(frozen=True)
 class CastExiledWithFree:
     """Quintorius: "Choose target card exiled with Quintorius. You may cast that card this turn without paying its mana cost. If
@@ -5204,8 +5236,16 @@ def granted_affinity(card: Card) -> str | None:
     return next((m[1].lower() for line in rules_lines(card) if (m := _GRANTED_AFFINITY.fullmatch(line))), None)
 
 
+_NON_HAND_REDUCTION = re.compile(r"Spells you cast from anywhere other than your hand cost \{(\d)\} less to cast\.")
+
+
+def non_hand_cost_reduction(card: Card) -> int:
+    """Advanced Reconstruction's third level: spells you cast from anywhere other than your hand cost {2} less."""
+    return sum(int(m[1]) for line in rules_lines(card) if (m := _NON_HAND_REDUCTION.fullmatch(line)))
+
+
 def is_cost_reduction_line(line: str) -> bool:
-    return any(p.fullmatch(line) for p in (_REDUCTION, _PER_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY)) \
+    return any(p.fullmatch(line) for p in (_REDUCTION, _PER_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY, _NON_HAND_REDUCTION)) \
         or (m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None
 
 
@@ -5664,6 +5704,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"level \d", re.I), lambda m: LevelUp()),
     (re.compile(r"if this spell was cast from a graveyard, you may copy this spell and may choose a new target for the copy\.", re.I),
      lambda m: MayCopyThisSpellFromGraveyard()),
     (re.compile(r"return target permanent card with mana value (\d+) or less from your graveyard to the battlefield\.", re.I),
@@ -7134,6 +7175,8 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
         return None
     if any(isinstance(e, ReturnThisFromGraveyard) for e in effects):
         fields["from_graveyard"] = True
+    if any(isinstance(e, LevelUp) for e in effects):
+        fields["sorcery_speed"] = True
     if any(getattr(e, "needs_exiled_with", False) for e in effects):
         fields["condition"] = Condition("has_exiled_with")
     if fields.get("condition") and any(isinstance(e, AddMana) for e in effects):
