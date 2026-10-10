@@ -1638,7 +1638,8 @@ class Game:
                 limit = self.targeting_x if getattr(effect, "up_to_x", False) else (
                     self.targeting_max if self.targeting_max is not None else MAX_TARGETS)
                 for _ in range(limit):
-                    pool = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors)) if i not in taken_here]
+                    pool = [(i, o) for i, o in enumerate(self.target_options(kind, seat, colors)) if i not in taken_here
+                            and not (getattr(effect, "another", False) and o[1] is source)]  # "other target creatures"
                     if not pool:
                         break
                     pick = seat.player.choose(TARGET_PROMPT + source_name,
@@ -2181,6 +2182,8 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
             return False
+        if kind == "x_at_least":  # Kinetic Ooze: the X the resolving spell or ability carries
+            return self.x_value >= condition.count
         if kind == "attackers_at_most":
             return x <= condition.count
         if kind == "defender_more_life":  # Breena: x is the seat attacked; it has more life than another of the opponents
@@ -4285,7 +4288,7 @@ class Game:
             if seat.creatures_entered_turn != self.turn:
                 seat.creatures_entered_turn, seat.creatures_entered = self.turn, 0
             seat.creatures_entered += 1
-        self.trigger("enters", permanent, seat)
+        self.trigger("enters", permanent, seat, x=x)  # the X it was cast with ("destroy ... with mana value X or less")
         if not permanent.tapped:
             self.trigger("enters_untapped", permanent, seat)
         if saga_chapters(permanent.card):

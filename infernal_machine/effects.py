@@ -2221,6 +2221,26 @@ class DoubleCountersOnTarget:
 
 
 @dataclass(frozen=True)
+class DoubleCountersOnTargets:
+    """Kinetic Ooze: "If X is 10 or more, double the number of +1/+1 counters on any number of other target creatures." Targets
+    are chosen whatever X is; nothing is doubled below `min_x`."""
+    counter: str
+    target: str
+    min_x: int
+    another = True
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.x_value < self.min_x:
+            return
+        for creature in target or []:
+            if game.on_battlefield(creature) and creature.counters.get(self.counter):
+                game.put_counters(creature, self.counter, creature.counters[self.counter])
+
+
+@dataclass(frozen=True)
 class ReturnSelfToBattlefield:
     """ "When this creature dies, return it to the battlefield (tapped)." It comes back as a new object under its
     owner's control; a token is gone for good."""
@@ -2423,6 +2443,16 @@ def _animate(m: re.Match, target: str | None, offset: int = 0) -> Animate:
 
 
 def _merge_token_counters(effects: list) -> list | None:
+    if any(isinstance(e, _PutCountersAndAttach) for e in effects):  # Fractal Harness
+        merged_attach: list = []
+        for effect in effects:
+            if isinstance(effect, _PutCountersAndAttach):
+                if not (merged_attach and isinstance(merged_attach[-1], CreateTokens) and merged_attach[-1].count == 1):
+                    return None
+                merged_attach[-1] = CreateTokenAttachSource(merged_attach[-1].token, (effect.count, effect.counter))
+            else:
+                merged_attach.append(effect)
+        effects = merged_attach
     """"Create a 0/0 Fractal creature token. Put X +1/+1 counters on it." is one CreateTokens whose tokens come in with
     the counters (the second sentence means the new token, not the ability's source)."""
     merged: list = []
@@ -3416,6 +3446,26 @@ class CreateTokenAttachSubject:
         made = game.create_tokens(controller, self.token, 1)
         if made and target is not None and "Aura" in target.card.type_line and game.on_battlefield(target):
             game.may_attach(controller, target, made[0])
+
+
+@dataclass(frozen=True)
+class CreateTokenAttachSource:
+    """Fractal Harness: "Create a 0/0 ... Fractal creature token. Put X +1/+1 counters on it and attach this Equipment to it." """
+    token: Card
+    counters: tuple[int | str, str]
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for made in game.create_tokens(controller, self.token, 1, (game.amount(self.counters[0]), self.counters[1])):
+            if target is not None:
+                game.attach(target, made)
+
+
+@dataclass(frozen=True)
+class _PutCountersAndAttach:
+    """The second sentence of Fractal Harness: "Put X +1/+1 counters on it and attach this Equipment to it." """
+    count: int | str
+    counter: str
 
 
 @dataclass(frozen=True)
@@ -5217,6 +5267,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
     (re.compile(r"attach (?:this Aura|CARDNAME) to it\.", re.I), lambda m: AttachThisToSubject()),
     (re.compile(r"if that enchantment is an Aura, you may attach it to the token\.", re.I), lambda m: _AttachItToToken()),
+    (re.compile(rf"put {_N} ([+\-\u2212]1/[+\-\u2212]1) counters? on it and attach (?:this Equipment|CARDNAME) to it\.", re.I),
+     lambda m: _PutCountersAndAttach(_count(m[1]), _counter_name(m[2]))),
     (re.compile(r"when you do, return up to one target Aura or Equipment card from your graveyard to the battlefield attached to "
                 r"that token\.", re.I), lambda m: _RecallAttachment()),
     (re.compile(r"the token created this way gains haste\.", re.I), lambda m: _PopulatedTokenRider(haste=True)),
@@ -5238,6 +5290,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
+    (re.compile(r"if (X is \d+ or more), (?!double the number)(.+)\.", re.I), _then_if),
+    (re.compile(rf"if X is {_N} or more, double the number of ([+\-\u2212]1/[+\-\u2212]1) counters on any number of other target "
+                r"creatures\.", re.I), lambda m: DoubleCountersOnTargets(_counter_name(m[2]), "creature", int(m[1]))),
+    (re.compile(r"destroy up to one target (artifact or enchantment) with mana value X or less\.", re.I),
+     lambda m: Destroy(f"{m[1].lower()} with mana value x or less", optional_target=True)),
     (re.compile(rf"exile {_N} cards from your graveyard\.", re.I), lambda m: ExileOwnGraveyard(_count(m[1]))),
     (re.compile(r"if you do, (.+)\.", re.I), _if_you_do),
     (re.compile(r'if an? (creature) card is exiled this way, (create .+?)(\."?)', re.I), _if_exiled),
@@ -6114,7 +6171,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -6132,6 +6189,7 @@ _CONDITIONS = [
     (re.compile(rf"you gained {_N} or more life this turn"), lambda m: Condition("gained_life_at_least", _count(m[1]))),
     (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
+    (re.compile(rf"X is {_N} or more"), lambda m: Condition("x_at_least", _count(m[1]))),
     (re.compile(r"that player controls more lands than you"), lambda m: Condition("player_more_lands")),
     (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),
     (re.compile(rf"that spell's mana value is {_N} or greater"), lambda m: Condition("spell_mv_at_least", _count(m[1]))),
