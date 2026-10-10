@@ -75,3 +75,95 @@ class SkyhunterTests(unittest.TestCase):
         a = self.attack([BLIGHT, FOREST, FOREST, FOREST, FOREST, FOREST], "Blight")
         self.assertEqual(self.names(a), ["Bear", "Skyhunter"])
         self.assertEqual(len(a.library), 16)
+
+
+SONGBIRDS = Card(name="Songbirds' Blessing", mana_cost="{1}{G}", type_line="Enchantment — Aura",
+                 oracle_text="Enchant creature\nWhenever enchanted creature attacks, reveal cards from the top of your library "
+                             "until you reveal an Aura card. You may put that card onto the battlefield. If you don't, put it "
+                             "into your hand. Put the rest on the bottom of your library in a random order.")
+
+
+class SongbirdsBlessingTests(unittest.TestCase):
+    def attack(self, library, *choices):
+        game, _ = table3(pick(*choices))
+        a, b, _ = game.seats
+        bear = Permanent(BEAR)
+        songbirds = Permanent(SONGBIRDS, attached_to=bear)
+        a.battlefield = [bear, songbirds]
+        a.library = list(library)
+        game.trigger("host_attacks", songbirds, a, bear)
+        run_stack(game)
+        return a
+
+    def names(self, seat):
+        return sorted(p.card.name for p in seat.battlefield)
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(SONGBIRDS), [])
+
+    def test_the_aura_may_be_put_onto_the_battlefield(self):
+        a = self.attack([FOREST, FOREST, BOON, RELIC], "Yes", "Bear")
+        self.assertEqual(self.names(a), ["Bear", "Boon", "Songbirds' Blessing"])
+        self.assertEqual(sorted(c.name for c in a.library), ["Forest", "Forest", "Relic"])
+
+    def test_declining_puts_it_into_the_hand(self):
+        a = self.attack([FOREST, BOON, RELIC], "No")
+        self.assertEqual([c.name for c in a.hand], ["Boon"])
+        self.assertEqual(self.names(a), ["Bear", "Songbirds' Blessing"])
+
+    def test_the_cards_below_the_aura_stay_in_place(self):
+        a = self.attack([FOREST, BOON, RELIC, RELIC], "No")
+        self.assertEqual([c.name for c in a.library][:2], ["Relic", "Relic"])  # untouched, on top; the revealed Forest went under
+
+    def test_an_aura_with_nothing_to_enchant_goes_to_the_hand(self):
+        a = self.attack([BLIGHT, FOREST], "Yes")
+        self.assertEqual([c.name for c in a.hand], ["Blight"])
+
+    def test_no_aura_in_the_library_puts_every_card_back_underneath(self):
+        a = self.attack([FOREST, RELIC, FOREST])
+        self.assertEqual((a.hand, len(a.library)), ([], 3))
+
+
+HERALD = card("Flying\nWhen this creature enters, exile the top eight cards of your library. You may cast an Aura spell from "
+              "among them without paying its mana cost. Then put the rest on the bottom of your library in a random order.\n"
+              "Whenever this creature attacks, it gets +X/+X until end of turn, where X is the number of Auras you control.",
+              "Herald", "Creature — Griffin")
+
+
+class HeraldOfAmityTests(unittest.TestCase):
+    def enter(self, top, *choices):
+        game, _ = table3(pick(*choices))
+        a = game.seats[0]
+        herald, bear = Permanent(HERALD), Permanent(BEAR)
+        a.battlefield = [herald, bear]
+        a.library = list(top) + [FOREST] * 10
+        fire(game, a, herald, "enters")
+        return a, bear
+
+    def names(self, seat):
+        return sorted(p.card.name for p in seat.battlefield)
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(HERALD), [])
+
+    def test_an_aura_is_cast_for_free_and_the_rest_go_underneath(self):
+        a, bear = self.enter([FOREST, BOON] + [RELIC] * 6, "Boon", "Bear")
+        boon = next(p for p in a.battlefield if p.card.name == "Boon")
+        self.assertIs(boon.attached_to, bear)
+        self.assertEqual((a.exile, len(a.library)), ([], 17))  # 18 cards, 8 exiled, 7 back underneath, 10 below
+
+    def test_declining_puts_all_eight_underneath(self):
+        a, bear = self.enter([FOREST, BOON] + [RELIC] * 6, "Take none")
+        self.assertEqual((self.names(a), a.exile, len(a.library)), (["Bear", "Herald"], [], 18))
+
+    def test_no_aura_among_them_does_nothing(self):
+        a, bear = self.enter([RELIC] * 8)
+        self.assertEqual((self.names(a), a.exile, len(a.library)), (["Bear", "Herald"], [], 18))
+
+    def test_an_aura_with_no_legal_target_is_not_offered(self):
+        a, bear = self.enter([BLIGHT] + [RELIC] * 7, "Blight")
+        self.assertEqual((self.names(a), a.exile, len(a.library)), (["Bear", "Herald"], [], 18))
+
+    def test_only_the_top_eight_are_exiled(self):
+        a, bear = self.enter([FOREST] * 8 + [BOON], "Boon")
+        self.assertEqual(self.names(a), ["Bear", "Herald"])

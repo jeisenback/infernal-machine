@@ -94,6 +94,10 @@ _WHOLE_LINE = re.compile(
     r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
     r"you or planeswalkers you control for as long as it has a vow counter on it\."
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
+    r"|Exile the top (?:eight|seven|six|five) cards of your library\. You may cast an Aura spell from among them without paying its "
+    r"mana cost\. Then put the rest on the bottom of your library in a random order\."
+    r"|Reveal cards from the top of your library until you reveal an Aura card\. You may put that card onto the battlefield\. "
+    r"If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\."
     r"|Look at the top (?:six|seven|eight) cards of your library\. You may put an Aura or Equipment card from among them onto "
     r"the battlefield\. If an Equipment is put onto the battlefield this way, you may attach it to a creature you control\. "
     r"Put the rest of those cards on the bottom of your library in a random order\."
@@ -4252,6 +4256,26 @@ class LookPutAttachment:
 
 
 @dataclass(frozen=True)
+class RevealUntilAura:
+    """Songbirds' Blessing: "Reveal cards from the top of your library until you reveal an Aura card. You may put that card
+    onto the battlefield. If you don't, put it into your hand. Put the rest on the bottom of your library in a random
+    order." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.reveal_until_aura(controller)
+
+
+@dataclass(frozen=True)
+class ExileTopCastAura:
+    """Herald of Amity: "Exile the top eight cards of your library. You may cast an Aura spell from among them without paying
+    its mana cost. Then put the rest on the bottom of your library in a random order." """
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_top_cast_aura(controller, self.count)
+
+
+@dataclass(frozen=True)
 class PutBackTop:
     """ "Look at the top three cards of your library, then put them back in any order. (You may shuffle.)" """
     count: int
@@ -5040,6 +5064,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield\. If an Equipment is put onto the battlefield this way, you may attach it to a creature you control\. "
                 r"Put the rest of those cards on the bottom of your library in a random order\.", re.I),
      lambda m: LookPutAttachment(_count(m[1]))),
+    (re.compile(rf"exile the top {_N} cards of your library\. You may cast an Aura spell from among them without paying its mana "
+                r"cost\. Then put the rest on the bottom of your library in a random order\.", re.I),
+     lambda m: ExileTopCastAura(_count(m[1]))),
+    (re.compile(r"reveal cards from the top of your library until you reveal an Aura card\. You may put that card onto the "
+                r"battlefield\. If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\.",
+                re.I), lambda m: RevealUntilAura()),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
     (re.compile(r"attach (?:this Aura|CARDNAME) to it\.", re.I), lambda m: AttachThisToSubject()),
     (re.compile(r"if that enchantment is an Aura, you may attach it to the token\.", re.I), lambda m: _AttachItToToken()),
@@ -6432,7 +6462,7 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
 _PUT_IT = re.compile(r"\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
-                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b", re.I)
+                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b", re.I)
 
 
 _TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')
