@@ -1129,3 +1129,5 @@ You can connect by hand with `nc localhost 4000`.
 ```
 python3 -m unittest discover -s tests -t .
 ```
+
+The same command runs on every pull request and every push to `main` (`.github/workflows/tests.yml`), on Python 3.11 and 3.13.

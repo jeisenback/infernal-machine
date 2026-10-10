@@ -47,7 +47,8 @@ class WebClientTests(unittest.TestCase):
 
     def test_the_view_has_the_welcome_the_board_and_the_prompt_and_a_click_answers(self):
         self.server.send({"type": "welcome", "seat": 0})
-        view = self.view()
+        while (view := self.view())["me"] is None or not view["lines"]:
+            pass  # the client thread has not handled the welcome yet
         self.assertEqual((view["name"], view["me"], view["state"], view["prompt"], view["over"]), ("Alice", 0, None, None, False))
         self.assertIn("Joined the table at seat 0.", view["lines"])
         game, _, _ = table()
