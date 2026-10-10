@@ -183,7 +183,7 @@ class LatticeLibraryTests(unittest.TestCase):
 INFINISCOPE = Card(name="Brass Infiniscope", mana_cost="{4}", cmc=4.0, type_line="Artifact",
                    oracle_text="{T}: Add {C}{C}. When you next cast a spell with {X} in its mana cost this turn, you draw a card and "
                                "gain half X life, rounded down.")
-BLAST = Card(name="Blast", mana_cost="{X}{R}", type_line="Sorcery", oracle_text="Draw a card.")
+BLAST = Card(name="Blast", mana_cost="{X}{1}", type_line="Sorcery", oracle_text="Draw a card.")
 
 
 class BrassInfiniscopeTests(unittest.TestCase):
@@ -226,13 +226,13 @@ class BrassInfiniscopeTests(unittest.TestCase):
 
     def test_it_is_only_for_the_next_x_spell(self):
         game, a, gained = self.play(BLAST, 1, lands_in_play=3)
-        a.hand.append(Card(name="Blast Two", mana_cost="{X}{U}", type_line="Sorcery", oracle_text="Draw a card."))
+        a.hand.append(Card(name="Blast Two", mana_cost="{X}{1}", type_line="Sorcery", oracle_text="Draw a card."))
         before = (a.life, len(a.hand))
         for p in a.battlefield:
             p.tapped = p.card.name == "Brass Infiniscope"  # only the lands are untapped: the scope arms nothing again
         game._perform(a, CAST + "Blast Two")
         run_stack(game)
-        self.assertEqual(a.life, before[0])
+        self.assertEqual((a.life, len(a.hand)), (before[0], before[1] - 1 + 1))  # the spell's own card, no rider card
 
     def test_a_trigger_set_up_on_an_earlier_turn_is_forgotten(self):
         game, a, gained = self.play(Card(name="Flat", mana_cost="{4}", cmc=4.0, type_line="Sorcery", oracle_text="Draw a card."), 0, lands_in_play=2)
@@ -244,4 +244,4 @@ class BrassInfiniscopeTests(unittest.TestCase):
         a.life = 40
         game._perform(a, CAST + "Blast")
         run_stack(game)
-        self.assertEqual((a.life - 40, len(a.hand)), (0, 1))  # X=0 gains nothing, but a second leftover trigger would draw
+        self.assertEqual((a.life - 40, len(a.hand)), (0, 2))  # the spell's own card and one rider card; a leftover trigger would add another
