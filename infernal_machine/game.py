@@ -136,6 +136,7 @@ CAST_FREE_PROMPT = "Cast an Aura spell from among the exiled cards without payin
 PUT_PERMANENT_PROMPT = "Put a nonland permanent card onto the battlefield"  # then NONE_TAKEN to stop
 SET_ASIDE_PROMPT = "Choose a nonland card exiled this way; it can't be cast"
 CAST_FREE_EXILED_PROMPT = "Cast a spell from among the other exiled cards without paying its mana cost"  # then NONE_TAKEN
+CHOOSE_EXILED_WITH_PROMPT = "Choose a card exiled with this permanent"
 LOOK_PROMPT = "Take a card from the top of your library"  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
 PUT_CREATURE_PROMPT = "Put a creature card from your hand onto the battlefield"  # options are card names, then NONE_TAKEN
@@ -1452,6 +1453,7 @@ class Game:
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
         self._move_card(seat, card, "exile")
+        self._note_exiled_with(seat, card)
         self._left_graveyard(seat, [card])
         self._exiled_from_library_or_graveyard(seat)
         if play_this_turn and card in seat.exile:
@@ -2194,6 +2196,8 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
             return False
+        if kind == "has_exiled_with":  # Currency Converter, Quintorius: "a card exiled with this"
+            return source is not None and any(any(c is card for c in owner.exile) for owner, card in source.exiled_with)
         if kind == "x_at_least":  # Kinetic Ooze: the X the resolving spell or ability carries
             return self.x_value >= condition.count
         if kind == "attackers_at_most":
@@ -3015,9 +3019,16 @@ class Game:
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
         self._move_card(seat, card, "exile")
+        self._note_exiled_with(seat, card)
         self._left_graveyard(seat, [card])
         self._exiled_from_library_or_graveyard(seat)
         return True
+
+    def _note_exiled_with(self, owner: Seat, card: Card) -> None:
+        """The card in `owner`'s exile was exiled by the ability that is resolving: "a card exiled with this artifact"."""
+        source = self.resolving_source
+        if source is not None and not _is_token(card) and any(c is card for c in owner.exile):
+            source.exiled_with.append((owner, card))
 
     def _left_graveyard(self, seat: Seat, cards: list[Card] | tuple = ()) -> None:
         """One or more cards just left `seat`'s graveyard, as one event. `cards` are those that left, when the caller
@@ -3926,6 +3937,18 @@ class Game:
         self.rng.shuffle(top)
         seat.library += top
         self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
+
+    def put_exiled_with_into_graveyard(self, seat: Seat, source: Permanent) -> Card | None:
+        """Currency Converter: a card exiled with `source` (the player chooses) goes to its owner's graveyard; returns it."""
+        options = [(owner, card) for owner, card in source.exiled_with if any(c is card for c in owner.exile)]
+        if not options:
+            return None
+        pick = 0 if len(options) == 1 else seat.player.choose(CHOOSE_EXILED_WITH_PROMPT, [card.name for _, card in options])
+        owner, card = options[pick]
+        owner.exile = [c for c in owner.exile if c is not card]
+        source.exiled_with = [pair for pair in source.exiled_with if pair[1] is not card]
+        self._move_card(owner, card, "graveyard")
+        return card
 
     def reveal_lands(self, seat: Seat, count: int, until_lands: bool, untap_if: "Condition | None") -> None:
         """Animist's Awakening and Open the Way: reveal the top `count` cards (or cards until `count` lands); the lands go onto the
