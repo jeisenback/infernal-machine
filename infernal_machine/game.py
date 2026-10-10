@@ -2869,6 +2869,22 @@ class Game:
             self.combat.attacks.append(Attack(made, seat, defender))
             self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": defender.index})
 
+    def copy_entered_tokens_attacking(self, seat: Seat, source: Permanent) -> None:
+        """Redoubled Stormsinger: for each creature token `seat` controls that entered this turn, a tapped and attacking copy
+        attacks whom `source` attacks; the copies are sacrificed as the next end step begins."""
+        attack = next((a for a in self.combat.attacks if a.attacker is source), None)
+        originals = [p for p in seat.battlefield if "Creature" in p.card.type_line and _is_token(p.card) and p.entered_turn == self.turn]
+        copies = []
+        for original in originals:
+            for made in self.create_tokens(seat, original.card, 1):
+                made.tapped = True
+                if attack is not None:
+                    self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
+                    self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": attack.defender.index})
+                copies.append(made)
+        if copies:
+            self.leave_at_next_end_step(copies, "sacrificed", "graveyard")
+
     def put_from_hand(self, seat: Seat, kind: str, tapped: bool = False) -> None:
         """"You may put a creature card from your hand onto the battlefield.": you choose one, or none."""
         options = [c for c in seat.hand if _card_matches(kind, c)]

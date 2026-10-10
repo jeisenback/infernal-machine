@@ -125,6 +125,8 @@ _WHOLE_LINE = re.compile(
     r"|Each opponent creates a token that's a copy of it\. The tokens are goaded for the rest of the game\."
     r"|Create (?:a token that's a copy of|five tokens that are copies of) another target creature you control(?:, except it "
     r"isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the next end step\."
+    r"|For each creature token you control that entered this turn, create a tapped and attacking token that's a copy of that token\. "
+    r"At the beginning of the next end step, sacrifice those tokens\."
     r"|Create X tokens that are copies of another target creature you control, where X is one plus the number of instant and "
     r"sorcery spells you've cast this turn\. They gain haste\. Exile them at the beginning of the next end step\."
     r"|Target player draws cards equal to half the number of cards in their library and loses half their life\. "
@@ -2108,6 +2110,18 @@ class AttackerCreatesAttackingToken:
         item = game.resolving_item
         if target is not None and item is not None and game.combat is not None:
             game.token_attacking(target, self.token, game.seats[item.x])
+
+
+@dataclass(frozen=True)
+class CopyEnteredTokensAttacking:
+    """Redoubled Stormsinger: "For each creature token you control that entered this turn, create a tapped and attacking token
+    that's a copy of that token. At the beginning of the next end step, sacrifice those tokens." The copies attack whom the
+    attacking source attacks."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.copy_entered_tokens_attacking(controller, target)
 
 
 @dataclass(frozen=True)
@@ -5323,6 +5337,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(, except it isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the "
                 r"next end step\.", re.I),
      lambda m: CopiesOfAnotherCreature(5 if m[1] else 1, bool(m[2]))),
+    (re.compile(r"for each creature token you control that entered this turn, create a tapped and attacking token that's a copy of that "
+                r"token\. At the beginning of the next end step, sacrifice those tokens\.", re.I),
+     lambda m: CopyEnteredTokensAttacking()),
     (re.compile(r"create X tokens that are copies of another target creature you control, where X is one plus the number of instant "
                 r"and sorcery spells you've cast this turn\. They gain haste\. Exile them at the beginning of the next end step\.",
                 re.I), lambda m: [DefineX(Amount("one_plus_spells", "instant or sorcery spell")),

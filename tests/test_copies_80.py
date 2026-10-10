@@ -86,3 +86,52 @@ class RionyaTests(unittest.TestCase):
     def test_the_target_is_another_creature_not_rionya(self):
         game, a = self.combat(target="Rionya")
         self.assertEqual([p for p in a.battlefield if p.card.name == "Rionya, Fire Dancer"][1:], [])
+
+
+STORMSINGER = card("First strike\nWhenever this creature attacks, for each creature token you control that entered this turn, "
+                   "create a tapped and attacking token that's a copy of that token. At the beginning of the next end step, "
+                   "sacrifice those tokens.", "Stormsinger", "Creature — Orc Wizard")
+SOLDIER = Card(name="Soldier", type_line="Token Creature — Soldier", power="1", toughness="1")
+TREASURE = Card(name="Treasure", type_line="Token Artifact — Treasure", oracle_text="{T}, Sacrifice this artifact: Add one mana of any color.")
+
+
+class RedoubledStormsingerTests(unittest.TestCase):
+    def attack(self):
+        picks = iter([2])
+        policy = lambda prompt, options: next(picks, 0) if prompt.startswith("Attack") and len(options) > 1 else 0
+        game, _ = table3(policy)
+        a, b, c = game.seats
+        self.singer = Permanent(STORMSINGER, sick=False)
+        self.fresh = Permanent(SOLDIER, sick=True, entered_turn=game.turn)
+        self.old = Permanent(SOLDIER, sick=True, entered_turn=game.turn - 1)
+        self.card = Permanent(BEAR_CARD, sick=True, entered_turn=game.turn)
+        self.treasure = Permanent(TREASURE, entered_turn=game.turn)
+        a.battlefield = [self.singer, self.fresh, self.old, self.card, self.treasure]
+        game.combat.declare_attackers(a)
+        run_stack(game)
+        return game, a
+
+    def copies(self, game, a):
+        return [at for at in game.combat.attacks if at.attacker not in a.battlefield[:5]]
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(STORMSINGER), [])
+
+    def test_a_tapped_attacking_copy_of_each_token_that_entered_this_turn(self):
+        game, a = self.attack()
+        [copy] = self.copies(game, a)
+        self.assertEqual((copy.attacker.card.name, copy.attacker.tapped), ("Soldier", True))
+        self.assertIs(copy.defender, next(at.defender for at in game.combat.attacks if at.attacker is self.singer))
+
+    def test_older_tokens_nontokens_and_noncreatures_are_not_copied(self):
+        game, a = self.attack()
+        self.assertEqual(len(self.copies(game, a)), 1)
+        self.assertEqual(len([p for p in a.battlefield if p.card.name == "Treasure"]), 1)
+        self.assertEqual(len([p for p in a.battlefield if p.card.name == "Bear"]), 1)
+
+    def test_the_copies_are_sacrificed_at_the_next_end_step(self):
+        game, a = self.attack()
+        game.step = "end"
+        game._turn_based_actions(a)
+        run_stack(game)
+        self.assertEqual(len([p for p in a.battlefield if p.card.name == "Soldier"]), 2)  # the two originals remain
