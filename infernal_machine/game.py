@@ -3975,6 +3975,18 @@ class Game:
         source.exiled_with = [pair for pair in source.exiled_with if pair[1] is not card]
         self._cast(seat, card, owner.exile, free=True, bottom_after=bottom_after)
 
+    def each_player_exiles_graveyard_card(self, starting: Seat) -> int:
+        """Augusta, Order Returned: each player exiles a card from their graveyard (their choice); returns how many of the cards
+        exiled were nonland."""
+        nonland = 0
+        for seat in [s for s in self._turn_order(starting.index) if not s.lost]:
+            if not seat.graveyard:
+                continue
+            card = seat.graveyard[seat.player.choose(EXILE_COST_PROMPT, [c.name for c in seat.graveyard])]
+            self.exile_card_from_graveyard(seat, card, False)
+            nonland += "Land" not in card.type_line
+        return nonland
+
     def put_exiled_with_into_graveyard(self, seat: Seat, source: Permanent) -> Card | None:
         """Currency Converter: a card exiled with `source` (the player chooses) goes to its owner's graveyard; returns it."""
         options = [(owner, card) for owner, card in source.exiled_with if any(c is card for c in owner.exile)]

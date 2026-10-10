@@ -105,6 +105,8 @@ _WHOLE_LINE = re.compile(
     r"the battlefield with a finality counter on it\. It's a 1/1 Spirit creature with flying in addition to its other types\."
     r"|Choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana cost\. If "
     r"that spell would be put into a graveyard, put it on the bottom of its owner's library instead\."
+    r"|Each player exiles a card from their graveyard\. When one or more nonland cards are exiled this way, put that many \+1/\+1 "
+    r"counters on target attacking creature\."
     r"|Copy that ability\. You may choose new targets for the copy\."
     r"|Put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a Treasure token\. "
     r"If it's a nonland card, create an? .+ token\."
@@ -2259,6 +2261,18 @@ class CastExiledWithFree:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.cast_exiled_with_free(controller, target, self.bottom_after)
+
+
+@dataclass(frozen=True)
+class EachExilesGraveyardCardCounters:
+    """Augusta, Order Returned: "each player exiles a card from their graveyard. When one or more nonland cards are exiled this way,
+    put that many +1/+1 counters on target attacking creature." (the target is chosen with the trigger)"""
+    target: str = "attacking creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        count = game.each_player_exiles_graveyard_card(controller)
+        if count and target is not None and game.on_battlefield(target):
+            game.put_counters(target, "+1/+1", count)
 
 
 @dataclass(frozen=True)
@@ -5617,6 +5631,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"each player exiles a card from their graveyard\. When one or more nonland cards are exiled this way, put that many "
+                r"\+1/\+1 counters on target attacking creature\.", re.I), lambda m: EachExilesGraveyardCardCounters()),
     (re.compile(r"return up to one target artifact, creature, or non-Aura enchantment card with mana value (\d+) or less from your "
                 r"graveyard to the battlefield with a finality counter on it\. It's a 1/1 Spirit creature with flying in addition to "
                 r"its other types\.", re.I),

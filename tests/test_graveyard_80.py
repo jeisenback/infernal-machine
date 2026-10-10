@@ -4,7 +4,7 @@ Sevinne's Reclamation. Lines are the cards' own Oracle text from Scryfall; each 
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.game import CAST, Permanent
+from infernal_machine.game import CAST, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR, OGRE
 from tests.test_effects import lands, pick
@@ -206,3 +206,52 @@ class ExcavaTests(unittest.TestCase):
         a.battlefield = [bear]
         game._leave_battlefield(bear, "destroyed")
         self.assertEqual(a.exile, [])
+
+
+AUGUSTA = Card(name="Augusta, Order Returned", mana_cost="{2}{W}", type_line="Legendary Creature — Spirit Advisor", power="3", toughness="3",
+               oracle_text="Flying, vigilance\nWhenever Augusta attacks, each player exiles a card from their graveyard. When one or "
+                           "more nonland cards are exiled this way, put that many +1/+1 counters on target attacking creature.")
+
+
+class AugustaTests(unittest.TestCase):
+    def attack(self, graveyards, *choices):
+        """Seat A attacks with Augusta and a Bear; the targeted attacker is picked by `choices`."""
+        wanted = choices[0] if choices else "Augusta"
+
+        def policy(prompt, options):  # the first option for everything, but the creature that gets the counters
+            return next((i for i, option in enumerate(options) if option.startswith(wanted)), 0) if prompt.startswith(TARGET_PROMPT) else 0
+        game, _ = table3(policy, pick("Forest", "Golem"), pick("Forest", "Golem"))
+        a, b, c = game.seats
+        self.augusta, self.bear = Permanent(AUGUSTA), Permanent(BEAR)
+        a.battlefield = [self.augusta, self.bear]
+        for seat, cards in zip(game.seats, graveyards):
+            seat.graveyard = list(cards)
+        from infernal_machine.combat import Attack
+        game.combat.attacks = [Attack(self.augusta, a, b), Attack(self.bear, a, b)]
+        game.trigger("attacks", self.augusta, a)
+        run_stack(game)
+        return game
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(AUGUSTA), [])
+
+    def test_each_player_exiles_a_card_and_each_nonland_gives_a_counter(self):
+        game = self.attack([[GOLEM, FOREST], [FOREST, GOLEM], [GOLEM]])
+        a, b, c = game.seats
+        self.assertEqual([len(s.exile) for s in game.seats], [1, 1, 1])
+        total = self.augusta.counters.get("+1/+1", 0) + self.bear.counters.get("+1/+1", 0)
+        self.assertEqual(total, 2)  # A and C exiled a nonland card; B chose its Forest
+
+    def test_lands_give_no_counters(self):
+        game = self.attack([[FOREST], [FOREST], [FOREST]])
+        self.assertEqual(self.augusta.counters.get("+1/+1", 0) + self.bear.counters.get("+1/+1", 0), 0)
+        self.assertEqual([len(s.exile) for s in game.seats], [1, 1, 1])
+
+    def test_a_player_with_an_empty_graveyard_exiles_nothing(self):
+        game = self.attack([[], [GOLEM], []])
+        self.assertEqual([len(s.exile) for s in game.seats], [0, 1, 0])
+        self.assertEqual(self.augusta.counters.get("+1/+1", 0) + self.bear.counters.get("+1/+1", 0), 1)
+
+    def test_the_counters_go_on_the_chosen_attacking_creature(self):
+        game = self.attack([[GOLEM], [GOLEM], []], "Bear")
+        self.assertEqual((self.bear.counters.get("+1/+1"), self.augusta.counters.get("+1/+1")), (2, None))
