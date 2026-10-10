@@ -1,5 +1,5 @@
-session: claude-code activated-73
-branch: claude/activated-73
-task: issue #73 activated abilities; audit found every line already built with #80
-status: README fixed, checklist not yet ticked
-updated: 2026-10-10T17:02:36Z
+session: claude-code sweep-152
+branch: claude/sweep-152
+task: issue #152 play the 12 removal and mass-effect spells from real Oracle text
+status: tests done, no engine bugs found, committing
+updated: 2026-10-10T17:21:30Z
