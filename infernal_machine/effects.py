@@ -105,6 +105,8 @@ _WHOLE_LINE = re.compile(
     r"the battlefield with a finality counter on it\. It's a 1/1 Spirit creature with flying in addition to its other types\."
     r"|Choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana cost\. If "
     r"that spell would be put into a graveyard, put it on the bottom of its owner's library instead\."
+    r"|Exile up to one target instant or sorcery card from your graveyard and copy it\. You may cast the copy without paying its "
+    r"mana cost\."
     r"|Each player exiles a card from their graveyard\. When one or more nonland cards are exiled this way, put that many \+1/\+1 "
     r"counters on target attacking creature\."
     r"|Copy that ability\. You may choose new targets for the copy\."
@@ -2273,6 +2275,23 @@ class EachExilesGraveyardCardCounters:
         count = game.each_player_exiles_graveyard_card(controller)
         if count and target is not None and game.on_battlefield(target):
             game.put_counters(target, "+1/+1", count)
+
+
+@dataclass(frozen=True)
+class ExileThenCastCopy:
+    """Renegade Bull: "Exile up to one target instant or sorcery card from your graveyard and copy it. You may cast the copy without
+    paying its mana cost." """
+    target: str = "graveyard:instant or sorcery:yours"
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None or not game.exile_from_graveyard(target):
+            return
+        if controller.player.choose(CAST_COPY_PROMPT + target.card.name, ["Yes", "No"]) == 0:
+            game.cast_copy_free(controller, target.card)
+
+
+CAST_COPY_PROMPT = "Cast a copy without paying its mana cost: "  # followed by the card's name; Yes or No
 
 
 @dataclass(frozen=True)
@@ -5631,6 +5650,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"exile up to one target instant or sorcery card from your graveyard and copy it\. You may cast the copy without "
+                r"paying its mana cost\.", re.I), lambda m: ExileThenCastCopy()),
     (re.compile(r"each player exiles a card from their graveyard\. When one or more nonland cards are exiled this way, put that many "
                 r"\+1/\+1 counters on target attacking creature\.", re.I), lambda m: EachExilesGraveyardCardCounters()),
     (re.compile(r"return up to one target artifact, creature, or non-Aura enchantment card with mana value (\d+) or less from your "

@@ -255,3 +255,45 @@ class AugustaTests(unittest.TestCase):
     def test_the_counters_go_on_the_chosen_attacking_creature(self):
         game = self.attack([[GOLEM], [GOLEM], []], "Bear")
         self.assertEqual((self.bear.counters.get("+1/+1"), self.augusta.counters.get("+1/+1")), (2, None))
+
+
+BULL = Card(name="Renegade Bull", mana_cost="{4}{R}", type_line="Creature — Ox", power="4", toughness="4",
+            oracle_text="Trample\nWhenever you cast an instant or sorcery spell, this creature gets +X/+0 until end of turn, where X "
+                        "is that spell's mana value.\nWhenever this creature attacks, exile up to one target instant or sorcery card "
+                        "from your graveyard and copy it. You may cast the copy without paying its mana cost.")
+STUDY2 = Card(name="Study", mana_cost="{2}{U}", cmc=3.0, type_line="Sorcery", oracle_text="Draw two cards.")
+
+
+class RenegadeBullTests(unittest.TestCase):
+    def attack(self, graveyard, *choices):
+        game, _ = table3(pick(*choices))
+        a = game.seats[0]
+        bull = Permanent(BULL)
+        a.battlefield = [bull]
+        a.graveyard = list(graveyard)
+        a.library = [FOREST] * 10
+        fire(game, a, bull, "attacks")
+        return game, a
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(BULL), [])
+
+    def test_the_card_is_exiled_and_its_copy_cast_for_free(self):
+        game, a = self.attack([STUDY2], "Study", "Yes")
+        self.assertEqual((len(a.hand), [c.name for c in a.exile], a.graveyard), (2, ["Study"], []))
+
+    def test_the_copy_ceases_to_exist_rather_than_going_to_the_graveyard(self):
+        game, a = self.attack([STUDY2], "Study", "Yes")
+        self.assertEqual(a.graveyard, [])
+
+    def test_the_copy_may_be_left_uncast(self):
+        game, a = self.attack([STUDY2], "Study", "No")
+        self.assertEqual((len(a.hand), [c.name for c in a.exile]), (0, ["Study"]))
+
+    def test_only_an_instant_or_sorcery_can_be_chosen(self):
+        game, a = self.attack([GOLEM, FOREST], "Golem")
+        self.assertEqual(([c.name for c in a.graveyard], a.exile), (["Golem", "Forest"], []))
+
+    def test_up_to_one_it_may_choose_nothing(self):
+        game, a = self.attack([STUDY2], "No target")
+        self.assertEqual(([c.name for c in a.graveyard], a.exile, len(a.hand)), (["Study"], [], 0))
