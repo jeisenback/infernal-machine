@@ -1133,3 +1133,5 @@ python3 -m unittest discover -s tests -t .
 The same command runs on every pull request and every push to `main` (`.github/workflows/tests.yml`), on Python 3.11 and 3.13.
 
 A second workflow (`.github/workflows/precon-report.yml`) runs the card report on each deck in `examples/precons` and fails if any card has an unsupported line. It runs when the engine or the decks change, and every Monday, since Scryfall's Oracle text can change.
+
+A third workflow (`.github/workflows/bot-games.yml`) plays 120 four-player bot games between the precon decks in six parallel jobs of 20 and fails if any game raises an exception. It runs on the same triggers. Game `g` uses seed `g`, so a failing seed replays with `python tools/bot_games.py --start SEED --games 1`.

@@ -1,0 +1,38 @@
+name: bot games
+on:
+  pull_request:
+    paths: ["infernal_machine/**", "examples/precons/**", "tools/bot_games.py", ".github/workflows/bot-games.yml"]
+  push:
+    branches: [main]
+    paths: ["infernal_machine/**", "examples/precons/**", "tools/bot_games.py", ".github/workflows/bot-games.yml"]
+  schedule:
+    - cron: "43 6 * * 1"  # Mondays, after the precon report
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bot-games-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  games:
+    name: games (from seed ${{ matrix.start }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        start: [0, 20, 40, 60, 80, 100]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Get this week's cache key
+        id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/oracle_bulk.json
+          key: oracle-bulk-${{ steps.week.outputs.week }}
+      - name: Twenty four-player games between the precon decks, none may crash
+        run: python tools/bot_games.py --start ${{ matrix.start }} --games 20
