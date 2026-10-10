@@ -30,6 +30,7 @@ SUPPORTED_KEYWORDS = {
     "ascend",  # the city's blessing for a permanent that has it
     "exalted",
     "decayed",  # can't block; sacrificed at end of combat when it attacks
+    "myriad",  # a tapped and attacking copy for each opponent other than the defending player, exiled at end of combat
 }
 # Lines that only matter when building the deck, which commander.py checks.
 _DECKBUILDING = re.compile(

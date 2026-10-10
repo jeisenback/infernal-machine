@@ -135,3 +135,97 @@ class RedoubledStormsingerTests(unittest.TestCase):
         game._turn_based_actions(a)
         run_stack(game)
         self.assertEqual(len([p for p in a.battlefield if p.card.name == "Soldier"]), 2)  # the two originals remain
+
+
+MUDDLE = Card(name="Muddle, the Ever-Changing", mana_cost="{1}{U}{R}", type_line="Legendary Creature — Elemental Otter Shapeshifter",
+              power="1", toughness="1",
+              oracle_text="Whenever you cast an instant or sorcery spell, Muddle, the Ever-Changing becomes a copy of up to one "
+                          "target nonlegendary creature you control until end of turn, except it has myriad. (Whenever it "
+                          "attacks, for each opponent other than defending player, you may create a token copy that's tapped "
+                          "and attacking that player or a planeswalker they control. Exile the tokens at end of combat.)")
+KING = Card(name="King", mana_cost="{2}{W}", cmc=3.0, type_line="Legendary Creature — Human", power="3", toughness="3")
+MYRIAD_BEAR = Card(name="Myriad Bear", type_line="Creature — Bear", power="2", toughness="2", oracle_text="Myriad")
+
+
+class MuddleTests(unittest.TestCase):
+    def cast(self, spell, target="Bear", caster=0):
+        game, _ = table3(pick(target))
+        a, b, c = game.seats
+        self.muddle, self.bear = Permanent(MUDDLE), Permanent(BEAR_CARD)
+        self.king, self.theirs = Permanent(KING), Permanent(BEAR_CARD)
+        a.battlefield, b.battlefield = [self.muddle, self.bear, self.king], [self.theirs]
+        game.seats[caster].cast_log.append((game.turn, spell))
+        game._observe("cast", spell, game.seats[caster])
+        run_stack(game)
+        return game, a
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(MUDDLE), [])
+
+    def test_it_becomes_a_copy_with_myriad_until_end_of_turn(self):
+        game, a = self.cast(BOLT)
+        self.assertEqual((self.muddle.card.name, game.power(self.muddle)), ("Bear", 2))
+        self.assertTrue(game.has_keyword(self.muddle, "myriad"))
+        self.assertEqual(self.muddle.original.name, "Muddle, the Ever-Changing")  # restored at cleanup
+
+    def test_a_creature_spell_does_not_trigger_it(self):
+        game, a = self.cast(BEAR_CARD)
+        self.assertEqual(self.muddle.card.name, "Muddle, the Ever-Changing")
+
+    def test_an_opponents_spell_does_not_trigger_it(self):
+        game, a = self.cast(BOLT, caster=1)
+        self.assertEqual(self.muddle.card.name, "Muddle, the Ever-Changing")
+
+    def test_it_may_copy_nothing(self):
+        game, a = self.cast(BOLT, target="No target")
+        self.assertEqual(self.muddle.card.name, "Muddle, the Ever-Changing")
+
+    def test_legendary_creatures_and_opponents_creatures_are_not_offered(self):
+        offered = []
+        game, _ = table3(lambda prompt, options: offered.append(list(options)) or len(options) - 1)
+        a, b, _ = game.seats
+        muddle = Permanent(MUDDLE)
+        a.battlefield, b.battlefield = [muddle, Permanent(KING)], [Permanent(BEAR_CARD)]
+        a.cast_log.append((game.turn, BOLT))
+        game._observe("cast", BOLT, a)
+        run_stack(game)
+        self.assertEqual(muddle.card.name, "Muddle, the Ever-Changing")
+        self.assertTrue(all("King" not in "".join(o) and "Bear" not in "".join(o) for o in offered))
+
+
+class MyriadTests(unittest.TestCase):
+    def attack(self, answer="Yes", opponents=2):
+        picks = iter([1])
+        yes = lambda prompt, options: (next(picks, 0) if prompt.startswith("Attack") and len(options) > 1
+                                       else options.index("Yes") if answer == "Yes" and "Yes" in options else
+                                       options.index("No") if "No" in options else 0)
+        game, _ = table3(yes)
+        a, b, c = game.seats
+        self.creature = Permanent(MYRIAD_BEAR, sick=False)
+        a.battlefield = [self.creature]
+        game.combat.declare_attackers(a)
+        run_stack(game)
+        return game, a, b, c
+
+    def tokens(self, game, a):
+        return [at for at in game.combat.attacks if at.attacker is not self.creature]
+
+    def test_the_keyword_is_supported(self):
+        self.assertEqual(unsupported_lines(MYRIAD_BEAR), [])
+
+    def test_a_copy_attacks_each_other_opponent(self):
+        game, a, b, c = self.attack()
+        [token] = self.tokens(game, a)
+        self.assertEqual((token.attacker.card.name, token.attacker.tapped), ("Myriad Bear", True))
+        self.assertIs(token.defender, c)  # the creature attacks b; the copy attacks c
+
+    def test_the_copies_are_exiled_at_end_of_combat(self):
+        game, a, b, c = self.attack()
+        game.step = "main2"
+        game._turn_based_actions(a)
+        run_stack(game)
+        self.assertEqual([p.card.name for p in a.battlefield], ["Myriad Bear"])
+
+    def test_it_is_optional(self):
+        game, a, b, c = self.attack(answer="No")
+        self.assertEqual(self.tokens(game, a), [])

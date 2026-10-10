@@ -2,4 +2,4 @@ session: claude-code triggers-80-copy
 branch: claude/triggers-80-copy
 task: issue #80 fifth batch (copy family), stacked on claude/triggers-80-look (PR 143)
 status: in progress
-updated: 2026-10-10T05:20:16Z
+updated: 2026-10-10T05:25:43Z

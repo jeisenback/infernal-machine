@@ -601,6 +601,8 @@ class Game:
                       and self.on_battlefield(a.attacker)]
             if doomed:  # decayed: sacrifice it at end of combat
                 self._leave_together([(p, "sacrificed") for p in doomed])
+            if tokens := [p for p in self.combat.exile_at_end if self.on_battlefield(p)]:  # myriad
+                self._leave_together([(p, "exiled") for p in tokens], "exile")
             self.combat = Combat(self)  # CR 511.3: creatures leave combat
             self._add_delayed_mana(seat)
             for permanent in list(seat.battlefield):
@@ -3274,6 +3276,16 @@ class Game:
                 self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": was.name,
                                 "as": chosen.card.name})
 
+    def become_copy_until_end_of_turn(self, permanent: Permanent, copied: Permanent, keyword: str) -> None:
+        """`permanent` becomes a copy of `copied`, except it has `keyword`, until end of turn (the card comes back at cleanup).
+        Counters and damage stay where they are."""
+        permanent.original = permanent.original or permanent.card
+        card = copied.card
+        text = (card.oracle_text + f"\n{keyword}").strip()
+        permanent.card = dataclasses.replace(card, type_line=card.type_line.removeprefix("Token "), oracle_text=text)
+        self.broadcast({"event": "copied_permanent", "seat": self.controller_of(permanent).index,
+                        "card": permanent.original.name, "as": card.name})
+
     def may_become_copy(self, seat: Seat, permanent: Permanent, cards: list[Card]) -> None:
         """`permanent` may become a copy of one of `cards` until end of turn (like a crewed Vehicle, its card comes back at
         cleanup). Counters and damage stay where they are."""
@@ -4750,8 +4762,8 @@ def _split_controller(kind: str) -> tuple[str, str | None]:
 
 def _permanent_matches(kind: str, card: Card) -> bool:
     kind = re.sub(r", (?=non)", " ", kind)  # "noncreature, nonland permanent", "nonland, nontoken permanent"
-    if m := re.fullmatch(r"non(white|blue|black|red|green|artifact|creature|land|enchantment) (.+)", kind):  # "nonblack creature"
-        has = m[1].capitalize() in card.type_line if m[1] in ("artifact", "creature", "land", "enchantment") else {
+    if m := re.fullmatch(r"non(white|blue|black|red|green|artifact|creature|land|enchantment|legendary) (.+)", kind):  # "nonblack creature"
+        has = m[1].capitalize() in card.type_line if m[1] in ("artifact", "creature", "land", "enchantment", "legendary") else {
             "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[m[1]] in card.colors
         return not has and _permanent_matches(m[2], card)
     if m := re.fullmatch(r"non-(\w+) (.+)", kind):  # "non-Pilot creature"

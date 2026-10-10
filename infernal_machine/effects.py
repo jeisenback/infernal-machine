@@ -2113,6 +2113,20 @@ class AttackerCreatesAttackingToken:
 
 
 @dataclass(frozen=True)
+class BecomeCopyUntilEndOfTurn:
+    """Muddle, the Ever-Changing: "... becomes a copy of up to one target nonlegendary creature you control until end of turn,
+    except it has myriad." The source takes on the target's card (and `keyword`) until cleanup."""
+    keyword: str
+    target: str = "nonlegendary creature you control"
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        source = game.resolving_source
+        if target is not None and source is not None and game.on_battlefield(source):
+            game.become_copy_until_end_of_turn(source, target, self.keyword)
+
+
+@dataclass(frozen=True)
 class CopyEnteredTokensAttacking:
     """Redoubled Stormsinger: "For each creature token you control that entered this turn, create a tapped and attacking token
     that's a copy of that token. At the beginning of the next end step, sacrifice those tokens." The copies attack whom the
@@ -5337,6 +5351,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(, except it isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the "
                 r"next end step\.", re.I),
      lambda m: CopiesOfAnotherCreature(5 if m[1] else 1, bool(m[2]))),
+    (re.compile(rf"{_SELF} becomes a copy of up to one target nonlegendary creature you control until end of turn, except it has "
+                r"([a-z]+)\.", re.I), lambda m: BecomeCopyUntilEndOfTurn(m[1].capitalize())),
     (re.compile(r"for each creature token you control that entered this turn, create a tapped and attacking token that's a copy of that "
                 r"token\. At the beginning of the next end step, sacrifice those tokens\.", re.I),
      lambda m: CopyEnteredTokensAttacking()),
@@ -6549,7 +6565,7 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
 _PUT_IT = re.compile(r"\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
-                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b", re.I)
+                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bexcept it has [a-z]+\b", re.I)
 
 
 _TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')
