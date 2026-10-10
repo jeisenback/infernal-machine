@@ -133,6 +133,9 @@ ORDER_TOP_PROMPT = "Put on top next"  # options are card names; asked while two 
 PUT_ATTACHMENT_PROMPT = "Put an Aura or Equipment onto the battlefield"  # options are card names, then NONE_TAKEN
 EQUIP_PROMPT = "Attach it to which creature? "  # followed by the Equipment's name; the last option leaves it unattached
 CAST_FREE_PROMPT = "Cast an Aura spell from among the exiled cards without paying its mana cost"  # then NONE_TAKEN
+PUT_PERMANENT_PROMPT = "Put a nonland permanent card onto the battlefield"  # then NONE_TAKEN to stop
+SET_ASIDE_PROMPT = "Choose a nonland card exiled this way; it can't be cast"
+CAST_FREE_EXILED_PROMPT = "Cast a spell from among the other exiled cards without paying its mana cost"  # then NONE_TAKEN
 LOOK_PROMPT = "Take a card from the top of your library"  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
 PUT_CREATURE_PROMPT = "Put a creature card from your hand onto the battlefield"  # options are card names, then NONE_TAKEN
@@ -3880,6 +3883,82 @@ class Game:
             seat.exile = [e for e in seat.exile if e is not card]
         self.rng.shuffle(rest)
         seat.library += rest
+
+    def return_attachment_to(self, seat: Seat, host: Permanent) -> None:
+        """Forum Filibuster: return up to one Aura or Equipment card from `seat`'s graveyard to the battlefield attached to
+        `host` (an Aura only if it could enchant it)."""
+        def fits(card: Card) -> bool:
+            if "Equipment" in card.type_line:
+                return True
+            return "Aura" in card.type_line and any(
+                p is host for _, p in self.target_options(aura_kind(card) or "creature", seat, source_qualities(card)))
+        options = _unique([c for c in seat.graveyard if fits(c)])
+        if not options:
+            return
+        choice = seat.player.choose(RETURN_CHOSEN_PROMPT, [c.name for c in options] + [NONE_TAKEN])
+        if choice >= len(options):
+            return
+        card = options[choice]
+        seat.graveyard.remove(card)
+        self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "battlefield"})
+        self._left_graveyard(seat, [card])
+        self._enter(seat, Permanent(card, sick=True, attached_to=host, owner=seat))
+        self.broadcast({"event": "attached", "card": card.name, "to": host.card.name})
+
+    def look_and_put_permanents(self, seat: Seat, count: int, total_mv: int) -> None:
+        """Ao, the Dawn Sky: look at the top `count` cards; put any number of nonland permanent cards with total mana value
+        `total_mv` or less from among them onto the battlefield; the rest go to the bottom in a random order."""
+        top = seat.library[:count]
+        del seat.library[:len(top)]
+        left = total_mv
+        while True:
+            options = _unique([c for c in top if "Land" not in c.type_line and c.cmc <= left
+                               and _card_matches("permanent", c) and ("Aura" not in c.type_line or self._can_put_attachment(seat, c))])
+            if not options:
+                break
+            choice = seat.player.choose(PUT_PERMANENT_PROMPT + f" (mana value {left} or less left)", [c.name for c in options] + [NONE_TAKEN])
+            if choice >= len(options):
+                break
+            card = options[choice]
+            top.remove(card)
+            left -= int(card.cmc)
+            if "Aura" in card.type_line:
+                self.put_attachment_onto_battlefield(seat, card)
+            else:
+                self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": False})
+                self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card)))
+        self.rng.shuffle(top)
+        seat.library += top
+        self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
+
+    def exile_until_nonland_and_cast(self, seat: Seat, casts: int) -> None:
+        """Plargg and Nassari: each player exiles cards from the top of their library until they exile a nonland card; an
+        opponent of `seat` chooses one of those nonland cards; `seat` may cast up to `casts` spells from among the others
+        without paying their mana costs. Cards not cast stay exiled."""
+        found: list[tuple[Seat, Card]] = []
+        for player in self.live_seats():
+            while player.library:
+                card = player.library.pop(0)
+                self.broadcast({"event": "exiled_from_library", "seat": player.index, "cards": [card.name], "may_play": False})
+                self._move_card(player, card, "exile")
+                if "Land" not in card.type_line:
+                    found.append((player, card))
+                    break
+        others = list(found)
+        chooser = next(iter(self.opponents(seat)), None)
+        if len(found) > 1 and chooser is not None:
+            aside = chooser.player.choose(SET_ASIDE_PROMPT, [card.name for _, card in found])
+            others.pop(aside)
+        for _ in range(casts):
+            options = [(owner, card) for owner, card in others if any(c is card for c in owner.exile)]
+            if not options:
+                return
+            choice = seat.player.choose(CAST_FREE_EXILED_PROMPT, [card.name for _, card in options] + [NONE_TAKEN])
+            if choice >= len(options):
+                return
+            owner, card = options[choice]
+            others = [pair for pair in others if pair[1] is not card]
+            self._cast(seat, card, owner.exile, free=True)
 
     def add_combat(self, main: bool) -> None:
         """An additional combat phase (and main phase) right after the current phase (CR 500.8)."""

@@ -167,3 +167,184 @@ class HeraldOfAmityTests(unittest.TestCase):
     def test_only_the_top_eight_are_exiled(self):
         a, bear = self.enter([FOREST] * 8 + [BOON], "Boon")
         self.assertEqual(self.names(a), ["Bear", "Herald"])
+
+
+FILIBUSTER = Card(name="Forum Filibuster", mana_cost="{3}{W}", type_line="Enchantment",
+                  oracle_text="At the beginning of your upkeep, create a 2/1 white and black Inkling creature token with flying. "
+                              "When you do, return up to one target Aura or Equipment card from your graveyard to the "
+                              "battlefield attached to that token.")
+
+
+class ForumFilibusterTests(unittest.TestCase):
+    def upkeep(self, graveyard, *choices):
+        game, _ = table3(pick(*choices))
+        a = game.seats[0]
+        filibuster = Permanent(FILIBUSTER)
+        a.battlefield = [filibuster]
+        a.graveyard = list(graveyard)
+        fire(game, a, filibuster, "upkeep")
+        return a
+
+    def inkling(self, seat):
+        return next((p for p in seat.battlefield if p.card.name == "Inkling"), None)
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(FILIBUSTER), [])
+
+    def test_the_token_comes_with_an_aura_from_the_graveyard(self):
+        a = self.upkeep([BOON, RELIC], "Boon")
+        boon = next(p for p in a.battlefield if p.card.name == "Boon")
+        self.assertIs(boon.attached_to, self.inkling(a))
+        self.assertEqual([c.name for c in a.graveyard], ["Relic"])
+
+    def test_or_an_equipment(self):
+        a = self.upkeep([SWORD], "Sword")
+        sword = next(p for p in a.battlefield if p.card.name == "Sword")
+        self.assertIs(sword.attached_to, self.inkling(a))
+
+    def test_an_empty_graveyard_still_makes_the_token(self):
+        a = self.upkeep([])
+        self.assertIsNotNone(self.inkling(a))
+
+    def test_it_may_be_declined(self):
+        a = self.upkeep([BOON], "Take none")
+        self.assertEqual(([p.card.name for p in a.battlefield], [c.name for c in a.graveyard]),
+                         (["Forum Filibuster", "Inkling"], ["Boon"]))
+
+    def test_an_aura_that_cannot_enchant_the_token_is_not_offered(self):
+        a = self.upkeep([BLIGHT], "Blight")
+        self.assertEqual(([p.card.name for p in a.battlefield], [c.name for c in a.graveyard]),
+                         (["Forum Filibuster", "Inkling"], ["Blight"]))
+
+
+AO = Card(name="Ao, the Dawn Sky", mana_cost="{3}{W}{W}", type_line="Legendary Creature — Dragon Spirit", power="5", toughness="4",
+          oracle_text="Flying, vigilance\nWhen Ao dies, choose one —\n• Look at the top seven cards of your library. Put any "
+                      "number of nonland permanent cards with total mana value 4 or less from among them onto the battlefield. "
+                      "Put the rest on the bottom of your library in a random order.\n• Put two +1/+1 counters on each permanent "
+                      "you control that's a creature or Vehicle.")
+PAIR = Card(name="Pair", mana_cost="{1}{G}", cmc=2.0, type_line="Creature — Bear", power="2", toughness="2")
+TRIPLE = Card(name="Triple", mana_cost="{2}{G}", cmc=3.0, type_line="Creature — Bear", power="3", toughness="3")
+IDOL = Card(name="Idol", mana_cost="{1}", cmc=1.0, type_line="Artifact")
+BOON2 = Card(name="Boon2", mana_cost="{1}{W}", cmc=2.0, type_line="Enchantment — Aura", oracle_text="Enchant creature")
+SPELL = Card(name="Bolt", mana_cost="{R}", cmc=1.0, type_line="Instant")
+CART = Card(name="Cart", type_line="Artifact — Vehicle", power="3", toughness="3")
+
+
+class AoTheDawnSkyTests(unittest.TestCase):
+    def dies(self, mode, top=(), *choices):
+        game, _ = table3(pick(mode, *choices))
+        a = game.seats[0]
+        ao = Permanent(AO)
+        self.pair = Permanent(PAIR)
+        a.battlefield = [ao, self.pair]
+        a.library = list(top) + [FOREST] * 10
+        fire(game, a, ao, "dies")
+        return a
+
+    def names(self, seat):
+        return sorted(p.card.name for p in seat.battlefield)
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(AO), [])
+
+    def test_cards_totalling_four_or_less_enter(self):
+        a = self.dies("Look at", (PAIR, TRIPLE, IDOL, SPELL, FOREST), "Pair", "Idol", "Take none")
+        self.assertEqual(self.names(a), ["Ao, the Dawn Sky", "Idol", "Pair", "Pair"])
+        self.assertEqual(len(a.library), 13)  # 15 cards, 2 taken
+
+    def test_a_card_that_would_go_over_the_total_is_not_offered(self):
+        a = self.dies("Look at", (PAIR, TRIPLE), "Pair", "Triple")  # Triple (3) no longer fits in 2
+        self.assertEqual(self.names(a), ["Ao, the Dawn Sky", "Pair", "Pair"])
+
+    def test_lands_and_spells_are_never_put_onto_the_battlefield(self):
+        a = self.dies("Look at", (FOREST, SPELL), "Forest", "Bolt")
+        self.assertEqual(self.names(a), ["Ao, the Dawn Sky", "Pair"])
+
+    def test_an_aura_goes_onto_a_creature(self):
+        a = self.dies("Look at", (BOON2,), "Boon2", "Pair")
+        boon = next(p for p in a.battlefield if p.card.name == "Boon2")
+        self.assertIs(boon.attached_to, self.pair)
+
+    def test_an_aura_with_nothing_to_enchant_is_not_offered(self):
+        a = self.dies("Look at", (BLIGHT,), "Blight")
+        self.assertEqual((self.names(a), len(a.library)), (["Ao, the Dawn Sky", "Pair"], 11))
+
+    def test_only_the_top_seven_are_looked_at(self):
+        a = self.dies("Look at", [FOREST] * 7 + [IDOL], "Idol")
+        self.assertEqual(self.names(a), ["Ao, the Dawn Sky", "Pair"])
+
+    def test_taking_none_leaves_everything_underneath(self):
+        a = self.dies("Look at", (IDOL,), "Take none")
+        self.assertEqual((self.names(a), len(a.library)), (["Ao, the Dawn Sky", "Pair"], 11))
+
+    def test_the_counter_mode_covers_creatures_and_vehicles_only(self):
+        game, _ = table3(pick("Put two"))
+        a, b, _ = game.seats
+        ao, cart, idol, theirs = Permanent(AO), Permanent(CART), Permanent(IDOL), Permanent(PAIR)
+        a.battlefield, b.battlefield = [ao, cart, idol], [theirs]
+        fire(game, a, ao, "dies")
+        self.assertEqual([p.counters.get("+1/+1") for p in (ao, cart, idol, theirs)], [2, 2, None, None])
+
+
+PLARGG = Card(name="Plargg and Nassari", mana_cost="{3}{U}{R}", type_line="Legendary Creature — Orc Efreet", power="4", toughness="4",
+              oracle_text="At the beginning of your upkeep, each player exiles cards from the top of their library until they "
+                          "exile a nonland card. An opponent chooses a nonland card exiled this way. You may cast up to two "
+                          "spells from among the other cards exiled this way without paying their mana costs.")
+ALPHA = Card(name="Alpha", mana_cost="{2}{G}", cmc=3.0, type_line="Creature — Bear", power="2", toughness="2")
+BETA = Card(name="Beta", mana_cost="{3}{R}", cmc=4.0, type_line="Creature — Imp", power="2", toughness="2")
+GAMMA = Card(name="Gamma", mana_cost="{4}{U}", cmc=5.0, type_line="Creature — Drake", power="2", toughness="2")
+
+
+class PlarggAndNassariTests(unittest.TestCase):
+    def upkeep(self, libraries, mine, aside, casts=None):
+        self.offered = []
+
+        def casting(prompt, options):
+            self.offered.append(list(options))
+            return pick(*mine)(prompt, options)
+        game, _ = table3(casting, pick(aside))
+        a, b, c = game.seats
+        plargg = Permanent(PLARGG)
+        a.battlefield = [plargg]
+        for seat, library in zip(game.seats, libraries):
+            seat.library = list(library) + [FOREST] * 5
+        if casts is None:
+            fire(game, a, plargg, "upkeep")
+        else:
+            game.exile_until_nonland_and_cast(a, casts)
+            run_stack(game)
+        return game
+
+    def names(self, seat, zone="battlefield"):
+        return sorted(getattr(p, "card", p).name for p in getattr(seat, zone))
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(PLARGG), [])
+
+    def test_the_others_are_cast_free_and_the_chosen_one_stays_exiled(self):
+        game = self.upkeep([[FOREST, FOREST, ALPHA], [BETA], [FOREST, GAMMA]], ["Alpha", "Beta"], aside="Gamma")
+        a, b, c = game.seats
+        self.assertEqual(self.names(a), ["Alpha", "Beta", "Plargg and Nassari"])  # Beta was b's card, cast by a
+        self.assertEqual(self.names(b), [])
+        self.assertEqual(self.names(c, "exile"), ["Forest", "Gamma"])
+
+    def test_the_chosen_card_is_not_offered(self):
+        self.upkeep([[ALPHA], [BETA], [GAMMA]], ["Alpha", "Beta"], aside="Gamma")
+        self.assertTrue(all("Gamma" not in options for options in self.offered))
+
+    def test_lands_are_exiled_but_never_cast(self):
+        game = self.upkeep([[FOREST, ALPHA], [BETA], [GAMMA]], ["Alpha", "Beta"], aside="Beta")
+        a = game.seats[0]
+        self.assertEqual(self.names(a, "exile"), ["Forest"])
+
+    def test_at_most_the_number_allowed_are_cast(self):
+        game = self.upkeep([[ALPHA], [BETA], [GAMMA]], ["Alpha", "Beta"], aside="Gamma", casts=1)
+        self.assertEqual(sorted(p.card.name for s in game.seats for p in s.battlefield), ["Alpha", "Plargg and Nassari"])
+
+    def test_declining_casts_nothing(self):
+        game = self.upkeep([[ALPHA], [BETA], [GAMMA]], ["Take none"], aside="Gamma")
+        self.assertEqual(self.names(game.seats[0]), ["Plargg and Nassari"])
+
+    def test_a_player_with_an_empty_library_is_skipped(self):
+        game = self.upkeep([[ALPHA], [], [GAMMA]], ["Alpha"], aside="Gamma")
+        self.assertEqual(self.names(game.seats[0]), ["Alpha", "Plargg and Nassari"])

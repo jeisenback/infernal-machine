@@ -504,7 +504,10 @@ winner = game.play()
     library and/or graveyard; cascade does not count yet), Spirit of Resilience, Zimone (a prime number of lands), Firemane
     Commando, Breena and Combat Calligrapher (another player's attack; the trigger carries the seat attacked), Claim Jumper and
     Archaeomancer's Map (land counts), and Goldspan Dragon and Galazeth Prismari (mana abilities given to your Treasures or
-    artifacts; Goldspan's two mana need not be the same color).
+    artifacts; Goldspan's two mana need not be the same color),
+    Armored Skyhunter, Songbirds' Blessing, Herald of Amity, Forum Filibuster, Ao the Dawn Sky and Plargg and Nassari (look at,
+    reveal or exile cards from the top of the library, then put or cast from among them; an Aura enters on a host you choose,
+    an Equipment may be attached; Forum Filibuster's graveyard return is chosen on resolution, not targeted).
     Not built (see #80): phasing (Guardian of Faith), Unbound Flourishing, Forgotten Ancient, Fractal Harness (an ETB trigger
     gets no X), and one of Killian's lines.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature

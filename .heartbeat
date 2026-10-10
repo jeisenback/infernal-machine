@@ -1,5 +1,5 @@
 session: claude-code triggers-80-look
 branch: claude/triggers-80-look
 task: issue #80 fourth batch (look at the top cards, put onto the battlefield), stacked on claude/triggers-80-cheap (PR 142)
-status: in progress
-updated: 2026-10-10T04:59:22Z
+status: look-and-put family done, README updated
+updated: 2026-10-10T05:02:31Z
