@@ -478,7 +478,7 @@ winner = game.play()
     Dig Through Time's look-seven-take-two, Commander's Insight, Culling Ritual (mana for each permanent destroyed), Mana Geyser,
     Biomass Mutation, Wave of Reckoning, Winds of Rath ("that aren't enchanted"), Volcanic Torrent (creatures and planeswalkers),
     damage to "each of one or two targets", draw-then-discard, mill-then-return, "You may sacrifice a permanent. If you do, draw two
-    cards", "sacrifice X creatures" as an additional cost (Immoral Bargain), X limited by the number of players (Open the Way),
+    cards", "sacrifice X creatures" as an additional cost (Immoral Bargain, whose X is chosen at casting although its mana cost has no {X}), X limited by the number of players (Open the Way),
     "Arcane Denial"'s draws at the next upkeep, Flashback with a life payment, casting from the graveyard "by paying {2}{W}",
     cost reductions ("costs {2} less if you gained life this turn", "{X} less where X is the total power of your creatures",
     Aura spells, spells that target a creature, affinity for Auras), Pest Rescuer's extra life, haste while an opponent is at 10 or

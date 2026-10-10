@@ -1724,7 +1724,8 @@ class Game:
             extra += replicate_cost(card) * replicated
         effects = kicked_effects(effects, kicked, kickers)
         x = 0  # announced before the targets (CR 601.2b-c): "up to X target creatures" needs it
-        if alternative is None and parse_cost(paying.mana_cost).x:  # casting without paying the mana cost makes X 0
+        if alternative is None and (parse_cost(paying.mana_cost).x or any(c.sacrifice_x for c in additional_costs(card))):
+            # casting without paying the mana cost makes X 0; Immoral Bargain has X only in its additional cost
             most = self._max_x(seat, paying, from_command_zone, kickers, extra)
             for effect in effects or []:  # "Exile X target creatures": there have to be X legal targets
                 if getattr(effect, "exact_x", False):
