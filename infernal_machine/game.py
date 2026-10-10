@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -1039,6 +1039,10 @@ class Game:
                     continue
                 # Command Tower makes only the colors of your commander, whatever the card data lists.
                 types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
+                if (chosen := chosen_color_mana(card)) is not None:  # Room of Refuge, a Thriving land: the color chosen as it entered
+                    types = frozenset(c for c in (chosen[0], permanent.chosen_color) if c)
+                    if not types:
+                        continue
                 if filter_mana_ability(card) is not None:  # Hall of Oracles: the colors cost {1}; alone it makes {C}
                     plain = mana_ability(card, seat.color_identity)
                     types = frozenset().union(*plain) if plain else frozenset()
@@ -4482,6 +4486,7 @@ class Game:
             permanent.chosen_type = self._choose_creature_type(seat, permanent.card)
         if chooses_color(permanent.card):
             names = {"White": "W", "Blue": "U", "Black": "B", "Red": "R", "Green": "G"}
+            names = {name: letter for name, letter in names.items() if letter != color_choice_excludes(permanent.card)}
             permanent.chosen_color = names[list(names)[seat.player.choose(CHOOSE_COLOR_PROMPT + permanent.card.name, list(names))]]
         if enters_prepared(permanent.card):
             permanent.prepared = True

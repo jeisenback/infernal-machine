@@ -424,7 +424,10 @@ winner = game.play()
     Elemental card from your hand", with the Snarl wording kept for two land types).
   - "This land enters tapped with two charge (depletion, ...) counters on it": tapped, with the counters.
   - "This land enters tapped. As it enters, choose a color.": you choose one of the five as it enters and the land
-    remembers it. Mana from "the chosen color" is not built yet.
+    remembers it, and "{T}: Add one mana of the chosen color" makes only that color (Room of Refuge, not the five colors
+    Scryfall lists for it). The Thriving lands and Gates, "choose a color other than red" and "{T}: Add {R} or one mana of
+    the chosen color", leave their own color out of the choice and make it besides the chosen one. A land with no choice
+    (it was never asked) makes nothing, or only its own color.
   - Karoos: "When this land enters, sacrifice it unless you return an untapped Mountain you control to its owner's
     hand." You are asked which land to return (or to sacrifice it); with no untapped land of the type it is sacrificed.
   - "At the beginning of your upkeep, if this land is tapped, put a storage counter on it" (the condition "if this

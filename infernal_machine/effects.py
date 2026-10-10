@@ -5023,16 +5023,22 @@ _ENTERS_TAPPED = [
                 rf"If you don't, {_SELF} enters tapped\.", re.I),
      lambda m: EntersTapped("reveal", types=(m[1].capitalize(),))),
     (re.compile(rf"{_SELF} enters tapped with {_N} {_COUNTER} on it\.", re.I), lambda m: EntersTapped("always")),
-    (re.compile(rf"{_SELF} enters tapped\. As (?:it|{_SELF}) enters, choose a color\.", re.I),
+    (re.compile(rf"{_SELF} enters tapped\. As (?:it|{_SELF}) enters, choose a color(?: other than (?:white|blue|black|red|green))?\.", re.I),
      lambda m: EntersTapped("always")),
 ]
 
-_CHOOSE_COLOR = re.compile(rf"(?:{_SELF} enters tapped\. )?As (?:it|{_SELF}) enters, choose a color\.", re.I)
+_COLOR_LETTER = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+_CHOOSE_COLOR = re.compile(rf"(?:{_SELF} enters tapped\. )?As (?:it|{_SELF}) enters, choose a color(?: other than (white|blue|black|red|green))?\.", re.I)
 
 
 def chooses_color(card: Card) -> bool:
     """Room of Refuge and the like: "As it enters, choose a color." (the choice is kept on the permanent)."""
     return any(_CHOOSE_COLOR.fullmatch(line) for line in rules_lines(card))
+
+
+def color_choice_excludes(card: Card) -> str | None:
+    """A Thriving land or Gate: "choose a color other than red" leaves out R."""
+    return next((_COLOR_LETTER[m[1].lower()] for line in rules_lines(card) if (m := _CHOOSE_COLOR.fullmatch(line)) and m[1]), None)
 
 
 def is_choose_color_line(line: str) -> bool:
@@ -7571,9 +7577,18 @@ _TAPPED_PAIN = re.compile(rf"Whenever {_SELF} becomes tapped, it deals {_N} dama
 _PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add (one mana of any color|\{{([WUBRG])\}}(?: or \{{([WUBRG])\}})?)\.", re.I)
 
 
+# Room of Refuge: one mana of the color chosen as it entered. A Thriving land or Gate also makes its own color.
+_ADD_CHOSEN = re.compile(r"\{T\}: Add (?:\{([WUBRG])\} or )?one mana of the chosen color\.")
+
+
+def chosen_color_mana(card: Card) -> tuple[str | None] | None:
+    """(its own color or None,) for a land whose mana ability makes the chosen color; None for any other card."""
+    return next(((m[1],) for line in rules_lines(card) if (m := _ADD_CHOSEN.fullmatch(line))), None)
+
+
 def is_mana_ability(line: str) -> bool:
     line = _without_spent_rider(line)
-    return (_mana_match(line) is not None or _ADD_POWER.fullmatch(line) is not None
+    return (_mana_match(line) is not None or _ADD_CHOSEN.fullmatch(line) is not None or _ADD_POWER.fullmatch(line) is not None
             or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
             or _CHARGE_MANA.fullmatch(line) is not None
             or _FILTER.fullmatch(line) is not None
