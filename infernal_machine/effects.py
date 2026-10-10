@@ -7219,15 +7219,23 @@ _SPENT_RIDER = re.compile(r"(.+\.) When (?:you spend this mana|that mana is spen
                           r"scry (1|X, where X is the number of times it's been cast from the command zone this game)\.")
 
 
+# Opal Palace: the rider puts counters on the commander as it enters instead.
+_COUNTERS_RIDER = re.compile(r"(.+\.) If you spend this mana to cast your commander, it enters with a number of additional \+1/\+1 "
+                             r"counters on it equal to the number of times it's been cast from the command zone this game\.")
+
+
 @dataclass(frozen=True)
 class ManaSpentTrigger:
     """ "When that mana is spent to cast <spell>, scry <n>." on a mana ability."""
     spell: str  # "commander" (your commander) or "shares_type_with_commander" (a creature spell sharing a type)
     scry: int | str  # a number, or "commander_casts": the times that commander has been cast from the command zone
+    counters: bool = False  # Opal Palace: no scry; the commander enters with that many +1/+1 counters more
 
 
 def mana_spent_trigger(card: Card) -> ManaSpentTrigger | None:
     for line in rules_lines(card):
+        if _COUNTERS_RIDER.fullmatch(line):
+            return ManaSpentTrigger("commander", 0, counters=True)
         if m := _SPENT_RIDER.fullmatch(line):
             return ManaSpentTrigger("commander" if m[2] == "your commander" else "shares_type_with_commander",
                                     1 if m[3] == "1" else "commander_casts")
@@ -7256,7 +7264,7 @@ def has_next_x_rider(card: Card) -> bool:
 
 def _without_spent_rider(line: str) -> str:
     """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
-    m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line)
+    m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line) or _COUNTERS_RIDER.fullmatch(line)
     return _RESTRICTION.sub("", m[1] if m else line)
 
 
@@ -7443,7 +7451,7 @@ def mana_per_count(card: Card) -> tuple[str, str, str] | None:
     return None
 
 
-_FILTER_ANY = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add one mana of any color\.")  # Hall of Oracles
+_FILTER_ANY = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add one mana of any color(?: in your commander's color identity)?\.")  # Hall of Oracles
 # A filter land: "{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}." Two mana, each of either color.
 _FILTER_LAND = re.compile(r"(\{[WUBRG]/[WUBRG]\}), \{T\}: Add \{([WUBRG])\}\{\2\}, \{\2\}\{([WUBRG])\}, or \{\3\}\{\3\}\.")
 

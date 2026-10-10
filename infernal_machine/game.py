@@ -196,6 +196,7 @@ class Permanent:
     regeneration: int = 0  # regeneration shields, which last until end of turn
     real_card: "Card | None" = None  # a Clone's own card, while it is a copy of something else; a Class's whole card
     level: int = 1  # a Class's level
+    extra_counters: int = 0  # +1/+1 counters it enters with besides its own (Opal Palace's rider)
     control_origin: "Seat | None" = None  # who controlled it before a control-change effect took it
     control_aura: "Permanent | None" = None  # the Aura (Control Magic) that holds control of it
     control_eot: bool = False  # control changes back at end of turn (Threaten)
@@ -269,6 +270,7 @@ class StackItem:
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     mana_spent: int = 0  # the mana paid to cast it (Deekah: "the amount of mana spent to cast that spell")
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
+    rider_counters: int = 0  # Opal Palace: how many of its mana was spent on this commander
     from_graveyard: bool = False  # cast from a graveyard (flashback and the like): Sevinne's Reclamation asks
     bottom_after: bool = False  # Quintorius: put on the bottom of its owner's library instead of into the graveyard
     is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
@@ -1792,6 +1794,9 @@ class Game:
                 self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, x=x))
         for source in tapped or ():  # Study Hall, Path of Ancestry: "When that mana is spent to cast ..., scry"
             if self._mana_spent_matches(seat, source, card, from_command_zone, tapped):
+                if mana_spent_trigger(source.card).counters:  # Opal Palace: it enters with more counters
+                    item.rider_counters += 1
+                    continue
                 scry = mana_spent_trigger(source.card).scry
                 count = seat.commander_casts.get(card.name, 0) + 1 if scry == "commander_casts" else scry
                 ability = TriggeredAbility("cast", (Scry("X"),), False, f"Scry {count}")
@@ -1912,7 +1917,8 @@ class Game:
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
             entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers,
-                                 escaped=item.escaped)
+                                 escaped=item.escaped,
+                                 extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0))
             if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
                 self._queue(EVOKE_SACRIFICE, entering, seat)
             self._enter(seat, entering, x=item.x)
@@ -4374,6 +4380,8 @@ class Game:
             self._become_copy(seat, permanent, *clone)
         counters = {counter: (x if count == "X" else 2 * x if count == "2X" else count)
                     for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped).items()}
+        if permanent.extra_counters:  # Opal Palace: mana spent on the commander
+            counters["+1/+1"] = counters.get("+1/+1", 0) + permanent.extra_counters
         if extra_when_copy and permanent.real_card is not None:  # Altered Ego: X additional counters on the copy
             counters["+1/+1"] = counters.get("+1/+1", 0) + x
         if "Creature" in permanent.card.type_line and not _is_token(permanent.card) and seat.died_turn == self.turn:

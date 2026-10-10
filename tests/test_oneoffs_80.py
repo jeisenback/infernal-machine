@@ -126,3 +126,59 @@ class QuandrixCommandTests(unittest.TestCase):
 
 
 OGRE_CARD = Card(name="Ogre", mana_cost="{3}", cmc=3.0, type_line="Creature — Ogre", power="3", toughness="3")
+
+
+from infernal_machine.game import CAST_COMMANDER  # noqa: E402
+
+OPAL_PALACE = Card(name="Opal Palace", type_line="Land", oracle_text="{T}: Add {C}.\n{1}, {T}: Add one mana of any color in your commander's "
+                   "color identity. If you spend this mana to cast your commander, it enters with a number of additional +1/+1 counters "
+                   "on it equal to the number of times it's been cast from the command zone this game.")
+WHITE_COMMANDER = Card(name="Zada", mana_cost="{W}", cmc=1.0, type_line="Legendary Creature — Goblin", power="1", toughness="1",
+                       colors=("W",))
+
+
+class OpalPalaceTests(unittest.TestCase):
+    def table(self, casts):
+        game, _ = table3(pick())
+        a = game.seats[0]
+        a.command_zone, a.commander_names, a.color_identity = [WHITE_COMMANDER], {WHITE_COMMANDER.name}, frozenset("W")
+        a.battlefield = [Permanent(OPAL_PALACE), Permanent(FOREST), Permanent(FOREST), Permanent(FOREST)]
+        if casts:
+            a.commander_casts[WHITE_COMMANDER.name] = casts
+        return game, a
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(OPAL_PALACE), [])
+
+    def test_the_commander_enters_with_a_counter_for_each_time_it_was_cast(self):
+        game, a = self.table(casts=1)  # this is the second cast
+        game._perform(a, CAST_COMMANDER + "Zada")
+        run_stack(game)
+        zada = next(p for p in a.battlefield if p.card.name == "Zada")
+        self.assertEqual(zada.counters.get("+1/+1"), 2)  # it has now been cast twice
+
+    def test_the_first_cast_gives_one(self):
+        game, a = self.table(casts=0)
+        game._perform(a, CAST_COMMANDER + "Zada")
+        run_stack(game)
+        zada = next(p for p in a.battlefield if p.card.name == "Zada")
+        self.assertEqual(zada.counters.get("+1/+1"), 1)
+
+    def test_mana_spent_on_something_else_gives_no_counters(self):
+        game, a = self.table(casts=1)
+        a.hand = [BEAR_WHITE]
+        game._perform(a, CAST + "Pale Bear")
+        run_stack(game)
+        bear = next(p for p in a.battlefield if p.card.name == "Pale Bear")
+        self.assertIsNone(bear.counters.get("+1/+1"))
+
+    def test_the_plain_mana_does_not_count(self):
+        game, a = self.table(casts=1)
+        a.battlefield = [Permanent(OPAL_PALACE)] + [Permanent(Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",)))] * 3
+        game._perform(a, CAST_COMMANDER + "Zada")  # the palace's {C} pays the generic tax; no filter mana is made
+        run_stack(game)
+        zada = next(p for p in a.battlefield if p.card.name == "Zada")
+        self.assertIsNone(zada.counters.get("+1/+1"))
+
+
+BEAR_WHITE = Card(name="Pale Bear", mana_cost="{1}{W}", cmc=2.0, type_line="Creature — Bear", power="2", toughness="2", colors=("W",))
