@@ -437,6 +437,9 @@ winner = game.play()
     off as many counters as the mana you use (a land with none makes no mana). "You may choose not to untap this land during
     your untap step" asks you at your untap step, only while the land is tapped, whether to untap it or leave it tapped to
     collect a counter at upkeep ("if this land is tapped, put a storage counter on it"); the bot always untaps.
+  - "When this land enters, sacrifice it unless you pay {1}" (Gateway Plaza and the other Guildgate-style lands): you are asked
+    whether to pay (the land enters tapped, so it cannot pay for itself); with nothing to pay with, or if you decline, it is
+    sacrificed. Tri-lands ("{T}: Add {W}, {U}, or {B}") make one mana of one of the three colors.
   - Karoos: "When this land enters, sacrifice it unless you return an untapped Mountain you control to its owner's
     hand." You are asked which land to return (or to sacrifice it); with no untapped land of the type it is sacrificed.
   - "At the beginning of your upkeep, if this land is tapped, put a storage counter on it" (the condition "if this
