@@ -245,3 +245,70 @@ class BrassInfiniscopeTests(unittest.TestCase):
         game._perform(a, CAST + "Blast")
         run_stack(game)
         self.assertEqual((a.life - 40, len(a.hand)), (0, 2))  # the spell's own card and one rider card; a leftover trigger would add another
+
+
+OPEN_THE_WAY = Card(name="Open the Way", mana_cost="{X}{G}{G}", type_line="Sorcery",
+                    oracle_text="X can't be greater than the number of players in the game.\nReveal cards from the top of your "
+                                "library until you reveal X land cards. Put those land cards onto the battlefield tapped and the "
+                                "rest on the bottom of your library in a random order.")
+AWAKENING = Card(name="Animist's Awakening", mana_cost="{X}{G}", type_line="Sorcery",
+                 oracle_text="Reveal the top X cards of your library. Put all land cards from among them onto the battlefield "
+                             "tapped and the rest on the bottom of your library in a random order.\nSpell mastery — If there "
+                             "are two or more instant and/or sorcery cards in your graveyard, untap those lands.")
+INSTANT_CARD = Card(name="Shock", mana_cost="{R}", type_line="Instant")
+SORCERY_CARD = Card(name="Ritual", mana_cost="{B}", type_line="Sorcery")
+
+
+class RevealLandsTests(unittest.TestCase):
+    def cast(self, spell, x, library, graveyard=()):
+        game, _ = table3(script(str(x)))
+        a = game.seats[0]
+        a.battlefield = lands(spell.mana_cost.count("{") - 1 + x)  # exactly what the spell costs
+        a.hand = [spell]
+        a.library = list(library) + [BEAR] * 5
+        a.graveyard = list(graveyard)
+        game._perform(a, CAST + spell.name)
+        run_stack(game)
+        return game, a
+
+    def entered(self, seat):
+        return [p for p in seat.battlefield if p.card.name in ("Forest", "Plains")]
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(OPEN_THE_WAY), [])
+        self.assertEqual(unsupported_lines(AWAKENING), [])
+
+    def test_open_the_way_stops_at_the_xth_land_and_puts_the_rest_underneath(self):
+        game, a = self.cast(OPEN_THE_WAY, 2, [RELIC, FOREST, RELIC, PLAINS, FOREST])
+        lands_in = self.entered(a)
+        self.assertEqual(sorted(p.card.name for p in lands_in), ["Forest", "Plains"])
+        self.assertTrue(all(p.tapped for p in lands_in))
+        names = [c.name for c in a.library]
+        self.assertEqual(names[0], "Forest")  # the third land was never revealed: it is still on top
+        self.assertEqual(names.count("Relic"), 2)  # the revealed non-lands went underneath
+
+    def test_open_the_way_with_too_few_lands_takes_what_there_is(self):
+        game, a = self.cast(OPEN_THE_WAY, 2, [RELIC, FOREST])
+        self.assertEqual(len(self.entered(a)), 1)
+
+    def test_animists_awakening_puts_every_land_among_the_top_x(self):
+        game, a = self.cast(AWAKENING, 4, [FOREST, RELIC, PLAINS, RELIC, FOREST])
+        self.assertEqual(sorted(p.card.name for p in self.entered(a)), ["Forest", "Plains"])
+        self.assertTrue(all(p.tapped for p in self.entered(a)))
+
+    def test_animists_awakening_only_looks_at_x_cards(self):
+        game, a = self.cast(AWAKENING, 2, [RELIC, FOREST, PLAINS])
+        self.assertEqual(len(self.entered(a)), 1)
+
+    def test_spell_mastery_untaps_those_lands(self):
+        game, a = self.cast(AWAKENING, 3, [FOREST, PLAINS, RELIC], graveyard=[INSTANT_CARD, SORCERY_CARD])
+        self.assertEqual([p.tapped for p in self.entered(a)], [False, False])
+
+    def test_without_two_instants_or_sorceries_the_lands_stay_tapped(self):
+        game, a = self.cast(AWAKENING, 3, [FOREST, PLAINS, RELIC], graveyard=[INSTANT_CARD, RELIC])
+        self.assertEqual([p.tapped for p in self.entered(a)], [True, True])
+
+    def test_spell_mastery_untaps_only_the_lands_it_put_onto_the_battlefield(self):
+        game, a = self.cast(AWAKENING, 1, [FOREST], graveyard=[INSTANT_CARD, SORCERY_CARD])
+        others = [p for p in a.battlefield if p.card.name != "Forest"]
+        self.assertTrue(all(p.tapped for p in others))  # they paid for the spell

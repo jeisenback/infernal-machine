@@ -101,6 +101,10 @@ _WHOLE_LINE = re.compile(
     r"|Each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a nonland "
     r"card exiled this way\. You may cast up to (?:two|three) spells from among the other cards exiled this way without paying "
     r"their mana costs\."
+    r"|Reveal the top X cards of your library\. Put all land cards from among them onto the battlefield tapped and the rest on the "
+    r"bottom of your library in a random order\."
+    r"|Reveal cards from the top of your library until you reveal X land cards\. Put those land cards onto the battlefield tapped "
+    r"and the rest on the bottom of your library in a random order\."
     r"|Reveal cards from the top of your library until you reveal an Aura card\. You may put that card onto the battlefield\. "
     r"If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\."
     r"|Look at the top (?:six|seven|eight) cards of your library\. You may put an Aura or Equipment card from among them onto "
@@ -3670,6 +3674,10 @@ def _merge_conditional(effects: list) -> list | None:
             if not (merged and isinstance(merged[-1], CreateTokens)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], more=effect.count, more_if=effect.condition)
+        elif isinstance(effect, _UntapThoseLands):
+            if not (merged and isinstance(merged[-1], RevealLands)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], untap_if=effect.condition)
         elif isinstance(effect, _UntapThatLand):
             if not (merged and isinstance(merged[-1], FetchBasicLand)):
                 return None
@@ -3786,6 +3794,25 @@ class Scry:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.scry(controller, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class RevealLands:
+    """Animist's Awakening: "Reveal the top X cards of your library. Put all land cards from among them onto the battlefield tapped
+    and the rest on the bottom of your library in a random order." Open the Way (`until_lands`): "Reveal cards from the top of your
+    library until you reveal X land cards. Put those land cards ..." Spell mastery (`untap_if`): "... untap those lands." """
+    count: int | str
+    until_lands: bool = False
+    untap_if: "Condition | None" = None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.reveal_lands(controller, game.amount(self.count), self.until_lands, self.untap_if)
+
+
+@dataclass(frozen=True)
+class _UntapThoseLands:
+    """Spell mastery: "If there are two or more instant and/or sorcery cards in your graveyard, untap those lands." """
+    condition: "Condition"
 
 
 @dataclass(frozen=True)
@@ -5261,6 +5288,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a "
                 rf"nonland card exiled this way\. You may cast up to {_N} spells from among the other cards exiled this way without "
                 r"paying their mana costs\.", re.I), lambda m: ExileUntilNonlandCast(_count(m[1]))),
+    (re.compile(r"reveal the top X cards of your library\. Put all land cards from among them onto the battlefield tapped and the rest "
+                r"on the bottom of your library in a random order\.", re.I), lambda m: RevealLands("X")),
+    (re.compile(r"reveal cards from the top of your library until you reveal X land cards\. Put those land cards onto the "
+                r"battlefield tapped and the rest on the bottom of your library in a random order\.", re.I),
+     lambda m: RevealLands("X", until_lands=True)),
+    (re.compile(r"if (there are .+), untap those lands\.", re.I), lambda m: _UntapThoseLands(c) if (c := _condition(m[1])) else None),
     (re.compile(r"reveal cards from the top of your library until you reveal an Aura card\. You may put that card onto the "
                 r"battlefield\. If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\.",
                 re.I), lambda m: RevealUntilAura()),
@@ -6142,7 +6175,7 @@ def spell_effects(card: Card) -> list | None:
     if lines and _MODAL_COMMANDER.fullmatch(lines[0]):
         modal = _parse_modal("one", lines[1:])
         return [dataclasses.replace(modal[0], commander_both=True)] if modal else None
-    return _parse(_split_sentences("\n".join(lines)))
+    return _parse(_split_sentences("\n".join(_SPELL_MASTERY.sub("", line) for line in lines)))
 
 
 def is_hand_ability_line(line: str) -> bool:
@@ -6153,7 +6186,7 @@ def is_hand_ability_line(line: str) -> bool:
 
 def line_effects(line: str) -> list | None:
     """Effects of one line of spell text (from rules_lines); None if not understood."""
-    return _parse(_split_sentences(line))
+    return _parse(_split_sentences(_SPELL_MASTERY.sub("", line)))
 
 
 @dataclass(frozen=True)
@@ -6422,6 +6455,7 @@ _PLAYER_PRONOUNS = [
     (re.compile(r"\bto that player\b", re.I), "to target player"),
     (re.compile(r"\bthat opponent (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),  # Tomik
 ]
+_SPELL_MASTERY = re.compile(r"^Spell mastery \u2014 ")  # the condition stays in the sentence; the ability word is only a label
 _ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
 
 

@@ -3925,6 +3925,27 @@ class Game:
         seat.library += top
         self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
 
+    def reveal_lands(self, seat: Seat, count: int, until_lands: bool, untap_if: "Condition | None") -> None:
+        """Animist's Awakening and Open the Way: reveal the top `count` cards (or cards until `count` lands); the lands go onto the
+        battlefield tapped (untapped, if `untap_if` holds), the rest to the bottom of the library in a random order."""
+        revealed, found = [], []
+        while seat.library and (len(found) < count if until_lands else len(revealed) + len(found) < count):
+            card = seat.library.pop(0)
+            (found if "Land" in card.type_line else revealed).append(card)
+        self.broadcast({"event": "revealed", "seat": seat.index, "count": len(found) + len(revealed),
+                        "cards": [c.name for c in found + revealed]})
+        entered = []
+        for card in found:
+            self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": True})
+            permanent = Permanent(card, tapped=True)
+            self._enter(seat, permanent)
+            entered.append(permanent)
+        if untap_if is not None and self.condition_holds(untap_if, seat, self.resolving_source):
+            for permanent in entered:
+                permanent.tapped = False
+        self.rng.shuffle(revealed)
+        seat.library += revealed
+
     def reveal_until_aura(self, seat: Seat) -> None:
         """Songbirds' Blessing: reveal cards from the top until an Aura; you may put it onto the battlefield, else it goes to
         your hand; the rest go to the bottom in a random order."""
