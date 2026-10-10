@@ -4046,6 +4046,12 @@ class Game:
         self._move_card(owner, card, "graveyard")
         return card
 
+    def create_attached_token(self, seat: Seat, token: Card, host: Permanent) -> None:
+        """An Aura token created attached to `host`, under `seat`'s control."""
+        self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name, "type_line": token.type_line,
+                        "power": token.power, "toughness": token.toughness})
+        self._enter(seat, Permanent(token, sick=True, attached_to=host, owner=seat))
+
     def tragic_arrogance(self, chooser: Seat) -> None:
         """Tragic Arrogance: `chooser` picks, from each player's permanents, an artifact, a creature, an enchantment and a planeswalker
         to keep; every other nonland permanent is sacrificed."""

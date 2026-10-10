@@ -114,6 +114,10 @@ _WHOLE_LINE = re.compile(
     r"|Any number of target players each lose 2 life and sacrifice a creature of their choice\. You add \{B\}\{B\} and draw a card\."
     r"|For each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, and a "
     r"planeswalker\. Then each player sacrifices all other nonland permanents they control\."
+    r"|Create a white Aura enchantment token named Contract attached to target creature an opponent controls\. The token has enchant "
+    r"creature and \"Whenever enchanted creature attacks, it gets \+2/\+0 until end of turn if it's attacking one of your opponents\. "
+    r"Otherwise, its controller loses 2 life\.\""
+    r"|It gets \+2/\+0 until end of turn if it's attacking one of your opponents\. Otherwise, its controller loses 2 life\."
     r"|Copy that ability\. You may choose new targets for the copy\."
     r"|Put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a Treasure token\. "
     r"If it's a nonland card, create an? .+ token\."
@@ -3398,6 +3402,39 @@ class PlayersLoseSacrificeAddManaDraw:
         game.draw(controller, 1)
 
 
+_CONTRACT_BODY = "it gets +2/+0 until end of turn if it's attacking one of your opponents. Otherwise, its controller loses 2 life."
+CONTRACT_TEXT = ("Enchant creature\nWhenever enchanted creature attacks, it gets +2/+0 until end of turn if it's attacking one of your "
+                 "opponents. Otherwise, its controller loses 2 life.")
+
+
+@dataclass(frozen=True)
+class CreateContract:
+    """Scriv, the Obligator: "Whenever Scriv enters or attacks, create a white Aura enchantment token named Contract attached to
+    target creature an opponent controls. The token has enchant creature and "Whenever enchanted creature attacks, ..."" """
+    target: str = "creature an opponent controls"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            token = Card(name="Contract", type_line="Token Enchantment \u2014 Aura", colors=("W",), oracle_text=CONTRACT_TEXT)
+            game.create_attached_token(controller, token, target)
+
+
+@dataclass(frozen=True)
+class ContractAttack:
+    """Contract: "it gets +2/+0 until end of turn if it's attacking one of your opponents. Otherwise, its controller loses 2 life."
+    The enchanted creature is the subject; the trigger's X is the seat it attacks."""
+    uses_subject = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if target is None or item is None:
+            return
+        if game.seats[item.x] is not controller:
+            game.modify_until_end_of_turn(target, Modifier(2, 0))
+        else:
+            game.change_life(game.controller_of(target), -2)
+
+
 @dataclass(frozen=True)
 class TragicArrogance:
     """Tragic Arrogance: "For each player, you choose from among the permanents that player controls an artifact, a creature, an
@@ -5817,6 +5854,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"create a white Aura enchantment token named Contract attached to target creature an opponent controls\. The token has "
+                r"enchant creature and \"Whenever enchanted creature attacks, it gets \+2/\+0 until end of turn if it's attacking one of "
+                r"your opponents\. Otherwise, its controller loses 2 life\.\"", re.I), lambda m: CreateContract()),
+    (re.compile(r"it gets \+2/\+0 until end of turn if it's attacking one of your opponents\. Otherwise, its controller loses 2 "
+                r"life\.", re.I), lambda m: ContractAttack()),
     (re.compile(r"for each player, you choose from among the permanents that player controls an artifact, a creature, an enchantment, "
                 r"and a planeswalker\. Then each player sacrifices all other nonland permanents they control\.", re.I),
      lambda m: TragicArrogance()),
@@ -7034,6 +7076,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     (only if every effect is about "it"), "that player" / "they" the player who did it (only for effects that
     target a player); where neither can be pointed at, the line isn't understood."""
     about_player = False
+    if subject_ok and rest == _CONTRACT_BODY:  # Contract: both sentences are about the enchanted creature
+        return [ContractAttack()], False, False, None
     if subject_ok and not player_ok and re.search(r"\bits controller (loses|gains|draws|discards|mills)\b", rest, re.I):
         # "Whenever enchanted creature attacks, its controller loses 2 life and you gain 2 life."
         rewritten = re.sub(r"\bits controller (loses|gains|draws|discards|mills)\b", r"target player \1", rest, flags=re.I)

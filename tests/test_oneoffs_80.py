@@ -538,3 +538,74 @@ class TragicArroganceTests(unittest.TestCase):
 
 
 FOREST_PERMANENT_CARD = FOREST
+
+
+SCRIV = Card(name="Scriv, the Obligator", mana_cost="{2}{W}{B}", cmc=4.0, type_line="Legendary Creature — Inkling Bird", power="3", toughness="3",
+             colors=("W", "B"),
+             oracle_text="Flying, deathtouch\nWhenever Scriv enters or attacks, create a white Aura enchantment token named Contract "
+                         "attached to target creature an opponent controls. The token has enchant creature and \"Whenever enchanted "
+                         "creature attacks, it gets +2/+0 until end of turn if it's attacking one of your opponents. Otherwise, its "
+                         "controller loses 2 life.\"")
+
+
+class ScrivTests(unittest.TestCase):
+    def table(self, *answers):
+        game, _ = table3(script(*answers))
+        a, b, c = game.seats
+        self.scriv = Permanent(SCRIV)
+        self.theirs = Permanent(OGRE, sick=False)
+        a.battlefield = [self.scriv]
+        b.battlefield = [self.theirs]
+        return game, a, b, c
+
+    def contracts(self, game):
+        return [p for s in game.seats for p in s.battlefield if p.card.name == "Contract"]
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(SCRIV), [])
+
+    def test_entering_puts_a_contract_on_an_opponents_creature(self):
+        game, a, b, c = self.table("Ogre")
+        fire(game, a, self.scriv, "enters")
+        [contract] = self.contracts(game)
+        self.assertIs(contract.attached_to, self.theirs)
+        self.assertEqual((contract.card.type_line, contract.card.colors), ("Token Enchantment — Aura", ("W",)))
+        self.assertIn(contract, a.battlefield)  # Scriv's controller controls the Aura
+
+    def test_attacking_does_it_again(self):
+        game, a, b, c = self.table("Ogre", "Ogre")
+        fire(game, a, self.scriv, "enters")
+        fire(game, a, self.scriv, "attacks")
+        self.assertEqual(len(self.contracts(game)), 2)
+
+    def test_the_enchanted_creature_attacking_one_of_the_controllers_opponents_gets_plus_two(self):
+        game, a, b, c = self.table("Ogre")
+        fire(game, a, self.scriv, "enters")
+        [contract] = self.contracts(game)
+        game.trigger("host_attacks", contract, a, self.theirs, x=2)  # B's Ogre attacks C, an opponent of A
+        run_stack(game)
+        self.assertEqual((game.power(self.theirs), b.life), (5, 40))
+
+    def test_attacking_the_controller_costs_its_controller_two_life(self):
+        game, a, b, c = self.table("Ogre")
+        fire(game, a, self.scriv, "enters")
+        [contract] = self.contracts(game)
+        game.trigger("host_attacks", contract, a, self.theirs, x=0)  # B's Ogre attacks A
+        run_stack(game)
+        self.assertEqual((game.power(self.theirs), b.life), (3, 38))
+
+    def test_in_real_combat_the_defender_is_passed(self):
+        picks = iter([1])
+        policy = lambda prompt, options: next(picks) if prompt.startswith("Attack") and len(options) > 1 else 0
+        game, _ = table3(None, policy)
+        a, b, c = game.seats
+        theirs = Permanent(OGRE, sick=False)
+        b.battlefield = [theirs]
+        a.battlefield = [Permanent(Card(name="Contract", type_line="Token Enchantment — Aura", colors=("W",),
+                                        oracle_text="Enchant creature\nWhenever enchanted creature attacks, it gets +2/+0 until end of turn if it's "
+                                                    "attacking one of your opponents. Otherwise, its controller loses 2 life."),
+                                 attached_to=theirs)]
+        game.active = 1
+        game.combat.declare_attackers(b)  # option 1 is seat 0: the Aura's controller
+        run_stack(game)
+        self.assertEqual(b.life, 38)
