@@ -297,3 +297,51 @@ class RenegadeBullTests(unittest.TestCase):
     def test_up_to_one_it_may_choose_nothing(self):
         game, a = self.attack([STUDY2], "No target")
         self.assertEqual(([c.name for c in a.graveyard], a.exile, len(a.hand)), (["Study"], [], 0))
+
+
+SEVINNE = Card(name="Sevinne's Reclamation", mana_cost="{2}{W}", cmc=3.0, type_line="Sorcery",
+               oracle_text="Return target permanent card with mana value 3 or less from your graveyard to the battlefield. If this "
+                           "spell was cast from a graveyard, you may copy this spell and may choose a new target for the copy.\n"
+                           "Flashback {4}{W} (You may cast this card from your graveyard for its flashback cost. Then exile it.)")
+
+
+class SevinnesReclamationTests(unittest.TestCase):
+    def cast(self, hand, graveyard, *choices, from_graveyard=False, mana=8):
+        game, _ = table3(pick(*choices))
+        a = game.seats[0]
+        a.battlefield = lands(mana)
+        a.hand, a.graveyard = list(hand), list(graveyard)
+        a.library = [FOREST] * 10
+        action = next(x for x in game.legal_actions(a) if SEVINNE.name in x and from_graveyard == x.startswith("Cast from graveyard"))
+        game._perform(a, action)
+        run_stack(game)
+        return game, a
+
+    def names(self, seat):
+        return sorted(p.card.name for p in seat.battlefield if p.card.name not in ("City of Brass",))
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(SEVINNE), [])
+
+    def test_cast_from_the_hand_it_returns_one_permanent_card(self):
+        game, a = self.cast([SEVINNE], [GOLEM, SHRINE2], "Golem", "Shrine")
+        self.assertEqual(self.names(a), ["Golem"])
+        self.assertEqual(sorted(c.name for c in a.graveyard), ["Sevinne's Reclamation", "Shrine"])
+
+    def test_the_mana_value_limit(self):
+        game, a = self.cast([SEVINNE], [BIG_GOLEM, SHRINE2], "Big Golem")  # a mana value 4 card is not a legal target
+        self.assertEqual(self.names(a), ["Shrine"])
+        self.assertIn("Big Golem", [c.name for c in a.graveyard])
+
+    def test_cast_from_the_graveyard_it_may_be_copied_for_a_second_card(self):
+        game, a = self.cast([], [SEVINNE, GOLEM, SHRINE2], "Golem", "Yes", "Shrine", from_graveyard=True)
+        self.assertEqual(self.names(a), ["Golem", "Shrine"])
+        self.assertEqual([c.name for c in a.exile], ["Sevinne's Reclamation"])
+
+    def test_the_copy_is_optional(self):
+        game, a = self.cast([], [SEVINNE, GOLEM, SHRINE2], "Golem", "No", from_graveyard=True)
+        self.assertEqual(self.names(a), ["Golem"])
+
+    def test_a_copy_is_not_cast_from_a_graveyard_so_it_does_not_copy_itself(self):
+        game, a = self.cast([], [SEVINNE, GOLEM, SHRINE2, CHARM], "Golem", "Yes", "Shrine", "Yes", from_graveyard=True)
+        self.assertEqual(self.names(a), ["Golem", "Shrine"])

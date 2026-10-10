@@ -268,6 +268,7 @@ class StackItem:
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     mana_spent: int = 0  # the mana paid to cast it (Deekah: "the amount of mana spent to cast that spell")
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
+    from_graveyard: bool = False  # cast from a graveyard (flashback and the like): Sevinne's Reclamation asks
     bottom_after: bool = False  # Quintorius: put on the bottom of its owner's library instead of into the graveyard
     is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
@@ -1757,7 +1758,7 @@ class Game:
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked)
-        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
+        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after, from_graveyard=graveyard is not None,
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent)
@@ -4477,7 +4478,7 @@ class Game:
         """Put a copy of a spell on the stack under `controller`'s control; it resolves first. It isn't cast, and it
         stops existing instead of going to the graveyard. With `new_targets` the copy's controller chooses its
         targets again (the old ones are still legal choices)."""
-        if item not in self.stack or item.ability:
+        if (item not in self.stack and item is not self.resolving_item) or item.ability:  # (a spell may copy itself as it resolves)
             return
         targets = list(item.targets)
         if new_targets and (chosen := self._choose_targets(controller, item.effects, item.card.name,

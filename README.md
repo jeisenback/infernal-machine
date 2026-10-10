@@ -516,7 +516,12 @@ winner = game.play()
     sets up "when you next cast a spell with {X} this turn", for a spell that uses its mana too), Open the Way and Animist's
     Awakening (with Spell mastery), Unbound Flourishing (doubles X of a permanent spell; copies an instant or sorcery, or an
     activated ability, with {X} in its cost; a copied ability keeps its targets), and Oversimplify's current wording.
-    Not built (see #80): phasing (Guardian of Faith), Forgotten Ancient and one of Killian's lines.
+    Graveyard exile, return and cast: a card exiled by a permanent's ability is "exiled with" it (Currency Converter puts one into
+    the graveyard for a Treasure or Rogue; Quintorius casts one free, and a spell that would go to a graveyard goes to the bottom of
+    its owner's library; both are chosen as the ability resolves, not targeted), Excava (a finality counter: a creature with one is
+    exiled instead of dying, and it leaves as the real card), Augusta, Renegade Bull (cast a copy of the exiled card for free) and
+    Sevinne's Reclamation (a spell cast from a graveyard may copy itself as it resolves).
+    Not built (see #80): phasing (Guardian of Faith), Forgotten Ancient and one of Killian's lines, and the level up cards.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
     card can be turned face up at any time you have priority for its mana cost ("Turn face up: ..."; not a stack
     action). It goes to the graveyard as the real card, and only its controller is shown what it is

@@ -2295,6 +2295,20 @@ CAST_COPY_PROMPT = "Cast a copy without paying its mana cost: "  # followed by t
 
 
 @dataclass(frozen=True)
+class MayCopyThisSpellFromGraveyard:
+    """Sevinne's Reclamation: "If this spell was cast from a graveyard, you may copy this spell and may choose a new target for the
+    copy." The copy is not cast, so it does not copy itself."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if item is not None and item.from_graveyard and controller.player.choose(COPY_THIS_PROMPT + item.card.name, ["Yes", "No"]) == 0:
+            game.copy_spell(item, controller, new_targets=True)
+
+
+COPY_THIS_PROMPT = "Copy this spell: "  # followed by its name; Yes or No
+
+
+@dataclass(frozen=True)
 class DoubleCountersOnTargets:
     """Kinetic Ooze: "If X is 10 or more, double the number of +1/+1 counters on any number of other target creatures." Targets
     are chosen whatever X is; nothing is doubled below `min_x`."""
@@ -5650,6 +5664,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"if this spell was cast from a graveyard, you may copy this spell and may choose a new target for the copy\.", re.I),
+     lambda m: MayCopyThisSpellFromGraveyard()),
+    (re.compile(r"return target permanent card with mana value (\d+) or less from your graveyard to the battlefield\.", re.I),
+     lambda m: ReturnFromGraveyard(f"graveyard:permanent|mv<={m[1]}:yours", "battlefield")),
     (re.compile(r"exile up to one target instant or sorcery card from your graveyard and copy it\. You may cast the copy without "
                 r"paying its mana cost\.", re.I), lambda m: ExileThenCastCopy()),
     (re.compile(r"each player exiles a card from their graveyard\. When one or more nonland cards are exiled this way, put that many "
