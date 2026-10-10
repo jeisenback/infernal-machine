@@ -469,8 +469,9 @@ winner = game.play()
     named CARDNAME can't be blocked", "Spirits you control gain ... until end of turn", "Exile enchanted creature", a
     counter on each green creature that entered this turn (Oran-Rief), a land fetched untapped when you control four lands
     (Fabled Passage), a token if the exiled card is a creature (Feral Appetite), "draw two cards instead" with a condition
-    (Zimone) and Quintorius's "draw two cards, then mill a card". Still unsupported from #73: mana abilities that spend
-    other resources or restrict what the mana buys, Level up, Priest of Forgotten Gods and Currency Converter.
+    (Zimone) and Quintorius's "draw two cards, then mill a card". The rest of #73's lines (mana abilities that spend
+    other resources or restrict what the mana buys, Class levels, Priest of Forgotten Gods, Currency Converter, Opal Palace,
+    Thunderclap Drake and Quintorius's Spirit sacrifice) were built with #80.
   - Rules text of #81: "Counter target spell unless its controller pays {N}" (the controller is asked), "Destroy target artifact,
     enchantment, or planeswalker", "Return six target nonland permanents ...", "target creature with mana value X",
     "gets +X/+X and gains hexproof and indestructible", "Then it fights up to one target creature", "Proliferate X times",
