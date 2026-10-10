@@ -7606,25 +7606,45 @@ _REMOVE_COUNTER_MANA = re.compile(r"\{T\}, Remove an? ([a-z]+) counter from (?:C
                                   r"(one mana of any color|(?:\{[WUBRGC]\})+)\.( If there are no \1 counters on (?:CARDNAME|this land), sacrifice it\.)?")
 
 
+# Hollow Trees, Fountain of Cho: any number of counters come off for that much mana.
+_REMOVE_ANY_NUMBER_MANA = re.compile(r"\{T\}, Remove any number of ([a-z]+) counters from (?:CARDNAME|this land): "
+                                     r"Add \{([WUBRGC])\} for each \1 counter removed this way\.")
+
+
 @dataclass(frozen=True)
 class CounterMana:
     counter: str  # the counter removed for the mana
     mana: tuple[frozenset[str], ...]  # one set of types per mana
     sacrifice_at_zero: bool  # the land is sacrificed when the last counter is gone
+    each: bool = False  # one mana (`mana[0]`) per counter, and as many counters come off as the mana used
 
 
 def counter_removal_mana(card: Card) -> CounterMana | None:
-    """A land whose mana costs a counter (the Vivid lands, the depletion lands), or None."""
+    """A land whose mana costs a counter (the Vivid lands, the depletion lands, the storage lands), or None."""
     for line in rules_lines(card):
         if m := _REMOVE_COUNTER_MANA.fullmatch(line):
             mana = (frozenset("WUBRG"),) if m[2].startswith("one") else tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2]))
             return CounterMana(m[1], mana, m[3] is not None)
+        if m := _REMOVE_ANY_NUMBER_MANA.fullmatch(line):
+            return CounterMana(m[1], (frozenset(m[2]),), False, each=True)
     return None
+
+
+# Hollow Trees: "You may choose not to untap this land during your untap step."
+_MAY_NOT_UNTAP = re.compile(r"You may choose not to untap (?:CARDNAME|this [a-z]+) during your untap step\.")
+
+
+def may_skip_untap(card: Card) -> bool:
+    return any(_MAY_NOT_UNTAP.fullmatch(line) for line in rules_lines(card))
+
+
+def is_optional_untap_line(line: str) -> bool:
+    return _MAY_NOT_UNTAP.fullmatch(line) is not None
 
 
 def is_mana_ability(line: str) -> bool:
     line = _without_spent_rider(line)
-    return (_mana_match(line) is not None or _ADD_CHOSEN.fullmatch(line) is not None or _REMOVE_COUNTER_MANA.fullmatch(line) is not None or _ADD_POWER.fullmatch(line) is not None
+    return (_mana_match(line) is not None or _ADD_CHOSEN.fullmatch(line) is not None or _REMOVE_COUNTER_MANA.fullmatch(line) is not None or _REMOVE_ANY_NUMBER_MANA.fullmatch(line) is not None or _ADD_POWER.fullmatch(line) is not None
             or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
             or _CHARGE_MANA.fullmatch(line) is not None
             or _FILTER.fullmatch(line) is not None

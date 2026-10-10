@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -166,6 +166,7 @@ DELVE_PROMPT = "Exile which card from your graveyard to pay for "  # followed by
 UPKEEP_PROMPT = "Pay the cumulative upkeep of "  # followed by the permanent's name; Yes or No (No sacrifices it)
 PUT_BACK_PROMPT = "Put which card from your hand on top of your library? "
 WHEEL_PROMPT = "Discard your hand and draw a new hand? "
+UNTAP_PROMPT = "Untap during your untap step: "  # followed by the permanent's name; options: "Untap", "Leave tapped"
 TAP_OR_UNTAP_PROMPT = "Tap or untap "  # followed by the creature's name
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
 
@@ -230,6 +231,7 @@ class ManaSource:
     restriction: str | None = None  # what the mana may be spent on (see effects.mana_restriction)
     counter: str | None = None  # the counter removed from the permanent when this mana is used (Vivid and depletion lands)
     counter_free: frozenset[str] = frozenset()  # ... unless it pays for one of these types (the Vivid land's own color)
+    counter_each: bool = False  # one counter comes off for each of this permanent's mana that is used (the storage lands)
 
 
 def _snowy(permanent: "Permanent", types: frozenset[str]) -> frozenset[str]:
@@ -250,7 +252,7 @@ class Payment(list):
     life: int = 0
     pool: tuple[frozenset[str], ...] = ()
     filters: tuple["Permanent", ...] = ()  # the permanents whose Signet-style ability ("{1}, {T}: Add ...") was used
-    counters: tuple[tuple["Permanent", str], ...] = ()  # the lands whose mana cost a counter (Vivid, depletion) and which
+    counters: tuple[tuple["Permanent", str, int], ...] = ()  # the lands whose mana cost counters (Vivid, depletion, storage): which, how many
 
 
 @dataclass(eq=False)
@@ -533,7 +535,12 @@ class Game:
             seat.battlefield += seat.phased_out  # they phase in first, then untap with everything else
             seat.phased_out = []
             for permanent in seat.battlefield:
-                if not self.has_keyword(permanent, NO_UNTAP):  # Infinite Coursework
+                if self.has_keyword(permanent, NO_UNTAP):  # Infinite Coursework
+                    pass
+                elif permanent.tapped and may_skip_untap(permanent.card) and \
+                        seat.player.choose(UNTAP_PROMPT + permanent.card.name, ["Untap", "Leave tapped"]) != 0:
+                    pass  # Hollow Trees: left tapped to collect a storage counter at upkeep
+                else:
                     permanent.tapped = False
                 permanent.sick = False
                 permanent.until_next_turn = []
@@ -947,8 +954,8 @@ class Game:
                 self.mill(seat, 1)
             elif extra == "food" and (food := next((p for p in seat.battlefield if _has_type(p.card, "food")), None)):
                 self._leave_battlefield(food, "sacrificed")
-        for permanent, kind in getattr(sources, "counters", ()):  # Vivid and depletion lands
-            self.remove_counters(permanent, kind, 1)
+        for permanent, kind, amount in getattr(sources, "counters", ()):  # Vivid, depletion and storage lands
+            self.remove_counters(permanent, kind, amount)
             if not permanent.counters.get(kind) and counter_removal_mana(permanent.card).sacrifice_at_zero:
                 self._leave_battlefield(permanent, "sacrificed")
         if pain := getattr(sources, "pain", 0):
@@ -1035,7 +1042,10 @@ class Game:
                 if (cm := counter_removal_mana(card)) is not None:  # Vivid Crag, Hickory Woodlot: the mana costs a counter
                     plain = mana_ability(card, seat.color_identity)
                     free = frozenset().union(*plain) if plain else frozenset()  # the Vivid land's own color costs nothing
-                    if permanent.counters.get(cm.counter, 0):
+                    if cm.each:  # a storage land: one mana for each counter it could lose
+                        lands.extend(ManaSource(permanent, cm.mana[0], counter=cm.counter, counter_each=True)
+                                     for _ in range(permanent.counters.get(cm.counter, 0)))
+                    elif permanent.counters.get(cm.counter, 0):
                         lands.extend(ManaSource(permanent, mana | free, counter=cm.counter, counter_free=free) for mana in cm.mana)
                     elif free:
                         lands.append(ManaSource(permanent, free))
@@ -1338,8 +1348,12 @@ class Game:
             into[key] = max(into.get(key, 0), _pain(source, symbol))
         payment.pain, payment.life = sum(hurt.values()), sum(paid_life.values())
         # A land whose mana costs a counter loses one per tap, unless it only made its own color (or generic mana).
-        payment.counters = tuple({id(s.permanent): (s.permanent, s.counter) for s, symbol in used
-                                  if s.counter and not (s.counter_free and (symbol is None or s.counter_free & symbol))}.values())
+        losing: dict[int, list] = {}
+        for s, symbol in used:
+            if s.counter and not (s.counter_free and (symbol is None or s.counter_free & symbol)):
+                entry = losing.setdefault(id(s.permanent), [s.permanent, s.counter, 0])
+                entry[2] = entry[2] + 1 if s.counter_each else 1
+        payment.counters = tuple(tuple(entry) for entry in losing.values())
         return payment
 
     def _filter_sources(self, seat: Seat, exclude: Permanent | None) -> list[tuple[Permanent, Cost, list]]:

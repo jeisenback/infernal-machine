@@ -432,6 +432,11 @@ winner = game.play()
     Scryfall lists for it). The Thriving lands and Gates, "choose a color other than red" and "{T}: Add {R} or one mana of
     the chosen color", leave their own color out of the choice and make it besides the chosen one. A land with no choice
     (it was never asked) makes nothing, or only its own color.
+  - Storage lands (Hollow Trees, Fountain of Cho and the rest of their two cycles): "{T}, Remove any number of storage
+    counters from this land: Add {G} for each storage counter removed this way" makes one mana for each counter and takes
+    off as many counters as the mana you use (a land with none makes no mana). "You may choose not to untap this land during
+    your untap step" asks you at your untap step, only while the land is tapped, whether to untap it or leave it tapped to
+    collect a counter at upkeep ("if this land is tapped, put a storage counter on it"); the bot always untaps.
   - "When this land enters, sacrifice it unless you pay {1}" (Gateway Plaza and the other Guildgate-style lands): you are asked
     whether to pay (the land enters tapped, so it cannot pay for itself); with nothing to pay with, or if you decline, it is
     sacrificed. Tri-lands ("{T}: Add {W}, {U}, or {B}") make one mana of one of the three colors.
