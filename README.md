@@ -521,7 +521,10 @@ winner = game.play()
     its owner's library; both are chosen as the ability resolves, not targeted), Excava (a finality counter: a creature with one is
     exiled instead of dying, and it leaves as the real card), Augusta, Renegade Bull (cast a copy of the exiled card for free) and
     Sevinne's Reclamation (a spell cast from a graveyard may copy itself as it resolves).
-    Not built (see #80): phasing (Guardian of Faith), Forgotten Ancient and one of Killian's lines, and the level up cards.
+    Class enchantments (Intermediate Chirography, Advanced Reconstruction): a Class enters at level 1 and reads as the abilities of its
+    level, so gaining a level (at sorcery speed, the next level only) swaps in the next level's text; it goes to the graveyard as the
+    whole card. "Spells you cast from anywhere other than your hand cost {2} less" counts a card as cast from the hand if it is in it.
+    Not built (see #80): phasing (Guardian of Faith), Forgotten Ancient and one of Killian's lines.
   - Manifest (Reality Shift): the top card of the library enters face down as a 2/2 creature with no abilities. A creature
     card can be turned face up at any time you have priority for its mana cost ("Turn face up: ..."; not a stack
     action). It goes to the graveyard as the real card, and only its controller is shown what it is
