@@ -879,6 +879,29 @@ class MoveCountersFrom:
 
 
 MOVE_COUNTERS_PROMPT = "Move how many "  # followed by the counter's name; options are "0", "1", ...
+SHIFT_COUNTERS_PROMPT = "Shift how many counters off "  # then the creature's name; options are "0", "1", ... (a bot keeps them)
+SHIFT_ONTO_PROMPT = "Shift them onto which creature? "  # followed by the source's name
+
+
+@dataclass(frozen=True)
+class MoveCountersToOthers:
+    """Forgotten Ancient: "you may move any number of +1/+1 counters from this creature onto other creatures." (nothing is
+    targeted: you choose how many, and where, as it resolves)"""
+    counter: str
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        while (have := target.counters.get(self.counter, 0)) > 0:
+            others = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line and p is not target]
+            if not others:
+                return
+            number = controller.player.choose(SHIFT_COUNTERS_PROMPT + target.card.name, [str(n) for n in range(have + 1)])
+            if number == 0:
+                return
+            pick = controller.player.choose(SHIFT_ONTO_PROMPT + target.card.name, [game.label(p) for p in others])
+            game.move_counters(target, others[pick], self.counter, number)
 
 
 @dataclass(frozen=True)
@@ -5721,6 +5744,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"move any number of ([+\-\u2212]1/[+\-\u2212]1) counters from (?:this creature|CARDNAME) onto other creatures\.", re.I),
+     lambda m: MoveCountersToOthers(_counter_name(m[1]))),
     (re.compile(rf"target player shuffles up to {_N} target cards from their graveyard into their library\.", re.I),
      lambda m: ShuffleIntoLibrary(max_targets=_count(m[1]))),
     (re.compile(r"level \d", re.I), lambda m: LevelUp()),

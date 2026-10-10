@@ -11,6 +11,7 @@ from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 from tests.test_prepare_85 import activate, fire
+from tests.test_x_targets import script
 from tests.test_triggers_80 import FOREST, RELIC, SHRINE, card
 
 BOGBEAST = Card(name="Blossoming Bogbeast", mana_cost="{4}{G}", type_line="Creature — Beast", power="5", toughness="5",
@@ -255,3 +256,50 @@ class HarmonicProdigyTests(unittest.TestCase):
 
 
 STUDY_SPELL = Card(name="Spark", mana_cost="{R}", cmc=1.0, type_line="Instant")
+
+
+ANCIENT = Card(name="Forgotten Ancient", mana_cost="{3}{G}", cmc=4.0, type_line="Creature — Elemental", power="0", toughness="3",
+               oracle_text="Whenever a player casts a spell, you may put a +1/+1 counter on this creature.\nAt the beginning of your "
+                           "upkeep, you may move any number of +1/+1 counters from this creature onto other creatures.")
+
+
+class ForgottenAncientTests(unittest.TestCase):
+    def upkeep(self, counters, *choices):
+        game, _ = table3(script(*choices))
+        a, b, _ = game.seats
+        self.ancient = Permanent(ANCIENT, counters={"+1/+1": counters} if counters else {})
+        self.bear, self.ogre = Permanent(BEAR), Permanent(OGRE)
+        a.battlefield = [self.ancient, self.bear]
+        b.battlefield = [self.ogre]
+        fire(game, a, self.ancient, "upkeep")
+        return game, a
+
+    def count(self, p):
+        return p.counters.get("+1/+1", 0)
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(ANCIENT), [])
+
+    def test_counters_move_onto_another_creature(self):
+        game, a = self.upkeep(4, "Yes", "3", "Bear")
+        self.assertEqual((self.count(self.ancient), self.count(self.bear)), (1, 3))
+
+    def test_they_can_be_split_among_creatures(self):
+        game, a = self.upkeep(4, "Yes", "1", "Bear", "3", "Ogre")
+        self.assertEqual((self.count(self.ancient), self.count(self.bear), self.count(self.ogre)), (0, 1, 3))
+
+    def test_moving_none_leaves_them(self):
+        game, a = self.upkeep(4, "Yes", "0")
+        self.assertEqual((self.count(self.ancient), self.count(self.bear)), (4, 0))
+
+    def test_declining_leaves_them(self):
+        game, a = self.upkeep(4, "No")
+        self.assertEqual((self.count(self.ancient), self.count(self.bear)), (4, 0))
+
+    def test_with_no_counters_nothing_happens(self):
+        game, a = self.upkeep(0, "Yes", "1", "Bear")
+        self.assertEqual(self.count(self.bear), 0)
+
+    def test_it_never_moves_counters_onto_itself(self):
+        game, a = self.upkeep(2, "Yes", "2", "Forgotten")  # not offered: the first creature listed gets them
+        self.assertEqual((self.count(self.ancient), self.count(self.bear)), (0, 2))
