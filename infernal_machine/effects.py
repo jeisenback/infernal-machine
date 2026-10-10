@@ -7454,7 +7454,9 @@ def has_next_x_rider(card: Card) -> bool:
 def _without_spent_rider(line: str) -> str:
     """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
     m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line) or _COUNTERS_RIDER.fullmatch(line)
-    return _RESTRICTION.sub("", m[1] if m else line)
+    line = _RESTRICTION.sub("", m[1] if m else line)
+    # Eldrazi Spawn: "Sacrifice this token: Add {C}." reads like Treasure's "{T}, Sacrifice this permanent: Add {C}."
+    return "{T}, Sacrifice this permanent: " + line.removeprefix("Sacrifice this token: ") if line.startswith("Sacrifice this token: Add ") else line
 
 
 def mana_restriction(card: Card) -> str | None:
@@ -7527,7 +7529,14 @@ def makes_mana_by_power(card: Card) -> bool:
 def mana_ability_sacrifices(card: Card) -> bool:
     """Whether using the card's mana ability sacrifices it (Treasure)."""
     line = _mana_line(card)
-    return bool(line and any((m := p.fullmatch(line)) and m[1] for p in _MANA_PATTERNS))
+    return bool(line and any((m := p.fullmatch(_without_spent_rider(line))) and m[1] for p in _MANA_PATTERNS))
+
+
+def mana_ability_needs_no_tap(card: Card) -> bool:
+    """Eldrazi Spawn: "Sacrifice this token: Add {C}." has no {T} in its cost, so summoning sickness does not stop a creature
+    from using it."""
+    line = _mana_line(card)
+    return bool(line and "{T}" not in line.split(":")[0])
 
 
 def _mana_match(line: str) -> re.Match | None:

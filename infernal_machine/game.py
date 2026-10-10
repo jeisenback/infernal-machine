@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -1049,7 +1049,7 @@ class Game:
                     if not types:
                         continue
                 lands.extend([ManaSource(permanent, _snowy(permanent, types), pain, damage)] + extra)
-            elif not (permanent.sick and "Creature" in card.type_line):
+            elif not (permanent.sick and "Creature" in card.type_line and not mana_ability_needs_no_tap(card)):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
                 extra = mana_extra_cost(card)
                 if extra == "food" and foods <= 0 or extra == "mill" and not seat.library:
@@ -1063,6 +1063,11 @@ class Game:
                 if (kind := counter_mana(card)) is not None:  # Mana Bloom: a counter for one mana, once each turn
                     if permanent.counters.get(kind, 0) and permanent.activated_turn.get("counter mana") != self.turn:
                         bucket.append(ManaSource(permanent, frozenset("WUBRG")))
+                    continue
+                if reflect := reflected_mana(card):  # Fellwar Stone: what the opponents' lands could produce
+                    types = self._reflected_types(seat, *reflect)
+                    if types:
+                        bucket.append(ManaSource(permanent, types))
                     continue
                 units = ([frozenset("WUBRG")] * max(0, self.power(permanent)) if makes_mana_by_power(card)
                          else mana_ability(card, seat.color_identity) or [])  # (the power's worth need not be one color here)
