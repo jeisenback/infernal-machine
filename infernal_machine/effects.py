@@ -94,6 +94,9 @@ _WHOLE_LINE = re.compile(
     r"|Each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures can't attack "
     r"you or planeswalkers you control for as long as it has a vow counter on it\."
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
+    r"|Look at the top (?:six|seven|eight) cards of your library\. You may put an Aura or Equipment card from among them onto "
+    r"the battlefield\. If an Equipment is put onto the battlefield this way, you may attach it to a creature you control\. "
+    r"Put the rest of those cards on the bottom of your library in a random order\."
     r"|Search your library for a [A-Z][a-z]+ card and put it onto the battlefield tapped\. Then if an opponent controls more "
     r"lands than you, repeat this process once\. If you search your library this way, shuffle\."
     r"|You and target opponent each reveal the top card of your library\. You each lose life equal to the mana value of the "
@@ -4238,6 +4241,17 @@ class Impulse:
 
 
 @dataclass(frozen=True)
+class LookPutAttachment:
+    """Armored Skyhunter: "Look at the top six cards of your library. You may put an Aura or Equipment card from among them
+    onto the battlefield. If an Equipment is put onto the battlefield this way, you may attach it to a creature you control.
+    Put the rest of those cards on the bottom of your library in a random order." """
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.look_and_put_attachment(controller, self.count)
+
+
+@dataclass(frozen=True)
 class PutBackTop:
     """ "Look at the top three cards of your library, then put them back in any order. (You may shuffle.)" """
     count: int
@@ -5022,6 +5036,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                                      colors=("G", "U"), power="0", toughness="0"), counters=("X", "+1/+1"))]),
     (re.compile(rf"(?:you )?put {_N} \+1/\+1 counters? on a creature you control\.", re.I),
      lambda m: PutCountersOnChosenCreature(_count(m[1]), "+1/+1")),
+    (re.compile(rf"look at the top {_N} cards of your library\. you may put an Aura or Equipment card from among them onto the "
+                r"battlefield\. If an Equipment is put onto the battlefield this way, you may attach it to a creature you control\. "
+                r"Put the rest of those cards on the bottom of your library in a random order\.", re.I),
+     lambda m: LookPutAttachment(_count(m[1]))),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
     (re.compile(r"attach (?:this Aura|CARDNAME) to it\.", re.I), lambda m: AttachThisToSubject()),
     (re.compile(r"if that enchantment is an Aura, you may attach it to the token\.", re.I), lambda m: _AttachItToToken()),

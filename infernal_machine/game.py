@@ -130,6 +130,8 @@ SEARCH_LAND_HAND_PROMPT = "Choose a land to put into your hand"
 SCRY_PROMPT = "Scry: "  # followed by the card's name; options are KEEP_ON_TOP and PUT_ON_BOTTOM
 SURVEIL_PROMPT = "Surveil: "  # options are KEEP_ON_TOP and PUT_IN_GRAVEYARD
 ORDER_TOP_PROMPT = "Put on top next"  # options are card names; asked while two or more cards stay on top
+PUT_ATTACHMENT_PROMPT = "Put an Aura or Equipment onto the battlefield"  # options are card names, then NONE_TAKEN
+EQUIP_PROMPT = "Attach it to which creature? "  # followed by the Equipment's name; the last option leaves it unattached
 LOOK_PROMPT = "Take a card from the top of your library"  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
 PUT_CREATURE_PROMPT = "Put a creature card from your hand onto the battlefield"  # options are card names, then NONE_TAKEN
@@ -3801,6 +3803,46 @@ class Game:
                         **({"card": taken.name} if taken and card_type else {})}, skip=seat)
         seat.player.notify({"event": "looked", "seat": seat.index, "count": looked,
                             "card": taken.name if taken else None})
+
+    def _can_put_attachment(self, seat: Seat, card: Card) -> bool:
+        """Whether an Aura or Equipment card could be put onto the battlefield (an Aura needs something to enchant)."""
+        if "Equipment" in card.type_line:
+            return True
+        return "Aura" in card.type_line and bool(self.target_options(aura_kind(card) or "creature", seat, source_qualities(card)))
+
+    def put_attachment_onto_battlefield(self, seat: Seat, card: Card) -> None:
+        """Put an Aura or Equipment card (already out of its zone) onto the battlefield without casting it. An Aura enters
+        attached to what `seat` chooses; an Equipment may then be attached to a creature `seat` controls."""
+        self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": False})
+        if "Aura" in card.type_line:
+            options = self.target_options(aura_kind(card) or "creature", seat, source_qualities(card))
+            host = options[seat.player.choose(f"Enchant which permanent with {card.name}? ", [n for n, _ in options])
+                           if len(options) > 1 else 0][1]
+            self._enter(seat, Permanent(card, sick=True, attached_to=host, owner=seat))
+            self.broadcast({"event": "attached", "card": card.name, "to": host.card.name})
+            return
+        equipment = Permanent(card, sick=True, owner=seat)
+        self._enter(seat, equipment)
+        creatures = [p for p in seat.battlefield if "Creature" in p.card.type_line and p is not equipment]
+        if creatures:
+            pick = seat.player.choose(EQUIP_PROMPT + card.name, [self.label(p) for p in creatures] + [DECLINE])
+            if pick < len(creatures):
+                self.attach(equipment, creatures[pick])
+
+    def look_and_put_attachment(self, seat: Seat, count: int) -> None:
+        """Armored Skyhunter: look at the top `count` cards; you may put an Aura or Equipment card from among them onto the
+        battlefield; the rest go to the bottom in a random order."""
+        top = seat.library[:count]
+        del seat.library[:len(top)]
+        options = _unique([c for c in top if self._can_put_attachment(seat, c)])
+        if options:
+            choice = seat.player.choose(PUT_ATTACHMENT_PROMPT, [c.name for c in options] + [NONE_TAKEN])
+            if choice < len(options):
+                top.remove(options[choice])
+                self.put_attachment_onto_battlefield(seat, options[choice])
+        self.rng.shuffle(top)
+        seat.library += top
+        self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
 
     def add_combat(self, main: bool) -> None:
         """An additional combat phase (and main phase) right after the current phase (CR 500.8)."""
