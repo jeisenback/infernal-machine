@@ -229,3 +229,101 @@ class MyriadTests(unittest.TestCase):
     def test_it_is_optional(self):
         game, a, b, c = self.attack(answer="No")
         self.assertEqual(self.tokens(game, a), [])
+
+
+MIRROR = Card(name="Cursed Mirror", mana_cost="{3}", cmc=3.0, type_line="Artifact",
+              oracle_text="{T}: Add {R}.\nAs this artifact enters, you may have it become a copy of any creature on the battlefield "
+                          "until end of turn, except it has haste.")
+
+
+class CursedMirrorTests(unittest.TestCase):
+    def enter(self, choice):
+        game, _ = table3(pick(choice))
+        a, b, _ = game.seats
+        b.battlefield = [Permanent(KING)]
+        a.battlefield = [Permanent(BEAR_CARD)]
+        mirror = Permanent(MIRROR, sick=True)
+        game._enter(a, mirror)
+        return game, a, mirror
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(MIRROR), [])
+
+    def test_it_enters_as_a_copy_with_haste(self):
+        game, a, mirror = self.enter("Bear")
+        self.assertEqual((mirror.card.name, game.power(mirror), "Creature" in mirror.card.type_line), ("Bear", 2, True))
+        self.assertTrue(game.has_keyword(mirror, "haste"))
+
+    def test_any_creature_may_be_copied_even_an_opponents_legend(self):
+        game, a, mirror = self.enter("King")
+        self.assertEqual(mirror.card.name, "King")
+
+    def test_it_turns_back_into_the_artifact_at_cleanup(self):
+        game, a, mirror = self.enter("Bear")
+        game.step = "cleanup"
+        game._turn_based_actions(a)
+        self.assertEqual((mirror.card.name, mirror.card.type_line), ("Cursed Mirror", "Artifact"))
+
+    def test_it_may_stay_an_artifact(self):
+        game, a, mirror = self.enter("Don't copy")
+        self.assertEqual(mirror.card.name, "Cursed Mirror")
+
+    def test_with_no_creature_on_the_battlefield_it_is_just_an_artifact(self):
+        game, _ = table3(pick("Idol", "Bear"))
+        a = game.seats[0]
+        a.battlefield = [Permanent(Card(name="Idol", type_line="Artifact"))]  # only a creature may be copied
+        mirror = Permanent(MIRROR, sick=True)
+        game._enter(a, mirror)
+        self.assertEqual(mirror.card.name, "Cursed Mirror")
+
+
+from infernal_machine.game import CAST  # noqa: E402
+from tests.test_effects import lands  # noqa: E402
+from tests.test_prepare_85 import activate  # noqa: E402
+
+DRAKE = Card(name="Thunderclap Drake", mana_cost="{3}{U}", type_line="Creature — Drake", power="3", toughness="2",
+             oracle_text="Flying\nInstant and sorcery spells you cast cost {1} less to cast.\n{2}{U}, Sacrifice this creature: When you "
+                         "next cast an instant or sorcery spell this turn, copy it for each time you've cast your commander from "
+                         "the command zone this game. You may choose new targets for the copies.")
+STUDY = Card(name="Study", mana_cost="{U}", cmc=1.0, type_line="Instant", oracle_text="Draw a card.")
+
+
+class ThunderclapDrakeTests(unittest.TestCase):
+    def play(self, casts, spell=STUDY):
+        game, _ = table3(pick())
+        a = game.seats[0]
+        a.battlefield = [Permanent(DRAKE)] + lands(6)
+        a.commander_casts = casts
+        a.library = [BEAR_CARD] * 20
+        activate(game, a, "Sacrifice")
+        a.hand = [spell]
+        game._perform(a, CAST + spell.name)
+        run_stack(game)
+        return game, a
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(DRAKE), [])
+
+    def test_a_copy_for_each_time_the_commander_was_cast(self):
+        game, a = self.play({"Commander": 2})
+        self.assertEqual(len(a.hand), 3)  # the spell and its two copies each drew a card
+
+    def test_the_commander_casts_of_every_commander_add_up(self):
+        game, a = self.play({"One": 1, "Two": 1})
+        self.assertEqual(len(a.hand), 3)
+
+    def test_no_commander_casts_means_no_copies(self):
+        game, a = self.play({})
+        self.assertEqual(len(a.hand), 1)
+        self.assertIsNone(a.copy_next_turn)
+
+    def test_only_the_next_instant_or_sorcery_is_copied(self):
+        game, a = self.play({"Commander": 1})
+        a.hand.append(Card(name="Study2", mana_cost="{U}", cmc=1.0, type_line="Instant", oracle_text="Draw a card."))
+        game._perform(a, CAST + "Study2")
+        run_stack(game)
+        self.assertEqual(len(a.hand), 3)  # 2 from the first spell and its copy, 1 from the second
+
+    def test_a_creature_spell_is_not_copied_and_the_wait_continues(self):
+        game, a = self.play({"Commander": 1}, spell=Card(name="Cheap", mana_cost="{U}", cmc=1.0, type_line="Creature — Bear", power="1", toughness="1"))
+        self.assertEqual(a.copy_next_turn, game.turn)

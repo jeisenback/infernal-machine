@@ -113,6 +113,8 @@ _WHOLE_LINE = re.compile(
     r"|Shuffle your library\. As many times as you choose, you may exile the top card of your library\. .*"
     r"|Remove all counters from target nonland permanent you control\. Draw a card for each counter removed this way\."
     r"|When you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the copy\."
+    r"|When you next cast an instant or sorcery spell this turn, copy it for each time you've cast your commander from the command "
+    r"zone this game\. You may choose new targets for the copies\."
     r"|You gain half X life and draw half X cards\. Round down each time\."
     r"|Mill a card, then exile a card from your graveyard at random\. You may play the exiled card this turn\."
     r"|Exile (?:that card|one of them) from your graveyard\. If you do, you may (?:play|cast) (?:that card|it) this turn\."
@@ -1711,6 +1713,16 @@ _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy
                     r"(, except it enters with X additional \+1/\+1 counters on it)?\.")
 
 
+# Cursed Mirror: a copy only until end of turn, with a keyword added.
+_TEMP_CLONE = re.compile(rf"As {_SELF} enters, you may have it become a copy of any creature on the battlefield until end of turn, "
+                         r"except it has ([a-z]+)\.")
+
+
+def temporary_clone_keyword(card: Card) -> str | None:
+    """Cursed Mirror: the keyword a copy "until end of turn" gets, if the card enters that way."""
+    return next((m[1].capitalize() for line in rules_lines(card) if (m := _TEMP_CLONE.fullmatch(line))), None)
+
+
 def clone_extra_counters(card: Card) -> bool:
     """Altered Ego: a copy "except it enters with X additional +1/+1 counters on it"."""
     return any((m := _CLONE.fullmatch(line)) and m[3] for line in rules_lines(card))
@@ -1725,7 +1737,7 @@ def clone_kind(card: Card) -> tuple[str, bool] | None:
 
 
 def is_clone_line(line: str) -> bool:
-    return _CLONE.fullmatch(line) is not None
+    return _CLONE.fullmatch(line) is not None or _TEMP_CLONE.fullmatch(line) is not None
 
 
 def is_enchant_line(line: str) -> bool:
@@ -3742,10 +3754,13 @@ class CopySpell:
 @dataclass(frozen=True)
 class CopyNextSpell:
     """Pigment Wrangler's spell: "When you next cast an instant or sorcery spell this turn, copy that spell. You may choose new
-    targets for the copy." (see Game._cast)"""
+    targets for the copy." (see Game._cast). Thunderclap Drake copies it once for each time you've cast your commander from
+    the command zone this game instead (`per_commander_cast`)."""
+    per_commander_cast: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         controller.copy_next_turn = game.turn
+        controller.copy_next_per_commander = self.per_commander_cast
 
 
 @dataclass(frozen=True)
@@ -5172,6 +5187,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'(?:it has|they have) "(.+)"', re.I), lambda m: _ItHas(m[1]) if _is_known_ability(m[1]) else None),
     (re.compile(r"when you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the "
                 r"copy\.", re.I), lambda m: CopyNextSpell()),
+    (re.compile(r"when you next cast an instant or sorcery spell this turn, copy it for each time you've cast your commander from "
+                r"the command zone this game\. You may choose new targets for the copies\.", re.I),
+     lambda m: CopyNextSpell(per_commander_cast=True)),
     (re.compile(rf"(?:then )?put an? {_CARD_TYPE} from among them onto the battlefield\.", re.I),
      lambda m: _PutFromAmongThem(_card_kind(m[1]))),
     (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),

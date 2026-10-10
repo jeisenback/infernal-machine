@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, temporary_clone_keyword, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -340,6 +340,7 @@ class Seat:
     combat_shield_turn: int | None = None  # Inkshield: the turn combat damage to this player is prevented
     combat_shield_token: Card | None = None  # ... and the token made for each point prevented
     copy_next_turn: int | None = None  # the turn the next instant or sorcery this player casts is copied (Pigment Wrangler)
+    copy_next_per_commander: bool = False  # ... once per time the commander was cast from the command zone (Thunderclap Drake)
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
     spent_turn: int | None = None  # the turn `spent_amount` counts for
     spent_amount: int = 0  # the mana this player spent casting spells that turn ("Whenever you expend 4")
@@ -1785,8 +1786,10 @@ class Game:
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
         if seat.copy_next_turn == self.turn and ("Instant" in card.type_line or "Sorcery" in card.type_line):
             seat.copy_next_turn = None  # a delayed trigger: it copies the spell, with new targets
-            ability = TriggeredAbility("cast", (CopySpellTimes(1),), False, "Copy that spell")
-            self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
+            copies = sum(seat.commander_casts.values()) if seat.copy_next_per_commander else 1
+            if copies:
+                ability = TriggeredAbility("cast", (CopySpellTimes(copies),), False, "Copy that spell")
+                self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         self._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared,
                       prepared=prepared is not None, spell=item, from_graveyard=graveyard is not None)
         if seat.spent_turn != self.turn:
@@ -3276,14 +3279,14 @@ class Game:
                 self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": was.name,
                                 "as": chosen.card.name})
 
-    def become_copy_until_end_of_turn(self, permanent: Permanent, copied: Permanent, keyword: str) -> None:
+    def become_copy_until_end_of_turn(self, permanent: Permanent, copied: Permanent, keyword: str, seat: Seat | None = None) -> None:
         """`permanent` becomes a copy of `copied`, except it has `keyword`, until end of turn (the card comes back at cleanup).
         Counters and damage stay where they are."""
         permanent.original = permanent.original or permanent.card
         card = copied.card
         text = (card.oracle_text + f"\n{keyword}").strip()
         permanent.card = dataclasses.replace(card, type_line=card.type_line.removeprefix("Token "), oracle_text=text)
-        self.broadcast({"event": "copied_permanent", "seat": self.controller_of(permanent).index,
+        self.broadcast({"event": "copied_permanent", "seat": (seat or self.controller_of(permanent)).index,
                         "card": permanent.original.name, "as": card.name})
 
     def may_become_copy(self, seat: Seat, permanent: Permanent, cards: list[Card]) -> None:
@@ -4211,7 +4214,9 @@ class Game:
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
         extra_when_copy = False
-        if clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
+        if keyword := temporary_clone_keyword(permanent.card):  # Cursed Mirror
+            self._become_temporary_copy(seat, permanent, keyword)
+        elif clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
             extra_when_copy = clone_extra_counters(permanent.card)
             self._become_copy(seat, permanent, *clone)
         counters = {counter: (x if count == "X" else 2 * x if count == "2X" else count)
@@ -4280,6 +4285,16 @@ class Game:
         if permanent.prepared:
             permanent.prepared = False
             self.broadcast({"event": "unprepared", "card": permanent.card.name})
+
+    def _become_temporary_copy(self, seat: Seat, permanent: Permanent, keyword: str) -> None:
+        """Cursed Mirror: as it enters, it may become a copy of any creature on the battlefield until end of turn, except it has
+        `keyword`."""
+        options = [p for s in self.live_seats() for p in s.battlefield if "Creature" in p.card.type_line]
+        if not options:
+            return
+        pick = seat.player.choose(CLONE_PROMPT + permanent.card.name, [self.label(p) for p in options] + [NOT_A_COPY])
+        if pick < len(options):
+            self.become_copy_until_end_of_turn(permanent, options[pick], keyword, seat)
 
     def _become_copy(self, seat: Seat, permanent: Permanent, kind: str, yours: bool) -> None:
         """Clone: choose a permanent on the battlefield and enter as a copy of it. A copy gets the other card's
