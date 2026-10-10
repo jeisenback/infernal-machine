@@ -493,6 +493,9 @@ winner = game.play()
     their spell halves from real Oracle text, through real upkeeps, combats and draws. It found that "Put two +1/+1 counters on
     target creature. It gains trample until end of turn." (Pack a Punch) gave the trample to nothing; "it" now means the creature
     that got the counters, and still means the source when no creature was targeted before it.
+    Fellwar Stone makes the colors the opponents' lands could produce (before, only Exotic Orchard did, so the artifact made no
+    mana), and an Eldrazi Spawn's "Sacrifice this token: Add {C}." is a mana ability that works the turn the token arrives (it
+    needs no {T}), where before the Spawn made no mana at all.
   - Trigger effects of #80: "sacrifice two lands", a search whose "it" is the card found (Bitterthorn), "Whenever one or more
     creatures die / enter" (once for everything that happens together, with "with mana value 3 or less" and "only once each turn"),
     "its controller loses 2 life and you gain 2 life" (Parasitic Impetus), "you may attach this Aura to that creature" and
