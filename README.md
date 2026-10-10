@@ -1131,3 +1131,5 @@ python3 -m unittest discover -s tests -t .
 ```
 
 The same command runs on every pull request and every push to `main` (`.github/workflows/tests.yml`), on Python 3.11 and 3.13.
+
+A second workflow (`.github/workflows/precon-report.yml`) runs the card report on each deck in `examples/precons` and fails if any card has an unsupported line. It runs when the engine or the decks change, and every Monday, since Scryfall's Oracle text can change.
