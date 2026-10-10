@@ -1,5 +1,5 @@
-session: claude-code triggers-80-level
-branch: claude/triggers-80-level
-task: issue #80 eighth batch (level up), stacked on claude/triggers-80-graveyard (PR 145)
-status: Class levels done, README updated, bot games running
-updated: 2026-10-10T15:10:42Z
+session: claude-code triggers-80-oneoffs
+branch: claude/triggers-80-oneoffs
+task: issue #80 ninth batch (the one-offs), stacked on claude/triggers-80-level (PR 146)
+status: in progress
+updated: 2026-10-10T15:17:10Z
