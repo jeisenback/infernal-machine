@@ -76,6 +76,13 @@ class AngerTests(unittest.TestCase):
         b.graveyard = [ANGER]
         self.assertFalse(game.has_keyword(self.bear, "haste"))
 
+    def test_it_works_for_the_graveyard_owner_only(self):
+        game, a, b = self.table([], [])
+        theirs = Permanent(BEAR, sick=True)
+        b.battlefield = [theirs, Permanent(MOUNTAIN)]
+        b.graveyard = [ANGER]
+        self.assertEqual((game.has_keyword(theirs, "haste"), game.has_keyword(self.bear, "haste")), (True, False))
+
     def test_it_stops_when_the_card_leaves_the_graveyard(self):
         game, a, b = self.table([ANGER], [Permanent(MOUNTAIN)])
         a.graveyard = []
