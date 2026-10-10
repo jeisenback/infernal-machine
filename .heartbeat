@@ -1,5 +1,5 @@
-session: claude-code triggers-80-copy
-branch: claude/triggers-80-copy
-task: issue #80 fifth batch (copy family), stacked on claude/triggers-80-look (PR 143)
-status: copy family done, README updated
-updated: 2026-10-10T05:31:23Z
+session: claude-code triggers-80-x
+branch: claude/triggers-80-x
+task: issue #80 sixth batch (X family), stacked on claude/triggers-80-copy
+status: in progress
+updated: 2026-10-10T05:33:16Z
