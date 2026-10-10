@@ -101,6 +101,8 @@ _WHOLE_LINE = re.compile(
     r"|Each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a nonland "
     r"card exiled this way\. You may cast up to (?:two|three) spells from among the other cards exiled this way without paying "
     r"their mana costs\."
+    r"|Choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana cost\. If "
+    r"that spell would be put into a graveyard, put it on the bottom of its owner's library instead\."
     r"|Copy that ability\. You may choose new targets for the copy\."
     r"|Put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a Treasure token\. "
     r"If it's a nonland card, create an? .+ token\."
@@ -2242,6 +2244,19 @@ class PutExiledWithIntoGraveyard:
         card = game.put_exiled_with_into_graveyard(controller, target)
         if card is not None:
             game.create_tokens(controller, self.land_token if "Land" in card.type_line else self.nonland_token, 1)
+
+
+@dataclass(frozen=True)
+class CastExiledWithFree:
+    """Quintorius: "Choose target card exiled with Quintorius. You may cast that card this turn without paying its mana cost. If
+    that spell would be put into a graveyard, put it on the bottom of its owner's library instead." (chosen as it resolves)"""
+    bottom_after: bool = True
+    uses_source = True
+    needs_exiled_with = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.cast_exiled_with_free(controller, target, self.bottom_after)
 
 
 @dataclass(frozen=True)
@@ -5599,6 +5614,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana "
+                r"cost\. If that spell would be put into a graveyard, put it on the bottom of its owner's library instead\.", re.I),
+     lambda m: CastExiledWithFree()),
     (re.compile(r"put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a "
                 r"Treasure token\. If it's a nonland card, create an? (.+ creature token)\.", re.I),
      lambda m: PutExiledWithIntoGraveyard(TREASURE, made[1]) if (made := _token("a " + m[1])) else None),
@@ -6939,7 +6957,7 @@ _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE_IDENTITY = re.compile(r"Pay life equal to the number of colors in your commanders?'s? color identity")
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
 _CARDS = r"(an?|two|three|four)"
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue)s?")
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+)s?")
 _REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
 _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")

@@ -75,3 +75,69 @@ class CurrencyConverterTests(unittest.TestCase):
         a.exile = []
         game.exile_card_from_graveyard(a, GOLEM, False)  # no source ability is resolving
         self.assertFalse([x for x in game.legal_actions(a) if "Put a card exiled" in x])
+
+
+QUINTORIUS = Card(name="Quintorius, Loremaster", mana_cost="{3}{R}{W}", type_line="Legendary Creature — Elephant Cleric", power="4",
+                  toughness="4",
+                  oracle_text="Vigilance\nAt the beginning of your end step, exile target noncreature, nonland card from your "
+                              "graveyard. Create a 3/2 red and white Spirit creature token.\n{1}{R}{W}, {T}, Sacrifice a Spirit: "
+                              "Choose target card exiled with Quintorius. You may cast that card this turn without paying its mana "
+                              "cost. If that spell would be put into a graveyard, put it on the bottom of its owner's library "
+                              "instead.")
+DRAW_TWO = Card(name="Study", mana_cost="{2}{U}", cmc=3.0, type_line="Sorcery", oracle_text="Draw two cards.")
+CHARM = Card(name="Charm", mana_cost="{1}", cmc=1.0, type_line="Artifact")
+
+
+class QuintoriusTests(unittest.TestCase):
+    def table(self, *choices):
+        game, _ = table3(pick(*choices))
+        a = game.seats[0]
+        self.quint = Permanent(QUINTORIUS)
+        a.battlefield = [self.quint]
+        a.library = [FOREST] * 10
+        return game, a
+
+    def end_step(self, game, a):
+        fire(game, a, self.quint, "end_step")
+
+    def spirits(self, a):
+        return [p for p in a.battlefield if p.card.name == "Spirit"]
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(QUINTORIUS), [])
+
+    def test_the_end_step_exiles_a_noncreature_nonland_card_and_makes_a_spirit(self):
+        game, a = self.table("Study")
+        a.graveyard = [DRAW_TWO, GOLEM, FOREST]
+        self.end_step(game, a)
+        self.assertEqual(([c.name for c in a.exile], len(self.spirits(a))), (["Study"], 1))
+        self.assertEqual([c.name for c, in [(c,) for c in a.graveyard]], ["Golem", "Forest"])
+        self.assertEqual([c.name for _, c in self.quint.exiled_with], ["Study"])
+
+    def test_the_spell_is_cast_free_and_goes_to_the_bottom_of_the_library(self):
+        game, a = self.table("Study", "Study")
+        a.graveyard = [DRAW_TWO]
+        a.battlefield += lands(3)
+        self.end_step(game, a)
+        before = len(a.hand)
+        activate(game, a, "Choose target card exiled")
+        run_stack(game)
+        self.assertEqual(len(a.hand) - before, 2)  # it resolved
+        self.assertEqual(([c.name for c in a.graveyard], a.library[-1].name, a.exile), ([], "Study", []))
+        self.assertEqual(self.spirits(a), [])  # the Spirit was sacrificed
+
+    def test_a_permanent_card_cast_free_enters_the_battlefield(self):
+        game, a = self.table("Charm", "Charm")
+        a.graveyard = [CHARM]
+        a.battlefield += lands(3)
+        self.end_step(game, a)
+        activate(game, a, "Choose target card exiled")
+        run_stack(game)
+        self.assertIn("Charm", [p.card.name for p in a.battlefield])
+
+    def test_it_needs_a_spirit_and_an_exiled_card(self):
+        game, a = self.table()
+        a.battlefield += lands(3)
+        self.assertFalse([x for x in game.legal_actions(a) if "Choose target card exiled" in x])  # nothing exiled, no Spirit
+        a.battlefield.append(Permanent(Card(name="Spirit", type_line="Token Creature — Spirit", power="3", toughness="2")))
+        self.assertFalse([x for x in game.legal_actions(a) if "Choose target card exiled" in x])  # a Spirit, nothing exiled

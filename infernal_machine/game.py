@@ -268,6 +268,7 @@ class StackItem:
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     mana_spent: int = 0  # the mana paid to cast it (Deekah: "the amount of mana spent to cast that spell")
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
+    bottom_after: bool = False  # Quintorius: put on the bottom of its owner's library instead of into the graveyard
     is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
@@ -1680,7 +1681,7 @@ class Game:
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
               graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False,
-              copy: bool = False) -> None:
+              copy: bool = False, bottom_after: bool = False) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
         extra = ""
@@ -1756,7 +1757,7 @@ class Game:
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked)
-        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after),
+        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent)
@@ -1915,7 +1916,7 @@ class Game:
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
             if not item.is_copy:
-                self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
+                self._finish_spell(item)
             return
         self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard (or exile, after flashback)
         if item.suspend_after and not item.is_copy:  # "Exile it with three time counters on it"
@@ -1923,7 +1924,15 @@ class Game:
             seat.suspended.append([card, item.suspend_after])
             self.broadcast({"event": "suspended", "seat": seat.index, "card": card.name, "counters": item.suspend_after})
         elif not item.is_copy:
-            self._move_card(seat, card, "exile" if item.exile_after else "graveyard")
+            self._finish_spell(item)
+
+    def _finish_spell(self, item: StackItem) -> None:
+        """A resolved instant or sorcery goes to its graveyard; exiled after flashback; or, cast with Quintorius, to the bottom of
+        its owner's library."""
+        if item.bottom_after and item.card.name not in item.controller.commander_names:
+            item.controller.library.append(item.card)
+            return
+        self._move_card(item.controller, item.card, "exile" if item.exile_after else "graveyard")
 
     def _resolve_bestow(self, item: StackItem) -> None:
         """A bestow spell enters attached to its creature as an Aura. If that creature is no longer a legal target,
@@ -3937,6 +3946,19 @@ class Game:
         self.rng.shuffle(top)
         seat.library += top
         self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
+
+    def cast_exiled_with_free(self, seat: Seat, source: Permanent, bottom_after: bool) -> None:
+        """Quintorius: you may cast a card exiled with `source` without paying its mana cost (this turn; it is done as the ability
+        resolves). A spell that would go to a graveyard goes to the bottom of its owner's library when `bottom_after`."""
+        options = [(owner, card) for owner, card in source.exiled_with if any(c is card for c in owner.exile)]
+        if not options:
+            return
+        pick = seat.player.choose(CHOOSE_EXILED_WITH_PROMPT, [card.name for _, card in options] + [NONE_TAKEN])
+        if pick >= len(options):
+            return
+        owner, card = options[pick]
+        source.exiled_with = [pair for pair in source.exiled_with if pair[1] is not card]
+        self._cast(seat, card, owner.exile, free=True, bottom_after=bottom_after)
 
     def put_exiled_with_into_graveyard(self, seat: Seat, source: Permanent) -> Card | None:
         """Currency Converter: a card exiled with `source` (the player chooses) goes to its owner's graveyard; returns it."""
