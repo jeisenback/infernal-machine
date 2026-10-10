@@ -1717,6 +1717,8 @@ def replacement_effects(card: Card) -> Replacements:
             found["extra_trigger"] = m[1].removeprefix("an ").removeprefix("a ")
         elif _EXTRA_TRIGGER_SPELL.fullmatch(line):
             found["extra_trigger"] = "spell"
+        elif _EXTRA_TRIGGER_WIZARD.fullmatch(line):
+            found["extra_trigger"] = "wizard"
         elif line == _LIFE_GAIN_PLUS_ONE:
             found["life_gain_plus"] = found.get("life_gain_plus", 0) + 1
     return Replacements(**found)
@@ -1730,8 +1732,13 @@ _EXTRA_TRIGGER_SPELL = re.compile(r"If you casting or copying an instant or sorc
                                   r"permanent you control to trigger, that ability triggers an additional time\.")
 
 
+# Harmonic Prodigy.
+_EXTRA_TRIGGER_WIZARD = re.compile(r"If a triggered ability of a Shaman or another Wizard you control triggers, that ability triggers "
+                                   r"an additional time\.")
+
+
 def is_replacement_line(line: str) -> bool:
-    return (_EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (_EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE) or _EXTRA_TRIGGER.fullmatch(line) is not None)
 
 

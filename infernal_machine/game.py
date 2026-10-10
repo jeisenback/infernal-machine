@@ -2167,7 +2167,7 @@ class Game:
             if ability.event == event and ability.watch is None:
                 if any(isinstance(e, ReturnThisFromGraveyard) for e in ability.effects) and self.on_battlefield(permanent):
                     continue  # it only works from the graveyard (Squee)
-                for _ in range(self._trigger_times(controller, event, permanent.card)):
+                for _ in range(self._trigger_times(controller, event, permanent.card, source=permanent)):
                     self._queue(ability, permanent, controller, x=x, subject=subject, player=player, spell=spell)
 
     def _trigger_each(self, event: str, seat: Seat, subject: Permanent | None = None,
@@ -2391,7 +2391,7 @@ class Game:
                 if watch.nth_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
                                                for turn, c in seat.cast_log) != watch.nth_each_turn:
                     continue
-                for _ in range(self._trigger_times(watcher_seat, event, card, seat)):
+                for _ in range(self._trigger_times(watcher_seat, event, card, seat, source=watcher)):
                     self._queue(ability, watcher, watcher_seat, x, subject, seat, spell)
 
     def _is_modified(self, permanent: Permanent, controller: Seat | None = None) -> bool:
@@ -4701,7 +4701,16 @@ class Game:
                     count += replacements.plus_one + (replacements.plus_one_others if p is not receiver else 0)
         return count * self._factor(seat, "counters")
 
-    def _trigger_times(self, controller: Seat, event: str, entering: Card | None, cause: Seat | None = None) -> int:
+    def _trigger_times(self, controller: Seat, event: str, entering: Card | None, cause: Seat | None = None,
+                       source: Permanent | None = None) -> int:
+        """A triggered ability of `source` triggers once, plus once more for each Harmonic Prodigy (another one) when `source` is a
+        Shaman or Wizard, plus what _trigger_times_entering adds."""
+        times = self._trigger_times_entering(controller, event, entering, cause)
+        if source is not None and {"Shaman", "Wizard"} & set(self.subtypes(source)):
+            times += sum(replacement_effects(p.card).extra_trigger == "wizard" for p in controller.battlefield if p is not source)
+        return times
+
+    def _trigger_times_entering(self, controller: Seat, event: str, entering: Card | None, cause: Seat | None = None) -> int:
         """How many times an ability of `controller`'s triggers: once, plus once more for each Panharmonicon when an
         artifact or creature (or any permanent, for Yarok) is entering the battlefield, and for each Veyran when
         `controller` casts or copies an instant or sorcery spell."""

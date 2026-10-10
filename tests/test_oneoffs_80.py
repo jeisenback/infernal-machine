@@ -182,3 +182,76 @@ class OpalPalaceTests(unittest.TestCase):
 
 
 BEAR_WHITE = Card(name="Pale Bear", mana_cost="{1}{W}", cmc=2.0, type_line="Creature — Bear", power="2", toughness="2", colors=("W",))
+
+
+PRODIGY = Card(name="Harmonic Prodigy", mana_cost="{1}{R}", cmc=2.0, type_line="Creature — Human Wizard", power="1", toughness="3",
+               oracle_text="Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)\nIf a triggered "
+                           "ability of a Shaman or another Wizard you control triggers, that ability triggers an additional time.")
+WIZARD_DRAWER = Card(name="Scholar", mana_cost="{1}{U}", cmc=2.0, type_line="Creature — Human Wizard", power="1", toughness="1",
+                     oracle_text="When this creature enters, draw a card.")
+SHAMAN_WATCHER = Card(name="Shaman Watcher", mana_cost="{1}{R}", cmc=2.0, type_line="Creature — Goblin Shaman", power="1", toughness="1",
+                      oracle_text="Whenever you cast an instant or sorcery spell, you gain 1 life.")
+OGRE_DRAWER = Card(name="Brute", mana_cost="{3}", cmc=3.0, type_line="Creature — Ogre", power="3", toughness="3",
+                   oracle_text="When this creature enters, draw a card.")
+
+
+class HarmonicProdigyTests(unittest.TestCase):
+    def table(self, *others):
+        game, _ = table3(pick())
+        a = game.seats[0]
+        a.battlefield = [Permanent(c) for c in others]
+        a.library = [FOREST] * 10
+        return game, a
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(PRODIGY), [])
+
+    def test_another_wizard_triggers_an_additional_time(self):
+        game, a = self.table(PRODIGY)
+        game._enter(a, Permanent(WIZARD_DRAWER))
+        run_stack(game)
+        self.assertEqual(len(a.hand), 2)
+
+    def test_a_shaman_triggers_an_additional_time(self):
+        game, a = self.table(PRODIGY, SHAMAN_WATCHER)
+        a.cast_log.append((game.turn, STUDY_SPELL))
+        game._observe("cast", STUDY_SPELL, a)
+        run_stack(game)
+        self.assertEqual(a.life, 42)
+
+    def test_a_creature_that_is_neither_triggers_once(self):
+        game, a = self.table(PRODIGY)
+        game._enter(a, Permanent(OGRE_DRAWER))
+        run_stack(game)
+        self.assertEqual(len(a.hand), 1)
+
+    def test_without_the_prodigy_a_wizard_triggers_once(self):
+        game, a = self.table()
+        game._enter(a, Permanent(WIZARD_DRAWER))
+        run_stack(game)
+        self.assertEqual(len(a.hand), 1)
+
+    def test_the_prodigys_own_triggers_do_not_double(self):
+        game, a = self.table()
+        prodigy_drawer = Card(name="Prodigy", type_line="Creature — Human Wizard", power="1", toughness="1",
+                              oracle_text="When this creature enters, draw a card.\nIf a triggered ability of a Shaman or another Wizard "
+                                          "you control triggers, that ability triggers an additional time.")
+        game._enter(a, Permanent(prodigy_drawer))
+        run_stack(game)
+        self.assertEqual(len(a.hand), 1)
+
+    def test_two_prodigies_add_two_extra_triggers(self):
+        game, a = self.table(PRODIGY, PRODIGY)
+        game._enter(a, Permanent(WIZARD_DRAWER))
+        run_stack(game)
+        self.assertEqual(len(a.hand), 3)
+
+    def test_an_opponents_prodigy_does_nothing_for_you(self):
+        game, a = self.table()
+        game.seats[1].battlefield = [Permanent(PRODIGY)]
+        game._enter(a, Permanent(WIZARD_DRAWER))
+        run_stack(game)
+        self.assertEqual(len(a.hand), 1)
+
+
+STUDY_SPELL = Card(name="Spark", mana_cost="{R}", cmc=1.0, type_line="Instant")
