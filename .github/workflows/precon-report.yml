@@ -1,0 +1,40 @@
+name: precon report
+on:
+  pull_request:
+    paths: ["infernal_machine/**", "examples/precons/**", ".github/workflows/precon-report.yml"]
+  push:
+    branches: [main]
+    paths: ["infernal_machine/**", "examples/precons/**", ".github/workflows/precon-report.yml"]
+  schedule:
+    - cron: "17 6 * * 1"  # Mondays: Scryfall's Oracle text can change under us
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: precon-report-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Get this week's cache key
+        id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/oracle_bulk.json
+          key: oracle-bulk-${{ steps.week.outputs.week }}
+      - name: Every card of the five precon decks is fully playable
+        run: |
+          status=0
+          for deck in examples/precons/*.txt; do
+            echo "== $deck"
+            python -m infernal_machine.report "$deck" | tee report.txt
+            grep -q '^Missing, by kind' report.txt && status=1
+          done
+          exit $status
