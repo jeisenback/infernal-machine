@@ -1,5 +1,5 @@
-session: claude-code sweep-152
-branch: claude/sweep-152
-task: issue #152 play the 12 removal and mass-effect spells from real Oracle text
-status: tests done, no engine bugs found, committing
-updated: 2026-10-10T17:21:30Z
+session: claude-code sweep-151
+branch: claude/sweep-151
+task: issue #151 play the 9 prepare creatures from real Oracle text
+status: tests + one engine fix done, committing
+updated: 2026-10-10T17:18:05Z
