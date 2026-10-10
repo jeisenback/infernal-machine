@@ -2028,6 +2028,8 @@ class Game:
             return controller.life_gained_amount if controller.life_gained_turn == self.turn else 0
         if kind == "spells_cast":
             return len(this_turn)
+        if kind == "one_plus_spells":  # Rionya: one plus the instant and sorcery spells you've cast this turn
+            return 1 + sum(_watch_type_matches(amount.what, c) for c in this_turn)
         if kind == "greatest_mana_value_cast":
             return int(max((c.cmc for c in this_turn if _watch_type_matches(amount.what, c)), default=0))
         if kind == "opponents":
@@ -3370,16 +3372,16 @@ class Game:
     def exile(self, permanent: Permanent) -> None:
         self._leave_battlefield(permanent, "exiled", destination="exile")
 
-    def copies_of_creature(self, seat: Seat, original: Permanent, count: int, not_legendary: bool) -> None:
-        """Orthion, Tempestra: `count` tokens that are copies of `original` with haste (not legendary for Tempestra),
-        sacrificed as the next end step begins."""
+    def copies_of_creature(self, seat: Seat, original: Permanent, count: int, not_legendary: bool, exile: bool = False) -> None:
+        """Orthion, Tempestra, Rionya: `count` tokens that are copies of `original` with haste (not legendary for Tempestra),
+        sacrificed (or exiled, for Rionya) as the next end step begins."""
         card = original.card if _is_token(original.card) else dataclasses.replace(original.card, type_line="Token " + original.card.type_line)
         card = dataclasses.replace(card, oracle_text=(card.oracle_text + "\nHaste").strip())
         if not_legendary:
             card = dataclasses.replace(card, type_line=card.type_line.replace("Legendary ", ""))
         made = self.create_token_batch(seat, [card] * count)
         if made:
-            self.leave_at_next_end_step(made, "sacrificed", "graveyard")
+            self.leave_at_next_end_step(made, "exiled" if exile else "sacrificed", "exile" if exile else "graveyard")
 
     def goaded_copies_for_opponents(self, seat: Seat, original: Permanent) -> None:
         """Life of the Party: each opponent gets a token copy, goaded by `seat` for the rest of the game."""

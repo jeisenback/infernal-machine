@@ -125,6 +125,8 @@ _WHOLE_LINE = re.compile(
     r"|Each opponent creates a token that's a copy of it\. The tokens are goaded for the rest of the game\."
     r"|Create (?:a token that's a copy of|five tokens that are copies of) another target creature you control(?:, except it "
     r"isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the next end step\."
+    r"|Create X tokens that are copies of another target creature you control, where X is one plus the number of instant and "
+    r"sorcery spells you've cast this turn\. They gain haste\. Exile them at the beginning of the next end step\."
     r"|Target player draws cards equal to half the number of cards in their library and loses half their life\. "
     r"Round up each time\."
     r"|Until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\."
@@ -2619,14 +2621,15 @@ class EachOpponentGetsGoadedCopy:
 class CopiesOfAnotherCreature:
     """Orthion, Tempestra: "Create a token that's a copy of another target creature you control. It gains haste.
     Sacrifice it at the beginning of the next end step." (`count` tokens; `not_legendary` for Tempestra)"""
-    count: int = 1
+    count: int | str = 1
     not_legendary: bool = False
     target: str = "creature you control"
+    exile: bool = False  # Rionya: "Exile them at the beginning of the next end step." instead of sacrificing them
     another = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.copies_of_creature(controller, target, game.amount(self.count), self.not_legendary)
+            game.copies_of_creature(controller, target, game.amount(self.count), self.not_legendary, self.exile)
 
 
 @dataclass(frozen=True)
@@ -5320,6 +5323,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(, except it isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the "
                 r"next end step\.", re.I),
      lambda m: CopiesOfAnotherCreature(5 if m[1] else 1, bool(m[2]))),
+    (re.compile(r"create X tokens that are copies of another target creature you control, where X is one plus the number of instant "
+                r"and sorcery spells you've cast this turn\. They gain haste\. Exile them at the beginning of the next end step\.",
+                re.I), lambda m: [DefineX(Amount("one_plus_spells", "instant or sorcery spell")),
+                                  CopiesOfAnotherCreature("X", exile=True)]),
     (re.compile(r"target player draws cards equal to half the number of cards in their library and loses half their life\. "
                 r"Round up each time\.", re.I), lambda m: DrawHalfLibraryLoseHalfLife()),
     (re.compile(r"Exile the top four cards of your library in a face-down pile, then exile the top four cards of your library in a face-up pile\. An opponent chooses one of those piles\. Put that pile into your graveyard\. Look at the cards in the other pile\. You may cast a spell from among them without paying its mana cost\. Put the rest into your hand\.", re.I), lambda m: PilesOfFour()),
