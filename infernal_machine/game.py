@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -137,6 +137,7 @@ PUT_PERMANENT_PROMPT = "Put a nonland permanent card onto the battlefield"  # th
 SET_ASIDE_PROMPT = "Choose a nonland card exiled this way; it can't be cast"
 CAST_FREE_EXILED_PROMPT = "Cast a spell from among the other exiled cards without paying its mana cost"  # then NONE_TAKEN
 CHOOSE_EXILED_WITH_PROMPT = "Choose a card exiled with this permanent"
+SACRIFICE_COPIES_PROMPT = "Sacrifice how many creatures to copy "  # followed by the spell's name; options are "0", "1", ...
 LOOK_PROMPT = "Take a card from the top of your library"  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
 PUT_CREATURE_PROMPT = "Put a creature card from your hand onto the battlefield"  # options are card names, then NONE_TAKEN
@@ -1154,6 +1155,17 @@ class Game:
         kicker = kicker_other_cost(card) if kicked else None
         return additional_costs(card) + ([kicker] if kicker else [])
 
+    def _sacrifice_for_copies(self, seat: Seat, card: Card) -> int:
+        """Plumb the Forbidden: "you may sacrifice one or more creatures. When you do, copy this spell for each creature sacrificed";
+        returns how many were."""
+        if not copies_per_sacrifice(card):
+            return 0
+        creatures = sum("Creature" in p.card.type_line for p in seat.battlefield)
+        if not creatures:
+            return 0
+        wanted = seat.player.choose(SACRIFICE_COPIES_PROMPT + card.name, [str(n) for n in range(creatures + 1)])
+        return len([gone for _ in range(wanted) for gone in self.sacrifice(seat, "creature")])
+
     def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0) -> bool:
         """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs, a non-mana
         kicker cost, and `alternative`'s condition, life and card to exile."""
@@ -1763,6 +1775,7 @@ class Game:
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked)
+        sacrificed = self._sacrifice_for_copies(seat, card)
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after, from_graveyard=graveyard is not None,
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
@@ -1779,7 +1792,7 @@ class Game:
             event["alternative"] = alternative.text
         self.broadcast(event)
         seat.cast_log.append((self.turn, card))
-        copies = replicated or 0
+        copies = (replicated or 0) + sacrificed
         if (storm := storm_kind(card)) is not None and prepared is None:
             before = [t for s in self.seats for t, _ in s.cast_log if t == self.turn]  # spells cast before this one
             copies += (len(before) - 1) if storm == "storm" else (self.graveyarded_count if self.graveyarded_turn == self.turn else 0)

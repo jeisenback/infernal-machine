@@ -5258,9 +5258,18 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
 _SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate)(?:, (?:Delve|Cascade|Devoid|Demonstrate))*")  # rules for casting, not effects
 
 
+_SACRIFICE_FOR_COPIES = re.compile(r"As an additional cost to cast this spell, you may sacrifice one or more creatures\. When you do, copy "
+                                   r"this spell for each creature sacrificed this way\.")
+
+
+def copies_per_sacrifice(card: Card) -> bool:
+    """Plumb the Forbidden: you may sacrifice creatures as you cast it, and it is copied for each."""
+    return any(_SACRIFICE_FOR_COPIES.fullmatch(line) for line in rules_lines(card))
+
+
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _X_LIMIT, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)

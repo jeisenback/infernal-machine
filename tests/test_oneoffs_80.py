@@ -389,3 +389,36 @@ class PriestOfForgottenGodsTests(unittest.TestCase):
     def test_it_needs_two_other_creatures(self):
         game, a, b, c = self.table(mine=(BEAR,))
         self.assertFalse([x for x in game.legal_actions(a) if "Any number of target players" in x])
+
+
+PLUMB = Card(name="Plumb the Forbidden", mana_cost="{1}{B}", cmc=2.0, type_line="Instant",
+             oracle_text="As an additional cost to cast this spell, you may sacrifice one or more creatures. When you do, copy this spell "
+                         "for each creature sacrificed this way.\nYou draw a card and lose 1 life.")
+
+
+class PlumbTheForbiddenTests(unittest.TestCase):
+    def cast(self, creatures, sacrifice):
+        game, _ = table3(script(str(sacrifice)))
+        a = game.seats[0]
+        a.battlefield = [Permanent(BEAR) for _ in range(creatures)] + lands(2)
+        a.hand = [PLUMB]
+        a.library = [FOREST] * 10
+        game._perform(a, CAST + "Plumb the Forbidden")
+        run_stack(game)
+        return game, a
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(PLUMB), [])
+
+    def test_with_no_sacrifice_it_is_just_the_spell(self):
+        game, a = self.cast(3, 0)
+        self.assertEqual((len(a.hand), a.life, len([p for p in a.battlefield if p.card.name == "Bear"])), (1, 39, 3))
+
+    def test_each_creature_sacrificed_adds_a_copy(self):
+        game, a = self.cast(3, 2)
+        self.assertEqual((len(a.hand), a.life), (3, 37))  # the spell and two copies each draw a card and cost a life
+        self.assertEqual(len([p for p in a.battlefield if p.card.name == "Bear"]), 1)
+
+    def test_with_no_creatures_nothing_is_offered(self):
+        game, a = self.cast(0, 0)
+        self.assertEqual(len(a.hand), 1)
