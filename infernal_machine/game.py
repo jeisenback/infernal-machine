@@ -2874,6 +2874,28 @@ class Game:
             self.combat.attacks.append(Attack(made, seat, defender))
             self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": defender.index})
 
+    def exile_dead_make_spirit_copy(self, seat: Seat, dead: Permanent) -> None:
+        """Hofri Ghostforge: exile the creature that just died from its owner's graveyard; if that works, `seat` creates a token
+        that's a copy of it, a Spirit too, which sends the exiled card back to the graveyard when it leaves."""
+        owner = dead.owner or dead.last_controller
+        if owner is None or not self.exile_from_graveyard(GraveyardTarget(dead.card, owner)):
+            return
+        card = dead.card
+        text = (card.oracle_text + "\nWhen this token leaves the battlefield, return the exiled card to its owner's graveyard.").strip()
+        head, dash, tail = card.type_line.partition("\u2014")
+        spirit = dataclasses.replace(card, type_line=f"Token {head.strip()} {dash} {tail.strip()} Spirit" if dash else f"Token {head.strip()}",
+                                     oracle_text=text)
+        for made in self.create_tokens(seat, spirit, 1):
+            made.exiled_with.append((owner, card))
+
+    def return_exiled_with_to_graveyard(self, leaver: Permanent) -> None:
+        """The exiled card a Hofri Ghostforge token was made from goes to its owner's graveyard."""
+        for owner, card in leaver.exiled_with:
+            if any(c is card for c in owner.exile):
+                owner.exile = [c for c in owner.exile if c is not card]
+                self._move_card(owner, card, "graveyard")
+        leaver.exiled_with = []
+
     def copy_entered_tokens_attacking(self, seat: Seat, source: Permanent) -> None:
         """Redoubled Stormsinger: for each creature token `seat` controls that entered this turn, a tapped and attacking copy
         attacks whom `source` attacks; the copies are sacrificed as the next end step begins."""

@@ -127,6 +127,8 @@ _WHOLE_LINE = re.compile(
     r"|Each opponent creates a token that's a copy of it\. The tokens are goaded for the rest of the game\."
     r"|Create (?:a token that's a copy of|five tokens that are copies of) another target creature you control(?:, except it "
     r"isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the next end step\."
+    r"|Exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature), except it's a Spirit in addition "
+    r"to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard\.\""
     r"|For each creature token you control that entered this turn, create a tapped and attacking token that's a copy of that token\. "
     r"At the beginning of the next end step, sacrifice those tokens\."
     r"|Create X tokens that are copies of another target creature you control, where X is one plus the number of instant and "
@@ -2122,6 +2124,27 @@ class AttackerCreatesAttackingToken:
         item = game.resolving_item
         if target is not None and item is not None and game.combat is not None:
             game.token_attacking(target, self.token, game.seats[item.x])
+
+
+@dataclass(frozen=True)
+class ExileDeadMakeSpiritCopy:
+    """Hofri Ghostforge: "Exile it. If you do, create a token that's a copy of that creature, except it's a Spirit in addition to
+    its other types and it has "When this token leaves the battlefield, return the exiled card to its owner's graveyard."" """
+    uses_dead_subject = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_dead_make_spirit_copy(controller, target)
+
+
+@dataclass(frozen=True)
+class ReturnExiledToGraveyard:
+    """Hofri Ghostforge's token: "When this token leaves the battlefield, return the exiled card to its owner's graveyard." """
+    uses_dead_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.return_exiled_with_to_graveyard(target)
 
 
 @dataclass(frozen=True)
@@ -5369,6 +5392,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(, except it isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the "
                 r"next end step\.", re.I),
      lambda m: CopiesOfAnotherCreature(5 if m[1] else 1, bool(m[2]))),
+    (re.compile(r"exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature), except it's a Spirit in "
+                r"addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its "
+                r"owner's graveyard\.\"", re.I), lambda m: ExileDeadMakeSpiritCopy()),
+    (re.compile(r"return the exiled card to its owner's graveyard\.", re.I), lambda m: ReturnExiledToGraveyard()),
     (re.compile(rf"{_SELF} becomes a copy of up to one target nonlegendary creature you control until end of turn, except it has "
                 r"([a-z]+)\.", re.I), lambda m: BecomeCopyUntilEndOfTurn(m[1].capitalize())),
     (re.compile(r"for each creature token you control that entered this turn, create a tapped and attacking token that's a copy of that "
@@ -6583,7 +6610,7 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
 _PUT_IT = re.compile(r"\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
-                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bexcept it has [a-z]+\b", re.I)
+                     r"|\btap up to one target creature and goad it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it, except it's a Spirit in addition to its other types and it has\b", re.I)
 
 
 _TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')

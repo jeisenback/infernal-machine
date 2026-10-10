@@ -327,3 +327,78 @@ class ThunderclapDrakeTests(unittest.TestCase):
     def test_a_creature_spell_is_not_copied_and_the_wait_continues(self):
         game, a = self.play({"Commander": 1}, spell=Card(name="Cheap", mana_cost="{U}", cmc=1.0, type_line="Creature — Bear", power="1", toughness="1"))
         self.assertEqual(a.copy_next_turn, game.turn)
+
+
+HOFRI = Card(name="Hofri Ghostforge", mana_cost="{2}{R}{W}", type_line="Legendary Creature — Dwarf Cleric", power="3", toughness="4",
+             oracle_text="Spirits you control get +1/+1 and have trample and haste.\nWhenever another nontoken creature you control "
+                         "dies, exile it. If you do, create a token that's a copy of that creature, except it's a Spirit in "
+                         "addition to its other types and it has \"When this token leaves the battlefield, return the exiled card "
+                         "to its owner's graveyard.\"")
+CLERIC = Card(name="Cleric", mana_cost="{1}{W}", cmc=2.0, type_line="Creature — Human Cleric", power="2", toughness="2",
+              oracle_text="Vigilance")
+
+
+class HofriGhostforgeTests(unittest.TestCase):
+    def table(self):
+        game, _ = table3(pick())
+        a, b, _ = game.seats
+        self.hofri = Permanent(HOFRI)
+        a.battlefield = [self.hofri]
+        return game, a, b
+
+    def die(self, game, seat, permanent):
+        seat.battlefield.append(permanent)
+        game._leave_battlefield(permanent, "destroyed")
+        run_stack(game)
+
+    def spirits(self, seat):
+        return [p for p in seat.battlefield if p is not self.hofri and "Spirit" in p.card.type_line]
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(HOFRI), [])
+
+    def test_the_dead_creature_is_exiled_and_comes_back_as_a_spirit_token(self):
+        game, a, b = self.table()
+        self.die(game, a, Permanent(CLERIC))
+        [spirit] = self.spirits(a)
+        self.assertEqual((spirit.card.name, spirit.card.type_line), ("Cleric", "Token Creature — Human Cleric Spirit"))
+        self.assertEqual(([c.name for c in a.exile], a.graveyard), (["Cleric"], []))
+        self.assertTrue(game.has_keyword(spirit, "vigilance"))  # a copy of the creature
+
+    def test_hofris_own_spirits_get_the_bonus(self):
+        game, a, b = self.table()
+        self.die(game, a, Permanent(CLERIC))
+        [spirit] = self.spirits(a)
+        self.assertEqual((game.power(spirit), game.has_keyword(spirit, "haste")), (3, True))
+
+    def test_when_the_token_leaves_the_card_goes_to_the_graveyard(self):
+        game, a, b = self.table()
+        self.die(game, a, Permanent(CLERIC))
+        [spirit] = self.spirits(a)
+        game._leave_battlefield(spirit, "destroyed")
+        run_stack(game)
+        self.assertEqual(([c.name for c in a.graveyard], a.exile), (["Cleric"], []))
+
+    def test_a_token_is_not_copied(self):
+        game, a, b = self.table()
+        self.die(game, a, Permanent(Card(name="Soldier", type_line="Token Creature — Soldier", power="1", toughness="1")))
+        self.assertEqual(self.spirits(a), [])
+
+    def test_an_opponents_creature_is_not_copied(self):
+        game, a, b = self.table()
+        self.die(game, b, Permanent(CLERIC))
+        self.assertEqual((self.spirits(a), self.spirits(b)), ([], []))
+
+    def test_hofri_itself_is_not_copied(self):
+        game, a, b = self.table()
+        game._leave_battlefield(self.hofri, "destroyed")
+        run_stack(game)
+        self.assertEqual([p for p in a.battlefield], [])
+
+    def test_a_card_that_left_the_graveyard_in_response_is_not_copied(self):
+        game, a, b = self.table()
+        a.battlefield.append(dead := Permanent(CLERIC))
+        game._leave_battlefield(dead, "destroyed")
+        a.graveyard.clear()  # exiled or returned before the trigger resolves
+        run_stack(game)
+        self.assertEqual(self.spirits(a), [])
