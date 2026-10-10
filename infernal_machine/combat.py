@@ -102,7 +102,7 @@ class Combat:
             for owner in self.game.live_seats():  # "Whenever equipped / enchanted creature attacks"
                 for attachment in list(owner.battlefield):
                     if attachment.attached_to is permanent:
-                        self.game.trigger("host_attacks", attachment, owner, permanent)
+                        self.game.trigger("host_attacks", attachment, owner, permanent, x=defender.index)  # x: the seat attacked (Contract)
             self.game.broadcast({"event": "attack", "seat": seat.index, "card": permanent.card.name,
                                  "defender": defender.index,
                                  **({"planeswalker": walker.card.name} if walker is not None else {})})
