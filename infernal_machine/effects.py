@@ -2976,6 +2976,7 @@ class MassFilter:
     legendary: bool | None = None  # "legendary creatures" / "nonlegendary"
     basic: bool | None = None  # "nonbasic lands"
     tapped: bool | None = None  # "tapped creatures" / "untapped"
+    attacking: bool | None = None  # "attacking creatures" (Aetherize)
     has_type: str | None = None  # "artifact creatures": a card type it must have
     exclude: "MassFilter | None" = None  # "... except for artifact creatures": what is spared
     colors_are: str | None = None  # "that are one or more colors" / "colorless" / "multicolored" / "monocolored"
@@ -3427,6 +3428,7 @@ class Amount:
 _AMOUNTS = [
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
     (re.compile(r"the sacrificed creature's power", re.I), lambda m: Amount("sacrificed_power")),
+    (re.compile(r"your devotion to (white|blue|black|red|green)", re.I), lambda m: Amount("devotion", _COLOR_LETTER[m[1].lower()])),
     (re.compile(r"the tapped creature's power", re.I), lambda m: Amount("tapped_power")),
     (re.compile(r"(?:the number of )?Auras? you controlled that was attached to it", re.I), lambda m: Amount("auras_on_subject")),
     (re.compile(r"(?:the number of )?Auras? you control that's attached to a creature", re.I),
@@ -3729,7 +3731,7 @@ _FIGHTER = r"(creature(?: you control| you don't control| an opponent controls)?
 _MASS_KEYWORDS = (r"(?:flying|reach|trample|haste|vigilance|menace|deathtouch|lifelink|first strike|double strike"
                   r"|defender|indestructible|hexproof)")
 _RESTRICTION = rf"(with (?:power|toughness|mana value) \d+ or (?:greater|less)|with {_MASS_KEYWORDS}|without {_MASS_KEYWORDS})"
-_COLOR_ADJECTIVE = r"(?:(non)?(white|blue|black|red|green|token|legendary|basic|tapped|untapped) )?"
+_COLOR_ADJECTIVE = r"(?:(non)?(white|blue|black|red|green|token|legendary|basic|tapped|untapped|attacking) )?"
 _STAT_RESTRICTION = re.compile(r"with (power|toughness|mana value) (\d+) or (greater|less)")
 _EXCEPT = (r"(?: except(?: for)? ((?:(?:artifact|enchantment|legendary|white|blue|black|red|green) )?"
            rf"(?:creatures|lands|permanents|tokens)(?: with {_MASS_KEYWORDS})?))?")
@@ -3747,7 +3749,7 @@ def _mass_effect(cls: type, m: re.Match) -> Any:
     return cls(kind, _mass_filter(m[1], m[2], m[4], tokens=m[3].lower() == "creature tokens", spared=m[6], colors_are=m[7]))
 
 
-_TRAITS = {"token": "token", "legendary": "legendary", "basic": "basic", "tapped": "tapped", "untapped": "tapped"}
+_TRAITS = {"token": "token", "legendary": "legendary", "basic": "basic", "tapped": "tapped", "untapped": "tapped", "attacking": "attacking"}
 
 
 def _mass_filter(non: str | None, color: str | None, restriction: str | None, tokens: bool = False,
@@ -4595,6 +4597,27 @@ class Untap:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             target.tapped = False
+
+
+UNTAP_LANDS_PROMPT = "Untap which land? "
+DONE = "Done"
+
+
+@dataclass(frozen=True)
+class UntapLands:
+    """ "Untap up to three lands." (Frantic Search, Snap): you choose, not a target."""
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for _ in range(self.count):
+            tapped = [p for p in controller.battlefield if p.tapped and "Land" in p.card.type_line]
+            if not tapped:
+                return
+            choice = controller.player.choose(UNTAP_LANDS_PROMPT, [game.label(p) for p in tapped] + [DONE])
+            if choice >= len(tapped):
+                return
+            tapped[choice].tapped = False
+            game.broadcast({"event": "untapped", "seat": controller.index, "card": tapped[choice].card.name})
 
 
 @dataclass(frozen=True)
@@ -5789,16 +5812,17 @@ def _graveyard_kind(phrase: str | None, whose: str) -> str:
 @dataclass(frozen=True)
 class FetchBasicLand:
     untap_if: "Condition | None" = None  # Fabled Passage: "Then if you control four or more lands, untap that land."
+    tapped: bool = True  # Prismatic Vista puts it onto the battlefield untapped
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.fetch_basic_land(controller, untap_if=self.untap_if)
+        game.fetch_basic_land(controller, untap_if=self.untap_if, tapped=self.tapped)
 
 
 _PERMANENT_KIND = (r"((?:monocolored permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
-                   r"|creature or planeswalker|(?-i:[A-Z][a-z]+) creature)(?: an opponent controls| you don't control| you control| you own)?"
+                   r"|creature or planeswalker|creature or enchantment|(?-i:[A-Z][a-z]+) creature)(?: an opponent controls| you don't control| you control| you own)?"
                    r"(?: with mana value (?:\d+ or (?:less|greater)|X))?)")
 # "up to two target creatures": the plural kinds, and the singular they stand for
 _PLURAL_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments": "enchantment",
@@ -5829,6 +5853,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"draw an additional card\.", re.I), lambda m: Draw(1)),
     (re.compile(rf"you gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
+
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
     (re.compile(rf"{_SELF} deals {_N} damage to each of one or two targets\.", re.I),  # Prismari Charm
@@ -6002,7 +6027,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [ReturnToHand(_PLURAL_KINDS[m[2].lower()] + (m[3] or ""), distinct=n > 0) for n in range(_count(m[1]))]),
     (re.compile(rf"return all {_CARDS_PLURAL} from your graveyard to (the battlefield|your hand)\.", re.I),
      lambda m: ReturnAllFromGraveyard(_card_kind(re.sub(r"\bcards\b", "card", m[1])), "battlefield" if m[2].lower() == "the battlefield" else "hand")),
-    (re.compile(rf"return all {_MASS_FILTERED} to their owners' hands\.", re.I), lambda m: _mass_effect(ReturnAllToHand, m)),
+    (re.compile(rf"return all {_MASS_FILTERED} to (?:their owners' hands|their owner's hand)\.", re.I), lambda m: _mass_effect(ReturnAllToHand, m)),
     (re.compile(rf"return {_UP_TO} target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),
      lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand",
                                     optional_target=True, distinct=n > 0) for n in range(_count(m[1]))]),
@@ -6025,8 +6050,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchLibrary(_card_kind(m[1]), "hand" if "into your hand" in m[0] else "top", "reveal it" in m[0].lower())),
     (re.compile(r"search your library for a land card, put it into your graveyard, then shuffle\.", re.I),
      lambda m: SearchLibrary("land", "graveyard", False)),
-    (re.compile(r"search your library for a land card, put it onto the battlefield( tapped)?, then shuffle\.", re.I),
-     lambda m: SearchForLands(1, ("*",), 1, bool(m[1]), False)),
+    (re.compile(r"search your library for a land card, put (?:it|that card) onto the battlefield( tapped)?, then shuffle\.", re.I),
+     lambda m: SearchForLands(1, ("*",), 1, bool(m[1]), False)),  # Crop Rotation
+    (re.compile(r"search your library for up to (two|three|four) basic land cards, put them onto the battlefield, then shuffle\.", re.I),
+     lambda m: SearchForLands(_count(m[1]), (), _count(m[1]), False, False)),  # Harrow
     (re.compile(r"search your library for a nonbasic land card, put it onto the battlefield( tapped)?, then shuffle\.", re.I),
      lambda m: SearchForLands(1, ("nonbasic",), 1, bool(m[1]), False)),
     (re.compile(rf"search your library for up to (two|three|four) {_LAND_TYPES_PLURAL}, put them onto the battlefield"
@@ -6038,7 +6065,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"search your library for up to (two|three|four) basic land cards, reveal (?:them|those cards), put them into "
                 r"your hand, then shuffle\.", re.I),  # Land Tax
      lambda m: SearchForLands(_count(m[1]), (), 0, False, True)),
-    (re.compile(r"you lose life equal to (?:its|that card's) mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
+    (re.compile(rf"untap up to {_NUM} lands\.", re.I), lambda m: UntapLands(_count(m[1]))),
+    (re.compile(r"search your library for a card, put that card into your hand, discard a card at random, then shuffle\.", re.I),
+     lambda m: [SearchLibrary("card", "hand", False), Discard(1, "you", True)]),  # Gamble
+    (re.compile(r"you lose life equal to (?:its|that card's|that permanent's) mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
     (re.compile(rf"you lose {_N} life\.", re.I), lambda m: LoseLife(_count(m[1]))),
     (re.compile(r"search your library for up to two basic land cards, reveal those cards, put one onto the battlefield "
                 r"tapped and the other into your hand, then shuffle\.", re.I),
@@ -6476,6 +6506,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"search your library for a basic land card, put (?:it|that card) onto the battlefield tapped, "
                 r"then shuffle\.", re.I),
      lambda m: FetchBasicLand()),
+    (re.compile(r"search your library for a basic land card, put it onto the battlefield, then shuffle\.", re.I),
+     lambda m: FetchBasicLand(tapped=False)),
 ]
 
 
@@ -6879,6 +6911,8 @@ def _singular(word: str) -> str:
 _CONDITIONS = [
     (re.compile(r"each player has no cards in hand"), lambda m: Condition("all_hands_empty")),
     (re.compile(r"creatures you control have total power (\d+) or greater"), lambda m: Condition("creature_power_at_least", int(m[1]))),
+    (re.compile(r"you control a creature with power (\d+) or greater"), lambda m: Condition("creature_with_power", int(m[1]))),
+    (re.compile(r"you created a token this turn"), lambda m: Condition("created_token")),
     (re.compile(r"a library has (twenty|\d+) or fewer cards in it"),
      lambda m: Condition("any_library_at_most", 20 if m[1] == "twenty" else int(m[1]))),
     (re.compile(r"an opponent was dealt (\d+) or more damage this turn"), lambda m: Condition("opponent_damage_at_least", int(m[1]))),
@@ -7873,10 +7907,15 @@ def mana_ability_needs_no_tap(card: Card) -> bool:
 def _mana_match(line: str) -> re.Match | None:
     """The match of a plain "{T}: Add ..." line, unless its "Activate only if" condition isn't understood."""
     line = _without_spent_rider(line)
+    worded = _CONDITION_WORD.match(line)
+    line = line[worded.end():] if worded else line
     for pattern in _MANA_PATTERNS:
         if (m := pattern.fullmatch(line)) and (m.group(pattern.groups) is None or _condition(m.group(pattern.groups))):
             return m
     return None
+
+
+_CONDITION_WORD = re.compile(r"(?:Metalcraft|Threshold|Hellbent|Delirium|Revolt) \u2014 ")  # the ability word of the "Activate only if" that follows
 
 
 def _mana_line(card: Card) -> str | None:
@@ -8056,6 +8095,7 @@ def filter_mana_ability(card: Card) -> tuple[str, list[frozenset[str]]] | None:
 
 def _mana_from_line(line: str, commander_identity: frozenset[str]) -> list[frozenset[str]] | None:
     line = _without_spent_rider(line)
+    line = _CONDITION_WORD.sub("", line, count=1)
     if m := _ADD_SYMBOLS.fullmatch(line):
         return [frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[2])]
     if m := _ADD_EITHER.fullmatch(line):
