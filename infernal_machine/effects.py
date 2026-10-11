@@ -1590,6 +1590,7 @@ _ATTACHED_GOADED = re.compile(rf"Enchanted creature gets {_PT}(?:, has ({_KW}),)
 
 
 _CANT = re.compile(rf"{_SELF} can't (attack or block|attack|block|be blocked)\.", re.I)
+_MUST_ATTACK = re.compile(rf"{_SELF} attacks each combat if able\.", re.I)
 _SELF_STATIC = re.compile(rf"{_SELF} (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS})\.", re.I)
 _AS_LONG_AS_FIRST = re.compile(r"As long as (.+?), (.+\.)")
 _AS_LONG_AS_LAST = re.compile(r"(.+?) as long as (.+)\.")
@@ -1637,6 +1638,8 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
         elif m := _CANT.fullmatch(sentence):  # "This creature can't block." (a token's, for one)
             keywords = {"attack": {CANT_ATTACK}, "block": {CANT_BLOCK}, "be blocked": {CANT_BE_BLOCKED}}.get(m[1].lower(), {CANT_ATTACK, CANT_BLOCK})
             buffs.append(StaticBuff(Modifier(0, 0, frozenset(keywords)), False, None, line, self_only=True, condition=condition))
+        elif _MUST_ATTACK.fullmatch(sentence):
+            buffs.append(StaticBuff(Modifier(0, 0, frozenset({MUST_ATTACK})), False, None, line, self_only=True, condition=condition))
         elif condition and (m := _SELF_STATIC.fullmatch(sentence)):  # unconditional ones would just be printed text
             buffs.append(StaticBuff(_modifier(m, 1), False, None, line, self_only=True, condition=condition))
     return tuple(buffs)
@@ -1880,6 +1883,7 @@ CANT_ATTACK, CANT_BLOCK = "can't attack", "can't block"  # pseudo-keywords, so c
 LOSES_ALL, NO_UNTAP = "loses all abilities", "doesn't untap"  # pseudo-keywords of an Aura: Infinite Coursework
 PROTECTION_CHOSEN = "protection from the chosen color"  # Flickering Ward: Game.modifiers turns it into the Aura's color
 CANT_BE_BLOCKED = "can't be blocked"
+MUST_ATTACK = "attacks each combat if able"
 
 
 _GRANT = re.compile(rf'(?:Equipped|Enchanted) (?:creature|land|permanent) has (?:{_KEYWORDS_BARE} and )?"(.+)"\.?')

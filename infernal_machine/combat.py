@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .characteristics import source_qualities
-from .effects import (CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, Annihilate, TriggeredAbility, attack_tax_per_counter, combat_restrictions,
+from .effects import (CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, Annihilate, TriggeredAbility, attack_tax_per_counter, combat_restrictions,
                       flat_attack_tax)
 from .mana import Cost
 
@@ -72,7 +72,8 @@ class Combat:
                 defender = targets[0] if len(targets) == 1 else targets[seat.player.choose(
                     ATTACK_PROMPT + self.game.label(permanent), [f"Attack Player: {o.name} (seat {o.index})" for o in targets])]
             else:
-                choice = seat.player.choose(ATTACK_PROMPT + self.game.label(permanent), options)
+                forced = self._has(permanent, MUST_ATTACK)  # "attacks each combat if able": no way to stay home
+                choice = seat.player.choose(ATTACK_PROMPT + self.game.label(permanent), options[forced:]) + forced
                 if choice == 0:
                     continue
                 if choice <= len(opponents):
