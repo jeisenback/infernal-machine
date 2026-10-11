@@ -1468,10 +1468,10 @@ class Game:
                 return []
             return [None] if others >= graveyard.exile and graveyard.life <= seat.life and self._payment(seat, paying) is not None else []
         return [way for way in [None, *alternative_costs(card)]
-                if self._can_pay_extras(seat, card, way)
-                and not (way and way.bestow and not self.target_options("creature", seat, source_qualities(card)))
-                and self._payment(seat, card, from_command_zone, alternative=way,
-                                  delve=self._delve_max(seat, card) if way is None else 0) is not None]
+                if self._can_pay_extras(seat, card, way, afford=lambda extra, way=way: self._payment(
+                    seat, card, from_command_zone, alternative=way, extra=extra,
+                    delve=self._delve_max(seat, card) if way is None else 0) is not None)
+                and not (way and way.bestow and not self.target_options("creature", seat, source_qualities(card)))]
 
     def _extra_costs(self, card: Card, kicked: int, bought_back: bool = False) -> list:
         """The non-mana costs of casting `card`: its additional costs, plus a non-mana kicker cost if kicked and a non-mana
@@ -1492,14 +1492,29 @@ class Game:
         return len([gone for _ in range(wanted) for gone in self.sacrifice(seat, "creature")])
 
     def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0,
-                        bought_back: bool = False) -> bool:
-        """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs (one of the two in "sacrifice an
-        artifact or discard a card"), a non-mana kicker cost, and `alternative`'s condition, life and card to exile."""
+                        bought_back: bool = False, afford: Callable[[str], bool] | None = None) -> bool:
+        """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs (one of the options in "sacrifice
+        an artifact or discard a card or pay {2}"), a non-mana kicker cost, and `alternative`'s condition, life and card to exile.
+        `afford` says whether the mana cost can be paid with the extra mana an option adds."""
+        return bool(self._payable_options(seat, card, alternative, kicked, bought_back, afford))
+
+    def _payable_options(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0,
+                         bought_back: bool = False, afford: Callable[[str], bool] | None = None) -> list[tuple]:
+        """The ways to choose one option of each "this or that" additional cost that `seat` can pay (one empty way if the card
+        has none)."""
         extras = self._extra_costs(card, kicked, bought_back)
         plain = [c for c in extras if not c.options]
-        choices = [c for c in extras if c.options]
-        return any(self._extras_payable(seat, card, alternative, plain + list(picked))
-                   for picked in itertools.product(*(c.options for c in choices)))
+        return [picked for picked in itertools.product(*(c.options for c in extras if c.options))
+                if self._extras_payable(seat, card, alternative, plain + list(picked))
+                and (afford is None or afford("".join(o.mana for o in picked)))]
+
+    def _pick_options(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int, bought_back: bool,
+                      afford: Callable[[str], bool]) -> tuple:
+        """The option of each "this or that" additional cost that `seat` pays: asked when more than one way can be paid."""
+        ways = self._payable_options(seat, card, alternative, kicked, bought_back, afford)
+        if len(ways) > 1:
+            return ways[seat.player.choose(COST_PROMPT + card.name, [", ".join(_extra_text(o) for o in way) for way in ways])]
+        return ways[0] if ways else ()
 
     def _extras_payable(self, seat: Seat, card: Card, alternative: AlternativeCost | None, extras: list) -> bool:
         others = list(seat.hand)
@@ -1522,7 +1537,8 @@ class Game:
         return not alternative.exile_color or any(alternative.exile_color in c.colors for c in others)
 
     def _pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None,
-                    graveyard: GraveyardCast | None = None, x: int = 0, kicked: int = 0, bought_back: bool = False) -> None:
+                    graveyard: GraveyardCast | None = None, x: int = 0, kicked: int = 0, bought_back: bool = False,
+                    picked: tuple = ()) -> None:
         """Pay the non-mana costs of casting `card`, which has already left its zone."""
         for _ in range(graveyard.exile if graveyard else 0):  # Escape: exile other cards from the graveyard
             exiled = seat.graveyard[seat.player.choose(ESCAPE_PROMPT, [c.name for c in seat.graveyard])]
@@ -1545,7 +1561,7 @@ class Game:
             seat.hand.remove(exiled)
             self.broadcast({"event": "exiled_from_hand", "seat": seat.index, "card": exiled.name})
             self._move_card(seat, exiled, "exile")
-        extras = self._chosen_extras(seat, card, alternative, self._extra_costs(card, kicked, bought_back))
+        extras = [c for c in self._extra_costs(card, kicked, bought_back) if not c.options] + list(picked)
         for extra in extras:
             if extra.discard:
                 discarded = seat.hand[seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])]
@@ -1560,15 +1576,6 @@ class Game:
                 + (x if any(c.life_x for c in additional_costs(card)) else 0))
         if life:
             self.change_life(seat, -life)
-
-    def _chosen_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, extras: list) -> list:
-        """`extras` with each "this or that" cost replaced by the one `seat` pays (asked when both can be paid)."""
-        chosen = [c for c in extras if not c.options]
-        for entry in (c for c in extras if c.options):
-            payable = [o for o in entry.options if self._extras_payable(seat, card, alternative, [*chosen, o])] or list(entry.options[:1])
-            chosen.append(payable[seat.player.choose(COST_PROMPT + card.name, [_extra_text(o) for o in payable])] if len(payable) > 1
-                          else payable[0])
-        return chosen
 
     def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str = "") -> int:
         x = 0
@@ -1792,6 +1799,10 @@ class Game:
             if card in seat.exile:
                 seat.exile.remove(card)
                 seat.hand.append(card)
+
+    def cast_free(self, seat: Seat, card: Card) -> None:
+        """Cast `card` from `seat`'s hand without paying its mana cost (it stays in hand if it has no legal target)."""
+        self._cast(seat, card, seat.hand, free=True)
 
     def cast_copy_free(self, seat: Seat, card: Card) -> None:
         """Cast a copy of `card` without paying its mana cost (Surge to Victory); the copy stops existing afterwards."""
@@ -2108,6 +2119,9 @@ class Game:
         if bought_back:
             extra += buyback_cost(card) or ""
         effects = kicked_effects(effects, kicked, kickers)
+        picked = self._pick_options(seat, card, alternative, kicked, bought_back, lambda mana: self._payment(
+            seat, paying, from_command_zone, 0, alternative, kickers, extra + mana) is not None)
+        extra += "".join(o.mana for o in picked)  # "pay {3}{B}" as an additional cost
         x = 0  # announced before the targets (CR 601.2b-c): "up to X target creatures" needs it
         if alternative is None and (parse_cost(paying.mana_cost).x or any(c.sacrifice_x for c in additional_costs(card))):
             # casting without paying the mana cost makes X 0; Immoral Bargain has X only in its additional cost
@@ -2165,7 +2179,7 @@ class Game:
         zone.remove(whole or card)
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
-        self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back)
+        self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back, picked)
         sacrificed = self._sacrifice_for_copies(seat, card)
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, bought_back=bought_back, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after, from_graveyard=graveyard is not None,
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
@@ -2974,6 +2988,10 @@ class Game:
         """Legal targets of `kind` for a spell or ability `caster` controls, as (label, object). `colors` are the
         colors of the source: a permanent with protection from one of them can't be chosen."""
         options: list[tuple[str, Any]] = []
+        if kind.startswith("spell or ") and kind not in STACK_TARGET_KINDS:  # Sink into Stupor: a spell or a permanent
+            rest = kind.removeprefix("spell or ")
+            return (self.target_options("spell you don't control" if "an opponent controls" in rest else "spell", caster, colors)
+                    + self.target_options(rest, caster, colors))
         if kind in STACK_TARGET_KINDS:  # Deflection, Bolt Bend, Reroute, Deflecting Swat
             wanted, lone = STACK_TARGET_KINDS[kind]
             return [(f"{'Ability' if i.ability else 'Spell'}: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
@@ -5861,7 +5879,8 @@ def _take_face(cards: list[Card], name: str) -> Card:
 
 def _extra_text(cost) -> str:
     """How an additional cost is shown when there is a choice of two."""
-    return f"Sacrifice a {cost.sacrifice}" if cost.sacrifice else "Discard a card" if cost.discard else f"Pay {cost.life} life"
+    return (f"Sacrifice a {cost.sacrifice}" if cost.sacrifice else "Discard a card" if cost.discard
+            else f"Pay {cost.life} life" if cost.life else f"Pay {cost.mana}")
 
 
 def _unique(cards: list[Card]) -> list[Card]:

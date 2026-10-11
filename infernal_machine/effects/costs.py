@@ -88,6 +88,7 @@ class AdditionalCost:
     life: int = 0
     life_x: bool = False  # "pay X life" (Toxic Deluge): X is chosen as the spell is cast
     sacrifice_x: bool = False  # "sacrifice X creatures" (Immoral Bargain): `sacrifice` is the kind, X of them
+    mana: str = ""  # "pay {2}": mana added to the cost (only as one of `options`)
     options: tuple["AdditionalCost", ...] = ()  # "sacrifice an artifact or discard a card": pay one of these
 
 
@@ -115,10 +116,11 @@ _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifi
                          rf"creature|permanent|green creature)|(discard a card)|pay {_N} life|sacrifice (X) (creatures|artifacts|lands|permanents))\.")
 
 
-_ADDITIONAL_PART = rf"(?:sacrifice an? (creature|artifact|land|artifact or creature|permanent)|(discard a card)|pay {_N} life)"
+_ADDITIONAL_PART = (r"(?:sacrifice an? (artifact or creature|creature or planeswalker|creature or enchantment|creature or land|creature|artifact|land"
+                    rf"|permanent|green creature)|(discard a card)|pay {_N} life|pay ((?:\{{[^}}]+\}})+))")
 
 
-_ADDITIONAL_EITHER = re.compile(rf"As an additional cost to cast this spell, {_ADDITIONAL_PART} or {_ADDITIONAL_PART}\.")
+_ADDITIONAL_EITHER = re.compile(rf"As an additional cost to cast this spell, ({_ADDITIONAL_PART}(?:(?:, or |, | or ){_ADDITIONAL_PART})+)\.")
 
 
 _X_LIMIT = re.compile(r"X can't be greater than the number of players in the game\.")  # Open the Way
@@ -414,9 +416,10 @@ def additional_costs(card: Card) -> list[AdditionalCost]:
             life_x = (m[3] or "").upper() == "X"
             costs.append(AdditionalCost(sacrifice=m[1] or (m[5].removesuffix("s") if m[5] else None), discard=bool(m[2]),
                                         life=0 if life_x or not m[3] else _count(m[3]), life_x=life_x, sacrifice_x=bool(m[5])))
-        elif m := _ADDITIONAL_EITHER.fullmatch(line):  # Demand Answers, Bitter Triumph, Bone Shards
+        elif m := _ADDITIONAL_EITHER.fullmatch(line):  # Demand Answers, Bitter Triumph, Redirect Lightning, Eaten Alive
             costs.append(AdditionalCost(options=tuple(
-                AdditionalCost(sacrifice=m[i], discard=bool(m[i + 1]), life=_count(m[i + 2]) if m[i + 2] else 0) for i in (1, 4))))
+                AdditionalCost(sacrifice=part[0] or None, discard=bool(part[1]), life=_count(part[2]) if part[2] else 0, mana=part[3])
+                for part in re.findall(_ADDITIONAL_PART, m[1]))))
     return costs
 
 

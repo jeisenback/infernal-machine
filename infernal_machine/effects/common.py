@@ -60,12 +60,16 @@ _MODAL_LEAD = re.compile(r".+[,:] choose (?:one or both|one or more|up to one|on
                          r"|.+, you may choose two\. Each mode must target a different player\.", re.I)
 
 
+_MODE_LABEL = re.compile(r"^\u2022 [A-Z][A-Za-z']*(?: (?:[A-Z][A-Za-z']*|a|an|the|of|to)){0,5} \u2014 ")
+
+
 def _join_modes(text: str) -> str:
     """Put the modes of a modal triggered or activated ability on its own line, so it is one ability like any other
     ("When ... enters, choose one — \u2022 Scry 2. \u2022 You gain 3 life."). A modal spell keeps its lines."""
     lines: list[str] = []
     joining = False
     for line in text.splitlines():
+        line = _MODE_LABEL.sub("\u2022 ", line.strip()) if line.strip().startswith("\u2022 ") else line  # "\u2022 Sell Contraband \u2014 Create ..."
         if joining and line.strip().startswith("\u2022 "):
             lines[-1] += " " + line.strip()
             continue

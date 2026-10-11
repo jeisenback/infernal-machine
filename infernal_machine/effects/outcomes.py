@@ -1130,14 +1130,15 @@ class PumpEach:
     modifier: Modifier
     opponents: bool = False
     everyone: bool = False  # "All creatures get -2/-2 until end of turn."
-    subtype: str = ""  # "Spirits you control gain double strike and vigilance until end of turn."
+    subtype: str = ""  # "Spirits you control gain double strike and vigilance until end of turn." ("non-Human": all but those)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         seats = game.live_seats() if self.everyone else game.opponents(controller) if self.opponents else [controller]
         for seat in seats:
             for permanent in list(seat.battlefield):
-                if "Creature" in permanent.card.type_line \
-                        and (not self.subtype or self.subtype in permanent.card.type_line.partition("\u2014")[2].split()):
+                kinds = permanent.card.type_line.partition("\u2014")[2].split()
+                if "Creature" in permanent.card.type_line and (
+                        not self.subtype or (self.subtype.removeprefix("non-") in kinds) != self.subtype.startswith("non-")):
                     game.modify_until_end_of_turn(permanent, self.modifier)
 
 
@@ -1739,6 +1740,22 @@ class ExileThenCastCopy:
             game.cast_copy_free(controller, target.card)
 
 
+@dataclass(frozen=True)
+class MayCastFromHandFree:
+    """Rishkar's Expertise: "You may cast a spell with mana value 5 or less from your hand without paying its mana cost." """
+    max_value: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        spells = [c for c in controller.hand if "Land" not in c.type_line and c.cmc <= self.max_value]
+        if not spells:
+            return
+        pick = controller.player.choose(FREE_CAST_PROMPT, [c.name for c in spells] + [DECLINE])
+        if pick < len(spells):
+            game.cast_free(controller, spells[pick])
+
+
+FREE_CAST_PROMPT = "Cast which spell without paying its mana cost? "
+DECLINE = "Don't cast"
 CAST_COPY_PROMPT = "Cast a copy without paying its mana cost: "  # followed by the card's name; Yes or No
 
 
@@ -3094,7 +3111,11 @@ class ReturnToHand:
     distinct: bool = False  # "Return up to two target creatures ...": the second can't be the first again
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
+        if target is None:
+            return
+        if hasattr(target, "physical"):  # Sink into Stupor: a spell on the stack
+            ReturnSpellToHand().resolve(game, controller, target)
+        else:
             game.return_to_hand(target)
 
 
@@ -4805,6 +4826,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 rf"( unless that spell's controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: ChangeTarget(f"{m[1].lower()} with a single target", unless=m[3] or "")),
     (re.compile(r"you may choose new targets for target spell or ability\.", re.I), lambda m: ChangeTarget("spell or ability", every=True)),
+    (re.compile(r"return target (spell or nonland permanent an opponent controls) to its owner's hand\.", re.I),
+     lambda m: ReturnToHand(m[1].lower())),  # Sink into Stupor
     (re.compile(r"return target spell( you don't control)? to its owner's hand\.", re.I),
      lambda m: ReturnSpellToHand("spell you don't control" if m[1] else "spell")),
     (re.compile(r"its controller gains (\d+) life\.", re.I), lambda m: TargetControllerGainsLife(int(m[1]))),
@@ -5222,6 +5245,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [Tap(m[1].lower(), optional_target=True), PutStunCounters(_count(m[2]))]),
     (re.compile(r"attach (?:it|this Equipment) to target ((?:legendary )?creature you control)\.", re.I),
      lambda m: Attach(m[1].lower())),  # Mithril Coat
+    (re.compile(r"you may cast a spell with mana value (\d+) or less from your hand without paying its mana cost\.", re.I),
+     lambda m: MayCastFromHandFree(int(m[1]))),  # Rishkar's Expertise
     (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
     (re.compile(r"proliferate (X) times\.", re.I), lambda m: Proliferate("X")),
     (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
@@ -5442,7 +5467,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Pump(Modifier(0, 0, frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
     (re.compile(rf"(?i:(all creatures|creatures you control|creatures your opponents control)) get {_PT_X} until end of turn\."),
      lambda m: _pump_each_x(m)),
-    (re.compile(rf"(?i:(creatures you control)) gain {_KEYWORDS} and get {_PT_X} until end of turn\."),
+    (re.compile(rf"(?:(?i:until end of turn, ))?(?i:(creatures you control)) gain {_KEYWORDS} and get {_PT_X}(?: until end of turn)?\."),
      lambda m: dataclasses.replace(_pump_each_x_from(m[1], m[3], m[4], m[5], m[6]), keywords=_keyword_list(m[2]))),
     (re.compile(r"(?:Until end of turn, )?creatures your opponents control lose hexproof and shroud and can't have hexproof or shroud\."),
      lambda m: PumpEach(Modifier(keywords=frozenset({LOSES_HEXPROOF})), opponents=True)),
@@ -5480,6 +5505,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
     (re.compile(rf"((?-i:[A-Z][a-z]+))s you control {_CHANGE}"), lambda m: PumpEach(_modifier(m, 2), subtype=m[1])),
+    (re.compile(rf"(?i:non)-((?-i:[A-Z][a-z]+)) creatures you control {_CHANGE}"),
+     lambda m: PumpEach(_modifier(m, 2), subtype="non-" + m[1])),  # Return of the Wildspeaker
     (re.compile(r'for each opponent, create (.+) that attack that opponent this turn if able\.("?)', re.I), _attacking_tokens),
     (re.compile(r"they gain haste until end of turn\.", re.I), lambda m: _TheyGainHaste()),
     (re.compile(r"exile them at the beginning of the next end step\.", re.I), lambda m: _ExileThemLater()),

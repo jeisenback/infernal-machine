@@ -251,11 +251,11 @@ class EitherCostTests(unittest.TestCase):
         self.assertEqual([unsupported_lines(c) for c in (BITTER, DEMAND)], [[], []])
 
     def test_paying_the_life(self):
-        game, a, b, c = cast(BITTER, "Bear", "Pay 3", theirs=[BEAR], hand=[FOREST])
+        game, a, b, c = cast(BITTER, "Pay 3", "Bear", theirs=[BEAR], hand=[FOREST])
         self.assertEqual((a.life, names(b), [x.name for x in a.hand]), (37, [], ["Forest"]))
 
     def test_discarding_the_card(self):
-        game, a, b, c = cast(BITTER, "Bear", "Discard", theirs=[BEAR], hand=[FOREST])
+        game, a, b, c = cast(BITTER, "Discard", "Bear", theirs=[BEAR], hand=[FOREST])
         self.assertEqual((a.life, names(b), [x.name for x in a.graveyard]), (40, [], ["Forest", "Bitter Triumph"]))
 
     def test_with_only_one_way_to_pay_it_is_not_asked(self):
@@ -281,6 +281,85 @@ class EitherCostTests(unittest.TestCase):
     def test_the_artifact_option_is_not_offered_without_an_artifact(self):
         game, a, b, c = cast(DEMAND, hand=[FOREST], library=[FOREST] * 3)
         self.assertEqual([x.name for x in a.graveyard], ["Forest", "Demand Answers"])
+
+
+REDIRECT = real("Redirect Lightning", "{R}", "Instant", "As an additional cost to cast this spell, pay 5 life or pay {2}.\n"
+                "Change the target of target spell or ability with a single target.")
+EATEN = real("Eaten Alive", "{B}", "Sorcery", "As an additional cost to cast this spell, sacrifice a creature or pay {3}{B}.\nExile target creature or planeswalker.")
+MANGLER = real("Dusk Mangler", "{B}", "Sorcery", "As an additional cost to cast this spell, sacrifice a creature, discard a card, or pay 4 life.\nDraw a card.")
+
+
+def bolt_then(response, *, b_lands, b_life, answers):
+    """A casts Lightning Bolt at B; B (with `b_lands` lands and `b_life` life) answers with `response`."""
+    from tests.test_change_target import BOLT, Responder
+    responder = Responder(*answers)
+    game, _ = table3(script("Player: B"), responder)
+    a, b, c = game.seats
+    a.hand, a.battlefield = [BOLT], lands(2)
+    b.hand, b.battlefield, b.life = [response], lands(b_lands), b_life
+    game._perform(a, CAST + "Lightning Bolt")
+    return game, a, b, c, responder
+
+
+class ManaOptionTests(unittest.TestCase):
+    def test_parse(self):
+        for card in (REDIRECT, EATEN, MANGLER):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_the_options_of_each_cost(self):
+        from infernal_machine.effects import additional_costs
+        [redirect] = additional_costs(REDIRECT)
+        self.assertEqual([(o.life, o.mana) for o in redirect.options], [(5, ""), (0, "{2}")])
+        [mangler] = additional_costs(MANGLER)
+        self.assertEqual([(o.sacrifice, o.discard, o.life) for o in mangler.options], [("creature", False, 0), (None, True, 0), (None, False, 4)])
+        [eaten] = additional_costs(EATEN)
+        self.assertEqual([(o.sacrifice, o.mana) for o in eaten.options], [("creature", ""), (None, "{3}{B}")])
+
+    def test_with_the_life_the_extra_mana_is_not_needed(self):
+        game, a, b, c, _ = bolt_then(REDIRECT, b_lands=1, b_life=40, answers=("Spell", "Player: C"))
+        game._perform(b, CAST + "Redirect Lightning")
+        run_stack(game)
+        self.assertEqual((b.life, c.life), (35, 37))  # paid 5 life; the Bolt went to C
+
+    def test_with_too_little_life_the_extra_mana_is_paid(self):
+        game, a, b, c, _ = bolt_then(REDIRECT, b_lands=3, b_life=4, answers=("Spell", "Player: C"))
+        game._perform(b, CAST + "Redirect Lightning")
+        self.assertTrue(all(p.tapped for p in b.battlefield))  # {R} and the {2}
+        run_stack(game)
+        self.assertEqual((b.life, c.life), (4, 37))
+
+    def test_it_is_not_cast_when_neither_the_life_nor_the_mana_is_there(self):
+        game, a, b, c, _ = bolt_then(REDIRECT, b_lands=2, b_life=4, answers=("Spell",))
+        self.assertNotIn(CAST + "Redirect Lightning", game.legal_actions(b))
+        game, a, b, c, _ = bolt_then(REDIRECT, b_lands=2, b_life=5, answers=("Spell",))
+        self.assertIn(CAST + "Redirect Lightning", game.legal_actions(b))  # exactly 5 life is enough
+
+    def test_when_both_can_be_paid_you_choose(self):
+        game, a, b, c, responder = bolt_then(REDIRECT, b_lands=3, b_life=40, answers=("Pay {2}", "Spell", "Player: C"))
+        game._perform(b, CAST + "Redirect Lightning")
+        self.assertTrue(all(p.tapped for p in b.battlefield))
+        self.assertEqual(b.life, 40)
+
+    def test_sacrifice_or_pay_mana(self):
+        game, _ = table3(script("Pay", "Bear"))
+        a = game.seats[0]
+        a.hand, a.battlefield = [EATEN], lands(5) + [Permanent(BEAR)]
+        game.seats[1].battlefield = [Permanent(OGRE)]
+        game._perform(a, CAST + "Eaten Alive")
+        self.assertEqual(sum(p.tapped for p in a.battlefield), 5)  # {B} and {3}{B}, and the Bear stays
+        self.assertIn("Bear", names(a))
+
+    def test_sacrifice_or_pay_mana_chooses_the_sacrifice(self):
+        game, a, b, c = cast(EATEN, "Sacrifice", "Ogre", mine=[BEAR], theirs=[OGRE], n=5)
+        self.assertEqual((names(a), names(b)), ([], []))
+
+    def test_three_ways_to_pay(self):
+        game, _ = table3(script("Pay 4 life"))
+        a = game.seats[0]
+        a.hand, a.battlefield, a.library = [MANGLER, FOREST], lands(2) + [Permanent(BEAR)], [FOREST] * 3
+        game._perform(a, CAST + "Dusk Mangler")
+        run_stack(game)
+        self.assertEqual((a.life, names(a), len(a.hand)), (36, ["Bear"], 2))
 
 
 CHORD = real("Chord of Calling", "{X}{G}{G}{G}", "Instant", "Convoke\nSearch your library for a creature card with mana value X or less, put it onto the battlefield, then shuffle.")
@@ -327,6 +406,108 @@ class SearchTests(unittest.TestCase):
     def test_revealing_that_card(self):
         game, a, b, c = cast(CALL, "Knight", library=[TITAN, KNIGHT])
         self.assertEqual([x.name for x in a.hand], ["Knight"])
+
+
+EXPERTISE = real("Rishkar's Expertise", "{4}{G}{G}", "Sorcery", "Draw cards equal to the greatest power among creatures you control.\n"
+                 "You may cast a spell with mana value 5 or less from your hand without paying its mana cost.")
+SMALL_SPELL = real("Small Spell", "{2}{R}", "Sorcery", "Draw a card.")
+BIG_SPELL = real("Big Spell", "{4}{R}{R}", "Sorcery", "Draw a card.")
+
+
+class FreeCastTests(unittest.TestCase):
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(EXPERTISE), [])
+
+    def test_a_spell_of_mana_value_five_or_less_is_cast_free_from_the_hand(self):
+        game, a, b, c = cast(EXPERTISE, "Small Spell", mine=[OGRE], hand=[SMALL_SPELL, BIG_SPELL, FOREST], library=[FOREST] * 6, n=6)
+        self.assertEqual(sorted(x.name for x in a.graveyard), ["Rishkar's Expertise", "Small Spell"])
+        self.assertEqual(sorted(x.name for x in a.hand), ["Big Spell", "Forest", "Forest", "Forest", "Forest", "Forest"])  # drew 3, then 1; none of it paid for
+
+    def test_nothing_is_offered_above_the_limit_or_for_lands(self):
+        asked = []
+
+        def record(prompt, options):
+            asked.append(list(options))
+            return len(options) - 1
+        game, _ = table3(record)
+        a = game.seats[0]
+        a.hand, a.battlefield, a.library = [EXPERTISE, BIG_SPELL, FOREST], lands(6), [FOREST] * 3
+        game._perform(a, CAST + "Rishkar's Expertise")
+        run_stack(game)
+        self.assertFalse([o for o in asked if "Small Spell" in o or "Big Spell" in o or "Forest" in o and "Don't cast" in o])
+
+    def test_it_may_be_declined(self):
+        game, a, b, c = cast(EXPERTISE, "Don't", hand=[SMALL_SPELL], library=[FOREST] * 3)
+        self.assertEqual([x.name for x in a.hand], ["Small Spell"])  # no creature to draw for; the spell stays in hand
+
+
+WILDSPEAKER = real("Return of the Wildspeaker", "{4}{G}", "Instant", "Choose one —\n• Draw cards equal to the greatest power among non-Human creatures you control.\n"
+                   "• Non-Human creatures you control get +3/+3 until end of turn.")
+STAMPEDE = real("Overwhelming Stampede", "{3}{G}{G}", "Sorcery", "Until end of turn, creatures you control gain trample and get +X/+X, where X is the greatest power among creatures you control.")
+SINK = real("Sink into Stupor", "{1}{U}{U}", "Instant", "Return target spell or nonland permanent an opponent controls to its owner's hand.")
+
+
+class PumpAndBounceTests(unittest.TestCase):
+    def test_parse(self):
+        for card in (WILDSPEAKER, STAMPEDE, SINK):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_non_human_creatures_get_the_bonus(self):
+        game, a, b, c = cast(WILDSPEAKER, "Non-Human", mine=[HUMAN, OGRE, BEAR])
+        power = {p.card.name: game.power(p) for p in a.battlefield if "Creature" in p.card.type_line}
+        self.assertEqual(power, {"Human": 6, "Ogre": 6, "Bear": 5})
+
+    def test_cards_equal_to_the_greatest_power_among_non_humans(self):
+        game, a, b, c = cast(WILDSPEAKER, "Draw", mine=[HUMAN, OGRE], library=[FOREST] * 5)
+        self.assertEqual(len(a.hand), 3)  # the Ogre's 3, not the Human's 6
+
+    def test_trample_and_the_greatest_power_for_each(self):
+        game, a, b, c = cast(STAMPEDE, mine=[BEAR, OGRE], theirs=[BEAR])
+        mine = {p.card.name: (game.power(p), game.has_keyword(p, "trample")) for p in a.battlefield if "Creature" in p.card.type_line}
+        self.assertEqual(mine, {"Bear": (5, True), "Ogre": (6, True)})
+        self.assertEqual(game.power(b.battlefield[0]), 2)
+
+    def test_it_returns_an_opponents_permanent_or_spell_to_its_owners_hand(self):
+        game, _ = table3(script("Bear"))
+        a, b, c = game.seats
+        a.hand, a.battlefield = [SINK], lands(3)
+        b.battlefield = [Permanent(BEAR), Permanent(FOREST)]
+        game._perform(a, CAST + "Sink into Stupor")
+        run_stack(game)
+        self.assertEqual(([x.name for x in b.hand], names(b)), (["Bear"], ["Forest"]))
+
+    def test_it_returns_a_spell_and_not_one_of_your_own(self):
+        from tests.test_change_target import BOLT
+        game, _ = table3(script("Player: A"), script("Spell"))
+        a, b, c = game.seats
+        a.hand, a.battlefield = [BOLT], lands(2)
+        b.hand, b.battlefield = [SINK, BOLT], lands(4) + [Permanent(BEAR)]
+        game._perform(a, CAST + "Lightning Bolt")
+        game._perform(b, CAST + "Lightning Bolt")  # B's own spell is on the stack too
+        options = [label for label, _ in game.target_options("spell or nonland permanent an opponent controls", b)]
+        self.assertEqual([label for label in options if label.startswith("Spell")], ["Spell: Lightning Bolt (seat 0)"])
+        self.assertFalse(any(label.startswith("Bear") for label in options))  # its own Bear is not an opponent's
+        game._perform(b, CAST + "Sink into Stupor")
+        run_stack(game)
+        self.assertEqual(([x.name for x in a.hand], a.graveyard, b.life), (["Lightning Bolt"], [], 40))  # A's Bolt never hit B
+
+
+BMC = real("Black Market Connections", "{2}{B}", "Enchantment", "At the beginning of your first main phase, choose one or more —\n"
+           "• Sell Contraband — Create a Treasure token. You lose 1 life.\n• Buy Information — Draw a card. You lose 2 life.\n"
+           "• Hire a Mercenary — Create a 3/2 colorless Shapeshifter creature token with changeling. You lose 3 life.")
+
+
+class ModeLabelTests(unittest.TestCase):
+    def test_a_named_mode_is_the_mode(self):
+        self.assertEqual(unsupported_lines(BMC), [])
+
+    def test_the_named_modes_work(self):
+        game, _ = table3(script("Create a Treasure", "Create a 3/2", "Done"))
+        a = game.seats[0]
+        a.battlefield, a.library = [Permanent(BMC)], [FOREST] * 3
+        game.trigger("first_main", a.battlefield[0], a)
+        run_stack(game)
+        self.assertEqual((a.life, sorted(p.card.name for p in a.battlefield)), (36, ["Black Market Connections", "Shapeshifter", "Treasure"]))
 
 
 if __name__ == "__main__":

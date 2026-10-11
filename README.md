@@ -775,6 +775,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     sacrifice, a discard or life (`AdditionalCost.options`; a mana option such as Redirect Lightning's is not); search for a creature
     "with mana value X or less" onto the battlefield and "Shuffle CARDNAME into its owner's library"; Deflecting Swat's "choose new
     targets" (each target may stay); and a few single lines (Mithril Coat, Untimely Malfunction, Rakdos Charm, Damn).
+  - Leftovers of the third popularity pass: an additional cost may offer several ways to pay, including mana ("pay 5 life or pay {2}",
+    "sacrifice a creature or pay {3}{B}", three-way costs); the choice is made before targets (CR 601.2b) and a way counts as
+    affordable only if the mana it adds can be paid. "You may cast a spell with mana value N or less from your hand without paying its
+    mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
+    trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
+    in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
