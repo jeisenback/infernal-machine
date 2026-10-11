@@ -662,6 +662,14 @@ winner = game.play()
     prevented") beats all of these. Prevented damage is not dealt, so there is no lifelink, poison, commander damage or combat
     damage trigger for it. Not read: sources of your choice (Circles of Protection), enchanted creature, divided and X shields,
     redirection; the full list is in issue #235.
+  - Top-300 unplayable cards (#200, first batch): "search your library for a basic land card, put it onto the battlefield, then
+    shuffle" (untapped, Prismatic Vista), Crop Rotation and Harrow; "lose life equal to its / that card's / that permanent's
+    mana value" (Feed the Swarm, Withering Torment) with "creature or enchantment" targets; "return all attacking creatures to
+    their owner's hand" (Aetherize); "untap up to N lands" (Frantic Search, Snap), asked one land at a time with a Done choice;
+    Gamble (search for any card, then discard at random); the conditions "you control a creature with power N or greater"
+    (Garruk's Uprising) and "you created a token this turn" (Mox Opal's Metalcraft-style mana, with the Metalcraft, Threshold,
+    Hellbent, Delirium and Revolt word prefixes stripped); and "your devotion to <color>" as an amount (Gray Merchant of
+    Asphodel). The rest of the list is in issue #200.
   - Rules-changing statics (#204), read from the permanent's own text:
     - "Creature spells you control can't be countered" / "Spells you control can't be countered": a counterspell does nothing
       to them.

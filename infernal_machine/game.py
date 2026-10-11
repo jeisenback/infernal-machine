@@ -347,6 +347,7 @@ class Seat:
     life_mana_turn: int | None = None  # Channel: this turn, 1 life buys {C} any time
     conjurable: dict[str, Card] = field(default_factory=dict)  # Alchemy: the cards this player's deck can conjure, by name
     noncombat_damage_turn: int | None = None  # the last turn this player was dealt damage that wasn't combat damage
+    token_turn: int | None = None  # the last turn this player created a token
     damage_taken_turn: int | None = None  # the turn `damage_taken` counts for
     damage_taken: int = 0  # the damage dealt to this player that turn
     attackers_turn: int | None = None  # the turn `most_attackers` counts for
@@ -2243,6 +2244,8 @@ class Game:
             return subject.last_auras.get(controller.index, 0) if subject is not None else 0
         if kind == "creatures_entered":  # nontoken creatures that entered under your control this turn
             return controller.creatures_entered if controller.creatures_entered_turn == self.turn else 0
+        if kind == "devotion":  # Gray Merchant of Asphodel: every {B} (hybrid and Phyrexian too) in the mana costs of your permanents
+            return sum(len(re.findall(rf"\{{[^}}]*{amount.what}[^}}]*\}}", p.card.mana_cost)) for p in controller.battlefield)
         if kind == "sacrificed_power":  # the creature sacrificed to pay this ability's cost
             return self.resolving_item.sacrificed_power if self.resolving_item else 0
         if kind == "tapped_power":  # the creature tapped to pay this ability's cost (Station)
@@ -2414,6 +2417,10 @@ class Game:
             return False
         if kind == "all_hands_empty":  # Howltooth Hollow
             return not any(s.hand for s in self.live_seats())
+        if kind == "creature_with_power":  # Garruk's Uprising: a creature you control with power N or greater
+            return any(self.power(p) >= condition.count for p in seat.battlefield if "Creature" in p.card.type_line)
+        if kind == "created_token":  # Idol of Oblivion
+            return seat.token_turn == self.turn
         if kind == "creature_power_at_least":  # Mosswort Bridge: creatures you control have total power N or greater
             return sum(self.power(p) for p in seat.battlefield if "Creature" in p.card.type_line) >= condition.count
         if kind == "any_library_at_most":  # Shelldock Isle
@@ -3007,6 +3014,8 @@ class Game:
                 or (restriction.legendary is not None and ("Legendary" in card.type_line) != restriction.legendary)
                 or (restriction.basic is not None and ("Basic" in card.type_line) != restriction.basic)
                 or (restriction.tapped is not None and permanent.tapped != restriction.tapped)
+                or (restriction.attacking is not None
+                    and any(a.attacker is permanent for a in self.combat.attacks) != restriction.attacking)
                 or (restriction.has_type and restriction.has_type not in card.type_line)):
             return False
         if restriction.enchanted is not None and restriction.enchanted != any(
@@ -3752,6 +3761,7 @@ class Game:
         """Create tokens at once, each as many times as the replacement effects say (Doubling Season). Watchers of "one or
         more creature tokens" see the whole batch as one event."""
         made = []
+        seat.token_turn = self.turn  # "if you created a token this turn" (Idol of Oblivion)
         if any(replacement_effects(p.card).manufactor for p in seat.battlefield):  # Academy Manufactor
             tokens = [t for token in tokens for t in ((CLUE, FOOD, TREASURE) if token.name in ("Clue", "Food", "Treasure") else (token,))]
         for token in tokens:
