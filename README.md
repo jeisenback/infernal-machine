@@ -754,6 +754,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     half's cost and mana value, not the sum. An Aftermath half is cast only from the graveyard (`CAST_GRAVEYARD`, like Flashback)
     and is exiled whether it resolves, is countered or fizzles. Still not played (listed as "Second face or half"): the Fuse
     option, a modal back that is a permanent, and melds.
+  - Manifest dread (`Game.manifest_dread`, effect `ManifestDread`): look at the top two cards, one enters face down as a 2/2 (as
+    for manifest; a creature card can be turned up for its mana cost) and the other goes to the graveyard. "Twice", "then put N
+    +1/+1 counters on that creature" and "then attach this Equipment to that creature" are understood. "Whenever you manifest
+    dread" and "when it dies this turn, manifest dread" are not.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same

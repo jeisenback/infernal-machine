@@ -1511,6 +1511,26 @@ class TargetControllerManifests:
 
 
 @dataclass(frozen=True)
+class ManifestDread:
+    """ "Manifest dread." (twice: `times`), then perhaps "put N +1/+1 counters on that creature" or "attach this Equipment to
+    that creature" (the last one manifested)."""
+    times: int = 1
+    counters: int = 0
+    attach: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        made = None
+        for _ in range(self.times):
+            made = game.manifest_dread(controller)
+        if made is None:
+            return
+        if self.counters:
+            game.put_counters(made, "+1/+1", self.counters)
+        if self.attach and game.resolving_source is not None:
+            game.attach(game.resolving_source, made)
+
+
+@dataclass(frozen=True)
 class DanceWithCalamity:
     """ "Shuffle your library. As many times as you choose, you may exile the top card of your library. If the total mana
     value of the cards exiled this way is 13 or less, you may cast any number of spells from among those cards without
@@ -5150,6 +5170,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 re.I), lambda m: _SplitTop()),
     (re.compile(r"you may play the exiled card this turn\.", re.I), lambda m: _PlayTheExiledCard()),
     (re.compile(r"its controller manifests the top card of their library\.", re.I), lambda m: TargetControllerManifests()),
+    (re.compile(r"manifest dread(?: (twice))?\.", re.I), lambda m: ManifestDread(2 if m[1] else 1)),
+    (re.compile(rf"manifest dread, then attach {_SELF} to that creature\.", re.I), lambda m: ManifestDread(attach=True)),
+    (re.compile(rf"manifest dread, then put {_N} \+1/\+1 counters? on that creature\.", re.I), lambda m: ManifestDread(counters=_count(m[1]))),
     (re.compile(rf"shuffle your library\. as many times as you choose, you may exile the top card of your library\. if the "
                 rf"total mana value of the cards exiled this way is {_N} or less, you may cast any number of spells from among "
                 r"those cards without paying their mana costs\.", re.I), lambda m: DanceWithCalamity(_count(m[1]))),
