@@ -765,9 +765,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     counters ("if it's your turn"), counters on the source itself, "twice X", and the Siege/Battle cards.
   - "Change the target of target spell (or ability, or activated ability) with a single target" (`ChangeTarget`, `Game.change_target`):
     only a spell or ability with exactly one target (not a list of targets) can be aimed at; you pick another legal target for it, from
-    the point of view of the spell's controller, and "unless that spell's controller pays {2}" (Divert) is asked of that player.
-    Not understood: "that targets only a player / this creature", "the new target must be ...", changing several targets, and
-    Willbender's turned-face-up trigger.
+    the point of view of the spell's controller, and "unless that spell's controller pays {2}" (Divert) is asked of that player. Also
+    "that targets only a player / a single creature / this creature" (Rebound, Muck Drubb, Silver Wyvern), "The new target must be a
+    player / a creature" (folded into the effect), "to this creature" with an optional "you may" (Hydroelectric Specimen), "you may
+    change the targets of target instant or sorcery spell" (Goblin Flectomancer, each target may stay) and Spellskite's "Change a target
+    of target spell or ability to this creature" (you pick which target when it has several). "This creature" is the permanent whose ability
+    is being aimed or is resolving (`Game.targeting_source`). Not understood: Willbender (morph), Reflecting Mirror's X, Torchling's
+    forced block and Return the Favor's Spree.
   - Third popularity pass (`tests/test_popular_pass3.py`), the most played cards still missing a line: the Landscape fetch lands
     ("a basic Swamp, Forest, or Island card", Myriad Landscape's two lands that share a type); "Target creature you control deals
     damage equal to its power to ..." to a creature or planeswalker, any target, or each other creature and each opponent;

@@ -3,14 +3,14 @@
 import unittest
 
 from infernal_machine.effects import triggered_abilities
-from infernal_machine.game import ACTIVATE, CAST, TARGET_PROMPT, Permanent
+from infernal_machine.game import ACTIVATE, CAST, CHANGE_WHICH_PROMPT, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR, OGRE
 from tests.test_effects import lands
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 from tests.test_rules_text_81 import real
-from tests.test_x_targets import pick
+from tests.test_x_targets import pick, script
 
 BOLT = real("Lightning Bolt", "{R}", "Instant", "Lightning Bolt deals 3 damage to any target.")
 SMITE = real("Smite", "{1}{W}", "Instant", "Destroy target creature an opponent controls.")
@@ -30,7 +30,7 @@ class Responder:
         self.answers, self.asked = list(answers), []
 
     def __call__(self, prompt, options):
-        if prompt.startswith(TARGET_PROMPT):
+        if prompt.startswith((TARGET_PROMPT, CHANGE_WHICH_PROMPT)):
             self.asked.append(list(options))
         return pick(self.answers.pop(0) if self.answers else "Pass")(prompt, options)
 
@@ -180,6 +180,125 @@ class AbilityTests(unittest.TestCase):
         b.hand, b.battlefield = [DEFLECTION], lands(6)
         game._perform(a, next(x for x in game.legal_actions(a) if x.startswith(ACTIVATE)))
         self.assertFalse(game._can_cast(b, DEFLECTION))  # Deflection says "spell"
+
+
+REBOUND = real("Rebound", "{1}{U}", "Instant", "Change the target of target spell that targets only a player. The new target must be a player.")
+WYVERN = real("Silver Wyvern", "{2}{U}", "Creature — Drake", "Flying\n{U}: Change the target of target spell or ability that targets only this creature. "
+              "The new target must be a creature.", "2", "2")
+DRUBB = real("Muck Drubb", "{3}{B}", "Creature — Beast", "Flash\nWhen this creature enters, change the target of target spell that targets only a single "
+             "creature to this creature.", "3", "3")
+SPECIMEN = real("Hydroelectric Specimen", "{1}{U}", "Creature — Elemental", "Flash\nWhen this creature enters, you may change the target of target "
+                "instant or sorcery spell with a single target to this creature.", "1", "2")
+FLECTOMANCER = real("Goblin Flectomancer", "{R}", "Creature — Goblin", "Sacrifice this creature: You may change the targets of target instant "
+                    "or sorcery spell.", "1", "1")
+SPELLSKITE = real("Spellskite", "{0}", "Artifact Creature — Horror", "{U/P}: Change a target of target spell or ability to this creature.", "0", "4")
+KILL = real("Smite", "{1}{W}", "Instant", "Destroy target creature an opponent controls.")
+
+
+def respond(spell, aimed, on_battlefield, *answers, mine=(), theirs=(), act=None):
+    """A casts `spell` at `aimed`; B (holding `on_battlefield` permanents) answers by `act(game, a, b)`; then the stack resolves."""
+    from tests.test_x_targets import script
+    responder = Responder(*answers)
+    game, _ = table3(script(*aimed), responder)
+    a, b, c = game.seats
+    a.hand, a.battlefield = [spell], lands(4) + [Permanent(x) for x in mine]
+    b.battlefield = lands(5) + [Permanent(x, sick=False) for x in theirs]
+    c.battlefield = [Permanent(BEAR)]
+    game._perform(a, CAST + spell.name)
+    act(game, a, b)
+    while game.stack or game.pending:  # triggers go on the stack before the next thing resolves
+        game._put_triggers_on_stack()
+        if game.stack:
+            game._resolve(game.stack.pop())
+    game._check_state()
+    return game, a, b, c, responder
+
+
+def activate_on(game, seat, source_name):
+    game._perform(seat, next(x for x in game.legal_actions(seat) if x.startswith(ACTIVATE) and source_name in x))
+
+
+class OnlyOneThingTests(unittest.TestCase):
+    def test_parse(self):
+        for card in (REBOUND, WYVERN, DRUBB, SPECIMEN, FLECTOMANCER, SPELLSKITE):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_rebound_aims_only_at_a_spell_that_targets_only_a_player(self):
+        game, _ = table3(script("Bear"))
+        a, b, c = game.seats
+        a.hand, a.battlefield = [KILL], lands(3)
+        b.hand, b.battlefield = [REBOUND], lands(4) + [Permanent(BEAR)]
+        game._perform(a, CAST + "Smite")  # at a creature
+        self.assertFalse(game._can_cast(b, REBOUND))
+
+    def test_the_new_target_must_be_a_player(self):
+        game, a, b, c, responder = respond(BOLT, ["Player: B"], REBOUND, "Spell", "Player: C", theirs=[BEAR],
+                                           act=lambda g, a, b: (setattr(b, "hand", [REBOUND]), g._perform(b, CAST + "Rebound")))
+        options = responder.asked[-1]
+        self.assertTrue(options and all(label.startswith("Player") for label in options))  # not the Bear
+        self.assertEqual((b.life, c.life), (40, 37))
+
+    def test_silver_wyvern_redirects_a_spell_aimed_only_at_it_to_a_creature(self):
+        game, a, b, c, responder = respond(BOLT, ["Silver Wyvern"], WYVERN, "Spell", "Bear", theirs=[WYVERN],
+                                           act=lambda g, a, b: activate_on(g, b, "Silver Wyvern"))
+        self.assertTrue(all(not label.startswith("Player") for label in responder.asked[-1]))
+        self.assertEqual((b.life, c.life), (40, 40))
+        self.assertEqual([p.card.name for p in c.battlefield], [])  # the Bolt killed C's Bear
+
+    def test_silver_wyvern_cannot_aim_at_a_spell_aimed_at_something_else(self):
+        game, _ = table3(script("Player: B"))
+        a, b, c = game.seats
+        a.hand, a.battlefield = [BOLT], lands(2)
+        b.battlefield = lands(3) + [Permanent(WYVERN, sick=False)]
+        game._perform(a, CAST + "Lightning Bolt")
+        self.assertFalse([x for x in game.legal_actions(b) if x.startswith(ACTIVATE) and "Silver Wyvern" in x])
+
+    def test_muck_drubb_takes_the_spell_aimed_at_a_single_creature(self):
+        game, a, b, c, _ = respond(KILL, ["Bear"], DRUBB, "Spell", theirs=[BEAR],
+                                   act=lambda g, a, b: (setattr(b, "hand", [DRUBB]), g._perform(b, CAST + "Muck Drubb")))
+        self.assertEqual(sorted(p.card.name for p in b.battlefield if "Land" not in p.card.type_line), ["Bear"])  # the Drubb died instead
+        self.assertEqual([x.name for x in b.graveyard], ["Muck Drubb"])
+
+    def test_the_hydroelectric_specimen_may_decline(self):
+        game, a, b, c, _ = respond(KILL, ["Bear"], SPECIMEN, "Spell", "No", theirs=[BEAR],
+                                   act=lambda g, a, b: (setattr(b, "hand", [SPECIMEN]), g._perform(b, CAST + "Hydroelectric Specimen")))
+        self.assertEqual(sorted(p.card.name for p in b.battlefield if "Land" not in p.card.type_line), ["Hydroelectric Specimen"])
+
+    def test_the_hydroelectric_specimen_takes_the_spell_when_it_says_yes(self):
+        game, a, b, c, _ = respond(KILL, ["Bear"], SPECIMEN, "Spell", "Yes", theirs=[BEAR],
+                                   act=lambda g, a, b: (setattr(b, "hand", [SPECIMEN]), g._perform(b, CAST + "Hydroelectric Specimen")))
+        self.assertEqual(sorted(p.card.name for p in b.battlefield if "Land" not in p.card.type_line), ["Bear"])
+
+    def test_only_an_instant_or_sorcery_spell_is_a_target_of_the_specimen(self):
+        from tests.test_x_targets import script
+        aura = real("Dampen", "{1}{U}", "Enchantment — Aura", "Enchant creature\nEnchanted creature gets -1/-0.")
+        game, _ = table3(script("Bear"))
+        a, b, c = game.seats
+        a.hand, a.battlefield = [aura], lands(3)
+        b.battlefield = [Permanent(BEAR)]
+        game._perform(a, CAST + "Dampen")
+        self.assertEqual(game.target_options("instant or sorcery spell with a single target", b), [])
+        self.assertEqual(len(game.target_options("spell with a single target", b)), 1)
+
+    def test_goblin_flectomancer_changes_the_targets_of_an_instant_or_sorcery(self):
+        game, a, b, c, _ = respond(BOLT, ["Player: B"], FLECTOMANCER, "Spell", "Player: C", theirs=[FLECTOMANCER],
+                                   act=lambda g, a, b: activate_on(g, b, "Goblin Flectomancer"))
+        self.assertEqual((b.life, c.life), (40, 37))
+
+    def test_spellskite_changes_a_target_to_itself(self):
+        game, a, b, c, _ = respond(KILL, ["Bear"], SPELLSKITE, "Spell", theirs=[BEAR, SPELLSKITE],
+                                   act=lambda g, a, b: activate_on(g, b, "Spellskite"))
+        self.assertEqual(sorted(p.card.name for p in b.battlefield if "Land" not in p.card.type_line), ["Bear"])  # the Skite died
+
+    def test_spellskite_picks_which_of_two_targets_to_change(self):
+        shrink = real("Twin Shrink", "{2}{B}", "Instant", "Target creature gets -2/-2 until end of turn. Target creature gets -1/-1 until end of turn.")
+        game, a, b, c, responder = respond(shrink, ["Ogre", "Bear"], SPELLSKITE, "Spell", "Bear", theirs=[BEAR, SPELLSKITE], mine=[OGRE],
+                                           act=lambda g, a, b: activate_on(g, b, "Spellskite"))
+        which = next(opts for opts in responder.asked if len(opts) == 2)  # the two targets it could change
+        self.assertEqual(sorted(label.split(" ")[0] for label in which), ["Bear", "Ogre"])
+        power = {p.card.name: (game.power(p), game.toughness(p)) for p in a.battlefield + b.battlefield if "Creature" in p.card.type_line}
+        self.assertEqual(power["Spellskite"], (-1, 3))  # the second target became Spellskite: its 0/4 got -1/-1
+        self.assertEqual(power["Ogre"], (1, 1))
 
 
 if __name__ == "__main__":

@@ -115,12 +115,21 @@ NOT_A_COPY = "Don't copy anything"
 CREW_PROMPT = "Choose a creature to tap to crew "  # followed by the Vehicle's name
 PROLIFERATE_PROMPT = "Proliferate: choose a permanent"
 DONE = "Done"
-STACK_TARGET_KINDS = {  # what "Change the target of target ..." can be aimed at: which items, and whether they need a lone target
-    "spell with a single target": (lambda item: not item.ability, True),
-    "spell or ability with a single target": (lambda item: True, True),
-    "activated ability with a single target": (lambda item: isinstance(item.ability, ActivatedAbility), True),
-    "spell or ability": (lambda item: True, False),  # Deflecting Swat
+STACK_TARGET_KINDS = {  # what "Change the target of target ..." can be aimed at: (which spells or abilities, given their lone target
+    # and the permanent whose ability this is; whether they need a lone target)
+    "spell with a single target": (lambda item, target, me: not item.ability, True),
+    "spell or ability with a single target": (lambda item, target, me: True, True),
+    "activated ability with a single target": (lambda item, target, me: isinstance(item.ability, ActivatedAbility), True),
+    "instant or sorcery spell with a single target": (lambda item, target, me: not item.ability and bool(
+        re.search(r"\b(Instant|Sorcery)\b", item.card.type_line)), True),
+    "spell that targets only a player": (lambda item, target, me: not item.ability and isinstance(target, Seat), True),
+    "spell that targets only a single creature": (lambda item, target, me: not item.ability and isinstance(target, Permanent)
+                                                  and "Creature" in target.card.type_line, True),
+    "spell that targets only this creature": (lambda item, target, me: not item.ability and target is me, True),
+    "spell or ability that targets only this creature": (lambda item, target, me: target is me, True),
+    "spell or ability": (lambda item, target, me: True, False),  # Deflecting Swat, Spellskite
 }
+CHANGE_WHICH_PROMPT = "Change which target of "  # followed by the spell's name
 NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
 SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
@@ -481,6 +490,7 @@ class Game:
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.at_owner_upkeep: list[tuple[Seat, int, Callable[[], None]]] = []  # (whose upkeep, the turn it was set up, what)
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
+        self.targeting_source: Permanent | None = None  # the permanent whose ability is having its targets chosen ("this creature")
         self.targeting_max: int | None = None  # how many targets "any number of target ..." may have (Strive: what the mana pays for)
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.cost_tapped_power = 0  # the power of what the ability being activated tapped as a cost (Station)
@@ -1988,14 +1998,18 @@ class Game:
         besides the targets chosen for earlier effects of the same kind, and an "another" one can't be `source`."""
         kinds = [(kind, getattr(e, "distinct", False), getattr(e, "another", False)) for e in effects
                  if (kind := target_kind(e)) and not getattr(e, "optional_target", False)]
-        for i, (kind, distinct, another) in enumerate(kinds):
-            needed = 1 + (sum(k == kind for k, _, _ in kinds[:i]) if distinct else 0)
-            kind = kind.removesuffix(" with mana value x")  # X isn't chosen yet: any creature could do
-            options = [o for _, o in self.target_options(self._fixed_kind(kind, source), seat, colors)
-                       if not (another and o is source)]
-            if len(options) < needed:
-                return False
-        return True
+        saved, self.targeting_source = self.targeting_source, source
+        try:
+            for i, (kind, distinct, another) in enumerate(kinds):
+                needed = 1 + (sum(k == kind for k, _, _ in kinds[:i]) if distinct else 0)
+                kind = kind.removesuffix(" with mana value x")  # X isn't chosen yet: any creature could do
+                options = [o for _, o in self.target_options(self._fixed_kind(kind, source), seat, colors)
+                           if not (another and o is source)]
+                if len(options) < needed:
+                    return False
+            return True
+        finally:
+            self.targeting_source = saved
 
     def _choose_modes(self, seat: Seat, card: Card, modal: Modal, from_command_zone: bool = False,
                       casting: bool = False, source: Permanent | None = None) -> tuple[list, str]:
@@ -2033,6 +2047,14 @@ class Game:
 
     def _choose_targets(self, seat: Seat, effects, source_name: str, source: Permanent | None = None,
                         colors: frozenset[str] = frozenset()) -> tuple[list, list[str]] | None:
+        self.targeting_source = source
+        try:
+            return self._choose_targets_now(seat, effects, source_name, source, colors)
+        finally:
+            self.targeting_source = None
+
+    def _choose_targets_now(self, seat: Seat, effects, source_name: str, source: Permanent | None = None,
+                            colors: frozenset[str] = frozenset()) -> tuple[list, list[str]] | None:
         """Ask `seat` for a target per targeting effect: (targets, labels), or None if one has no legal target.
         "Another target ..." can't be `source` itself, and
         nothing with protection from `colors` (the colors of the spell or source) can be chosen."""
@@ -2997,8 +3019,10 @@ class Game:
                     + self.target_options(rest, caster, colors))
         if kind in STACK_TARGET_KINDS:  # Deflection, Bolt Bend, Reroute, Deflecting Swat
             wanted, lone = STACK_TARGET_KINDS[kind]
+            me = self._source_now()
             return [(f"{'Ability' if i.ability else 'Spell'}: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
-                    if wanted(i) and (not lone or self._lone_target(i) is not None)]
+                    if (not lone or self._lone_target(i) is not None)
+                    and wanted(i, i.targets[self._lone_target(i)] if lone else None, me)]
         if kind == "creature card in a graveyard":  # Animate Dead is cast on one
             kind = "graveyard:creature:any"
         if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|any>"
@@ -3047,23 +3071,48 @@ class Game:
         chosen = [i for i, t in enumerate(item.targets) if t is not None and not isinstance(t, list)]
         return chosen[0] if len(chosen) == 1 and not any(isinstance(t, list) and t for t in item.targets) else None
 
-    def change_target(self, chooser: Seat, item: StackItem, every: bool = False) -> None:
+    def _source_now(self) -> Permanent | None:
+        """The permanent whose ability is resolving, or whose ability's targets are being chosen ("this creature")."""
+        return self.resolving_source if self.resolving_item is not None else self.targeting_source
+
+    def change_target(self, chooser: Seat, item: StackItem, every: bool = False, to: str = "", lone: bool = True) -> None:
         """`chooser` picks a new target for the one target of `item`: another one that is legal for it. With none, nothing changes.
-        With `every`, each of its targets may be changed, and may stay (Deflecting Swat)."""
+        With `every`, each of its targets may be changed, and may stay (Deflecting Swat). `to` limits the new target: "player",
+        "creature" or "this" (the permanent whose ability this is); with `lone` False the chooser picks which target to change
+        (Spellskite)."""
         effects = [e for e in item.effects or [] if target_kind(e)]
-        indexes = [i for i, t in enumerate(item.targets) if t is not None and not isinstance(t, list)] if every else [self._lone_target(item)]
+        me = self.resolving_source
+
+        def new_options(index: int) -> list[tuple[str, Any]]:
+            current = item.targets[index]
+            kind = self._fixed_kind(target_kind(effects[index]), item.source, item.x)
+            options = self.target_options(kind, item.controller, source_qualities(item.card))
+            if to:
+                options = [o for o in options if (isinstance(o[1], Seat) if to == "player" else o[1] is me if to == "this"
+                                                  else isinstance(o[1], Permanent) and "Creature" in o[1].card.type_line)]
+            return sorted(options, key=lambda o: o[1] is not current) if every else [o for o in options if o[1] is not current]
+
+        if every:
+            indexes = [i for i, t in enumerate(item.targets) if t is not None and not isinstance(t, list)]
+        elif lone:
+            indexes = [self._lone_target(item)]
+        else:  # "Change a target of target spell or ability": one of its targets that can be changed
+            movable = [i for i, t in enumerate(item.targets) if t is not None and not isinstance(t, list) and new_options(i)]
+            indexes = movable[:1] if len(movable) < 2 else [movable[chooser.player.choose(
+                CHANGE_WHICH_PROMPT + item.card.name, [self._target_label(item.targets[i]) for i in movable])]]
         for index in indexes:
             if index is None:
                 return
             current = item.targets[index]
-            kind = self._fixed_kind(target_kind(effects[index]), item.source, item.x)
-            options = self.target_options(kind, item.controller, source_qualities(item.card))
-            options = sorted(options, key=lambda o: o[1] is not current) if every else [o for o in options if o[1] is not current]
+            options = new_options(index)
             if options:
                 label, new = options[chooser.player.choose(TARGET_PROMPT + item.card.name, [o[0] for o in options])]
                 item.targets[index] = new
                 if new is not current:
                     self.broadcast({"event": "target_changed", "seat": chooser.index, "card": item.card.name, "to": label})
+
+    def _target_label(self, target: Any) -> str:
+        return self.label(target) if isinstance(target, Permanent) else f"Player: {target.name} (seat {target.index})"
 
     def label(self, permanent: Permanent) -> str:
         """How a permanent is shown in choices: "Grizzly Bears 2/2 (seat 1, #3)"."""
