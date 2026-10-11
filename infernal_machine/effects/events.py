@@ -144,6 +144,7 @@ declare("first_life_gain", re.compile(r"Whenever you gain life for the first tim
         to="you", happens="life_gained", needs="first")
 declare("opponent_second_draw", re.compile(r"Whenever an opponent draws their second card each turn, (.+)", re.I),
         to="opponents", happens="drew", needs="second", about_player=True)
+declare("turned_face_up", re.compile(rf"(?:When(?:ever)?|As) {_SELF} is turned face up, (.+)", re.I))  # Morph: see Game.turn_face_up
 declare("unlock_door", re.compile(r"When you unlock this door, (.+)", re.I))  # a Room's door: see Game.unlock_door
 declare("first_main", re.compile(r"At the beginning of your first main phase, (.+)", re.I))
 declare("second_main", re.compile(r"At the beginning of your second main phase, (.+)", re.I))

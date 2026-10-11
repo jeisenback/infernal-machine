@@ -135,6 +135,17 @@ _ESCALATE = re.compile(r"Escalate ((?:\{[^}]+\})+)")  # "Escalate\u2014Discard a
 _FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
 
 
+_MORPH = re.compile(r"(Morph|Megamorph|Disguise) ((?:\{[^}]+\})+)")  # Morph\u2014Sacrifice another creature. and the like are not read
+
+
+def morph_of(card: Card) -> tuple[str, str] | None:
+    """(Morph, Megamorph or Disguise; the cost to turn it face up) of a card that can be cast face down for {3}."""
+    for line in rules_lines(card):
+        if m := _MORPH.fullmatch(line):
+            return m[1], m[2]
+    return None
+
+
 _AFTERMATH = re.compile(r"Aftermath")  # the second half of a split card: cast only from the graveyard, then exiled
 
 
@@ -465,7 +476,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _MORPH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _DASH, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)

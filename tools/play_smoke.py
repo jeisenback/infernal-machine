@@ -20,8 +20,8 @@ import sys
 sys.path.insert(0, os.getcwd())
 
 from infernal_machine.cards import Card, Deck  # noqa: E402
-from infernal_machine.effects import is_aftermath  # noqa: E402
-from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, CAST_GRAVEYARD, PLAY_LAND, Game, Permanent  # noqa: E402
+from infernal_machine.effects import is_aftermath, morph_of  # noqa: E402
+from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, CAST_FACE_DOWN, CAST_GRAVEYARD, PLAY_LAND, TURN_UP, Game, Permanent  # noqa: E402
 from infernal_machine.report import unsupported_lines  # noqa: E402
 from tests.test_effects import BEAR, COMMANDER, FOREST, OGRE, RAINBOW  # noqa: E402
 from tests.test_game import ScriptedPlayer  # noqa: E402
@@ -69,7 +69,7 @@ def play(card: Card) -> bool:
             break
         game._perform(mine, abilities[0])
         run_stack(game)
-    return bool(ways) | play_other_half(card)
+    return bool(ways) | play_other_half(card) | play_face_down(card)
 
 
 def play_other_half(card: Card) -> bool:
@@ -90,6 +90,26 @@ def play_other_half(card: Card) -> bool:
     game._check_state()
     if CAST_EXILE + card.name in game.legal_actions(mine):
         game._perform(mine, CAST_EXILE + card.name)
+        run_stack(game)
+        game._check_state()
+    return True
+
+
+def play_face_down(card: Card) -> bool:
+    """Cast a morph card face down, and turn it face up when it can be."""
+    if morph_of(card) is None:
+        return False
+    game, mine = table(card)
+    if CAST_FACE_DOWN + card.name not in game.legal_actions(mine):
+        return False
+    game._perform(mine, CAST_FACE_DOWN + card.name)
+    run_stack(game)
+    game._check_state()
+    for permanent in mine.battlefield:
+        permanent.tapped = False
+    up = [x for x in game.legal_actions(mine) if x.startswith(TURN_UP)]
+    if up:
+        game._perform(mine, up[0])
         run_stack(game)
         game._check_state()
     return True
