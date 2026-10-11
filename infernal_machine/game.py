@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, enters_by_discarding_land, reduced_by_greatest_power, granted_land_mana, mana_among_legendary, mana_of_imprinted, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -70,6 +70,7 @@ PLAY_EXILE = "Play land from exile: "
 IMPRINT_PROMPT = "Exile which card from your hand? "
 MOX_DIAMOND_PROMPT = "Discard which land to put it onto the battlefield? "
 MANA_COLOR_PROMPT = "Which color of mana? "
+REVEAL_CHOSEN_PROMPT = "Reveal it and put it into your hand? "
 CYCLE = "Cycle: "
 ACTIVATE_HAND = "Activate from hand: "  # followed by the card's name: "{U/R}{U/R}, Discard this card: ..." (Magma Opus)
 ACTIVATE_GRAVEYARD = "Activate from graveyard: "  # followed by the card's name: "{B}{G}: Return this card from your graveyard to the battlefield tapped."
@@ -1307,6 +1308,12 @@ class Game:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""
         reduction = sum(amount for p in seat.battlefield for kind, amount in cost_reductions(p.card)
                         if _spell_matches(kind, card))
+        kinds = card.type_line.partition("\u2014")[2].split()
+        for owner in self.live_seats():  # Herald's Horn, Urza's Incubator: spells of the type a permanent chose
+            for p in owner.battlefield:
+                if p.chosen_type in kinds and not self.loses_abilities(p):
+                    reduction += sum(amount for creature_only, yours_only, amount in chosen_cost_reductions(p.card)
+                                     if (owner is seat or not yours_only) and ("Creature" in card.type_line or not creature_only))
         if (kind := affinity_for(card)) is not None:  # Affinity for planeswalkers
             reduction += sum(_has_type(p.card, kind) for p in seat.battlefield)
         if "{X}" in card.mana_cost and not any("{X}" in c.mana_cost for turn, c in seat.cast_log if turn == self.turn):
@@ -2683,6 +2690,8 @@ class Game:
                         continue
                 elif not _watch_type_matches(watch.kind, card):
                     continue
+                if watch.chosen and watcher.chosen_type not in card.type_line.partition("\u2014")[2].split():
+                    continue  # "of the chosen type": the type the watcher named as it entered
                 if watch.nth_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
                                                for turn, c in seat.cast_log) != watch.nth_each_turn:
                     continue
@@ -3536,7 +3545,7 @@ class Game:
                     continue
                 if buff.condition and not self.condition_holds(buff.condition, owner, source):
                     continue
-                mods.append(self._scaled(buff.modifier, buff.per, permanent, controller))
+                mods.append(self._scaled(buff.modifier, buff.per, permanent, controller, source))
         for seat in self.seats:  # Equipment and Auras attached to it
             for attachment in seat.battlefield:
                 if attachment.attached_to is permanent:
@@ -3553,7 +3562,8 @@ class Game:
         kept = modifier.keywords - {PROTECTION_CHOSEN}
         return dataclasses.replace(modifier, keywords=kept | ({f"protection from {name}"} if name else set()))
 
-    def _scaled(self, modifier: Modifier, per: tuple[str, str] | None, permanent: Permanent, controller: Seat) -> Modifier:
+    def _scaled(self, modifier: Modifier, per: tuple[str, str] | None, permanent: Permanent, controller: Seat,
+                source: Permanent | None = None) -> Modifier:
         """A "for each ..." bonus times how many there are right now."""
         if per is None:
             return modifier
@@ -3566,6 +3576,8 @@ class Game:
             count = sum(controller.commander_casts.values())
         elif what == "graveyard":
             count = sum(_card_matches(kind, c) for c in controller.graveyard)
+        elif what == "source_counters":  # Door of Destinies: for each charge counter on the permanent that gives the bonus
+            count = source.counters.get(kind, 0) if source is not None else 0
         elif what == "auras_on_it":
             count = sum(1 for s in self.seats for p in s.battlefield
                         if p.attached_to is permanent and "Aura" in p.card.type_line)
@@ -4142,6 +4154,18 @@ class Game:
         names = {"White": "W", "Blue": "U", "Black": "B", "Red": "R", "Green": "G"}
         color = names[list(names)[seat.player.choose(MANA_COLOR_PROMPT, list(names))]]
         self.add_mana(seat, (frozenset(color),) * self.evaluate(Amount("devotion", color), seat))
+
+    def look_top_take_chosen(self, seat: Seat, source: Permanent | None, creature: bool) -> None:
+        """Look at the top card; if it is of the type `source` chose (and a creature card, for Herald's Horn), `seat` may take it."""
+        if source is None or not seat.library:
+            return
+        top = seat.library[0]
+        if source.chosen_type not in top.type_line.partition("\u2014")[2].split() or (creature and "Creature" not in top.type_line):
+            return
+        if seat.player.choose(REVEAL_CHOSEN_PROMPT + top.name, YES_NO) == 0:
+            seat.library.pop(0)
+            seat.hand.append(top)
+            self.broadcast({"event": "revealed", "seat": seat.index, "card": top.name})
 
     def reveal_top_land_or_draw(self, seat: Seat, scry: int, tapped: bool) -> None:
         """Scry, then reveal the top card: a land goes onto the battlefield, anything else is drawn."""

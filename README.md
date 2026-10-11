@@ -708,6 +708,14 @@ winner = game.play()
     creature, a legendary one for the Relic), Lion's Eye Diamond (discard your hand, sacrifice it). The three mana of "any one
     color" from Lion's Eye Diamond are chosen independently, as with Gilded Lotus. Not read: Throne of Eldraine, Herd Heirloom
     and Power Depot (restricted mana with other abilities), Forsaken Monument, Caged Sun.
+    of its type that enters, and Roaming Throne's extra trigger for another creature of its type. Also read, for a
+    permanent that named a creature type: "[Creature] spells [you cast] of the chosen type cost {N} less" (Herald's Horn, Urza's
+    Incubator, which helps every player, and Gathering Stone's discount); Herald's Horn's upkeep look at the top card; watching
+    triggers "of the chosen type" for casts, a creature entering, attacking or dying (Chronicle of Victory, Vanquisher's Banner,
+    Kindred Discovery, Bloodline Pretender, Species Specialist, Reflections of Littjara); Door of Destinies, which pumps for each
+    charge counter on it; and "Creatures of the chosen type have fear" for every player's creatures (Cover of Darkness). Not
+    read: Secluded Courtyard (mana for abilities too), Gathering Stone's second ability, Morophon's reduction, "of the chosen
+    color" for every player (Gauntlet of Power), and Caged Sun's extra mana.
   - Rules-changing statics (#204), read from the permanent's own text:
     - "Creature spells you control can't be countered" / "Spells you control can't be countered": a counterspell does nothing
       to them.

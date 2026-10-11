@@ -164,6 +164,8 @@ _WHOLE_LINE = re.compile(
     r"Round up each time\."
     r"|Until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\."
     r"|Choose a color\. Add an amount of mana of that color equal to your devotion to that color\."
+    r"|Look at the top card of your library\. If it's an? (?:creature )?card of the chosen type, you may reveal it and put it into "
+    r"your hand\."
     r"|Tap enchanted creature\. It becomes unprepared\.", re.I)
 
 
@@ -1736,12 +1738,13 @@ def is_chosen_type_itself(card: Card) -> bool:
     return any(_CHOSEN_SELF.fullmatch(line) for line in rules_lines(card))
 
 
-_AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+_AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creatures of the chosen type|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
                                r"this game\.")
+_COUNTER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each ([a-z]+) counter on (?:this artifact|CARDNAME|this creature)\.")  # Door of Destinies
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|(?:have|has) {_KEYWORDS})\.")
-_AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures you control of the chosen (?P<chosen_what>type|color))|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+_AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:you control )?of the chosen (?P<chosen_what>type|color))|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
@@ -1776,6 +1779,11 @@ def _conditional(line: str) -> tuple[str, str] | None:
     return None
 
 
+def _other(who: re.Match) -> bool:
+    """Whether the creatures a static ability affects exclude its source: "Other creatures ..."."""
+    return who["other"] is not None or (who["other_chosen"] or "").startswith("O")
+
+
 @lru_cache(maxsize=None)
 def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
     buffs = []
@@ -1790,13 +1798,18 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             who = _AFFECTED_WHO.fullmatch(m[1])
             colors = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
             chosen_color = bool(who["chosen"]) and who["chosen_what"] == "color"
-            buffs.append(StaticBuff(_modifier(m, 2), who["other"] is not None or (who["other_chosen"] or "").startswith("O"),
+            buffs.append(StaticBuff(_modifier(m, 2), _other(who),
                                     "chosen" if who["chosen"] and not chosen_color else who["sub"] or who["tribe"], line,
                                     condition=condition,
                                     color="chosen" if chosen_color else colors.get((who["color"] or who["global"] or "").lower()),
-                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]),
+                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]) or (bool(who["chosen"]) and "you control" not in m[1]),
                                     token=bool(who["tokens"]),
                                     with_counters=bool(who["counters"]), plus_counter=bool(who["plus"])))
+        elif m := _COUNTER_SCALED.fullmatch(sentence):  # Door of Destinies: +1/+1 for each charge counter on it
+            who = _AFFECTED_WHO.fullmatch(m[1])
+            buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), _other(who),
+                                    "chosen" if who["chosen"] else who["sub"] or who["tribe"], line, condition=condition,
+                                    per=("source_counters", m[4])))
         elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
             who = _AFFECTED_WHO.fullmatch(m[1])
             buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
@@ -2768,6 +2781,16 @@ class ImprintFromHand:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.imprint_from_hand(controller, target)
+
+
+@dataclass(frozen=True)
+class LookTopTakeChosen:
+    """Herald's Horn, Gathering Stone: "Look at the top card of your library. If it's a creature card of the chosen type, you may
+    reveal it and put it into your hand." (the type the source chose as it entered)"""
+    creature: bool
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.look_top_take_chosen(controller, game.resolving_source, self.creature)
 
 
 @dataclass(frozen=True)
@@ -5737,6 +5760,16 @@ def x_limited_by_players(card: Card) -> bool:
     return any(_X_LIMIT.fullmatch(line) for line in rules_lines(card))
 
 
+_CHOSEN_REDUCTION = re.compile(r"(Creature spells|Spells)( you cast)? of the chosen type cost \{(\d+)\} less to cast\.")
+
+
+def chosen_cost_reductions(card: Card) -> list[tuple[bool, bool, int]]:
+    """Herald's Horn, Urza's Incubator, Gathering Stone: spells of the creature type the permanent chose cost less, as
+    (only creature spells, only the controller's spells, how much)."""
+    return [(m[1] == "Creature spells", m[2] is not None, int(m[3]))
+            for line in rules_lines(card) if (m := _CHOSEN_REDUCTION.fullmatch(line))]
+
+
 def cost_reductions(card: Card) -> list[tuple[str, int]]:
     """Static "Green spells you cast cost {1} less to cast." abilities (Medallions): (what kind of spell, how much).
     The kind is a color letter, a card type ("creature", "noncreature", "instant and sorcery") or "spell"."""
@@ -5763,7 +5796,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
-                                           _PER_REDUCTION, _X_LIMIT, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
+                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
 
@@ -6425,6 +6458,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: TargetLoseHalfLife(m[1].lower(), m[2].lower() == "up")),
     (re.compile(rf"double the number of {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
      lambda m: DoubleCountersOnTarget(_counter_name(m[1]), m[2].lower())),
+    (re.compile(r"look at the top card of your library\. if it's an? (creature )?card of the chosen type, you may reveal it and put it "
+                r"into your hand\.", re.I), lambda m: LookTopTakeChosen(bool(m[1]))),
     (re.compile(rf"return {_SELF} to the battlefield( tapped)?( under its owner's control)?\.", re.I),
      lambda m: ReturnSelfToBattlefield(tapped=bool(m[1]))),
     (re.compile(r"search your library for a ([A-Z][a-z]+) card and put it onto the battlefield tapped\. Then if an opponent controls "
@@ -7132,6 +7167,7 @@ class Watch:
     qualifier: str = ""  # "with power 4 or greater" ("power>=4"), "with flying" ("flying"), "with a +1/+1 counter on it" ("counter:+1/+1")
     expend: int = 0  # "Whenever you expend 4": the total mana spent on spells this turn that it waits for
     batch: bool = False  # "Whenever one or more creatures die": once for everything that happens at the same time
+    chosen: bool = False  # "of the chosen type": only what is of the creature type the watcher chose as it entered
 
 
 _TRIGGERS = {
@@ -7303,6 +7339,29 @@ _AURA_RETURNS = [
     (re.compile(r"return this card from your graveyard to the battlefield\.", re.I),
      lambda: [ReturnAuraToBattlefield("now")]),
 ]
+
+
+_CHOSEN_OF = " of the chosen type"
+_ENTERS_OR_ATTACKS = " enters or attacks"
+
+
+def _watch_triggers(line: str) -> list[tuple[str, Watch, str]]:
+    """The watching triggers one line is: a line about "... of the chosen type" is read without that phrase and the watch marked
+    `chosen`; "a creature you control of the chosen type enters or attacks" is two watches (Kindred Discovery)."""
+    bare = _ABILITY_WORD.sub("", line)
+    head, sep, tail = bare.partition(", ")
+    if _CHOSEN_OF not in head:
+        found = _watch_trigger(line)
+        return [found] if found else []
+    head = head.replace(_CHOSEN_OF, "", 1)
+    if _ENTERS_OR_ATTACKS in head:
+        entering = _watch_trigger(head.replace(_ENTERS_OR_ATTACKS, " enters") + sep + tail)
+        if entering is None or not (m := re.fullmatch(r"Whenever a creature you control enters", head.replace(_ENTERS_OR_ATTACKS, " enters"))):
+            return []
+        return [(entering[0], dataclasses.replace(entering[1], chosen=True), entering[2]),
+                ("creature_attacks", Watch("creature", yours=True, chosen=True), tail)]
+    found = _watch_trigger(head + sep + tail)
+    return [(found[0], dataclasses.replace(found[1], chosen=True), found[2])] if found else []
 
 
 def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
@@ -7676,13 +7735,13 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
     lines = [part for raw in _rules_text(card).splitlines() for part in _split_compound_trigger(raw.strip())]
     for line, text in lines:
         bare = _ABILITY_WORD.sub("", line)  # patterns read the line without "Council's dilemma — "; its text stays whole
-        if watched := _watch_trigger(line):
-            event, watch, rest = watched
-            effects, optional, once, condition = _event_body(
-                rest, event in _SUBJECT_EVENTS,
-                (event == "cast" and watch.caster != "you") or event in _SUBJECT_EVENTS)
-            if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, text, watch, once, condition))
+        if watched := _watch_triggers(line):
+            for event, watch, rest in watched:
+                effects, optional, once, condition = _event_body(
+                    rest, event in _SUBJECT_EVENTS,
+                    (event == "cast" and watch.caster != "you") or event in _SUBJECT_EVENTS)
+                if effects is not None:
+                    abilities.append(TriggeredAbility(event, tuple(effects), optional, text, watch, once, condition))
             continue
         if several := _SEVERAL_EVENTS.fullmatch(bare):
             effects, optional, once, condition = _trigger_body(several[2])
