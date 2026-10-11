@@ -164,6 +164,9 @@ _WHOLE_LINE = re.compile(
     r"Round up each time\."
     r"|Until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\."
     r"|Choose a color\. Add an amount of mana of that color equal to your devotion to that color\."
+    r"|Create a \d+/\d+ \w+ \w+ creature token\. If you control (?:five|six|seven) or more lands, create a token that's a copy of this "
+    r"creature instead\."
+    r"|Each player sacrifices an? (?:creature or planeswalker|nontoken creature) of their choice\. Each player who can't discards a card\."
     r"|Look at the top card of your library\. If it's an? (?:creature )?card of the chosen type, you may reveal it and put it into "
     r"your hand\."
     r"|Tap enchanted creature\. It becomes unprepared\.", re.I)
@@ -1434,8 +1437,9 @@ _RULES_STATICS = [
     (re.compile(r"You may cast (spells|creature spells|sorcery spells|Spirit spells) as though they had flash\.", re.I), "flash"),
     (re.compile(rf"Each land is an? ({_BASIC_LAND_TYPES}) in addition to its other land types\.", re.I), "land_type"),
     (re.compile(r"Lands you control are every basic land type in addition to their other types\.", re.I), "land_type:all_yours"),
-    (re.compile(r"You may play an additional land on each of your turns\.", re.I), "extra_land"),
+    (re.compile(r"You may play (an|two|three) additional lands? on each of your turns\.", re.I), "extra_land"),
     (re.compile(r"You may play lands from your graveyard\.", re.I), "graveyard_lands"),
+    (re.compile(r"Untap all permanents you control during each other player's untap step\.", re.I), "untap_others"),  # Seedborn Muse
     (re.compile(r"You may look at the top card of your library any time\.", re.I), "look_top"),  # information only: nothing changes
     (re.compile(rf"{_SELF} doesn't untap during your untap step\.", re.I), "no_untap"),  # Basalt Monolith, Mana Vault
 ]
@@ -1451,7 +1455,7 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     / ":creature" (its controller's), "flash:spell" / ":creature" / ":sorcery" / ":Spirit" (its controller may cast those at instant
     speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic),
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
-    "no_untap" (it stays tapped through its controller's untap step), "look_top" (its controller may look at their top card: no
+    "no_untap" (it stays tapped through its controller's untap step), "untap_others" (its controller's permanents untap in every other player's untap step), "look_top" (its controller may look at their top card: no
     change to the game, and no player here uses it)."""
     found = []
     for line in rules_lines(card):
@@ -1463,6 +1467,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
                     key = "flash:" + ("spell" if m[1].lower() == "spells" else m[1].lower().removesuffix(" spells"))
                 elif key == "land_type":
                     key = f"land_type:{_LAND_TYPE_MANA[m[1].lower()]}"
+                elif key == "extra_land":  # Azusa: two additional lands, which is two more land drops
+                    key = "|".join(["extra_land"] * {"an": 1, "two": 2, "three": 3}[m[1].lower()])
                 found.extend(key.split("|"))
     return tuple(found)
 
@@ -1946,6 +1952,7 @@ class Replacements:
     enter_counters_per_death: int = 0  # Gorma: nontoken creatures enter with that many extra counters per death this turn
     plus_one_permanents: int = 0  # the same on any permanent you control (Kami of Whispered Hopes)
     plus_one_artifacts: int = 0  # the same on an artifact or creature you control (Ozolith, the Shattered Spire)
+    win_on_empty_draw: bool = False  # Laboratory Maniac
     life_gain_plus: int = 0  # Pest Rescuer: its controller gains that much more life whenever they gain life
     life_gain_factor: int = 1  # how many times as much life its controller gains (The Wind Crystal)
     plus_one_factor: int = 1  # how many times as many +1/+1 counters go on its controller's creatures (Branching Evolution)
@@ -1998,12 +2005,15 @@ def replacement_effects(card: Card) -> Replacements:
             found["extra_trigger"] = "chosen_type"
         elif line == _ENTER_CHOSEN:
             found["enter_counter_chosen"] = found.get("enter_counter_chosen", 0) + 1
+        elif line == _WIN_ON_EMPTY_DRAW:
+            found["win_on_empty_draw"] = True
         elif line == _LIFE_GAIN_PLUS_ONE:
             found["life_gain_plus"] = found.get("life_gain_plus", 0) + 1
     return Replacements(**found)
 
 
 _LIFE_GAIN_PLUS_ONE = "If you would gain life, you gain that much life plus 1 instead."
+_WIN_ON_EMPTY_DRAW = "If you would draw a card while your library has no cards in it, you win the game instead."
 
 
 # Veyran, Voice of Duality (the card's own wording has "you casting").
@@ -2033,7 +2043,7 @@ def enters_by_discarding_land(card: Card) -> bool:
 
 
 def is_replacement_line(line: str) -> bool:
-    return (line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT)
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None)
@@ -2791,6 +2801,56 @@ class LookTopTakeChosen:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.look_top_take_chosen(controller, game.resolving_source, self.creature)
+
+
+@dataclass(frozen=True)
+class CreateOneOfTokens:
+    """Tireless Provisioner: "Create a Food token or a Treasure token." (you choose)"""
+    options: tuple[Card, ...]
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        token = self.options[controller.player.choose(TOKEN_CHOICE_PROMPT, [t.name for t in self.options])]
+        game.create_tokens(controller, token, 1)
+
+
+TOKEN_CHOICE_PROMPT = "Create which token? "
+
+
+@dataclass(frozen=True)
+class TokenOrSelfCopy:
+    """Scute Swarm: "Create a 1/1 green Insect creature token. If you control six or more lands, create a token that's a copy of this
+    creature instead." """
+    token: Card
+    lands: int
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and sum("Land" in p.card.type_line for p in controller.battlefield) >= self.lands:
+            game.copy_tokens(controller, [target], False, False)
+        else:
+            game.create_tokens(controller, self.token, 1)
+
+
+@dataclass(frozen=True)
+class Amass:
+    """Orcish Bowmasters: "Amass Orcs 1." Put that many +1/+1 counters on an Army you control; without one, create a 0/0 black
+    Army creature token first. The Army is also an Orc."""
+    count: int
+    kind: str = ""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.amass(controller, self.count, self.kind)
+
+
+@dataclass(frozen=True)
+class EachSacrificesOrDiscards:
+    """Plaguecrafter: "Each player sacrifices a creature or planeswalker of their choice. Each player who can't discards a card." """
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            if not game.sacrifice(seat, self.kind):
+                game.discard(seat, 1)
 
 
 @dataclass(frozen=True)
@@ -3854,7 +3914,7 @@ def _mass_kind(m: re.Match) -> str:
     return _MASS_KINDS[m[1].lower()] + (m[2] or "").replace(" your opponents control", " an opponent controls")
 
 
-_SACRIFICE_KIND = (r"(attacking creature|tapped creature|untapped creature|creature|artifact or enchantment|nontoken artifact|food|treasure|clue|artifact"
+_SACRIFICE_KIND = (r"(attacking creature|tapped creature|untapped creature|nontoken creature|creature or planeswalker|creature|artifact or enchantment|nontoken artifact|food|treasure|clue|artifact"
                    r"|enchantment|land|nonland permanent|permanent)")
 _FIGHTER = r"(creature(?: you control| you don't control| an opponent controls)?)"
 _MASS_KEYWORDS = (r"(?:flying|reach|trample|haste|vigilance|menace|deathtouch|lifelink|first strike|double strike"
@@ -5543,6 +5603,7 @@ def encore_cost(card: Card) -> str | None:
     """Encore {cost}: from the graveyard, for each opponent a token copy attacks that opponent this turn."""
     return next((m[1] for line in rules_lines(card) if (m := _ENCORE.fullmatch(line))), None)
 _ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four|five|six) other cards? from your graveyard\.")
+_TWO_COLOR_REDUCTION = re.compile(rf"Each spell you cast that's ({_COLOR_NAMES}) or ({_COLOR_NAMES}) costs \{{(\d+)\}} less to cast\.", re.I)
 _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery|Aura) )?spells "
                         r"you cast( that target a creature)? cost \{(\d+)\} less to cast\.", re.I)
 
@@ -5775,7 +5836,9 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
     The kind is a color letter, a card type ("creature", "noncreature", "instant and sorcery") or "spell"."""
     found = []
     for line in rules_lines(card):
-        if m := _REDUCTION.fullmatch(line):
+        if m := _TWO_COLOR_REDUCTION.fullmatch(line):  # Goblin Anarchomancer: red or green spells
+            found.append((f"{_COLOR_LETTER[m[1].lower()]}|{_COLOR_LETTER[m[2].lower()]}", int(m[3])))  # one reduction, however many colors
+        elif m := _REDUCTION.fullmatch(line):
             kind = (m[1] or "spell").lower()
             found.append(("targets a creature" if m[2] else _COLOR_LETTER.get(kind, kind), int(m[3])))
     return found
@@ -5865,7 +5928,7 @@ def non_hand_cost_reduction(card: Card) -> int:
 
 
 def is_cost_reduction_line(line: str) -> bool:
-    return any(p.fullmatch(line) for p in (_REDUCTION, _PER_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY, _NON_HAND_REDUCTION)) \
+    return any(p.fullmatch(line) for p in (_REDUCTION, _TWO_COLOR_REDUCTION, _PER_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY, _NON_HAND_REDUCTION)) \
         or (m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None
 
 
@@ -5963,7 +6026,7 @@ class FetchBasicLand:
         game.fetch_basic_land(controller, untap_if=self.untap_if, tapped=self.tapped)
 
 
-_PERMANENT_KIND = (r"((?:attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
+_PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
                    r"|monocolored permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|creature|artifact"
@@ -5999,6 +6062,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"draw an additional card\.", re.I), lambda m: Draw(1)),
     (re.compile(rf"you gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
     (re.compile(r"exile a nonartifact, nonland card from your hand\.", re.I), lambda m: ImprintFromHand()),
+    (re.compile(r"create a food token or a treasure token\.", re.I), lambda m: CreateOneOfTokens((FOOD, TREASURE))),
+    (re.compile(r"create a (\d+)/(\d+) (green|white|blue|black|red) ([A-Z][a-z]+) creature token\. If you control (six|five|seven) or more lands, "
+                r"create a token that's a copy of this creature instead\.", re.I),
+     lambda m: TokenOrSelfCopy(Card(name=m[4].title(), type_line=f"Token Creature \u2014 {m[4].title()}", power=m[1], toughness=m[2],
+                                    colors=(_COLOR_LETTER[m[3].lower()],)), {"five": 5, "six": 6, "seven": 7}[m[5].lower()])),
+    (re.compile(r"(?:then )?amass (?:([A-Z][a-z]+) )?(\d+)\.", re.I), lambda m: Amass(int(m[2]), (m[1] or "").rstrip("s"))),
+    (re.compile(r"each player sacrifices an? (creature or planeswalker|nontoken creature) of their choice\. Each player who can't discards a "
+                r"card\.", re.I), lambda m: EachSacrificesOrDiscards(m[1].lower())),
     (re.compile(r"choose a color\. add an amount of mana of that color equal to your devotion to that color\.", re.I),
      lambda m: AddDevotionMana()),
     (re.compile(r"add one mana of any color\.", re.I), lambda m: AddMana((frozenset("WUBRG"),))),  # Phyrexian Altar, Springleaf Drum
@@ -6569,8 +6640,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
     (re.compile(rf"put {_N} {_COUNTER} on another target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower(), another=True)),
-    (re.compile(rf"put {_N} {_COUNTER} on each (creature|(?-i:[A-Z][a-z]+)) you control\.", re.I),
-     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), "" if m[3].lower() == "creature" else m[3])),
+    (re.compile(rf"put {_N} {_COUNTER} on each (creature|(?-i:[A-Z][a-z]+)(?: creature)?) you control\.", re.I),
+     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), "" if m[3].lower() == "creature" else m[3].removesuffix(" creature"))),
     (re.compile(rf"put a {_COUNTER} on each (?:(white|blue|black|red|green) )?creature that entered this turn\.", re.I),
      lambda m: PutCountersOnEntered(_counter_name(m[1]), _COLOR_WORDS[m[2].lower()] if m[2] else "")),
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
@@ -6674,12 +6745,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
 
 _YOUR_ACTION = (rf"(?:draw (?:a card|{_N} cards)|gain {_N} life|lose {_N} life"
                 r"|return (?:up to one )?target (?:[a-z]+ )?card from your graveyard to your hand"
-                rf"|put {_N} \+1/\+1 counters? on a creature you control)")  # Witch of the Moors; Breena
+                rf"|put {_N} \+1/\+1 counters? on a creature you control"
+                r"|create an? (?:Treasure|Food|Clue) token)")  # Witch of the Moors; Breena; Lotho
 
 
 def _you_do(phrase: str) -> str:
     """A sentence for something you do: "draw a card" -> "Draw a card.", "lose 1 life" -> "You lose 1 life." """
-    return phrase[:1].upper() + phrase[1:] + "." if phrase.lower().startswith(("draw", "return")) else f"You {phrase}."
+    return phrase[:1].upper() + phrase[1:] + "." if phrase.lower().startswith(("draw", "return", "create")) else f"You {phrase}."
 
 
 _TIMES_X = [
@@ -7188,6 +7260,8 @@ _TRIGGERS = {
     "tokens_enter": re.compile(r"Whenever one or more tokens you control enter, (.+)", re.I),
     "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
     "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
+    # Orcish Bowmasters: every draw but the one in their draw step
+    "opponent_extra_draw": re.compile(r"Whenever an opponent draws a card except the first one they draw in each of their draw steps, (.+)", re.I),
     "opponent_gain_life": re.compile(r"Whenever an opponent gains life, (.+)", re.I),
     "opponent_lose_life": re.compile(r"Whenever an opponent loses life, (.+)", re.I),
     "become_monarch": re.compile(r"Whenever you become the monarch, (.+)", re.I),
@@ -7289,6 +7363,7 @@ _WATCHES = {
                        r"| that isn't from your starting deck)?"
                        r"(?(3) each turn), (.+)", re.I),
     "card_to_graveyard": re.compile(rf"Whenever an? ([a-z ]+?) card is put into your graveyard from anywhere, (.+)", re.I),
+    "sacrifice": re.compile(r"Whenever you sacrifice (?:an?|another) (token|artifact|land|Clue|Food|Treasure|enchantment), (.+)", re.I),
     "creature_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
     "expend": re.compile(r"Whenever you expend (\d+), (.+)", re.I),
 }
@@ -7296,7 +7371,7 @@ _WATCH_QUALIFIER = re.compile(r" with ((power|toughness) (\d+) or (greater|less)
                               r"(?= (?:enters|dies|leaves the battlefield|becomes tapped|attacks))")
 # "Whenever one or more other creatures you control with mana value 3 or less enter": read as the singular, once per batch
 _ONE_OR_MORE = re.compile(r"Whenever one or more (other )?(nontoken creatures|creature tokens|tokens|creatures|lands|artifacts|"
-                          r"enchantments|permanents)( you control| an opponent controls)?( with (?:power \d+ or greater|flying|"
+                          r"enchantments|permanents)( you control| an opponent controls)?( with (?:power \d+ or (?:greater|less)|flying|"
                           r"mana value \d+ or less))? (enter(?: the battlefield)?|die|leave the battlefield)(, .+)")
 _SINGULAR = {"nontoken creatures": "nontoken creature", "creature tokens": "creature token", "tokens": "token",
              "creatures": "creature", "lands": "land", "artifacts": "artifact", "enchantments": "enchantment",
@@ -7309,7 +7384,7 @@ _OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat
 # The creature is already gone when it dies, so "it" there has nothing to point at (the line isn't understood).
 _HOST_GONE = {"host_dies"}
 # Triggers about what some other player did: there "that player" and "they" mean that player.
-_PLAYER_EVENTS = {"other_attacks_two", "attacks_opponent", "opponent_draw", "opponent_second_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
+_PLAYER_EVENTS = {"other_attacks_two", "attacks_opponent", "opponent_draw", "opponent_extra_draw", "opponent_second_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
                   "opponent_discard", "opponent_search", "opponent_attacks", "other_draw_step", "opponent_upkeep", "opponent_end_step",
                   "host_combat_damage"}
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
@@ -7318,7 +7393,7 @@ _PLAYER_PRONOUNS = [
     (re.compile(rf"\b{_CONTROLLER} (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
     (re.compile(rf"\bto {_CONTROLLER}\b", re.I), "to target player"),
     (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
-    (re.compile(r"\bthat (?:attacking )?player (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
+    (re.compile(r"\bthat (?:attacking )?player (loses|gains|draws|discards|mills|sacrifices)\b", re.I), r"target player \1"),
     (re.compile(r"\bhave that player (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bto that player\b", re.I), "to target player"),
     (re.compile(r"\bthat opponent (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),  # Tomik
@@ -7350,6 +7425,8 @@ def _watch_triggers(line: str) -> list[tuple[str, Watch, str]]:
     `chosen`; "a creature you control of the chosen type enters or attacks" is two watches (Kindred Discovery)."""
     bare = _ABILITY_WORD.sub("", line)
     head, sep, tail = bare.partition(", ")
+    if head == "Whenever you create or sacrifice a token":  # Mirkwood Bats: a token entering under your control, or one sacrificed
+        return [("permanent_enters", Watch("token", yours=True), tail), ("sacrifice", Watch("token", yours=True), tail)]
     if _CHOSEN_OF not in head:
         found = _watch_trigger(line)
         return [found] if found else []
@@ -7397,6 +7474,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         return "cast", watch, m[7]
     if m := _WATCHES["card_to_graveyard"].fullmatch(line):
         return "card_to_graveyard", Watch(m[1].lower(), yours=True), m[2]
+    if m := _WATCHES["sacrifice"].fullmatch(line):  # Tireless Tracker: "Whenever you sacrifice a Clue"
+        return "sacrifice", Watch(m[1].lower(), yours=True), m[2]
     if qualifier and (m := _WATCHES["creature_attacks"].fullmatch(line)):  # "a creature you control with power 2 or less attacks"
         return "creature_attacks", Watch("creature", yours=True, qualifier=qualifier), m[1]
     if m := _WATCHES["expend"].fullmatch(line):

@@ -716,6 +716,19 @@ winner = game.play()
     charge counter on it; and "Creatures of the chosen type have fear" for every player's creatures (Cover of Darkness). Not
     read: Secluded Courtyard (mana for abilities too), Gathering Stone's second ability, Morophon's reduction, "of the chosen
     color" for every player (Gauntlet of Power), and Caged Sun's extra mana.
+  - Popular creatures (#200): "You may play two additional lands" (Azusa); "Untap all permanents you control during each other
+    player's untap step" (Seedborn Muse); "{T}: Untap target Forest" (Arbor Elf, and the other basic land types); "Each spell you cast
+    that's red or green costs {1} less" (once, even for a red-green spell); landfall "put a +1/+1 counter on each Plant creature you
+    control" (Avenger of Zendikar), "create a Food token or a Treasure token" (you choose) and "create a 1/1 Insect token, or a copy
+    of this creature with six or more lands" (Scute Swarm); "whenever one or more other creatures with power 2 or less enter"
+    (Welcoming Vampire, once each turn); "whenever you create or sacrifice a token" (Mirkwood Bats) and "whenever you sacrifice a
+    Clue / Food / Treasure / token / artifact / land" (Tireless Tracker); Orcish Bowmasters (the damage and "amass Orcs 1" when it
+    enters and for each draw by an opponent except the one in their draw step; amass puts counters on your Army, or makes a 0/0
+    Army token first); "each player sacrifices a creature or planeswalker / nontoken creature of their choice" and "each player
+    who can't discards a card" (Plaguecrafter, Accursed Marauder); "that player sacrifices a creature" at an opponent's upkeep
+    (Sheoldred, Whispering One); Laboratory Maniac (drawing from an empty library wins the game instead); and "you lose 1 life and
+    create a Treasure token" on a second spell each turn (Lotho). Not read: Hullbreaker Horror, Imperial Recruiter, Terror of the
+    Peaks, Disciple of Freyalise.
   - Rules-changing statics (#204), read from the permanent's own text:
     - "Creature spells you control can't be countered" / "Spells you control can't be countered": a counterspell does nothing
       to them.

@@ -68,6 +68,7 @@ CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
 IMPRINT_PROMPT = "Exile which card from your hand? "
+AMASS_PROMPT = "Put the counters on which Army? "
 MOX_DIAMOND_PROMPT = "Discard which land to put it onto the battlefield? "
 MANA_COLOR_PROMPT = "Which color of mana? "
 REVEAL_CHOSEN_PROMPT = "Reveal it and put it into your hand? "
@@ -388,6 +389,7 @@ class Seat:
     graveyard_left_turn: int | None = None  # the last turn a card left this player's graveyard
     cast_log: list[tuple[int, Card]] = field(default_factory=list)  # (turn, spell) for every spell cast
     drew_from_empty: bool = False
+    wins_game: bool = False  # Laboratory Maniac: it drew from an empty library with the card out
     lost: bool = False
 
     @property
@@ -401,6 +403,8 @@ class Game:
     _spending_spell: Card | None = None
     _spending_x: bool = False
     _spending_from_hand: bool = False  # ... and whether that spell is being cast from its owner's hand
+
+    _draw_step_draw = False  # the turn-based draw of a draw step is in progress (Orcish Bowmasters ignores it)
 
     def __init__(self, seats: list[tuple[Player, Deck]], seed: int | None = None):
         if len(seats) < 2:
@@ -574,6 +578,10 @@ class Game:
                 for permanent in other.battlefield:
                     if permanent.goaded_by is seat:
                         permanent.goaded_by = None
+            for other in self.live_seats():  # Seedborn Muse: everything untaps in each other player's untap step
+                if other is not seat and any(not self.loses_abilities(p) and "untap_others" in rules_statics(p.card) for p in other.battlefield):
+                    for permanent in other.battlefield:
+                        permanent.tapped = False
             for other in self.live_seats():  # Quest for Renewal: untap in each other player's untap step too
                 if other is not seat and any(
                         (rule := untaps_in_other_untap_steps(p.card)) and p.counters.get(rule[0], 0) >= rule[1]
@@ -584,7 +592,11 @@ class Game:
         elif self.step == "draw":
             # CR 103.8a: only a two-player game skips the first player's first draw.
             if not (self.turn == 1 and not self.multiplayer):
-                self.draw(seat, 1)
+                self._draw_step_draw = True  # the draw Orcish Bowmasters ignores
+                try:
+                    self.draw(seat, 1)
+                finally:
+                    self._draw_step_draw = False
             for permanent in list(seat.battlefield):
                 self.trigger("draw_step", permanent, seat)
             for other in self.live_seats():  # "At the beginning of each other player's draw step" (Well of Ideas)
@@ -2877,7 +2889,11 @@ class Game:
     def draw(self, seat: Seat, count: int, announce: bool = True) -> None:
         for _ in range(count):
             if not seat.library:
-                seat.drew_from_empty = True
+                if any(replacement_effects(p.card).win_on_empty_draw for p in seat.battlefield if not self.loses_abilities(p)):
+                    seat.wins_game = True  # Laboratory Maniac
+                    self.broadcast({"event": "wins_game", "seat": seat.index})
+                else:
+                    seat.drew_from_empty = True
                 return
             card = seat.library.pop(0)
             seat.hand.append(card)
@@ -2887,6 +2903,8 @@ class Game:
                 self._trigger_each("draw", seat)
                 for opponent in self.opponents(seat):
                     self._trigger_each("opponent_draw", opponent, player=seat)
+                    if not self._draw_step_draw:
+                        self._trigger_each("opponent_extra_draw", opponent, player=seat)
                 if seat.draw_turn != self.turn:
                     seat.draw_turn, seat.draw_count = self.turn, 0
                 seat.draw_count += 1
@@ -4138,6 +4156,17 @@ class Game:
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
         self._searched(seat)
 
+    def amass(self, seat: Seat, count: int, kind: str) -> None:
+        """Amass N: N +1/+1 counters on an Army you control (a 0/0 black Army token first, if you control none); it is also `kind`."""
+        armies = [p for p in seat.battlefield if "Army" in p.card.type_line]
+        if not armies:
+            armies = self.create_tokens(seat, Card(name=f"{kind or 'Army'} Army", type_line="Token Creature \u2014 Army", colors=("B",),
+                                                   power="0", toughness="0"), 1)
+        army = armies[0] if len(armies) == 1 else armies[seat.player.choose(AMASS_PROMPT, [self.label(p) for p in armies])]
+        if kind and kind not in army.card.type_line.split():
+            army.card = dataclasses.replace(army.card, type_line=f"{army.card.type_line} {kind}")
+        self.put_counters(army, "+1/+1", count)
+
     def imprint_from_hand(self, seat: Seat, source: Permanent) -> None:
         """Chrome Mox: exile a nonartifact, nonland card from the hand and keep it with `source` (its colors are the mana)."""
         options = [c for c in seat.hand if "Artifact" not in c.type_line and not is_land(c)]
@@ -5160,6 +5189,7 @@ class Game:
                 self.trigger("any_sacrifice", watcher, watcher_seat)
                 if watcher is not permanent:
                     self.trigger("other_sacrifice", watcher, watcher_seat)
+            self._observe("sacrifice", permanent.card, controller, subject=permanent, extra=gone)  # Tireless Tracker, Mirkwood Bats
         destination_all = destination
         for permanent, _ in leaving:
             controller = permanent.last_controller
@@ -5319,7 +5349,8 @@ class Game:
                         and any(has_keyword(p.card, "ascend") for p in seat.battlefield)):
                     seat.citys_blessing = True
                     self.broadcast({"event": "citys_blessing", "seat": seat.index})
-                reason = ("life" if seat.life <= 0
+                reason = ("opponent_won" if any(o.wins_game for o in self.seats if o is not seat)
+                          else "life" if seat.life <= 0
                           else "empty_library" if seat.drew_from_empty
                           else "poison" if seat.player_counters.get("poison", 0) >= POISON_LIMIT
                           else "commander_damage" if any(d >= COMMANDER_DAMAGE_LIMIT for d in seat.commander_damage.values())
@@ -5521,6 +5552,8 @@ def _spell_matches(kind: str, card: Card) -> bool:
     "instant and sorcery", or a card type."""
     if kind == "spell":
         return True
+    if "|" in kind:  # "R|G": a red or green spell, reduced once
+        return any(_spell_matches(part, card) for part in kind.split("|"))
     if kind in COLOR_NAMES:
         return kind in card.colors
     if kind == "noncreature":
