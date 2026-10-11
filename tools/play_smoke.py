@@ -20,7 +20,8 @@ import sys
 sys.path.insert(0, os.getcwd())
 
 from infernal_machine.cards import Card, Deck  # noqa: E402
-from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, PLAY_LAND, Game, Permanent  # noqa: E402
+from infernal_machine.effects import is_aftermath  # noqa: E402
+from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, CAST_GRAVEYARD, PLAY_LAND, Game, Permanent  # noqa: E402
 from infernal_machine.report import unsupported_lines  # noqa: E402
 from tests.test_effects import BEAR, COMMANDER, FOREST, OGRE, RAINBOW  # noqa: E402
 from tests.test_game import ScriptedPlayer  # noqa: E402
@@ -76,9 +77,15 @@ def play_other_half(card: Card) -> bool:
     if card.alternate is None:
         return False
     game, mine = table(card)
-    if CAST + card.alternate.name not in game.legal_actions(mine):
+    if is_aftermath(card.alternate):  # cast from the graveyard, where the card goes first
+        mine.hand.remove(card)
+        mine.graveyard.append(card)
+        way = CAST_GRAVEYARD + card.alternate.name
+    else:
+        way = CAST + card.alternate.name
+    if way not in game.legal_actions(mine):
         return False
-    game._perform(mine, CAST + card.alternate.name)
+    game._perform(mine, way)
     run_stack(game)
     game._check_state()
     if CAST_EXILE + card.name in game.legal_actions(mine):

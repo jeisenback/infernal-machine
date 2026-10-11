@@ -298,6 +298,7 @@ from .costs import (  # noqa: F401
     escalate_cost,
     granted_affinity,
     graveyard_casts,
+    is_aftermath,
     graveyard_permission,
     is_cast_keyword_line,
     is_casting_cost_line,

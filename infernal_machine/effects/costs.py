@@ -126,6 +126,9 @@ _ESCALATE = re.compile(r"Escalate ((?:\{[^}]+\})+)")  # "Escalate\u2014Discard a
 _FLASHBACK = re.compile(r"Flashback ((?:\{[^}]+\})+)")
 
 
+_AFTERMATH = re.compile(r"Aftermath")  # the second half of a split card: cast only from the graveyard, then exiled
+
+
 _FLASHBACK_LIFE = re.compile(r"Flashback\u2014((?:\{[^}]+\})+), Pay (\d+) life\.")  # Deep Analysis
 
 
@@ -351,7 +354,7 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
 @dataclass(frozen=True)
 class GraveyardCast:
     """A way to cast a card from the graveyard: Flashback (then it is exiled) or Escape (exile other cards too)."""
-    word: str  # "Flashback" or "Escape"
+    word: str  # "Flashback", "Escape", "Retrace" or "Aftermath"
     cost: str  # the mana cost to pay instead of the card's own
     exile: int = 0  # other cards to exile from the graveyard (Escape)
     exile_after: bool = False  # exile it instead of putting it in the graveyard when it leaves the stack (Flashback)
@@ -372,7 +375,14 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
             found.append(GraveyardCast("Escape", m[1], exile=_count(m[2])))
         elif _RETRACE.fullmatch(line):
             found.append(GraveyardCast("Retrace", card.mana_cost, discard_land=True))
+        elif _AFTERMATH.fullmatch(line):
+            found.append(GraveyardCast("Aftermath", card.mana_cost, exile_after=True))
     return found
+
+
+def is_aftermath(card: Card) -> bool:
+    """An Aftermath half can be cast only from the graveyard."""
+    return any(cast.word == "Aftermath" for cast in graveyard_casts(card))
 
 
 # Serra Paragon: one land or cheap permanent spell from the graveyard each turn; the permanent is exiled if it goes back.
@@ -442,7 +452,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _DASH, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)

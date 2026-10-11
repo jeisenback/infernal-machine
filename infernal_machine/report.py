@@ -70,7 +70,7 @@ class CardReport:
 
 
 # One line for every card, so the audit counts them together: an Adventure, a split card's other half, a back that isn't a land.
-SECOND_FACE = "Second face or half of the card (an Aftermath half, a back face that is a permanent, a meld): not playable"
+SECOND_FACE = "Second face or half of the card (a back face that is a permanent, a meld): not playable"
 
 
 def unsupported_lines(card: Card) -> list[str]:

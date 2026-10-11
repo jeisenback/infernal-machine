@@ -50,11 +50,6 @@ LAND = {"name": "Back Land", "type_line": "Land", "oracle_text": "{T}: Add {R}."
 
 
 class SecondFaceTests(unittest.TestCase):
-    def test_an_aftermath_half_is_not_played(self):
-        card = Card.from_scryfall(scryfall("split", {**FRONT, "type_line": "Sorcery"},
-                                           {**SPELL, "type_line": "Sorcery", "oracle_text": "Aftermath (Cast this spell only from your graveyard.)\nDraw a card."}))
-        self.assertEqual((card.other_face, card.alternate, unsupported_lines(card)), ("Back Spell", None, [SECOND_FACE]))
-
     def test_a_modal_card_whose_back_is_a_permanent_is_not_played_as_it(self):
         card = Card.from_scryfall(scryfall("modal_dfc", FRONT, {**FRONT, "name": "Back Giant"}))
         self.assertEqual((card.other_face, unsupported_lines(card)), ("Back Giant", [SECOND_FACE]))
