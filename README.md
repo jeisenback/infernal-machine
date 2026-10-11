@@ -758,6 +758,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     for manifest; a creature card can be turned up for its mana cost) and the other goes to the graveyard. "Twice", "then put N
     +1/+1 counters on that creature" and "then attach this Equipment to that creature" are understood. "Whenever you manifest
     dread" and "when it dies this turn, manifest dread" are not.
+  - Stun counters (`Game.untap`): a tapped permanent with a stun counter loses one instead of untapping, in the untap step and when an
+    effect untaps it; an untapped one keeps its counters. "Tap target creature and put a stun counter on it" (and N counters), the
+    "up to one/two/three" and "one or two" forms with "put a stun counter on each of them", and the same inside triggers are
+    understood; "creatures your opponents control" is now a kind the plural patterns accept. Not understood: conditional
+    counters ("if it's your turn"), counters on the source itself, "twice X", and the Siege/Battle cards.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
