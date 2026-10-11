@@ -224,6 +224,26 @@ class GainLife:
 
 
 @dataclass(frozen=True)
+class ExileTargetIfDies:
+    """ "If that creature would die this turn, exile it instead." (Lava Coil, Bleed Dry): the target the spell just dealt with."""
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and hasattr(target, "exile_if_dies") and "Creature" in target.card.type_line:
+            target.exile_if_dies = game.turn
+
+
+@dataclass(frozen=True)
+class ExileDamagedIfDie:
+    """ "If a creature dealt damage this way would die this turn, exile it instead." (Anger of the Gods): every creature the spell
+    has dealt damage to."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for creature in game.resolving_damaged:
+            creature.exile_if_dies = game.turn
+
+
+@dataclass(frozen=True)
 class PlayerLosesLife:
     """Afflict N: "defending player loses N life", the player the trigger is about."""
     amount: int
@@ -1777,6 +1797,14 @@ _DOUBLE_COUNTERS = ("If an effect would put one or more counters on a permanent 
                     "of those counters on that permanent instead.")
 _DOUBLE_COUNTERS_OLD = ("If an effect would put one or more counters on a permanent you control, it puts twice that "
                         "many of those counters instead.")  # the wording before the Oracle update
+_DOUBLE_TOKENS_NOW = ("If one or more tokens would be created under your control, twice that many of those tokens are created "
+                      "instead.")  # the wording since the 2024 Oracle update (Mondrak, Glory Dominus)
+_DOUBLE_LIFE = "If you would gain life, you gain twice that much life instead."
+_DOUBLE_PLUS_ONE = ("If one or more +1/+1 counters would be put on a creature you control, twice that many +1/+1 counters are "
+                    "put on that creature instead.")  # Branching Evolution
+_MANUFACTOR = "If you would create a Clue, Food, or Treasure token, instead create one of each."
+_DIE_EXILE_OPPONENT = "If a creature an opponent controls would die, exile it instead."
+_DIE_EXILE_SELF = re.compile(rf"If {_SELF} would die, exile it instead\.", re.I)
 _PLUS_ONE_OTHERS = ("If one or more +1/+1 counters would be put on another creature you control, that many plus one "
                     "+1/+1 counters are put on it instead.")
 _ENTER_PER_DEATH = ("Nontoken creatures you control enter with an additional +1/+1 counter on them for each creature that "
@@ -1803,6 +1831,10 @@ class Replacements:
     plus_one_permanents: int = 0  # the same on any permanent you control (Kami of Whispered Hopes)
     plus_one_artifacts: int = 0  # the same on an artifact or creature you control (Ozolith, the Shattered Spire)
     life_gain_plus: int = 0  # Pest Rescuer: its controller gains that much more life whenever they gain life
+    life_gain_factor: int = 1  # how many times as much life its controller gains (The Wind Crystal)
+    plus_one_factor: int = 1  # how many times as many +1/+1 counters go on its controller's creatures (Branching Evolution)
+    manufactor: bool = False  # Academy Manufactor: a Clue, Food or Treasure token becomes one of each
+    die_exile: str | None = None  # "opponent": their creatures are exiled instead of dying (Liesa); "self": this one is
     extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice;
     #                                    "spell": casting or copying an instant or sorcery does
 
@@ -1815,8 +1847,18 @@ def replacement_effects(card: Card) -> Replacements:
             found["graveyard"] = "any"
         elif line == _REPLACE_OPPONENT_GRAVEYARD:
             found.setdefault("graveyard", "opponent")
-        elif line == _DOUBLE_TOKENS:
+        elif line in (_DOUBLE_TOKENS, _DOUBLE_TOKENS_NOW):
             found["tokens"] = found.get("tokens", 1) * 2
+        elif line == _DOUBLE_LIFE:
+            found["life_gain_factor"] = found.get("life_gain_factor", 1) * 2
+        elif line == _DOUBLE_PLUS_ONE:
+            found["plus_one_factor"] = found.get("plus_one_factor", 1) * 2
+        elif line == _MANUFACTOR:
+            found["manufactor"] = True
+        elif line == _DIE_EXILE_OPPONENT:
+            found["die_exile"] = "opponent"
+        elif _DIE_EXILE_SELF.fullmatch(line):
+            found["die_exile"] = "self"
         elif line in (_DOUBLE_COUNTERS, _DOUBLE_COUNTERS_OLD):
             found["counters"] = found.get("counters", 1) * 2
         elif line == _PLUS_ONE_COUNTERS:
@@ -1855,7 +1897,9 @@ _EXTRA_TRIGGER_WIZARD = re.compile(r"If a triggered ability of a Shaman or anoth
 
 def is_replacement_line(line: str) -> bool:
     return (_EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
-                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE) or _EXTRA_TRIGGER.fullmatch(line) is not None)
+                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
+                     _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT)
+            or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None)
 
 
 _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy of "
@@ -5712,6 +5756,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"its controller may draw up to {_N} cards at the beginning of the next turn's upkeep\.", re.I),
      lambda m: DelayedDraw(_count(m[1]), True)),
     (re.compile(r"you draw a card at the beginning of the next turn's upkeep\.", re.I), lambda m: DelayedDraw(1, False)),
+    (re.compile(r"if that (?:creature|permanent|creature or planeswalker) would die this turn, exile it instead\.", re.I),
+     lambda m: ExileTargetIfDies()),
+    (re.compile(r"if a creature dealt damage this way would die this turn, exile it instead\.", re.I),
+     lambda m: ExileDamagedIfDie()),
     (re.compile(r"exile enchanted creature\.", re.I), lambda m: ExileEnchanted()),
     (re.compile(r"that token gains haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
     (re.compile(r"create a token that's a copy of it\.", re.I), lambda m: _CopyOfIt()),
