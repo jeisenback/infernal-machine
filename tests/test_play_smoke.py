@@ -21,6 +21,23 @@ class SmokeTests(unittest.TestCase):
         tried, cast, errors = play_smoke.check(pool)
         self.assertEqual((tried, cast, dict(errors)), (3, 3, {}))
 
+    def test_the_other_half_of_a_card_is_played_too(self):
+        front = {"name": "Giant", "type_line": "Creature \u2014 Giant", "mana_cost": "{2}{R}", "oracle_text": "", "power": "3", "toughness": "3"}
+        adventure = {"name": "Insight", "type_line": "Instant \u2014 Adventure", "mana_cost": "{U}", "oracle_text": "Draw a card."}
+        pool = [{"name": "Giant // Insight", "layout": "adventure", "cmc": 3.0, "legalities": {"commander": "legal"}, "id": "g",
+                 "color_identity": [], "card_faces": [front, adventure]}]
+        played = []
+        original = play_smoke.play_other_half
+        play_smoke.play_other_half = lambda card: played.append(card.alternate.name) or original(card)
+        try:
+            self.assertEqual(play_smoke.check(pool)[:2], (1, 1))
+        finally:
+            play_smoke.play_other_half = original
+        self.assertEqual(played, ["Insight"])
+
+    def test_a_card_with_no_other_half_has_nothing_to_play(self):
+        self.assertFalse(play_smoke.play_other_half(real("Bear", "{1}", "Creature \u2014 Bear", "", "2", "2")))
+
     def test_cards_the_engine_does_not_understand_are_not_tried(self):
         pool = [data("Weird", "{1}", "Instant", "Frobnicate the widgets.")]
         self.assertEqual(play_smoke.check(pool)[:2], (0, 0))

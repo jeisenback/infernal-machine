@@ -38,7 +38,8 @@ class Card:
     back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
     prepare: "Card | None" = None  # a prepare card's spell half, which a prepared creature can cast a copy of
     conjured: bool = False  # Alchemy: made during the game, so not from anyone's starting deck
-    other_face: str = ""  # the name of a second face or half the engine can't play (an Adventure, a split card's other half ...)
+    alternate: "Card | None" = None  # the other half that is cast from the hand instead: an Adventure, a split half, a modal back spell
+    other_face: str = ""  # the name of a second face the engine can't play (a Room, Aftermath, a back that is a permanent, a meld)
 
     def __post_init__(self) -> None:
         """Changeling is every creature type in every zone, so its type line lists them all (and everything that looks for a
@@ -77,18 +78,30 @@ class Card:
                           commander_legal=data.get("legalities", {}).get("commander") == "legal",
                           scryfall_id=data.get("id"))
         faces = data.get("card_faces", [])
+        alternate = None
         other_face = ""
         if data.get("layout") == "meld":
             other_face = "the melded card"
         elif len(faces) == 2 and (data.get("layout") in ("split", "adventure") or data.get("layout") == "modal_dfc" and back is None):
-            other_face = faces[1]["name"]  # only the first face is played: the other half or the back that isn't a land
+            second = faces[1]
+            castable = (data["layout"] == "adventure"
+                        or data["layout"] == "split" and "Room" not in face.get("type_line", "") and "Aftermath" not in second.get("oracle_text", "")
+                        or data["layout"] == "modal_dfc" and re.search(r"\b(Instant|Sorcery)\b", second.get("type_line", "")))
+            if castable:
+                alternate = cls(name=second["name"], mana_cost=second.get("mana_cost", ""), cmc=_mana_value(second.get("mana_cost", "")),
+                                type_line=second.get("type_line", ""), oracle_text=second.get("oracle_text", ""),
+                                colors=tuple(second.get("colors") or _cost_colors(second.get("mana_cost", ""))), color_identity=tuple(data.get("color_identity", [])),
+                                commander_legal=data.get("legalities", {}).get("commander") == "legal", scryfall_id=data.get("id"))
+            else:
+                other_face = second["name"]  # not played: a Room, the Aftermath half, or a back that is a permanent
+        cmc = _mana_value(face.get("mana_cost", "")) if data.get("layout") == "split" and "mana_cost" in face else float(data.get("cmc", 0))
         return cls(
             name=data["name"],
             mana_cost=face.get("mana_cost", ""),
-            cmc=float(data.get("cmc", 0)),
+            cmc=cmc,
             type_line=face.get("type_line", data.get("type_line", "")),
             oracle_text=face.get("oracle_text", ""),
-            colors=tuple(face.get("colors", data.get("colors", []))),
+            colors=tuple(face.get("colors") or (_cost_colors(face.get("mana_cost", "")) if data.get("layout") == "split" else data.get("colors", []))),
             power=face.get("power"),
             toughness=face.get("toughness"),
             loyalty=face.get("loyalty"),
@@ -98,6 +111,7 @@ class Card:
             scryfall_id=data.get("id"),
             back=back,
             prepare=prepare,
+            alternate=alternate,
             other_face=other_face,
         )
 
@@ -106,7 +120,8 @@ class Card:
         tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity", "produced_mana")}
         back = cls.from_dict(data["back"]) if data.get("back") else None
         prepare = cls.from_dict(data["prepare"]) if data.get("prepare") else None
-        return cls(**{**data, **tuples, "back": back, "prepare": prepare})
+        alternate = cls.from_dict(data["alternate"]) if data.get("alternate") else None
+        return cls(**{**data, **tuples, "back": back, "prepare": prepare, "alternate": alternate})
 
     def to_dict(self) -> dict:
         return asdict(self)

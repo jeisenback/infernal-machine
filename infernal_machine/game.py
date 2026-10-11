@@ -66,6 +66,7 @@ CAST_PARAGON = "Cast from graveyard (once a turn): "  # Serra Paragon
 PLAY_PARAGON = "Play land from graveyard: "
 PLAY_GRAVEYARD = "Play land from the graveyard: "  # Crucible of Worlds: any number of lands, within the land drops
 CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
+FOREVER = 10**9  # the last turn of a permission that does not run out (a card on an adventure)
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
 IMPRINT_PROMPT = "Exile which card from your hand? "
@@ -307,6 +308,12 @@ class StackItem:
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
     cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
+    whole: Card | None = None  # cast as one half of this card (an Adventure, a split half): the card that moves between zones
+
+    @property
+    def physical(self) -> Card:
+        """The card that leaves the stack: the whole card when one of its halves was cast."""
+        return self.whole or self.card
 
 
 GERM = Card(name="Phyrexian Germ", type_line="Token Creature — Phyrexian Germ", colors=("B",), power="0", toughness="0")
@@ -734,6 +741,9 @@ class Game:
         for card in _unique(seat.hand):
             if not is_land(card) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card):
                 actions.append(CAST + card.name)
+            if (other := card.alternate) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, other)) \
+                    and self._can_cast(seat, other):
+                actions.append(CAST + other.name)  # the Adventure, or the other half of a split card
         for card in seat.command_zone:
             if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card, from_command_zone=True):
                 actions.append(CAST_COMMANDER + card.name)
@@ -1618,8 +1628,13 @@ class Game:
             permanent = next(p for p in seat.battlefield if p.prepared and p.card.prepare and p.card.prepare.name == name)
             self._cast(seat, permanent.card.prepare, [permanent.card.prepare], prepared=permanent)
         elif action.startswith(CAST):
-            card = next(c for c in seat.hand if c.name == action.removeprefix(CAST))
-            self._cast(seat, card, seat.hand)
+            name = action.removeprefix(CAST)
+            card = next((c for c in seat.hand if c.name == name), None)
+            if card is not None:
+                self._cast(seat, card, seat.hand)
+            else:  # the other half of a card in hand
+                whole = next(c for c in seat.hand if c.alternate and c.alternate.name == name)
+                self._cast(seat, whole.alternate, seat.hand, whole=whole)
         elif action.startswith(ACTIVATE):
             sorcery_timing = seat.index == self.active and self.step in ("main1", "main2") and not self.stack
             permanent, ability = self._activations(seat, sorcery_timing)[action]
@@ -1936,7 +1951,8 @@ class Game:
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
               graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False,
-              copy: bool = False, bottom_after: bool = False, madness: AlternativeCost | None = None) -> None:
+              copy: bool = False, bottom_after: bool = False, madness: AlternativeCost | None = None,
+              whole: Card | None = None) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
         extra = ""
@@ -2015,7 +2031,7 @@ class Game:
             self._move_card(seat, exiled, "exile")
         if delve:
             self._left_graveyard(seat)
-        zone.remove(card)
+        zone.remove(whole or card)
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back)
@@ -2024,7 +2040,7 @@ class Game:
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter,
-                         dashed=bool(alternative and alternative.dash))
+                         dashed=bool(alternative and alternative.dash), whole=whole)
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -2218,14 +2234,21 @@ class Game:
     def _finish_spell(self, item: StackItem, resolved: bool = True) -> None:
         """A resolved instant or sorcery goes to its graveyard; exiled after flashback; or, cast with Quintorius, to the bottom of
         its owner's library. One that was bought back returns to its owner's hand, but only if it resolved."""
+        card = item.physical
         if item.bought_back and resolved:
             self.broadcast({"event": "buyback", "seat": item.controller.index, "card": item.card.name})
-            self._move_card(item.controller, item.card, "hand")
+            self._move_card(item.controller, card, "hand")
             return
-        if item.bottom_after and item.card.name not in item.controller.commander_names:
-            item.controller.library.append(item.card)
+        if item.bottom_after and card.name not in item.controller.commander_names:
+            item.controller.library.append(card)
             return
-        self._move_card(item.controller, item.card, "exile" if item.exile_after else "graveyard")
+        if resolved and "Adventure" in item.card.type_line:
+            # it goes on an adventure: exiled, and its owner may cast the creature from there for as long as it stays
+            item.controller.exile.append(card)
+            item.controller.exile_play.append((card, FOREVER))
+            self.broadcast({"event": "adventure", "seat": item.controller.index, "card": card.name})
+            return
+        self._move_card(item.controller, card, "exile" if item.exile_after else "graveyard")
 
     def _discard_land_to_enter(self, seat: Seat, card: Card) -> bool:
         """Mox Diamond: "you may discard a land card instead"; without doing so it goes to its owner's graveyard."""
@@ -4038,7 +4061,7 @@ class Game:
         self.broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name,
                         "ability": _shown(item.ability.text, item.card) if item.ability else None})
         if not item.ability and not item.is_copy:  # countering an ability doesn't touch its source; a copy just ends
-            self._move_card(item.controller, item.card, "exile" if exile or item.exile_after else "graveyard")
+            self._move_card(item.controller, item.physical, "exile" if exile or item.exile_after else "graveyard")
 
     def _check_ward(self, item: StackItem) -> None:
         """Whenever a permanent with ward becomes the target of an opponent's spell or ability, a ward trigger
