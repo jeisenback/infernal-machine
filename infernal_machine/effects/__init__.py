@@ -20,6 +20,7 @@ The reading is split by purpose, each module building on the ones before it:
 The game imports from here, so a name moves between modules without its callers noticing.
 """
 
+from .events import EVENTS, heard_on  # noqa: F401
 from .common import (  # noqa: F401
     CANT_ATTACK,
     CANT_BE_BLOCKED,

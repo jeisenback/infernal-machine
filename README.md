@@ -745,6 +745,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
     answer for all 32,115 cards as before the split.
+  - Events are a registry (`effects/events.py`): each "Whenever ..." an ability can wait for is declared once, with its rules
+    text and, for the ones the game announces to a player's permanents, the occurrence that sets it off and who hears it
+    (the player or each opponent). The game says what happened (`Game.happened("discarded", seat)`) and every event declared
+    for it fires, so a new event for an occurrence the game already announces needs only a declaration. An event the game
+    does not declare is an error, not a trigger that silently never fires; `tests/test_events.py` checks that every declared
+    event is announced somewhere and every announcement names a declared event.
   - One filter grammar (`filters.py`): targets, mass effects, searches, graveyard returns, watching triggers and cost
     reductions all name a kind of card ("black creature", "nonland, nontoken permanent an opponent controls", "creature card with
     mana value 3 or less", "R|G"), and they all read it with `parse_filter` instead of four separate matchers. A "permanent" is

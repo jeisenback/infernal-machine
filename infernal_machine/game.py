@@ -23,7 +23,7 @@ from .cards import Card, Deck, has_keyword, shown_type_line
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
-from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
+from .effects import (EVENTS, heard_on, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
@@ -599,11 +599,7 @@ class Game:
                     self.draw(seat, 1)
                 finally:
                     self._draw_step_draw = False
-            for permanent in list(seat.battlefield):
-                self.trigger("draw_step", permanent, seat)
-            for other in self.live_seats():  # "At the beginning of each other player's draw step" (Well of Ideas)
-                if other is not seat:
-                    self._trigger_each("other_draw_step", other, player=seat)
+            self.happened("draw_step", seat)  # and "each other player's draw step" (Well of Ideas)
         elif self.step in ("upkeep", "end"):
             if self.step == "end":  # "at the beginning of the next end step"
                 due = [what for turn, what in self.at_end_step if turn <= self.turn]
@@ -1728,8 +1724,7 @@ class Game:
         self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cycling"})
         self._move_card(seat, card, "graveyard")
         self.stack.append(StackItem(card, seat, list(effects), [], ability))
-        self._trigger_each("cycle", seat)
-        self._trigger_each("cycle_or_discard", seat)
+        self.happened("cycled", seat)
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
 
@@ -1797,7 +1792,7 @@ class Game:
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
                         "tapped": [p.card.name for p in tapped]})
         if ability.mana_cost and parse_cost(ability.mana_cost).x:  # Unbound Flourishing
-            self._trigger_each("activate_x", seat, spell=item)
+            self.happened("activate_x", seat, spell=item)
         self._check_ward(item)
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
@@ -2468,6 +2463,8 @@ class Game:
                 player: Seat | None = None, x: int = 0, spell: "StackItem | Card | None" = None) -> None:
         """Note that `permanent`'s abilities for `event` triggered; they go on the stack
         the next time a player would get priority (CR 603.3)."""
+        if event not in EVENTS and not event.startswith("chapter_"):
+            raise ValueError(f"{event!r} is not a declared event (effects/events.py)")
         if self.loses_abilities(permanent):
             return
         for ability in triggered_abilities(permanent.card):
@@ -2477,32 +2474,38 @@ class Game:
                 for _ in range(self._trigger_times(controller, event, permanent.card, source=permanent)):
                     self._queue(ability, permanent, controller, x=x, subject=subject, player=player, spell=spell)
 
-    def _trigger_each(self, event: str, seat: Seat, subject: Permanent | None = None,
-                      player: Seat | None = None, spell: "StackItem | Card | None" = None, x: int = 0) -> None:
-        """`event` happened for `seat`: every permanent it controls with an ability for it triggers. `subject` is
-        the permanent it happened to, `player` the player who did it, `spell` the spell (or card) involved."""
-        for permanent in list(seat.battlefield):
-            self.trigger(event, permanent, seat, subject, player, x=x, spell=spell)
+    def happened(self, occurrence: str, seat: Seat, *facts: str, subject: Permanent | None = None,
+                 spell: "StackItem | Card | tuple | None" = None, x: int = 0) -> None:
+        """`occurrence` happened to `seat` (it drew, discarded, gained life ...): every event declared for it
+        (effects/events.py) triggers for whoever hears it, the player's own permanents or those of each opponent. An
+        event that needs a fact ("first", "second", "extra") waits for the caller to report it in `facts`. `subject` is
+        the permanent it happened to, `spell` the spell (or card) involved, `x` the number it carried."""
+        for event in heard_on(occurrence):
+            if event.needs and event.needs not in facts:
+                continue
+            if event.to == "you":
+                for permanent in list(seat.battlefield):
+                    self.trigger(event.name, permanent, seat, subject, x=x, spell=spell)
+            else:
+                for opponent in self.opponents(seat):
+                    for permanent in list(opponent.battlefield):
+                        self.trigger(event.name, permanent, opponent, subject, seat, x=x, spell=spell)
 
     def _searched(self, seat: Seat) -> None:
         """`seat` searched their library (found something or not)."""
-        for opponent in self.opponents(seat):
-            self._trigger_each("opponent_search", opponent, player=seat)
+        self.happened("searched", seat)
 
     def _discarded(self, seat: Seat, card: Card | None = None, together: bool = False) -> None:
         """`seat` discarded a card: "Whenever you discard a card" and "Whenever an opponent discards a card". Cards
         discarded `together` set off "one or more nonland cards" once, which the caller reports (_discarded_nonland)."""
-        self._trigger_each("discard", seat, spell=card)
+        self.happened("discarded", seat, spell=card)
         if not together and card is not None:
             self._discarded_nonland(seat, [card])
-        self._trigger_each("cycle_or_discard", seat)
-        for opponent in self.opponents(seat):
-            self._trigger_each("opponent_discard", opponent, player=seat)
 
     def _discarded_nonland(self, seat: Seat, cards: list[Card]) -> None:
         """"Whenever you discard one or more nonland cards": once, carrying the nonland cards among those discarded."""
         if nonland := tuple(c for c in cards if "Land" not in c.type_line):
-            self._trigger_each("discard_nonland", seat, spell=nonland)
+            self.happened("discarded_nonland", seat, spell=nonland)
 
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0,
                subject: Permanent | None = None, player: Seat | None = None, spell: "StackItem | None" = None) -> None:
@@ -2895,18 +2898,11 @@ class Game:
             if announce:
                 seat.player.notify({"event": "draw", "card": card.name})
                 self.broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
-                self._trigger_each("draw", seat)
-                for opponent in self.opponents(seat):
-                    self._trigger_each("opponent_draw", opponent, player=seat)
-                    if not self._draw_step_draw:
-                        self._trigger_each("opponent_extra_draw", opponent, player=seat)
                 if seat.draw_turn != self.turn:
                     seat.draw_turn, seat.draw_count = self.turn, 0
                 seat.draw_count += 1
-                if seat.draw_count == 2:
-                    self._trigger_each("second_draw", seat)
-                    for opponent in self.opponents(seat):
-                        self._trigger_each("opponent_second_draw", opponent, player=seat)
+                self.happened("drew", seat, *(["extra"] if not self._draw_step_draw else []),
+                              *(["second"] if seat.draw_count == 2 else []))
 
     def change_life(self, seat: Seat, amount: int) -> None:
         if amount > 0:  # Pest Rescuer: "you gain that much life plus 1 instead"; then The Wind Crystal: "twice that much"
@@ -2933,14 +2929,8 @@ class Game:
                     seat.life_gained_amount = 0
                 seat.life_gained_amount += amount
                 seat.life_gained_turn = self.turn
-            for permanent in list(seat.battlefield):
-                self.trigger("gain_life" if amount > 0 else "lose_life", permanent, seat, x=abs(amount))  # "that much life"
-                if first_loss:
-                    self.trigger("first_life_loss", permanent, seat)
-                if first_gain:
-                    self.trigger("first_life_gain", permanent, seat)
-            for opponent in self.opponents(seat):
-                self._trigger_each("opponent_gain_life" if amount > 0 else "opponent_lose_life", opponent, player=seat, x=abs(amount))
+            self.happened("life_gained" if amount > 0 else "life_lost", seat, *(["first"] if first_loss or first_gain else []),
+                          x=abs(amount))  # x: "that much life"
 
     def damage(self, target: Seat | Permanent, amount: int, source: Permanent | None = None,
                combat: bool = False) -> None:
@@ -3459,12 +3449,11 @@ class Game:
         """One or more cards just left `seat`'s graveyard, as one event. `cards` are those that left, when the caller
         knows them (Spirit of Resilience copies one); a cost paid by exiling cards does not say."""
         seat.graveyard_left_turn = self.turn
-        for permanent in list(seat.battlefield):
-            self.trigger("graveyard_leave", permanent, seat, spell=tuple(cards))
+        self.happened("graveyard_leave", seat, spell=tuple(cards))
 
     def _exiled_from_library_or_graveyard(self, seat: Seat) -> None:
         """One or more of `seat`'s cards were just put into exile from its library and/or graveyard, as one event (Laelia)."""
-        self._trigger_each("exile_library_graveyard", seat)
+        self.happened("exile_library_graveyard", seat)
 
     def tutor(self, seat: Seat, card_type: str, to: str, reveal: bool) -> None:
         """Search the library for a card of `card_type`: it goes to the hand (`to` is "hand")
@@ -3864,8 +3853,7 @@ class Game:
             return
         self.broadcast({"event": "conjure", "seat": seat.index, "card": name})
         self._enter(seat, Permanent(dataclasses.replace(card, conjured=True), sick=True))
-        for permanent in list(seat.battlefield):
-            self.trigger("conjure", permanent, seat)
+        self.happened("conjure", seat)
 
     def create_tokens(self, seat: Seat, token: Card, count: int, counters: tuple[int, str] | None = None,
                       tapped: bool = False) -> list[Permanent]:
@@ -3898,9 +3886,9 @@ class Game:
                     self.put_counters(permanent, counters[1], counters[0])
                 made.append(permanent)
         if any("Creature" in p.card.type_line for p in made):
-            self._trigger_each("tokens_created", seat)
+            self.happened("tokens_created", seat)
         if made:
-            self._trigger_each("tokens_enter", seat)
+            self.happened("tokens_enter", seat)
         return made
 
     def leave_at_next_end_step(self, permanents: list[Permanent], reason: str, destination: str) -> None:
@@ -4271,8 +4259,7 @@ class Game:
         self.broadcast({"event": "scry", "seat": seat.index, "count": len(top)}, skip=seat)
         seat.player.notify({"event": "scry", "seat": seat.index, "count": len(top), "bottom": [c.name for c in bottom]})
         if top:  # CR 701.22b: scry 0 is no scry event
-            self._trigger_each("scry", seat)
-            self._trigger_each("scry_or_surveil", seat)
+            self.happened("scried", seat)
 
     def _ordered(self, seat: Seat, cards: list[Card]) -> list[Card]:
         """Let the player choose the order of the cards they keep on top (first asked goes on top)."""
@@ -4726,9 +4713,7 @@ class Game:
             return
         self.monarch = seat
         self.broadcast({"event": "monarch", "seat": seat.index})
-        self._trigger_each("become_monarch", seat)
-        for opponent in self.opponents(seat):
-            self._trigger_each("opponent_become_monarch", opponent, player=seat)
+        self.happened("became_monarch", seat)
 
     def pays_unless(self, payer: Seat, cost_text: str, source: Card) -> bool:
         """"... unless that player pays {1}": whether `payer` can and chooses to pay the cost (and pays it)."""
@@ -4829,8 +4814,7 @@ class Game:
         for card in binned:
             self._move_card(seat, card, "graveyard")
         if top:  # surveil 0 is no surveil event either
-            self._trigger_each("surveil", seat)
-            self._trigger_each("scry_or_surveil", seat)
+            self.happened("surveilled", seat)
 
     def may_loot(self, seat: Seat, draw: int = 1, mill: int = 0) -> None:
         """ "You may discard a card. If you do, draw a card." (and maybe then mill some)"""
