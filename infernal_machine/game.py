@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -111,6 +111,7 @@ DISCARD_COST_PROMPT = "Choose a card to discard for "  # followed by the ability
 EXILE_COST_PROMPT = "Choose a card to exile from your graveyard for "  # followed by the ability's source
 COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
 ENTWINE_PROMPT = "Pay the entwine cost for "  # followed by the spell's name; options: YES_NO
+BUYBACK_PROMPT = "Pay the buyback cost for "  # followed by the spell's name; options: YES_NO
 KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = "Choose a card to exile from your hand"
@@ -278,6 +279,7 @@ class StackItem:
     x: int = 0  # the value chosen for X when it was cast
     kicked: int = 0  # how many times the kicker cost was paid
     kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
+    bought_back: bool = False  # its buyback cost was paid: it returns to its owner's hand as it resolves
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     mana_spent: int = 0  # the mana paid to cast it (Deekah: "the amount of mana spent to cast that spell")
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
@@ -1223,10 +1225,12 @@ class Game:
                 and self._payment(seat, card, from_command_zone, alternative=way,
                                   delve=self._delve_max(seat, card) if way is None else 0) is not None]
 
-    def _extra_costs(self, card: Card, kicked: int) -> list:
-        """The non-mana costs of casting `card`: its additional costs, plus a non-mana kicker cost if kicked."""
+    def _extra_costs(self, card: Card, kicked: int, bought_back: bool = False) -> list:
+        """The non-mana costs of casting `card`: its additional costs, plus a non-mana kicker cost if kicked and a non-mana
+        buyback cost if bought back."""
         kicker = kicker_other_cost(card) if kicked else None
-        return additional_costs(card) + ([kicker] if kicker else [])
+        buyback = buyback_other_cost(card) if bought_back else None
+        return additional_costs(card) + ([kicker] if kicker else []) + ([buyback] if buyback else [])
 
     def _sacrifice_for_copies(self, seat: Seat, card: Card) -> int:
         """Plumb the Forbidden: "you may sacrifice one or more creatures. When you do, copy this spell for each creature sacrificed";
@@ -1239,10 +1243,11 @@ class Game:
         wanted = seat.player.choose(SACRIFICE_COPIES_PROMPT + card.name, [str(n) for n in range(creatures + 1)])
         return len([gone for _ in range(wanted) for gone in self.sacrifice(seat, "creature")])
 
-    def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0) -> bool:
+    def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0,
+                        bought_back: bool = False) -> bool:
         """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs, a non-mana
         kicker cost, and `alternative`'s condition, life and card to exile."""
-        extras = self._extra_costs(card, kicked)
+        extras = self._extra_costs(card, kicked, bought_back)
         others = list(seat.hand)
         if card in others:
             others.remove(card)
@@ -1263,7 +1268,7 @@ class Game:
         return not alternative.exile_color or any(alternative.exile_color in c.colors for c in others)
 
     def _pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None,
-                    graveyard: GraveyardCast | None = None, x: int = 0, kicked: int = 0) -> None:
+                    graveyard: GraveyardCast | None = None, x: int = 0, kicked: int = 0, bought_back: bool = False) -> None:
         """Pay the non-mana costs of casting `card`, which has already left its zone."""
         for _ in range(graveyard.exile if graveyard else 0):  # Escape: exile other cards from the graveyard
             exiled = seat.graveyard[seat.player.choose(ESCAPE_PROMPT, [c.name for c in seat.graveyard])]
@@ -1286,7 +1291,7 @@ class Game:
             seat.hand.remove(exiled)
             self.broadcast({"event": "exiled_from_hand", "seat": seat.index, "card": exiled.name})
             self._move_card(seat, exiled, "exile")
-        extras = self._extra_costs(card, kicked)
+        extras = self._extra_costs(card, kicked, bought_back)
         for extra in extras:
             if extra.discard:
                 discarded = seat.hand[seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])]
@@ -1802,6 +1807,9 @@ class Game:
         replicated = 0 if graveyard or prepared is not None else self._choose_replicate(seat, card, from_command_zone, kickers, extra, alternative)
         if replicated:
             extra += replicate_cost(card) * replicated
+        bought_back = self._choose_buyback(seat, card, from_command_zone, kickers, extra, alternative)
+        if bought_back:
+            extra += buyback_cost(card) or ""
         effects = kicked_effects(effects, kicked, kickers)
         x = 0  # announced before the targets (CR 601.2b-c): "up to X target creatures" needs it
         if alternative is None and (parse_cost(paying.mana_cost).x or any(c.sacrifice_x for c in additional_costs(card))):
@@ -1858,9 +1866,9 @@ class Game:
         zone.remove(card)
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
-        self._pay_extras(seat, card, alternative, graveyard, x, kicked)
+        self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back)
         sacrificed = self._sacrifice_for_copies(seat, card)
-        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after, from_graveyard=graveyard is not None,
+        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, bought_back=bought_back, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after, from_graveyard=graveyard is not None,
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent)
@@ -1923,6 +1931,17 @@ class Game:
             if isinstance(target, Permanent) and self.on_battlefield(target):  # "Whenever this creature becomes the target of a spell"
                 self.trigger("targeted", target, self.controller_of(target))
         self._check_ward(item)
+
+    def _choose_buyback(self, seat: Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str,
+                        alternative: AlternativeCost | None) -> bool:
+        """Buyback: ask whether to pay it, when the spell has one and it can be paid on top of everything else."""
+        mana = buyback_cost(card)
+        if mana is None and buyback_other_cost(card) is None:
+            return False
+        return (self._can_pay_extras(seat, card, alternative, bought_back=True)
+                and self._payment(seat, card, from_command_zone, alternative=alternative, kickers=kickers,
+                                  extra=extra + (mana or "")) is not None
+                and seat.player.choose(BUYBACK_PROMPT + card.name, YES_NO) == 0)
 
     def _choose_kicks(self, seat: Seat, card: Card, effects: list | None, from_command_zone: bool,
                       alternative: AlternativeCost | None) -> tuple[int, tuple[str, ...]]:
@@ -2027,17 +2046,21 @@ class Game:
             if not item.is_copy:
                 self._finish_spell(item)
             return
-        self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard (or exile, after flashback)
+        resolved = self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard (or exile, after flashback)
         if item.suspend_after and not item.is_copy:  # "Exile it with three time counters on it"
             seat.exile.append(card)
             seat.suspended.append([card, item.suspend_after])
             self.broadcast({"event": "suspended", "seat": seat.index, "card": card.name, "counters": item.suspend_after})
         elif not item.is_copy:
-            self._finish_spell(item)
+            self._finish_spell(item, resolved)
 
-    def _finish_spell(self, item: StackItem) -> None:
+    def _finish_spell(self, item: StackItem, resolved: bool = True) -> None:
         """A resolved instant or sorcery goes to its graveyard; exiled after flashback; or, cast with Quintorius, to the bottom of
-        its owner's library."""
+        its owner's library. One that was bought back returns to its owner's hand, but only if it resolved."""
+        if item.bought_back and resolved:
+            self.broadcast({"event": "buyback", "seat": item.controller.index, "card": item.card.name})
+            self._move_card(item.controller, item.card, "hand")
+            return
         if item.bottom_after and item.card.name not in item.controller.commander_names:
             item.controller.library.append(item.card)
             return

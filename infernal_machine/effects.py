@@ -5163,6 +5163,8 @@ _MANA_SYMBOLS = r"(?:\{\d+\}|\{[WUBRGC]\})+"
 _KICKER = re.compile(rf"(?:Multik|K)icker ({_MANA_SYMBOLS})(?: and/or ({_MANA_SYMBOLS}))?")
 _KICKER_OTHER = re.compile(rf"Kicker\u2014(?:Sacrifice an? (creature|artifact|land|artifact or creature|permanent)"
                            rf"|(Discard a card)|Pay (?!X ){_N} life)\.")
+_BUYBACK = re.compile(rf"Buyback ({_MANA_SYMBOLS})")
+_BUYBACK_OTHER = re.compile(rf"Buyback\u2014(?:Sacrifice an? (land)|Pay {_N} life)\.")
 _FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast this spell without paying its mana cost\.")
 _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life and )?exile an? ({_COLOR_NAMES}) card "
                     r"from your hand rather than pay this spell's mana cost\.")
@@ -5213,6 +5215,19 @@ def kicker_other_cost(card: Card) -> AdditionalCost | None:
     for line in rules_lines(card):
         if m := _KICKER_OTHER.fullmatch(line):
             return AdditionalCost(sacrifice=m[1], discard=bool(m[2]), life=_count(m[3]) if m[3] else 0)
+    return None
+
+
+def buyback_cost(card: Card) -> str | None:
+    """The mana cost from "Buyback {3}": pay it as an additional cost and the spell returns to your hand as it resolves."""
+    return next((m[1] for line in rules_lines(card) if (m := _BUYBACK.fullmatch(line))), None)
+
+
+def buyback_other_cost(card: Card) -> AdditionalCost | None:
+    """A buyback cost that isn't mana: "Buyback\u2014Sacrifice a land." or "Buyback\u2014Pay 4 life." """
+    for line in rules_lines(card):
+        if m := _BUYBACK_OTHER.fullmatch(line):
+            return AdditionalCost(sacrifice=m[1], life=_count(m[2]) if m[2] else 0)
     return None
 
 
@@ -5424,7 +5439,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _X_LIMIT, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)

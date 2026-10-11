@@ -153,6 +153,11 @@ winner = game.play()
   - Bestow {N} (Eidolon of Countless Battles): an alternative cost, offered when you control a creature to enchant. It
     resolves as an Aura attached to that creature (as a creature if the target is gone), and becomes a creature again
     when the creature it enchants leaves.
+  - Buyback {N} (Capsize): asked, when it can be paid, before choosing targets; the mana is added to the cost, and the
+    spell returns to its owner's hand as it resolves. A spell that is countered or fizzles (every target gone) goes to the
+    graveyard, and the cost stays paid. "Buyback\u2014Sacrifice a land." and "Buyback\u2014Pay N life." work the same way; the
+    other forms (discard two cards, sacrifice three Islands, pay life and discard at random) and "Buyback costs cost {2}
+    less" are not read.
   - Kicker {N}: the caster chooses whether to pay it, before choosing targets. "If this spell was kicked, ..."
     effects on instants and sorceries happen only when it was, and can target (kicker is only offered when those
     targets exist). A kicked permanent (Auras too) remembers it: "If this creature was kicked, it enters with
