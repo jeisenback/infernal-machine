@@ -30,6 +30,7 @@ SUPPORTED_KEYWORDS = {
     "ascend",  # the city's blessing for a permanent that has it
     "exalted",
     "decayed",  # can't block; sacrificed at end of combat when it attacks
+    "infect", "wither",  # poison counters for a player, -1/-1 counters for a creature (Toxic N is read apart, below)
     "fear", "intimidate", "horsemanship",
     "islandwalk", "swampwalk", "mountainwalk", "forestwalk", "plainswalk",  # not "snow landwalk" or "nonbasic landwalk"
     "myriad",  # a tapped and attacking copy for each opponent other than the defending player, exiled at end of combat
@@ -100,7 +101,7 @@ def _is_keyword_line(line: str) -> bool:
     if is_ward_line(line):  # "Ward\u2014{1}, Pay 2 life." has a comma that isn't between keywords
         return True
     line = PROTECTION.sub("protection", line.lower())  # "protection from red and from blue" is one keyword
-    return all(part in SUPPORTED_KEYWORDS or is_ward_line(part) or re.fullmatch(r"annihilator \d+", part)
+    return all(part in SUPPORTED_KEYWORDS or is_ward_line(part) or re.fullmatch(r"(annihilator|toxic) \d+", part)
                for part in line.split(", "))
 
 
