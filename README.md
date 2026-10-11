@@ -799,7 +799,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     face down like a manifested card, keeping the real card and the cost to turn it up (`Permanent.turn_up_cost`). `Turn face up: ...`
     pays that cost, not the mana cost, at any time; Megamorph then adds a +1/+1 counter and "When/As this creature is turned face up"
     triggers (event `turned_face_up`); a Disguise creature has ward {2} while face down. Turning up is not entering, so "when it
-    enters" does not happen. Not read: Morph costs that are not mana (Morph\u2014Sacrifice another creature) and
+    enters" does not happen. A morph cost may also be a sacrifice ("another creature", "two Mountains"), a card of a color to reveal, a
+    card to discard, a return to hand, or life (`MorphCost`; it is offered only when it can be paid). Not read:
     "Whenever you turn a permanent face up".
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from

@@ -3,7 +3,7 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import morph_of
+from infernal_machine.effects import MorphCost, morph_of
 from infernal_machine.game import CAST, CAST_FACE_DOWN, FACE_DOWN, TURN_UP, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR
@@ -49,7 +49,7 @@ class ParseTests(unittest.TestCase):
         for card in (HARUSPEX, DEN, DISGUISER, FLIER):
             self.assertEqual(unsupported_lines(card), [], card.name)
         self.assertEqual([morph_of(c) for c in (HARUSPEX, DEN, DISGUISER, PLAIN)],
-                         [("Morph", "{B}"), ("Megamorph", "{1}{G}"), ("Disguise", "{1}{B}"), None])
+                         [("Morph", MorphCost("{B}")), ("Megamorph", MorphCost("{1}{G}")), ("Disguise", MorphCost("{1}{B}")), None])
 
 
 class CastingFaceDownTests(unittest.TestCase):
@@ -160,6 +160,109 @@ class TurningFaceUpTests(unittest.TestCase):
         self.assertEqual(game.ward_of(down), "{2}")
         game, a, down = settled(HARUSPEX)
         self.assertFalse(game.ward_of(down))
+
+
+def with_morph(line, name="Odd Morph"):
+    return real(name, "{3}{B}", "Creature — Zombie", f"{line}\nWhen this creature is turned face up, you gain 1 life.", "3", "3")
+
+
+class OtherCostTests(unittest.TestCase):
+    """Morph costs that are not mana: the face-down creature stays when only three lands paid for it."""
+
+    def turned_up_game(self, line, *, hand=(), mine=(), life=40, answers=("Pass",)):
+        card = with_morph(line)
+        game, _ = table3(script(*answers))
+        a = game.seats[0]
+        a.hand, a.battlefield, a.library = [card, *hand], lands(3), [FOREST] * 5
+        a.life = life
+        game._perform(a, CAST_FACE_DOWN + card.name)
+        run_stack(game)
+        a.battlefield += [Permanent(c) for c in mine]
+        [down] = [p for p in a.battlefield if p.manifested]
+        return game, a, down
+
+    def offered(self, game, a, down):
+        return TURN_UP + game.label(down) in game.legal_actions(a)
+
+    def test_the_costs_are_read(self):
+        read = {line: morph_of(with_morph(line))[1] for line in (
+            "Morph\u2014Sacrifice another creature.", "Morph\u2014Reveal a black card in your hand.", "Morph\u2014Discard a card.",
+            "Morph\u2014Discard a Zombie card.", "Morph\u2014Pay 5 life.", "Morph\u2014Return two Islands you control to their owner's hand.",
+            "Morph\u2014Return a Bird you control to its owner's hand.", "Morph\u2014Sacrifice two Mountains.")}
+        self.assertEqual(list(read.values()), [
+            MorphCost(sacrifice="another creature"), MorphCost(reveal="B"), MorphCost(discard="card"), MorphCost(discard="Zombie"),
+            MorphCost(life=5), MorphCost(bounce="Island", count=2), MorphCost(bounce="Bird"), MorphCost(sacrifice="Mountain", count=2)])
+        self.assertEqual(unsupported_lines(with_morph("Morph\u2014Sacrifice another creature.")), [])
+        self.assertEqual(unsupported_lines(with_morph("Morph\u2014Juggle three goblins.")), ["Morph\u2014Juggle three goblins."])
+
+    def test_reveal_a_card_of_a_color(self):
+        black = real("Black Card", "{B}", "Sorcery", "", colors=("B",))
+        game, a, down = self.turned_up_game("Morph\u2014Reveal a black card in your hand.", hand=[black])
+        self.assertTrue(self.offered(game, a, down))
+        game._perform(a, TURN_UP + game.label(down))
+        self.assertEqual(([c.name for c in a.hand], down.manifested), (["Black Card"], False))  # revealed, not spent
+        game, a, down = self.turned_up_game("Morph\u2014Reveal a black card in your hand.", hand=[real("Red Card", "{R}", "Sorcery", "", colors=("R",))])
+        self.assertFalse(self.offered(game, a, down))
+
+    def test_discard_a_card(self):
+        game, a, down = self.turned_up_game("Morph\u2014Discard a card.", hand=[PLAIN])
+        game._perform(a, TURN_UP + game.label(down))
+        self.assertEqual(([c.name for c in a.hand], [c.name for c in a.graveyard]), ([], ["Plain Creature"]))
+        game, a, down = self.turned_up_game("Morph\u2014Discard a card.")
+        self.assertFalse(self.offered(game, a, down))  # nothing to discard
+
+    def test_discard_a_zombie_card(self):
+        zombie = real("Zombie Card", "{B}", "Creature — Zombie", "", "1", "1")
+        game, a, down = self.turned_up_game("Morph\u2014Discard a Zombie card.", hand=[PLAIN])
+        self.assertFalse(self.offered(game, a, down))
+        game, a, down = self.turned_up_game("Morph\u2014Discard a Zombie card.", hand=[PLAIN, zombie])
+        game._perform(a, TURN_UP + game.label(down))
+        self.assertEqual([c.name for c in a.graveyard], ["Zombie Card"])
+
+    def test_pay_life(self):
+        game, a, down = self.turned_up_game("Morph\u2014Pay 5 life.")
+        game._perform(a, TURN_UP + game.label(down))
+        self.assertEqual(a.life, 35)
+        game, a, down = self.turned_up_game("Morph\u2014Pay 5 life.", life=4)
+        self.assertFalse(self.offered(game, a, down))
+        game, a, down = self.turned_up_game("Morph\u2014Pay 5 life.", life=5)
+        self.assertTrue(self.offered(game, a, down))
+
+    def test_sacrifice_another_creature(self):
+        game, a, down = self.turned_up_game("Morph\u2014Sacrifice another creature.")
+        self.assertFalse(self.offered(game, a, down))  # it cannot sacrifice itself
+        game, a, down = self.turned_up_game("Morph\u2014Sacrifice another creature.", mine=[BEAR])
+        game._perform(a, TURN_UP + game.label(down))
+        self.assertEqual(sorted(p.card.name for p in a.battlefield if "Land" not in p.card.type_line), ["Odd Morph"])
+        self.assertEqual([c.name for c in a.graveyard], ["Bear"])
+
+    def test_sacrifice_two_lands_of_a_type(self):
+        mountain = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
+        game, a, down = self.turned_up_game("Morph\u2014Sacrifice two Mountains.", mine=[mountain])
+        self.assertFalse(self.offered(game, a, down))
+        game, a, down = self.turned_up_game("Morph\u2014Sacrifice two Mountains.", mine=[mountain, mountain])
+        game._perform(a, TURN_UP + game.label(down))
+        self.assertEqual([c.name for c in a.graveyard], ["Mountain", "Mountain"])
+
+    def test_return_permanents_you_control_to_your_hand(self):
+        island = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))
+        game, a, down = self.turned_up_game("Morph\u2014Return two Islands you control to their owner's hand.", mine=[island])
+        self.assertFalse(self.offered(game, a, down))
+        game, a, down = self.turned_up_game("Morph\u2014Return two Islands you control to their owner's hand.", mine=[island, island])
+        game._perform(a, TURN_UP + game.label(down))
+        self.assertEqual([c.name for c in a.hand], ["Island", "Island"])
+        bird = real("Raven", "{U}", "Creature — Bird", "", "1", "1")
+        game, a, down = self.turned_up_game("Morph\u2014Return a Bird you control to its owner's hand.", mine=[BEAR])
+        self.assertFalse(self.offered(game, a, down))  # a Bear is not a Bird
+        game, a, down = self.turned_up_game("Morph\u2014Return a Bird you control to its owner's hand.", mine=[bird])
+        game._perform(a, TURN_UP + game.label(down))
+        self.assertEqual([c.name for c in a.hand], ["Raven"])
+
+    def test_no_mana_is_spent_and_the_trigger_still_happens(self):
+        game, a, down = self.turned_up_game("Morph\u2014Pay 5 life.")
+        game._perform(a, TURN_UP + game.label(down))
+        run_stack(game)
+        self.assertEqual((a.life, down.card.name), (36, "Odd Morph"))  # paid 5, gained 1
 
 
 if __name__ == "__main__":

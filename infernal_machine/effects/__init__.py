@@ -306,6 +306,7 @@ from .costs import (  # noqa: F401
     granted_affinity,
     graveyard_casts,
     is_aftermath,
+    MorphCost,
     morph_of,
     graveyard_permission,
     is_cast_keyword_line,
