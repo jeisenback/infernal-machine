@@ -32,7 +32,7 @@ SUPPORTED_KEYWORDS = {
     "decayed",  # can't block; sacrificed at end of combat when it attacks
     "convoke", "improvise",  # creatures (artifacts) tapped to help pay: see Game._convoke_sources
     "infect", "wither",  # poison counters for a player, -1/-1 counters for a creature (Toxic N is read apart, below)
-    "fear", "intimidate", "horsemanship",
+    "fear", "intimidate", "horsemanship", "flanking",
     "islandwalk", "swampwalk", "mountainwalk", "forestwalk", "plainswalk",  # not "snow landwalk" or "nonbasic landwalk"
     "myriad",  # a tapped and attacking copy for each opponent other than the defending player, exiled at end of combat
 }

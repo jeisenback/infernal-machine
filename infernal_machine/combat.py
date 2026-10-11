@@ -12,7 +12,7 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .characteristics import source_qualities
+from .characteristics import Modifier, source_qualities
 from .effects import (CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, Annihilate, TriggeredAbility, attack_tax_per_counter, combat_restrictions,
                       flat_attack_tax)
 from .mana import Cost
@@ -208,14 +208,14 @@ class Combat:
                              and not self._has_enough_blockers(a)]
                 if not blockable:
                     continue
+                forced = [a for a in blockable if any(r.kind == "all_must_block" for r in combat_restrictions(a.attacker.card))]
+                if forced:  # "All creatures able to block this creature do so."
+                    self._block(seat, permanent, forced[0])
+                    continue
                 options = [NO_BLOCK] + [f"Block {self.game.label(a.attacker)}" for a in blockable]
                 choice = seat.player.choose(BLOCK_PROMPT + self.game.label(permanent), options)
                 if choice:
-                    attack = blockable[choice - 1]
-                    attack.blockers.append(permanent)
-                    self.game.trigger("blocks", permanent, seat)
-                    self.game.broadcast({"event": "block", "seat": seat.index, "card": permanent.card.name,
-                                         "attacker": attack.attacker.card.name})
+                    self._block(seat, permanent, blockable[choice - 1])
         for attack in self.attacks:
             # Menace: a creature blocked by only one creature is unblocked instead (CR 702.111b); so is one that can't be
             # blocked except by three or more, when fewer than that block it.
@@ -226,6 +226,16 @@ class Combat:
                                      "reason": "menace" if needed == 2 else f"needs {needed} blockers"})
                 attack.blockers = []
             attack.blocked = bool(attack.blockers)
+            if self.game.has_keyword(attack.attacker, "flanking"):  # blocked by a creature without flanking: -1/-1
+                for blocker in attack.blockers:
+                    if not self.game.has_keyword(blocker, "flanking"):
+                        self.game.modify_until_end_of_turn(blocker, Modifier(-1, -1))
+
+    def _block(self, seat: Seat, blocker: Permanent, attack: Attack) -> None:
+        attack.blockers.append(blocker)
+        self.game.trigger("blocks", blocker, seat)
+        self.game.broadcast({"event": "block", "seat": seat.index, "card": blocker.card.name,
+                             "attacker": attack.attacker.card.name})
 
     @staticmethod
     def _has_enough_blockers(attack: Attack) -> bool:
