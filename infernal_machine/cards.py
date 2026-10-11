@@ -38,6 +38,7 @@ class Card:
     back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
     prepare: "Card | None" = None  # a prepare card's spell half, which a prepared creature can cast a copy of
     conjured: bool = False  # Alchemy: made during the game, so not from anyone's starting deck
+    other_face: str = ""  # the name of a second face or half the engine can't play (an Adventure, a split card's other half ...)
 
     def __post_init__(self) -> None:
         """Changeling is every creature type in every zone, so its type line lists them all (and everything that looks for a
@@ -75,6 +76,12 @@ class Card:
                           color_identity=tuple(data.get("color_identity", [])),
                           commander_legal=data.get("legalities", {}).get("commander") == "legal",
                           scryfall_id=data.get("id"))
+        faces = data.get("card_faces", [])
+        other_face = ""
+        if data.get("layout") == "meld":
+            other_face = "the melded card"
+        elif len(faces) == 2 and (data.get("layout") in ("split", "adventure") or data.get("layout") == "modal_dfc" and back is None):
+            other_face = faces[1]["name"]  # only the first face is played: the other half or the back that isn't a land
         return cls(
             name=data["name"],
             mana_cost=face.get("mana_cost", ""),
@@ -91,6 +98,7 @@ class Card:
             scryfall_id=data.get("id"),
             back=back,
             prepare=prepare,
+            other_face=other_face,
         )
 
     @classmethod

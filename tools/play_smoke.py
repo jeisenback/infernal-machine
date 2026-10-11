@@ -1,0 +1,120 @@
+"""Does every card the report calls fully playable actually play? (the second half of the coverage audit)
+
+    python tools/play_smoke.py [--pool .cache/commander_pool.json] [--limit N]
+
+For each Commander-legal card whose lines the engine understands, builds a small game (twelve lands, a creature of each side,
+something in each graveyard), casts or plays the card, runs the stack, then activates up to three of its abilities, always taking
+the first option the game offers. A card that raises an exception, or takes more than a few seconds, is listed with the error.
+"Plays" means the engine does not crash and does not hang: whether each effect is right is for the card's tests.
+"""
+
+from __future__ import annotations
+
+import argparse
+import collections
+import json
+import os
+import signal
+import sys
+
+sys.path.insert(0, os.getcwd())
+
+from infernal_machine.cards import Card, Deck  # noqa: E402
+from infernal_machine.game import ACTIVATE, CAST, PLAY_LAND, Game, Permanent  # noqa: E402
+from infernal_machine.report import unsupported_lines  # noqa: E402
+from tests.test_effects import BEAR, COMMANDER, FOREST, OGRE, RAINBOW  # noqa: E402
+from tests.test_game import ScriptedPlayer  # noqa: E402
+from tests.test_more_triggers import run_stack  # noqa: E402
+
+TIMEOUT_SECONDS = 5
+
+
+class Hung(Exception):
+    pass
+
+
+def first_option(prompt: str, options: list[str]) -> int:
+    return 0
+
+
+def table(card: Card) -> tuple[Game, object]:
+    """Seat 0 has `card` and a land in hand, twelve lands and an untapped creature; seat 1 a couple of creatures."""
+    players = [ScriptedPlayer("A", first_option), ScriptedPlayer("B", first_option)]
+    deck = Deck(commanders=[COMMANDER], main=[FOREST] * 20, sideboard=[])
+    game = Game([(player, deck) for player in players], seed=1)
+    game.turn, game.active, game.step = 2, 0, "main1"
+    for seat in game.seats:
+        seat.hand, seat.command_zone = [], []
+    mine, theirs = game.seats
+    mine.battlefield = [Permanent(RAINBOW) for _ in range(12)] + [Permanent(BEAR, sick=False)]
+    theirs.battlefield = [Permanent(OGRE), Permanent(BEAR)]
+    mine.hand = [card, FOREST]
+    mine.graveyard, theirs.graveyard = [BEAR], [OGRE]
+    return game, mine
+
+
+def play(card: Card) -> bool:
+    """Cast or play the card and use some of its abilities; True if there was a way to cast or play it."""
+    game, mine = table(card)
+    name = card.name.split(" // ")[0]
+    ways = [x for x in game.legal_actions(mine) if name in x and x.startswith((CAST, PLAY_LAND))]
+    if ways:
+        game._perform(mine, ways[0])
+        run_stack(game)
+    game._check_state()
+    for _ in range(3):
+        abilities = [x for x in game.legal_actions(mine) if x.startswith(ACTIVATE) and name in x]
+        if not abilities:
+            break
+        game._perform(mine, abilities[0])
+        run_stack(game)
+    return bool(ways)
+
+
+def check(pool: list[dict], limit: int | None = None) -> tuple[int, int, dict[str, list[str]]]:
+    """(cards tried, cards that could be cast or played, errors -> the cards that raised them)."""
+    errors: dict[str, list[str]] = collections.defaultdict(list)
+    tried = cast = 0
+    can_time_out = hasattr(signal, "SIGALRM")
+    if can_time_out:
+        def hang(signum, frame):
+            raise Hung()
+        signal.signal(signal.SIGALRM, hang)
+    for data in pool:
+        card = Card.from_scryfall(data)
+        if unsupported_lines(card):
+            continue
+        if limit is not None and tried >= limit:
+            break
+        tried += 1
+        if can_time_out:
+            signal.alarm(TIMEOUT_SECONDS)
+        try:
+            cast += play(card)
+        except Hung:
+            errors["took more than %d seconds" % TIMEOUT_SECONDS].append(card.name)
+        except Exception as error:  # noqa: BLE001 - any failure is what this looks for
+            errors[f"{type(error).__name__}: {str(error)[:80]}"].append(card.name)
+        finally:
+            if can_time_out:
+                signal.alarm(0)
+    return tried, cast, errors
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--pool", default=".cache/commander_pool.json")
+    parser.add_argument("--limit", type=int, help="only the first N playable cards")
+    args = parser.parse_args(argv[1:])
+    with open(args.pool) as f:
+        pool = json.load(f)
+    tried, cast, errors = check(pool, args.limit)
+    failed = sum(len(cards) for cards in errors.values())
+    print(f"## Play smoke test: {tried - failed} of {tried} fully playable cards played without an error ({cast} could be cast or played)")
+    for message, cards in sorted(errors.items(), key=lambda kv: -len(kv[1])):
+        print(f"- {len(cards)} x `{message}`: {', '.join(sorted(cards)[:6])}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

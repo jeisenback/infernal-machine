@@ -67,6 +67,10 @@ class CardReport:
     problems: list[str]  # rules-text lines or costs the engine doesn't understand
 
 
+# One line for every card, so the audit counts them together: an Adventure, a split card's other half, a back that isn't a land.
+SECOND_FACE = "Second face or half of the card (an Adventure, a split half, a back face): not playable"
+
+
 def unsupported_lines(card: Card) -> list[str]:
     """What the engine can't do for this card: an empty list means it's fully playable."""
     problems = []
@@ -95,6 +99,8 @@ def unsupported_lines(card: Card) -> list[str]:
                           or is_cost_reduction_line(line) or is_granting_line(line) or is_group_mana_grant_line(line)):
             continue
         problems.append(line)
+    if card.other_face:  # only the first face is modeled: the card's other half can't be cast or played
+        problems.append(SECOND_FACE)
     if card.prepare is not None:  # a prepared creature casts a copy of this half, so its text has to work too
         problems += [f"{card.prepare.name}: {line}" for line in unsupported_lines(card.prepare)]
     return problems

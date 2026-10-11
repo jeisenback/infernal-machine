@@ -2051,9 +2051,12 @@ class Game:
         if has_keyword(card, "demonstrate") and prepared is None:
             ability = TriggeredAbility("cast", (Demonstrate(),), False, "Demonstrate")
             self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
-        for ability in triggered_abilities(card):  # "When you cast this spell, ..." (Hydroid Krasis)
+        for ability in triggered_abilities(card):  # "When you cast this spell, ..." (Hydroid Krasis, Artisan of Kozilek)
             if ability.event == "cast_self" and prepared is None:
-                self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, x=x))
+                cast_effects = list(ability.effects)
+                chosen = self._choose_targets(seat, cast_effects, card.name, colors=source_qualities(card))
+                if chosen is not None:  # (with no legal target the ability is removed, as any trigger is)
+                    self.stack.append(StackItem(card, seat, cast_effects, chosen[0], ability, x=x))
         for source in tapped or ():  # Study Hall, Path of Ancestry: "When that mana is spent to cast ..., scry"
             if self._mana_spent_matches(seat, source, card, from_command_zone, tapped):
                 if mana_spent_trigger(source.card).counters:  # Opal Palace: it enters with more counters

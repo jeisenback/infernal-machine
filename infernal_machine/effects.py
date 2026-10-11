@@ -7879,45 +7879,57 @@ def _split_compound_trigger(line: str) -> list[tuple[str, str]]:
 
 def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
     abilities = []
-    lines = [part for raw in _rules_text(card).splitlines() for part in _split_compound_trigger(raw.strip())]
-    for line, text in lines:
-        bare = _ABILITY_WORD.sub("", line)  # patterns read the line without "Council's dilemma — "; its text stays whole
-        if watched := _watch_triggers(line):
-            for event, watch, rest in watched:
-                effects, optional, once, condition = _event_body(
-                    rest, event in _SUBJECT_EVENTS,
-                    (event == "cast" and watch.caster != "you") or event in _SUBJECT_EVENTS)
-                if effects is not None:
-                    abilities.append(TriggeredAbility(event, tuple(effects), optional, text, watch, once, condition))
+    for raw in _rules_text(card).splitlines():
+        parts = [_trigger_part(line, text) for line, text in _split_compound_trigger(raw.strip())]
+        # A line that is several triggers ("When this enters and whenever an opponent draws ...") works only if every one of them
+        # is understood: half of what it says is not what the card does (and the audit must not call it playable).
+        if len(parts) > 1 and any(not found for found in parts):
             continue
-        if several := _SEVERAL_EVENTS.fullmatch(bare):
-            effects, optional, once, condition = _trigger_body(several[2])
-            if effects is not None:
-                for event, pattern in _SELF_EVENTS.items():
-                    if any(re.fullmatch(pattern, part, re.I) for part in several[1].split(" or ")):
-                        abilities.append(TriggeredAbility(event, tuple(effects), optional, text, once_per_turn=once,
-                                                          condition=condition))
-            continue
-        for event, pattern in _TRIGGERS.items():
-            match = pattern.fullmatch(bare)
-            if not match:
-                continue
-            aura_return = next((build() for pattern, build in _AURA_RETURNS if event == "host_dies"
-                                and pattern.fullmatch(match[1])), None)
-            if aura_return is not None:
-                effects, optional, once, condition = aura_return, False, False, None
-            elif event in _OBJECT_EVENTS or event in _PLAYER_EVENTS or event in _HOST_GONE:
-                effects, optional, once, condition = _event_body(match[1], event in _OBJECT_EVENTS,
-                                                                 event in _PLAYER_EVENTS)
-            else:
-                effects, optional, once, condition = _trigger_body(match[1])
-            if effects is not None and event != "dies" and any(isinstance(e, (ReturnSelfToBattlefield, ReturnSelfAsEnchantment)) for e in effects):
-                effects = None  # "return it to the battlefield": it is only gone when the creature has died
-            if effects is not None:
-                abilities.append(TriggeredAbility(event, tuple(effects), optional, text, once_per_turn=once,
-                                                  condition=condition))
-            break
+        for found in parts:
+            abilities.extend(found or ())
     return abilities
+
+
+def _trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
+    """The triggered abilities one line (or one half of a compound line) is: [] if it is not a trigger, None if it is
+    one that isn't fully understood."""
+    bare = _ABILITY_WORD.sub("", line)  # patterns read the line without "Council's dilemma — "; its text stays whole
+    if watched := _watch_triggers(line):
+        found = []
+        for event, watch, rest in watched:
+            effects, optional, once, condition = _event_body(
+                rest, event in _SUBJECT_EVENTS,
+                (event == "cast" and watch.caster != "you") or event in _SUBJECT_EVENTS)
+            if effects is None:
+                return None
+            found.append(TriggeredAbility(event, tuple(effects), optional, text, watch, once, condition))
+        return found
+    if several := _SEVERAL_EVENTS.fullmatch(bare):
+        effects, optional, once, condition = _trigger_body(several[2])
+        if effects is None:
+            return None
+        names = several[1].split(" or ")
+        return [TriggeredAbility(event, tuple(effects), optional, text, once_per_turn=once, condition=condition)
+                for event, pattern in _SELF_EVENTS.items() if any(re.fullmatch(pattern, part, re.I) for part in names)]
+    for event, pattern in _TRIGGERS.items():
+        match = pattern.fullmatch(bare)
+        if not match:
+            continue
+        aura_return = next((build() for pattern, build in _AURA_RETURNS if event == "host_dies"
+                            and pattern.fullmatch(match[1])), None)
+        if aura_return is not None:
+            effects, optional, once, condition = aura_return, False, False, None
+        elif event in _OBJECT_EVENTS or event in _PLAYER_EVENTS or event in _HOST_GONE:
+            effects, optional, once, condition = _event_body(match[1], event in _OBJECT_EVENTS,
+                                                             event in _PLAYER_EVENTS)
+        else:
+            effects, optional, once, condition = _trigger_body(match[1])
+        if effects is not None and event != "dies" and any(isinstance(e, (ReturnSelfToBattlefield, ReturnSelfAsEnchantment)) for e in effects):
+            effects = None  # "return it to the battlefield": it is only gone when the creature has died
+        if effects is None:
+            return None
+        return [TriggeredAbility(event, tuple(effects), optional, text, once_per_turn=once, condition=condition)]
+    return []
 
 
 @dataclass(frozen=True)
