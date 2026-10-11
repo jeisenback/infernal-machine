@@ -39,7 +39,7 @@ class Card:
     prepare: "Card | None" = None  # a prepare card's spell half, which a prepared creature can cast a copy of
     conjured: bool = False  # Alchemy: made during the game, so not from anyone's starting deck
     alternate: "Card | None" = None  # the other half that is cast from the hand instead: an Adventure, a split half, a modal back spell
-    other_face: str = ""  # the name of a second face the engine can't play (a Room, Aftermath, a back that is a permanent, a meld)
+    other_face: str = ""  # the name of a second face the engine can't play (a back that is a permanent, a meld)
 
     def __post_init__(self) -> None:
         """Changeling is every creature type in every zone, so its type line lists them all (and everything that looks for a
@@ -85,7 +85,7 @@ class Card:
         elif len(faces) == 2 and (data.get("layout") in ("split", "adventure") or data.get("layout") == "modal_dfc" and back is None):
             second = faces[1]
             castable = (data["layout"] == "adventure"
-                        or data["layout"] == "split" and "Aftermath" not in second.get("oracle_text", "")
+                        or data["layout"] == "split"
                         or data["layout"] == "modal_dfc" and re.search(r"\b(Instant|Sorcery)\b", second.get("type_line", "")))
             if castable:
                 alternate = cls(name=second["name"], mana_cost=second.get("mana_cost", ""), cmc=_mana_value(second.get("mana_cost", "")),
@@ -93,7 +93,7 @@ class Card:
                                 colors=tuple(second.get("colors") or _cost_colors(second.get("mana_cost", ""))), color_identity=tuple(data.get("color_identity", [])),
                                 commander_legal=data.get("legalities", {}).get("commander") == "legal", scryfall_id=data.get("id"))
             else:
-                other_face = second["name"]  # not played: a Room, the Aftermath half, or a back that is a permanent
+                other_face = second["name"]  # not played: a back that is a permanent
         cmc = _mana_value(face.get("mana_cost", "")) if data.get("layout") == "split" and "mana_cost" in face else float(data.get("cmc", 0))
         return cls(
             name=data["name"],

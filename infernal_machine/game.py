@@ -26,7 +26,7 @@ from .combat import Attack, Combat
 from .effects import (EVENTS, heard_on, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
-                      affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
+                      affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_bonus, mana_lines, mana_life_condition, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
@@ -779,7 +779,7 @@ class Game:
         for card in _unique(seat.hand):
             if not is_land(card) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card):
                 actions.append(CAST + card.name)
-            if (other := card.alternate) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, other)) \
+            if (other := card.alternate) and not is_aftermath(other) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, other)) \
                     and self._can_cast(seat, other):
                 actions.append(CAST + other.name)  # the Adventure, or the other half of a split card
         for card in seat.command_zone:
@@ -789,6 +789,9 @@ class Game:
             for cast in graveyard_casts(card)[:1]:
                 if not is_land(card) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card, graveyard=cast):
                     actions.append(CAST_GRAVEYARD + card.name)
+            if (other := card.alternate) and is_aftermath(other) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, other)) \
+                    and self._can_cast(seat, other, graveyard=graveyard_casts(other)[0]):
+                actions.append(CAST_GRAVEYARD + other.name)  # the Aftermath half
         for card in self._paragon_options(seat):
             if is_land(card):
                 if sorcery_timing and seat.lands_played < self._land_drops(seat):
@@ -1688,8 +1691,13 @@ class Game:
             self._cast(seat, card, seat.command_zone, from_command_zone=True)
             seat.commander_casts[name] = seat.commander_casts.get(name, 0) + 1
         elif action.startswith(CAST_GRAVEYARD):
-            card = next(c for c in seat.graveyard if c.name == action.removeprefix(CAST_GRAVEYARD))
-            self._cast(seat, card, seat.graveyard, graveyard=graveyard_casts(card)[0])
+            name = action.removeprefix(CAST_GRAVEYARD)
+            card = next((c for c in seat.graveyard if c.name == name), None)
+            if card is not None:
+                self._cast(seat, card, seat.graveyard, graveyard=graveyard_casts(card)[0])
+            else:  # the Aftermath half of a card in the graveyard
+                whole = next(c for c in seat.graveyard if c.alternate and c.alternate.name == name)
+                self._cast(seat, whole.alternate, seat.graveyard, graveyard=graveyard_casts(whole.alternate)[0], whole=whole)
         elif action.startswith(SUSPEND):
             card = next(c for c in seat.hand if c.name == action.removeprefix(SUSPEND))
             counters, cost = suspend_of(card)

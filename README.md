@@ -751,8 +751,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - The other half of a card (`Card.alternate`): an Adventure, a split card's second half and a modal card's back spell are
     cast from the hand under their own name, cost, color and mana value. A resolved Adventure goes to exile and the creature can
     be cast from there for as long as it stays; a countered or fizzled one goes to the graveyard. A split card has the first
-    half's cost and mana value, not the sum. Still not played (listed as "Second face or half"): Rooms, Aftermath halves, the
-    Fuse option, a modal back that is a permanent, and melds.
+    half's cost and mana value, not the sum. An Aftermath half is cast only from the graveyard (`CAST_GRAVEYARD`, like Flashback)
+    and is exiled whether it resolves, is countered or fizzles. Still not played (listed as "Second face or half"): the Fuse
+    option, a modal back that is a permanent, and melds.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
