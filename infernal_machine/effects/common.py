@@ -84,7 +84,10 @@ def rules_lines(card: Card) -> list[str]:
 
 
 _WHOLE_LINE = re.compile(
-    r"Exile the top four cards of your library in a face-down pile, then exile the top four cards of your library in a face-up pile\. An opponent chooses one of those piles\. Put that pile into your graveyard\. Look at the cards in the other pile\. You may cast a spell from among them without paying its mana cost\. Put the rest into your hand\."
+    r"Choose two target creature cards in your graveyard\. Sacrifice a creature\. If you do, return the chosen cards to the battlefield tapped\."  # Victimize
+    r"|Search your library for up to X basic land cards, where X is the greatest power among creatures you control\. Put those cards "
+    r"onto the battlefield tapped, then shuffle\."  # Traverse the Outlands
+    r"|Exile the top four cards of your library in a face-down pile, then exile the top four cards of your library in a face-up pile\. An opponent chooses one of those piles\. Put that pile into your graveyard\. Look at the cards in the other pile\. You may cast a spell from among them without paying its mana cost\. Put the rest into your hand\."
     r"|Council's dilemma — Starting with you, each player votes for past or present\. You mill a card for each past vote, "
     r"then CARDNAME deals damage to each opponent equal to the total mana value of cards milled this way\. Exile the top card "
     r"of your library for each present vote\. Until the end of your next turn, you may play the exiled cards\."

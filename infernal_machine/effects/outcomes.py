@@ -3562,17 +3562,18 @@ class LoseLife:
 class SearchForLands:
     """Land ramp: "Search your library for up to two basic land cards, reveal those cards, put one onto
     the battlefield tapped and the other into your hand, then shuffle." (Cultivate)"""
-    count: int  # up to this many
+    count: int | str  # up to this many ("X")
     subtypes: tuple[str, ...]  # () means basic lands; otherwise lands with one of these land types
-    battlefield: int  # how many go onto the battlefield (the rest go to the hand)
+    battlefield: int | str  # how many go onto the battlefield (the rest go to the hand); "X": all of them
     tapped: bool
     reveal: bool
     basic_only: bool = False  # "basic Plains cards": the land types and also basic
     share_type: bool = False  # "that share a land type"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.search_for_lands(controller, self.count, self.subtypes, self.battlefield, self.tapped, self.reveal, self.basic_only,
-                              self.share_type)
+        count = game.amount(self.count)  # Traverse the Outlands: up to X
+        game.search_for_lands(controller, count, self.subtypes, count if self.battlefield == "X" else self.battlefield, self.tapped,
+                              self.reveal, self.basic_only, self.share_type)
 
 
 RETURN_LAND_PROMPT = "Return which land to your hand? "
@@ -4022,12 +4023,50 @@ class PowerDamageToEachOther:
 
 @dataclass(frozen=True)
 class ReturnWithCounter:
-    """Persist and undying: the creature that died comes back with a counter on it."""
-    counter: str  # "-1/-1" (persist) or "+1/+1" (undying)
+    """Persist and undying: the creature that died comes back with a counter on it. With no counter and `tapped`, Malakir Rebirth's
+    "return it to the battlefield tapped under its owner's control"."""
+    counter: str = ""  # "-1/-1" (persist) or "+1/+1" (undying)
+    tapped: bool = False
     uses_dead_source = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.return_with_counter(target, self.counter)
+        game.return_with_counter(target, self.counter, self.tapped)
+
+
+@dataclass(frozen=True)
+class ChooseTarget:
+    """Malakir Rebirth: "Choose target creature." The sentences after it say "that creature"."""
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        pass
+
+
+@dataclass(frozen=True)
+class ReturnWhenItDiesThisTurn:
+    """Malakir Rebirth: 'Until end of turn, that creature gains "When this creature dies, return it to the battlefield tapped under its
+    owner's control."' (the game puts that trigger on the stack if the creature dies this turn)"""
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.returns_when_dies = game.turn
+
+
+@dataclass(frozen=True)
+class SacrificeToReturnChosen:
+    """Victimize: "Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the
+    battlefield tapped." """
+    target: str = "graveyard:creature:yours"
+    max_targets: int = 2
+    any_number = True
+    exact_x = True  # two, not fewer by choice
+    multi_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.sacrifice(controller):
+            for chosen in list(target or []):
+                game.return_from_graveyard(chosen, controller, "battlefield", tapped=True)
 
 
 @dataclass(frozen=True)
@@ -5247,6 +5286,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Attach(m[1].lower())),  # Mithril Coat
     (re.compile(r"you may cast a spell with mana value (\d+) or less from your hand without paying its mana cost\.", re.I),
      lambda m: MayCastFromHandFree(int(m[1]))),  # Rishkar's Expertise
+    (re.compile(r"choose two target creature cards in your graveyard\. sacrifice a creature\. if you do, return the chosen cards to the "
+                r"battlefield tapped\.", re.I), lambda m: SacrificeToReturnChosen()),  # Victimize
+    (re.compile(r"choose target (creature)\.", re.I), lambda m: ChooseTarget(m[1].lower())),
+    (re.compile(r"until end of turn, that creature gains \"when this creature dies, return it to the battlefield tapped under its owner's "
+                r"control\.\"", re.I), lambda m: ReturnWhenItDiesThisTurn()),  # Malakir Rebirth
+    (re.compile(r"search your library for up to X basic land cards, where X is the greatest power among creatures you control\. put those "
+                r"cards onto the battlefield tapped, then shuffle\.", re.I),
+     lambda m: [DefineX(Amount("greatest_power", "creature")), SearchForLands("X", (), "X", True, False)]),  # Traverse the Outlands
     (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
     (re.compile(r"proliferate (X) times\.", re.I), lambda m: Proliferate("X")),
     (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),

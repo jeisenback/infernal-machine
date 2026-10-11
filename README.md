@@ -781,6 +781,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
     trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
     in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - Three single cards from the popularity passes (`tests/test_remaining_cards.py`): Victimize (choose two creature cards in your graveyard,
+    sacrifice a creature, and if you do they return tapped), Malakir Rebirth ("that creature gains 'When this creature dies, return it to the
+    battlefield tapped' until end of turn": `Permanent.returns_when_dies` holds the turn, and the game puts the trigger on the stack when
+    it dies that turn) and Traverse the Outlands ("up to X basic land cards, where X is the greatest power among creatures you control").
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
