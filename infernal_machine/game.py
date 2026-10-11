@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -712,23 +712,23 @@ class Game:
             actions += [PLAY_LAND + c.name for c in _unique(seat.hand) if is_land(c)]
             actions += [PLAY_LAND + c.back.name for c in _unique(seat.hand) if c.back]  # a Pathway's other face
         for card in _unique(seat.hand):
-            if not is_land(card) and (sorcery_timing or seat.flash_turn == self.turn or _instant_speed(card)) and self._can_cast(seat, card):
+            if not is_land(card) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card):
                 actions.append(CAST + card.name)
         for card in seat.command_zone:
-            if (sorcery_timing or seat.flash_turn == self.turn or _instant_speed(card)) and self._can_cast(seat, card, from_command_zone=True):
+            if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card, from_command_zone=True):
                 actions.append(CAST_COMMANDER + card.name)
         for card in _unique(seat.graveyard):
             for cast in graveyard_casts(card)[:1]:
-                if not is_land(card) and (sorcery_timing or seat.flash_turn == self.turn or _instant_speed(card)) and self._can_cast(seat, card, graveyard=cast):
+                if not is_land(card) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card, graveyard=cast):
                     actions.append(CAST_GRAVEYARD + card.name)
         for card in self._paragon_options(seat):
             if is_land(card):
                 if sorcery_timing and seat.lands_played < 1:
                     actions.append(PLAY_PARAGON + card.name)
-            elif (sorcery_timing or seat.flash_turn == self.turn or _instant_speed(card)) and self._can_cast(seat, card):
+            elif (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card):
                 actions.append(CAST_PARAGON + card.name)
         for card in _unique(seat.hand):  # Suspend N: pay the cost, exile it with time counters
-            if (suspend := suspend_of(card)) and (sorcery_timing or seat.flash_turn == self.turn or _instant_speed(card)) \
+            if (suspend := suspend_of(card)) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) \
                     and self._payment(seat, dataclasses.replace(card, mana_cost=suspend[1])) is not None:
                 actions.append(SUSPEND + card.name)
         if sorcery_timing:
@@ -741,10 +741,10 @@ class Game:
             if is_land(card):
                 if sorcery_timing and seat.lands_played < 1:
                     actions.append(PLAY_EXILE + card.name)
-            elif (sorcery_timing or seat.flash_turn == self.turn or _instant_speed(card)) and self._can_cast(seat, card):
+            elif (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card):
                 actions.append(CAST_EXILE + card.name)
         for spell in _unique([p.card.prepare for p in seat.battlefield if p.prepared and p.card.prepare]):
-            if (sorcery_timing or seat.flash_turn == self.turn or _instant_speed(spell)) and self._can_cast(seat, spell):
+            if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, spell)) and self._can_cast(seat, spell):
                 actions.append(CAST_PREPARED + spell.name)
         actions += [TURN_UP + self.label(p) for p in self._turn_up_options(seat)]  # manifested creature cards
         for card in _unique(seat.hand):
@@ -777,6 +777,8 @@ class Game:
 
     def _can_activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility, sorcery_timing: bool) -> bool:
         card = permanent.card
+        if self._ability_barred(permanent):
+            return False
         if ability.sorcery_speed and not sorcery_timing:
             return False
         if ability.tap and (permanent.tapped or (permanent.sick and "Creature" in card.type_line
@@ -937,8 +939,69 @@ class Game:
     def commander_tax(self, seat: Seat, card: Card) -> int:
         return COMMANDER_TAX * seat.commander_casts.get(card.name, 0)
 
+    def _static_rules(self) -> list[tuple[Seat, Permanent, str]]:
+        """Every rules-changing static ability on the battlefield: (its controller, the permanent, its key)."""
+        return [(s, p, key) for s in self.live_seats() for p in s.battlefield if not self.loses_abilities(p)
+                for key in rules_statics(p.card)]
+
+    def _instant_speed(self, seat: Seat, card: Card) -> bool:
+        """Whether `seat` may cast `card` at instant speed: an instant, flash, or a permanent that lets it ("You may cast creature
+        spells as though they had flash")."""
+        if _instant_speed(card):
+            return True
+        return any(owner is seat and key.startswith("flash:") and _flash_covers(key.removeprefix("flash:"), card)
+                   for owner, _, key in self._static_rules())
+
+    def _cast_barred(self, seat: Seat, card: Card) -> bool:
+        """Whether a static ability stops `seat` casting `card` now: "Your opponents can't cast spells during your turn" (Kutzil),
+        "... during combat" (Marisi), one spell a turn (Rule of Law), "You can't cast creature spells" (Steel Golem)."""
+        casts = sum(1 for turn, _ in seat.cast_log if turn == self.turn)
+        for owner, _, key in self._static_rules():
+            if key == "opp_no_cast:turn" and owner is not seat and self.seats[self.active] is owner:
+                return True
+            if key == "opp_no_cast:combat" and owner is not seat and self.step in COMBAT_STEPS:
+                return True
+            if key == "one_spell:each" and casts >= 1 or key == "one_spell:you" and owner is seat and casts >= 1:
+                return True
+            if owner is seat and key.startswith("no_cast_kind:") and ("Creature" in card.type_line) == (key.endswith(":creature")):
+                return True
+        return False
+
+    def _land_type_mana(self, land: Permanent) -> frozenset[str]:
+        """The mana a land can make because a static ability gives it basic land types: "Each land is a Swamp" (Urborg) for every
+        land, "Lands you control are every basic land type" (Dryad of the Ilysian Grove) for its controller's."""
+        controller = self.controller_of(land)
+        mana: set[str] = set()
+        for owner, _, key in self._static_rules():
+            if key == "land_type:all_yours" and owner is controller:
+                mana |= set("WUBRG")
+            elif key.startswith("land_type:") and key != "land_type:all_yours":
+                mana.add(key.removeprefix("land_type:"))
+        return frozenset(mana)
+
+    def _ability_barred(self, permanent: Permanent) -> bool:
+        """Whether a static ability stops the abilities of `permanent` being activated: Stony Silence (artifacts), Grand Abolisher
+        (an opponent's artifacts, creatures and enchantments, on its controller's turn). A land's mana ability is not stopped by the
+        second."""
+        controller = self.controller_of(permanent)
+        for owner, _, key in self._static_rules():
+            if key == "lock:Artifact" and "Artifact" in permanent.card.type_line:
+                return True
+            if key.startswith("opp_lock:") and owner is not controller and self.seats[self.active] is owner \
+                    and any(t in permanent.card.type_line for t in key.removeprefix("opp_lock:").split(",")):
+                return True
+        return False
+
+    def uncounterable(self, item: StackItem) -> bool:
+        """Whether a permanent its controller has says the spell can't be countered (Rhythm of the Wild, Hexing Squelcher)."""
+        return any(owner is item.controller and (key == "uncounterable:spell" or key == "uncounterable:creature"
+                                                 and "Creature" in item.card.type_line)
+                   for owner, _, key in self._static_rules())
+
     def _can_cast(self, seat: Seat, card: Card, from_command_zone: bool = False,
                   graveyard: GraveyardCast | None = None) -> bool:
+        if self._cast_barred(seat, card):
+            return False
         if not self._cast_ways(seat, card, from_command_zone, graveyard):
             return False
         effects, colors = kicked_effects(_effects(card), 0) or [], source_qualities(card)
@@ -1046,6 +1109,8 @@ class Game:
         for permanent in seat.battlefield:
             if permanent.tapped or permanent is exclude or self.loses_abilities(permanent):
                 continue
+            if not is_land(permanent.card) and self._ability_barred(permanent):
+                continue  # Stony Silence, Grand Abolisher: its mana ability can't be activated either
             card = permanent.card
             if grants and not is_land(card) and (given := tuple(line for kind, line in grants if kind in card.type_line)):
                 card = with_granted_mana(card, given)  # Goldspan Dragon, Galazeth Prismari
@@ -1101,6 +1166,7 @@ class Game:
                     types = self._reflected_types(seat, *reflect)
                     if not types:
                         continue
+                types = types | self._land_type_mana(permanent)  # Urborg: it is a Swamp too
                 lands.extend([ManaSource(permanent, _snowy(permanent, types), pain, damage)] + extra)
             elif not (permanent.sick and "Creature" in card.type_line and not mana_ability_needs_no_tap(card)):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
@@ -5314,6 +5380,15 @@ def _targets_a_creature(card: Card) -> bool:
     if (enchants := aura_kind(card)) is not None:
         return "creature" in enchants
     return any("creature" in (target_kind(e) or "") for e in (_effects(card) or []))
+
+
+COMBAT_STEPS = {"beginning_of_combat", "declare_attackers", "declare_blockers", "combat_damage", "end_of_combat"}
+
+
+def _flash_covers(kind: str, card: Card) -> bool:
+    """Whether "You may cast <kind> spells as though they had flash" covers `card`: "spell" is any, "creature", "sorcery", or a
+    creature type ("spirit")."""
+    return kind == "spell" or kind in card.type_line.lower().replace("\u2014", " ").split()
 
 
 def _instant_speed(card: Card) -> bool:

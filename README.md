@@ -662,6 +662,21 @@ winner = game.play()
     prevented") beats all of these. Prevented damage is not dealt, so there is no lifelink, poison, commander damage or combat
     damage trigger for it. Not read: sources of your choice (Circles of Protection), enchanted creature, divided and X shields,
     redirection; the full list is in issue #235.
+  - Rules-changing statics (#204), read from the permanent's own text:
+    - "Creature spells you control can't be countered" / "Spells you control can't be countered": a counterspell does nothing
+      to them.
+    - "You may cast spells / creature spells / sorcery spells / Spirit spells as though they had flash": castable at instant
+      speed by its controller.
+    - "Your opponents can't cast spells during your turn" / "... during combat"; "Each player can't cast more than one spell each
+      turn" / "You can't cast more than one spell each turn"; "You can't cast creature spells" / "noncreature spells".
+    - "Activated abilities of artifacts can't be activated" (Stony Silence), including their mana abilities; Grand Abolisher
+      ("During your turn, your opponents can't cast spells or activate abilities of artifacts, creatures, or enchantments"),
+      where a land's mana ability is not stopped.
+    - "Each land is a Swamp / Forest in addition to its other land types" (Urborg, Yavimaya, for every player's lands) and "Lands
+      you control are every basic land type" (Dryad of the Ilysian Grove): the land can also tap for that color. Only plain
+      basic-style lands get the extra mana; a land that is already special (a painland's pain, a filter land, a bounce land) and
+      conditions that look for a Swamp are not changed. Not read: "Enchanted land is a Swamp", "pay {2} more to cast it with
+      flash", "each opponent can cast spells only at sorcery speed" (Teferi, Time Raveler).
   - Panharmonicon and Yarok: a triggered ability of a permanent you control that triggers because an artifact or creature
     (or any permanent) entered triggers an additional time; each such permanent adds one. Both the entering
     permanent's own "When this enters" and watching "Whenever another creature enters" abilities count.
