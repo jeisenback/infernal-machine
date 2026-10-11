@@ -5181,11 +5181,17 @@ _RETRACE = re.compile(r"Retrace")
 _BESTOW = re.compile(r"Bestow ((?:\{[^}]+\})+)")
 _ENCORE = re.compile(r"Encore ((?:\{[^}]+\})+)")
 _UNEARTH = re.compile(r"Unearth ((?:\{[^}]+\})+)")
+_MADNESS = re.compile(r"Madness ((?:\{[^}]+\})+)")
 
 
 def bestow_aura(card: Card) -> Card:
     """The card as it is while a bestow spell or an Aura permanent: an Aura with enchant creature, not a creature."""
     return dataclasses.replace(card, type_line="Enchantment " + chr(0x2014) + " Aura", oracle_text=card.oracle_text + chr(10) + "Enchant creature")
+
+
+def madness_cost(card: Card) -> str | None:
+    """Madness {cost}: when the card is discarded it goes to exile, and its owner may cast it for this cost."""
+    return next((m[1] for line in rules_lines(card) if (m := _MADNESS.fullmatch(line))), None)
 
 
 def unearth_cost(card: Card) -> str | None:
@@ -5439,7 +5445,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _X_LIMIT, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
