@@ -121,6 +121,9 @@ COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "P
 ENTWINE_PROMPT = "Pay the entwine cost for "  # followed by the spell's name; options: YES_NO
 MADNESS_PROMPT = "Cast it for its madness cost: "  # followed by the card's name; options: YES_NO
 BUYBACK_PROMPT = "Pay the buyback cost for "  # followed by the spell's name; options: YES_NO
+SYLVAN_PROMPT = "Draw two additional cards with Sylvan Library? "  # options: Yes, No
+SYLVAN_CHOOSE_PROMPT = "Choose a card you drew this turn: "  # asked twice, for the two cards
+SYLVAN_PAY_PROMPT = "Pay life for it or put it on top of your library: "  # followed by the card's name
 REBOUND_PROMPT = "Cast it again with rebound: "  # followed by the card's name; options: YES_NO
 KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
@@ -391,6 +394,8 @@ class Seat:
     x_rider_count: int = 0
     copy_next_per_commander: bool = False  # ... once per time the commander was cast from the command zone (Thunderclap Drake)
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
+    drawn_turn: int | None = None  # the turn `drawn_cards` are from
+    drawn_cards: list = field(default_factory=list)  # the cards it drew that turn (Sylvan Library)
     protected: bool = False  # protection from everything until its next turn begins (The One Ring)
     life_locked: bool = False  # its life total can't change until its next turn begins (Teferi's Protection)
     extra_lands: int = 0  # additional lands this player may play on `extra_lands_turn` (Explore)
@@ -2979,6 +2984,9 @@ class Game:
                 return
             card = seat.library.pop(0)
             seat.hand.append(card)
+            if seat.drawn_turn != self.turn:
+                seat.drawn_turn, seat.drawn_cards = self.turn, []
+            seat.drawn_cards.append(card)
             if announce:
                 seat.player.notify({"event": "draw", "card": card.name})
                 self.broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
@@ -2987,6 +2995,30 @@ class Game:
                 seat.draw_count += 1
                 self.happened("drew", seat, *(["extra"] if not self._draw_step_draw else []),
                               *(["second"] if seat.draw_count == 2 else []))
+
+    def sylvan_library(self, seat: Seat, life: int) -> None:
+        """Sylvan Library: the player may draw two more cards; if they do they choose two cards of those drawn this turn (the
+        draw step's own card too), and for each either pays life or puts it back on top of the library."""
+        if seat.player.choose(SYLVAN_PROMPT, ["Yes", "No"]) != 0:
+            return
+        self.draw(seat, 2)
+        remaining = list(seat.hand)
+        pool = []
+        for card in seat.drawn_cards:  # those still in hand (equal cards are interchangeable)
+            if card in remaining:
+                remaining.remove(card)
+                pool.append(card)
+        chosen = []
+        for _ in range(min(2, len(pool))):
+            pick = pool.pop(seat.player.choose(SYLVAN_CHOOSE_PROMPT, [c.name for c in pool]))
+            chosen.append(pick)
+        for card in chosen:
+            options = ["Put it on top of your library"] + ([f"Pay {life} life"] if seat.life > life else [])
+            if seat.player.choose(SYLVAN_PAY_PROMPT + card.name, options) == 0:
+                seat.hand.remove(card)
+                seat.library.insert(0, card)
+            else:
+                self.change_life(seat, -life)
 
     def change_life(self, seat: Seat, amount: int) -> None:
         if seat.life_locked:  # Teferi's Protection: no life is gained or lost
