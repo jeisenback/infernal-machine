@@ -3872,6 +3872,27 @@ class Tap:
 
 
 @dataclass(frozen=True)
+class PutStunCounters:
+    """ "Put a stun counter on it." / "... on that creature.": the target of the effect before it."""
+    count: int | str = 1
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.put_counters(target, "stun", game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class PutStunOnEach:
+    """ "Put a stun counter on each of them." after "Tap up to two target creatures.": _merge_stun puts a stun counter after
+    each tap, so this is never resolved itself."""
+    count: int | str = 1
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        pass
+
+
+@dataclass(frozen=True)
 class TapThat:
     """ "Tap it." / "Tap that creature.": the target of the effect before it."""
     follows_target = True
@@ -3970,7 +3991,7 @@ class UntapCreatures:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for permanent in controller.battlefield:
             if "Creature" in permanent.card.type_line and (self.which == "yours" or permanent.attacked_turn == game.turn):
-                permanent.tapped = False
+                game.untap(permanent)
 
 
 @dataclass(frozen=True)
@@ -3983,7 +4004,7 @@ class Untap:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            target.tapped = False
+            game.untap(target)
 
 
 UNTAP_LANDS_PROMPT = "Untap which land? "
@@ -4006,7 +4027,7 @@ class UntapLands:
             choice = controller.player.choose(UNTAP_LANDS_PROMPT, [game.label(p) for p in tapped] + [DONE])
             if choice >= len(tapped):
                 return
-            tapped[choice].tapped = False
+            game.untap(tapped[choice])
             game.broadcast({"event": "untapped", "seat": controller.index, "card": tapped[choice].card.name})
 
 
@@ -4017,7 +4038,7 @@ class UntapSource:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            target.tapped = False
+            game.untap(target)
 
 
 @dataclass(frozen=True)
@@ -4641,11 +4662,17 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
 # "up to two target creatures": the plural kinds, and the singular they stand for
 _PLURAL_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments": "enchantment",
                  "planeswalkers": "planeswalker", "permanents": "permanent", "nonland permanents": "nonland permanent",
-                 "creature tokens": "creature token", "lands": "land", "artifacts or enchantments": "artifact or enchantment"}
+                 "creature tokens": "creature token", "lands": "land", "artifacts or enchantments": "artifact or enchantment",
+                 "artifacts and/or creatures": "artifact or creature"}
 
 
-_PLURAL_KIND = (r"(creature tokens|nonland permanents|artifacts or enchantments|creatures|artifacts|enchantments|planeswalkers"
-                r"|permanents|lands)( an opponent controls| you don't control| you control)?")
+_PLURAL_KIND = (r"(creature tokens|nonland permanents|artifacts or enchantments|artifacts and/or creatures|creatures|artifacts|enchantments|planeswalkers"
+                r"|permanents|lands)( an opponent controls| you don't control| you control| your opponents control)?")
+
+
+def _suffix(controller: str | None) -> str:
+    """The controller phrase after a plural kind, in the singular form targets are written in."""
+    return (controller or "").replace("your opponents control", "an opponent controls")
 
 
 _UP_TO = r"up to (two|three|four)"
@@ -4653,7 +4680,7 @@ _UP_TO = r"up to (two|three|four)"
 
 def _up_to(cls: type, m: re.Match, **fixed: Any) -> list:
     """"... up to two target creatures ..." is two effects with one optional, distinct target each."""
-    kind = _PLURAL_KINDS[m[2].lower()] + (m[3] or "")
+    kind = _PLURAL_KINDS[m[2].lower()] + _suffix(m[3])
     return [cls(kind, optional_target=True, distinct=n > 0, **fixed) for n in range(_count(m[1]))]
 
 
@@ -4705,7 +4732,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals (\d+) damage divided as you choose among any number of targets\.", re.I),
      lambda m: [Damage(1, "any", optional_target=n > 0) for n in range(int(m[1]))]),  # a point at a time
     (re.compile(rf"tap (two|three) target {_PLURAL_KIND}\.", re.I),
-     lambda m: [Tap(_PLURAL_KINDS[m[2].lower()] + (m[3] or ""), distinct=n > 0) for n in range(_count(m[1]))]),
+     lambda m: [Tap(_PLURAL_KINDS[m[2].lower()] + _suffix(m[3]), distinct=n > 0) for n in range(_count(m[1]))]),
     (re.compile(rf"destroy (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Destroy(m[2].lower(), bool(m[1]))),
     (re.compile(rf"destroy each {_PERMANENT_KIND}\.", re.I), lambda m: DestroyAll(m[1].lower())),
     (re.compile(r"destroy each artifact, creature, and enchantment with mana value X or less\.", re.I),
@@ -4829,8 +4856,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnThisFromGraveyard(to="hand")),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[2].lower(), bool(m[1]))),
     (re.compile(rf"exile {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Exile, m)),
-    (re.compile(rf"destroy X target {_PLURAL_KIND}\.", re.I), lambda m: DestroyX(_PLURAL_KINDS[m[1].lower()] + (m[2] or ""))),
-    (re.compile(rf"exile X target {_PLURAL_KIND}\.", re.I), lambda m: ExileX(_PLURAL_KINDS[m[1].lower()] + (m[2] or ""))),
+    (re.compile(rf"destroy X target {_PLURAL_KIND}\.", re.I), lambda m: DestroyX(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2]))),
+    (re.compile(rf"exile X target {_PLURAL_KIND}\.", re.I), lambda m: ExileX(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2]))),
     (re.compile(r"destroy up to X target artifacts and/or enchantments\.", re.I),
      lambda m: DestroyUpToX("artifact or enchantment")),
     (re.compile(r"choose any number of target creatures you control\.", re.I), lambda m: _ChooseAnyNumber("creature you control")),
@@ -4891,7 +4918,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                             distinct=(m[1] or "").lower() == "another ")),
     (re.compile(rf"return {_UP_TO} target {_PLURAL_KIND} to their owners' hands\.", re.I), lambda m: _up_to(ReturnToHand, m)),
     (re.compile(rf"return (five|six|seven) target {_PLURAL_KIND} to their owners' hands\.", re.I),  # Aether Gale: exactly that many
-     lambda m: [ReturnToHand(_PLURAL_KINDS[m[2].lower()] + (m[3] or ""), distinct=n > 0) for n in range(_count(m[1]))]),
+     lambda m: [ReturnToHand(_PLURAL_KINDS[m[2].lower()] + _suffix(m[3]), distinct=n > 0) for n in range(_count(m[1]))]),
     (re.compile(rf"return all {_CARDS_PLURAL} from your graveyard to (the battlefield|your hand)\.", re.I),
      lambda m: ReturnAllFromGraveyard(_card_kind(re.sub(r"\bcards\b", "card", m[1])), "battlefield" if m[2].lower() == "the battlefield" else "hand")),
     (re.compile(rf"return all {_MASS_FILTERED} to (?:their owners' hands|their owner's hand)\.", re.I), lambda m: _mass_effect(ReturnAllToHand, m)),
@@ -5117,6 +5144,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"that creature gains haste until end of turn\.", re.I),
      lambda m: PumpSource(Modifier(keywords=frozenset({"haste"})))),
     (re.compile(r"tap (?:it|that creature)\.", re.I), lambda m: TapThat()),
+    (re.compile(rf"put {_N} stun counters? on (?:it|that creature)\.", re.I), lambda m: PutStunCounters(_count(m[1]))),
+    (re.compile(rf"tap target {_PERMANENT_KIND} and put {_N} stun counters? on (?:it|that creature)\.", re.I),
+     lambda m: [Tap(m[1].lower()), PutStunCounters(_count(m[2]))]),
+    (re.compile(rf"put {_N} stun counters? on each of them\.", re.I), lambda m: PutStunOnEach(_count(m[1]))),
+    (re.compile(rf"tap {_UP_TO} target {_PLURAL_KIND} and put {_N} stun counters? on each of them\.", re.I),
+     lambda m: [*_up_to(Tap, m), PutStunOnEach(_count(m[4]))]),
+    (re.compile(rf"tap one or two target {_PLURAL_KIND}\.", re.I),
+     lambda m: [Tap(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2])),
+                Tap(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2]), optional_target=True, distinct=True)]),
+    (re.compile(rf"tap up to one target {_PERMANENT_KIND} and put {_N} stun counters? on it\.", re.I),
+     lambda m: [Tap(m[1].lower(), optional_target=True), PutStunCounters(_count(m[2]))]),
     (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
     (re.compile(r"proliferate (X) times\.", re.I), lambda m: Proliferate("X")),
     (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
@@ -5683,7 +5721,7 @@ def _parse(sentences: list[str]) -> list | None:
         if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
             return None  # "instead" has to change the effect just before it
     merged = _merge_no_regen(effects)
-    for merge in (_merge_three_way, _merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_conditional, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
+    for merge in (_merge_three_way, _merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_conditional, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_stun, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
@@ -5742,6 +5780,24 @@ def _merge_control(effects: list) -> list | None:
             merged[-1] = dataclasses.replace(merged[-1], haste=True)
         else:
             merged.append(effect)
+    return merged
+
+
+def _merge_stun(effects: list) -> list | None:
+    """"Tap up to two target creatures. Put a stun counter on each of them." is a stun counter after each tap; a lone "each of
+    them" has nothing to refer to, so the line isn't understood."""
+    merged: list = []
+    for effect in effects:
+        if not isinstance(effect, PutStunOnEach):
+            merged.append(effect)
+            continue
+        taps: list = []
+        while merged and isinstance(merged[-1], Tap):
+            taps.insert(0, merged.pop())
+        if not taps:
+            return None
+        for tap in taps:
+            merged += [tap, PutStunCounters(effect.count)]
     return merged
 
 

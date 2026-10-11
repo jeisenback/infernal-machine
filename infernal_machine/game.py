@@ -598,7 +598,7 @@ class Game:
                         seat.player.choose(UNTAP_PROMPT + permanent.card.name, ["Untap", "Leave tapped"]) != 0:
                     pass  # Hollow Trees: left tapped to collect a storage counter at upkeep
                 else:
-                    permanent.tapped = False
+                    self.untap(permanent)
                 permanent.sick = False
                 permanent.until_next_turn = []
             for other in self.live_seats():  # goad lasts until the goader's next turn
@@ -613,19 +613,20 @@ class Game:
                         for key in rules_statics(source.card):
                             if key == "untap_others":
                                 for permanent in other.battlefield:
-                                    permanent.tapped = False
+                                    self.untap(permanent)
                             elif key == "untap_others:artifact":  # Unwinding Clock
                                 for permanent in other.battlefield:
-                                    permanent.tapped = permanent.tapped and "Artifact" not in permanent.card.type_line
+                                    if "Artifact" in permanent.card.type_line:
+                                        self.untap(permanent)
                             elif key == "untap_others:self":  # Bender's Waterskin
-                                source.tapped = False
+                                self.untap(source)
             for other in self.live_seats():  # Quest for Renewal: untap in each other player's untap step too
                 if other is not seat and any(
                         (rule := untaps_in_other_untap_steps(p.card)) and p.counters.get(rule[0], 0) >= rule[1]
                         for p in other.battlefield):
                     for permanent in other.battlefield:
                         if "Creature" in permanent.card.type_line:
-                            permanent.tapped = False
+                            self.untap(permanent)
         elif self.step == "draw":
             # CR 103.8a: only a two-player game skips the first player's first draw.
             if not (self.turn == 1 and not self.multiplayer):
@@ -1127,6 +1128,15 @@ class Game:
             # "target creature with mana value X": some X it can pay for has to match a creature
             return bool(self._x_values_with_targets(seat, effects, colors, self._max_x(seat, card, from_command_zone, ())))
         return True
+
+    def untap(self, permanent: Permanent) -> None:
+        """Untap a permanent. One with a stun counter loses a stun counter instead and stays tapped."""
+        if not permanent.tapped:
+            return
+        if permanent.counters.get("stun"):
+            self.remove_counters(permanent, "stun", 1)
+        else:
+            permanent.tapped = False
 
     def tap(self, permanent: Permanent) -> None:
         """Tap a permanent. A tapped one stays as it is; one that becomes tapped is seen by "Whenever a creature you
@@ -2443,7 +2453,7 @@ class Game:
     def untap_all(self, seat: Seat, kind: str) -> None:
         for permanent in seat.battlefield:
             if _permanent_matches(kind, permanent.card):
-                permanent.tapped = False
+                self.untap(permanent)
 
     def detach(self, attachment: Permanent) -> None:
         """An Equipment stops being attached; a Reconfigure creature becomes a creature again."""
@@ -3859,7 +3869,7 @@ class Game:
         if until_eot:
             permanent.control_eot = True
         if untap:
-            permanent.tapped = False
+            self.untap(permanent)
         if haste:
             self.modify_until_end_of_turn(permanent, Modifier(0, 0, frozenset({"haste"})))
 

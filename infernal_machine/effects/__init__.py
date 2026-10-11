@@ -171,6 +171,7 @@ from .outcomes import (  # noqa: F401
     TargetChooseDiscard,
     TargetControllerCreatesTokens,
     ManifestDread,
+    PutStunCounters,
     TargetControllerManifests,
     TargetCreatesTokens,
     TargetDiscard,
