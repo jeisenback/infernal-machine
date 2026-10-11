@@ -26,7 +26,7 @@ from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
-                      affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count,
+                      affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
                       self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
@@ -287,6 +287,7 @@ class StackItem:
     escaped: bool = False  # cast for its escape cost
     bestowed: bool = False  # cast for its bestow cost: an Aura spell that may resolve as a creature
     sacrificed_power: int = 0  # for an ability: the power of the creature sacrificed to pay for it
+    tapped_power: int = 0  # for an ability: the power of the creature tapped to pay for it (Station)
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
 
 
@@ -421,6 +422,7 @@ class Game:
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
         self.targeting_max: int | None = None  # how many targets "any number of target ..." may have (Strive: what the mana pays for)
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
+        self.cost_tapped_power = 0  # the power of what the ability being activated tapped as a cost (Station)
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
@@ -860,9 +862,12 @@ class Game:
                 member = options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])]
                 self.tap(member)
                 crewed += self.power(member)
+        self.cost_tapped_power = 0
         for _ in range(ability.tap_creatures):  # like crewing, but a fixed number of creatures
             options = self._crew_candidates(seat, source)
-            self.tap(options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])])
+            member = options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])]
+            self.cost_tapped_power += self.power(member)
+            self.tap(member)
         for _ in range(ability.discard):
             card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT + name, [c.name for c in seat.hand])]
             seat.hand.remove(card)
@@ -1033,7 +1038,8 @@ class Game:
                 if not per[0] and not (permanent.sick and "Creature" in card.type_line):
                     lands.extend(ManaSource(permanent, frozenset(per[1]))
                                  for _ in range(sum(_has_type(p.card, per[2]) for p in seat.battlefield)))
-                continue
+                if not per[0] or mana_ability(card, seat.color_identity) is None:
+                    continue  # (Cabal Coffers has only the ability that costs mana; Evendo's plain {T}: Add {G} is read below)
             if is_land(card):
                 if life_cost := mana_life_cost(card):
                     if seat.life > life_cost:  # Mana Confluence: paying life, never down to 0
@@ -1365,7 +1371,8 @@ class Game:
             ability = filter_mana_ability(permanent.card)
             if ability:
                 found.append((permanent, parse_cost(ability[0]), ability[1]))
-            elif (per := mana_per_count(permanent.card)) is not None and per[0]:  # Cabal Coffers
+            elif (per := mana_per_count(permanent.card)) is not None and per[0] \
+                    and permanent.counters.get("charge", 0) >= mana_threshold(permanent.card):  # Cabal Coffers, Evendo
                 units = [frozenset(per[1])] * sum(_has_type(p.card, per[2]) for p in seat.battlefield)
                 if units:
                     found.append((permanent, parse_cost(per[0]), units))
@@ -1593,7 +1600,7 @@ class Game:
             self._leave_battlefield(permanent, "exiled" if ability.exile_source else "returned",
                                     destination="exile" if ability.exile_source else "hand")
         item = StackItem(permanent.card, seat, effects, targets, ability, permanent, x=x,
-                         sacrificed_power=self.cost_sacrificed_power)
+                         sacrificed_power=self.cost_sacrificed_power, tapped_power=self.cost_tapped_power)
         self.stack.append(item)
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
@@ -2111,6 +2118,8 @@ class Game:
             return controller.creatures_entered if controller.creatures_entered_turn == self.turn else 0
         if kind == "sacrificed_power":  # the creature sacrificed to pay this ability's cost
             return self.resolving_item.sacrificed_power if self.resolving_item else 0
+        if kind == "tapped_power":  # the creature tapped to pay this ability's cost (Station)
+            return self.resolving_item.tapped_power if self.resolving_item else 0
         if kind == "source_counters":
             return source.counters.get(amount.what, 0) if source else 0
         if kind == "on_battlefield":
@@ -2275,6 +2284,8 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
             return False
+        if kind == "source_counters_at_least":  # a Planet's "12+ |" abilities: that many counters of the kind on it
+            return source is not None and source.counters.get(condition.what, 0) >= condition.count
         if kind == "in_graveyard":  # Anger: "As long as this card is in your graveyard"
             return source is not None and any(c is source.card for c in seat.graveyard)
         if kind == "has_exiled_with":  # Currency Converter, Quintorius: "a card exiled with this"
@@ -4598,7 +4609,7 @@ class Game:
         if item not in self.stack:
             return
         self.stack.append(StackItem(item.card, controller, item.effects, list(item.targets), item.ability, item.source, x=item.x,
-                                    sacrificed_power=item.sacrificed_power))
+                                    sacrificed_power=item.sacrificed_power, tapped_power=item.tapped_power))
         self.broadcast({"event": "copied_ability", "seat": controller.index, "card": item.card.name})
 
     def copy_spell_for_each_other_creature(self, item: StackItem, caster: Seat, source: Permanent) -> None:

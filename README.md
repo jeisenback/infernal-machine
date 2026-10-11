@@ -440,6 +440,11 @@ winner = game.play()
   - "When this land enters, sacrifice it unless you pay {1}" (Gateway Plaza and the other Guildgate-style lands): you are asked
     whether to pay (the land enters tapped, so it cannot pay for itself); with nothing to pay with, or if you decline, it is
     sacrificed. Tri-lands ("{T}: Add {W}, {U}, or {B}") make one mana of one of the three colors.
+  - Station lands (Adagia, Evendo, Kavaron, Susur Secundi, Uthros): "Station" taps another untapped creature you control
+    (you choose which) and puts charge counters equal to its power on the land, only as a sorcery. An ability written
+    "12+ |" works only with that many charge counters on the land: Evendo's and Uthros's mana (a mana for each creature or
+    artifact you control, besides the land's own {T} mana), Adagia's token copy of an artifact or enchantment (legendary),
+    Kavaron's Robot and attack bonus, Susur Secundi's draw. The counters do not come off.
   - Karoos: "When this land enters, sacrifice it unless you return an untapped Mountain you control to its owner's
     hand." You are asked which land to return (or to sacrifice it); with no untapped land of the type it is sacrificed.
   - "At the beginning of your upkeep, if this land is tapped, put a storage counter on it" (the condition "if this
