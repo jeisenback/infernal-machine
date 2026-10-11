@@ -741,6 +741,10 @@ winner = game.play()
     the discard wasn't a land); Phyrexian Metamorph (a copy of an artifact or creature, and an artifact too); and Imperial
     Recruiter ("a creature card with power 2 or less"). The Ferocious ability word is read like Metalcraft. Not read: Eternalize,
     Priest of Titania, Sanctum Weaver, Hullbreaker Horror, Syr Konrad, Braids.
+  - One filter grammar (`filters.py`): targets, mass effects, searches, graveyard returns, watching triggers and cost
+    reductions all name a kind of card ("black creature", "nonland, nontoken permanent an opponent controls", "creature card with
+    mana value 3 or less", "R|G"), and they all read it with `parse_filter` instead of four separate matchers. A "permanent" is
+    now a card with a permanent type, so an instant no longer counts as one.
   - Rules-changing statics (#204), read from the permanent's own text:
     - "Creature spells you control can't be countered" / "Spells you control can't be countered": a counterspell does nothing
       to them.

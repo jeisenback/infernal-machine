@@ -33,6 +33,7 @@ from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_C
                       filter_mana_ability, follows_target, mana_ability, mana_extra_cost, mana_restriction, charge_mana, mana_ability_sacrifices, mana_spent_trigger, has_next_x_rider, Scry, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
+from .filters import parse_filter
 from .mana import GENERIC_ONLY, SNOW, Cost, parse_cost, pay
 from .player import Player
 
@@ -2807,40 +2808,26 @@ class Game:
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
         elif kind == "opponent":
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)]
-        if _split_controller(kind)[0].endswith("spell"):  # "spell", "noncreature spell", "... spell you control"
-            kind, whose = _split_controller(kind)
+        if (spell_filter := parse_filter(kind)) and re.search(r"spell( you control)?$", kind):  # "spell", "noncreature spell", "... spell you control"
             options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
-                        if not i.ability and _watch_type_matches(kind, i.card)
-                        and not (whose == "you" and i.controller is not caster)]
+                        if not i.ability and spell_filter.matches(i.card)
+                        and not (spell_filter.controller == "you" and i.controller is not caster)]
             return options
-        limit = re.search(r" with mana value (\d+|x)(?: or (less|greater))?$", kind)  # "creature ... with mana value 3 or less"
-        if limit:
-            kind = kind[:limit.start()]
-            value = int(limit[1]) if limit[1] != "x" else self.x_value if self.resolving_item is not None else self.targeting_x
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
-        kind, controller = _split_controller(kind.removesuffix(" that attacked this turn"))
-        if kind.startswith("attacking or blocking "):  # Eiganjo
-            state, base = "attacking or blocking", kind.removeprefix("attacking or blocking ")
-        else:
-            state, _, base = kind.partition(" ") if kind.split(" ")[0] in ("tapped", "untapped", "attacking") else ("", "", kind)
+        wanted = parse_filter(re.sub(r"mana value x\b", lambda m: "mana value %d" % (
+            self.x_value if self.resolving_item is not None else self.targeting_x), kind.removesuffix(" that attacked this turn")))
+        controller = wanted.controller
         for seat in self.live_seats():
             if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
                 continue
             for n, permanent in enumerate(seat.battlefield):
-                card = permanent.card
-                if not _permanent_matches(base, card) or self.has_keyword(permanent, "shroud"):
+                if not wanted.matches(permanent.card) or self.has_keyword(permanent, "shroud"):
                     continue
                 if controller == "own" and (permanent.owner or seat) is not caster:
                     continue
                 if attacked and permanent.attacked_turn != self.turn:
                     continue
-                if limit and (card.cmc > value if limit[2] == "less" else card.cmc < value if limit[2] == "greater"
-                              else card.cmc != value):
-                    continue
-                if ((state == "tapped" and not permanent.tapped) or (state == "untapped" and permanent.tapped)
-                        or (state == "attacking" and not any(a.attacker is permanent for a in self.combat.attacks))
-                        or (state == "attacking or blocking" and not any(
-                            a.attacker is permanent or permanent in a.blockers for a in self.combat.attacks))):
+                if not self._in_state(permanent, wanted.state):
                     continue
                 if self.has_keyword(permanent, "hexproof") and seat is not caster:
                     continue
@@ -3102,18 +3089,13 @@ class Game:
         """Every permanent an "all"/"each" effect of `kind` affects, e.g. "creature",
         "artifact or enchantment", "creature you don't control", narrowed by a restriction such as
         "with flying". Nothing is targeted."""
-        limit = re.search(r" with mana value (\d+)(?: or (less|greater))?$", kind)  # "nonland permanent with mana value 2 or less"
-        if limit:
-            kind = kind[:limit.start()]
-        kind, controller = _split_controller(kind)
+        wanted = parse_filter(kind)  # ... "nonland permanent with mana value 2 or less"
         found: list[Permanent] = []
         for seat in self.live_seats():
-            if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
+            if (wanted.controller == "opponent" and seat is caster) or (wanted.controller == "you" and seat is not caster):
                 continue
             found += [p for p in seat.battlefield
-                      if _permanent_matches(kind, p.card) and self._passes(p, restriction)
-                      and not (limit and (p.card.cmc > int(limit[1]) if limit[2] == "less" else
-                                          p.card.cmc < int(limit[1]) if limit[2] == "greater" else p.card.cmc != int(limit[1])))]
+                      if wanted.matches(p.card) and self._in_state(p, wanted.state) and self._passes(p, restriction)]
         return found
 
     def _passes(self, permanent: Permanent, restriction: MassFilter | None) -> bool:
@@ -3156,9 +3138,11 @@ class Game:
         return True
 
     def _in_state(self, permanent: Permanent, state: str) -> bool:
-        """Whether a permanent is "attacking", "tapped" or "untapped" (any permanent, if no state is asked for)."""
+        """Whether a permanent is "attacking", "attacking or blocking", "tapped" or "untapped" (any permanent, if no state is asked for)."""
         if state == "attacking":
             return any(a.attacker is permanent for a in self.combat.attacks)
+        if state == "attacking or blocking":  # Eiganjo
+            return any(a.attacker is permanent or permanent in a.blockers for a in self.combat.attacks)
         return {"tapped": permanent.tapped, "untapped": not permanent.tapped}.get(state, True)
 
     def _spared(self, permanent: Permanent, spared: MassFilter) -> bool:
@@ -5522,22 +5506,7 @@ def _watch_type_matches(kind: str, card: Card) -> bool:
         return "{X}" in card.mana_cost and not ("Instant" in card.type_line or "Sorcery" in card.type_line)
     if kind == "instant or sorcery spell with {x} in its mana cost":
         return "{X}" in card.mana_cost and ("Instant" in card.type_line or "Sorcery" in card.type_line)
-    kind = kind.removesuffix(" spell").removesuffix("spell").strip()
-    if not kind or kind in ("expend", "permanent"):  # (an expend watch has no kind of card; a permanent is any)
-        return True
-    if m := re.fullmatch(r"(white|blue|black|red|green) (creature)", kind):  # "another black creature you control enters"
-        return COLOR_LETTERS[m[1]] in card.colors and m[2].capitalize() in card.type_line
-    if kind == "multicolored":
-        return len(card.colors) >= 2
-    if kind == "token" or kind.endswith(" token"):  # "token", "creature token"
-        return _is_token(card) and (kind == "token" or _watch_type_matches(kind.removesuffix(" token"), card))
-    if kind.startswith("non"):
-        return kind[3:].capitalize() not in card.type_line
-    if kind in COLOR_LETTERS:
-        return COLOR_LETTERS[kind] in card.colors
-    if kind == "historic":  # CR 700.6
-        return any(t in card.type_line for t in ("Legendary", "Artifact", "Saga"))
-    return any(t.capitalize() in card.type_line for t in re.split(r",? or |, ", kind))
+    return parse_filter(kind).matches(card)
 
 
 def _is_searched_land(card: Card, subtypes: tuple[str, ...]) -> bool:
@@ -5558,44 +5527,8 @@ def _starting_loyalty(card: Card) -> int | None:
 
 
 def _card_matches(kind: str, card: Card) -> bool:
-    """Whether a card in a library or graveyard is of `kind`: "card", "permanent", "creature",
-    "instant or sorcery", "basic land", ..."""
-    kind, _, value = kind.partition("|")  # "creature|mv<=3": with a mana value of 3 or less
-    if value.startswith("p<="):  # "creature|p<=2": with power 2 or less (Imperial Recruiter)
-        power = card.power
-        if power is None or not power.lstrip("-").isdigit() or int(power) > int(value[3:]):
-            return False
-        value = ""
-    if value:
-        number = int(value.lstrip("mv<>="))
-        mana_value = card.cmc
-        if not ((value.startswith("mv<=") and mana_value <= number) or (value.startswith("mv>=") and mana_value >= number)
-                or (value.startswith("mv=") and mana_value == number)):
-            return False
-    if kind == "card":
-        return True
-    if kind == "permanent":
-        return _is_permanent(card)
-    if kind == "nonland permanent":
-        return _is_permanent(card) and not is_land(card)
-    if kind == "basic land":
-        return "Basic" in card.type_line and "Land" in card.type_line
-    if kind == "nonbasic land":
-        return "Basic" not in card.type_line and "Land" in card.type_line
-    words = kind.replace(",", "").split()
-    if len(words) > 1 and all(w.startswith("non") for w in words):  # "noncreature, nonland"
-        return all(_card_matches(w, card) for w in words)
-    if kind.startswith("non") and " " not in kind:  # "nonland", "noncreature"
-        return kind[3:].capitalize() not in card.type_line
-    if kind.startswith("legendary"):  # "legendary creature": legendary, and the rest of the kind
-        return "Legendary" in card.type_line and _card_matches(kind.removeprefix("legendary").strip() or "card", card)
-    return any(_type_part_matches(t, card) for t in kind.split(" or "))
-
-
-def _type_part_matches(part: str, card: Card) -> bool:
-    if part == "non-aura enchantment":  # Excava
-        return "Enchantment" in card.type_line and "Aura" not in card.type_line
-    return part.capitalize() in card.type_line
+    """Whether a card in a library or graveyard is of `kind`: "card", "permanent", "creature|mv<=3", "basic land", ... (filters.py)."""
+    return parse_filter(kind).matches(card)
 
 
 def _shown(ability_text: str, card: Card) -> str:
@@ -5625,19 +5558,9 @@ def _spell_matches(kind: str, card: Card) -> bool:
     "instant and sorcery", or a card type."""
     if kind == "spell":
         return True
-    if "|" in kind:  # "R|G": a red or green spell, reduced once
-        return any(_spell_matches(part, card) for part in kind.split("|"))
-    if kind in COLOR_NAMES:
-        return kind in card.colors
-    if kind == "noncreature":
-        return "Creature" not in card.type_line
-    if kind == "instant and sorcery":
-        return "Instant" in card.type_line or "Sorcery" in card.type_line
     if kind == "targets a creature":  # Killian, Ink Duelist
         return _targets_a_creature(card)
-    if " and " in kind:  # "aura and equipment" (Danitha Capashen): either
-        return any(part.capitalize() in card.type_line for part in kind.split(" and "))
-    return kind.capitalize() in card.type_line
+    return parse_filter(kind).matches(card)
 
 
 def _targets_a_creature(card: Card) -> bool:
@@ -5660,46 +5583,9 @@ def _instant_speed(card: Card) -> bool:
     return "Instant" in card.type_line or has_keyword(card, "flash")
 
 
-def _split_controller(kind: str) -> tuple[str, str | None]:
-    """ "creature an opponent controls" -> ("creature", "opponent"); "creature" -> ("creature", None)."""
-    for suffix, who in ((" an opponent controls", "opponent"), (" you don't control", "opponent"),
-                        (" you control", "you"), (" you own", "own")):
-        if kind.endswith(suffix):
-            return kind.removesuffix(suffix), who
-    return kind, None
-
-
 def _permanent_matches(kind: str, card: Card) -> bool:
-    kind = re.sub(r", (?=non)", " ", kind)  # "noncreature, nonland permanent", "nonland, nontoken permanent"
-    if m := re.fullmatch(r"(white|blue|black|red|green) (.+)", kind):  # "black creature" (Ayara)
-        return {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[m[1]] in card.colors and _permanent_matches(m[2], card)
-    if m := re.fullmatch(r"non(white|blue|black|red|green|artifact|creature|land|enchantment|legendary) (.+)", kind):  # "nonblack creature"
-        has = m[1].capitalize() in card.type_line if m[1] in ("artifact", "creature", "land", "enchantment", "legendary") else {
-            "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[m[1]] in card.colors
-        return not has and _permanent_matches(m[2], card)
-    if m := re.fullmatch(r"non-(\w+) (.+)", kind):  # "non-Pilot creature"
-        return m[1].capitalize() not in card.type_line.partition("\u2014")[2].split() and _permanent_matches(m[2], card)
-    if " or " in kind and any(part.startswith("non") for part in re.split(r",? or |, ", kind)):  # "noncreature artifact or noncreature enchantment"
-        return any(_permanent_matches(part, card) for part in re.split(r",? or |, ", kind))
-    if kind == "any":
-        return "Creature" in card.type_line or "Planeswalker" in card.type_line
-    if kind == "permanent":
-        return True
-    if kind == "nonland permanent":
-        return not is_land(card)
-    if kind == "monocolored permanent":
-        return len(card.colors) == 1
-    if kind == "nonbasic land":
-        return "Land" in card.type_line and "Basic" not in card.type_line
-    if kind.endswith(" token"):  # "creature token"
-        return _is_token(card) and _permanent_matches(kind.removesuffix(" token"), card)
-    if kind.startswith("nontoken "):
-        return not _is_token(card) and _permanent_matches(kind.removeprefix("nontoken "), card)
-    if kind.startswith("legendary "):  # "legendary creature" (Equip legendary creature)
-        return "Legendary" in card.type_line and _permanent_matches(kind.removeprefix("legendary "), card)
-    if kind.endswith(" creature") and " " not in kind.removesuffix(" creature"):  # "Blinkmoth creature"
-        return "Creature" in card.type_line and kind.removesuffix(" creature").capitalize() in card.type_line.partition("—")[2].split()
-    return any(t.capitalize() in card.type_line for t in re.split(r",? or |, ", kind) if t != "player")
+    """Whether a permanent's card is of `kind` ("creature", "nonland permanent", "black creature", "Elf", ...): see filters.py."""
+    return parse_filter(kind).matches(card)
 
 
 def _take(cards: list[Card], name: str) -> Card:
