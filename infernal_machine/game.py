@@ -241,6 +241,9 @@ class Permanent:
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
     attacked_turn: int | None = None  # the last turn it attacked
+    lured_turn: int = 0  # the turn all creatures able to block it have to ("All creatures able to block target creature this turn do so.")
+    must_block_turn: int = 0  # the turn it has to block if able ("Target creature blocks this turn if able.")
+    must_block_what: "Permanent | None" = None  # ... that creature in particular ("blocks this creature this turn if able")
     vow_of: "Seat | None" = None  # Promise of Loyalty: while it has a vow counter it can't attack this player
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
     doors: tuple[str, ...] = ()  # a Room: the names of its unlocked doors (its `card` reads as only those; the whole card is `real_card`)

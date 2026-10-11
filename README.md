@@ -789,6 +789,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     sacrifice a creature, and if you do they return tapped), Malakir Rebirth ("that creature gains 'When this creature dies, return it to the
     battlefield tapped' until end of turn": `Permanent.returns_when_dies` holds the turn, and the game puts the trigger on the stack when
     it dies that turn) and Traverse the Outlands ("up to X basic land cards, where X is the greatest power among creatures you control").
+  - Creatures that have to block (`tests/test_small_leftovers.py`): "All creatures able to block target creature this turn do so" (`Permanent.lured_turn`),
+    the same on an Aura or Equipment ("... enchanted/equipped creature ...": Lure, Nemesis Mask, checked in `Combat._lured`), and "Target creature
+    blocks this turn if able" / "... blocks this creature this turn if able" (`must_block_turn`, `must_block_what`: Torchling's ability). A creature that
+    cannot block the attacker is not forced. "Put a stun counter on it" with nothing earlier to follow is the creature itself
+    (`PutStunOnSource`); before, such a trigger was accepted and did nothing.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
