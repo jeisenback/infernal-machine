@@ -306,7 +306,7 @@ class Counter:
     unless: str = ""  # "unless its controller pays {2}": the cost
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and not cant_be_countered(target.card):
+        if target is not None and not cant_be_countered(target.card) and not game.uncounterable(target):
             if self.unless and game.pays_unless(target.controller, self.unless, target.card):
                 return
             if self.delayed_mana:
@@ -1400,6 +1400,51 @@ _COMBAT_RESTRICTIONS = [
                 r"Creatures with power less than this creature's power can't block it\.", re.I),
      lambda m: CombatRestriction("weaker_cant_block")),
 ]
+
+
+_BASIC_LAND_TYPES = "Swamp|Forest|Island|Mountain|Plains"
+_RULES_STATICS = [
+    (re.compile(r"Your opponents can't cast spells during your turn\.", re.I), "opp_no_cast:turn"),
+    (re.compile(r"Your opponents can't cast spells during combat\.", re.I), "opp_no_cast:combat"),
+    (re.compile(r"During your turn, your opponents can't cast spells or activate abilities of artifacts, creatures, or enchantments\.", re.I),
+     "opp_no_cast:turn|opp_lock:Artifact,Creature,Enchantment"),
+    (re.compile(r"Each player can't cast more than one spell each turn\.", re.I), "one_spell:each"),
+    (re.compile(r"You can't cast more than one spell each turn\.", re.I), "one_spell:you"),
+    (re.compile(r"You can't cast (creature|noncreature) spells\.", re.I), "no_cast_kind"),
+    (re.compile(r"Activated abilities of artifacts can't be activated\.", re.I), "lock:Artifact"),
+    (re.compile(r"Creature spells you control can't be countered\.", re.I), "uncounterable:creature"),
+    (re.compile(r"Spells you control can't be countered\.", re.I), "uncounterable:spell"),
+    (re.compile(r"You may cast (spells|creature spells|sorcery spells|Spirit spells) as though they had flash\.", re.I), "flash"),
+    (re.compile(rf"Each land is an? ({_BASIC_LAND_TYPES}) in addition to its other land types\.", re.I), "land_type"),
+    (re.compile(r"Lands you control are every basic land type in addition to their other types\.", re.I), "land_type:all_yours"),
+]
+_LAND_TYPE_MANA = {"swamp": "B", "forest": "G", "island": "U", "mountain": "R", "plains": "W"}
+
+
+@lru_cache(maxsize=None)
+def rules_statics(card: Card) -> tuple[str, ...]:
+    """What a permanent's static rules-changing abilities do, as keys: "opp_no_cast:turn" / ":combat" (its controller's opponents
+    can't cast spells during its controller's turn / during combat), "opp_lock:Artifact,Creature,Enchantment" (on its controller's
+    turn their abilities of those can't be activated), "one_spell:each" / ":you" (one spell a turn), "no_cast_kind:creature" /
+    ":noncreature" (its controller can't cast those), "lock:Artifact" (nobody can activate abilities of those), "uncounterable:spell"
+    / ":creature" (its controller's), "flash:spell" / ":creature" / ":sorcery" / ":Spirit" (its controller may cast those at instant
+    speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic)."""
+    found = []
+    for line in rules_lines(card):
+        for pattern, key in _RULES_STATICS:
+            if m := pattern.fullmatch(line):
+                if key == "no_cast_kind":
+                    key = f"no_cast_kind:{m[1].lower()}"
+                elif key == "flash":
+                    key = "flash:" + ("spell" if m[1].lower() == "spells" else m[1].lower().removesuffix(" spells"))
+                elif key == "land_type":
+                    key = f"land_type:{_LAND_TYPE_MANA[m[1].lower()]}"
+                found.extend(key.split("|"))
+    return tuple(found)
+
+
+def is_rules_static_line(line: str) -> bool:
+    return any(pattern.fullmatch(line) for pattern, _ in _RULES_STATICS)
 
 
 _PREVENTION_STATICS = [
