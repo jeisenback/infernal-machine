@@ -11,6 +11,7 @@ from ..cards import Card
 from ..characteristics import Modifier
 
 from .common import _SELF, _rules_text, _split_sentences, rules_lines
+from .events import EVENTS
 from .targets import follows_target, target_kind, uses_player, uses_source, uses_subject
 from .outcomes import (
     Backup,
@@ -54,7 +55,7 @@ from .outcomes import (
 
 @dataclass(frozen=True)
 class TriggeredAbility:
-    event: str  # one of TRIGGER_EVENTS
+    event: str  # one of events.EVENTS
     effects: tuple
     optional: bool  # "you may ...": the controller chooses when it resolves
     text: str
@@ -84,90 +85,6 @@ class Watch:
     chosen: bool = False  # "of the chosen type": only what is of the creature type the watcher chose as it entered
 
 
-_TRIGGERS = {
-    "enters": re.compile(rf"When(?:ever)? {_SELF} enters(?: the battlefield)?, (.+)", re.I),
-    "targeted": re.compile(rf"When(?:ever)? {_SELF} becomes the target of an? (?:spell|spell or ability), (.+)", re.I),
-    "cast_self": re.compile(r"When you cast this spell, (.+)", re.I),  # goes on the stack above the spell (Game._cast)
-    "dies": re.compile(rf"When(?:ever)? {_SELF} dies, (.+)", re.I),
-    "attacks": re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I),
-    "attacks_player": re.compile(rf"Whenever {_SELF} attacks an opponent, (.+)", re.I),
-    "blocks": re.compile(rf"Whenever {_SELF} blocks, (.+)", re.I),
-    "becomes_blocked": re.compile(rf"Whenever {_SELF} becomes blocked, (.+)", re.I),
-    "ally_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
-    "attacked": re.compile(r"Whenever a creature attacks you, (.+)", re.I),
-    "attacked_or_walker": re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),
-    "enters_untapped": re.compile(rf"When {_SELF} enters untapped, (.+)", re.I),
-    "leaves": re.compile(rf"When(?:ever)? {_SELF} leaves the battlefield, (.+)", re.I),
-    "tokens_created": re.compile(r"Whenever you create one or more creature tokens, (.+)", re.I),
-    "tokens_enter": re.compile(r"Whenever one or more tokens you control enter, (.+)", re.I),
-    "draw": re.compile(r"Whenever you draw a card, (.+)", re.I),
-    "opponent_draw": re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
-    # Orcish Bowmasters: every draw but the one in their draw step
-    "opponent_extra_draw": re.compile(r"Whenever an opponent draws a card except the first one they draw in each of their draw steps, (.+)", re.I),
-    "opponent_gain_life": re.compile(r"Whenever an opponent gains life, (.+)", re.I),
-    "opponent_lose_life": re.compile(r"Whenever an opponent loses life, (.+)", re.I),
-    "become_monarch": re.compile(r"Whenever you become the monarch, (.+)", re.I),
-    "opponent_become_monarch": re.compile(r"Whenever an opponent becomes the monarch, (.+)", re.I),
-    "discard": re.compile(r"Whenever you discard a card, (.+)", re.I),
-    "exile_library_graveyard": re.compile(
-        r"Whenever one or more cards are put into exile from your library and/or your graveyard, (.+)", re.I),
-    "discard_nonland": re.compile(r"Whenever you discard one or more nonland cards, (.+)", re.I),
-    "opponent_discard": re.compile(r"Whenever an opponent discards a card, (.+)", re.I),
-    "opponent_search": re.compile(r"Whenever an opponent searches their library, (.+)", re.I),
-    "opponent_sacrifice_creature": re.compile(r"Whenever an opponent sacrifices a creature, (.+)", re.I),
-    "second_draw": re.compile(r"Whenever you draw your second card each turn, (.+)", re.I),
-    "combat_damage_to_player": re.compile(rf"Whenever {_SELF} deals combat damage to a player, (.+)", re.I),
-    "upkeep": re.compile(r"At the beginning of your upkeep, (.+)", re.I),
-    "end_step": re.compile(r"At the beginning of your end step, (.+)", re.I),
-    "each_upkeep": re.compile(r"At the beginning of each upkeep, (.+)", re.I),
-    "each_end_step": re.compile(r"At the beginning of each end step, (.+)", re.I),
-    "combat": re.compile(r"At the beginning of combat on your turn, (.+)", re.I),
-    "gain_life": re.compile(r"Whenever you gain life, (.+)", re.I),
-    "lose_life": re.compile(r"Whenever you lose life, (.+)", re.I),
-    "sacrifice_creature": re.compile(r"Whenever you sacrifice a creature, (.+)", re.I),
-    "ally_combat_damage": re.compile(r"Whenever a creature you control deals combat damage to a player, (.+)", re.I),
-    "token_combat_damage": re.compile(r"Whenever a creature token you control deals combat damage to a player, (.+)",
-                                      re.I),
-    "host_attacks": re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I),
-    "attack_with_two": re.compile(r"Whenever you attack with two or more creatures, (.+)", re.I),
-    "attack_alone": re.compile(r"Whenever (?:you attack with a creature alone|a creature you control attacks alone), (.+)", re.I),
-    "conjure": re.compile(r"Whenever you conjure one or more cards, (.+)", re.I),
-    "enchanted_attack": re.compile(r"Whenever one or more creatures that are enchanted by an Aura you control attack, (.+)", re.I),
-    "creatures_attack": re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I),
-    "opponent_attacks": re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I),
-    "activate_x": re.compile(r"Whenever you activate an ability with \{X\} in its activation cost, (.+)", re.I),
-    "other_attacks_two": re.compile(r"Whenever another player attacks with two or more creatures, (.+)", re.I),
-    "attacks_opponent": re.compile(r"Whenever a player attacks one of your opponents, (.+)", re.I),  # x: the seat attacked
-    "cycle": re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I),
-    "cycle_or_discard": re.compile(r"Whenever you cycle or discard (?:a|another) card, (.+)", re.I),
-    "scry_or_surveil": re.compile(r"Whenever you scry or surveil, (.+)", re.I),
-    "scry": re.compile(r"Whenever you scry, (.+)", re.I),
-    "surveil": re.compile(r"Whenever you surveil, (.+)", re.I),
-    "draw_step": re.compile(r"At the beginning of your draw step, (.+)", re.I),
-    "other_draw_step": re.compile(r"At the beginning of each other player's draw step, (.+)", re.I),
-    "opponent_upkeep": re.compile(r"At the beginning of each opponent's upkeep, (.+)", re.I),
-    "opponent_end_step": re.compile(r"At the beginning of (?:each|an) opponent's end step, (.+)", re.I),
-    "graveyard_leave": re.compile(r"Whenever one or more cards leave your graveyard, (.+)", re.I),
-    "any_sacrifice": re.compile(r"Whenever a player sacrifices a permanent, (.+)", re.I),
-    "other_sacrifice": re.compile(r"Whenever a player sacrifices another permanent, (.+)", re.I),
-    "host_dies": re.compile(r"When(?:ever)? (?:enchanted|equipped) creature dies, (.+)", re.I),
-    "host_combat_damage": re.compile(r"Whenever (?:enchanted|equipped) creature deals combat damage to a player, (.+)", re.I),
-    "put_into_graveyard": re.compile(rf"When {_SELF} is put into a graveyard from the battlefield, (.+)", re.I),
-    "first_life_loss": re.compile(r"Whenever you lose life for the first time each turn, (.+)", re.I),
-    "creatures_combat_damage": re.compile(r"Whenever one or more creatures you control deal combat damage to a player, (.+)",
-                                          re.I),
-    "zero_power_combat_damage": re.compile(r"Whenever one or more creatures you control with base power 0 deal combat damage "
-                                           r"to a player, (.+)", re.I),
-    "tokens_combat_damage": re.compile(r"Whenever one or more creature tokens you control deal combat damage to a player, "
-                                       r"(.+)", re.I),
-    "first_life_gain": re.compile(r"Whenever you gain life for the first time each turn, (.+)", re.I),
-    "opponent_second_draw": re.compile(r"Whenever an opponent draws their second card each turn, (.+)", re.I),
-    "first_main": re.compile(r"At the beginning of your first main phase, (.+)", re.I),
-    "second_main": re.compile(r"At the beginning of your second main phase, (.+)", re.I),
-}
-
-
-TRIGGER_EVENTS = tuple(_TRIGGERS)
 
 
 # One line can name several of a permanent's own events: "When this creature enters or dies, ...".
@@ -241,21 +158,6 @@ _SINGULAR = {"nontoken creatures": "nontoken creature", "creature tokens": "crea
 
 # Watching events whose subject is a permanent, so "it" in the effect can mean that permanent.
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies", "permanent_taps", "permanent_to_graveyard", "creature_attacks"}
-
-
-# Triggers about some other creature: there "it" and "that creature" mean that creature, not the source.
-_OBJECT_EVENTS = {"ally_attacks", "attacked", "attacked_or_walker", "ally_combat_damage", "token_combat_damage",
-                  "host_attacks", "host_combat_damage", "attack_alone"}
-
-
-# The creature is already gone when it dies, so "it" there has nothing to point at (the line isn't understood).
-_HOST_GONE = {"host_dies"}
-
-
-# Triggers about what some other player did: there "that player" and "they" mean that player.
-_PLAYER_EVENTS = {"other_attacks_two", "attacks_opponent", "opponent_draw", "opponent_extra_draw", "opponent_second_draw", "opponent_gain_life", "opponent_lose_life", "opponent_become_monarch",
-                  "opponent_discard", "opponent_search", "opponent_attacks", "other_draw_step", "opponent_upkeep", "opponent_end_step",
-                  "host_combat_damage"}
 
 
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
@@ -689,22 +591,21 @@ def _trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
         names = several[1].split(" or ")
         return [TriggeredAbility(event, tuple(effects), optional, text, once_per_turn=once, condition=condition)
                 for event, pattern in _SELF_EVENTS.items() if any(re.fullmatch(pattern, part, re.I) for part in names)]
-    for event, pattern in _TRIGGERS.items():
-        match = pattern.fullmatch(bare)
+    for event in EVENTS.values():
+        match = event.text.fullmatch(bare)
         if not match:
             continue
-        aura_return = next((build() for pattern, build in _AURA_RETURNS if event == "host_dies"
+        aura_return = next((build() for pattern, build in _AURA_RETURNS if event.name == "host_dies"
                             and pattern.fullmatch(match[1])), None)
         if aura_return is not None:
             effects, optional, once, condition = aura_return, False, False, None
-        elif event in _OBJECT_EVENTS or event in _PLAYER_EVENTS or event in _HOST_GONE:
-            effects, optional, once, condition = _event_body(match[1], event in _OBJECT_EVENTS,
-                                                             event in _PLAYER_EVENTS)
+        elif event.about_creature or event.about_player or event.host_gone:
+            effects, optional, once, condition = _event_body(match[1], event.about_creature, event.about_player)
         else:
             effects, optional, once, condition = _trigger_body(match[1])
-        if effects is not None and event != "dies" and any(isinstance(e, (ReturnSelfToBattlefield, ReturnSelfAsEnchantment)) for e in effects):
+        if effects is not None and event.name != "dies" and any(isinstance(e, (ReturnSelfToBattlefield, ReturnSelfAsEnchantment)) for e in effects):
             effects = None  # "return it to the battlefield": it is only gone when the creature has died
         if effects is None:
             return None
-        return [TriggeredAbility(event, tuple(effects), optional, text, once_per_turn=once, condition=condition)]
+        return [TriggeredAbility(event.name, tuple(effects), optional, text, once_per_turn=once, condition=condition)]
     return []

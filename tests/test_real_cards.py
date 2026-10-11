@@ -169,7 +169,8 @@ class GyomeTests(unittest.TestCase):
             game._enter(a, Permanent(creature))
         game.create_tokens(a, Card(name="Soldier", type_line="Token Creature — Soldier", power="1", toughness="1"), 2)
         run_stack(game)
-        game._trigger_each("end_step", a)
+        for permanent in list(a.battlefield):
+            game.trigger("end_step", permanent, a)
         run_stack(game)
         self.assertEqual(sum(p.card.name == "Food" for p in a.battlefield), 2)
 

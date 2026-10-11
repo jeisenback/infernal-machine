@@ -99,11 +99,11 @@ class Combat:
             if n := self.game.annihilator(permanent):
                 self.game._queue(TriggeredAbility("attacks", (Annihilate(n),), False, f"Annihilator {n}"), permanent, seat,
                                  player=defender)
-            self.game._trigger_each("ally_attacks", seat, subject=permanent)
+            self.game.happened("ally_attacks", seat, subject=permanent)
             self.game._observe("creature_attacks", permanent.card, seat, subject=permanent)  # with a qualifier (Raid Bombardment)
-            self.game._trigger_each("attacked_or_walker", defender, subject=permanent)
+            self.game.happened("attacked_or_walker", defender, subject=permanent)
             if walker is None:
-                self.game._trigger_each("attacked", defender, subject=permanent)
+                self.game.happened("attacked", defender, subject=permanent)
             for owner in self.game.live_seats():  # "Whenever equipped / enchanted creature attacks"
                 for attachment in list(owner.battlefield):
                     if attachment.attached_to is permanent:
@@ -125,7 +125,7 @@ class Combat:
             for permanent in list(seat.battlefield):
                 self.game.trigger("creatures_attack", permanent, seat)
             if len(self.attacks) == 1:  # "Whenever you attack with a creature alone"
-                self.game._trigger_each("attack_alone", seat, subject=self.attacks[0].attacker)
+                self.game.happened("attack_alone", seat, subject=self.attacks[0].attacker)
             for other in self.game.opponents(seat):  # "Whenever an opponent attacks with creatures"
                 at_them = sum(1 for a in self.attacks if a.defender is other)
                 for permanent in list(other.battlefield):
