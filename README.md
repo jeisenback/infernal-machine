@@ -787,6 +787,11 @@ winner = game.play()
     choose which. **Cascade:** a trigger above the spell exiles cards from your library until a nonland card that costs
     less; you may cast it for free, and the rest go to the bottom in a random order (a cascade spell's X counts as 0 on
     the card but its chosen X counts for the comparison).
+  - **Convoke:** while the spell is paid for, each untapped creature you control (summoning sick ones too) can be tapped for
+    {1} or for one mana of its color; a colorless creature pays only generic mana. **Improvise:** the same with artifacts,
+    for generic mana only. They count as extra mana sources after your lands and mana creatures, so creatures are tapped
+    only for what the lands can't cover (a creature that makes mana is used for its mana, once), and they come out of the
+    castability check like any other source. "Each creature that convoked this spell ..." lines are not read.
   - **Devour N:** as it enters you may sacrifice any number of other creatures (asked one at a time, then Done); it
     gets N +1/+1 counters for each. The bot never devours.
   - **Replicate {cost}:** you choose how many times to pay when you cast (any affordable number); a trigger above the
