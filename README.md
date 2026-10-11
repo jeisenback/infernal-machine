@@ -695,9 +695,14 @@ winner = game.play()
     the chosen type in addition to its other types" adds the type to the permanent's type line (it goes to the graveyard as the
     card it was); "Other creatures you control of the chosen type get +1/+1" (Adaptive Automaton), "Creatures you control of the
     chosen color get +N/+N" (Heraldic Banner, Hall of Triumph), Metallic Mimic's extra +1/+1 counter for each other creature
-    of its type that enters, and Roaming Throne's extra trigger for another creature of its type. Not read: Secluded
-    Courtyard (mana for abilities too), cost reductions and "whenever you cast a spell of the chosen type" (Herald's Horn, Door
-    of Destinies, Chronicle of Victory), "of the chosen color" for every player (Gauntlet of Power), and Caged Sun's extra mana.
+    of its type that enters, and Roaming Throne's extra trigger for another creature of its type. Also read, for a
+    permanent that named a creature type: "[Creature] spells [you cast] of the chosen type cost {N} less" (Herald's Horn, Urza's
+    Incubator, which helps every player, and Gathering Stone's discount); Herald's Horn's upkeep look at the top card; watching
+    triggers "of the chosen type" for casts, a creature entering, attacking or dying (Chronicle of Victory, Vanquisher's Banner,
+    Kindred Discovery, Bloodline Pretender, Species Specialist, Reflections of Littjara); Door of Destinies, which pumps for each
+    charge counter on it; and "Creatures of the chosen type have fear" for every player's creatures (Cover of Darkness). Not
+    read: Secluded Courtyard (mana for abilities too), Gathering Stone's second ability, Morophon's reduction, "of the chosen
+    color" for every player (Gauntlet of Power), and Caged Sun's extra mana.
   - Rules-changing statics (#204), read from the permanent's own text:
     - "Creature spells you control can't be countered" / "Spells you control can't be countered": a counterspell does nothing
       to them.
