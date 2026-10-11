@@ -41,6 +41,10 @@ class ManaLandTests(unittest.TestCase):
         self.assertEqual(unsupported_lines(VERGE), [])
         self.assertEqual([types for types, _ in mana_lines(VERGE)], [frozenset("B"), frozenset("R")])
         self.assertIsNone(mana_lines(SWAMP))
+        two_plain = real("Odd Land", "", "Land", "{T}: Add {W}.\n{T}: Add {U}.")
+        self.assertIsNone(mana_lines(two_plain))  # nothing is conditional: the land's own colors do
+        double = real("Odd Land", "", "Land", "{T}: Add {B}{G}.\n{T}: Add {R}. Activate only if you control a Swamp.")
+        self.assertIsNone(mana_lines(double))  # the double line is the land's own affair (land_mana_units), not one color
 
     def test_a_verge_makes_its_second_color_only_with_the_right_land(self):
         for others, expected in (([], ["B"]), ([Permanent(FOREST)], ["B"]), ([Permanent(SWAMP)], ["BR"]), ([Permanent(MOUNTAIN)], ["BR"])):
@@ -232,6 +236,17 @@ class SpellEffectTests(unittest.TestCase):
         game.turn += 1
         self.assertEqual(game._land_drops(a), 1)
 
+    def test_an_explore_from_an_earlier_turn_is_not_counted_again(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.hand, a.battlefield, a.library = [EXPLORE, EXPLORE], lands(4), [FOREST] * 5
+        game._perform(a, CAST + "Explore")
+        run_stack(game)
+        game.turn += 1
+        game._perform(a, CAST + "Explore")
+        run_stack(game)
+        self.assertEqual(game._land_drops(a), 2)
+
     def test_two_explores_make_three_land_drops(self):
         game, _ = table3()
         a = game.seats[0]
@@ -329,6 +344,442 @@ class CounterVariantsTests(unittest.TestCase):
         b.hand, b.battlefield = [SWAN_SONG], lands(2)
         game._perform(a, CAST + "Grizzly")
         self.assertNotIn(CAST + "Swan Song", game.legal_actions(b))
+
+
+AQUEOUS = real("Aqueous Form", "{2}{U}", "Enchantment \u2014 Aura", "Enchant creature\nEnchanted creature can't be blocked.\n"
+               "Whenever enchanted creature attacks, scry 1.")
+CLOAK = real("Whispersilk Cloak", "{3}", "Artifact \u2014 Equipment", "Equipped creature can't be blocked and has shroud.\nEquip {2}")
+BLACKBLADE = real("Blackblade Reforged", "{1}", "Legendary Artifact \u2014 Equipment", "Equipped creature gets +1/+1 for each land you control.\nEquip legendary creature {3}\nEquip {7}")
+GLITTERS = real("All That Glitters", "{1}{W}", "Enchantment \u2014 Aura", "Enchant creature\nEnchanted creature gets +1/+1 for each artifact and/or enchantment you control.")
+
+
+class AttachedBuffTests(unittest.TestCase):
+    def attach(self, card, *others):
+        game, _ = table3()
+        a, b, _ = game.seats
+        bear = Permanent(BEAR, sick=False)
+        a.battlefield = [bear, Permanent(card), *others]
+        a.battlefield[1].attached_to = bear
+        return game, a, b, bear
+
+    def test_parse(self):
+        for card in (AQUEOUS, CLOAK, BLACKBLADE, GLITTERS):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_an_enchanted_creature_cannot_be_blocked(self):
+        game, a, b, bear = self.attach(AQUEOUS)
+        self.assertTrue(game.has_keyword(bear, "can't be blocked"))
+
+    def test_the_cloak_also_gives_shroud(self):
+        game, a, b, bear = self.attach(CLOAK)
+        self.assertTrue(game.has_keyword(bear, "can't be blocked"))
+        self.assertTrue(game.has_keyword(bear, "shroud"))
+        self.assertNotIn(("Bear", True), [(p.card.name, game.has_keyword(p, "shroud")) for p in b.battlefield])
+
+    def test_the_blade_counts_lands(self):
+        game, a, b, bear = self.attach(BLACKBLADE, *lands(3))
+        self.assertEqual((game.power(bear), game.toughness(bear)), (5, 5))
+        a.battlefield.append(Permanent(FOREST))
+        self.assertEqual(game.power(bear), 6)
+
+    def test_all_that_glitters_counts_artifacts_and_enchantments(self):
+        game, a, b, bear = self.attach(GLITTERS, Permanent(ROCK), Permanent(ROCK), Permanent(AUTHORITY))
+        self.assertEqual(game.power(bear), 2 + 4)  # itself, two rocks and the Authority
+
+
+PYROBLAST = real("Pyroblast", "{R}", "Instant", "Choose one \u2014\n\u2022 Counter target spell if it's blue.\n\u2022 Destroy target permanent if it's blue.")
+RED_BLAST = real("Red Elemental Blast", "{R}", "Instant", "Choose one \u2014\n\u2022 Counter target blue spell.\n\u2022 Destroy target blue permanent.")
+BLUE_SPELL = real("Blue Spell", "{U}", "Sorcery", "Draw a card.", colors=("U",))
+RED_SPELL = real("Red Spell", "{R}", "Sorcery", "Draw a card.", colors=("R",))
+BLUE_BEAR = real("Blue Bear", "{1}{U}", "Creature \u2014 Bear", "", "2", "2", colors=("U",))
+
+
+class ElementalBlastTests(unittest.TestCase):
+    def test_parse(self):
+        for card in (PYROBLAST, RED_BLAST):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def answer(self, blast, spell, mode):
+        game, _ = table3(script(), script(mode, spell.name))
+        a, b, _ = game.seats
+        a.hand, a.battlefield, a.library = [spell], lands(2), [FOREST] * 5
+        b.hand, b.battlefield = [blast], lands(2)
+        game._perform(a, CAST + spell.name)
+        game._perform(b, CAST + blast.name)
+        run_stack(game)
+        return a
+
+    def test_red_blast_counters_a_blue_spell(self):
+        self.assertEqual([c.name for c in self.answer(RED_BLAST, BLUE_SPELL, "Counter").graveyard], ["Blue Spell"])
+        self.assertEqual(self.answer(RED_BLAST, BLUE_SPELL, "Counter").hand, [])  # it never drew
+
+    def test_red_blast_cannot_be_cast_when_only_a_red_spell_is_there(self):
+        game, _ = table3(script(), script("Counter"))
+        a, b, _ = game.seats
+        a.hand, a.battlefield = [RED_SPELL], lands(2)
+        b.hand, b.battlefield = [RED_BLAST], lands(2)
+        game._perform(a, CAST + "Red Spell")
+        self.assertNotIn(CAST + "Red Elemental Blast", game.legal_actions(b))
+
+    def test_pyroblast_does_nothing_to_a_red_spell_it_targets(self):
+        a = self.answer(PYROBLAST, RED_SPELL, "Counter")
+        self.assertEqual(len(a.hand), 1)  # the red spell resolved and drew
+
+    def test_pyroblast_counters_a_blue_one(self):
+        self.assertEqual(len(self.answer(PYROBLAST, BLUE_SPELL, "Counter").hand), 0)
+
+    def destroy(self, name):
+        game, _ = table3(script("Destroy", name))
+        a, b, _ = game.seats
+        a.hand, a.battlefield = [PYROBLAST], lands(1)
+        b.battlefield = [Permanent(BLUE_BEAR), Permanent(BEAR)]
+        game._perform(a, CAST + "Pyroblast")
+        run_stack(game)
+        return sorted(p.card.name for p in b.battlefield)
+
+    def test_pyroblast_destroys_a_blue_permanent(self):
+        self.assertEqual(self.destroy("Blue Bear"), ["Bear"])
+
+    def test_pyroblast_leaves_a_permanent_that_is_not_blue(self):
+        self.assertEqual(self.destroy("Bear"), ["Bear", "Blue Bear"])
+
+
+PROBE = real("Gitaxian Probe", "{U/P}", "Sorcery", "Look at target player's hand.\nDraw a card.")
+CABAL = real("Cabal Ritual", "{1}{B}", "Instant", "Add {B}{B}{B}.\nThreshold \u2014 Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your graveyard.")
+RITE = real("Rite of Flame", "{R}", "Sorcery", "Add {R}{R}, then add {R} for each card named Rite of Flame in each graveyard.")
+ENTOMB = real("Entomb", "{B}", "Instant", "Search your library for a card, put that card into your graveyard, then shuffle.")
+BURIED = real("Buried Alive", "{2}{B}", "Sorcery", "Search your library for up to three creature cards, put them into your graveyard, then shuffle.")
+SANITARIUM = real("Geier Reach Sanitarium", "", "Legendary Land", "{T}: Add {C}.\n{2}, {T}: Each player draws a card, then discards a card.")
+REVERSAL = real("Dramatic Reversal", "{1}{U}", "Instant", "Untap all nonland permanents you control.")
+
+
+def hand_after(game, seat, name):
+    game._perform(seat, CAST + name)
+    run_stack(game)
+    game._check_state()
+
+
+class SmallSpellTests(unittest.TestCase):
+    def test_parse(self):
+        for card in (PROBE, CABAL, RITE, ENTOMB, BURIED, SANITARIUM, REVERSAL):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_gitaxian_probe_shows_its_controller_the_hand_and_draws(self):
+        game, players = table3(script("Player: B"))
+        a, b, _ = game.seats
+        a.hand, a.battlefield, a.library = [PROBE], lands(1), [FOREST] * 3
+        b.hand = [BEAR, OGRE]
+        hand_after(game, a, "Gitaxian Probe")
+        seen = [e for e in players[0].events if e.get("event") == "hand"]
+        self.assertEqual([e["cards"] for e in seen], [["Bear", "Ogre"]])
+        self.assertEqual(len(a.hand), 1)
+
+    def mana_after(self, card, graveyard=()):
+        game, _ = table3()
+        a = game.seats[0]
+        a.hand, a.battlefield = [card], lands(2)
+        a.graveyard = list(graveyard)
+        a.mana_pool = []
+        game._perform(a, CAST + card.name)
+        run_stack(game)
+        return sorted("".join(sorted(unit)) for unit in a.mana_pool)
+
+    def test_cabal_ritual_makes_three(self):
+        self.assertEqual(self.mana_after(CABAL, [BEAR] * 3), ["B", "B", "B"])
+
+    def test_cabal_ritual_with_threshold_makes_five(self):
+        self.assertEqual(self.mana_after(CABAL, [BEAR] * 7), ["B"] * 5)
+
+    def test_cabal_ritual_with_six_cards_is_still_three(self):
+        self.assertEqual(self.mana_after(CABAL, [BEAR] * 6), ["B"] * 3)
+
+    def test_rite_of_flame_counts_the_copies_in_every_graveyard(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        a.hand, a.battlefield = [RITE], lands(1)
+        a.graveyard, b.graveyard = [RITE], [RITE, BEAR]
+        a.mana_pool = []
+        game._perform(a, CAST + "Rite of Flame")
+        run_stack(game)
+        self.assertEqual(len(a.mana_pool), 2 + 2)
+
+    def test_entomb_puts_a_card_in_the_graveyard(self):
+        game, _ = table3(script("Ogre"))
+        a = game.seats[0]
+        a.hand, a.battlefield, a.library = [ENTOMB], lands(1), [BEAR, OGRE]
+        hand_after(game, a, "Entomb")
+        self.assertEqual(([c.name for c in a.graveyard], len(a.library)), (["Ogre", "Entomb"], 1))
+
+    def test_buried_alive_finds_up_to_three_creatures_and_may_stop(self):
+        game, _ = table3(script("Ogre", "Bear", "Done"))
+        a = game.seats[0]
+        a.hand, a.battlefield, a.library = [BURIED], lands(3), [BEAR, OGRE, BEAR, FOREST]
+        hand_after(game, a, "Buried Alive")
+        self.assertEqual(sorted(c.name for c in a.graveyard), ["Bear", "Buried Alive", "Ogre"])
+        self.assertEqual(len(a.library), 2)
+
+    def test_buried_alive_with_fewer_creatures_takes_what_is_there(self):
+        game, _ = table3(script("Bear", "Ogre", "Ogre"))
+        a = game.seats[0]
+        a.hand, a.battlefield, a.library = [BURIED], lands(3), [BEAR, FOREST]
+        hand_after(game, a, "Buried Alive")
+        self.assertEqual(sorted(c.name for c in a.graveyard), ["Bear", "Buried Alive"])
+
+    def test_the_sanitarium_makes_everyone_draw_then_discard(self):
+        game, _ = table3(script(), script("Pass"))
+        a, b, c = game.seats
+        for seat in (a, b, c):
+            seat.library = [FOREST] * 5
+            seat.hand = [BEAR]
+        a.battlefield = [Permanent(SANITARIUM)] + lands(2)
+        game._perform(a, next(x for x in game.legal_actions(a) if x.startswith("Activate")))
+        run_stack(game)
+        self.assertEqual([len(s.hand) for s in (a, b, c)], [1, 1, 1])
+        self.assertEqual([len(s.graveyard) for s in (a, b, c)], [1, 1, 1])
+
+    def test_dramatic_reversal_untaps_nonlands_only(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.hand = [REVERSAL]
+        land, rock, bear = lands(3)[0], Permanent(ROCK), Permanent(BEAR)
+        a.battlefield = [land, lands(1)[0], rock, bear]
+        for p in a.battlefield[2:]:
+            p.tapped = True
+        a.battlefield[1].tapped = False
+        game._perform(a, CAST + "Dramatic Reversal")
+        run_stack(game)
+        self.assertEqual((rock.tapped, bear.tapped), (False, False))
+
+
+GREATER_GOOD = real("Greater Good", "{2}{G}{G}", "Enchantment", "Sacrifice a creature: Draw cards equal to the sacrificed creature's power, then discard three cards.")
+ALTAR = real("Altar of Dementia", "{2}", "Artifact", "Sacrifice a creature: Target player mills cards equal to the sacrificed creature's power.")
+GRAVE_PACT = real("Grave Pact", "{2}{B}{B}{B}", "Enchantment", "Whenever a creature you control dies, each other player sacrifices a creature of their choice.")
+BITTERBLOSSOM = real("Bitterblossom", "{1}{B}", "Enchantment", "At the beginning of your upkeep, you lose 1 life and create a 1/1 black Faerie Rogue creature token with flying.")
+BEACON = real("Command Beacon", "", "Land", "{T}: Add {C}.\n{T}, Sacrifice this land: Put your commander into your hand from the command zone.")
+CLAW = real("Nature's Claim", "{G}", "Instant", "Destroy target artifact or enchantment. Its controller gains 4 life.")
+BEDEVIL = real("Bedevil", "{B}{R}", "Instant", "Destroy target artifact, creature, or planeswalker.")
+PRESSURE = real("Pressure Point", "{1}{W}", "Instant", "Tap target creature.\nDraw a card.")
+RENUNCIATION = real("Djeru's Renunciation", "{2}{W}", "Instant", "Tap up to two target creatures. Draw a card.")
+COMMANDER = real("Big Boss", "{3}{R}", "Legendary Creature \u2014 Boss", "", "4", "4")
+
+
+def first_ability(game, seat):
+    return next(x for x in game.legal_actions(seat) if x.startswith("Activate"))
+
+
+class PermanentTests(unittest.TestCase):
+    def test_parse(self):
+        for card in (GREATER_GOOD, ALTAR, GRAVE_PACT, BITTERBLOSSOM, BEACON, CLAW, BEDEVIL, PRESSURE, RENUNCIATION):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_greater_good_draws_the_power_then_discards_three(self):
+        game, _ = table3(script("Ogre", "Bear", "Bear", "Bear"))
+        a = game.seats[0]
+        a.battlefield = [Permanent(GREATER_GOOD), Permanent(OGRE)]
+        a.hand, a.library = [BEAR, BEAR, BEAR], [FOREST] * 6
+        game._perform(a, first_ability(game, a))
+        run_stack(game)
+        self.assertEqual(len(a.hand), 3 + 3 - 3)  # three drawn for the Ogre's power, three discarded
+        self.assertEqual(len(a.graveyard), 3 + 1)  # and the Ogre
+
+    def test_altar_of_dementia_mills_by_the_power(self):
+        game, _ = table3(script("Player: B", "Ogre"))
+        a, b, _ = game.seats
+        a.battlefield = [Permanent(ALTAR), Permanent(OGRE)]
+        b.library = [FOREST] * 10
+        game._perform(a, first_ability(game, a))
+        run_stack(game)
+        self.assertEqual((len(b.library), len(b.graveyard)), (7, 3))
+
+    def test_grave_pact_makes_each_other_player_sacrifice(self):
+        game, _ = table3()
+        a, b, c = game.seats
+        a.battlefield = [Permanent(GRAVE_PACT), Permanent(BEAR), Permanent(OGRE)]
+        b.battlefield, c.battlefield = [Permanent(BEAR), Permanent(OGRE)], [Permanent(OGRE)]
+        game.sacrifice(a)
+        run_stack(game)
+        game._check_state()
+        self.assertEqual((len(b.battlefield), len(c.battlefield)), (1, 0))
+        self.assertEqual(len([p for p in a.battlefield if "Creature" in p.card.type_line]), 1)  # only the one that died: not "each player"
+
+    def test_bitterblossom_costs_a_life_and_makes_a_faerie_each_upkeep(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield = [Permanent(BITTERBLOSSOM)]
+        for _ in range(2):
+            game.trigger("upkeep", a.battlefield[0], a)
+            run_stack(game)
+        self.assertEqual(a.life, 38)
+        self.assertEqual([p.card.name for p in a.battlefield if "Token" in p.card.type_line], ["Faerie Rogue", "Faerie Rogue"])
+
+    def test_command_beacon_returns_the_commander_to_hand(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.command_zone, a.commander_names = [COMMANDER], {"Big Boss"}
+        a.battlefield = [Permanent(BEACON)]
+        game._perform(a, first_ability(game, a))
+        run_stack(game)
+        self.assertEqual(([c.name for c in a.hand], a.command_zone, a.battlefield), (["Big Boss"], [], []))
+
+    def test_with_two_commanders_it_asks_which(self):
+        game, _ = table3(script("Second Boss"))
+        a = game.seats[0]
+        second = real("Second Boss", "{3}{R}", "Legendary Creature \u2014 Boss", "", "4", "4")
+        a.command_zone, a.commander_names = [COMMANDER, second], {"Big Boss", "Second Boss"}
+        a.battlefield = [Permanent(BEACON)]
+        game._perform(a, first_ability(game, a))
+        run_stack(game)
+        self.assertEqual(([c.name for c in a.hand], [c.name for c in a.command_zone]), (["Second Boss"], ["Big Boss"]))
+
+    def test_command_beacon_with_no_commander_there_just_goes(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.command_zone, a.commander_names = [], {"Big Boss"}
+        a.battlefield = [Permanent(BEACON)]
+        game._perform(a, first_ability(game, a))
+        run_stack(game)
+        self.assertEqual((a.hand, [p.card.name for p in a.battlefield]), ([], []))
+
+
+class DestroyAndTapTests(unittest.TestCase):
+    def test_natures_claim_gives_the_controller_four_life(self):
+        game, _ = table3(script("Rock"))
+        a, b, _ = game.seats
+        a.hand, a.battlefield = [CLAW], lands(1)
+        b.battlefield = [Permanent(ROCK)]
+        hand_after(game, a, "Nature's Claim")
+        self.assertEqual(([p.card.name for p in b.battlefield], b.life), ([], 44))
+
+    def test_bedevil_reaches_a_creature(self):
+        game, _ = table3(script("Bear"))
+        a, b, _ = game.seats
+        a.hand, a.battlefield = [BEDEVIL], lands(2)
+        b.battlefield = [Permanent(BEAR), Permanent(ROCK)]
+        hand_after(game, a, "Bedevil")
+        self.assertEqual([p.card.name for p in b.battlefield], ["Rock"])
+
+    def test_bedevil_cannot_target_a_land(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        a.hand, a.battlefield = [BEDEVIL], lands(2)
+        b.battlefield = [Permanent(FOREST)]
+        self.assertNotIn(CAST + "Bedevil", game.legal_actions(a))
+
+    def test_tap_target_creature(self):
+        game, _ = table3(script("Bear"))
+        a, b, _ = game.seats
+        a.hand, a.battlefield, a.library = [PRESSURE], lands(2), [FOREST] * 3
+        bear = Permanent(BEAR)
+        b.battlefield = [bear, Permanent(OGRE)]
+        hand_after(game, a, "Pressure Point")
+        self.assertEqual([p.tapped for p in b.battlefield], [True, False])
+
+    def test_tap_up_to_two_target_creatures(self):
+        game, _ = table3(script("Bear", "Ogre"))
+        a, b, _ = game.seats
+        a.hand, a.battlefield, a.library = [RENUNCIATION], lands(3), [FOREST] * 3
+        b.battlefield = [Permanent(BEAR), Permanent(OGRE), Permanent(BEAR)]
+        hand_after(game, a, "Djeru's Renunciation")
+        self.assertEqual(sum(p.tapped for p in b.battlefield), 2)
+
+
+GRIP = real("Krosan Grip", "{2}{G}", "Instant", "Split second\nDestroy target artifact or enchantment.")
+EPHEMERATE = real("Ephemerate", "{W}", "Instant", "Rebound\nExile target creature you control, then return it to the battlefield under its owner's control.")
+FLICKER = real("Flicker", "{W}", "Instant", "Exile target creature you control, then return it to the battlefield under its owner's control.")
+
+
+class SplitSecondTests(unittest.TestCase):
+    def table(self):
+        game, _ = table3(script("Rock"))
+        a, b, _ = game.seats
+        a.hand, a.battlefield = [GRIP], lands(3)
+        b.hand, b.battlefield = [BOLT], lands(2) + [Permanent(ROCK)]
+        return game, a, b
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(GRIP), [])
+
+    def test_nothing_can_be_cast_in_response(self):
+        game, a, b = self.table()
+        self.assertIn(CAST + "Bolt", game.legal_actions(b))
+        game._perform(a, CAST + "Krosan Grip")
+        self.assertEqual(game.legal_actions(b), ["Pass"])
+        self.assertEqual(game.legal_actions(a), ["Pass"])
+
+    def test_it_resolves_and_play_goes_on(self):
+        game, a, b = self.table()
+        game._perform(a, CAST + "Krosan Grip")
+        run_stack(game)
+        self.assertIn(CAST + "Bolt", game.legal_actions(b))
+        self.assertEqual([p.card.name for p in b.battlefield if "Artifact" in p.card.type_line], [])
+
+    def test_a_spell_without_it_can_be_answered(self):
+        game, _ = table3(script("Rock"))
+        a, b, _ = game.seats
+        a.hand, a.battlefield = [CLAW], lands(1)
+        b.hand, b.battlefield = [BOLT], lands(1) + [Permanent(ROCK)]
+        game._perform(a, CAST + "Nature's Claim")
+        self.assertIn(CAST + "Bolt", game.legal_actions(b))
+
+
+class ReboundTests(unittest.TestCase):
+    def table(self, *answers):
+        game, _ = table3(script(*answers))
+        a = game.seats[0]
+        a.hand, a.battlefield = [EPHEMERATE], lands(2) + [Permanent(BEAR)]
+        a.library = [FOREST] * 5
+        return game, a
+
+    def upkeep(self, game, a):
+        game.turn += 1
+        game.step = "upkeep"
+        game._turn_based_actions(a)
+        run_stack(game)
+
+    def test_parse(self):
+        self.assertEqual(unsupported_lines(EPHEMERATE), [])
+
+    def test_cast_from_the_hand_it_is_exiled_as_it_resolves(self):
+        game, a = self.table("Bear")
+        hand_after(game, a, "Ephemerate")
+        self.assertEqual(([c.name for c in a.exile], a.graveyard), (["Ephemerate"], []))
+
+    def test_at_the_next_upkeep_it_is_cast_again_for_free_and_goes_to_the_graveyard(self):
+        game, a = self.table("Bear", "Yes", "Bear")
+        hand_after(game, a, "Ephemerate")
+        self.upkeep(game, a)
+        self.assertEqual(([c.name for c in a.exile], [c.name for c in a.graveyard]), ([], ["Ephemerate"]))
+        self.assertEqual(a.rebounding, [])
+
+    def test_it_waits_for_the_next_upkeep_not_this_turn(self):
+        game, a = self.table("Bear")
+        hand_after(game, a, "Ephemerate")
+        game.step = "upkeep"
+        game._turn_based_actions(a)  # the same turn
+        self.assertEqual([c.name for c in a.exile], ["Ephemerate"])
+
+    def test_declining_leaves_it_in_exile_for_good(self):
+        game, a = self.table("Bear", "No")
+        hand_after(game, a, "Ephemerate")
+        self.upkeep(game, a)
+        self.assertEqual(([c.name for c in a.exile], a.graveyard), (["Ephemerate"], []))
+        self.upkeep(game, a)
+        self.assertEqual(a.rebounding, [])
+
+    def test_a_spell_that_fizzles_does_not_rebound(self):
+        game, a = self.table("Bear")
+        game._perform(a, CAST + "Ephemerate")
+        a.battlefield = [p for p in a.battlefield if p.card.name != "Bear"]  # the target is gone
+        run_stack(game)
+        self.assertEqual(([c.name for c in a.graveyard], a.exile, a.rebounding), (["Ephemerate"], [], []))
+
+    def test_a_spell_cast_from_elsewhere_does_not_rebound(self):
+        game, a = self.table("Bear")
+        a.hand, a.graveyard = [], [EPHEMERATE]
+        game._cast(a, EPHEMERATE, a.graveyard, free=True)  # as if cast from the graveyard (not from the hand)
+        run_stack(game)
+        self.assertEqual(a.rebounding, [])
+        self.assertEqual([c.name for c in a.graveyard], ["Ephemerate"])
 
 
 if __name__ == "__main__":

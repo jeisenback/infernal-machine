@@ -741,6 +741,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     the discard wasn't a land); Phyrexian Metamorph (a copy of an artifact or creature, and an artifact too); and Imperial
     Recruiter ("a creature card with power 2 or less"). The Ferocious ability word is read like Metalcraft. Not read: Eternalize,
     Priest of Titania, Sanctum Weaver, Hullbreaker Horror, Syr Konrad, Braids.
+  - Second popularity pass (the most played cards still missing one rules line): the Verge lands (a second color only with the right
+    land), Spire of Industry, the Urza lands, the Spirit Guides (exile from hand for mana, no stack), opponents' creatures and
+    artifacts entering tapped (Authority of the Consuls), untapping artifacts in other players' untap steps (Unwinding Clock),
+    Explore, Silence and Ranger-Captain (opponents can't cast), Mental Misstep, Reprieve, Swan Song, the Elemental Blasts, Nature's
+    Claim, Bedevil, Entomb and Buried Alive, Cabal Ritual and Rite of Flame, Gitaxian Probe, Greater Good and Altar of Dementia, Grave
+    Pact, Bitterblossom, Command Beacon, Whispersilk Cloak and the other "can't be blocked" Auras and Equipment, "for each land" bonuses,
+    tapping a target creature, and the keywords split second and rebound (Ephemerate). A Horizon land can now also tap for {C}.
   - The other half of a card (`Card.alternate`): an Adventure, a split card's second half and a modal card's back spell are
     cast from the hand under their own name, cost, color and mana value. A resolved Adventure goes to exile and the creature can
     be cast from there for as long as it stays; a countered or fizzled one goes to the graveyard. A split card has the first

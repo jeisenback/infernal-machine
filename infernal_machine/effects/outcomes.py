@@ -143,9 +143,10 @@ class Destroy:
     no_regen: bool = False  # "It can't be regenerated."
     optional_target: bool = False  # "destroy up to two target ...": each target may be left out
     distinct: bool = False  # ... and may not repeat an earlier target of the same effect
+    if_color: str = ""  # Pyroblast: "Destroy target permanent if it's blue." (checked as it resolves)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
+        if target is not None and (not self.if_color or self.if_color in target.card.colors):
             game.destroy(target, self.no_regen)
 
 
@@ -165,8 +166,11 @@ class Counter:
     exile: bool = False  # "exile it instead of putting it into its owner's graveyard"
     delayed_mana: bool = False  # Mana Drain: at your next main phase, add {C} equal to that spell's mana value
     unless: str = ""  # "unless its controller pays {2}": the cost
+    if_color: str = ""  # Pyroblast: "Counter target spell if it's blue." (checked as it resolves)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if self.if_color and target is not None and self.if_color not in target.card.colors:
+            return
         if target is not None and not cant_be_countered(target.card) and not game.uncounterable(target):
             if self.unless and game.pays_unless(target.controller, self.unless, target.card):
                 return
@@ -3382,6 +3386,10 @@ def _merge_conditional(effects: list) -> list | None:
             if not (merged and isinstance(merged[-1], Draw)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], more=effect.count, more_if=effect.condition)
+        elif isinstance(effect, _InsteadMana):
+            if not (merged and isinstance(merged[-1], AddMana)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], more=effect.units, more_if=effect.condition)
         elif isinstance(effect, _ExileTokenAtEnd):
             if not (merged and isinstance(merged[-1], CreateTokens)):
                 return None
@@ -3562,9 +3570,46 @@ class RevealTopStep:
 class AddMana:
     """Ritual: "Add {B}{B}{B}." The mana waits in its controller's pool until the step ends."""
     units: tuple[frozenset[str], ...]
+    more: tuple[frozenset[str], ...] = ()  # Cabal Ritual: "Threshold — Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your graveyard."
+    more_if: "Condition | None" = None
+    per_named: frozenset[str] = frozenset()  # Rite of Flame: one more of these for each card with this spell's name in a graveyard
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.add_mana(controller, self.units)
+        units = self.more if self.more_if and game.condition_holds(self.more_if, controller, game.resolving_source) else self.units
+        if self.per_named and game.resolving_item is not None:
+            named = sum(c.name == game.resolving_item.card.name for s in game.seats for c in s.graveyard)
+            units = units + (self.per_named,) * named
+        game.add_mana(controller, units)
+
+
+@dataclass(frozen=True)
+class _InsteadMana:
+    """ "Threshold — Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your graveyard." (see _merge_conditional)"""
+    condition: "Condition"
+    units: tuple[frozenset[str], ...]
+
+
+@dataclass(frozen=True)
+class LookAtHand:
+    """Gitaxian Probe: "Look at target player's hand." Only its controller learns anything."""
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            controller.player.notify({"event": "hand", "seat": target.index, "cards": [c.name for c in target.hand]})
+
+
+@dataclass(frozen=True)
+class CommanderToHand:
+    """Command Beacon: "Put your commander into your hand from the command zone." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        options = list(controller.command_zone)
+        if options:
+            chosen = options[controller.player.choose(COMMANDER_HAND_PROMPT, [c.name for c in options])] if len(options) > 1 else options[0]
+            controller.command_zone.remove(chosen)
+            controller.hand.append(chosen)
+            game.broadcast({"event": "from_command_zone", "seat": controller.index, "card": chosen.name})
 
 
 @dataclass(frozen=True)
@@ -3858,6 +3903,7 @@ class Untap:
 
 
 UNTAP_LANDS_PROMPT = "Untap which land? "
+COMMANDER_HAND_PROMPT = "Put which commander into your hand? "
 
 
 DONE = "Done"
@@ -4500,7 +4546,7 @@ class FetchBasicLand:
 
 
 _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
-                   r"|monocolored permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
+                   r"|monocolored permanent|(?:white|blue|black|red|green) permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
@@ -4585,7 +4631,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"destroy {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Destroy, m)),
     (re.compile(rf"destroy up to one target {_PERMANENT_KIND}\.", re.I),
      lambda m: Destroy(m[1].lower(), optional_target=True)),
-    (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment) )?spell"
+    (re.compile(r"counter target spell if it's (white|blue|black|red|green)\.", re.I),
+     lambda m: Counter("spell", if_color=_COLOR_LETTER[m[1].lower()])),
+    (re.compile(r"destroy target permanent if it's (white|blue|black|red|green)\.", re.I),
+     lambda m: Destroy("permanent", if_color=_COLOR_LETTER[m[1].lower()])),
+    (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|white|blue|black|red|green) )?spell"
                 rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
     (re.compile(r"return target spell to its owner's hand\.", re.I), lambda m: ReturnSpellToHand()),
@@ -4669,6 +4719,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
     (re.compile(rf"if (.+), draw {_N} cards instead\.", re.I),
      lambda m: _InsteadDraw(c, _count(m[2])) if (c := _condition(m[1])) else None),
+    (re.compile(r"(?:Threshold \u2014 )?add ((?:\{[WUBRGC]\})+) instead if (there are seven or more cards in your graveyard)\.", re.I),
+     lambda m: _InsteadMana(c, tuple(frozenset(s) for s in re.findall(r"[WUBRGC]", m[1].upper()))) if (c := _condition(m[2])) else None),
+    (re.compile(r"add ((?:\{[WUBRGC]\})+), then add (\{[WUBRGC]\}) for each card named CARDNAME in each graveyard\.", re.I),
+     lambda m: AddMana(tuple(frozenset(s) for s in re.findall(r"[WUBRGC]", m[1].upper())), per_named=frozenset(re.findall(r"[WUBRGC]", m[2].upper())))),
+    (re.compile(r"look at target (player|opponent)'s hand\.", re.I), lambda m: LookAtHand(m[1].lower())),
+    (re.compile(r"put your commander into your hand from the command zone\.", re.I), lambda m: CommanderToHand()),
     (re.compile(r"exile that token at the beginning of the next end step\.", re.I), lambda m: _ExileTokenAtEnd()),
     (re.compile(rf"if (.+), create {_N} of those tokens instead\.", re.I),
      lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
@@ -5254,6 +5310,7 @@ def _you_do(phrase: str) -> str:
 
 _TIMES_X = [
     (r"\b(draws?) (?:a card|cards)\b", r"\1 X cards"),
+    (r"\b(mills?) (?:a card|cards)\b", r"\1 X cards"),
     (r"\b(gains?|loses?) (?:1 )?life\b", r"\1 X life"),
     (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
     (r"\b(creates?) a number of (.+?) tokens\b", r"\1 X \2 tokens"),
@@ -5285,7 +5342,11 @@ def _clauses(sentence: str) -> list[str]:
     """Rewrite wording the templates don't cover into sentences they do: "X and you gain 1 life." is two
     sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
     "You create" add nothing."""
-    sentence = sentence.replace(" of their choice.", ".")
+    sentence = sentence.replace(" of their choice.", ".").replace("each other player", "each opponent").replace("Each other player", "Each opponent")
+    if m := re.fullmatch(r"(Draw cards equal to [^,]+), then (discard .+\.)", sentence):  # Greater Good
+        return _clauses(m[1] + ".") + [m[2][:1].upper() + m[2][1:]]
+    if m := re.fullmatch(r"(You (?:lose|gain) \d+ life) and (create .+)", sentence):  # Bitterblossom
+        return [m[1] + ".", m[2][:1].upper() + m[2][1:]]
     if m := re.match(r"Then (?!if\b)(\w)", sentence):  # "Then creatures you control gain trample ..." (Blossoming Bogbeast): the order is the list's
         sentence = m[1].upper() + sentence[m.end():]
     sentence = re.sub(r"\b(draws?) (an|a|one|two|three) additional cards?\b",  # Well of Ideas, Midnight Oil

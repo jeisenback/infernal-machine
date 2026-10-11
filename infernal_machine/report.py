@@ -28,6 +28,8 @@ SUPPORTED_KEYWORDS = {
     "persist", "undying",
     "prowess", "delve", "cascade", "devoid", "shadow", "skulk", "living weapon",  # devoid: the card data has no color
     "ascend",  # the city's blessing for a permanent that has it
+    "split second",  # nothing but mana abilities can be done while the spell is on the stack: see Game.legal_actions
+    "rebound",  # exiled as it resolves from the hand, and cast free at the next upkeep: see Game._rebound
     "exalted",
     "decayed",  # can't block; sacrificed at end of combat when it attacks
     "changeling",  # every creature type: Card lists them all in its type line

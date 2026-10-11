@@ -419,7 +419,8 @@ _AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:y
 
 _PER = {"artifact you control": ("permanent", "artifact"), "creature you control": ("permanent", "creature"),
         "Aura you control": ("permanent", "Aura"), "creature card in your graveyard": ("graveyard", "creature"),
-        "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", "")}
+        "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", ""),
+        "land you control": ("permanent", "land"), "artifact and/or enchantment you control": ("permanent", "artifact or enchantment")}
 
 
 _PER_LOWER = {k.lower(): v for k, v in _PER.items()}
@@ -436,7 +437,11 @@ _BOTH_SCALED = re.compile(rf"This creature and enchanted creature each get {_PT}
                           r"for each Aura you control\.")
 
 
-_ATTACHED_SCALED = re.compile(rf"Enchanted creature gets {_PT} for each ({_PER_WORDS})\.")
+_ATTACHED_SCALED = re.compile(rf"(?:Enchanted|Equipped) creature gets {_PT} for each ({_PER_WORDS})\.")
+
+
+# Whispersilk Cloak, Aqueous Form: "can't be blocked" (a pseudo-keyword the combat code asks for), perhaps with real keywords too.
+_ATTACHED_UNBLOCKABLE = re.compile(rf"(?:Enchanted|Equipped) creature can't be blocked(?: and has ({_KEYWORDS_BARE}))?\.")
 
 
 _ATTACHED_TYPED = re.compile(rf"Enchanted creature gets {_PT}, has ({_KW}(?: and {_KW})*), and is an? ([A-Z][a-z]+) in addition "
@@ -919,6 +924,8 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             buffs.append(AttachedBuff(Modifier(_signed(m[3]), _signed(m[4])), line, per=_PER["Aura you control"]))
         elif m := _ATTACHED_SCALED.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2])), line, per=_PER[m[3]]))
+        elif m := _ATTACHED_UNBLOCKABLE.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(keywords=frozenset({CANT_BE_BLOCKED}) | (_keyword_list(m[1]) if m[1] else frozenset())), line))
     return tuple(buffs)
 
 

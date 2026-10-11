@@ -121,6 +121,7 @@ COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "P
 ENTWINE_PROMPT = "Pay the entwine cost for "  # followed by the spell's name; options: YES_NO
 MADNESS_PROMPT = "Cast it for its madness cost: "  # followed by the card's name; options: YES_NO
 BUYBACK_PROMPT = "Pay the buyback cost for "  # followed by the spell's name; options: YES_NO
+REBOUND_PROMPT = "Cast it again with rebound: "  # followed by the card's name; options: YES_NO
 KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = "Choose a card to exile from your hand"
@@ -309,6 +310,7 @@ class StackItem:
     cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
     whole: Card | None = None  # cast as one half of this card (an Adventure, a split half): the card that moves between zones
+    from_hand: bool = False  # cast from its owner's hand (rebound only works then)
 
     @property
     def physical(self) -> Card:
@@ -390,6 +392,7 @@ class Seat:
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
     extra_lands: int = 0  # additional lands this player may play on `extra_lands_turn` (Explore)
     extra_lands_turn: int | None = None
+    rebounding: list[tuple[Card, int]] = field(default_factory=list)  # cards exiled by rebound, and the turn they were: cast at the next upkeep
     cast_barred: tuple[int, str] | None = None  # (the turn, "" or "noncreature") this player can't cast spells on (Silence)
     spent_turn: int | None = None  # the turn `spent_amount` counts for
     spent_amount: int = 0  # the mana this player spent casting spells that turn ("Whenever you expend 4")
@@ -637,6 +640,7 @@ class Game:
                 for what in due:
                     what()
                 self._tick_suspend(seat)
+                self._rebound(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
             if self.step == "upkeep":  # Squee: a card that returns itself from the graveyard at the beginning of your upkeep
@@ -743,8 +747,18 @@ class Game:
 
     # --- actions -------------------------------------------------------------
 
+    def _rebound(self, seat: Seat) -> None:
+        """At the beginning of its owner's next upkeep, a card exiled by rebound may be cast from exile without paying its mana cost."""
+        due = [card for card, turn in seat.rebounding if turn < self.turn]
+        seat.rebounding = [(card, turn) for card, turn in seat.rebounding if turn >= self.turn]
+        for card in due:
+            if card in seat.exile and seat.player.choose(REBOUND_PROMPT + card.name, ["Yes", "No"]) == 0:
+                self._cast(seat, card, seat.exile, free=True)
+
     def legal_actions(self, seat: Seat) -> list[str]:
         actions = [PASS]
+        if any(not item.ability and has_keyword(item.card, "split second") for item in self.stack):
+            return actions  # split second: nobody can cast spells or activate abilities (mana abilities aside) while it is on the stack
         sorcery_timing = seat.index == self.active and self.step in ("main1", "main2") and not self.stack
         if sorcery_timing and seat.lands_played < self._land_drops(seat):
             actions += [PLAY_LAND + c.name for c in _unique(seat.hand) if is_land(c)]
@@ -1201,7 +1215,7 @@ class Game:
                     paid = mana_life_types(card)
                     condition = mana_life_condition(card)
                     if seat.life > life_cost and not (condition and not self.condition_holds(condition, seat, permanent)):  # never down to 0
-                        lands.append(ManaSource(permanent, paid | free, paid - free, life_cost, life=True))
+                        lands.append(ManaSource(permanent, paid | free, paid, life_cost, life=True))
                     elif free:
                         lands.append(ManaSource(permanent, free))
                     continue
@@ -2075,7 +2089,8 @@ class Game:
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter,
-                         dashed=bool(alternative and alternative.dash), whole=whole)
+                         dashed=bool(alternative and alternative.dash), whole=whole,
+                         from_hand=zone is seat.hand)
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -2276,6 +2291,11 @@ class Game:
             return
         if item.bottom_after and card.name not in item.controller.commander_names:
             item.controller.library.append(card)
+            return
+        if resolved and item.from_hand and has_keyword(item.card, "rebound") and not item.is_copy:
+            item.controller.exile.append(card)  # Ephemerate: it comes back at the next upkeep
+            item.controller.rebounding.append((card, self.turn))
+            self.broadcast({"event": "rebound", "seat": item.controller.index, "card": card.name})
             return
         if resolved and "Adventure" in item.card.type_line:
             # it goes on an adventure: exiled, and its owner may cast the creature from there for as long as it stays
