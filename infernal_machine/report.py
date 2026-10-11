@@ -30,6 +30,7 @@ SUPPORTED_KEYWORDS = {
     "ascend",  # the city's blessing for a permanent that has it
     "exalted",
     "decayed",  # can't block; sacrificed at end of combat when it attacks
+    "convoke", "improvise",  # creatures (artifacts) tapped to help pay: see Game._convoke_sources
     "infect", "wither",  # poison counters for a player, -1/-1 counters for a creature (Toxic N is read apart, below)
     "fear", "intimidate", "horsemanship",
     "islandwalk", "swampwalk", "mountainwalk", "forestwalk", "plainswalk",  # not "snow landwalk" or "nonbasic landwalk"

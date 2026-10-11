@@ -33,7 +33,7 @@ from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_C
                       filter_mana_ability, follows_target, mana_ability, mana_extra_cost, mana_restriction, charge_mana, mana_ability_sacrifices, mana_spent_trigger, has_next_x_rider, Scry, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
-from .mana import SNOW, Cost, parse_cost, pay
+from .mana import GENERIC_ONLY, SNOW, Cost, parse_cost, pay
 from .player import Player
 
 STARTING_LIFE = 40
@@ -1118,7 +1118,26 @@ class Game:
                     continue
                 for mana in units:
                     bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage, restriction=restriction))
-        return pooled + abilities + lands + sacrifices
+        return pooled + abilities + lands + sacrifices + self._convoke_sources(seat, exclude, pooled + abilities + lands + sacrifices)
+
+    def _convoke_sources(self, seat: Seat, exclude: Permanent | None, taken: list[ManaSource]) -> list[ManaSource]:
+        """While a spell with Convoke (or Improvise) is being paid for: each untapped creature (artifact) not already a mana
+        source can be tapped for {1}, or for one mana of its color. Summoning-sick ones can, since it isn't a {T} cost; they go
+        first, being the ones that couldn't attack anyway."""
+        spell = self._spending_spell
+        if spell is None:
+            return []
+        convoke, improvise = has_keyword(spell, "convoke"), has_keyword(spell, "improvise")
+        busy = {id(s.permanent) for s in taken if s.permanent is not None}
+        found = []
+        for permanent in sorted(seat.battlefield, key=lambda p: not p.sick):
+            if permanent.tapped or permanent is exclude or id(permanent) in busy:
+                continue
+            if convoke and "Creature" in permanent.card.type_line:
+                found.append(ManaSource(permanent, frozenset(permanent.card.colors) or frozenset({GENERIC_ONLY})))
+            elif improvise and "Artifact" in permanent.card.type_line:
+                found.append(ManaSource(permanent, frozenset({GENERIC_ONLY})))
+        return found
 
     def _reflected_types(self, seat: Seat, opponents: bool, colorless: bool) -> frozenset[str]:
         """What Exotic Orchard / Reflecting Pool can make: the mana types the lands of the opponents (or your other

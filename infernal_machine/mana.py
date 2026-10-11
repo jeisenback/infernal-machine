@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from itertools import product
 
 MANA_TYPES = frozenset("WUBRGC")
+GENERIC_ONLY = "1"  # a source that can pay only for generic mana (a colorless creature tapped for Convoke, an artifact for Improvise)
 SNOW = "S"  # a snow permanent's mana also counts as snow mana: its types include this, and {S} wants it
 _SYMBOL = re.compile(r"\{([^}]+)\}")
 
