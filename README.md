@@ -445,6 +445,13 @@ winner = game.play()
     "12+ |" works only with that many charge counters on the land: Evendo's and Uthros's mana (a mana for each creature or
     artifact you control, besides the land's own {T} mana), Adagia's token copy of an artifact or enchantment (legendary),
     Kavaron's Robot and attack bonus, Susur Secundi's draw. The counters do not come off.
+  - Hideaway N (the five Hideaway lands: Howltooth Hollow, Mosswort Bridge, Shelldock Isle, Spinerock Knoll, Windbrisk
+    Heights): as the land enters you look at the top N cards, choose one to exile face down (the others go to the bottom in
+    a random order; the other players are not told which). The land's ability plays that card for free, but only if its
+    condition holds as the ability resolves: every hand empty, creatures you control with total power 10 or more, any
+    library with 20 or fewer cards, one opponent dealt 7 or more damage this turn, or three or more creatures attacked this
+    turn. A spell is cast without paying its mana cost; a land is played only if you still have a land drop (otherwise it
+    stays hidden); you may decline. If the condition fails the cost is still paid and the card stays.
   - Karoos: "When this land enters, sacrifice it unless you return an untapped Mountain you control to its owner's
     hand." You are asked which land to return (or to sacrifice it); with no untapped land of the type it is sacrificed.
   - "At the beginning of your upkeep, if this land is tapped, put a storage counter on it" (the condition "if this

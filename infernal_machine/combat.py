@@ -106,6 +106,9 @@ class Combat:
             self.game.broadcast({"event": "attack", "seat": seat.index, "card": permanent.card.name,
                                  "defender": defender.index,
                                  **({"planeswalker": walker.card.name} if walker is not None else {})})
+        if self.attacks:  # Windbrisk Heights: "if you attacked with three or more creatures this turn"
+            seat.most_attackers = len(self.attacks)
+            seat.attackers_turn = self.game.turn
         if len(self.attacks) >= 2:
             for permanent in list(seat.battlefield):
                 self.game.trigger("attack_with_two", permanent, seat)
