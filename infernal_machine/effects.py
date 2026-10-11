@@ -163,6 +163,7 @@ _WHOLE_LINE = re.compile(
     r"|Target player draws cards equal to half the number of cards in their library and loses half their life\. "
     r"Round up each time\."
     r"|Until end of turn, any time you could activate a mana ability, you may pay 1 life\. If you do, add \{C\}\."
+    r"|Choose a color\. Add an amount of mana of that color equal to your devotion to that color\."
     r"|Look at the top card of your library\. If it's an? (?:creature )?card of the chosen type, you may reveal it and put it into "
     r"your hand\."
     r"|Tap enchanted creature\. It becomes unprepared\.", re.I)
@@ -2022,8 +2023,17 @@ _EXTRA_TRIGGER_CHOSEN = re.compile(r"If a triggered ability of another creature 
 _ENTER_CHOSEN = "Each other creature you control of the chosen type enters with an additional +1/+1 counter on it."
 
 
+# Mox Diamond.
+_ENTERS_BY_DISCARD = ("If this artifact would enter, you may discard a land card instead. If you do, put this artifact onto the "
+                      "battlefield. If you don't, put it into its owner's graveyard.")
+
+
+def enters_by_discarding_land(card: Card) -> bool:
+    return any(line == _ENTERS_BY_DISCARD for line in rules_lines(card))
+
+
 def is_replacement_line(line: str) -> bool:
-    return (line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT)
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None)
@@ -2114,8 +2124,8 @@ _GRANT = re.compile(rf'(?:Equipped|Enchanted) (?:creature|land|permanent) has (?
 _ATTACHED_AND_GRANT = re.compile(rf'(?:Equipped|Enchanted) creature has ({_KEYWORDS}) and ".+"\.?')  # Fallen Ideal  # the quote's own full stop is inside it
 
 
-_GROUP_GRANT = re.compile(r'(Treasures|Artifacts|Creatures) you control have "(.+)"\.?')
-_GROUP_KIND = {"Treasures": "Treasure", "Artifacts": "Artifact", "Creatures": "Creature"}
+_GROUP_GRANT = re.compile(r'(Treasures|Artifacts|Creatures|Lands) you control have "(.+)"\.?')
+_GROUP_KIND = {"Treasures": "Treasure", "Artifacts": "Artifact", "Creatures": "Creature", "Lands": "Land"}
 
 
 def is_group_mana_grant_line(line: str) -> bool:
@@ -2132,6 +2142,15 @@ def group_mana_grants(card: Card) -> tuple[tuple[str, str], ...]:
 
 
 @lru_cache(maxsize=None)
+def granted_land_mana(lines: tuple[str, ...], commander_identity: frozenset[str]) -> frozenset[str]:
+    """The mana types lands make because of what they are given ("Lands you control have "{T}: Add one mana of any color."")."""
+    types: set[str] = set()
+    for line in lines:
+        for unit in _mana_from_line(line, commander_identity) or ():
+            types |= unit
+    return frozenset(types)
+
+
 def with_granted_mana(card: Card, lines: tuple[str, ...]) -> Card:
     """`card` as its mana ability reads once it is given `lines`. An unrestricted grant goes first, since it replaces the
     card's own ability (Goldspan Dragon's two mana beat a Treasure's one); one with a spending restriction goes last, so it
@@ -2743,6 +2762,25 @@ class ReturnSelfAsEnchantment:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.return_dead_to_battlefield(target, controller, under_owner=True, enchantment=True)
+
+
+@dataclass(frozen=True)
+class AddDevotionMana:
+    """Nyx Lotus: "Choose a color. Add an amount of mana of that color equal to your devotion to that color." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.add_devotion_mana(controller)
+
+
+@dataclass(frozen=True)
+class ImprintFromHand:
+    """Chrome Mox: "Imprint \u2014 When this artifact enters, you may exile a nonartifact, nonland card from your hand." The card
+    stays with the Mox, whose mana is any of its colors."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.imprint_from_hand(controller, target)
 
 
 @dataclass(frozen=True)
@@ -5759,7 +5797,7 @@ def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
-                                           _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION)) \
+                                           _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
 
 
@@ -5791,6 +5829,7 @@ def self_cost_reduction(card: Card) -> tuple[int, str] | None:
 
 _IF_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast if (.+)\.")  # Mortality Spear
 _POWER_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, where X is the total power of creatures you control\.")
+_GREATEST_POWER_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, where X is the greatest power among creatures you control\.")
 _GRANTED_AFFINITY = re.compile(r"(Enchantment|Aura) spells you cast have affinity for Auras\.")  # Pearl-Ear, Imperial Advisor
 
 
@@ -5805,6 +5844,11 @@ def conditional_cost_reduction(card: Card) -> tuple[int, Condition] | None:
 def reduced_by_total_power(card: Card) -> bool:
     """Volcanic Salvo: "This spell costs {X} less to cast, where X is the total power of creatures you control." """
     return any(_POWER_REDUCTION.fullmatch(line) for line in rules_lines(card))
+
+
+def reduced_by_greatest_power(card: Card) -> bool:
+    """The Great Henge: "This spell costs {X} less to cast, where X is the greatest power among creatures you control." """
+    return any(_GREATEST_POWER_REDUCTION.fullmatch(line) for line in rules_lines(card))
 
 
 def granted_affinity(card: Card) -> str | None:
@@ -5954,6 +5998,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
     (re.compile(r"draw an additional card\.", re.I), lambda m: Draw(1)),
     (re.compile(rf"you gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
+    (re.compile(r"exile a nonartifact, nonland card from your hand\.", re.I), lambda m: ImprintFromHand()),
+    (re.compile(r"choose a color\. add an amount of mana of that color equal to your devotion to that color\.", re.I),
+     lambda m: AddDevotionMana()),
+    (re.compile(r"add one mana of any color\.", re.I), lambda m: AddMana((frozenset("WUBRG"),))),  # Phyrexian Altar, Springleaf Drum
+    # the engine keeps one option set per mana, so the three of Lion's Eye Diamond can be spent as different colors
+    (re.compile(r"add (two|three|four|five) mana of any one color\.", re.I), lambda m: AddMana((frozenset("WUBRG"),) * _ANY_N[m[1].lower()])),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
 
     (re.compile(rf"{_SELF} deals {_N} damage to you\.", re.I), lambda m: DamageToYou(_count(m[1]))),
@@ -7591,6 +7641,9 @@ _TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')
 _AURAS_ON_IT = re.compile(r"that was attached to it", re.I)  # Hateful Eidolon: "it" is only the creature that died
 
 
+_HENGE_BODY = "put a +1/+1 counter on it and draw a card."
+
+
 def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | None, bool, bool, Condition | None]:
     """Like _trigger_body for a trigger about another object or player. "It" means the permanent that set it off
     (only if every effect is about "it"), "that player" / "they" the player who did it (only for effects that
@@ -7598,6 +7651,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     about_player = False
     if subject_ok and rest == _CONTRACT_BODY:  # Contract: both sentences are about the enchanted creature
         return [ContractAttack()], False, False, None
+    if subject_ok and rest == _HENGE_BODY:  # The Great Henge: a counter on the creature, and a card for you
+        return [OnSubject(PutCountersOnSource(1, "+1/+1")), Draw(1)], False, False, None
     if subject_ok and not player_ok and re.search(r"\bits controller (loses|gains|draws|discards|mills)\b", rest, re.I):
         # "Whenever enchanted creature attacks, its controller loses 2 life and you gain 2 life."
         rewritten = re.sub(r"\bits controller (loses|gains|draws|discards|mills)\b", r"target player \1", rest, flags=re.I)
@@ -7745,6 +7800,8 @@ class ActivatedAbility:
     tap_creatures: int = 0  # "Tap two untapped creatures you control": other creatures than the source (Harmonized Trio)
     life_identity: bool = False  # "Pay life equal to the number of colors in your commanders' color identity" (War Room)
     from_graveyard: bool = False  # the ability works from the graveyard ("Return this card from your graveyard ...")
+    tap_legendary: bool = False  # ... and they have to be legendary (Relic of Legends)
+    discard_hand: bool = False  # "Discard your hand" (Lion's Eye Diamond)
     discount_each: str = ""  # "This ability costs {1} less to activate for each legendary creature you control": that kind
 
 
@@ -7779,7 +7836,8 @@ _SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (?:other 
 _REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
 _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
-_TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) untapped creatures? you control")
+_TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) untapped (legendary )?creatures? you control")
+_DISCARD_HAND = re.compile(r"Discard your hand")
 _EXILE_SELF = re.compile(r"Exile (?:CARDNAME|this (?:artifact|creature|permanent|enchantment|land))")
 _BOUNCE_SELF = re.compile(r"Return (?:CARDNAME|this (?:artifact|creature|permanent|enchantment|land)) to its owner's hand")
 _EXILE_COST = re.compile(rf"Exile {_CARDS} (?:(creature|artifact|land|instant|sorcery|enchantment) )?cards? from your graveyard")
@@ -7787,6 +7845,7 @@ _NUMBER = {"a": 1, "an": 1, "two": 2, "three": 3, "four": 4}
 _LOYALTY = re.compile(r"([+\u2212-]?)(\d+)")
 _SORCERY_ONLY = "Activate only as a sorcery."
 _ONCE_EACH_TURN = "Activate only once each turn."
+_INSTANT_ONLY = "Activate only as an instant."  # what every ability without a timing restriction is already
 _ACTIVATE_ONLY_IF = re.compile(r"Activate only (as a sorcery and only )?if (.+)\.")
 
 
@@ -7856,6 +7915,9 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["discard_self"] = True
         elif m := _TAP_CREATURES.fullmatch(part):
             fields["tap_creatures"] = _NUMBER[m[1]]
+            fields["tap_legendary"] = m[2] is not None
+        elif _DISCARD_HAND.fullmatch(part):
+            fields["discard_hand"] = True  # Lion's Eye Diamond
         elif _EXILE_SELF.fullmatch(part):
             fields["exile_source"] = True
         elif _BOUNCE_SELF.fullmatch(part):
@@ -7889,6 +7951,8 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
     if _ONCE_EACH_TURN in sentences:
         fields["once_per_turn"] = True
         sentences.remove(_ONCE_EACH_TURN)
+    if _INSTANT_ONLY in sentences:
+        sentences.remove(_INSTANT_ONLY)
     for sentence in list(sentences):
         if m := _ACTIVATE_ONLY_IF.fullmatch(sentence):
             if (condition := _condition(m[2])) is None:
@@ -7923,6 +7987,22 @@ _ADD_IDENTITY = re.compile(_TAP + r"one mana of any color in your commander's co
 # them as different colors, which the card does not allow.
 _ADD_ANY_N = re.compile(_TAP + r"(two|three|four|five) mana of any one color\." + _IF_TAIL)
 _ANY_N = {"two": 2, "three": 3, "four": 4, "five": 5}
+# Relic of Sauron: two mana, each one of the listed colors (chosen independently, as with Gilded Lotus).
+_ADD_COMBO = re.compile(_TAP + r"(two|three) mana in any combination of (\{[WUBRGC]\}(?:, \{[WUBRGC]\})*,? (?:and/or|or) \{[WUBRGC]\})\." + _IF_TAIL)
+# Mox Amber: the colors of the permanents named, which the game works out when the mana is wanted.
+_ADD_AMONG = re.compile(_TAP + r"one mana of any color among legendary creatures and planeswalkers you control\." + _IF_TAIL)
+# Chrome Mox: the colors of the card exiled with it.
+_ADD_IMPRINTED = re.compile(_TAP + r"one mana of any of the exiled card's colors\." + _IF_TAIL)
+
+
+def mana_among_legendary(card: Card) -> bool:
+    """Mox Amber: its mana is any color among the legendary creatures and planeswalkers its controller controls."""
+    return any(_ADD_AMONG.fullmatch(line) for line in rules_lines(card))
+
+
+def mana_of_imprinted(card: Card) -> bool:
+    """Chrome Mox: its mana is any color of the card exiled with it."""
+    return any(_ADD_IMPRINTED.fullmatch(line) for line in rules_lines(card))
 
 
 # Study Hall, Path of Ancestry: a mana ability with a rider that triggers when the mana is spent on the right spell.
@@ -8113,7 +8193,7 @@ def mana_condition(card: Card) -> "Condition | None":
     return _condition(text) if text else None
 
 
-_MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_THREE, _ADD_ANY, _ADD_IDENTITY, _ADD_ANY_N)
+_MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_THREE, _ADD_ANY, _ADD_IDENTITY, _ADD_ANY_N, _ADD_COMBO, _ADD_AMONG, _ADD_IMPRINTED)
 _PAIN = re.compile(rf"\{{T\}}: Add \{{([WUBRGC])\}} or \{{([WUBRGC])\}}\. {_SELF} deals {_N} damage to you\.", re.I)
 # Ancient Tomb: two mana, and the damage is dealt once however much of it is used.
 _PAIN_MULTI = re.compile(rf"\{{T\}}: Add ((?:\{{[WUBRGC]\}}){{2,}})\. {_SELF} deals {_N} damage to you\.", re.I)
@@ -8288,4 +8368,8 @@ def _mana_from_line(line: str, commander_identity: frozenset[str]) -> list[froze
         return [frozenset("WUBRG")]
     if m := _ADD_ANY_N.fullmatch(line):
         return [frozenset("WUBRG")] * _ANY_N[m[2]]
+    if m := _ADD_COMBO.fullmatch(line):
+        return [frozenset(re.findall(r"[WUBRGC]", m[3]))] * _ANY_N[m[2]]
+    if _ADD_AMONG.fullmatch(line) or _ADD_IMPRINTED.fullmatch(line):
+        return [frozenset("WUBRG")]  # narrowed to the right colors by the game when the mana is wanted
     return [commander_identity] if commander_identity else None

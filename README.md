@@ -695,6 +695,19 @@ winner = game.play()
     the chosen type in addition to its other types" adds the type to the permanent's type line (it goes to the graveyard as the
     card it was); "Other creatures you control of the chosen type get +1/+1" (Adaptive Automaton), "Creatures you control of the
     chosen color get +N/+N" (Heraldic Banner, Hall of Triumph), Metallic Mimic's extra +1/+1 counter for each other creature
+    of its type that enters, and Roaming Throne's extra trigger for another creature of its type. Not read: Secluded
+    Courtyard (mana for abilities too), cost reductions and "whenever you cast a spell of the chosen type" (Herald's Horn, Door
+    of Destinies, Chronicle of Victory), "of the chosen color" for every player (Gauntlet of Power), and Caged Sun's extra mana.
+  - Mana artifacts (#200): Chromatic Lantern ("Lands you control have {T}: Add one mana of any color"); Chrome Mox (you may exile a
+    nonartifact, nonland card from your hand as it enters; its mana is any color of that card, none if it has none); Mox Amber (any
+    color among your legendary creatures and planeswalkers); Mox Diamond (it enters only if you discard a land, otherwise it goes
+    to the graveyard); Relic of Sauron (two mana, each one of its colors); Nyx Lotus (choose a color, mana equal to your
+    devotion to it); The Great Henge (costs less by your greatest power; a counter and a card for each nontoken creature that
+    enters). Mana that costs a creature or a card is used as an activated ability that puts the mana in your pool, which waits
+    for the end of the step: Phyrexian Altar (sacrifice a creature), Springleaf Drum and Relic of Legends (tap an untapped
+    creature, a legendary one for the Relic), Lion's Eye Diamond (discard your hand, sacrifice it). The three mana of "any one
+    color" from Lion's Eye Diamond are chosen independently, as with Gilded Lotus. Not read: Throne of Eldraine, Herd Heirloom
+    and Power Depot (restricted mana with other abilities), Forsaken Monument, Caged Sun.
     of its type that enters, and Roaming Throne's extra trigger for another creature of its type. Also read, for a
     permanent that named a creature type: "[Creature] spells [you cast] of the chosen type cost {N} less" (Herald's Horn, Urza's
     Incubator, which helps every player, and Gathering Stone's discount); Herald's Horn's upkeep look at the top card; watching
