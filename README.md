@@ -670,6 +670,18 @@ winner = game.play()
     (Garruk's Uprising) and "you created a token this turn" (Mox Opal's Metalcraft-style mana, with the Metalcraft, Threshold,
     Hellbent, Delirium and Revolt word prefixes stripped); and "your devotion to <color>" as an amount (Gray Merchant of
     Asphodel). The rest of the list is in issue #200.
+  - Popularity pass 1 (#200, #201, #202), the gaps shared by the most played cards: "You may play an additional land on each of
+    your turns" (one more land drop for each, Exploration, Gitrog Monster); "You may play lands from your graveyard" (Crucible of
+    Worlds), which uses a land drop; "Whenever you gain life, target opponent loses that much life" (Sanguine Bond, Vito) and
+    its mirrors, where "that much" is the life actually gained or lost after doublers; "This artifact doesn't untap during your
+    untap step" (Basalt Monolith, Mana Vault, with its upkeep payment and draw-step damage; a permanent that has lost its
+    abilities untaps normally); the Enduring cycle (it returns when it dies as an enchantment that is not a creature, so it
+    cannot die that way twice); "Creatures you control have {T}: Add one mana of any color" (Enduring Vitality; a summoning-sick
+    creature still can't use it); "Equip legendary creature {N}" alongside a plain Equip line; Extort (a {W/B} payment per
+    extort permanent on each spell you cast); and "You may look at the top card of your library any time", which is understood
+    but changes nothing, since no player here uses the information. Not read: playing lands or casting spells from the top of
+    the library (Oracle of Mul Daya), the Class level that adds a land drop (Druid Class), "chosen type in addition to its other
+    types" (Roaming Throne).
   - Rules-changing statics (#204), read from the permanent's own text:
     - "Creature spells you control can't be countered" / "Spells you control can't be countered": a counterspell does nothing
       to them.

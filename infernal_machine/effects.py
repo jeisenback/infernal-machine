@@ -276,6 +276,15 @@ class Damage:
 
 
 @dataclass(frozen=True)
+class DamageToYou:
+    """Mana Vault: "... it deals 1 damage to you." (the ability's controller, from its source)"""
+    amount: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.damage(controller, game.amount(self.amount))
+
+
+@dataclass(frozen=True)
 class Destroy:
     target: str
     another: bool = False  # "destroy another target ...": not the source itself
@@ -1417,6 +1426,10 @@ _RULES_STATICS = [
     (re.compile(r"You may cast (spells|creature spells|sorcery spells|Spirit spells) as though they had flash\.", re.I), "flash"),
     (re.compile(rf"Each land is an? ({_BASIC_LAND_TYPES}) in addition to its other land types\.", re.I), "land_type"),
     (re.compile(r"Lands you control are every basic land type in addition to their other types\.", re.I), "land_type:all_yours"),
+    (re.compile(r"You may play an additional land on each of your turns\.", re.I), "extra_land"),
+    (re.compile(r"You may play lands from your graveyard\.", re.I), "graveyard_lands"),
+    (re.compile(r"You may look at the top card of your library any time\.", re.I), "look_top"),  # information only: nothing changes
+    (re.compile(rf"{_SELF} doesn't untap during your untap step\.", re.I), "no_untap"),  # Basalt Monolith, Mana Vault
 ]
 _LAND_TYPE_MANA = {"swamp": "B", "forest": "G", "island": "U", "mountain": "R", "plains": "W"}
 
@@ -1428,7 +1441,10 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     turn their abilities of those can't be activated), "one_spell:each" / ":you" (one spell a turn), "no_cast_kind:creature" /
     ":noncreature" (its controller can't cast those), "lock:Artifact" (nobody can activate abilities of those), "uncounterable:spell"
     / ":creature" (its controller's), "flash:spell" / ":creature" / ":sorcery" / ":Spirit" (its controller may cast those at instant
-    speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic)."""
+    speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic),
+    "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
+    "no_untap" (it stays tapped through its controller's untap step), "look_top" (its controller may look at their top card: no
+    change to the game, and no player here uses it)."""
     found = []
     for line in rules_lines(card):
         for pattern, key in _RULES_STATICS:
@@ -1813,7 +1829,7 @@ class AttachAura:
         pass
 
 
-_EQUIP = re.compile(r"Equip ((?:\{\d+\}|\{[WUBRGC]\})+)")
+_EQUIP = re.compile(r"Equip (legendary creature )?((?:\{\d+\}|\{[WUBRGC]\})+)")
 _ENCHANT = re.compile(r"Enchant ((?:land|creature card in a graveyard|creature|artifact|enchantment|planeswalker|permanent"
                       r"|nonland permanent)"
                       r"(?: an opponent controls| you control)?)", re.I)
@@ -1842,9 +1858,11 @@ def is_reconfigure_line(line: str) -> bool:
     return _RECONFIGURE.fullmatch(line) is not None
 
 
-def equip_cost(card: Card) -> str | None:
-    """The mana cost from "Equip {2}", or None (other equip costs aren't supported)."""
-    return next((m[1] for line in rules_lines(card) if (m := _EQUIP.fullmatch(line))), None)
+def equip_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
+    """Every "Equip {2}" and "Equip legendary creature {1}" line (Brotherhood Regalia has both)."""
+    return tuple(ActivatedAbility(line, (Attach("legendary creature you control" if m[1] else "creature you control"),),
+                                  mana_cost=m[2], sorcery_speed=True)
+                 for line in rules_lines(card) if (m := _EQUIP.fullmatch(line)))
 
 
 def aura_kind(card: Card) -> str | None:
@@ -2052,18 +2070,20 @@ _GRANT = re.compile(rf'(?:Equipped|Enchanted) (?:creature|land|permanent) has (?
 _ATTACHED_AND_GRANT = re.compile(rf'(?:Equipped|Enchanted) creature has ({_KEYWORDS}) and ".+"\.?')  # Fallen Ideal  # the quote's own full stop is inside it
 
 
-_GROUP_GRANT = re.compile(r'(Treasures|Artifacts) you control have "(.+)"\.?')
+_GROUP_GRANT = re.compile(r'(Treasures|Artifacts|Creatures) you control have "(.+)"\.?')
+_GROUP_KIND = {"Treasures": "Treasure", "Artifacts": "Artifact", "Creatures": "Creature"}
 
 
 def is_group_mana_grant_line(line: str) -> bool:
-    """Goldspan Dragon, Galazeth Prismari: "Treasures you control have "{T}, Sacrifice this artifact: Add ..."." """
+    """Goldspan Dragon, Galazeth Prismari: "Treasures you control have "{T}, Sacrifice this artifact: Add ..."."; Enduring Vitality:
+    "Creatures you control have "{T}: Add one mana of any color."" """
     return (m := _GROUP_GRANT.fullmatch(line)) is not None and is_mana_ability(m[2])
 
 
 @lru_cache(maxsize=None)
 def group_mana_grants(card: Card) -> tuple[tuple[str, str], ...]:
     """The mana abilities `card` gives to a group of permanents you control, as (type of permanent, the ability's line)."""
-    return tuple(("Treasure" if m[1] == "Treasures" else "Artifact", m[2]) for line in rules_lines(card)
+    return tuple((_GROUP_KIND[m[1]], m[2]) for line in rules_lines(card)
                  if (m := _GROUP_GRANT.fullmatch(line)) and is_mana_ability(m[2]))
 
 
@@ -2662,6 +2682,17 @@ class ReturnSelfToBattlefield:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.return_dead_to_battlefield(target, controller, under_owner=True, tapped=self.tapped)
+
+
+@dataclass(frozen=True)
+class ReturnSelfAsEnchantment:
+    """The Enduring cycle: "When this creature dies, if it was a creature, return it to the battlefield under its owner's control.
+    It's an enchantment." (not a creature any more, so it can't die this way again)"""
+    uses_dead_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.return_dead_to_battlefield(target, controller, under_owner=True, enchantment=True)
 
 
 @dataclass(frozen=True)
@@ -5854,6 +5885,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"you gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
 
+    (re.compile(rf"{_SELF} deals {_N} damage to you\.", re.I), lambda m: DamageToYou(_count(m[1]))),
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
     (re.compile(rf"{_SELF} deals {_N} damage to each of one or two targets\.", re.I),  # Prismari Charm
@@ -6018,6 +6050,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you may tap or untap target creature\.", re.I), lambda m: TapOrUntap()),
     (re.compile(rf"target (player|opponent) gains {_N} life\.", re.I), lambda m: TargetGainLife(_count(m[2]), m[1].lower())),
     (re.compile(rf"target (player|opponent) loses {_N} life\.", re.I), lambda m: TargetLoseLife(_count(m[2]), m[1].lower())),
+    # Sanguine Bond, Exquisite Blood: "that much" is the life the trigger's event carried, which the game keeps as X
+    (re.compile(r"target (player|opponent) loses that much life\.", re.I), lambda m: TargetLoseLife("X", m[1].lower())),
+    (re.compile(r"each opponent loses that much life\.", re.I), lambda m: OpponentsLoseLife("X")),
+    (re.compile(r"you gain that much life\.", re.I), lambda m: GainLife("X")),
     (re.compile(rf"return (another |up to one )?target {_PERMANENT_KIND} to its owner's hand\.", re.I),
      # "Return another target ..." can be neither the source (a trigger's) nor the spell's earlier target (Rushing River).
      lambda m: ReturnToHand(m[2].lower(), (m[1] or "").lower() == "another ", (m[1] or "").lower() == "up to one ",
@@ -7290,6 +7326,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
         if "prowess" in words:  # whenever you cast a noncreature spell, this gets +1/+1 until end of turn
             abilities.append(TriggeredAbility("cast", (PumpSource(Modifier(1, 1)),), False, "Prowess",
                                               Watch("noncreature spell", caster="you")))
+        if "extort" in words:  # whenever you cast a spell, you may pay {W/B}: each opponent loses 1 life and you gain that much
+            abilities.append(TriggeredAbility("cast", (MayPay("{W/B}", Drain(1)),), False, "Extort", Watch("spell", caster="you")))
         if "exalted" in words:  # whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn
             abilities.append(TriggeredAbility("attack_alone", (OnSubject(PumpSource(Modifier(1, 1))),), False, "Exalted"))
         for word in words:  # Bushido N, Afflict N, Rampage N: abilities of blocking and being blocked
@@ -7393,9 +7431,14 @@ class ReturnThisFromGraveyard:
             game.return_from_graveyard(game.graveyard_target(card, controller), controller, self.to, self.tapped)
 
 
+_ENDURING = re.compile(r"if it was a creature, return it to the battlefield under its owner's control\. It's an enchantment\.", re.I)
+
+
 def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]:
     """The part of a trigger after its event: (effects, or None if not understood; "you may";
     "only once each turn"; an intervening "if" clause)."""
+    if _ENDURING.fullmatch(rest):
+        return [ReturnSelfAsEnchantment()], False, False, None
     if m := _PAY_TO_RETURN.fullmatch(rest):
         return [PayToReturnSelf(m[1])], False, False, None
     if m := _MAY_PAY_LOOT.fullmatch(rest):
@@ -7567,7 +7610,7 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
                                                                  event in _PLAYER_EVENTS)
             else:
                 effects, optional, once, condition = _trigger_body(match[1])
-            if effects is not None and event != "dies" and any(isinstance(e, ReturnSelfToBattlefield) for e in effects):
+            if effects is not None and event != "dies" and any(isinstance(e, (ReturnSelfToBattlefield, ReturnSelfAsEnchantment)) for e in effects):
                 effects = None  # "return it to the battlefield": it is only gone when the creature has died
             if effects is not None:
                 abilities.append(TriggeredAbility(event, tuple(effects), optional, text, once_per_turn=once,
@@ -7659,8 +7702,8 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
             ability = dataclasses.replace(ability, text=line, condition=at_least)
         if ability is not None:
             abilities.append(ability)
-    if cost := equip_cost(card):
-        abilities.append(ActivatedAbility(f"Equip {cost}", (Attach(),), mana_cost=cost, sorcery_speed=True))
+    if equips := equip_abilities(card):
+        abilities.extend(equips)
     elif (other := _equip_other_cost(card)) is not None:
         abilities.append(other)
     if cost := reconfigure_cost(card):
