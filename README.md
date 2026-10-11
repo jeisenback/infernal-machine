@@ -643,6 +643,16 @@ winner = game.play()
   - Doubling Season and Parallel Lives: tokens an effect creates under your control, and counters an effect puts on your
     permanents (including the counters a permanent enters with), are doubled. Several stack (two doublers: four times).
     Hardened Scales adds one to +1/+1 counters on your creatures first, then doubling applies.
+  - Also in the current wording: Mondrak ("If one or more tokens would be created under your control, twice that many ..."),
+    Branching Evolution (twice that many +1/+1 counters on a creature you control, after Hardened Scales' extra ones),
+    The Wind Crystal (you gain twice that much life, after Pest Rescuer's extra one), and Academy Manufactor (a Clue, Food or
+    Treasure token you would create becomes one of each, before any token doubling). All stack, and only the effect's
+    controller's own events count.
+  - Exiled instead of dying: "If a creature an opponent controls would die, exile it instead" (Liesa, Gisa), "If this creature
+    would die, exile it instead", and the spells that say "If that creature would die this turn, exile it instead" (Lava
+    Coil) or "If a creature dealt damage this way would die this turn" (Anger of the Gods). The creature is exiled, so it
+    does not die and dies triggers do not happen. Not read: Frostwielder's "dealt damage by this creature this turn", damage
+    prevention (Fog, "prevent the next N damage"), and "twice as much mana" (Mana Reflection).
   - Damage prevention (#235, first batch): "Prevent the next N damage that would be dealt to any target / target creature / you /
     this creature this turn" (an ability, a spell or a mode) is a shield that absorbs up to N from any sources and is then used
     up; "Prevent all damage that would be dealt to target creature this turn" is one that is never used up. Shields last the
