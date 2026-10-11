@@ -1273,7 +1273,7 @@ class Game:
                 if given := tuple(line for kind, line in grants if kind == "Land"):  # Chromatic Lantern
                     types = types | granted_land_mana(given, seat.color_identity)
                 types = types | self._land_type_mana(permanent)  # Urborg: it is a Swamp too
-                lands.extend([ManaSource(permanent, _snowy(permanent, types), pain, damage)] + extra)
+                lands.extend(([ManaSource(permanent, _snowy(permanent, types), pain, damage)] if types else []) + extra)  # no mana: no source
             elif not (permanent.sick and "Creature" in card.type_line and not mana_ability_needs_no_tap(card)):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
                 extra = mana_extra_cost(card)
@@ -3567,6 +3567,8 @@ class Game:
         for found in chosen:
             if to == "hand":
                 seat.hand.append(found)
+            elif to == "battlefield":
+                self._enter(seat, Permanent(found, sick=True, owner=seat))
             elif to == "graveyard":
                 self._move_card(seat, found, "graveyard")
             else:
