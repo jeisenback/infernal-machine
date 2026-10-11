@@ -3726,6 +3726,16 @@ class GainsAbility:
 
 
 @dataclass(frozen=True)
+class SylvanLibrary:
+    """Sylvan Library: "you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of
+    those cards, pay 4 life or put the card on top of your library." """
+    life: int = 4
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.sylvan_library(controller, self.life)
+
+
+@dataclass(frozen=True)
 class PlayerProtection:
     """The One Ring: "You gain protection from everything until your next turn." Nothing can target you and all damage to you is
     prevented, until your next turn begins."""

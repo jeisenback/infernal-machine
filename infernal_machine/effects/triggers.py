@@ -14,6 +14,14 @@ from .common import _SELF, _rules_text, _split_sentences, rules_lines
 from .events import EVENTS
 from .targets import follows_target, target_kind, uses_player, uses_source, uses_subject
 from .outcomes import (
+    _condition,
+    _CONTRACT_BODY,
+    _MODAL_DIFFERENT,
+    _MODAL_INLINE,
+    _parse,
+    _parse_modal,
+    _parse_modal_inline,
+    _SPELL_COLORS,
     Backup,
     Condition,
     ContractAttack,
@@ -40,16 +48,9 @@ from .outcomes import (
     ReturnSelfAsEnchantment,
     ReturnSelfToBattlefield,
     ReturnWithCounter,
+    SylvanLibrary,
     TREASURE,
     UnlessPays,
-    _CONTRACT_BODY,
-    _MODAL_DIFFERENT,
-    _MODAL_INLINE,
-    _SPELL_COLORS,
-    _condition,
-    _parse,
-    _parse_modal,
-    _parse_modal_inline,
 )
 
 
@@ -391,6 +392,10 @@ _MAY_PAY_LOOT = re.compile(r"you may pay ((?:\{[^}]+\})+) and discard a card\. I
 _ENDURING = re.compile(r"if it was a creature, return it to the battlefield under its owner's control\. It's an enchantment\.", re.I)
 
 
+_SYLVAN_BODY = re.compile(r"you may draw two additional cards\. If you do, choose two cards in your hand drawn this turn\. "
+                         r"For each of those cards, pay (\d+) life or put the card on top of your library\.", re.I)
+
+
 _RAGAVAN_BODY = ("create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.")
 
 
@@ -399,6 +404,8 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
     "only once each turn"; an intervening "if" clause)."""
     if _ENDURING.fullmatch(rest):
         return [ReturnSelfAsEnchantment()], False, False, None
+    if m := _SYLVAN_BODY.fullmatch(rest):
+        return [SylvanLibrary(int(m[1]))], False, False, None
     if rest == _RAGAVAN_BODY:
         return [CreateTokens(1, TREASURE), ExileTopOfThatPlayerMayCast()], False, False, None
     if m := _PAY_TO_RETURN.fullmatch(rest):
