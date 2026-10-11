@@ -2900,10 +2900,11 @@ class Game:
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats() if not s.protected]
         elif kind == "opponent":
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster) if not s.protected]
-        if (spell_filter := parse_filter(kind)) and re.search(r"spell( you control)?( with mana value \d+( or less| or greater)?)?$", kind):  # "spell", "noncreature spell", "... spell you control", "spell with mana value 1"
+        if (spell_filter := parse_filter(kind)) and re.search(r"spell( you control| you don't control)?( with mana value \d+( or less| or greater)?)?$", kind):  # "spell", "noncreature spell", "... spell you control", "spell with mana value 1"
             options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
                         if not i.ability and spell_filter.matches(i.card)
-                        and not (spell_filter.controller == "you" and i.controller is not caster)]
+                        and not (spell_filter.controller == "you" and i.controller is not caster)
+                        and not (spell_filter.controller == "opponent" and i.controller is caster)]
             return options
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
         wanted = parse_filter(re.sub(r"mana value x\b", lambda m: "mana value %d" % (
