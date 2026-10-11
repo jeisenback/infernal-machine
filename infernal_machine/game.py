@@ -29,7 +29,7 @@ from .effects import (EVENTS, heard_on, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_U
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
-                      self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
+                      self_cost_reduction, conditional_cost_reduction, reduced_by_total_power, granted_affinity, is_identity_mana_land, land_mana_units, mana_bonus, mana_lines, mana_life_condition, mana_life_cost, mana_life_types, mana_pain, printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_ability, mana_extra_cost, mana_restriction, charge_mana, mana_ability_sacrifices, mana_spent_trigger, has_next_x_rider, Scry, spell_effects, static_abilities, target_kind,
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
@@ -121,6 +121,7 @@ COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "P
 ENTWINE_PROMPT = "Pay the entwine cost for "  # followed by the spell's name; options: YES_NO
 MADNESS_PROMPT = "Cast it for its madness cost: "  # followed by the card's name; options: YES_NO
 BUYBACK_PROMPT = "Pay the buyback cost for "  # followed by the spell's name; options: YES_NO
+REBOUND_PROMPT = "Cast it again with rebound: "  # followed by the card's name; options: YES_NO
 KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = "Choose a card to exile from your hand"
@@ -309,6 +310,7 @@ class StackItem:
     cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
     whole: Card | None = None  # cast as one half of this card (an Adventure, a split half): the card that moves between zones
+    from_hand: bool = False  # cast from its owner's hand (rebound only works then)
 
     @property
     def physical(self) -> Card:
@@ -388,6 +390,10 @@ class Seat:
     x_rider_count: int = 0
     copy_next_per_commander: bool = False  # ... once per time the commander was cast from the command zone (Thunderclap Drake)
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
+    extra_lands: int = 0  # additional lands this player may play on `extra_lands_turn` (Explore)
+    extra_lands_turn: int | None = None
+    rebounding: list[tuple[Card, int]] = field(default_factory=list)  # cards exiled by rebound, and the turn they were: cast at the next upkeep
+    cast_barred: tuple[int, str] | None = None  # (the turn, "" or "noncreature") this player can't cast spells on (Silence)
     spent_turn: int | None = None  # the turn `spent_amount` counts for
     spent_amount: int = 0  # the mana this player spent casting spells that turn ("Whenever you expend 4")
     surge: tuple[int, Card] | None = None  # Surge to Victory: (the turn, the exiled card its creatures copy on combat damage)
@@ -588,9 +594,19 @@ class Game:
                     if permanent.goaded_by is seat:
                         permanent.goaded_by = None
             for other in self.live_seats():  # Seedborn Muse: everything untaps in each other player's untap step
-                if other is not seat and any(not self.loses_abilities(p) and "untap_others" in rules_statics(p.card) for p in other.battlefield):
-                    for permanent in other.battlefield:
-                        permanent.tapped = False
+                if other is not seat:
+                    for source in other.battlefield:
+                        if self.loses_abilities(source):
+                            continue
+                        for key in rules_statics(source.card):
+                            if key == "untap_others":
+                                for permanent in other.battlefield:
+                                    permanent.tapped = False
+                            elif key == "untap_others:artifact":  # Unwinding Clock
+                                for permanent in other.battlefield:
+                                    permanent.tapped = permanent.tapped and "Artifact" not in permanent.card.type_line
+                            elif key == "untap_others:self":  # Bender's Waterskin
+                                source.tapped = False
             for other in self.live_seats():  # Quest for Renewal: untap in each other player's untap step too
                 if other is not seat and any(
                         (rule := untaps_in_other_untap_steps(p.card)) and p.counters.get(rule[0], 0) >= rule[1]
@@ -624,6 +640,7 @@ class Game:
                 for what in due:
                     what()
                 self._tick_suspend(seat)
+                self._rebound(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
             if self.step == "upkeep":  # Squee: a card that returns itself from the graveyard at the beginning of your upkeep
@@ -730,8 +747,18 @@ class Game:
 
     # --- actions -------------------------------------------------------------
 
+    def _rebound(self, seat: Seat) -> None:
+        """At the beginning of its owner's next upkeep, a card exiled by rebound may be cast from exile without paying its mana cost."""
+        due = [card for card, turn in seat.rebounding if turn < self.turn]
+        seat.rebounding = [(card, turn) for card, turn in seat.rebounding if turn >= self.turn]
+        for card in due:
+            if card in seat.exile and seat.player.choose(REBOUND_PROMPT + card.name, ["Yes", "No"]) == 0:
+                self._cast(seat, card, seat.exile, free=True)
+
     def legal_actions(self, seat: Seat) -> list[str]:
         actions = [PASS]
+        if any(not item.ability and has_keyword(item.card, "split second") for item in self.stack):
+            return actions  # split second: nobody can cast spells or activate abilities (mana abilities aside) while it is on the stack
         sorcery_timing = seat.index == self.active and self.step in ("main1", "main2") and not self.stack
         if sorcery_timing and seat.lands_played < self._land_drops(seat):
             actions += [PLAY_LAND + c.name for c in _unique(seat.hand) if is_land(c)]
@@ -993,6 +1020,8 @@ class Game:
         """Whether a static ability stops `seat` casting `card` now: "Your opponents can't cast spells during your turn" (Kutzil),
         "... during combat" (Marisi), one spell a turn (Rule of Law), "You can't cast creature spells" (Steel Golem)."""
         casts = sum(1 for turn, _ in seat.cast_log if turn == self.turn)
+        if seat.cast_barred and seat.cast_barred[0] == self.turn and (not seat.cast_barred[1] or "Creature" not in card.type_line):
+            return True  # Silence, Ranger-Captain of Eos
         for owner, _, key in self._static_rules():
             if key == "opp_no_cast:turn" and owner is not seat and self.seats[self.active] is owner:
                 return True
@@ -1006,7 +1035,8 @@ class Game:
 
     def _land_drops(self, seat: Seat) -> int:
         """How many lands `seat` may play a turn: one, and one more for each "You may play an additional land" it controls."""
-        return 1 + sum(1 for owner, _, key in self._static_rules() if owner is seat and key == "extra_land")
+        extra = seat.extra_lands if seat.extra_lands_turn == self.turn else 0
+        return 1 + extra + sum(1 for owner, _, key in self._static_rules() if owner is seat and key == "extra_land")
 
     def _graveyard_lands(self, seat: Seat) -> bool:
         return any(owner is seat and key == "graveyard_lands" for owner, _, key in self._static_rules())
@@ -1180,8 +1210,14 @@ class Game:
                     continue  # (Cabal Coffers has only the ability that costs mana; Evendo's plain {T}: Add {G} is read below)
             if is_land(card):
                 if life_cost := mana_life_cost(card):
-                    if seat.life > life_cost:  # Mana Confluence: paying life, never down to 0
-                        lands.append(ManaSource(permanent, mana_life_types(card), frozenset("WUBRGC"), life_cost, life=True))
+                    plain = mana_ability(card, seat.color_identity)  # Spire of Industry, a Horizon land: {C} costs nothing
+                    free = frozenset().union(*plain) if plain else frozenset()
+                    paid = mana_life_types(card)
+                    condition = mana_life_condition(card)
+                    if seat.life > life_cost and not (condition and not self.condition_holds(condition, seat, permanent)):  # never down to 0
+                        lands.append(ManaSource(permanent, paid | free, paid, life_cost, life=True))
+                    elif free:
+                        lands.append(ManaSource(permanent, free))
                     continue
                 if (cm := counter_removal_mana(card)) is not None:  # Vivid Crag, Hickory Woodlot: the mana costs a counter
                     plain = mana_ability(card, seat.color_identity)
@@ -1200,6 +1236,13 @@ class Game:
                          if a.attached_to is permanent for mana in additional_land_mana(a.card)]  # Wild Growth
                 if seat.extra_mountain_mana_turn == self.turn and "Mountain" in card.type_line:  # Molten Tide
                     extra.append(ManaSource(permanent, frozenset("R"), pain, damage))
+                if (bonus := mana_bonus(card)) is not None and all(any(p.card.name == name for p in seat.battlefield) for name in bonus[0]):
+                    lands.extend([ManaSource(permanent, frozenset("C"), pain, damage) for _ in range(bonus[1])] + extra)
+                    continue  # the Urza lands: more mana with the other two
+                if (lines := mana_lines(card)) is not None:  # a Verge land: each color has its own line and condition
+                    types = frozenset().union(*(t for t, condition in lines if condition is None or self.condition_holds(condition, seat, permanent)))
+                    lands.extend(([ManaSource(permanent, types, pain, damage)] if types else []) + extra)
+                    continue
                 if units := land_mana_units(card):  # a bounceland or Ancient Tomb makes several mana in one tap
                     lands.extend([ManaSource(permanent, mana, pain, damage) for mana in units] + extra)
                     continue
@@ -1745,7 +1788,7 @@ class Game:
 
     def _hand_ability_cost(self, seat: Seat, ability: ActivatedAbility) -> Cost:
         """The mana an ability from the hand costs: Channel abilities cost {1} less for each permanent of a kind they count (Boseiju)."""
-        cost = parse_cost(ability.mana_cost)
+        cost = parse_cost(ability.mana_cost) if ability.mana_cost else Cost()
         if ability.discount_each:
             cost = cost.reduced(sum(_permanent_matches(ability.discount_each, p.card) for p in seat.battlefield))
         return cost
@@ -1755,6 +1798,12 @@ class Game:
         the ability goes on the stack."""
         ability = hand_abilities(card)[0]
         effects = list(ability.effects)
+        if ability.exile_from_hand:  # a Spirit Guide's mana ability: exiled as the cost, and the mana is added at once
+            self.broadcast({"event": "exiled_from_hand", "seat": seat.index, "card": card.name})
+            self._move_card(seat, card, "exile")
+            for effect in effects:
+                effect.resolve(self, seat, None)
+            return
         targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
         tapped = self._pay_cost(seat, self._hand_ability_cost(seat, ability)) if ability.mana_cost else []
         self._spend_mana(seat, tapped)
@@ -2040,7 +2089,8 @@ class Game:
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter,
-                         dashed=bool(alternative and alternative.dash), whole=whole)
+                         dashed=bool(alternative and alternative.dash), whole=whole,
+                         from_hand=zone is seat.hand)
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -2241,6 +2291,11 @@ class Game:
             return
         if item.bottom_after and card.name not in item.controller.commander_names:
             item.controller.library.append(card)
+            return
+        if resolved and item.from_hand and has_keyword(item.card, "rebound") and not item.is_copy:
+            item.controller.exile.append(card)  # Ephemerate: it comes back at the next upkeep
+            item.controller.rebounding.append((card, self.turn))
+            self.broadcast({"event": "rebound", "seat": item.controller.index, "card": card.name})
             return
         if resolved and "Adventure" in item.card.type_line:
             # it goes on an adventure: exiled, and its owner may cast the creature from there for as long as it stays
@@ -2834,7 +2889,7 @@ class Game:
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
         elif kind == "opponent":
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)]
-        if (spell_filter := parse_filter(kind)) and re.search(r"spell( you control)?$", kind):  # "spell", "noncreature spell", "... spell you control"
+        if (spell_filter := parse_filter(kind)) and re.search(r"spell( you control)?( with mana value \d+( or less| or greater)?)?$", kind):  # "spell", "noncreature spell", "... spell you control", "spell with mana value 1"
             options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
                         if not i.ability and spell_filter.matches(i.card)
                         and not (spell_filter.controller == "you" and i.controller is not caster)]
@@ -3478,28 +3533,36 @@ class Game:
         """One or more of `seat`'s cards were just put into exile from its library and/or graveyard, as one event (Laelia)."""
         self.happened("exile_library_graveyard", seat)
 
-    def tutor(self, seat: Seat, card_type: str, to: str, reveal: bool) -> None:
-        """Search the library for a card of `card_type`: it goes to the hand (`to` is "hand")
-        or to the top of the library ("top") after shuffling. Only "reveal" shows others which card."""
-        matches = _unique([c for c in seat.library if _card_matches(card_type, c)])
-        found = None
-        if matches:
-            found = matches[seat.player.choose(SEARCH_CARD_PROMPT, [c.name for c in matches])]
-            seat.library.remove(found)
+    def tutor(self, seat: Seat, card_type: str, to: str, reveal: bool, count: int = 1) -> None:
+        """Search the library for a card of `card_type`: it goes to the hand (`to` is "hand"), to the graveyard or to the top
+        of the library ("top") after shuffling. Only "reveal" shows others which card. With a `count` above one, up to that
+        many cards are found (Buried Alive), and the searcher may stop early."""
+        chosen = []
+        for _ in range(count):
+            matches = _unique([c for c in seat.library if _card_matches(card_type, c)])
+            if not matches:
+                break
+            options = [c.name for c in matches] + ([DONE] if count > 1 else [])
+            choice = seat.player.choose(SEARCH_CARD_PROMPT, options)
+            if choice >= len(matches):
+                break
+            seat.library.remove(matches[choice])
+            chosen.append(matches[choice])
         self.rng.shuffle(seat.library)
         self._searched(seat)
-        if found is None:
+        if not chosen:
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
             return
-        if to == "hand":
-            seat.hand.append(found)
-        elif to == "graveyard":
-            self._move_card(seat, found, "graveyard")
-        else:
-            seat.library.insert(0, found)
-        self.broadcast({"event": "searched", "seat": seat.index, "found": True, "to": to,
-                        **({"card": found.name} if reveal else {})}, skip=seat)
-        seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": to, "card": found.name})
+        for found in chosen:
+            if to == "hand":
+                seat.hand.append(found)
+            elif to == "graveyard":
+                self._move_card(seat, found, "graveyard")
+            else:
+                seat.library.insert(0, found)
+            self.broadcast({"event": "searched", "seat": seat.index, "found": True, "to": to,
+                            **({"card": found.name} if reveal else {})}, skip=seat)
+            seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": to, "card": found.name})
 
     def sacrifice(self, seat: Seat, kind: str = "creature", count: int | None = 1, greatest: bool = False) -> list[Permanent]:
         """`seat` chooses `count` of its permanents of `kind` (a creature, artifact, land, ...) and sacrifices them
@@ -5008,6 +5071,9 @@ class Game:
         rule = enters_tapped_rule(permanent.card)
         if rule and self._enters_tapped(seat, rule, permanent.card):
             permanent.tapped = True
+        if any(key.startswith("enter_tapped:opp:") and owner is not seat and _permanent_matches(key.rpartition(":")[2].replace(",", " or "), permanent.card)
+               for owner, _, key in self._static_rules()):
+            permanent.tapped = True  # Authority of the Consuls, Blind Obedience
         if saga_chapters(permanent.card):  # a Saga arrives with a lore counter, which triggers chapter I
             permanent.counters["lore"] = permanent.counters.get("lore", 0) + 1
         seat.battlefield.append(permanent)
@@ -5499,8 +5565,8 @@ class Game:
 
 
 def _has_type(card: Card, kind: str) -> bool:
-    """Whether a card has a type or subtype: "creature", "Plains", "Snake"."""
-    return kind.lower() in card.type_line.lower().replace("—", " ").split()
+    """Whether a card has a type or subtype: "creature", "Plains", "Snake", or one of several ("Swamp or Mountain")."""
+    return parse_filter(kind).matches(card)
 
 
 def _watch_type_matches(kind: str, card: Card) -> bool:

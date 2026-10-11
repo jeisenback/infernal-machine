@@ -27,7 +27,7 @@ def spell_effects(card: Card) -> list | None:
 def is_hand_ability_line(line: str) -> bool:
     """Magma Opus's "{U/R}{U/R}, Discard this card: ...": an ability of the card, not a sentence of the spell."""
     m = _ACTIVATED.fullmatch(_channel_body(line)[0])
-    return m is not None and bool((_cost_fields(m[1]) or {}).get("discard_self"))
+    return m is not None and bool((fields := _cost_fields(m[1]) or {}).get("discard_self") or fields.get("exile_from_hand"))
 
 
 def line_effects(line: str) -> list | None:

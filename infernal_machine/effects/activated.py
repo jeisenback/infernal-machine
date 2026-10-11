@@ -85,6 +85,7 @@ class ActivatedAbility:
     remove_counter: str = ""  # "Remove a +1/+1 counter from this creature": the kind of counter
     condition: "Condition | None" = None  # "Activate only if you control two or more white permanents."
     discard_self: bool = False  # "Discard this card": activated from the hand, like cycling (Magma Opus)
+    exile_from_hand: bool = False  # "Exile this card from your hand": activated from the hand (the Spirit Guides)
     exile_source: bool = False  # "Exile this artifact": the source is exiled as a cost (Perpetual Timepiece)
     bounce_source: bool = False  # "Return CARDNAME to its owner's hand": likewise (Rootha)
     tap_creatures: int = 0  # "Tap two untapped creatures you control": other creatures than the source (Harmonized Trio)
@@ -151,6 +152,7 @@ _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
 
 
 _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
+_EXILE_FROM_HAND = re.compile(r"Exile (?:CARDNAME|this card) from your hand")
 
 
 _TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) untapped (legendary )?creatures? you control")
@@ -226,8 +228,8 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
 
 
 def hand_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
-    """The activated abilities a card has in your hand: those whose cost discards it (Magma Opus)."""
-    return tuple(a for a in activated_abilities(card) if a.discard_self)
+    """The activated abilities a card has in your hand: those whose cost discards it (Magma Opus) or exiles it (a Spirit Guide)."""
+    return tuple(a for a in activated_abilities(card) if a.discard_self or a.exile_from_hand)
 
 
 def _cost_fields(cost: str) -> dict[str, Any] | None:
@@ -250,6 +252,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["discard"] = _NUMBER[m[1]]
         elif _DISCARD_SELF.fullmatch(part):
             fields["discard_self"] = True
+        elif _EXILE_FROM_HAND.fullmatch(part):
+            fields["exile_from_hand"] = True
         elif m := _TAP_CREATURES.fullmatch(part):
             fields["tap_creatures"] = _NUMBER[m[1]]
             fields["tap_legendary"] = m[2] is not None
