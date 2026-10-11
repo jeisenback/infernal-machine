@@ -97,6 +97,7 @@ OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
 X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
 SPLIT_HAND_PROMPT = "Put which card into your hand? "
 SPLIT_BOTTOM_PROMPT = "Put which card on the bottom of your library? "
+MANIFEST_DREAD_PROMPT = "Manifest which card? "  # the other goes to the graveyard
 DANCE_PROMPT = "Exile the top card of your library? "  # followed by "(N exiled, total mana value M)"; Yes or No
 DANCE_CAST_PROMPT = "Cast for free: "  # followed by the card's name; Yes or No
 TURN_UP = "Turn face up: "  # followed by the manifested creature's label
@@ -3430,12 +3431,27 @@ class Game:
     def manifest(self, seat: Seat) -> None:
         """Manifest the top card of the library: it enters face down as a 2/2 creature with no abilities. A creature card
         can be turned face up (TURN_UP) for its mana cost; it goes to the graveyard as itself."""
-        if not seat.library:
-            return
-        real = seat.library.pop(0)
+        if seat.library:
+            self._manifest_card(seat, seat.library.pop(0))
+
+    def _manifest_card(self, seat: Seat, real: Card) -> Permanent:
         face_down = Card(name="Face-down creature", type_line="Creature", power="2", toughness="2")
         self.broadcast({"event": "manifested", "seat": seat.index})
-        self._enter(seat, Permanent(face_down, sick=True, real_card=real, manifested=True, owner=seat))
+        entering = Permanent(face_down, sick=True, real_card=real, manifested=True, owner=seat)
+        self._enter(seat, entering)
+        return entering
+
+    def manifest_dread(self, seat: Seat) -> Permanent | None:
+        """Look at the top two cards of the library: one is manifested, the other goes to the graveyard. Returns the creature."""
+        top = seat.library[:2]
+        if not top:
+            return None
+        chosen = seat.player.choose(MANIFEST_DREAD_PROMPT, [c.name for c in top]) if len(top) > 1 else 0
+        del seat.library[:len(top)]
+        for index, card in enumerate(top):
+            if index != chosen:
+                self._move_card(seat, card, "graveyard")
+        return self._manifest_card(seat, top[chosen])
 
     def _turn_up_options(self, seat: Seat) -> list[Permanent]:
         """Manifested creature cards of `seat` that it can afford to turn face up."""

@@ -170,6 +170,7 @@ from .outcomes import (  # noqa: F401
     TapThat,
     TargetChooseDiscard,
     TargetControllerCreatesTokens,
+    ManifestDread,
     TargetControllerManifests,
     TargetCreatesTokens,
     TargetDiscard,
