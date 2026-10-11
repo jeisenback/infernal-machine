@@ -32,15 +32,16 @@ _SELF = (r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|plane
 
 def _count(word: str) -> int | str:
     """A number from rules text; "X" stays "X" ("twice X" is "2X") and the game fills it in (Game.amount)."""
-    if word == "X":
+    lowered = word.lower()  # some patterns see text that was lowercased first ("put X +1/+1 counters on it")
+    if lowered == "x":
         return "X"
-    if word == "twice X":
+    if lowered == "twice x":
         return "2X"
-    if word in ("half X", "half X down"):
+    if lowered in ("half x", "half x down"):
         return "hX"
-    if word == "half X up":
+    if lowered == "half x up":
         return "hX+"
-    return int(word) if word.isdigit() else _NUMBERS[word.lower()]
+    return int(word) if word.isdigit() else _NUMBERS[lowered]
 
 
 def _rules_text(card: Card) -> str:
@@ -5769,7 +5770,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"return (five|six|seven) target {_PLURAL_KIND} to their owners' hands\.", re.I),  # Aether Gale: exactly that many
      lambda m: [ReturnToHand(_PLURAL_KINDS[m[2].lower()] + (m[3] or ""), distinct=n > 0) for n in range(_count(m[1]))]),
     (re.compile(rf"return all {_CARDS_PLURAL} from your graveyard to (the battlefield|your hand)\.", re.I),
-     lambda m: ReturnAllFromGraveyard(_card_kind(m[1].removesuffix("s")), "battlefield" if m[2].lower() == "the battlefield" else "hand")),
+     lambda m: ReturnAllFromGraveyard(_card_kind(re.sub(r"\bcards\b", "card", m[1])), "battlefield" if m[2].lower() == "the battlefield" else "hand")),
     (re.compile(rf"return all {_MASS_FILTERED} to their owners' hands\.", re.I), lambda m: _mass_effect(ReturnAllToHand, m)),
     (re.compile(rf"return {_UP_TO} target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),
      lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand",
