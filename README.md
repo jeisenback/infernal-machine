@@ -643,6 +643,15 @@ winner = game.play()
   - Doubling Season and Parallel Lives: tokens an effect creates under your control, and counters an effect puts on your
     permanents (including the counters a permanent enters with), are doubled. Several stack (two doublers: four times).
     Hardened Scales adds one to +1/+1 counters on your creatures first, then doubling applies.
+  - Damage prevention (#235, first batch): "Prevent the next N damage that would be dealt to any target / target creature / you /
+    this creature this turn" (an ability, a spell or a mode) is a shield that absorbs up to N from any sources and is then used
+    up; "Prevent all damage that would be dealt to target creature this turn" is one that is never used up. Shields last the
+    turn they were made. "Prevent all combat damage that would be dealt this turn" (Fog) stops combat damage to players and
+    creatures until the turn ends. A permanent can prevent all damage dealt to itself, only combat damage to itself, only damage
+    from creatures, or all damage to its controller. "Damage can't be prevented" (and "damage dealt by this creature can't be
+    prevented") beats all of these. Prevented damage is not dealt, so there is no lifelink, poison, commander damage or combat
+    damage trigger for it. Not read: sources of your choice (Circles of Protection), enchanted creature, divided and X shields,
+    redirection; the full list is in issue #235.
   - Panharmonicon and Yarok: a triggered ability of a permanent you control that triggers because an artifact or creature
     (or any permanent) entered triggers an additional time; each such permanent adds one. Both the entering
     permanent's own "When this enters" and watching "Whenever another creature enters" abilities count.

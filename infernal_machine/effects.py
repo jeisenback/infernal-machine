@@ -1382,6 +1382,26 @@ _COMBAT_RESTRICTIONS = [
 ]
 
 
+_PREVENTION_STATICS = [
+    (re.compile(rf"Prevent all damage that would be dealt to {_SELF}\.", re.I), "self:all"),
+    (re.compile(rf"Prevent all combat damage that would be dealt to {_SELF}\.", re.I), "self:combat"),
+    (re.compile(rf"Prevent all damage that would be dealt to {_SELF} by creatures\.", re.I), "self:creatures"),
+    (re.compile(r"Prevent all damage that would be dealt to you\.", re.I), "you:all"),
+    (re.compile(r"Damage can't be prevented\.", re.I), "unpreventable"),
+    (re.compile(rf"Damage that would be dealt by {_SELF} can't be prevented\.", re.I), "unpreventable:self"),
+]
+
+
+def damage_prevention(card: Card) -> frozenset[str]:
+    """What a permanent's own text prevents or stops from being prevented: "self:all", "self:combat", "self:creatures" (damage dealt
+    to it), "you:all" (to its controller), "unpreventable" (nobody's damage can be prevented), "unpreventable:self" (its own)."""
+    return frozenset(key for line in rules_lines(card) for pattern, key in _PREVENTION_STATICS if pattern.fullmatch(line))
+
+
+def is_prevention_line(line: str) -> bool:
+    return any(pattern.fullmatch(line) for pattern, _ in _PREVENTION_STATICS)
+
+
 def combat_restrictions(card: Card) -> tuple[CombatRestriction, ...]:
     found = []
     for line in rules_lines(card):
@@ -2147,10 +2167,44 @@ class PreventCombatDamageToYou:
         game.prevent_combat_damage(controller, self.token)
 
 
+ALL_DAMAGE = 10 ** 9  # "prevent all damage": a shield too big to use up
+
+
+@dataclass(frozen=True)
+class PreventAllCombatDamage:
+    """Fog: "Prevent all combat damage that would be dealt this turn." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.fog_turn = game.turn
+
+
+@dataclass(frozen=True)
+class PreventNext:
+    """ "Prevent the next 2 damage that would be dealt to any target (target creature, you, this creature) this turn."
+    With no `target` and not `uses_source`, it is the controller that is shielded."""
+    amount: int
+    target: str = ""
+    uses_source: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        shielded = target if (self.target or self.uses_source) else controller
+        if shielded is not None:
+            game.shield(shielded, self.amount)
+
+
 @dataclass(frozen=True)
 class _TokenPerPrevented:
     """ "For each 1 damage prevented this way, create ...": only ever after PreventCombatDamageToYou."""
     token: Card
+
+
+def _prevent_next(amount: int, whom: str) -> PreventNext:
+    whom = whom.lower()
+    if whom == "any target":
+        return PreventNext(amount, "any")
+    if whom == "target creature":
+        return PreventNext(amount, "creature")
+    return PreventNext(amount) if whom == "you" else PreventNext(amount, uses_source=True)
 
 
 def _merge_prevention(effects: list) -> list | None:
@@ -6310,6 +6364,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'for each opponent, create (.+) that attack that opponent this turn if able\.("?)', re.I), _attacking_tokens),
     (re.compile(r"they gain haste until end of turn\.", re.I), lambda m: _TheyGainHaste()),
     (re.compile(r"exile them at the beginning of the next end step\.", re.I), lambda m: _ExileThemLater()),
+    (re.compile(r"prevent all combat damage that would be dealt this turn\.", re.I), lambda m: PreventAllCombatDamage()),
+    (re.compile(rf"prevent the next {_NUM} damage that would be dealt to (any target|target creature|you|{_SELF}) this turn\.", re.I),
+     lambda m: _prevent_next(_count(m[1]), m[2])),
+    (re.compile(r"prevent all damage that would be dealt to target creature this turn\.", re.I),
+     lambda m: PreventNext(ALL_DAMAGE, "creature")),
     (re.compile(r"prevent all combat damage that would be dealt to you this turn\.", re.I),
      lambda m: PreventCombatDamageToYou()),
     (re.compile(r'for each 1 damage prevented this way, create (.+)\.("?)', re.I), _token_per_prevented),

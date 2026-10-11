@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -440,6 +440,8 @@ class Game:
         self.resolving_item: StackItem | None = None  # what is resolving right now
         self.resolving_target: Any = None  # the last target chosen for it, which "that creature" in a condition means
         self.resolving_colors: frozenset[str] = frozenset()  # its colors (for protection from damage)
+        self.fog_turn: int | None = None  # the turn all combat damage is prevented (Fog)
+        self.shields: list[list] = []  # [what is shielded, damage still to prevent, turn]: "prevent the next 2 damage ... this turn"
 
     @property
     def multiplayer(self) -> bool:
@@ -2757,6 +2759,13 @@ class Game:
         if isinstance(target, Permanent) and self.protected_from(target, colors):
             self.broadcast({"event": "damage_prevented", "card": target.card.name, "amount": amount})
             return
+        prevented = self._damage_after_prevention(target, amount, source, combat)
+        if prevented < amount:
+            self.broadcast({"event": "damage_prevented", "amount": amount - prevented,
+                            **({"card": target.card.name} if isinstance(target, Permanent) else {"seat": target.index})})
+            amount = prevented
+            if amount <= 0:
+                return
         controller = self.controller_of(source) if source else None
         infect = source is not None and self.has_keyword(source, "infect")  # to a player: poison counters; to a creature: wither
         wither = infect or (source is not None and self.has_keyword(source, "wither"))
@@ -2823,6 +2832,35 @@ class Game:
         if count > 0:
             seat.player_counters["poison"] = seat.player_counters.get("poison", 0) + count
             self.broadcast({"event": "poison", "seat": seat.index, "added": count, "total": seat.player_counters["poison"]})
+
+    def shield(self, what: Seat | Permanent, amount: int) -> None:
+        """Prevent the next `amount` damage that would be dealt to `what` this turn."""
+        self.shields.append([what, amount, self.turn])
+
+    def _damage_after_prevention(self, target: Seat | Permanent, amount: int, source: Permanent | None, combat: bool) -> int:
+        """How much of `amount` damage is still dealt after prevention: a Fog this turn, a static "prevent all damage that would be
+        dealt to this creature", and the shields used up in the order they were made. Damage that can't be prevented is all dealt."""
+        if amount <= 0:
+            return amount
+        everyone = [p for s in self.live_seats() for p in s.battlefield if not self.loses_abilities(p)]
+        if any("unpreventable" in damage_prevention(p.card) for p in everyone) \
+                or (source is not None and "unpreventable:self" in damage_prevention(source.card)):
+            return amount
+        if combat and self.fog_turn == self.turn:
+            return 0
+        if isinstance(target, Permanent):
+            rules = damage_prevention(target.card) if not self.loses_abilities(target) else frozenset()
+            if "self:all" in rules or ("self:combat" in rules and combat) \
+                    or ("self:creatures" in rules and source is not None and "Creature" in source.card.type_line):
+                return 0
+        elif any("you:all" in damage_prevention(p.card) for p in target.battlefield if not self.loses_abilities(p)):
+            return 0
+        for entry in self.shields:
+            if entry[0] is target and entry[2] == self.turn and entry[1] > 0:
+                used = min(amount, entry[1])
+                entry[1] -= used
+                amount -= used
+        return amount
 
     def prevent_combat_damage(self, seat: Seat, token: Card | None) -> None:
         """Inkshield: no combat damage is dealt to `seat` this turn; `token` is created for each point prevented."""
