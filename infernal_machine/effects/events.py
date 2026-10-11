@@ -92,7 +92,7 @@ declare("opponent_search", re.compile(r"Whenever an opponent searches their libr
 declare("opponent_sacrifice_creature", re.compile(r"Whenever an opponent sacrifices a creature, (.+)", re.I))
 declare("second_draw", re.compile(r"Whenever you draw your second card each turn, (.+)", re.I),
         to="you", happens="drew", needs="second")
-declare("combat_damage_to_player", re.compile(rf"Whenever {_SELF} deals combat damage to a player, (.+)", re.I))
+declare("combat_damage_to_player", re.compile(rf"When(?:ever)? {_SELF} deals combat damage to a player, (.+)", re.I))
 declare("upkeep", re.compile(r"At the beginning of your upkeep, (.+)", re.I))
 declare("end_step", re.compile(r"At the beginning of your end step, (.+)", re.I))
 declare("each_upkeep", re.compile(r"At the beginning of each upkeep, (.+)", re.I))

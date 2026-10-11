@@ -460,7 +460,8 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 
 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
-_PUT_IT = re.compile(r"\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
+_PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creature|CARDNAME)\b"
+                     r"|\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
                      r"|\btap up to one target creature and goad it\b|\btap (?:[^.]*? )?target [^.]*? and put \w+ stun counters? on it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bthat player copies that spell for each other creature they control that the spell could target\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it, except it's a Spirit in addition to its other types and it has\b", re.I)
 
 

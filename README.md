@@ -802,6 +802,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     enters" does not happen. A morph cost may also be a sacrifice ("another creature", "two Mountains"), a card of a color to reveal, a
     card to discard, a return to hand, or life (`MorphCost`; it is offered only when it can be paid). Not read:
     "Whenever you turn a permanent face up".
+  - Fourth popularity pass (`tests/test_popular_pass4.py`): keyword abilities are read from the rules text they stand for
+    (`_KEYWORD_RULES` in `effects/common.py`, reminder text stripped first): Outlast, Fabricate, Soulshift, Modular, Evolve, Mentor,
+    Mobilize, Bloodthirst, Renown and Transmute. Evolve's "greater power or toughness" is the condition `subject_greater`
+    (`condition_holds` now takes the permanent the trigger is about); Mentor's target is "attacking creature with lesser power"
+    (`target_options`); Mobilize makes tapped and attacking Warriors (`Game.tokens_join_attack`) that are sacrificed at the end step;
+    Bloodthirst counts only if an opponent took damage this turn; Renown sets `Permanent.renowned`; Transmute searches for
+    "mv=self", the discarded card's mana value, and is offered only at sorcery timing. Dredge (`dredge_of`) offers to mill N
+    instead of each draw (`Game._dredge`); Umbra armor (`rules_statics` key `umbra_armor`) saves what its Aura enchants from
+    destruction (`Game._saved_from_destruction`). An Aura may enchant a Forest, a Mountain, an Equipment, "artifact or creature you control"
+    and the like (`_ENCHANT_HEAD`); Utopia Sprawl adds mana of the color chosen as it entered. Not understood: Mobilize X, "red or green
+    creature" Auras, Dog Umbra and Umbra Mystic, Gift, Spree, Ninjutsu, Foretell.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same

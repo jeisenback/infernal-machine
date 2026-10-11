@@ -56,15 +56,23 @@ _CLONE_EXTRA = re.compile(r".*, except it enters with X additional \+1/\+1 count
 _IF_KICKED = re.compile(rf"if {_SELF} was kicked, ", re.I)
 
 
+_IF_BLOODTHIRSTY = re.compile(r"if an opponent was dealt damage this turn, ", re.I)  # Bloodthirst
+
+
 _ENTERS_PER_KICK = re.compile(rf"{_SELF} enters with an? {_COUNTER} on it for each time it was kicked\.", re.I)
 
 
-def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False) -> dict[str, int | str]:
+def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, bloodthirsty: bool = False) -> dict[str, int | str]:
     """Counters from "This creature enters with N (or X) +1/+1 counters on it.", plus, when `kicked` (the number
     of times), "If this creature was kicked, it enters with N +1/+1 counters on it." and multikicker's
-    "... enters with a +1/+1 counter on it for each time it was kicked." """
+    "... enters with a +1/+1 counter on it for each time it was kicked."; and, when `bloodthirsty`, "If an opponent
+    was dealt damage this turn, this creature enters with N +1/+1 counters on it." """
     counters: dict[str, int | str] = {}
     for line in rules_lines(card):
+        if b := _IF_BLOODTHIRSTY.match(line):
+            if not bloodthirsty:
+                continue
+            line = line[b.end():]
         if kicked and (k := _IF_KICKED.match(line)):
             line = line[k.end():]
         if m := _ENTERS_WITH.fullmatch(line):
@@ -81,7 +89,7 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False) -> 
 
 
 def is_enters_with_counters(line: str) -> bool:
-    if k := _IF_KICKED.match(line):
+    if k := _IF_KICKED.match(line) or _IF_BLOODTHIRSTY.match(line):
         line = line[k.end():]
     return (_ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None
             or _ESCAPES_WITH.fullmatch(line) is not None)
@@ -233,6 +241,7 @@ _RULES_STATICS = [
     (re.compile(rf"Untap (?:{_SELF}|this artifact) during each other player's untap step\.", re.I), "untap_others:self"),  # Bender's Waterskin
     (re.compile(r"(Creatures|Artifacts and creatures) your opponents control enter tapped\.", re.I), "enter_tapped:opp"),  # Authority of the Consuls
     (re.compile(r"You may look at the top card of your library any time\.", re.I), "look_top"),  # information only: nothing changes
+    (re.compile(r"Umbra armor", re.I), "umbra_armor"),  # Auras: an enchanted creature that would be destroyed is saved by one
     (re.compile(rf"{_SELF} doesn't untap during your untap step\.", re.I), "no_untap"),  # Basalt Monolith, Mana Vault
 ]
 
@@ -249,7 +258,7 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     / ":creature" (its controller's), "flash:spell" / ":creature" / ":sorcery" / ":Spirit" (its controller may cast those at instant
     speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic),
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
-    "no_untap" (it stays tapped through its controller's untap step), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
+    "no_untap" (it stays tapped through its controller's untap step), "umbra_armor" (an Aura that saves what it enchants from being destroyed), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
     alone), "enter_tapped:opp:creature" / ":artifact,creature" (those its controller's opponents control enter tapped), "look_top" (its controller may look at their top card: no
     change to the game, and no player here uses it)."""
     found = []
@@ -343,6 +352,14 @@ _TOXIC = re.compile(r"Toxic (\d+)", re.I)
 def toxic_of(card: Card) -> int:
     """The N of the card's own "Toxic N" keywords; each one gives that many poison counters."""
     return sum(int(m[1]) for line in rules_lines(card) for part in line.split(", ") if (m := _TOXIC.fullmatch(part)))
+
+
+_DREDGE = re.compile(r"Dredge (\d+)", re.I)
+
+
+def dredge_of(card: Card) -> int | None:
+    """The N of the card's own "Dredge N" keyword: from the graveyard it may replace a draw by milling N cards."""
+    return next((int(m[1]) for line in rules_lines(card) if (m := _DREDGE.fullmatch(line))), None)
 
 
 @lru_cache(maxsize=None)
@@ -879,13 +896,15 @@ def granted_mana(card: Card) -> list[frozenset[str]]:
     return []
 
 
-_ADDITIONAL_MANA = re.compile(r"Whenever enchanted land is tapped for mana, its controller adds an additional "
-                              r"(?:\{([WUBRG])\}|one mana of any color)\.")
+_ADDITIONAL_MANA = re.compile(r"Whenever enchanted (?:land|Forest|Island|Plains|Swamp|Mountain) is tapped for mana, its controller adds an additional "
+                              r"(?:\{([WUBRG])\}|one mana of (any|the chosen) color)\.")
 
 
-def additional_land_mana(card: Card) -> list[frozenset[str]]:
-    """Wild Growth and Fertile Ground: the extra mana the enchanted land makes whenever it is tapped for mana."""
-    return [frozenset(m[1] or "WUBRG") for line in rules_lines(card) if (m := _ADDITIONAL_MANA.fullmatch(line))]
+def additional_land_mana(card: Card, chosen: str | None = None) -> list[frozenset[str]]:
+    """Wild Growth and Fertile Ground: the extra mana the enchanted land makes whenever it is tapped for mana.
+    `chosen` is the color picked as the Aura entered (Utopia Sprawl)."""
+    return [frozenset(m[1] or (chosen if m[2] == "the chosen" and chosen else "WUBRG"))
+            for line in rules_lines(card) if (m := _ADDITIONAL_MANA.fullmatch(line))]
 
 
 def is_additional_mana_line(line: str) -> bool:

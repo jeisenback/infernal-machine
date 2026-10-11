@@ -39,13 +39,47 @@ def _count(word: str) -> int | str:
     return int(word) if word.isdigit() else _NUMBERS[lowered]
 
 
+_WORDS = {1: "a", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+_KEYWORD_RULES = [  # a keyword line and the rules text it stands for (the reminder text, put to work)
+    (re.compile(r"Outlast ((?:\{[^}]+\})+)"), lambda m: f"{m[1]}, {{T}}: Put a +1/+1 counter on this creature. Activate only as a sorcery."),
+    (re.compile(r"Fabricate (\d+)"), lambda m: "When this creature enters, choose one \u2014\n"
+        f"\u2022 Put {_WORDS[int(m[1])]} +1/+1 {'counter' if m[1] == '1' else 'counters'} on it.\n"
+        f"\u2022 Create {_WORDS[int(m[1])]} 1/1 colorless Servo artifact creature {'token' if m[1] == '1' else 'tokens'}."),
+    (re.compile(r"Soulshift (\d+)"), lambda m: f"When this creature dies, you may return target Spirit card with mana value {m[1]} or less from your graveyard to your hand."),
+    (re.compile(r"Modular (\d+)"), lambda m: f"This creature enters with {_WORDS[int(m[1])]} +1/+1 {'counter' if m[1] == '1' else 'counters'} on it.\n"
+        "When this creature dies, you may put a +1/+1 counter on target artifact creature for each +1/+1 counter on this creature."),
+    (re.compile(r"Evolve"), lambda m: "Whenever a creature you control enters, if that creature has greater power or toughness than this creature, "
+        "put a +1/+1 counter on this creature."),
+    (re.compile(r"Mentor"), lambda m: "Whenever this creature attacks, put a +1/+1 counter on target attacking creature with lesser power."),
+    (re.compile(r"Bloodthirst (\d+)"), lambda m: f"If an opponent was dealt damage this turn, this creature enters with {_WORDS[int(m[1])]} +1/+1 "
+        f"{'counter' if m[1] == '1' else 'counters'} on it."),
+    (re.compile(r"Mobilize (\d+)"), lambda m: f"Whenever this creature attacks, create {_WORDS[int(m[1])]} tapped and attacking 1/1 red Warrior "
+        f"creature {'token' if m[1] == '1' else 'tokens'}. Sacrifice them at the beginning of the next end step."),
+    (re.compile(r"Transmute ((?:\{[^}]+\})+)"), lambda m: f"{m[1]}, Discard this card: Search your library for a card with the same mana value as "
+        "this card, reveal it, put it into your hand, then shuffle. Activate only as a sorcery."),
+    (re.compile(r"Renown (\d+)"), lambda m: "When this creature deals combat damage to a player, if it isn't renowned, put "
+        f"{_WORDS[int(m[1])]} +1/+1 {'counter' if m[1] == '1' else 'counters'} on it and it becomes renowned."),
+]
+
+
+def _expand_keywords(text: str) -> str:
+    lines = []
+    for line in text.splitlines():
+        for pattern, rules in _KEYWORD_RULES:
+            if m := pattern.fullmatch(line.strip()):
+                line = rules(m)
+                break
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def _rules_text(card: Card) -> str:
     """Oracle text without reminder text, with the card's own name as CARDNAME.
 
     Legendary cards often call themselves by their short name ("Omnath" for
     "Omnath, Locus of Rage", "Kaalia" for "Kaalia of the Vast"), and double-faced cards by their front face's name.
     """
-    text = _REMINDER.sub("", card.oracle_text)
+    text = _expand_keywords(_REMINDER.sub("", card.oracle_text))
     front = card.name.split(" // ")[0]
     short = front.split(",")[0]
     if "," not in front and "Legendary" in card.type_line and " " in front and front.split(" ")[0] not in ("The", "A", "An"):
