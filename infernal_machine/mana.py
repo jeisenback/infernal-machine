@@ -93,8 +93,13 @@ def _pay_flat(cost: Cost, sources: list[frozenset[str]], paid_for: dict[int, fro
     """
     order = sorted((i for i, s in enumerate(sources) if s), key=lambda i: len(sources[i]))
     symbols = sorted(cost.colored, key=len)
+    if len(symbols) + cost.generic > len(order):
+        return None  # more mana than sources: no assignment can work (and trying them all takes forever: Replicate with many lands)
+    failed: set[tuple[int, frozenset[int]]] = set()  # (symbols matched so far, sources used) that lead nowhere, in any order
 
     def assign(k: int, used: tuple[int, ...]) -> list[int] | None:
+        if (k, frozenset(used)) in failed:
+            return None
         if k == len(symbols):
             rest = [i for i in order if i not in used]
             if len(rest) < cost.generic:
@@ -108,6 +113,7 @@ def _pay_flat(cost: Cost, sources: list[frozenset[str]], paid_for: dict[int, fro
                 found = assign(k + 1, used + (i,))
                 if found is not None:
                     return found
+        failed.add((k, frozenset(used)))
         return None
 
     return assign(0, ())
