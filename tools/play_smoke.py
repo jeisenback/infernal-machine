@@ -20,7 +20,7 @@ import sys
 sys.path.insert(0, os.getcwd())
 
 from infernal_machine.cards import Card, Deck  # noqa: E402
-from infernal_machine.game import ACTIVATE, CAST, PLAY_LAND, Game, Permanent  # noqa: E402
+from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, PLAY_LAND, Game, Permanent  # noqa: E402
 from infernal_machine.report import unsupported_lines  # noqa: E402
 from tests.test_effects import BEAR, COMMANDER, FOREST, OGRE, RAINBOW  # noqa: E402
 from tests.test_game import ScriptedPlayer  # noqa: E402
@@ -68,7 +68,24 @@ def play(card: Card) -> bool:
             break
         game._perform(mine, abilities[0])
         run_stack(game)
-    return bool(ways)
+    return bool(ways) | play_other_half(card)
+
+
+def play_other_half(card: Card) -> bool:
+    """Cast the card's other half (an Adventure, a split half) and, if it went on an adventure, the creature from exile."""
+    if card.alternate is None:
+        return False
+    game, mine = table(card)
+    if CAST + card.alternate.name not in game.legal_actions(mine):
+        return False
+    game._perform(mine, CAST + card.alternate.name)
+    run_stack(game)
+    game._check_state()
+    if CAST_EXILE + card.name in game.legal_actions(mine):
+        game._perform(mine, CAST_EXILE + card.name)
+        run_stack(game)
+        game._check_state()
+    return True
 
 
 def check(pool: list[dict], limit: int | None = None) -> tuple[int, int, dict[str, list[str]]]:
