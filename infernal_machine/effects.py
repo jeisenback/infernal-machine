@@ -1992,12 +1992,15 @@ class CopyToken:
     count: int = 1  # Rite of Replication: "If this spell was kicked, create five of those tokens instead."
     another: bool = False  # "a copy of another target creature you control": not the source itself
     haste: bool = False  # Inspired Skypainter's spell: "That token gains haste until end of turn."
+    legendary: bool = False  # Adagia: "..., except it's legendary."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             card = target.card
             if not card.type_line.startswith("Token"):
                 card = dataclasses.replace(card, type_line="Token " + card.type_line)
+            if self.legendary and "Legendary" not in card.type_line:
+                card = dataclasses.replace(card, type_line=card.type_line.replace("Token ", "Token Legendary ", 1))
             for token in game.create_tokens(controller, card, game.amount(self.count)):
                 if self.haste:
                     game.modify_until_end_of_turn(token, Modifier(keywords=frozenset({"haste"})))
@@ -3199,6 +3202,7 @@ class Amount:
 _AMOUNTS = [
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
     (re.compile(r"the sacrificed creature's power", re.I), lambda m: Amount("sacrificed_power")),
+    (re.compile(r"the tapped creature's power", re.I), lambda m: Amount("tapped_power")),
     (re.compile(r"(?:the number of )?Auras? you controlled that was attached to it", re.I), lambda m: Amount("auras_on_subject")),
     (re.compile(r"(?:the number of )?Auras? you control that's attached to a creature", re.I),
      lambda m: Amount("auras_on_creatures")),
@@ -5993,6 +5997,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"target (creature(?: that attacked this turn)?) becomes (prepared|unprepared)\.", re.I),
      lambda m: TargetPrepared(m[1].lower(), m[2].lower() == "prepared")),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
+    (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}, except it's legendary\.", re.I),
+     lambda m: CopyToken(m[1].lower(), legendary=True)),
     (re.compile(rf"create a token that's a copy of another target {_PERMANENT_KIND}\.", re.I),
      lambda m: CopyToken(m[1].lower(), another=True)),
     (re.compile(rf"create a token that's a copy of {_SELF}, tapped and attacking\.", re.I), lambda m: CopyTokenAttacking()),
@@ -7277,6 +7283,14 @@ class ActivatedAbility:
 
 
 _CREW = re.compile(r"Crew (\d+)")
+# Station: Adagia, Kavaron and the other Planets. The abilities after it are written "12+ | <ability>".
+_STATION = re.compile(r"Station")  # (Tap another creature you control: Put charge counters equal to its power on this Planet. Station only as a sorcery.)
+_THRESHOLD = re.compile(r"(\d+)\+ \| (.+)")
+
+
+def is_station_line(line: str) -> bool:
+    return _STATION.fullmatch(line) is not None or (m := _THRESHOLD.fullmatch(line)) is not None and \
+        _ACTIVATED.fullmatch(m[2]) is not None
 _ACTIVATED = re.compile(r"([^:\"]+): (.+)")
 _MANA_PART = re.compile(r"(\{(?:\d+|X|S|[WUBRGC]|[WUBRGC]/[WUBRGCP]|2/[WUBRGC])\})+")
 _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
@@ -7308,10 +7322,18 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
         if m := _CREW.fullmatch(line):  # a Vehicle: tap creatures and it becomes an artifact creature this turn
             abilities.append(ActivatedAbility(line, (BecomeCreature(),), crew=int(m[1])))
             continue
-        match = _ACTIVATED.fullmatch(line)
+        if _STATION.fullmatch(line):  # Station: tap another creature, charge counters equal to its power, at sorcery speed
+            abilities.append(ActivatedAbility(line, (DefineX(Amount("tapped_power")), PutCountersOnSource("X", "charge")),
+                                              sorcery_speed=True, tap_creatures=1))
+            continue
+        threshold = _THRESHOLD.fullmatch(line)  # "12+ | {1}{R}, {T}: ...": only with that many charge counters on it
+        match = _ACTIVATED.fullmatch(threshold[2] if threshold else line)
         if not match or is_mana_ability(line):
             continue
-        ability = _parse_activated(line, match[1], match[2], planeswalker)
+        ability = _parse_activated(threshold[2] if threshold else line, match[1], match[2], planeswalker)
+        if ability is not None and threshold:
+            at_least = Condition("source_counters_at_least", int(threshold[1]), "charge", also=ability.condition)
+            ability = dataclasses.replace(ability, text=line, condition=at_least)
         if ability is not None:
             abilities.append(ability)
     if cost := equip_cost(card):
@@ -7643,7 +7665,7 @@ def is_optional_untap_line(line: str) -> bool:
 
 
 def is_mana_ability(line: str) -> bool:
-    line = _without_spent_rider(line)
+    line = _without_spent_rider(_THRESHOLD.sub(r"\2", line))
     return (_mana_match(line) is not None or _ADD_CHOSEN.fullmatch(line) is not None or _REMOVE_COUNTER_MANA.fullmatch(line) is not None or _REMOVE_ANY_NUMBER_MANA.fullmatch(line) is not None or _ADD_POWER.fullmatch(line) is not None
             or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
             or _CHARGE_MANA.fullmatch(line) is not None
@@ -7715,9 +7737,14 @@ def mana_per_count(card: Card) -> tuple[str, str, str] | None:
     """(the mana it costs, '' if none; the color it makes; what it counts) for a "Add {G} for each creature you
     control" ability."""
     for line in rules_lines(card):
-        if m := _PER_COUNT.fullmatch(line):
+        if m := _PER_COUNT.fullmatch(_THRESHOLD.sub(r"\2", line)):
             return m[1] or "", m[2], m[3]
     return None
+
+
+def mana_threshold(card: Card) -> int:
+    """Evendo, Uthros: "12+ | {G}, {T}: Add {G} for each creature you control." works only with that many charge counters."""
+    return next((int(m[1]) for line in rules_lines(card) if (m := _THRESHOLD.fullmatch(line)) and _PER_COUNT.fullmatch(m[2])), 0)
 
 
 _FILTER_ANY = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add one mana of any color(?: in your commander's color identity)?\.")  # Hall of Oracles
