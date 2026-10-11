@@ -38,6 +38,9 @@ class Attack:
     walker: Permanent | None = None  # the planeswalker attacked, if it isn't the player
 
 
+LANDWALKS = ("Island", "Swamp", "Mountain", "Forest", "Plains")
+
+
 class Combat:
     def __init__(self, game: Game):
         self.game = game
@@ -312,6 +315,8 @@ class Combat:
             return False
         if self._has(attacker, "shadow") != self._has(blocker, "shadow"):  # shadow blocks and is blocked only by shadow
             return False
+        if self._evades(blocker, attacker):
+            return False
         if self._has(attacker, "skulk") and self.game.power(blocker) > self.game.power(attacker):
             return False
         if any(r.kind == "block_only_flying" for r in combat_restrictions(blocker.card)) and not self._has(attacker, "flying"):
@@ -324,6 +329,22 @@ class Combat:
         if self._has(attacker, "flying"):
             return self._has(blocker, "flying") or self._has(blocker, "reach")
         return True
+
+    def _evades(self, blocker: Permanent, attacker: Permanent) -> bool:
+        """Whether the attacker's fear, intimidate, horsemanship or landwalk keeps this creature from blocking it."""
+        colors = attacker.card.colors
+        if self._has(attacker, "fear") and not ("Artifact" in blocker.card.type_line or "B" in blocker.card.colors):
+            return True
+        if self._has(attacker, "intimidate") and not ("Artifact" in blocker.card.type_line
+                                                      or set(colors) & set(blocker.card.colors)):
+            return True
+        if self._has(attacker, "horsemanship") and not self._has(blocker, "horsemanship"):
+            return True
+        defender = self.game.controller_of(blocker)
+        return defender is not None and any(
+            self._has(attacker, f"{land.lower()}walk")
+            and any("Land" in p.card.type_line and land in p.card.type_line for p in defender.battlefield)
+            for land in LANDWALKS)
 
     def _deals_damage_now(self, permanent: Permanent, first_strike_step: bool) -> bool:
         first, double = self._has(permanent, "first strike"), self._has(permanent, "double strike")
