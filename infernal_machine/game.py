@@ -24,7 +24,7 @@ from .cards import Card, Deck, has_keyword, shown_type_line
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
-from .effects import (EVENTS, heard_on, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
+from .effects import (EVENTS, ReturnWithCounter, heard_on, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
@@ -236,6 +236,7 @@ class Permanent:
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
     doors: tuple[str, ...] = ()  # a Room: the names of its unlocked doors (its `card` reads as only those; the whole card is `real_card`)
     cast: bool = False  # it came from a spell that was cast ("When it enters, if you cast it")
+    returns_when_dies: int = 0  # Malakir Rebirth: the turn it gained "When this creature dies, return it to the battlefield tapped"
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     chosen_color: str | None = None  # "As this enters, choose a color." (a color letter)
     manifested: bool = False  # a face-down 2/2 whose real card is `real_card`; a creature card can be turned face up
@@ -334,6 +335,8 @@ class StackItem:
 
 
 GERM = Card(name="Phyrexian Germ", type_line="Token Creature — Phyrexian Germ", colors=("B",), power="0", toughness="0")
+RETURN_WHEN_DIES = TriggeredAbility("dies", (ReturnWithCounter("", True),), False,
+                                    "When this creature dies, return it to the battlefield tapped under its owner's control.")
 EVOKE_SACRIFICE = TriggeredAbility("enters", (SacrificeSelf(),), False,
                                    "When this permanent enters, if its evoke cost was paid, sacrifice it.")
 
@@ -3998,7 +4001,7 @@ class Game:
         if not one_sided:
             self.damage(first, hit_first, source=second)
 
-    def return_with_counter(self, dead: Permanent | None, counter: str) -> None:
+    def return_with_counter(self, dead: Permanent | None, counter: str, tapped: bool = False) -> None:
         """Persist and undying: put the card that just died back onto the battlefield with a counter, under its
         owner's control, if it is still in the graveyard (a token or a commander sent elsewhere isn't)."""
         seat = (dead.owner or dead.last_controller) if dead is not None else None
@@ -4007,7 +4010,8 @@ class Game:
         seat.graveyard.remove(dead.card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": dead.card.name, "to": "battlefield"})
         self._left_graveyard(seat, [dead.card])
-        self._enter(seat, Permanent(dead.card, sick=True, loyalty=_starting_loyalty(dead.card), counters={counter: 1}))
+        self._enter(seat, Permanent(dead.card, sick=True, tapped=tapped, loyalty=_starting_loyalty(dead.card),
+                                    counters={counter: 1} if counter else {}))
 
     def _unearth(self, seat: Seat, card: Card) -> None:
         """Unearth: pay its cost and return it from the graveyard (it is not cast); it has haste, and is exiled at the beginning
@@ -5543,6 +5547,8 @@ class Game:
                     controller.died_turn, controller.died = self.turn, 0
                 controller.died += 1
                 self.trigger("dies", permanent, controller)
+                if permanent.returns_when_dies == self.turn:
+                    self._queue(RETURN_WHEN_DIES, permanent, controller)
                 for attachment, attachment_seat in everyone:  # "When enchanted creature dies"
                     if attachment.attached_to is permanent:
                         self.trigger("host_dies", attachment, attachment_seat, subject=permanent)
