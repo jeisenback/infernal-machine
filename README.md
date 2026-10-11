@@ -756,6 +756,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     for it fires, so a new event for an occurrence the game already announces needs only a declaration. An event the game
     does not declare is an error, not a trigger that silently never fires; `tests/test_events.py` checks that every declared
     event is announced somewhere and every announcement names a declared event.
+  - The One Ring: "you gain protection from everything until your next turn" (`Seat.protected`: nothing can target the player, damage
+    to them is prevented, and it ends when their next turn begins), only "if you cast it" (`Permanent.cast`; a copy of the spell is not
+    a cast). A "for each" amount in a later clause is now worked out when that clause is done, so "put a burden counter on it, then
+    draw a card for each burden counter on it" draws for the counter just put there.
   - One filter grammar (`filters.py`): targets, mass effects, searches, graveyard returns, watching triggers and cost
     reductions all name a kind of card ("black creature", "nonland, nontoken permanent an opponent controls", "creature card with
     mana value 3 or less", "R|G"), and they all read it with `parse_filter` instead of four separate matchers. A "permanent" is

@@ -3664,6 +3664,16 @@ class UntapThat:
 
 
 @dataclass(frozen=True)
+class PlayerProtection:
+    """The One Ring: "You gain protection from everything until your next turn." Nothing can target you and all damage to you is
+    prevented, until your next turn begins."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.protected = True
+        game.broadcast({"event": "protected", "seat": controller.index})
+
+
+@dataclass(frozen=True)
 class Tap:
     """ "Tap two target permanents.": one effect per target, each a different permanent."""
     target: str
@@ -4713,6 +4723,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"your hand, then shuffle\.", re.I),  # Land Tax
      lambda m: SearchForLands(_count(m[1]), (), 0, False, True)),
     (re.compile(rf"untap up to {_NUM} lands\.", re.I), lambda m: UntapLands(_count(m[1]))),
+    (re.compile(r"you gain protection from everything until your next turn\.", re.I), lambda m: PlayerProtection()),
     (re.compile(r"search your library for a card, put that card into your hand, discard a card at random, then shuffle\.", re.I),
      lambda m: [SearchLibrary("card", "hand", False), Discard(1, "you", True)]),  # Gamble
     (re.compile(r"you lose life equal to (?:its|that card's|that permanent's) mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
@@ -5221,7 +5232,13 @@ def _clauses(sentence: str) -> list[str]:
         return [f"Let X be {m[2]}."] + _clauses(m[1] + ".") if _amount(m[2]) else [sentence]
     if m := re.fullmatch(r"(.+) (?:equal to|for each) (.+)\.", sentence):
         body, count = _times_x(m[1])
-        return [f"Let X be {m[2]}."] + _clauses(body + ".") if count and _amount(m[2]) else [sentence]
+        if not (count and _amount(m[2])):
+            return [sentence]
+        clauses = _clauses(body + ".")
+        # X is worked out when the clause that uses it is done, not before the ones ahead of it ("put a counter on it, then draw a card
+        # for each counter on it" draws for the counter just put there).
+        at = next((i for i, clause in enumerate(clauses) if re.search(r"\bX\b", clause)), 0)
+        return clauses[:at] + [f"Let X be {m[2]}."] + clauses[at:]
     if m := re.fullmatch(r"For each opponent, you (create .+?)(\.\"?)", sentence):  # Eccentric Pestfinder's spell
         return _clauses(f"Create {m[1][len('create '):]}{m[2]} for each opponent.")
     if m := re.fullmatch(r"(Create .+ tokens?), then (put .+ counters? on it\.)", sentence):
@@ -5575,6 +5592,7 @@ _CONDITIONS = [
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
     (re.compile(rf"{_SELF} is tapped"), lambda m: Condition("source_tapped")),
     (re.compile(r"you control no other ([A-Za-z]+)"), lambda m: Condition("control_no_other", what=_singular(m[1]))),
+    (re.compile(r"you cast it"), lambda m: Condition("cast_it")),
     (re.compile(r"a modified creature died under your control this turn"), lambda m: Condition("modified_died")),
     (re.compile(rf"{_N} or more of those creatures are attacking you and/or planeswalkers you control"),
      lambda m: Condition("attackers_at_least", _count(m[1]))),

@@ -221,6 +221,7 @@ class Permanent:
     attacked_turn: int | None = None  # the last turn it attacked
     vow_of: "Seat | None" = None  # Promise of Loyalty: while it has a vow counter it can't attack this player
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
+    cast: bool = False  # it came from a spell that was cast ("When it enters, if you cast it")
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     chosen_color: str | None = None  # "As this enters, choose a color." (a color letter)
     manifested: bool = False  # a face-down 2/2 whose real card is `real_card`; a creature card can be turned face up
@@ -388,6 +389,7 @@ class Seat:
     x_rider_count: int = 0
     copy_next_per_commander: bool = False  # ... once per time the commander was cast from the command zone (Thunderclap Drake)
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
+    protected: bool = False  # protection from everything until its next turn begins (The One Ring)
     spent_turn: int | None = None  # the turn `spent_amount` counts for
     spent_amount: int = 0  # the mana this player spent casting spells that turn ("Whenever you expend 4")
     surge: tuple[int, Card] | None = None  # Surge to Victory: (the turn, the exiled card its creatures copy on combat damage)
@@ -569,6 +571,7 @@ class Game:
 
     def _turn_based_actions(self, seat: Seat) -> None:
         if self.step == "untap":
+            seat.protected = False  # "until your next turn"
             self.combat = Combat(self)
             seat.battlefield += seat.phased_out  # they phase in first, then untap with everything else
             seat.phased_out = []
@@ -2207,7 +2210,7 @@ class Game:
             if item.is_copy:  # a copy of a permanent spell becomes a token (CR 707.10f)
                 card = dataclasses.replace(card, type_line="Token " + card.type_line.removeprefix("Token "))
             entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers,
-                                 escaped=item.escaped,
+                                 escaped=item.escaped, cast=not item.is_copy,
                                  extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0))
             if enters_by_discarding_land(card) and not self._discard_land_to_enter(seat, card):  # Mox Diamond
                 return
@@ -2579,6 +2582,8 @@ class Game:
             return seat.land_entered_turn == self.turn
         if kind == "lands_prime":
             return sum("Land" in p.card.type_line for p in seat.battlefield) in _PRIMES
+        if kind == "cast_it":  # The One Ring: it came from a spell that was cast
+            return source is not None and source.cast
         if kind == "source_not_token":  # Life of the Party: its copies don't copy themselves again
             return source is not None and not _is_token(source.card)
         if kind == "control_no_other":  # Lone Revenant
@@ -2831,9 +2836,9 @@ class Game:
                             for card in _unique(seat.graveyard) if _card_matches(card_type, card)]
             return options
         if kind in ("any", "player", "player or planeswalker"):
-            options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats()]
+            options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats() if not s.protected]
         elif kind == "opponent":
-            options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster)]
+            options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster) if not s.protected]
         if (spell_filter := parse_filter(kind)) and re.search(r"spell( you control)?$", kind):  # "spell", "noncreature spell", "... spell you control"
             options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
                         if not i.ability and spell_filter.matches(i.card)
@@ -2960,6 +2965,9 @@ class Game:
         colors = source_qualities(source.card) if source is not None else self.resolving_colors
         if isinstance(target, Permanent) and self.protected_from(target, colors):
             self.broadcast({"event": "damage_prevented", "card": target.card.name, "amount": amount})
+            return
+        if isinstance(target, Seat) and target.protected:  # protection from everything
+            self.broadcast({"event": "damage_prevented", "seat": target.index, "amount": amount})
             return
         prevented = self._damage_after_prevention(target, amount, source, combat)
         if prevented < amount:
