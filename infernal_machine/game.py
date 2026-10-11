@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -305,6 +305,7 @@ class StackItem:
     tapped_power: int = 0  # for an ability: the power of the creature tapped to pay for it (Station)
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
     cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
+    dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
 
 
 GERM = Card(name="Phyrexian Germ", type_line="Token Creature — Phyrexian Germ", colors=("B",), power="0", toughness="0")
@@ -2026,7 +2027,8 @@ class Game:
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, bought_back=bought_back, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after, from_graveyard=graveyard is not None,
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
-                         bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter)
+                         bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter,
+                         dashed=bool(alternative and alternative.dash))
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -2197,6 +2199,9 @@ class Game:
             if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
                 self._queue(EVOKE_SACRIFICE, entering, seat)
             self._enter(seat, entering, x=item.x)
+            if item.dashed:  # Ragavan: it has haste this turn and is back in its owner's hand at the end step
+                self.modify_until_end_of_turn(entering, Modifier(keywords=frozenset({"haste"})))
+                self.leave_at_next_end_step([entering], "returned", "hand")
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
@@ -2917,6 +2922,12 @@ class Game:
         if amount > 0:  # Pest Rescuer: "you gain that much life plus 1 instead"; then The Wind Crystal: "twice that much"
             amount += sum(replacement_effects(p.card).life_gain_plus for p in seat.battlefield)
             amount *= self._factor(seat, "life_gain_factor")
+        if amount < 0:  # Bloodletter of Aclazotz: "twice that much life" during its controller's turn
+            active = self.seats[self.active]
+            if active is not seat:
+                for p in active.battlefield:
+                    if not self.loses_abilities(p):
+                        amount *= replacement_effects(p.card).opponent_loss_factor
         seat.life += amount
         self.broadcast({"event": "life", "seat": seat.index, "change": amount, "life": seat.life})
         if amount:  # "Whenever you gain life" / "Whenever you lose life": once per event, not per point
@@ -2976,7 +2987,7 @@ class Game:
                     and (toxic := toxic_of(source.card)):
                 self.give_poison(target, toxic)  # Toxic N: that many poison counters in addition to the damage
             if combat and controller:
-                self.trigger("combat_damage_to_player", source, controller, x=amount)
+                self.trigger("combat_damage_to_player", source, controller, player=target, x=amount)
                 if target is self.monarch and controller is not target:  # CR 725.2
                     self.become_monarch(controller)
                 if target is self.initiative and controller is not target:  # CR 726.2
@@ -3533,15 +3544,21 @@ class Game:
         if controller is not None and (cda := power_toughness_amount(permanent.card)) is not None:
             size = self.evaluate(cda, controller)  # Overbeing of Myth: its base power and toughness
             mods = [Modifier(set_pt=(size, size))] + mods
-        if controller is None or "Creature" not in permanent.card.type_line:
+        if controller is None:
             return mods
+        creature = "Creature" in permanent.card.type_line
         subtypes = self.subtypes(permanent)
         in_graveyards = [(s, Permanent(c)) for s in self.seats for c in s.graveyard if graveyard_statics(c)]  # Anger
         for owner, source in [(s, p) for s in self.seats for p in s.battlefield] + in_graveyards:
             if self.loses_abilities(source):
                 continue
             for buff in static_abilities(source.card):
-                if owner is not controller and not buff.everyone:
+                if not creature and not buff.permanents:
+                    continue  # (only "Other permanents you control have indestructible" reaches a land or an artifact)
+                if buff.opponents:  # Elesh Norn: only the other players' creatures
+                    if owner is controller:
+                        continue
+                elif owner is not controller and not buff.everyone:
                     continue
                 if buff.plus_counter and not permanent.counters.get("+1/+1"):
                     continue
@@ -3564,6 +3581,8 @@ class Game:
                 if buff.condition and not self.condition_holds(buff.condition, owner, source):
                     continue
                 mods.append(self._scaled(buff.modifier, buff.per, permanent, controller, source))
+        if not creature:
+            return mods
         for seat in self.seats:  # Equipment and Auras attached to it
             for attachment in seat.battlefield:
                 if attachment.attached_to is permanent:
@@ -4155,6 +4174,47 @@ class Game:
         if not (to_battlefield or to_hand):
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
         self._searched(seat)
+
+    def exile_top_of_other(self, seat: Seat, victim: Seat) -> None:
+        """Ragavan: exile the top card of `victim`'s library; `seat` may cast it until the turn ends."""
+        if not victim.library:
+            return
+        card = victim.library.pop(0)
+        seat.exile.append(card)
+        seat.exile_play.append((card, self.turn))
+        self.broadcast({"event": "exiled_from_library", "seat": victim.index, "cards": [card.name], "may_play": True})
+
+    def exile_top_of_each_cast_free(self, seat: Seat) -> None:
+        """Etali, Primal Storm: exile the top card of each library; `seat` may cast any number of the spells among them free."""
+        exiled = []
+        for owner in self.turn_order_from_active():
+            if owner.library:
+                card = owner.library.pop(0)
+                owner.exile.append(card)
+                exiled.append((owner, card))
+                self.broadcast({"event": "exiled_from_library", "seat": owner.index, "cards": [card.name], "may_play": True})
+        while True:
+            options = [(o, c) for o, c in exiled if not is_land(c) and any(x is c for x in o.exile)]
+            if not options:
+                return
+            choice = seat.player.choose(CAST_FREE_PROMPT, [c.name for _, c in options] + [NONE_TAKEN])
+            if choice >= len(options):
+                return
+            owner, card = options[choice]
+            self._cast(seat, card, owner.exile, free=True)
+            exiled = [(o, c) for o, c in exiled if c is not card]
+
+    def connive(self, seat: Seat, permanent: Permanent) -> None:
+        """Connive: draw a card, then discard a card; if it wasn't a land the creature gets a +1/+1 counter."""
+        self.draw(seat, 1)
+        if not seat.hand:
+            return
+        card = seat.hand.pop(seat.player.choose(DISCARD_CARD_PROMPT, [c.name for c in seat.hand]))
+        self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
+        self._discard_into_zone(seat, card)
+        self._discarded(seat, card)
+        if not is_land(card) and self.on_battlefield(permanent):
+            self.put_counters(permanent, "+1/+1", 1)
 
     def amass(self, seat: Seat, count: int, kind: str) -> None:
         """Amass N: N +1/+1 counters on an Army you control (a 0/0 black Army token first, if you control none); it is also `kind`."""
@@ -4905,7 +4965,10 @@ class Game:
             self._become_temporary_copy(seat, permanent, keyword)
         elif clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
             extra_when_copy = clone_extra_counters(permanent.card)
+            artifact_too = clone_is_artifact(permanent.card)
             self._become_copy(seat, permanent, *clone)
+            if artifact_too and permanent.real_card is not None and "Artifact" not in permanent.card.type_line:  # Phyrexian Metamorph
+                permanent.card = dataclasses.replace(permanent.card, type_line="Artifact " + permanent.card.type_line)
         counters = {counter: (x if count == "X" else 2 * x if count == "2X" else count)
                     for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped).items()}
         if permanent.extra_counters:  # Opal Palace: mana spent on the commander
@@ -5459,6 +5522,8 @@ def _watch_type_matches(kind: str, card: Card) -> bool:
     kind = kind.removesuffix(" spell").removesuffix("spell").strip()
     if not kind or kind in ("expend", "permanent"):  # (an expend watch has no kind of card; a permanent is any)
         return True
+    if m := re.fullmatch(r"(white|blue|black|red|green) (creature)", kind):  # "another black creature you control enters"
+        return COLOR_LETTERS[m[1]] in card.colors and m[2].capitalize() in card.type_line
     if kind == "multicolored":
         return len(card.colors) >= 2
     if kind == "token" or kind.endswith(" token"):  # "token", "creature token"
@@ -5493,6 +5558,11 @@ def _card_matches(kind: str, card: Card) -> bool:
     """Whether a card in a library or graveyard is of `kind`: "card", "permanent", "creature",
     "instant or sorcery", "basic land", ..."""
     kind, _, value = kind.partition("|")  # "creature|mv<=3": with a mana value of 3 or less
+    if value.startswith("p<="):  # "creature|p<=2": with power 2 or less (Imperial Recruiter)
+        power = card.power
+        if power is None or not power.lstrip("-").isdigit() or int(power) > int(value[3:]):
+            return False
+        value = ""
     if value:
         number = int(value.lstrip("mv<>="))
         mana_value = card.cmc
@@ -5562,6 +5632,8 @@ def _spell_matches(kind: str, card: Card) -> bool:
         return "Instant" in card.type_line or "Sorcery" in card.type_line
     if kind == "targets a creature":  # Killian, Ink Duelist
         return _targets_a_creature(card)
+    if " and " in kind:  # "aura and equipment" (Danitha Capashen): either
+        return any(part.capitalize() in card.type_line for part in kind.split(" and "))
     return kind.capitalize() in card.type_line
 
 
@@ -5596,6 +5668,8 @@ def _split_controller(kind: str) -> tuple[str, str | None]:
 
 def _permanent_matches(kind: str, card: Card) -> bool:
     kind = re.sub(r", (?=non)", " ", kind)  # "noncreature, nonland permanent", "nonland, nontoken permanent"
+    if m := re.fullmatch(r"(white|blue|black|red|green) (.+)", kind):  # "black creature" (Ayara)
+        return {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[m[1]] in card.colors and _permanent_matches(m[2], card)
     if m := re.fullmatch(r"non(white|blue|black|red|green|artifact|creature|land|enchantment|legendary) (.+)", kind):  # "nonblack creature"
         has = m[1].capitalize() in card.type_line if m[1] in ("artifact", "creature", "land", "enchantment", "legendary") else {
             "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}[m[1]] in card.colors
