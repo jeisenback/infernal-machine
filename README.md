@@ -775,6 +775,8 @@ winner = game.play()
     color with it. **Horsemanship:** only creatures with horsemanship. **Islandwalk, Swampwalk, Mountainwalk, Forestwalk and
     Plainswalk:** it can't be blocked while the defending player controls a land of that type (snow and nonbasic landwalk are
     not read). A printed "This creature can't be blocked." works like the granted one.
+  - **"This creature attacks each combat if able.":** the creature is never offered "Don't attack"; its controller still
+    picks whom it attacks. A creature that can't attack (tapped, summoning sick, defender) is not asked.
   - **Living weapon:** a 0/0 black Phyrexian Germ token is created and the Equipment attached to it when it enters.
   - **Echo {cost}:** at your next upkeep after it enters you pay once (you are asked, if you can) or sacrifice it.
   - **Delve:** exiling cards from your graveyard pays for generic mana. The engine exiles as few as will do, and you
