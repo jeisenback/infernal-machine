@@ -1088,6 +1088,30 @@ class PutCountersOnSource:
             game.put_counters(target, self.counter, game.amount(self.count))
 
 
+@dataclass(frozen=True)
+class Hideaway:
+    """Hideaway N: "When this enters, look at the top N cards of your library, exile one face down, then put the rest on
+    the bottom in a random order." """
+    count: int
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.hideaway(controller, target, self.count)
+
+
+@dataclass(frozen=True)
+class PlayExiledCard:
+    """A Hideaway land's "You may play the exiled card without paying its mana cost if <condition>." The condition is
+    checked as the ability resolves."""
+    condition: "Condition"
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.condition_holds(self.condition, controller, target):
+            game.play_hideaway(controller, target)
+
+
 _COUNTER = r"([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters?"  # "+1/+1", or a named one ("charge")
 
 
@@ -6114,6 +6138,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"sacrifice {_SELF} unless you return an untapped ({_LAND_TYPE}) you control to its owner's hand\.", re.I),
      lambda m: SacrificeUnlessReturnLand(m[1].capitalize())),
     (re.compile(rf"sacrifice {_SELF} unless you pay ((?:\{{[0-9WUBRGC]+\}})+)\.", re.I), lambda m: SacrificeUnlessPay(m[1])),
+    (re.compile(r"you may play the exiled card without paying its mana cost if (.+)\.", re.I),
+     lambda m: PlayExiledCard(c) if (c := _condition(m[1])) else None),
     (re.compile(r"Let X be (.+)\."), lambda m: DefineX(a) if (a := _amount(m[1])) else None),
     (re.compile(rf"target (player|opponent) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
      lambda m: TargetSacrifices(m[1].lower(), m[2].lower())),
@@ -6610,6 +6636,12 @@ def _singular(word: str) -> str:
 
 
 _CONDITIONS = [
+    (re.compile(r"each player has no cards in hand"), lambda m: Condition("all_hands_empty")),
+    (re.compile(r"creatures you control have total power (\d+) or greater"), lambda m: Condition("creature_power_at_least", int(m[1]))),
+    (re.compile(r"a library has (twenty|\d+) or fewer cards in it"),
+     lambda m: Condition("any_library_at_most", 20 if m[1] == "twenty" else int(m[1]))),
+    (re.compile(r"an opponent was dealt (\d+) or more damage this turn"), lambda m: Condition("opponent_damage_at_least", int(m[1]))),
+    (re.compile(rf"you attacked with {_N} or more creatures this turn"), lambda m: Condition("attacked_with_at_least", _count(m[1]))),
     (re.compile(r"a card left your graveyard this turn"), lambda m: Condition("graveyard_left")),
     (re.compile(r"a land entered the battlefield under your control this turn"), lambda m: Condition("land_entered")),
     (re.compile(r"you control a prime number of lands"), lambda m: Condition("lands_prime")),
@@ -6974,6 +7006,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     for number, line in enumerate(lines):  # Backup N gives the abilities written below it
         if m := _BACKUP.fullmatch(line):
             abilities.append(TriggeredAbility("enters", (Backup(int(m[1]), "\n".join(lines[number + 1:])),), False, line))
+        if m := _HIDEAWAY.fullmatch(line):
+            abilities.append(TriggeredAbility("enters", (Hideaway(int(m[1])),), False, line))
     for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard
         words = {word.strip().lower() for word in line.split(",")}
         if "prowess" in words:  # whenever you cast a noncreature spell, this gets +1/+1 until end of turn
@@ -6999,6 +7033,7 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
 
 _TRIGGERS_ONCE = " This ability triggers only once each turn."
 _BACKUP = re.compile(r"Backup (\d+)")
+_HIDEAWAY = re.compile(r"Hideaway (\d+)")
 
 
 _PAY_TO_RETURN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, return this card from your graveyard to the "

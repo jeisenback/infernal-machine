@@ -166,6 +166,8 @@ DELVE_PROMPT = "Exile which card from your graveyard to pay for "  # followed by
 UPKEEP_PROMPT = "Pay the cumulative upkeep of "  # followed by the permanent's name; Yes or No (No sacrifices it)
 PUT_BACK_PROMPT = "Put which card from your hand on top of your library? "
 WHEEL_PROMPT = "Discard your hand and draw a new hand? "
+HIDEAWAY_PROMPT = "Hide away a card for "  # followed by the permanent's name; options: the top cards
+HIDEAWAY_PLAY_PROMPT = "Play the hidden card for free: "  # followed by its name; options: "Play it", "Don't"
 UNTAP_PROMPT = "Untap during your untap step: "  # followed by the permanent's name; options: "Untap", "Leave tapped"
 TAP_OR_UNTAP_PROMPT = "Tap or untap "  # followed by the creature's name
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
@@ -338,6 +340,10 @@ class Seat:
     life_mana_turn: int | None = None  # Channel: this turn, 1 life buys {C} any time
     conjurable: dict[str, Card] = field(default_factory=dict)  # Alchemy: the cards this player's deck can conjure, by name
     noncombat_damage_turn: int | None = None  # the last turn this player was dealt damage that wasn't combat damage
+    damage_taken_turn: int | None = None  # the turn `damage_taken` counts for
+    damage_taken: int = 0  # the damage dealt to this player that turn
+    attackers_turn: int | None = None  # the turn `most_attackers` counts for
+    most_attackers: int = 0  # the creatures this player attacked with that turn
     life_lost_amount: int = 0  # how much they lost on life_lost_turn
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
     suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
@@ -2284,6 +2290,16 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
             return False
+        if kind == "all_hands_empty":  # Howltooth Hollow
+            return not any(s.hand for s in self.live_seats())
+        if kind == "creature_power_at_least":  # Mosswort Bridge: creatures you control have total power N or greater
+            return sum(self.power(p) for p in seat.battlefield if "Creature" in p.card.type_line) >= condition.count
+        if kind == "any_library_at_most":  # Shelldock Isle
+            return any(len(s.library) <= condition.count for s in self.live_seats())
+        if kind == "opponent_damage_at_least":  # Spinerock Knoll: one opponent was dealt that much this turn
+            return any(o.damage_taken_turn == self.turn and o.damage_taken >= condition.count for o in self.opponents(seat))
+        if kind == "attacked_with_at_least":  # Windbrisk Heights: that many creatures in one combat this turn
+            return seat.attackers_turn == self.turn and seat.most_attackers >= condition.count
         if kind == "source_counters_at_least":  # a Planet's "12+ |" abilities: that many counters of the kind on it
             return source is not None and source.counters.get(condition.what, 0) >= condition.count
         if kind == "in_graveyard":  # Anger: "As long as this card is in your graveyard"
@@ -2699,6 +2715,9 @@ class Game:
         if isinstance(target, Seat):
             if amount > 0 and not combat:
                 target.noncombat_damage_turn = self.turn
+            if amount > 0:
+                target.damage_taken = (target.damage_taken if target.damage_taken_turn == self.turn else 0) + amount
+                target.damage_taken_turn = self.turn
             self.change_life(target, -amount)
             if combat and controller:
                 self.trigger("combat_damage_to_player", source, controller, x=amount)
@@ -4685,6 +4704,42 @@ class Game:
             self.change_life(seat, -rule.life)
             return False
         return True
+
+    def hideaway(self, seat: Seat, source: Permanent, count: int) -> None:
+        """Hideaway N: look at the top N cards, exile one face down (remembered by `source`), the rest go to the bottom of
+        the library in a random order."""
+        top = seat.library[:count]
+        if not top:
+            return
+        pick = seat.player.choose(HIDEAWAY_PROMPT + source.card.name, [c.name for c in top]) if len(top) > 1 else 0
+        chosen = top[pick]
+        rest = [c for i, c in enumerate(top) if i != pick]
+        del seat.library[:len(top)]
+        self.rng.shuffle(rest)
+        seat.library.extend(rest)
+        seat.exile.append(chosen)
+        source.exiled_with.append((seat, chosen))
+        self.broadcast({"event": "hideaway", "seat": seat.index, "card": source.card.name})  # face down: no name
+
+    def play_hideaway(self, seat: Seat, source: Permanent) -> None:
+        """"You may play the exiled card without paying its mana cost": a land needs a land drop; a spell is cast free."""
+        found = next(((owner, card) for owner, card in source.exiled_with if any(c is card for c in owner.exile)), None)
+        if found is None:
+            return
+        owner, card = found
+        is_a_land = is_land(card)
+        if is_a_land and seat.lands_played >= 1:
+            return  # it stays hidden away until a land can be played
+        if seat.player.choose(HIDEAWAY_PLAY_PROMPT + card.name, ["Play it", "Don't"]) != 0:
+            return
+        source.exiled_with.remove(found)
+        if is_a_land:
+            owner.exile = [c for c in owner.exile if c is not card]
+            self._enter(seat, Permanent(card, sick=True))
+            seat.lands_played += 1
+            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
+        else:
+            self._cast(seat, card, owner.exile, free=True)
 
     def karoo(self, seat: Seat, source: Permanent, land_type: str) -> None:
         """The Karoo cycle: return an untapped land of the type you control to its owner's hand, or sacrifice the Karoo."""
