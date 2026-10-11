@@ -665,6 +665,8 @@ class PutCounters:
     counter: str  # "+1/+1" or "-1/-1"
     target: str
     another: bool = False  # "on another target creature you control": not the source itself
+    optional_target: bool = False  # "on each of up to two target creatures": each target may be left out
+    distinct: bool = False  # ... and may not repeat an earlier target of the same effect
     grant: frozenset[str] = frozenset()  # Pack a Punch: "It gains trample until end of turn." (it is the creature that got them)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
@@ -2008,7 +2010,7 @@ _TOKEN_COUNT = _N.replace("|X)", "|X|twice X|half X up|half X down)")  # "Create
 
 
 _CREATURE_TOKEN = re.compile(
-    rf"{_TOKEN_COUNT} (\d+|X)/(\d+|X) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact )?"
+    rf"{_TOKEN_COUNT} (\d+|X)/(\d+|X) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact |enchantment )?"
     r"creature tokens?(?: named ([A-Z][\w'-]*))?"  # "named Cadet"
     r"(?: with (?:([a-z ,]+?)(?:,? and |, |$))?(?:\"(.+)\")?)?"  # keywords and/or a quoted ability
 )
@@ -2038,7 +2040,7 @@ def _token(spec: str) -> tuple[int, Card] | None:
         keyword_line = ", ".join(words).capitalize()
     card = Card(
         name=named or subtypes.strip(),
-        type_line=f"Token {'Artifact ' if artifact else ''}Creature — {subtypes.strip()}",
+        type_line=f"Token {artifact.capitalize() if artifact else ''}Creature — {subtypes.strip()}",
         oracle_text="\n".join(line for line in (keyword_line, quoted) if line),
         colors=tuple(_COLOR_WORDS[c] for c in re.findall(_COLOR, colors)),
         power=power,
@@ -4635,7 +4637,7 @@ def _up_to(cls: type, m: re.Match, **fixed: Any) -> list:
     return [cls(kind, optional_target=True, distinct=n > 0, **fixed) for n in range(_count(m[1]))]
 
 
-_DAMAGE_KIND = (r"(any target|target attacking or blocking creature|target creature|target player|target opponent|target creature or planeswalker"
+_DAMAGE_KIND = (r"(any target|target attacking or blocking creature|target creature an opponent controls|target creature|target player|target opponent|target creature or planeswalker"
                 r"|target player or planeswalker)")
 
 
@@ -5262,6 +5264,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (player|opponent) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
      lambda m: TargetSacrifices(m[1].lower(), m[2].lower())),
     (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
+    (re.compile(rf"put a ({_COUNTER}) on each of up to (two|three) target creatures\.", re.I),  # Elegant Rotunda
+     lambda m: [PutCounters(1, _counter_name(m[2]), "creature", optional_target=True, distinct=n > 0) for n in range(_count(m[3]))]),
     (re.compile(rf"put {_N} {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
     (re.compile(rf"put {_N} {_COUNTER} on another target {_PERMANENT_KIND}\.", re.I),

@@ -948,6 +948,19 @@ def class_view(card: Card, level: int) -> Card:
     return dataclasses.replace(card, oracle_text="\n".join(kept))
 
 
+def is_room(card: Card) -> bool:
+    """A Room: one card with two doors, the second being `alternate`."""
+    return "Room" in card.type_line and card.alternate is not None
+
+
+@lru_cache(maxsize=None)
+def room_view(whole: Card, doors: tuple[str, ...]) -> Card:
+    """A Room as it reads with the doors named in `doors` unlocked: only an unlocked door's abilities are there."""
+    halves = [half for half in (whole, whole.alternate) if half is not None and half.name in doors]
+    colors = tuple(color for color in "WUBRG" if any(color in half.colors for half in halves))
+    return dataclasses.replace(whole, oracle_text="\n".join(half.oracle_text for half in halves), colors=colors, alternate=None)
+
+
 _CONTROL_AURA = "You control enchanted creature."
 
 

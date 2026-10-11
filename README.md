@@ -763,6 +763,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     for it fires, so a new event for an occurrence the game already announces needs only a declaration. An event the game
     does not declare is an error, not a trigger that silently never fires; `tests/test_events.py` checks that every declared
     event is announced somewhere and every announcement names a declared event.
+  - Rooms: one card with two doors. Either door is cast from the hand (the card itself is the front door, `alternate` the back); the Room
+    enters as one permanent that reads as only its unlocked doors (`room_view`; the whole card waits in `real_card` and goes to the
+    graveyard whole). "When you unlock this door, ..." triggers for that door only, as it enters and when a locked door is unlocked by
+    paying its mana cost (`Unlock: ...`, a sorcery-speed special action). Eight of the 28 Rooms play so far; the others wait on manifest
+    dread, stun counters and the like. Also read now: "deals N damage to target creature an opponent controls", enchantment creature tokens,
+    and "a +1/+1 counter on each of up to two target creatures".
   - Hullbreaker Horror: "return target spell you don't control to its owner's hand" (a spell kind that names whose it is, like the rest of the
     spell targets), so its "choose up to one" mode trigger reads; a mode with nothing to aim at is not offered.
   - Sylvan Library: each seat remembers the cards it drew this turn (`drawn_cards`); at the draw step the player may draw two more, then

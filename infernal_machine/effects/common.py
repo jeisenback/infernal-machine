@@ -22,7 +22,7 @@ _REMINDER = re.compile(r"\s*\([^)]*\)")
 
 
 _SELF = (r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|planeswalker|permanent"
-         r"|Aura|Equipment|Class|Vehicle|Saga|token))")
+         r"|Aura|Equipment|Class|Vehicle|Saga|Room|token))")
 
 
 def _count(word: str) -> int | str:
