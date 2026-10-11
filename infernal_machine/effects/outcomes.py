@@ -1971,8 +1971,9 @@ class TargetControllerCreatesTokens:
     follows_target = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.last_controller is not None:
-            game.create_tokens(target.last_controller, self.token, game.amount(self.count))
+        owner = getattr(target, "last_controller", None) or getattr(target, "controller", None)  # a permanent, or a countered spell
+        if target is not None and owner is not None:
+            game.create_tokens(owner, self.token, game.amount(self.count))
 
 
 TREASURE = Card(name="Treasure", type_line="Token Artifact — Treasure",
@@ -3664,10 +3665,77 @@ class UntapThat:
 
 
 @dataclass(frozen=True)
+class TargetControllerGainsLife:
+    """Nature's Claim: "Its controller gains 4 life." """
+    amount: int
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        owner = getattr(target, "last_controller", None) or getattr(target, "controller", None)
+        if owner is not None:
+            game.change_life(owner, self.amount)
+
+
+@dataclass(frozen=True)
+class ExtraLandDrop:
+    """Explore: "You may play an additional land this turn." """
+    count: int = 1
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if controller.extra_lands_turn != game.turn:
+            controller.extra_lands, controller.extra_lands_turn = 0, game.turn
+        controller.extra_lands += self.count
+
+
+@dataclass(frozen=True)
+class OpponentsCantCast:
+    """Silence: "Your opponents can't cast spells this turn." (Ranger-Captain of Eos: "... noncreature spells ...")"""
+    kind: str = ""  # "" for any spell, "noncreature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for opponent in game.opponents(controller):
+            opponent.cast_barred = (game.turn, self.kind)
+
+
+@dataclass(frozen=True)
+class ReturnSpellToHand:
+    """Reprieve: "Return target spell to its owner's hand." (the spell does not resolve)"""
+    target: str = "spell"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target in game.stack:
+            game.stack.remove(target)
+            if not target.is_copy:
+                game._move_card(target.controller, target.physical, "hand")
+
+
+@dataclass(frozen=True)
+class SearchMany:
+    """Buried Alive: "Search your library for up to three creature cards, put them into your graveyard, then shuffle." """
+    card_type: str
+    count: int
+    to: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.tutor(controller, self.card_type, self.to, False, self.count)
+
+
+@dataclass(frozen=True)
+class EachDrawsThenDiscards:
+    """Geier Reach Sanitarium: "Each player draws a card, then discards a card." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            game.draw(seat, 1)
+            game.discard(seat, 1)
+
+
+@dataclass(frozen=True)
 class Tap:
     """ "Tap two target permanents.": one effect per target, each a different permanent."""
     target: str
     distinct: bool = False
+    optional_target: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -4434,7 +4502,7 @@ class FetchBasicLand:
 _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
                    r"|monocolored permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact) creature|noncreature artifact or noncreature enchantment"
-                   r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|creature|artifact"
+                   r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker|creature or enchantment|(?-i:[A-Z][a-z]+) creature)(?: an opponent controls| you don't control| you control| you own)?"
                    r"(?: with mana value (?:\d+ or (?:less|greater)|X))?)")
@@ -4517,9 +4585,20 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"destroy {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Destroy, m)),
     (re.compile(rf"destroy up to one target {_PERMANENT_KIND}\.", re.I),
      lambda m: Destroy(m[1].lower(), optional_target=True)),
-    (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|artifact or enchantment|artifact|enchantment) )?spell"
-                rf"( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
-     lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell", unless=m[3] or "")),
+    (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment) )?spell"
+                rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
+     lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
+    (re.compile(r"return target spell to its owner's hand\.", re.I), lambda m: ReturnSpellToHand()),
+    (re.compile(r"its controller gains (\d+) life\.", re.I), lambda m: TargetControllerGainsLife(int(m[1]))),
+    (re.compile(r"you may play an additional land this turn\.", re.I), lambda m: ExtraLandDrop()),
+    (re.compile(r"your opponents can't cast (noncreature )?spells this turn\.", re.I), lambda m: OpponentsCantCast("noncreature" if m[1] else "")),
+    (re.compile(r"search your library for a card, put that card into your graveyard, then shuffle\.", re.I),
+     lambda m: SearchLibrary("card", "graveyard", False)),
+    (re.compile(r"search your library for up to (two|three|four) ([a-z]+) cards, put them into your graveyard, then shuffle\.", re.I),
+     lambda m: SearchMany(m[2].lower(), _count(m[1]), "graveyard")),
+    (re.compile(r"each player draws a card, then discards a card\.", re.I), lambda m: EachDrawsThenDiscards()),
+    (re.compile(rf"tap (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Tap(m[2].lower(), bool(m[1]))),
+    (re.compile(rf"tap {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Tap, m)),
     (re.compile(rf"its controller may draw up to {_N} cards at the beginning of the next turn's upkeep\.", re.I),
      lambda m: DelayedDraw(_count(m[1]), True)),
     (re.compile(r"you draw a card at the beginning of the next turn's upkeep\.", re.I), lambda m: DelayedDraw(1, False)),
@@ -4981,7 +5060,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 re.I), lambda m: ExtraCombat(bool(m[1]))),
     (re.compile(r"untap all creatures that attacked this turn\.", re.I), lambda m: UntapCreatures("attacked")),
     (re.compile(r"untap all creatures you control\.", re.I), lambda m: UntapCreatures("yours")),
-    (re.compile(r"untap all (artifacts|lands|permanents|enchantments) you control\.", re.I),
+    (re.compile(r"untap all (artifacts|lands|permanents|enchantments|nonland permanents) you control\.", re.I),
      lambda m: UntapAll(_PLURAL_KINDS[m[1].lower()])),
     (re.compile(rf"untap (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Untap(m[2].lower(), bool(m[1]))),
     (re.compile(rf"untap up to one target {_PERMANENT_KIND}\.", re.I), lambda m: Untap(m[1].lower(), optional_target=True)),
@@ -5557,6 +5636,7 @@ _CONDITIONS = [
     (re.compile(r"you control no creatures with ([a-z]+)"), lambda m: Condition("control_none_keyword", what=m[1])),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
     (re.compile(r"you don't control an? ([A-Za-z]+) creature token"), lambda m: Condition("control_none_token", what=m[1])),
+    (re.compile(r"you control an? ([A-Za-z]+) or an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, f"{m[1]} or {m[2]}")),
     (re.compile(r"you control an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, _singular(m[1]))),
     (re.compile(r"it's your turn"), lambda m: Condition("your_turn")),
     (re.compile(r"it's not a token"), lambda m: Condition("source_not_token")),
