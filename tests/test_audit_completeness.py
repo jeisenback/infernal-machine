@@ -50,17 +50,18 @@ LAND = {"name": "Back Land", "type_line": "Land", "oracle_text": "{T}: Add {R}."
 
 
 class SecondFaceTests(unittest.TestCase):
-    def test_an_adventure_has_a_second_half(self):
-        card = Card.from_scryfall(scryfall("adventure", FRONT, SPELL))
-        self.assertEqual((card.other_face, unsupported_lines(card)), ("Back Spell", [SECOND_FACE]))
+    def test_an_aftermath_half_is_not_played(self):
+        card = Card.from_scryfall(scryfall("split", {**FRONT, "type_line": "Sorcery"},
+                                           {**SPELL, "type_line": "Sorcery", "oracle_text": "Aftermath (Cast this spell only from your graveyard.)\nDraw a card."}))
+        self.assertEqual((card.other_face, card.alternate, unsupported_lines(card)), ("Back Spell", None, [SECOND_FACE]))
 
-    def test_so_does_a_split_card(self):
-        card = Card.from_scryfall(scryfall("split", {**FRONT, "type_line": "Instant"}, {**SPELL, "type_line": "Instant"}))
-        self.assertEqual(unsupported_lines(card), [SECOND_FACE])
+    def test_neither_is_a_room(self):
+        card = Card.from_scryfall(scryfall("split", {**FRONT, "type_line": "Enchantment — Room"}, {**SPELL, "type_line": "Enchantment — Room"}))
+        self.assertEqual((card.other_face, card.alternate), ("Back Spell", None))
 
-    def test_a_modal_card_whose_back_is_a_spell(self):
-        card = Card.from_scryfall(scryfall("modal_dfc", FRONT, {**SPELL, "type_line": "Sorcery"}))
-        self.assertEqual(unsupported_lines(card), [SECOND_FACE])
+    def test_a_modal_card_whose_back_is_a_permanent_is_not_played_as_it(self):
+        card = Card.from_scryfall(scryfall("modal_dfc", FRONT, {**FRONT, "name": "Back Giant"}))
+        self.assertEqual((card.other_face, unsupported_lines(card)), ("Back Giant", [SECOND_FACE]))
 
     def test_a_modal_card_whose_back_is_a_land_is_played_as_that_land(self):
         card = Card.from_scryfall(scryfall("modal_dfc", FRONT, LAND))
@@ -72,12 +73,12 @@ class SecondFaceTests(unittest.TestCase):
         self.assertEqual((card.other_face, unsupported_lines(card)), ("", []))
 
     def test_the_second_face_is_listed_with_the_card_problems_it_already_has(self):
-        card = Card.from_scryfall(scryfall("adventure", {**FRONT, "oracle_text": "Frobnicate the widgets."}, SPELL))
+        card = Card.from_scryfall(scryfall("modal_dfc", {**FRONT, "oracle_text": "Frobnicate the widgets."}, {**FRONT, "name": "Back Giant"}))
         self.assertEqual(unsupported_lines(card), ["Frobnicate the widgets.", SECOND_FACE])
 
     def test_the_cache_round_trip_keeps_it(self):
-        card = Card.from_scryfall(scryfall("adventure", FRONT, SPELL))
-        self.assertEqual(Card.from_dict(card.to_dict()).other_face, "Back Spell")
+        card = Card.from_scryfall(scryfall("modal_dfc", FRONT, {**FRONT, "name": "Back Giant"}))
+        self.assertEqual(Card.from_dict(card.to_dict()).other_face, "Back Giant")
 
 
 class CastTriggerTargetTests(unittest.TestCase):

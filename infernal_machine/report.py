@@ -68,7 +68,7 @@ class CardReport:
 
 
 # One line for every card, so the audit counts them together: an Adventure, a split card's other half, a back that isn't a land.
-SECOND_FACE = "Second face or half of the card (an Adventure, a split half, a back face): not playable"
+SECOND_FACE = "Second face or half of the card (a Room, an Aftermath half, a back face that is a permanent, a meld): not playable"
 
 
 def unsupported_lines(card: Card) -> list[str]:
@@ -101,6 +101,8 @@ def unsupported_lines(card: Card) -> list[str]:
         problems.append(line)
     if card.other_face:  # only the first face is modeled: the card's other half can't be cast or played
         problems.append(SECOND_FACE)
+    if card.alternate is not None:  # the other half is cast from the hand, so its text has to work too
+        problems += unsupported_lines(card.alternate)
     if card.prepare is not None:  # a prepared creature casts a copy of this half, so its text has to work too
         problems += [f"{card.prepare.name}: {line}" for line in unsupported_lines(card.prepare)]
     return problems
