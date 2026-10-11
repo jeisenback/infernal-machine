@@ -61,6 +61,8 @@ def render_board(state: dict) -> str:
         if seat["command_zone"]:
             lines.append("  Command zone: " + ", ".join(
                 f"{c['name']} (tax {c['tax']})" if c["tax"] else c["name"] for c in seat["command_zone"]))
+        if seat.get("poison"):
+            lines.append(f"  Poison counters: {seat['poison']}")
         if seat["commander_damage"]:
             lines.append("  Commander damage taken: " + ", ".join(
                 f"{d['damage']} from {names[d['from_seat']]}'s {d['commander']}" for d in seat["commander_damage"]))
@@ -159,6 +161,8 @@ class Narrator:
             return f"{who} {v('gain') if e['change'] > 0 else v('lose')} {abs(e['change'])} life ({e['life']})."
         if kind == "damage":
             return f"{card} is dealt {e['amount']} damage."
+        if kind == "poison":
+            return f"{who} {v('get')} {e['added']} poison counters ({e['total']})."
         if kind == "commander_damage":
             return (f"{who} {v('have', 'has')} taken {e['total']} damage from "
                     f"{self.poss(e['from_seat'])} {e['commander']}.")

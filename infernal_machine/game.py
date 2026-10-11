@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -171,6 +171,7 @@ HIDEAWAY_PLAY_PROMPT = "Play the hidden card for free: "  # followed by its name
 UNTAP_PROMPT = "Untap during your untap step: "  # followed by the permanent's name; options: "Untap", "Leave tapped"
 TAP_OR_UNTAP_PROMPT = "Tap or untap "  # followed by the creature's name
 COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
+POISON_LIMIT = 10  # CR 704.5c
 
 
 @dataclass(eq=False)
@@ -1941,7 +1942,7 @@ class Game:
                       for i in self.stack],
             "hand": [c.name for c in viewer.hand] if viewer else [],
             "seats": [{
-                "seat": s.index, "name": s.name, "life": s.life, "lost": s.lost,
+                "seat": s.index, "name": s.name, "life": s.life, "poison": s.player_counters.get("poison", 0), "lost": s.lost,
                 "mana_pool": ["".join(sorted(u)) for u in s.mana_pool],
                 "hand": len(s.hand), "library": len(s.library),
                 "graveyard": [c.name for c in s.graveyard], "exile": [c.name for c in s.exile],
@@ -2707,6 +2708,8 @@ class Game:
             self.broadcast({"event": "damage_prevented", "card": target.card.name, "amount": amount})
             return
         controller = self.controller_of(source) if source else None
+        infect = source is not None and self.has_keyword(source, "infect")  # to a player: poison counters; to a creature: wither
+        wither = infect or (source is not None and self.has_keyword(source, "wither"))
         if isinstance(target, Seat) and combat and target.combat_shield_turn == self.turn:  # Inkshield
             self.broadcast({"event": "damage_prevented", "seat": target.index, "amount": amount})
             if target.combat_shield_token is not None and amount > 0:
@@ -2718,7 +2721,13 @@ class Game:
             if amount > 0:
                 target.damage_taken = (target.damage_taken if target.damage_taken_turn == self.turn else 0) + amount
                 target.damage_taken_turn = self.turn
-            self.change_life(target, -amount)
+            if infect:
+                self.give_poison(target, amount)
+            else:
+                self.change_life(target, -amount)
+            if combat and amount > 0 and source is not None and not self.loses_abilities(source) \
+                    and (toxic := toxic_of(source.card)):
+                self.give_poison(target, toxic)  # Toxic N: that many poison counters in addition to the damage
             if combat and controller:
                 self.trigger("combat_damage_to_player", source, controller, x=amount)
                 if target is self.monarch and controller is not target:  # CR 725.2
@@ -2747,7 +2756,10 @@ class Game:
                                 "commander": source.card.name, "total": target.commander_damage[key]})
         else:
             if "Creature" in target.card.type_line:
-                target.damage += amount
+                if wither and amount > 0:
+                    self.put_counters(target, MINUS, amount)  # CR 702.80, 702.90: -1/-1 counters, not marked damage
+                else:
+                    target.damage += amount
                 if source and self.has_keyword(source, "deathtouch"):
                     target.deathtouched = True
             if target.loyalty is not None:
@@ -2756,6 +2768,11 @@ class Game:
                             "source": source.card.name if source else None})
         if controller and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
+
+    def give_poison(self, seat: Seat, count: int) -> None:
+        if count > 0:
+            seat.player_counters["poison"] = seat.player_counters.get("poison", 0) + count
+            self.broadcast({"event": "poison", "seat": seat.index, "added": count, "total": seat.player_counters["poison"]})
 
     def prevent_combat_damage(self, seat: Seat, token: Card | None) -> None:
         """Inkshield: no combat damage is dealt to `seat` this turn; `token` is created for each point prevented."""
@@ -4940,6 +4957,7 @@ class Game:
                     self.broadcast({"event": "citys_blessing", "seat": seat.index})
                 reason = ("life" if seat.life <= 0
                           else "empty_library" if seat.drew_from_empty
+                          else "poison" if seat.player_counters.get("poison", 0) >= POISON_LIMIT
                           else "commander_damage" if any(d >= COMMANDER_DAMAGE_LIMIT for d in seat.commander_damage.values())
                           else None)
                 if reason:

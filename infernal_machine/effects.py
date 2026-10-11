@@ -1399,6 +1399,14 @@ def annihilator_of(card: Card) -> int:
     return sum(int(m[1]) for line in rules_lines(card) for part in line.split(", ") if (m := _ANNIHILATOR.fullmatch(part)))
 
 
+_TOXIC = re.compile(r"Toxic (\d+)", re.I)
+
+
+def toxic_of(card: Card) -> int:
+    """The N of the card's own "Toxic N" keywords; each one gives that many poison counters."""
+    return sum(int(m[1]) for line in rules_lines(card) for part in line.split(", ") if (m := _TOXIC.fullmatch(part)))
+
+
 @dataclass(frozen=True)
 class Annihilate:
     """Annihilator N: "Whenever this creature attacks, defending player sacrifices N permanents." The defending player

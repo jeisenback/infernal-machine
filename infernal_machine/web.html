@@ -156,6 +156,8 @@
     stats.appendChild(exile);
     if (seat.command_zone.length)
       stats.appendChild(el("span", "", "command zone: " + seat.command_zone.map(c => c.name + (c.tax ? " (tax " + c.tax + ")" : "")).join(", ")));
+    if (seat.poison)
+      stats.appendChild(el("span", "", "poison " + seat.poison));
     for (const d of seat.commander_damage)
       stats.appendChild(el("span", "", d.damage + " commander damage from " + (names[d.from_seat] || "seat " + d.from_seat) + "'s " + d.commander));
     panel.appendChild(stats);

@@ -777,6 +777,10 @@ winner = game.play()
     not read). A printed "This creature can't be blocked." works like the granted one.
   - **"This creature attacks each combat if able.":** the creature is never offered "Don't attack"; its controller still
     picks whom it attacks. A creature that can't attack (tapped, summoning sick, defender) is not asked.
+  - **Infect:** its damage to a player is that many poison counters instead of life loss, and its damage to a creature is
+    that many -1/-1 counters instead of marked damage. **Wither:** the creature part only. **Toxic N:** combat damage to a
+    player also gives N poison counters (several Toxic keywords add up). A player with ten or more poison counters loses the
+    game. Poison shows in the board view and the text client. Toxic granted by another card is not read.
   - **Living weapon:** a 0/0 black Phyrexian Germ token is created and the Equipment attached to it when it enters.
   - **Echo {cost}:** at your next upkeep after it enters you pay once (you are asked, if you can) or sacrifice it.
   - **Delve:** exiling cards from your graveyard pays for generic mana. The engine exiles as few as will do, and you
