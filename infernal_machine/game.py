@@ -756,7 +756,7 @@ class Game:
             if (found := cycling(card)) and self._can_cycle(seat, found[1], found[3]):
                 actions.append(CYCLE + card.name)
             for ability in hand_abilities(card)[:1]:
-                if self._pay_cost(seat, parse_cost(ability.mana_cost)) is not None \
+                if self._pay_cost(seat, self._hand_ability_cost(seat, ability)) is not None \
                         and self._effects_possible(seat, ability.effects, source_qualities(card)):
                     actions.append(ACTIVATE_HAND + card.name)
         for card in _unique(seat.graveyard):
@@ -1675,13 +1675,20 @@ class Game:
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
 
+    def _hand_ability_cost(self, seat: Seat, ability: ActivatedAbility) -> Cost:
+        """The mana an ability from the hand costs: Channel abilities cost {1} less for each permanent of a kind they count (Boseiju)."""
+        cost = parse_cost(ability.mana_cost)
+        if ability.discount_each:
+            cost = cost.reduced(sum(_permanent_matches(ability.discount_each, p.card) for p in seat.battlefield))
+        return cost
+
     def _activate_from_hand(self, seat: Seat, card: Card) -> None:
         """"{U/R}{U/R}, Discard this card: Create a Treasure token.": like cycling, the card is discarded as a cost and
         the ability goes on the stack."""
         ability = hand_abilities(card)[0]
         effects = list(ability.effects)
         targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
-        tapped = self._pay_cost(seat, parse_cost(ability.mana_cost)) if ability.mana_cost else []
+        tapped = self._pay_cost(seat, self._hand_ability_cost(seat, ability)) if ability.mana_cost else []
         self._spend_mana(seat, tapped)
         self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cost"})
         self._move_card(seat, card, "graveyard")
@@ -2728,7 +2735,10 @@ class Game:
             value = int(limit[1]) if limit[1] != "x" else self.x_value if self.resolving_item is not None else self.targeting_x
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
         kind, controller = _split_controller(kind.removesuffix(" that attacked this turn"))
-        state, _, base = kind.partition(" ") if kind.split(" ")[0] in ("tapped", "untapped", "attacking") else ("", "", kind)
+        if kind.startswith("attacking or blocking "):  # Eiganjo
+            state, base = "attacking or blocking", kind.removeprefix("attacking or blocking ")
+        else:
+            state, _, base = kind.partition(" ") if kind.split(" ")[0] in ("tapped", "untapped", "attacking") else ("", "", kind)
         for seat in self.live_seats():
             if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
                 continue
@@ -2744,7 +2754,9 @@ class Game:
                               else card.cmc != value):
                     continue
                 if ((state == "tapped" and not permanent.tapped) or (state == "untapped" and permanent.tapped)
-                        or (state == "attacking" and not any(a.attacker is permanent for a in self.combat.attacks))):
+                        or (state == "attacking" and not any(a.attacker is permanent for a in self.combat.attacks))
+                        or (state == "attacking or blocking" and not any(
+                            a.attacker is permanent or permanent in a.blockers for a in self.combat.attacks))):
                     continue
                 if self.has_keyword(permanent, "hexproof") and seat is not caster:
                     continue
@@ -4013,10 +4025,12 @@ class Game:
         self.counter(item)
 
     def fetch_basic_land(self, seat: Seat, optional: bool = False, untap_if: "Condition | None" = None,
-                         tapped: bool = True) -> None:
+                         tapped: bool = True, subtypes: tuple[str, ...] | None = None) -> None:
+        """Search for a basic land card; with `subtypes`, for any land card with one of those land types (Boseiju)."""
         if optional and seat.player.choose(SEARCH_OPTIONAL_PROMPT, YES_NO) != 0:
             return
-        basics = _unique([c for c in seat.library if "Basic" in c.type_line and "Land" in c.type_line])
+        basics = _unique([c for c in seat.library if (_is_searched_land(c, subtypes) if subtypes
+                                                       else "Basic" in c.type_line and "Land" in c.type_line)])
         if basics:
             choice = basics[seat.player.choose(SEARCH_PROMPT, [c.name for c in basics])]
             seat.library.remove(choice)
@@ -5443,8 +5457,8 @@ def _permanent_matches(kind: str, card: Card) -> bool:
         return not has and _permanent_matches(m[2], card)
     if m := re.fullmatch(r"non-(\w+) (.+)", kind):  # "non-Pilot creature"
         return m[1].capitalize() not in card.type_line.partition("\u2014")[2].split() and _permanent_matches(m[2], card)
-    if " or " in kind and any(part.startswith("non") for part in kind.split(" or ")):  # "noncreature artifact or noncreature enchantment"
-        return any(_permanent_matches(part, card) for part in kind.split(" or "))
+    if " or " in kind and any(part.startswith("non") for part in re.split(r",? or |, ", kind)):  # "noncreature artifact or noncreature enchantment"
+        return any(_permanent_matches(part, card) for part in re.split(r",? or |, ", kind))
     if kind == "any":
         return "Creature" in card.type_line or "Planeswalker" in card.type_line
     if kind == "permanent":
