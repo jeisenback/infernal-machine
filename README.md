@@ -763,6 +763,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     for it fires, so a new event for an occurrence the game already announces needs only a declaration. An event the game
     does not declare is an error, not a trigger that silently never fires; `tests/test_events.py` checks that every declared
     event is announced somewhere and every announcement names a declared event.
+  - Hullbreaker Horror: "return target spell you don't control to its owner's hand" (a spell kind that names whose it is, like the rest of the
+    spell targets), so its "choose up to one" mode trigger reads; a mode with nothing to aim at is not offered.
   - Sylvan Library: each seat remembers the cards it drew this turn (`drawn_cards`); at the draw step the player may draw two more, then
     chooses two of the cards drawn this turn (the draw step's own card too) and for each pays 4 life (not at 4 or less) or puts it on top
     of the library.

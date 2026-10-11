@@ -4700,7 +4700,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|white|blue|black|red|green) )?spell"
                 rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
-    (re.compile(r"return target spell to its owner's hand\.", re.I), lambda m: ReturnSpellToHand()),
+    (re.compile(r"return target spell( you don't control)? to its owner's hand\.", re.I),
+     lambda m: ReturnSpellToHand("spell you don't control" if m[1] else "spell")),
     (re.compile(r"its controller gains (\d+) life\.", re.I), lambda m: TargetControllerGainsLife(int(m[1]))),
     (re.compile(r"you may play an additional land this turn\.", re.I), lambda m: ExtraLandDrop()),
     (re.compile(r"your opponents can't cast (noncreature )?spells this turn\.", re.I), lambda m: OpponentsCantCast("noncreature" if m[1] else "")),
