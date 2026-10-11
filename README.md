@@ -147,6 +147,9 @@ winner = game.play()
     creature, it gains the abilities written below the Backup line until end of turn.
   - Encore {N} (Angel of Indemnity): at sorcery speed, pay it and exile the card from your graveyard; each opponent gets
     a token copy with haste that attacks that opponent this turn if able and is sacrificed at the next end step.
+  - Unearth {N} (Dregscape Zombie): at sorcery speed, pay it and the card comes back from your graveyard (it is not
+    cast, so nothing triggers on a cast, but enters triggers happen). It has haste until end of turn and is exiled at the
+    next end step, or instead of dying or going to a hand. Only a mana cost is read.
   - Bestow {N} (Eidolon of Countless Battles): an alternative cost, offered when you control a creature to enchant. It
     resolves as an Aura attached to that creature (as a creature if the target is gone), and becomes a creature again
     when the creature it enchants leaves.
