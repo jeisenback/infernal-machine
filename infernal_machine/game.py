@@ -114,6 +114,11 @@ NOT_A_COPY = "Don't copy anything"
 CREW_PROMPT = "Choose a creature to tap to crew "  # followed by the Vehicle's name
 PROLIFERATE_PROMPT = "Proliferate: choose a permanent"
 DONE = "Done"
+SINGLE_TARGET_KINDS = {  # what "Change the target of target ..." can be aimed at
+    "spell with a single target": lambda item: not item.ability,
+    "spell or ability with a single target": lambda item: True,
+    "activated ability with a single target": lambda item: isinstance(item.ability, ActivatedAbility),
+}
 NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
 SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
@@ -2943,6 +2948,9 @@ class Game:
         """Legal targets of `kind` for a spell or ability `caster` controls, as (label, object). `colors` are the
         colors of the source: a permanent with protection from one of them can't be chosen."""
         options: list[tuple[str, Any]] = []
+        if kind in SINGLE_TARGET_KINDS:  # Deflection, Bolt Bend, Reroute
+            return [(f"{'Ability' if i.ability else 'Spell'}: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
+                    if SINGLE_TARGET_KINDS[kind](i) and self._lone_target(i) is not None]
         if kind == "creature card in a graveyard":  # Animate Dead is cast on one
             kind = "graveyard:creature:any"
         if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|any>"
@@ -2985,6 +2993,25 @@ class Game:
                     continue
                 options.append((self.label(permanent), permanent))
         return options
+
+    def _lone_target(self, item: StackItem) -> int | None:
+        """Which of `item.targets` is the only thing the spell or ability targets; None if it targets nothing or several things."""
+        chosen = [i for i, t in enumerate(item.targets) if t is not None and not isinstance(t, list)]
+        return chosen[0] if len(chosen) == 1 and not any(isinstance(t, list) and t for t in item.targets) else None
+
+    def change_target(self, chooser: Seat, item: StackItem) -> None:
+        """`chooser` picks a new target for the one target of `item`: another one that is legal for it. With none, nothing changes."""
+        index = self._lone_target(item)
+        if index is None:
+            return
+        effect = [e for e in item.effects if target_kind(e)][index]
+        kind = self._fixed_kind(target_kind(effect), item.source, item.x)
+        options = [o for o in self.target_options(kind, item.controller, source_qualities(item.card))
+                   if o[1] is not item.targets[index]]
+        if options:
+            label, new = options[chooser.player.choose(TARGET_PROMPT + item.card.name, [o[0] for o in options])]
+            item.targets[index] = new
+            self.broadcast({"event": "target_changed", "seat": chooser.index, "card": item.card.name, "to": label})
 
     def label(self, permanent: Permanent) -> str:
         """How a permanent is shown in choices: "Grizzly Bears 2/2 (seat 1, #3)"."""

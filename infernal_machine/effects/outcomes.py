@@ -180,6 +180,18 @@ class Counter:
 
 
 @dataclass(frozen=True)
+class ChangeTarget:
+    """Deflection: "Change the target of target spell with a single target." (Divert: "... unless that spell's controller pays {2}.")
+    You choose the new target, which must be another legal one for that spell or ability."""
+    target: str = "spell with a single target"
+    unless: str = ""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and not (self.unless and game.pays_unless(target.controller, self.unless, target.card)):
+            game.change_target(controller, target)
+
+
+@dataclass(frozen=True)
 class DelayedDraw:
     """Arcane Denial: "Its controller may draw up to two cards at the beginning of the next turn's upkeep. / You draw a card at the
     beginning of the next turn's upkeep." Its controller is the controller of the spell just countered."""
@@ -4749,6 +4761,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|white|blue|black|red|green) )?spell"
                 rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
+    (re.compile(r"change the target of target (spell|spell or ability|activated ability) with a single target"
+                rf"( unless that spell's controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
+     lambda m: ChangeTarget(f"{m[1].lower()} with a single target", unless=m[3] or "")),
     (re.compile(r"return target spell( you don't control)? to its owner's hand\.", re.I),
      lambda m: ReturnSpellToHand("spell you don't control" if m[1] else "spell")),
     (re.compile(r"its controller gains (\d+) life\.", re.I), lambda m: TargetControllerGainsLife(int(m[1]))),
@@ -4971,7 +4986,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile CARDNAME\.", re.I), lambda m: ExileThisSpell()),
     (re.compile(r"search your library for a card, put that card into your hand, discard a card at random, then shuffle\.", re.I),
      lambda m: [SearchLibrary("card", "hand", False), Discard(1, "you", True)]),  # Gamble
-    (re.compile(r"you lose life equal to (?:its|that card's|that permanent's) mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
+    (re.compile(r"you lose life equal to (?:its|that card's|that permanent's|that spell's) mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
     (re.compile(rf"you lose {_N} life\.", re.I), lambda m: LoseLife(_count(m[1]))),
     (re.compile(r"search your library for up to two basic land cards, reveal those cards, put one onto the battlefield "
                 r"tapped and the other into your hand, then shuffle\.", re.I),

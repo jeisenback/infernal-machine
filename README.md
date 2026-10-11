@@ -763,6 +763,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "up to one/two/three" and "one or two" forms with "put a stun counter on each of them", and the same inside triggers are
     understood; "creatures your opponents control" is now a kind the plural patterns accept. Not understood: conditional
     counters ("if it's your turn"), counters on the source itself, "twice X", and the Siege/Battle cards.
+  - "Change the target of target spell (or ability, or activated ability) with a single target" (`ChangeTarget`, `Game.change_target`):
+    only a spell or ability with exactly one target (not a list of targets) can be aimed at; you pick another legal target for it, from
+    the point of view of the spell's controller, and "unless that spell's controller pays {2}" (Divert) is asked of that player.
+    Not understood: "that targets only a player / this creature", "the new target must be ...", changing several targets, and
+    Willbender's turned-face-up trigger.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
