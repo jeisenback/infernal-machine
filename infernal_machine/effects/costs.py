@@ -88,6 +88,7 @@ class AdditionalCost:
     life: int = 0
     life_x: bool = False  # "pay X life" (Toxic Deluge): X is chosen as the spell is cast
     sacrifice_x: bool = False  # "sacrifice X creatures" (Immoral Bargain): `sacrifice` is the kind, X of them
+    options: tuple["AdditionalCost", ...] = ()  # "sacrifice an artifact or discard a card": pay one of these
 
 
 _KICKER = re.compile(rf"(?:Multik|K)icker ({_MANA_SYMBOLS})(?: and/or ({_MANA_SYMBOLS}))?")
@@ -111,7 +112,13 @@ _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life a
 
 
 _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
-                         rf"creature|permanent)|(discard a card)|pay {_N} life|sacrifice (X) (creatures|artifacts|lands|permanents))\.")
+                         rf"creature|permanent|green creature)|(discard a card)|pay {_N} life|sacrifice (X) (creatures|artifacts|lands|permanents))\.")
+
+
+_ADDITIONAL_PART = rf"(?:sacrifice an? (creature|artifact|land|artifact or creature|permanent)|(discard a card)|pay {_N} life)"
+
+
+_ADDITIONAL_EITHER = re.compile(rf"As an additional cost to cast this spell, {_ADDITIONAL_PART} or {_ADDITIONAL_PART}\.")
 
 
 _X_LIMIT = re.compile(r"X can't be greater than the number of players in the game\.")  # Open the Way
@@ -407,6 +414,9 @@ def additional_costs(card: Card) -> list[AdditionalCost]:
             life_x = (m[3] or "").upper() == "X"
             costs.append(AdditionalCost(sacrifice=m[1] or (m[5].removesuffix("s") if m[5] else None), discard=bool(m[2]),
                                         life=0 if life_x or not m[3] else _count(m[3]), life_x=life_x, sacrifice_x=bool(m[5])))
+        elif m := _ADDITIONAL_EITHER.fullmatch(line):  # Demand Answers, Bitter Triumph, Bone Shards
+            costs.append(AdditionalCost(options=tuple(
+                AdditionalCost(sacrifice=m[i], discard=bool(m[i + 1]), life=_count(m[i + 2]) if m[i + 2] else 0) for i in (1, 4))))
     return costs
 
 
@@ -452,7 +462,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _DASH, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)

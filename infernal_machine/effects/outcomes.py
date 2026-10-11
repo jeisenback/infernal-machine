@@ -185,10 +185,11 @@ class ChangeTarget:
     You choose the new target, which must be another legal one for that spell or ability."""
     target: str = "spell with a single target"
     unless: str = ""
+    every: bool = False  # Deflecting Swat: "You may choose new targets for target spell or ability." (each may stay)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and not (self.unless and game.pays_unless(target.controller, self.unless, target.card)):
-            game.change_target(controller, target)
+            game.change_target(controller, target, self.every)
 
 
 @dataclass(frozen=True)
@@ -1148,6 +1149,17 @@ class EachDamagesItself:
         creatures = [(p, game.power(p)) for seat in game.live_seats() for p in seat.battlefield if "Creature" in p.card.type_line]
         for permanent, power in creatures:
             game.damage(permanent, max(power, 0), source=permanent)
+
+
+@dataclass(frozen=True)
+class EachCreatureDamagesItsController:
+    """Rakdos Charm: "Each creature deals 1 damage to its controller." (all at the same time)"""
+    amount: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        creatures = [(p, seat) for seat in game.live_seats() for p in seat.battlefield if "Creature" in p.card.type_line]
+        for permanent, owner in creatures:
+            game.damage(owner, self.amount, source=permanent)
 
 
 @dataclass(frozen=True)
@@ -2661,6 +2673,8 @@ _AMOUNTS = [
     (re.compile(r"the amount of life you lost this turn", re.I), lambda m: Amount("life_lost")),
     (re.compile(r"half your life total, rounded (down|up)", re.I), lambda m: Amount("half_life", m[1].lower())),
     (re.compile(r"(?:the number of )?spells? you've cast this turn", re.I), lambda m: Amount("spells_cast")),
+    (re.compile(r"the greatest power among ((?:other )?(?:non-[A-Za-z]+ )?[A-Za-z]+s) you control", re.I),
+     lambda m: Amount("greatest_power", m[1][:-1])),  # "creatures", "other creatures", "non-Human creatures", "Giants"
     (re.compile(r"the greatest mana value among instant and sorcery spells you've cast this turn", re.I),
      lambda m: Amount("greatest_mana_value_cast", "instant or sorcery spell")),
     (re.compile(r"opponents?", re.I), lambda m: Amount("opponents")),
@@ -3533,9 +3547,11 @@ class SearchForLands:
     tapped: bool
     reveal: bool
     basic_only: bool = False  # "basic Plains cards": the land types and also basic
+    share_type: bool = False  # "that share a land type"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.search_for_lands(controller, self.count, self.subtypes, self.battlefield, self.tapped, self.reveal, self.basic_only)
+        game.search_for_lands(controller, self.count, self.subtypes, self.battlefield, self.tapped, self.reveal, self.basic_only,
+                              self.share_type)
 
 
 RETURN_LAND_PROMPT = "Return which land to your hand? "
@@ -3818,6 +3834,15 @@ class ExileThisSpell:
 
 
 @dataclass(frozen=True)
+class ShuffleThisSpell:
+    """Green Sun's Zenith: "Shuffle CARDNAME into its owner's library." once it has resolved."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.shuffle_after = True
+
+
+@dataclass(frozen=True)
 class ExtraLandDrop:
     """Explore: "You may play an additional land this turn." """
     count: int = 1
@@ -3957,6 +3982,21 @@ class Fight:
         first = game.resolving_item.carried if game.resolving_item is not None else None
         if first is not None and target is not None and first is not target:
             game.fight(first, target, self.one_sided)
+
+
+@dataclass(frozen=True)
+class PowerDamageToEachOther:
+    """Chandra's Ignition: "Target creature you control deals damage equal to its power to each other creature and each
+    opponent." (the creature is the one FightFirst remembered)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        source = game.resolving_item.carried if game.resolving_item is not None else None
+        if source is None or not game.on_battlefield(source):
+            return
+        power = game.power(source)
+        hit = [p for seat in game.live_seats() for p in seat.battlefield if "Creature" in p.card.type_line and p is not source]
+        for victim in [*hit, *game.opponents(controller)]:
+            game.damage(victim, power, source=source)
 
 
 @dataclass(frozen=True)
@@ -4764,6 +4804,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"change the target of target (spell|spell or ability|activated ability) with a single target"
                 rf"( unless that spell's controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: ChangeTarget(f"{m[1].lower()} with a single target", unless=m[3] or "")),
+    (re.compile(r"you may choose new targets for target spell or ability\.", re.I), lambda m: ChangeTarget("spell or ability", every=True)),
     (re.compile(r"return target spell( you don't control)? to its owner's hand\.", re.I),
      lambda m: ReturnSpellToHand("spell you don't control" if m[1] else "spell")),
     (re.compile(r"its controller gains (\d+) life\.", re.I), lambda m: TargetControllerGainsLife(int(m[1]))),
@@ -4954,9 +4995,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"))),
     (re.compile(rf"exile target {_CARD_TYPE} from your graveyard\.", re.I),
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "yours"))),
-    (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal it, )?(?:put (?:it|that card) into your hand, "
+    (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal (?:it|that card), )?(?:put (?:it|that card) into your hand, "
                 r"then shuffle|then shuffle and put (?:it|that card|the card) on top(?: of your library)?)\.", re.I),
-     lambda m: SearchLibrary(_card_kind(m[1]), "hand" if "into your hand" in m[0] else "top", "reveal it" in m[0].lower())),
+     lambda m: SearchLibrary(_card_kind(m[1]), "hand" if "into your hand" in m[0] else "top", "reveal" in m[0].lower())),
     (re.compile(r"search your library for a land card, put it into your graveyard, then shuffle\.", re.I),
      lambda m: SearchLibrary("land", "graveyard", False)),
     (re.compile(r"search your library for a land card, put (?:it|that card) onto the battlefield( tapped)?, then shuffle\.", re.I),
@@ -4974,6 +5015,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"search your library for up to (two|three|four) basic land cards, reveal (?:them|those cards), put them into "
                 r"your hand, then shuffle\.", re.I),  # Land Tax
      lambda m: SearchForLands(_count(m[1]), (), 0, False, True)),
+    (re.compile(rf"search your library for a basic {_LAND_TYPES} card, put it onto the battlefield tapped, then shuffle\.", re.I),
+     lambda m: SearchForLands(1, _land_types(m[1]), 1, True, False, basic_only=True)),  # the Landscape cycle
+    (re.compile(r"search your library for up to two basic land cards that share a land type, put them onto the battlefield tapped, "
+                r"then shuffle\.", re.I),
+     lambda m: SearchForLands(2, (), 2, True, False, share_type=True)),  # Myriad Landscape
     (re.compile(rf"untap up to {_NUM} lands\.", re.I), lambda m: UntapLands(_count(m[1]))),
     (re.compile(r"you gain protection from everything until your next turn\.", re.I), lambda m: PlayerProtection()),
     (re.compile(r"(?:this (?:Saga|creature|artifact|enchantment|land)|CARDNAME) gains \"(.+)\"\.?", re.I),  # the ability stays: a Saga's chapter
@@ -4984,6 +5030,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [LifeLocked(), PlayerProtection()]),
     (re.compile(r"all permanents you control phase out\.", re.I), lambda m: PhaseOutAll()),
     (re.compile(r"exile CARDNAME\.", re.I), lambda m: ExileThisSpell()),
+    (re.compile(r"shuffle CARDNAME into its owner's library\.", re.I), lambda m: ShuffleThisSpell()),
+    (re.compile(r"search your library for an? ((?:green |nonland )?(?:creature|artifact)) card( with mana value X or less)?, put it onto "
+                r"the battlefield, then shuffle\.", re.I),
+     lambda m: SearchLibrary(m[1].lower() + ("|mv<=x" if m[2] else ""), "battlefield", False)),  # Chord of Calling, Natural Order
     (re.compile(r"search your library for a card, put that card into your hand, discard a card at random, then shuffle\.", re.I),
      lambda m: [SearchLibrary("card", "hand", False), Discard(1, "you", True)]),  # Gamble
     (re.compile(r"you lose life equal to (?:its|that card's|that permanent's|that spell's) mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
@@ -5170,12 +5220,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 Tap(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2]), optional_target=True, distinct=True)]),
     (re.compile(rf"tap up to one target {_PERMANENT_KIND} and put {_N} stun counters? on it\.", re.I),
      lambda m: [Tap(m[1].lower(), optional_target=True), PutStunCounters(_count(m[2]))]),
+    (re.compile(r"attach (?:it|this Equipment) to target ((?:legendary )?creature you control)\.", re.I),
+     lambda m: Attach(m[1].lower())),  # Mithril Coat
     (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
     (re.compile(r"proliferate (X) times\.", re.I), lambda m: Proliferate("X")),
     (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
      lambda m: [FightFirst(m[1].lower()), Fight(m[3].lower(), another=bool(m[2]))]),
-    (re.compile(rf"target {_FIGHTER} deals damage equal to its power to target {_FIGHTER}\.", re.I),
-     lambda m: [FightFirst(m[1].lower()), Fight(m[2].lower(), one_sided=True)]),
+    (re.compile(rf"target {_FIGHTER} deals damage equal to its power to (?:target {_FIGHTER}|(any target)"
+                r"|target (creature or planeswalker (?:you don't control|an opponent controls)))\.", re.I),
+     lambda m: [FightFirst(m[1].lower()), Fight("any" if m[3] else (m[2] or m[4]).lower(), one_sided=True)]),
+    (re.compile(r"target creature you control deals damage equal to its power to each other creature and each opponent\.", re.I),
+     lambda m: [FightFirst("creature you control"), PowerDamageToEachOther()]),
     (re.compile(rf"then it fights up to one target {_FIGHTER}\.", re.I),  # Primal Might: after a pump of the first creature
      lambda m: Fight(m[1].lower(), optional_target=True)),
     (re.compile(rf"look at the top {_N} cards of your library\. Put {_N} of them into your hand and the rest on the bottom of your "
@@ -5188,6 +5243,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: AddManaPerTappedLand(m[1].upper())),
     (re.compile(r"creatures you control have base power and toughness X/X until end of turn\.", re.I), lambda m: SetBaseEachX()),
     (re.compile(r"each creature deals damage to itself equal to its power\.", re.I), lambda m: EachDamagesItself()),
+    (re.compile(rf"each creature deals {_N} damage to its controller\.", re.I), lambda m: EachCreatureDamagesItsController(_count(m[1]))),
     (re.compile(rf"target player draws {_N} cards, then discards {_N} cards\.", re.I),
      lambda m: TargetDrawDiscard(_count(m[1]), _count(m[2]))),
     (re.compile(rf"target player mills {_N} cards, then you return an? {_CARD_TYPE} from your graveyard to your hand\.", re.I),
@@ -5303,7 +5359,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (player|opponent) mills {_N} cards?\.", re.I),
      lambda m: TargetMill(_count(m[2]), m[1].lower())),
     (re.compile(rf"destroy all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(DestroyAll, m)),
-    (re.compile(r"(?:they|it) can't be regenerated\.", re.I), lambda m: CannotRegenerate()),
+    (re.compile(r"(?:they|it|a creature destroyed this way) can't be regenerated\.", re.I), lambda m: CannotRegenerate()),
     (re.compile(rf"regenerate target {_PERMANENT_KIND}\.", re.I), lambda m: Regenerate(m[1].lower())),
     (re.compile(rf"regenerate {_SELF}\.", re.I), lambda m: RegenerateSource()),
     (re.compile(r"regenerate each creature you control\.", re.I), lambda m: RegenerateEach()),
@@ -5365,6 +5421,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Pump(Modifier(keywords=frozenset({CANT_BE_BLOCKED})), m[1].lower())),
     (re.compile(rf"target {_PERMANENT_KIND} can't block this turn\.", re.I),
      lambda m: Pump(Modifier(keywords=frozenset({CANT_BLOCK})), m[1].lower())),
+    (re.compile(rf"one or two target {_PLURAL_KIND} can't block this turn\.", re.I),
+     lambda m: [Pump(Modifier(keywords=frozenset({CANT_BLOCK})), _PLURAL_KINDS[m[1].lower()] + _suffix(m[2])),
+                Pump(Modifier(keywords=frozenset({CANT_BLOCK})), _PLURAL_KINDS[m[1].lower()] + _suffix(m[2]),
+                     optional_target=True, distinct=True)]),
     (re.compile(rf"{_SELF} can't be blocked this turn\.", re.I),
      lambda m: PumpSource(Modifier(keywords=frozenset({CANT_BE_BLOCKED})))),
     (re.compile(rf"(?i:each other creature that's attacking one of your opponents) {_CHANGE}"),
