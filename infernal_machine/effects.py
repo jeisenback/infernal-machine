@@ -780,16 +780,21 @@ class TargetControllerGainsLifeEqualToPower:
             game.change_life(target.last_controller, max(0, target.last_power))
 
 
+BASIC_LAND_TYPES = ("Plains", "Island", "Swamp", "Mountain", "Forest")
+
+
 @dataclass(frozen=True)
 class TargetControllerMayFetchBasicLand:
     """Path to Exile: "Its controller may search their library for a basic land card, put it onto the battlefield tapped, ..."
     (Assassin's Trophy puts it onto the battlefield untapped)"""
     tapped: bool = True
+    typed: bool = False  # Boseiju: "a land card with a basic land type" (a dual land counts)
     follows_target = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.last_controller is not None:
-            game.fetch_basic_land(target.last_controller, optional=True, tapped=self.tapped)
+            game.fetch_basic_land(target.last_controller, optional=True, tapped=self.tapped,
+                                  subtypes=BASIC_LAND_TYPES if self.typed else None)
 
 
 @dataclass(frozen=True)
@@ -2183,6 +2188,7 @@ class CreateTokens:
     more: int = 0  # Prismari Pianist: "If that spell's mana value is 5 or greater, create three of those tokens instead."
     more_if: "Condition | None" = None
     exile_at_end: bool = False  # Manaform Hellkite: "Exile that token at the beginning of the next end step."
+    haste: bool = False  # Sokenzan: "They gain haste until end of turn."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         count = self.more if self.more_if and game.condition_holds(self.more_if, controller, game.resolving_source) else self.count
@@ -2192,6 +2198,9 @@ class CreateTokens:
                                         toughness=str(game.amount(token.toughness)))
         counters = (game.amount(self.counters[0]), self.counters[1]) if self.counters else None
         made = game.create_tokens(controller, token, game.amount(count), counters, tapped=self.tapped)
+        if self.haste:
+            for permanent in made:
+                game.modify_until_end_of_turn(permanent, Modifier(keywords=frozenset({"haste"})))
         if self.exile_at_end and made:
             game.leave_at_next_end_step(made, "exiled", "exile")
 
@@ -2250,7 +2259,9 @@ class _ExileThemLater:
 def _merge_attacking_tokens(effects: list) -> list | None:
     merged: list = []
     for effect in effects:
-        if isinstance(effect, (_TheyGainHaste, _ExileThemLater)):
+        if isinstance(effect, _TheyGainHaste) and merged and isinstance(merged[-1], CreateTokens):  # Sokenzan
+            merged[-1] = dataclasses.replace(merged[-1], haste=True)
+        elif isinstance(effect, (_TheyGainHaste, _ExileThemLater)):
             if not (merged and isinstance(merged[-1], AttackingTokens)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], **({"haste": True} if isinstance(effect, _TheyGainHaste)
@@ -5817,7 +5828,7 @@ def _land_types(text: str) -> tuple[str, ...]:
 _MANA_VALUE = r"(?: with mana value \d+(?: or less| or greater)?)?"
 _SUBTYPE_WORD = r"(?-i:[A-Z][a-z]+)"  # a creature type or other subtype, capitalized: "an Elf card", "a Dragon card"
 _SUBTYPE_CARDS = "aura or equipment|aura|equipment|vehicle|saga|" + _SUBTYPE_WORD
-_CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|noncreature, nonland|nonland permanent|artifact or creature|creature|artifact|enchantment|land|permanent"
+_CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|noncreature, nonland|nonland permanent|artifact or creature|creature or planeswalker|creature|artifact|enchantment|land|permanent"
               rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
 _SEARCH_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|land|artifact|enchantment|planeswalker"
                 rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
@@ -5849,7 +5860,8 @@ class FetchBasicLand:
         game.fetch_basic_land(controller, untap_if=self.untap_if, tapped=self.tapped)
 
 
-_PERMANENT_KIND = (r"((?:monocolored permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
+_PERMANENT_KIND = (r"((?:attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
+                   r"|monocolored permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
@@ -5868,7 +5880,7 @@ def _up_to(cls: type, m: re.Match, **fixed: Any) -> list:
     """"... up to two target creatures ..." is two effects with one optional, distinct target each."""
     kind = _PLURAL_KINDS[m[2].lower()] + (m[3] or "")
     return [cls(kind, optional_target=True, distinct=n > 0, **fixed) for n in range(_count(m[1]))]
-_DAMAGE_KIND = (r"(any target|target creature|target player|target opponent|target creature or planeswalker"
+_DAMAGE_KIND = (r"(any target|target attacking or blocking creature|target creature|target player|target opponent|target creature or planeswalker"
                 r"|target player or planeswalker)")
 
 _RETURN_UP_TO_POWER = re.compile(r"return target nonland permanent card with mana value X or less from your graveyard to the "
@@ -6537,6 +6549,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
     (re.compile(r'(?i:(?:its|that creature\'s) controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
     (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
+    (re.compile(r"that player may search their library for a land card with a basic land type, put it onto the battlefield, "
+                r"then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand(tapped=False, typed=True)),  # Boseiju
     (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
                 r"battlefield( tapped)?, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand(tapped=bool(m[1]))),
     (re.compile(r"search your library for a basic land card, put (?:it|that card) onto the battlefield tapped, "
@@ -6909,7 +6923,7 @@ def spell_effects(card: Card) -> list | None:
 
 def is_hand_ability_line(line: str) -> bool:
     """Magma Opus's "{U/R}{U/R}, Discard this card: ...": an ability of the card, not a sentence of the spell."""
-    m = _ACTIVATED.fullmatch(line)
+    m = _ACTIVATED.fullmatch(_channel_body(line)[0])
     return m is not None and bool((_cost_fields(m[1]) or {}).get("discard_self"))
 
 
@@ -7646,6 +7660,7 @@ class ActivatedAbility:
     tap_creatures: int = 0  # "Tap two untapped creatures you control": other creatures than the source (Harmonized Trio)
     life_identity: bool = False  # "Pay life equal to the number of colors in your commanders' color identity" (War Room)
     from_graveyard: bool = False  # the ability works from the graveyard ("Return this card from your graveyard ...")
+    discount_each: str = ""  # "This ability costs {1} less to activate for each legendary creature you control": that kind
 
 
 _CREW = re.compile(r"Crew (\d+)")
@@ -7658,6 +7673,18 @@ def is_station_line(line: str) -> bool:
     return _STATION.fullmatch(line) is not None or (m := _THRESHOLD.fullmatch(line)) is not None and \
         _ACTIVATED.fullmatch(m[2]) is not None
 _ACTIVATED = re.compile(r"([^:\"]+): (.+)")
+_CHANNEL = re.compile(r"Channel \u2014 (.+)")
+_ACTIVATION_DISCOUNT = re.compile(r" This ability costs \{1\} less to activate for each ([a-z ]+) you control\.")
+
+
+def _channel_body(line: str) -> tuple[str, str]:
+    """A channel land's line without the "Channel \u2014" word and the sentence that makes it cheaper, and what that sentence
+    counts ("legendary creature"): (the rest of the line, the kind or "")."""
+    if m := _CHANNEL.fullmatch(line):
+        line = m[1]
+    if m := _ACTIVATION_DISCOUNT.search(line):
+        return line[:m.start()], m[1]
+    return line, ""
 _MANA_PART = re.compile(r"(\{(?:\d+|X|S|[WUBRGC]|[WUBRGC]/[WUBRGCP]|2/[WUBRGC])\})+")
 _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE_IDENTITY = re.compile(r"Pay life equal to the number of colors in your commanders?'s? color identity")
@@ -7692,11 +7719,14 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
             abilities.append(ActivatedAbility(line, (DefineX(Amount("tapped_power")), PutCountersOnSource("X", "charge")),
                                               sorcery_speed=True, tap_creatures=1))
             continue
-        threshold = _THRESHOLD.fullmatch(line)  # "12+ | {1}{R}, {T}: ...": only with that many charge counters on it
-        match = _ACTIVATED.fullmatch(threshold[2] if threshold else line)
+        body, discount = _channel_body(line)  # Channel \u2014 {1}{G}, Discard this card: ... (Boseiju)
+        threshold = _THRESHOLD.fullmatch(body)  # "12+ | {1}{R}, {T}: ...": only with that many charge counters on it
+        match = _ACTIVATED.fullmatch(threshold[2] if threshold else body)
         if not match or is_mana_ability(line):
             continue
-        ability = _parse_activated(threshold[2] if threshold else line, match[1], match[2], planeswalker)
+        ability = _parse_activated(threshold[2] if threshold else body, match[1], match[2], planeswalker)
+        if ability is not None and body != line:
+            ability = dataclasses.replace(ability, text=line, discount_each=discount)
         if ability is not None and threshold:
             at_least = Condition("source_counters_at_least", int(threshold[1]), "charge", also=ability.condition)
             ability = dataclasses.replace(ability, text=line, condition=at_least)

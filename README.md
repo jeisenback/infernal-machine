@@ -682,6 +682,12 @@ winner = game.play()
     but changes nothing, since no player here uses the information. Not read: playing lands or casting spells from the top of
     the library (Oracle of Mul Daya), the Class level that adds a land drop (Druid Class), "chosen type in addition to its other
     types" (Roaming Throne).
+  - Channel lands (#200): "Channel — {cost}, Discard this card: ..." is an ability used from the hand at any time, and
+    "This ability costs {1} less to activate for each legendary creature you control" lowers only the generic part of the cost
+    (Boseiju, Eiganjo, Otawara, Sokenzan, Takenuma). Their effects needed targets "attacking or blocking creature", "artifact,
+    enchantment, or nonbasic land an opponent controls" and "artifact, creature, enchantment, or planeswalker"; "that player may
+    search their library for a land card with a basic land type" (a dual land counts); "They gain haste until end of turn" after
+    "Create two ... tokens"; and "return a creature or planeswalker card from your graveyard to your hand".
   - Rules-changing statics (#204), read from the permanent's own text:
     - "Creature spells you control can't be countered" / "Spells you control can't be countered": a counterspell does nothing
       to them.
