@@ -794,6 +794,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     blocks this turn if able" / "... blocks this creature this turn if able" (`must_block_turn`, `must_block_what`: Torchling's ability). A creature that
     cannot block the attacker is not forced. "Put a stun counter on it" with nothing earlier to follow is the creature itself
     (`PutStunOnSource`); before, such a trigger was accepted and did nothing.
+  - Morph, Megamorph and Disguise (`tests/test_morph.py`): a card with `Morph {cost}` can be cast face down for {3} (`Cast face down: <name>`,
+    sorcery speed, as a colorless nameless 2/2 creature spell; a countered or dying one is the real card in the graveyard) and enters
+    face down like a manifested card, keeping the real card and the cost to turn it up (`Permanent.turn_up_cost`). `Turn face up: ...`
+    pays that cost, not the mana cost, at any time; Megamorph then adds a +1/+1 counter and "When/As this creature is turned face up"
+    triggers (event `turned_face_up`); a Disguise creature has ward {2} while face down. Turning up is not entering, so "when it
+    enters" does not happen. Not read: Morph costs that are not mana (Morph\u2014Sacrifice another creature) and
+    "Whenever you turn a permanent face up".
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
