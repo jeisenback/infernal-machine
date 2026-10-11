@@ -392,6 +392,7 @@ class Seat:
     copy_next_per_commander: bool = False  # ... once per time the commander was cast from the command zone (Thunderclap Drake)
     flash_turn: int | None = None  # the turn this player may cast spells as though they had flash (Alchemist's Refuge)
     protected: bool = False  # protection from everything until its next turn begins (The One Ring)
+    life_locked: bool = False  # its life total can't change until its next turn begins (Teferi's Protection)
     extra_lands: int = 0  # additional lands this player may play on `extra_lands_turn` (Explore)
     extra_lands_turn: int | None = None
     rebounding: list[tuple[Card, int]] = field(default_factory=list)  # cards exiled by rebound, and the turn they were: cast at the next upkeep
@@ -577,7 +578,7 @@ class Game:
 
     def _turn_based_actions(self, seat: Seat) -> None:
         if self.step == "untap":
-            seat.protected = False  # "until your next turn"
+            seat.protected = seat.life_locked = False  # "until your next turn"
             self.combat = Combat(self)
             seat.battlefield += seat.phased_out  # they phase in first, then untap with everything else
             seat.phased_out = []
@@ -2988,6 +2989,8 @@ class Game:
                               *(["second"] if seat.draw_count == 2 else []))
 
     def change_life(self, seat: Seat, amount: int) -> None:
+        if seat.life_locked:  # Teferi's Protection: no life is gained or lost
+            return
         if amount > 0:  # Pest Rescuer: "you gain that much life plus 1 instead"; then The Wind Crystal: "twice that much"
             amount += sum(replacement_effects(p.card).life_gain_plus for p in seat.battlefield)
             amount *= self._factor(seat, "life_gain_factor")

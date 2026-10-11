@@ -763,6 +763,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     for it fires, so a new event for an occurrence the game already announces needs only a declaration. An event the game
     does not declare is an error, not a trigger that silently never fires; `tests/test_events.py` checks that every declared
     event is announced somewhere and every announcement names a declared event.
+  - Teferi's Protection: on top of the Ring's player protection, "your life total can't change" until your next turn
+    (`Seat.life_locked`; `change_life` does nothing while it holds), "all permanents you control phase out" (the existing phasing,
+    with what is attached), and a spell's own "Exile CARDNAME." sentence (it is exiled instead of going to the graveyard).
   - The One Ring: "you gain protection from everything until your next turn" (`Seat.protected`: nothing can target the player, damage
     to them is prevented, and it ends when their next turn begins), only "if you cast it" (`Permanent.cast`; a copy of the spell is not
     a cast). A "for each" amount in a later clause is now worked out when that clause is done, so "put a burden counter on it, then
