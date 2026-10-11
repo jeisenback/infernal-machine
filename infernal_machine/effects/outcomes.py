@@ -3732,6 +3732,32 @@ class TargetControllerGainsLife:
 
 
 @dataclass(frozen=True)
+class LifeLocked:
+    """Teferi's Protection: "Your life total can't change" until your next turn: no life is gained or lost."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.life_locked = True
+
+
+@dataclass(frozen=True)
+class PhaseOutAll:
+    """Teferi's Protection: "All permanents you control phase out." (They come back at your next untap step.)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in list(controller.battlefield):
+            game.phase_out(permanent)
+
+
+@dataclass(frozen=True)
+class ExileThisSpell:
+    """ "Exile CARDNAME." as a sentence of the spell: it is exiled, not put into the graveyard, when it has resolved."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.exile_after = True
+
+
+@dataclass(frozen=True)
 class ExtraLandDrop:
     """Explore: "You may play an additional land this turn." """
     count: int = 1
@@ -4859,6 +4885,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchForLands(_count(m[1]), (), 0, False, True)),
     (re.compile(rf"untap up to {_NUM} lands\.", re.I), lambda m: UntapLands(_count(m[1]))),
     (re.compile(r"you gain protection from everything until your next turn\.", re.I), lambda m: PlayerProtection()),
+    (re.compile(r"until your next turn, your life total can't change and you gain protection from everything\.", re.I),
+     lambda m: [LifeLocked(), PlayerProtection()]),
+    (re.compile(r"all permanents you control phase out\.", re.I), lambda m: PhaseOutAll()),
+    (re.compile(r"exile CARDNAME\.", re.I), lambda m: ExileThisSpell()),
     (re.compile(r"search your library for a card, put that card into your hand, discard a card at random, then shuffle\.", re.I),
      lambda m: [SearchLibrary("card", "hand", False), Discard(1, "you", True)]),  # Gamble
     (re.compile(r"you lose life equal to (?:its|that card's|that permanent's) mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
