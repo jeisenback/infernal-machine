@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -223,6 +223,7 @@ class Permanent:
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
     stored: int = 0  # a number it remembers (the life Soulgorger Orgg's controller lost)
     goad_forever: "Seat | None" = None  # goaded for the rest of the game by this player (Life of the Party's copies)
+    exile_if_dies: int | None = None  # the turn it was marked: exiled instead of dying that turn (Lava Coil)
     unearthed: bool = False  # brought back with unearth: exiled instead of going anywhere else, and at the next end step
     paragon_life: tuple["Seat", int] | None = None  # played with Serra Paragon: (who gains life, how much) when it goes to the graveyard
 
@@ -438,6 +439,7 @@ class Game:
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
+        self.resolving_damaged: list[Permanent] = []  # the creatures the spell or ability resolving now has dealt damage to
         self.resolving_target: Any = None  # the last target chosen for it, which "that creature" in a condition means
         self.resolving_colors: frozenset[str] = frozenset()  # its colors (for protection from damage)
 
@@ -2230,6 +2232,7 @@ class Game:
         """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""
         self.x_value, self.resolving_source = item.x, item.source
         self.resolving_item, self.resolving_colors = item, source_qualities(item.card)
+        self.resolving_damaged = []
         try:
             return self._apply_effects_now(item)
         finally:
@@ -2725,8 +2728,9 @@ class Game:
                         self._trigger_each("opponent_second_draw", opponent, player=seat)
 
     def change_life(self, seat: Seat, amount: int) -> None:
-        if amount > 0:  # Pest Rescuer: "you gain that much life plus 1 instead"
+        if amount > 0:  # Pest Rescuer: "you gain that much life plus 1 instead"; then The Wind Crystal: "twice that much"
             amount += sum(replacement_effects(p.card).life_gain_plus for p in seat.battlefield)
+            amount *= self._factor(seat, "life_gain_factor")
         seat.life += amount
         self.broadcast({"event": "life", "seat": seat.index, "change": amount, "life": seat.life})
         if amount:  # "Whenever you gain life" / "Whenever you lose life": once per event, not per point
@@ -2806,6 +2810,8 @@ class Game:
                                 "commander": source.card.name, "total": target.commander_damage[key]})
         else:
             if "Creature" in target.card.type_line:
+                if amount > 0 and self.resolving_item is not None:
+                    self.resolving_damaged.append(target)
                 if wither and amount > 0:
                     self.put_counters(target, MINUS, amount)  # CR 702.80, 702.90: -1/-1 counters, not marked damage
                 else:
@@ -3642,6 +3648,8 @@ class Game:
         """Create tokens at once, each as many times as the replacement effects say (Doubling Season). Watchers of "one or
         more creature tokens" see the whole batch as one event."""
         made = []
+        if any(replacement_effects(p.card).manufactor for p in seat.battlefield):  # Academy Manufactor
+            tokens = [t for token in tokens for t in ((CLUE, FOOD, TREASURE) if token.name in ("Clue", "Food", "Treasure") else (token,))]
         for token in tokens:
             for _ in range(self._factor(seat, "tokens")):
                 self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
@@ -4900,6 +4908,8 @@ class Game:
             controller = permanent.last_controller
             destination = ("exile" if destination_all == "graveyard" and permanent.counters.get("finality")
                            and "Creature" in permanent.card.type_line else destination_all)  # a finality counter: exiled, not dying
+            if destination == "graveyard" and "Creature" in permanent.card.type_line and self._dies_exiled(permanent, controller):
+                destination = "exile"  # Lava Coil, Liesa, Gloomshrieker: exiled instead of dying
             if permanent.unearthed:
                 destination = "exile"  # unearth: exiled if it would leave the battlefield, so it never dies or goes to a hand
             if destination == "graveyard":
@@ -4946,6 +4956,14 @@ class Game:
             for seat, card in held:
                 self._return_from_exile(seat, card)
 
+    def _dies_exiled(self, creature: Permanent, controller: Seat) -> bool:
+        """Whether a creature that would die is exiled instead: marked by a spell this turn, a replacement effect on itself ("If this
+        creature would die, exile it instead."), or one on a permanent that exiles an opponent's creatures."""
+        if creature.exile_if_dies == self.turn or replacement_effects(creature.card).die_exile == "self":
+            return True
+        return any(replacement_effects(p.card).die_exile == "opponent" for s in self.live_seats() if s is not controller
+                   for p in s.battlefield)
+
     def _exiled_instead(self, owner: Seat) -> bool:
         """Whether a card of `owner`'s going to the graveyard is exiled instead (Rest in Peace, Leyline of the Void)."""
         for seat in self.live_seats():
@@ -4984,6 +5002,8 @@ class Game:
                     count += replacements.plus_one_artifacts
                 if creature:
                     count += replacements.plus_one + (replacements.plus_one_others if p is not receiver else 0)
+            if creature:
+                count *= self._factor(seat, "plus_one_factor")  # Branching Evolution doubles it after the extra ones
         return count * self._factor(seat, "counters")
 
     def _trigger_times(self, controller: Seat, event: str, entering: Card | None, cause: Seat | None = None,
