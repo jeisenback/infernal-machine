@@ -85,7 +85,7 @@ class Card:
         elif len(faces) == 2 and (data.get("layout") in ("split", "adventure") or data.get("layout") == "modal_dfc" and back is None):
             second = faces[1]
             castable = (data["layout"] == "adventure"
-                        or data["layout"] == "split" and "Room" not in face.get("type_line", "") and "Aftermath" not in second.get("oracle_text", "")
+                        or data["layout"] == "split" and "Aftermath" not in second.get("oracle_text", "")
                         or data["layout"] == "modal_dfc" and re.search(r"\b(Instant|Sorcery)\b", second.get("type_line", "")))
             if castable:
                 alternate = cls(name=second["name"], mana_cost=second.get("mana_cost", ""), cmc=_mana_value(second.get("mana_cost", "")),

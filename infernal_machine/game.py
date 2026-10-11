@@ -23,7 +23,7 @@ from .cards import Card, Deck, has_keyword, shown_type_line
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
-from .effects import (EVENTS, heard_on, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
+from .effects import (EVENTS, heard_on, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
@@ -80,6 +80,7 @@ ACTIVATE_GRAVEYARD = "Activate from graveyard: "  # followed by the card's name:
 REVEAL_PROMPT = "Reveal a card from your hand for "  # followed by the land's name
 SHOCK_PROMPT = "Pay life so it enters untapped? "  # followed by the land's name
 ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
+UNLOCK = "Unlock: "  # followed by "<door name> of <Room label>": pay a locked door's mana cost (a sorcery-speed special action)
 COMMANDER_TAX = 2  # CR 903.8
 PERMANENT_TYPES = ("Artifact", "Battle", "Creature", "Enchantment", "Land", "Planeswalker")
 KEEP_PROMPT = "Keep this hand?"
@@ -225,6 +226,7 @@ class Permanent:
     attacked_turn: int | None = None  # the last turn it attacked
     vow_of: "Seat | None" = None  # Promise of Loyalty: while it has a vow counter it can't attack this player
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
+    doors: tuple[str, ...] = ()  # a Room: the names of its unlocked doors (its `card` reads as only those; the whole card is `real_card`)
     cast: bool = False  # it came from a spell that was cast ("When it enters, if you cast it")
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     chosen_color: str | None = None  # "As this enters, choose a color." (a color letter)
@@ -825,8 +827,33 @@ class Game:
                 if ability.from_graveyard and self._pay_cost(seat, parse_cost(ability.mana_cost)) is not None:
                     actions.append(ACTIVATE_GRAVEYARD + card.name)
                     break
+        if sorcery_timing:
+            actions += list(self._unlocks(seat))
         actions += list(self._activations(seat, sorcery_timing))
         return actions
+
+    def _door_unlocked(self, room: Permanent, door: Card) -> None:
+        """A door of `room` just unlocked: its "When you unlock this door" abilities trigger (and no other door's)."""
+        seat = self.controller_of(room)
+        self.broadcast({"event": "door_unlocked", "seat": seat.index, "card": room.real_card.name, "door": door.name})
+        for line in rules_lines(door):
+            self.trigger("unlock_door", room, seat, text=line)
+
+    def _unlocks(self, seat: Seat) -> dict[str, tuple[Permanent, Card]]:
+        """The locked doors `seat` can unlock now by paying their mana costs, keyed by action text."""
+        found = {}
+        for room in seat.battlefield:
+            if room.real_card is not None and is_room(room.real_card):
+                for door in (room.real_card, room.real_card.alternate):
+                    if door.name not in room.doors and self._payment(seat, door) is not None:
+                        found[f"{UNLOCK}{door.name} of {self.label(room)}"] = (room, door)
+        return found
+
+    def unlock_door(self, room: Permanent, door: Card) -> None:
+        """The door joins the Room's unlocked doors; the Room reads as those doors from now on."""
+        room.doors += (door.name,)
+        room.card = room_view(room.real_card, room.doors)
+        self._door_unlocked(room, door)
 
     def _activations(self, seat: Seat, sorcery_timing: bool) -> dict[str, tuple[Permanent, ActivatedAbility]]:
         """Activated abilities `seat` can activate now, keyed by their action text."""
@@ -1675,6 +1702,10 @@ class Game:
             self._unearth(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(UNEARTH)))
         elif action.startswith(ENCORE):
             self._encore(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ENCORE)))
+        elif action.startswith(UNLOCK):
+            room, door = self._unlocks(seat)[action]
+            self._spend_mana(seat, self._payment(seat, door))
+            self.unlock_door(room, door)
         elif action.startswith(CAST_PREPARED):
             name = action.removeprefix(CAST_PREPARED)
             permanent = next(p for p in seat.battlefield if p.prepared and p.card.prepare and p.card.prepare.name == name)
@@ -2265,14 +2296,21 @@ class Game:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
             if item.is_copy:  # a copy of a permanent spell becomes a token (CR 707.10f)
                 card = dataclasses.replace(card, type_line="Token " + card.type_line.removeprefix("Token "))
+            whole = item.whole or card  # a Room enters with the door that was cast unlocked (the card itself is its front door)
+            door = card if is_room(whole) else None
+            if door is not None:
+                card = room_view(whole, (door.name,))
             entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers,
-                                 escaped=item.escaped, cast=not item.is_copy,
+                                 escaped=item.escaped, cast=not item.is_copy, doors=(door.name,) if door else (),
+                                 real_card=whole if door else None,
                                  extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0))
             if enters_by_discarding_land(card) and not self._discard_land_to_enter(seat, card):  # Mox Diamond
                 return
             if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
                 self._queue(EVOKE_SACRIFICE, entering, seat)
             self._enter(seat, entering, x=item.x)
+            if door is not None:
+                self._door_unlocked(entering, door)
             if item.dashed:  # Ragavan: it has haste this turn and is back in its owner's hand at the end step
                 self.modify_until_end_of_turn(entering, Modifier(keywords=frozenset({"haste"})))
                 self.leave_at_next_end_step([entering], "returned", "hand")
@@ -2547,15 +2585,15 @@ class Game:
     # --- triggered abilities -------------------------------------------------
 
     def trigger(self, event: str, permanent: Permanent, controller: Seat, subject: Permanent | None = None,
-                player: Seat | None = None, x: int = 0, spell: "StackItem | Card | None" = None) -> None:
+                player: Seat | None = None, x: int = 0, spell: "StackItem | Card | None" = None, text: str | None = None) -> None:
         """Note that `permanent`'s abilities for `event` triggered; they go on the stack
-        the next time a player would get priority (CR 603.3)."""
+        the next time a player would get priority (CR 603.3). With `text`, only the ability printed as that line (a Room's door)."""
         if event not in EVENTS and not event.startswith("chapter_"):
             raise ValueError(f"{event!r} is not a declared event (effects/events.py)")
         if self.loses_abilities(permanent):
             return
         for ability in triggered_abilities(permanent.card):
-            if ability.event == event and ability.watch is None:
+            if ability.event == event and ability.watch is None and (text is None or ability.text == text):
                 if any(isinstance(e, ReturnThisFromGraveyard) for e in ability.effects) and self.on_battlefield(permanent):
                     continue  # it only works from the graveyard (Squee)
                 for _ in range(self._trigger_times(controller, event, permanent.card, source=permanent)):
