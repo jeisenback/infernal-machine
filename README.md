@@ -213,7 +213,7 @@ winner = game.play()
 
 ## Card effects
 
-`effects.py` reads an instant's or sorcery's rules text one sentence at a time. It understands:
+The `effects` package reads an instant's or sorcery's rules text one sentence at a time. It understands:
 
 | Rules text | Example |
 |---|---|
@@ -741,6 +741,10 @@ winner = game.play()
     the discard wasn't a land); Phyrexian Metamorph (a copy of an artifact or creature, and an artifact too); and Imperial
     Recruiter ("a creature card with power 2 or less"). The Ferocious ability word is read like Metalcraft. Not read: Eternalize,
     Priest of Titania, Sanctum Weaver, Hullbreaker Horror, Syr Konrad, Braids.
+  - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
+    `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
+    infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
+    answer for all 32,115 cards as before the split.
   - One filter grammar (`filters.py`): targets, mass effects, searches, graveyard returns, watching triggers and cost
     reductions all name a kind of card ("black creature", "nonland, nontoken permanent an opponent controls", "creature card with
     mana value 3 or less", "R|G"), and they all read it with `parse_filter` instead of four separate matchers. A "permanent" is

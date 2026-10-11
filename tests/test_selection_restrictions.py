@@ -2,7 +2,8 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.effects import (Destroy, LoseLifeEqualToManaValue, ReturnFromGraveyard, ReturnToHand, SearchForLands,
-                                      SearchLibrary, _card_kind, spell_effects)
+                                      SearchLibrary, spell_effects)
+from infernal_machine.effects.targets import _card_kind
 from infernal_machine.game import CAST, NO_TARGET, SEARCH_CARD_PROMPT, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_effects import lands, pick, table

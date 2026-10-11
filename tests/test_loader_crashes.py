@@ -4,7 +4,7 @@
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import _count
+from infernal_machine.effects.common import _count
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_effects import lands

@@ -4,7 +4,7 @@ Players act only through the Player protocol, so TCP and local players are
 interchangeable. Actions so far: play a land, cast a spell (including your
 commander, with commander tax), and pass priority. Mana comes from lands and
 from permanents with simple mana abilities. Spells use the stack; instants and
-sorceries do what effects.py understands of their rules text, and permanents'
+sorceries do what the effects package understands of their rules text, and permanents'
 other rules text is not implemented yet.
 """
 

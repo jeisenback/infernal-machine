@@ -10,7 +10,7 @@ infernal-client = "infernal_machine.client:main"
 infernal-web = "infernal_machine.web:main"
 
 [tool.setuptools]
-packages = ["infernal_machine"]
+packages = ["infernal_machine", "infernal_machine.effects"]
 
 [tool.setuptools.package-data]
 infernal_machine = ["web.html"]
