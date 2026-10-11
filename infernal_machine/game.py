@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, enters_by_discarding_land, reduced_by_greatest_power, granted_land_mana, mana_among_legendary, mana_of_imprinted, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -67,6 +67,9 @@ PLAY_GRAVEYARD = "Play land from the graveyard: "  # Crucible of Worlds: any num
 CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
+IMPRINT_PROMPT = "Exile which card from your hand? "
+MOX_DIAMOND_PROMPT = "Discard which land to put it onto the battlefield? "
+MANA_COLOR_PROMPT = "Which color of mana? "
 CYCLE = "Cycle: "
 ACTIVATE_HAND = "Activate from hand: "  # followed by the card's name: "{U/R}{U/R}, Discard this card: ..." (Magma Opus)
 ACTIVATE_GRAVEYARD = "Activate from graveyard: "  # followed by the card's name: "{B}{G}: Return this card from your graveyard to the battlefield tapped."
@@ -803,7 +806,7 @@ class Game:
             return False
         if ability.remove_counter and not permanent.counters.get(ability.remove_counter, 0):
             return False
-        if ability.tap_creatures and len(self._crew_candidates(seat, permanent)) < ability.tap_creatures:
+        if ability.tap_creatures and len(self._crew_candidates(seat, permanent, ability.tap_legendary)) < ability.tap_creatures:
             return False
         if ability.condition and not self.condition_holds(ability.condition, seat, permanent):
             return False
@@ -832,9 +835,11 @@ class Game:
         return [p for p in seat.battlefield if _permanent_matches(ability.sacrifice_other, p.card)
                 and not (ability.sacrifice_another and p is source)]
 
-    def _crew_candidates(self, seat: Seat, vehicle: Permanent) -> list[Permanent]:
-        """The untapped creatures that could crew `vehicle` (summoning sickness doesn't matter, CR 702.122)."""
-        return [p for p in seat.battlefield if p is not vehicle and not p.tapped and "Creature" in p.card.type_line]
+    def _crew_candidates(self, seat: Seat, vehicle: Permanent, legendary: bool = False) -> list[Permanent]:
+        """The untapped creatures that could crew `vehicle` (summoning sickness doesn't matter, CR 702.122); only legendary
+        ones, for Relic of Legends."""
+        return [p for p in seat.battlefield if p is not vehicle and not p.tapped and "Creature" in p.card.type_line
+                and (not legendary or "Legendary" in p.card.type_line)]
 
     def become_creature(self, vehicle: Permanent) -> None:
         """A crewed Vehicle is an artifact creature until end of turn."""
@@ -890,10 +895,15 @@ class Game:
                 crewed += self.power(member)
         self.cost_tapped_power = 0
         for _ in range(ability.tap_creatures):  # like crewing, but a fixed number of creatures
-            options = self._crew_candidates(seat, source)
+            options = self._crew_candidates(seat, source, ability.tap_legendary)
             member = options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])]
             self.cost_tapped_power += self.power(member)
             self.tap(member)
+        if ability.discard_hand:  # Lion's Eye Diamond
+            for card in list(seat.hand):
+                seat.hand.remove(card)
+                self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
+                self._discard_into_zone(seat, card)
         for _ in range(ability.discard):
             card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT + name, [c.name for c in seat.hand])]
             seat.hand.remove(card)
@@ -1192,6 +1202,8 @@ class Game:
                         continue
                 if (limited := restricted_mana(card)) is not None:  # Cavern of Souls: any color only for the right spells
                     types = frozenset("C") | (frozenset("WUBRG") if self._restricted_mana_ok(permanent, limited, self._spending_spell) else frozenset())
+                if given := tuple(line for kind, line in grants if kind == "Land"):  # Chromatic Lantern
+                    types = types | granted_land_mana(given, seat.color_identity)
                 types = types | self._land_type_mana(permanent)  # Urborg: it is a Swamp too
                 lands.extend([ManaSource(permanent, _snowy(permanent, types), pain, damage)] + extra)
             elif not (permanent.sick and "Creature" in card.type_line and not mana_ability_needs_no_tap(card)):
@@ -1216,6 +1228,13 @@ class Game:
                     continue
                 units = ([frozenset("WUBRG")] * max(0, self.power(permanent)) if makes_mana_by_power(card)
                          else mana_ability(card, seat.color_identity) or [])  # (the power's worth need not be one color here)
+                if mana_among_legendary(card):  # Mox Amber: the colors of its controller's legendary creatures and planeswalkers
+                    colors = frozenset(c for p in seat.battlefield if "Legendary" in p.card.type_line
+                                       and ("Creature" in p.card.type_line or "Planeswalker" in p.card.type_line) for c in p.card.colors)
+                    units = [colors] if colors else []
+                elif mana_of_imprinted(card):  # Chrome Mox: the colors of the card exiled with it
+                    colors = frozenset(c for _, exiled in permanent.exiled_with for c in exiled.colors)
+                    units = [colors] if colors else []
                 if (limited := restricted_mana(card)) is not None and self._restricted_mana_ok(permanent, limited, self._spending_spell):
                     units = [units[0] | frozenset("WUBRG")] + units[1:] if units else [frozenset("WUBRG")]  # Delighted Halfling
                 restriction = mana_restriction(card)
@@ -1301,6 +1320,8 @@ class Game:
             reduction += conditional[0]
         if reduced_by_total_power(card):
             reduction += sum(self.power(p) for p in seat.battlefield if "Creature" in p.card.type_line)
+        if reduced_by_greatest_power(card):  # The Great Henge
+            reduction += max((self.power(p) for p in seat.battlefield if "Creature" in p.card.type_line), default=0)
         if own := self_cost_reduction(card):  # "This spell costs {1} less to cast for each creature on the battlefield."
             amount, what = own
             counted = (sum(_has_type(p.card, "creature") for s in self.live_seats() for p in s.battlefield)
@@ -2152,6 +2173,8 @@ class Game:
             entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers,
                                  escaped=item.escaped,
                                  extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0))
+            if enters_by_discarding_land(card) and not self._discard_land_to_enter(seat, card):  # Mox Diamond
+                return
             if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
                 self._queue(EVOKE_SACRIFICE, entering, seat)
             self._enter(seat, entering, x=item.x)
@@ -2180,6 +2203,20 @@ class Game:
             item.controller.library.append(item.card)
             return
         self._move_card(item.controller, item.card, "exile" if item.exile_after else "graveyard")
+
+    def _discard_land_to_enter(self, seat: Seat, card: Card) -> bool:
+        """Mox Diamond: "you may discard a land card instead"; without doing so it goes to its owner's graveyard."""
+        lands_in_hand = [c for c in seat.hand if is_land(c)]
+        if lands_in_hand:
+            choice = seat.player.choose(MOX_DIAMOND_PROMPT + card.name, [c.name for c in lands_in_hand] + ["Don't discard"])
+            if choice < len(lands_in_hand):
+                land = lands_in_hand[choice]
+                seat.hand.remove(land)
+                self.broadcast({"event": "discard", "seat": seat.index, "card": land.name})
+                self._discard_into_zone(seat, land)
+                return True
+        self._move_card(seat, card, "graveyard")
+        return False
 
     def _resolve_bestow(self, item: StackItem) -> None:
         """A bestow spell enters attached to its creature as an Aura. If that creature is no longer a legal target,
@@ -4088,6 +4125,23 @@ class Game:
         if not (to_battlefield or to_hand):
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
         self._searched(seat)
+
+    def imprint_from_hand(self, seat: Seat, source: Permanent) -> None:
+        """Chrome Mox: exile a nonartifact, nonland card from the hand and keep it with `source` (its colors are the mana)."""
+        options = [c for c in seat.hand if "Artifact" not in c.type_line and not is_land(c)]
+        if not options:
+            return
+        card = options[seat.player.choose(IMPRINT_PROMPT, [c.name for c in options])]
+        seat.hand.remove(card)
+        self._move_card(seat, card, "exile")
+        source.exiled_with.append((seat, card))
+        self.broadcast({"event": "imprint", "seat": seat.index, "card": card.name})
+
+    def add_devotion_mana(self, seat: Seat) -> None:
+        """Nyx Lotus: choose a color; add that much mana of it as your devotion to it."""
+        names = {"White": "W", "Blue": "U", "Black": "B", "Red": "R", "Green": "G"}
+        color = names[list(names)[seat.player.choose(MANA_COLOR_PROMPT, list(names))]]
+        self.add_mana(seat, (frozenset(color),) * self.evaluate(Amount("devotion", color), seat))
 
     def reveal_top_land_or_draw(self, seat: Seat, scry: int, tapped: bool) -> None:
         """Scry, then reveal the top card: a land goes onto the battlefield, anything else is drawn."""
