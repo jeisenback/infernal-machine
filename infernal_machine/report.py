@@ -30,6 +30,7 @@ SUPPORTED_KEYWORDS = {
     "ascend",  # the city's blessing for a permanent that has it
     "exalted",
     "decayed",  # can't block; sacrificed at end of combat when it attacks
+    "changeling",  # every creature type: Card lists them all in its type line
     "convoke", "improvise",  # creatures (artifacts) tapped to help pay: see Game._convoke_sources
     "infect", "wither",  # poison counters for a player, -1/-1 counters for a creature (Toxic N is read apart, below)
     "fear", "intimidate", "horsemanship", "flanking",
@@ -82,7 +83,7 @@ def unsupported_lines(card: Card) -> list[str]:
             if overloaded_effects(card) is None:
                 problems.append(line)  # the overloaded text ("each" for "target") isn't understood
             continue
-        if _is_keyword_line(line) or _DECKBUILDING.fullmatch(line) or is_cycling_line(line):
+        if _is_keyword_line(line) or _DECKBUILDING.fullmatch(line) or is_cycling_line(line) or line == "CARDNAME is every creature type.":
             continue
         if is_casting_cost_line(line) or (spell and is_hand_ability_line(line) and line in abilities):
             continue  # Magma Opus: a spell with an ability that works from the hand

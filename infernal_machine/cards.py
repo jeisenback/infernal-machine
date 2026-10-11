@@ -13,6 +13,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable, Protocol
 
+from .creature_types import CREATURE_TYPES
+
 
 class CardNotFound(LookupError):
     pass
@@ -36,6 +38,17 @@ class Card:
     back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
     prepare: "Card | None" = None  # a prepare card's spell half, which a prepared creature can cast a copy of
     conjured: bool = False  # Alchemy: made during the game, so not from anyone's starting deck
+
+    def __post_init__(self) -> None:
+        """Changeling is every creature type in every zone, so its type line lists them all (and everything that looks for a
+        Goblin, or for creatures that share a type, finds it)."""
+        if ("hangeling" in self.oracle_text or "every creature type" in self.oracle_text) and any(kind in self.type_line for kind in ("Creature", "Kindred", "Tribal")) \
+                and (has_keyword(self, "changeling") or f"{self.name} is every creature type" in self.oracle_text) \
+                and CREATURE_TYPES[-1] not in self.type_line.split():
+            head, dash, tail = self.type_line.partition("\u2014")
+            have = set(tail.split())
+            types = " ".join(tail.split() + [t for t in CREATURE_TYPES if t not in have])
+            object.__setattr__(self, "type_line", f"{head.rstrip()} \u2014 {types}")
 
     @classmethod
     def from_scryfall(cls, data: dict) -> "Card":
@@ -112,6 +125,14 @@ def _face_mana(face: dict, produced: tuple[str, ...]) -> tuple[str, ...]:
 
 
 _REMINDER = re.compile(r"\s*\([^)]*\)")
+
+
+def shown_type_line(card: Card) -> str:
+    """The type line as a player reads it: a changeling's list of every creature type is shortened."""
+    if CREATURE_TYPES[-1] in card.type_line.split():
+        head = card.type_line.partition("\u2014")[0].rstrip()
+        return f"{head} \u2014 every creature type"
+    return card.type_line
 
 
 def has_keyword(card: Card, keyword: str) -> bool:

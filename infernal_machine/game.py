@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from .analysis import is_land
-from .cards import Card, Deck, has_keyword
+from .cards import Card, Deck, has_keyword, shown_type_line
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
@@ -2003,7 +2003,7 @@ class Game:
         creature = "Creature" in p.card.type_line
         host = p.attached_to
         return {
-            "name": p.card.name, "type": p.card.type_line, "tapped": p.tapped, "token": _is_token(p.card),
+            "name": p.card.name, "type": shown_type_line(p.card), "tapped": p.tapped, "token": _is_token(p.card),
             "sick": p.sick and creature,
             "power": self.power(p) if creature else None, "toughness": self.toughness(p) if creature else None,
             "damage": p.damage, "loyalty": p.loyalty, "counters": {k: v for k, v in p.counters.items() if v},
