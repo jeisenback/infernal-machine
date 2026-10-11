@@ -49,7 +49,7 @@ class ParseTests(unittest.TestCase):
 
     def test_variants_that_need_more_are_unsupported(self):
         for text in ("Return up to two target creatures that share a creature type to their owners' hands.",
-                     "Return target creature card with power 3 or less from your graveyard to your hand.",
+                     "Return target creature card with power 3 or greater from your graveyard to your hand.",
                      "Search your library for a creature card with mana value X, put it into your hand, then shuffle."):
             self.assertIsNone(spell_effects(Card(name="x", oracle_text=text)), text)
 

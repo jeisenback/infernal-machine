@@ -1718,6 +1718,8 @@ class StaticBuff:
     token: bool = False  # "Creature tokens you control have haste": only tokens
     with_counters: bool = False  # "Creatures you control with counters on them have trample"
     plus_counter: bool = False  # "Each creature you control with a +1/+1 counter on it has vigilance": that counter only
+    permanents: bool = False  # "Other permanents you control have indestructible": any permanent, not only creatures (Avacyn)
+    opponents: bool = False  # "Creatures your opponents control get -2/-2" (Elesh Norn): only the other players' creatures
 
 
 _CHOOSE_TYPE = re.compile(r"As (?:CARDNAME|this [a-z]+) enters, choose a creature type\.")
@@ -1744,13 +1746,15 @@ def is_chosen_type_itself(card: Card) -> bool:
     return any(_CHOSEN_SELF.fullmatch(line) for line in rules_lines(card))
 
 
-_AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creatures of the chosen type|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+_AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creatures of the chosen type|Creatures your opponents control"
+             r"|(?:Other )?permanents you control|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
                                r"this game\.")
 _COUNTER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each ([a-z]+) counter on (?:this artifact|CARDNAME|this creature)\.")  # Door of Destinies
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|(?:have|has) {_KEYWORDS})\.")
-_AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:you control )?of the chosen (?P<chosen_what>type|color))|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+_AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:you control )?of the chosen (?P<chosen_what>type|color))"
+                  r"|(?P<opps>Creatures your opponents control)|(?P<perms>(?P<other_perms>Other )?permanents you control)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
@@ -1787,7 +1791,7 @@ def _conditional(line: str) -> tuple[str, str] | None:
 
 def _other(who: re.Match) -> bool:
     """Whether the creatures a static ability affects exclude its source: "Other creatures ..."."""
-    return who["other"] is not None or (who["other_chosen"] or "").startswith("O")
+    return who["other"] is not None or (who["other_chosen"] or "").startswith("O") or who["other_perms"] is not None
 
 
 @lru_cache(maxsize=None)
@@ -1810,7 +1814,8 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     color="chosen" if chosen_color else colors.get((who["color"] or who["global"] or "").lower()),
                                     attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]) or (bool(who["chosen"]) and "you control" not in m[1]),
                                     token=bool(who["tokens"]),
-                                    with_counters=bool(who["counters"]), plus_counter=bool(who["plus"])))
+                                    with_counters=bool(who["counters"]), plus_counter=bool(who["plus"]),
+                                    permanents=bool(who["perms"]), opponents=bool(who["opps"])))
         elif m := _COUNTER_SCALED.fullmatch(sentence):  # Door of Destinies: +1/+1 for each charge counter on it
             who = _AFFECTED_WHO.fullmatch(m[1])
             buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), _other(who),
@@ -1952,6 +1957,7 @@ class Replacements:
     enter_counters_per_death: int = 0  # Gorma: nontoken creatures enter with that many extra counters per death this turn
     plus_one_permanents: int = 0  # the same on any permanent you control (Kami of Whispered Hopes)
     plus_one_artifacts: int = 0  # the same on an artifact or creature you control (Ozolith, the Shattered Spire)
+    opponent_loss_factor: int = 1  # Bloodletter of Aclazotz: opponents lose that many times as much life during its controller's turn
     win_on_empty_draw: bool = False  # Laboratory Maniac
     life_gain_plus: int = 0  # Pest Rescuer: its controller gains that much more life whenever they gain life
     life_gain_factor: int = 1  # how many times as much life its controller gains (The Wind Crystal)
@@ -2005,6 +2011,8 @@ def replacement_effects(card: Card) -> Replacements:
             found["extra_trigger"] = "chosen_type"
         elif line == _ENTER_CHOSEN:
             found["enter_counter_chosen"] = found.get("enter_counter_chosen", 0) + 1
+        elif line == _DOUBLE_OPPONENT_LOSS:
+            found["opponent_loss_factor"] = found.get("opponent_loss_factor", 1) * 2
         elif line == _WIN_ON_EMPTY_DRAW:
             found["win_on_empty_draw"] = True
         elif line == _LIFE_GAIN_PLUS_ONE:
@@ -2013,6 +2021,7 @@ def replacement_effects(card: Card) -> Replacements:
 
 
 _LIFE_GAIN_PLUS_ONE = "If you would gain life, you gain that much life plus 1 instead."
+_DOUBLE_OPPONENT_LOSS = "If an opponent would lose life during your turn, they lose twice that much life instead."
 _WIN_ON_EMPTY_DRAW = "If you would draw a card while your library has no cards in it, you win the game instead."
 
 
@@ -2043,15 +2052,15 @@ def enters_by_discarding_land(card: Card) -> bool:
 
 
 def is_replacement_line(line: str) -> bool:
-    return (line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT)
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None)
 
 
 _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy of "
-                    r"(?:any (creature|artifact|enchantment|land) on the battlefield|a (creature) you control)"
-                    r"(, except it enters with X additional \+1/\+1 counters on it)?\.")
+                    r"(?:any (creature|artifact|enchantment|land|artifact or creature) on the battlefield|a (creature) you control)"
+                    r"(, except it enters with X additional \+1/\+1 counters on it|, except it's an artifact in addition to its other types)?\.")
 
 
 # Cursed Mirror: a copy only until end of turn, with a keyword added.
@@ -2066,7 +2075,12 @@ def temporary_clone_keyword(card: Card) -> str | None:
 
 def clone_extra_counters(card: Card) -> bool:
     """Altered Ego: a copy "except it enters with X additional +1/+1 counters on it"."""
-    return any((m := _CLONE.fullmatch(line)) and m[3] for line in rules_lines(card))
+    return any((m := _CLONE.fullmatch(line)) and m[3] and "counters" in m[3] for line in rules_lines(card))
+
+
+def clone_is_artifact(card: Card) -> bool:
+    """Phyrexian Metamorph: a copy "except it's an artifact in addition to its other types"."""
+    return any((m := _CLONE.fullmatch(line)) and m[3] and "artifact" in m[3] for line in rules_lines(card))
 
 
 def clone_kind(card: Card) -> tuple[str, bool] | None:
@@ -2851,6 +2865,35 @@ class EachSacrificesOrDiscards:
         for seat in game.turn_order_from_active():
             if not game.sacrifice(seat, self.kind):
                 game.discard(seat, 1)
+
+
+@dataclass(frozen=True)
+class ExileTopOfThatPlayerMayCast:
+    """Ragavan: "... exile the top card of that player's library. Until end of turn, you may cast that card." (the player dealt damage)"""
+    uses_player = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_top_of_other(controller, target)
+
+
+@dataclass(frozen=True)
+class ExileTopOfEachCastFree:
+    """Etali, Primal Storm: "exile the top card of each player's library, then you may cast any number of spells from among those
+    cards without paying their mana costs." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_top_of_each_cast_free(controller)
+
+
+@dataclass(frozen=True)
+class Connive:
+    """Ledger Shredder: "this creature connives": draw a card, then discard a card; a nonland card puts a +1/+1 counter on it."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.connive(controller, target)
 
 
 @dataclass(frozen=True)
@@ -5139,9 +5182,14 @@ class UnlessPays:
     effects: tuple
     cost: str
     uses_player = True
+    cost_power: bool = False  # Esper Sentinel: "{X}, where X is this creature's power"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and game.pays_unless(target, self.cost, game.resolving_item.card):
+        cost = self.cost
+        if self.cost_power:
+            source = game.resolving_source
+            cost = "{%d}" % (game.power(source) if source is not None and game.on_battlefield(source) else 0)
+        if target is not None and game.pays_unless(target, cost, game.resolving_item.card):
             return
         for effect in self.effects:
             effect.resolve(game, controller, None)
@@ -5547,6 +5595,7 @@ class AlternativeCost:
     evoke: bool = False  # the creature is sacrificed when it enters
     overload: bool = False  # every "target" in the spell becomes "each"
     bestow: bool = False  # cast as an Aura spell with enchant creature
+    dash: bool = False  # the creature has haste and returns to its owner's hand at the next end step (Ragavan)
 
 
 @dataclass(frozen=True)
@@ -5604,7 +5653,7 @@ def encore_cost(card: Card) -> str | None:
     return next((m[1] for line in rules_lines(card) if (m := _ENCORE.fullmatch(line))), None)
 _ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four|five|six) other cards? from your graveyard\.")
 _TWO_COLOR_REDUCTION = re.compile(rf"Each spell you cast that's ({_COLOR_NAMES}) or ({_COLOR_NAMES}) costs \{{(\d+)\}} less to cast\.", re.I)
-_REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery|Aura) )?spells "
+_REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery|Aura and Equipment|Aura) )?spells "
                         r"you cast( that target a creature)? cost \{(\d+)\} less to cast\.", re.I)
 
 
@@ -5726,6 +5775,7 @@ def is_cumulative_upkeep_line(line: str) -> bool:
 
 
 _EVOKE = re.compile(r"Evoke ((?:\{[^}]+\})+)")
+_DASH = re.compile(r"Dash ((?:\{[^}]+\})+)")
 _OVERLOAD = re.compile(r"Overload ((?:\{[^}]+\})+)")
 
 
@@ -5747,6 +5797,9 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
     for line in rules_lines(card):
         if m := _EVOKE.fullmatch(line):
             costs.append(AlternativeCost(f"Evoke {m[1]}", mana_cost=m[1], evoke=True))
+            continue
+        if m := _DASH.fullmatch(line):
+            costs.append(AlternativeCost(f"Dash {m[1]}", mana_cost=m[1], dash=True))
             continue
         if m := _OVERLOAD.fullmatch(line):
             if overloaded_effects(card):
@@ -5859,7 +5912,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return any(p.fullmatch(line) for p in (_SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _ENTWINE, _ESCALATE,
-                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
+                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _DASH, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
 
@@ -5991,7 +6044,7 @@ def _land_types(text: str) -> tuple[str, ...]:
     return tuple(t.capitalize() for t in re.findall(_LAND_TYPE, text, re.I))
 
 
-_MANA_VALUE = r"(?: with mana value \d+(?: or less| or greater)?)?"
+_MANA_VALUE = r"(?: with mana value \d+(?: or less| or greater)?| with power \d+ or less)?"
 _SUBTYPE_WORD = r"(?-i:[A-Z][a-z]+)"  # a creature type or other subtype, capitalized: "an Elf card", "a Dragon card"
 _SUBTYPE_CARDS = "aura or equipment|aura|equipment|vehicle|saga|" + _SUBTYPE_WORD
 _CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|noncreature, nonland|nonland permanent|artifact or creature|creature or planeswalker|creature|artifact|enchantment|land|permanent"
@@ -6000,7 +6053,7 @@ _SEARCH_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|lan
                 rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
 _CARDS_PLURAL = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|artifact|enchantment|land|permanent"
                  rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?cards{_MANA_VALUE})")
-_CARD_PHRASE = re.compile(r"(?:(.+?) )?card(?: with mana value (\d+)(?: (or less|or greater))?)?")
+_CARD_PHRASE = re.compile(r"(?:(.+?) )?card(?: with (?:mana value (\d+)(?: (or less|or greater))?|power (\d+) or less))?")
 
 
 def _card_kind(phrase: str | None) -> str:
@@ -6010,6 +6063,8 @@ def _card_kind(phrase: str | None) -> str:
     kind = m[1] or "card"
     if m[2]:
         kind += "|mv" + {"or less": "<=", "or greater": ">="}.get(m[3], "=") + m[2]
+    elif m[4]:
+        kind += "|p<=" + m[4]  # Imperial Recruiter: a creature card with power 2 or less
     return kind
 
 
@@ -6060,8 +6115,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"if this spell was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?, (.+)", re.I), _kicked),
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
     (re.compile(r"draw an additional card\.", re.I), lambda m: Draw(1)),
-    (re.compile(rf"you gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
+    (re.compile(rf"(?:you )?gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
     (re.compile(r"exile a nonartifact, nonland card from your hand\.", re.I), lambda m: ImprintFromHand()),
+    (re.compile(rf"whenever {_SELF} connives|{_SELF} connives\.", re.I), lambda m: Connive()),
+    (re.compile(r"exile the top card of each player's library, then you may cast any number of spells from among those cards without "
+                r"paying their mana costs\.", re.I), lambda m: ExileTopOfEachCastFree()),
     (re.compile(r"create a food token or a treasure token\.", re.I), lambda m: CreateOneOfTokens((FOOD, TREASURE))),
     (re.compile(r"create a (\d+)/(\d+) (green|white|blue|black|red) ([A-Z][a-z]+) creature token\. If you control (six|five|seven) or more lands, "
                 r"create a token that's a copy of this creature instead\.", re.I),
@@ -6640,8 +6698,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
     (re.compile(rf"put {_N} {_COUNTER} on another target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower(), another=True)),
-    (re.compile(rf"put {_N} {_COUNTER} on each (creature|(?-i:[A-Z][a-z]+)(?: creature)?) you control\.", re.I),
-     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), "" if m[3].lower() == "creature" else m[3].removesuffix(" creature"))),
+    (re.compile(rf"put {_N} {_COUNTER} on each (creature|(?-i:[A-Z][a-z]+)(?: creature)?|artifact creature) you control\.", re.I),
+     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), "" if m[3].lower() == "creature" else m[3].removesuffix(" creature").capitalize())),
     (re.compile(rf"put a {_COUNTER} on each (?:(white|blue|black|red|green) )?creature that entered this turn\.", re.I),
      lambda m: PutCountersOnEntered(_counter_name(m[1]), _COLOR_WORDS[m[2].lower()] if m[2] else "")),
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
@@ -7341,7 +7399,7 @@ _SEVERAL_EVENTS = re.compile(rf"When(?:ever)? {_SELF} ({_ANY_SELF_EVENT}(?: or {
 
 _WHO = rf"(?:({_SELF}) or another|(another)|an?)"
 _TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
-_PERMANENT_WATCH = rf"(enchanted creature|nontoken creature|creature token|token|creature|land|artifact|enchantment|permanent|{_TRIBE})"
+_PERMANENT_WATCH = rf"(enchanted creature|nontoken creature|creature token|(?:white|blue|black|red|green) creature|token|creature|land|artifact|enchantment|permanent|{_TRIBE})"
 _WATCHES = {
     "permanent_enters": re.compile(
         rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? enters(?: the battlefield)?"
@@ -7662,11 +7720,16 @@ class ReturnThisFromGraveyard:
 _ENDURING = re.compile(r"if it was a creature, return it to the battlefield under its owner's control\. It's an enchantment\.", re.I)
 
 
+_RAGAVAN_BODY = ("create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.")
+
+
 def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]:
     """The part of a trigger after its event: (effects, or None if not understood; "you may";
     "only once each turn"; an intervening "if" clause)."""
     if _ENDURING.fullmatch(rest):
         return [ReturnSelfAsEnchantment()], False, False, None
+    if rest == _RAGAVAN_BODY:
+        return [CreateTokens(1, TREASURE), ExileTopOfThatPlayerMayCast()], False, False, None
     if m := _PAY_TO_RETURN.fullmatch(rest):
         return [PayToReturnSelf(m[1])], False, False, None
     if m := _MAY_PAY_LOOT.fullmatch(rest):
@@ -7748,6 +7811,11 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
             rest = pattern.sub(replacement, rest)
         about_player = rest != before
     rest = _THAT_CREATURE.sub("it", rest)
+    if player_ok and (m := re.fullmatch(r"(.+?) unless that player pays \{X\}, where X is this creature's power\.", rest, re.I)):  # Esper Sentinel
+        effects, optional, once, condition = _trigger_body(m[1] + ".")
+        if effects is None or any(target_kind(e) or uses_source(e) or uses_subject(e) or uses_player(e) or follows_target(e) for e in effects):
+            return None, False, False, None
+        return [UnlessPays(tuple(effects), "", cost_power=True)], optional, once, condition
     if player_ok and (m := _UNLESS_PAYS.fullmatch(rest)):
         effects, optional, once, condition = _trigger_body(m[1] + ".")
         if effects is None or any(target_kind(e) or uses_source(e) or uses_subject(e) or uses_player(e)
@@ -7911,7 +7979,7 @@ _SACRIFICE_SELF = re.compile(rf"Sacrifice {_SELF}", re.I)
 _PAY_LIFE_IDENTITY = re.compile(r"Pay life equal to the number of colors in your commanders?'s? color identity")
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
 _CARDS = r"(an?|two|three|four)"
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (?:other )?(creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+)s?")
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (?:other )?(creature|(?:white|blue|black|red|green) creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+)s?")
 _REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
 _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
@@ -8232,7 +8300,7 @@ def _mana_match(line: str) -> re.Match | None:
     return None
 
 
-_CONDITION_WORD = re.compile(r"(?:Metalcraft|Threshold|Hellbent|Delirium|Revolt) \u2014 ")  # the ability word of the "Activate only if" that follows
+_CONDITION_WORD = re.compile(r"(?:Metalcraft|Threshold|Hellbent|Delirium|Revolt|Ferocious) \u2014 ")  # the ability word of the "Activate only if" that follows
 
 
 def _mana_line(card: Card) -> str | None:

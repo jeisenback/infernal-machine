@@ -729,6 +729,18 @@ winner = game.play()
     (Sheoldred, Whispering One); Laboratory Maniac (drawing from an empty library wins the game instead); and "you lose 1 life and
     create a Treasure token" on a second spell each turn (Lotho). Not read: Hullbreaker Horror, Imperial Recruiter, Terror of the
     Peaks, Disciple of Freyalise.
+  - Popular creatures, second batch (#200): "Creatures your opponents control get -2/-2" (Elesh Norn); "Other permanents you control
+    have indestructible" (Avacyn; a creature-only ability still never reaches a land or an artifact); "If an opponent would lose
+    life during your turn, they lose twice that much" (Bloodletter of Aclazotz); "{T}: Put a +1/+1 counter on each artifact creature
+    you control" (Steel Overseer); "Aura and Equipment spells you cast cost {1} less" (Danitha); a black-creature watch and
+    "Sacrifice another black creature" (Ayara); "Whenever another creature enters, you may gain 1 life" (Soul's Attendant);
+    Ragavan (a Treasure, and the top card of the damaged player's library, which you may cast until end of turn) with Dash (the
+    alternative cost gives haste and returns the creature to its owner's hand at the next end step); Etali, Primal Storm (the top
+    card of every library, cast for free in any number); Esper Sentinel ("draw a card unless that player pays {X}", X being its
+    power, for the first noncreature spell an opponent casts each turn); Ledger Shredder (connive: draw, discard, and a counter if
+    the discard wasn't a land); Phyrexian Metamorph (a copy of an artifact or creature, and an artifact too); and Imperial
+    Recruiter ("a creature card with power 2 or less"). The Ferocious ability word is read like Metalcraft. Not read: Eternalize,
+    Priest of Titania, Sanctum Weaver, Hullbreaker Horror, Syr Konrad, Braids.
   - Rules-changing statics (#204), read from the permanent's own text:
     - "Creature spells you control can't be countered" / "Spells you control can't be countered": a counterspell does nothing
       to them.
