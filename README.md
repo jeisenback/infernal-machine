@@ -772,6 +772,23 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     of target spell or ability to this creature" (you pick which target when it has several). "This creature" is the permanent whose ability
     is being aimed or is resolving (`Game.targeting_source`). Not understood: Willbender (morph), Reflecting Mirror's X, Torchling's
     forced block and Return the Favor's Spree.
+  - Third popularity pass (`tests/test_popular_pass3.py`), the most played cards still missing a line: the Landscape fetch lands
+    ("a basic Swamp, Forest, or Island card", Myriad Landscape's two lands that share a type); "Target creature you control deals
+    damage equal to its power to ..." to a creature or planeswalker, any target, or each other creature and each opponent;
+    "the greatest power among (other) creatures you control" as an amount; "this or that" additional costs made only of a
+    sacrifice, a discard or life (`AdditionalCost.options`; a mana option such as Redirect Lightning's is not); search for a creature
+    "with mana value X or less" onto the battlefield and "Shuffle CARDNAME into its owner's library"; Deflecting Swat's "choose new
+    targets" (each target may stay); and a few single lines (Mithril Coat, Untimely Malfunction, Rakdos Charm, Damn).
+  - Leftovers of the third popularity pass: an additional cost may offer several ways to pay, including mana ("pay 5 life or pay {2}",
+    "sacrifice a creature or pay {3}{B}", three-way costs); the choice is made before targets (CR 601.2b) and a way counts as
+    affordable only if the mana it adds can be paid. "You may cast a spell with mana value N or less from your hand without paying its
+    mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
+    trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
+    in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - Three single cards from the popularity passes (`tests/test_remaining_cards.py`): Victimize (choose two creature cards in your graveyard,
+    sacrifice a creature, and if you do they return tapped), Malakir Rebirth ("that creature gains 'When this creature dies, return it to the
+    battlefield tapped' until end of turn": `Permanent.returns_when_dies` holds the turn, and the game puts the trigger on the stack when
+    it dies that turn) and Traverse the Outlands ("up to X basic land cards, where X is the greatest power among creatures you control").
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
