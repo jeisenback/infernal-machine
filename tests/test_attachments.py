@@ -2,7 +2,7 @@ import unittest
 
 from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
-from infernal_machine.effects import attached_abilities, aura_kind, equip_cost
+from infernal_machine.effects import attached_abilities, aura_kind, equip_abilities
 from infernal_machine.game import ACTIVATE, CAST, PASS, TARGET_PROMPT, Game, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
@@ -27,9 +27,11 @@ def equip(game, seat, name):
 
 class ParseTests(unittest.TestCase):
     def test_equipment_and_auras(self):
-        self.assertEqual(equip_cost(BOOTS), "{1}")
-        self.assertEqual(equip_cost(GREAVES), "{0}")
-        self.assertIsNone(equip_cost(Card(name="x", oracle_text="Equip legendary creature {3}")))
+        self.assertEqual([a.mana_cost for a in equip_abilities(BOOTS)], ["{1}"])
+        self.assertEqual([a.mana_cost for a in equip_abilities(GREAVES)], ["{0}"])
+        self.assertEqual(equip_abilities(Card(name="x", oracle_text="Equip {2}\nEquip legendary creature {1}"))[1].effects[0].target,
+                         "legendary creature you control")
+        self.assertEqual(equip_abilities(Card(name="x", oracle_text="Equip\u2014Pay 3 life.")), ())
         self.assertEqual(attached_abilities(SWORD)[0].modifier.power, 2)
         self.assertEqual(aura_kind(PACIFISM), "creature")
         self.assertEqual(aura_kind(ARMOR), "creature you control")
