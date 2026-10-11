@@ -74,6 +74,18 @@ _COUNTERS_RIDER = re.compile(r"(.+\.) If you spend this mana to cast your comman
                              r"counters on it equal to the number of times it's been cast from the command zone this game\.")
 
 
+# Urza's Tower, Mine and Power Plant: more mana when you control the other two.
+_BONUS_RIDER = re.compile(r"(.+\.) If you control an? (.+?) and an? (.+?), add ((?:\{C\})+) instead\.")
+
+
+def mana_bonus(card: Card) -> tuple[tuple[str, str], int] | None:
+    """(the two permanents to control, how much mana the land makes then) for an Urza land, or None."""
+    for line in rules_lines(card):
+        if m := _BONUS_RIDER.fullmatch(line):
+            return (m[2], m[3]), len(re.findall(r"\{C\}", m[4]))
+    return None
+
+
 @dataclass(frozen=True)
 class ManaSpentTrigger:
     """ "When that mana is spent to cast <spell>, scry <n>." on a mana ability."""
@@ -116,7 +128,7 @@ def has_next_x_rider(card: Card) -> bool:
 
 def _without_spent_rider(line: str) -> str:
     """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
-    m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line) or _COUNTERS_RIDER.fullmatch(line)
+    m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line) or _COUNTERS_RIDER.fullmatch(line) or _BONUS_RIDER.fullmatch(line)
     line = _MANA_RESTRICTION.sub("", m[1] if m else line)
     # Eldrazi Spawn: "Sacrifice this token: Add {C}." reads like Treasure's "{T}, Sacrifice this permanent: Add {C}."
     return "{T}, Sacrifice this permanent: " + line.removeprefix("Sacrifice this token: ") if line.startswith("Sacrifice this token: Add ") else line
@@ -253,6 +265,12 @@ def mana_condition(card: Card) -> "Condition | None":
     return _condition(text) if text else None
 
 
+def mana_life_condition(card: Card) -> "Condition | None":
+    """Spire of Industry: "{T}, Pay 1 life: Add one mana of any color. Activate only if you control an artifact." (only that line)."""
+    text = next((m.group(m.re.groups) for rule in rules_lines(card) if (m := _PAY_LIFE_ANY.fullmatch(rule))), None)
+    return _condition(text) if text else None
+
+
 _MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_THREE, _ADD_ANY, _ADD_IDENTITY, _ADD_ANY_N, _ADD_COMBO, _ADD_AMONG, _ADD_IMPRINTED)
 
 
@@ -268,7 +286,7 @@ _TAPPED_PAIN = re.compile(rf"Whenever {_SELF} becomes tapped, it deals {_N} dama
 
 
 # Mana Confluence: paying life, not damage.
-_PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add (one mana of any color|\{{([WUBRG])\}}(?: or \{{([WUBRG])\}})?)\.", re.I)
+_PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add (one mana of any color|\{{([WUBRG])\}}(?: or \{{([WUBRG])\}})?)\.{_IF_TAIL}", re.I)
 
 
 # Room of Refuge: one mana of the color chosen as it entered. A Thriving land or Gate also makes its own color.
@@ -368,6 +386,16 @@ def mana_life_types(card: Card) -> frozenset[str]:
         if m := _PAY_LIFE_ANY.fullmatch(line):
             return frozenset("WUBRG") if m[2].startswith("one") else frozenset(c for c in (m[3], m[4]) if c)
     return frozenset()
+
+
+def mana_lines(card: Card) -> list[tuple[frozenset[str], "Condition | None"]] | None:
+    """A land with several plain "{T}: Add {R}." lines, one of them with an "Activate only if" condition (the Verge lands: "{T}: Add
+    {B}." and "{T}: Add {R}. Activate only if you control a Swamp or a Mountain."): each line's color and condition. None otherwise."""
+    found = []
+    for line in rules_lines(card):
+        if (m := _ADD_SYMBOLS.fullmatch(line)) and len(re.findall(r"[WUBRGC]", m[2])) == 1:
+            found.append((frozenset(m[2][1]), _condition(m[3]) if m[3] else None))
+    return found if len(found) > 1 and any(condition for _, condition in found) else None
 
 
 def land_mana_units(card: Card) -> list[frozenset[str]] | None:

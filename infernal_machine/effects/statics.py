@@ -227,6 +227,9 @@ _RULES_STATICS = [
     (re.compile(r"You may play (an|two|three) additional lands? on each of your turns\.", re.I), "extra_land"),
     (re.compile(r"You may play lands from your graveyard\.", re.I), "graveyard_lands"),
     (re.compile(r"Untap all permanents you control during each other player's untap step\.", re.I), "untap_others"),  # Seedborn Muse
+    (re.compile(r"Untap all artifacts you control during each other player's untap step\.", re.I), "untap_others:artifact"),  # Unwinding Clock
+    (re.compile(rf"Untap (?:{_SELF}|this artifact) during each other player's untap step\.", re.I), "untap_others:self"),  # Bender's Waterskin
+    (re.compile(r"(Creatures|Artifacts and creatures) your opponents control enter tapped\.", re.I), "enter_tapped:opp"),  # Authority of the Consuls
     (re.compile(r"You may look at the top card of your library any time\.", re.I), "look_top"),  # information only: nothing changes
     (re.compile(rf"{_SELF} doesn't untap during your untap step\.", re.I), "no_untap"),  # Basalt Monolith, Mana Vault
 ]
@@ -244,7 +247,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     / ":creature" (its controller's), "flash:spell" / ":creature" / ":sorcery" / ":Spirit" (its controller may cast those at instant
     speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic),
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
-    "no_untap" (it stays tapped through its controller's untap step), "untap_others" (its controller's permanents untap in every other player's untap step), "look_top" (its controller may look at their top card: no
+    "no_untap" (it stays tapped through its controller's untap step), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
+    alone), "enter_tapped:opp:creature" / ":artifact,creature" (those its controller's opponents control enter tapped), "look_top" (its controller may look at their top card: no
     change to the game, and no player here uses it)."""
     found = []
     for line in rules_lines(card):
@@ -256,6 +260,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
                     key = "flash:" + ("spell" if m[1].lower() == "spells" else m[1].lower().removesuffix(" spells"))
                 elif key == "land_type":
                     key = f"land_type:{_LAND_TYPE_MANA[m[1].lower()]}"
+                elif key == "enter_tapped:opp":
+                    key += ":creature" if m[1].lower() == "creatures" else ":artifact,creature"
                 elif key == "extra_land":  # Azusa: two additional lands, which is two more land drops
                     key = "|".join(["extra_land"] * {"an": 1, "two": 2, "three": 3}[m[1].lower()])
                 found.extend(key.split("|"))
@@ -413,7 +419,8 @@ _AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:y
 
 _PER = {"artifact you control": ("permanent", "artifact"), "creature you control": ("permanent", "creature"),
         "Aura you control": ("permanent", "Aura"), "creature card in your graveyard": ("graveyard", "creature"),
-        "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", "")}
+        "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", ""),
+        "land you control": ("permanent", "land"), "artifact and/or enchantment you control": ("permanent", "artifact or enchantment")}
 
 
 _PER_LOWER = {k.lower(): v for k, v in _PER.items()}
@@ -430,7 +437,11 @@ _BOTH_SCALED = re.compile(rf"This creature and enchanted creature each get {_PT}
                           r"for each Aura you control\.")
 
 
-_ATTACHED_SCALED = re.compile(rf"Enchanted creature gets {_PT} for each ({_PER_WORDS})\.")
+_ATTACHED_SCALED = re.compile(rf"(?:Enchanted|Equipped) creature gets {_PT} for each ({_PER_WORDS})\.")
+
+
+# Whispersilk Cloak, Aqueous Form: "can't be blocked" (a pseudo-keyword the combat code asks for), perhaps with real keywords too.
+_ATTACHED_UNBLOCKABLE = re.compile(rf"(?:Enchanted|Equipped) creature can't be blocked(?: and has ({_KEYWORDS_BARE}))?\.")
 
 
 _ATTACHED_TYPED = re.compile(rf"Enchanted creature gets {_PT}, has ({_KW}(?: and {_KW})*), and is an? ([A-Z][a-z]+) in addition "
@@ -913,6 +924,8 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             buffs.append(AttachedBuff(Modifier(_signed(m[3]), _signed(m[4])), line, per=_PER["Aura you control"]))
         elif m := _ATTACHED_SCALED.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2])), line, per=_PER[m[3]]))
+        elif m := _ATTACHED_UNBLOCKABLE.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(keywords=frozenset({CANT_BE_BLOCKED}) | (_keyword_list(m[1]) if m[1] else frozenset())), line))
     return tuple(buffs)
 
 
