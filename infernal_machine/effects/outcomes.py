@@ -186,10 +186,28 @@ class ChangeTarget:
     target: str = "spell with a single target"
     unless: str = ""
     every: bool = False  # Deflecting Swat: "You may choose new targets for target spell or ability." (each may stay)
+    to: str = ""  # "The new target must be a player." / "... a creature."; "to this creature": the source of the ability
+    optional: bool = False  # Hydroelectric Specimen: "you may change the target ..."
+    lone: bool = True  # False: "Change a target of target spell or ability to this creature." (Spellskite) -- one of several
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and not (self.unless and game.pays_unless(target.controller, self.unless, target.card)):
-            game.change_target(controller, target, self.every)
+        if target is None or (self.unless and game.pays_unless(target.controller, self.unless, target.card)):
+            return
+        if self.optional and controller.player.choose(CHANGE_TARGET_PROMPT + target.card.name, ["Yes", "No"]) != 0:
+            return
+        game.change_target(controller, target, self.every, self.to, self.lone)
+
+
+CHANGE_TARGET_PROMPT = "Change the target of "  # followed by the spell's name; Yes or No
+
+
+@dataclass(frozen=True)
+class NewTargetMustBe:
+    """ "The new target must be a player." after a change of target: _merge_new_target folds it into that effect."""
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        pass
 
 
 @dataclass(frozen=True)
@@ -4864,6 +4882,16 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"change the target of target (spell|spell or ability|activated ability) with a single target"
                 rf"( unless that spell's controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: ChangeTarget(f"{m[1].lower()} with a single target", unless=m[3] or "")),
+    (re.compile(r"(you may )?change the target of target (instant or sorcery spell) with a single target to (this creature)\.", re.I),
+     lambda m: ChangeTarget(f"{m[2].lower()} with a single target", to="this", optional=bool(m[1]))),  # Hydroelectric Specimen
+    (re.compile(r"change the target of target (spell or ability|spell) that targets only (a player|a single creature|this creature)( to this creature)?\.", re.I),
+     lambda m: ChangeTarget(f"{m[1].lower()} that targets only {m[2].lower()}",
+                            to="this" if m[3] else "")),  # Rebound, Muck Drubb, Silver Wyvern, Torchling
+    (re.compile(r"the new target must be an? (player|creature)\.", re.I), lambda m: NewTargetMustBe(m[1].lower())),
+    (re.compile(r"you may change the targets of target (instant or sorcery spell)\.", re.I),
+     lambda m: ChangeTarget(m[1].lower(), every=True)),  # Goblin Flectomancer
+    (re.compile(r"change a target of target spell or ability to (this creature)\.", re.I),
+     lambda m: ChangeTarget("spell or ability", to="this", lone=False)),  # Spellskite
     (re.compile(r"you may choose new targets for target spell or ability\.", re.I), lambda m: ChangeTarget("spell or ability", every=True)),
     (re.compile(r"return target (spell or nonland permanent an opponent controls) to its owner's hand\.", re.I),
      lambda m: ReturnToHand(m[1].lower())),  # Sink into Stupor
@@ -5870,7 +5898,7 @@ def _parse(sentences: list[str]) -> list | None:
         if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
             return None  # "instead" has to change the effect just before it
     merged = _merge_no_regen(effects)
-    for merge in (_merge_three_way, _merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_conditional, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_stun, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
+    for merge in (_merge_three_way, _merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_conditional, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_new_target, _merge_stun, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
@@ -5929,6 +5957,20 @@ def _merge_control(effects: list) -> list | None:
             merged[-1] = dataclasses.replace(merged[-1], haste=True)
         else:
             merged.append(effect)
+    return merged
+
+
+def _merge_new_target(effects: list) -> list | None:
+    """"Change the target of target spell that targets only a player. The new target must be a player." is one effect; a lone
+    "The new target must be ..." has nothing to refer to, so the line isn't understood."""
+    merged: list = []
+    for effect in effects:
+        if not isinstance(effect, NewTargetMustBe):
+            merged.append(effect)
+        elif merged and isinstance(merged[-1], ChangeTarget) and not merged[-1].to:
+            merged[-1] = dataclasses.replace(merged[-1], to=effect.kind)
+        else:
+            return None
     return merged
 
 
