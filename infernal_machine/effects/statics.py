@@ -191,6 +191,8 @@ _COMBAT_RESTRICTIONS = [
      lambda m: CombatRestriction("cant_block", _power_test(m, 1))),
     (re.compile(r"All creatures able to block (?:this creature|CARDNAME) do so\.", re.I),
      lambda m: CombatRestriction("all_must_block")),
+    (re.compile(r"All creatures able to block (?:enchanted|equipped) creature do so\.", re.I),
+     lambda m: CombatRestriction("host_must_be_blocked_by_all")),  # Lure, Nemesis Mask
     (re.compile(rf"{_SELF} must be blocked if able\.", re.I), lambda m: CombatRestriction("must_be_blocked")),
     (re.compile(rf"{_SELF} can't be blocked by more than {_NUM} creatures?\.", re.I),
      lambda m: CombatRestriction("max_blockers", str(_count(m[1])))),

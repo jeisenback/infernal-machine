@@ -3949,6 +3949,40 @@ class Tap:
 
 
 @dataclass(frozen=True)
+class LureThisTurn:
+    """Roar of Challenge: "All creatures able to block target creature this turn do so." """
+    target: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.lured_turn = game.turn
+
+
+@dataclass(frozen=True)
+class MustBlockThisTurn:
+    """ "Target creature blocks this turn if able." / "... blocks this creature this turn if able." (Torchling: that creature in
+    particular, the source of the ability)"""
+    target: str = "creature"
+    source_only: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.must_block_turn = game.turn
+            target.must_block_what = game.resolving_source if self.source_only else None
+
+
+@dataclass(frozen=True)
+class PutStunOnSource:
+    """ "Put three stun counters on it." in a trigger of the creature itself (Pugnacious Hammerskull, Ambling Stormshell)."""
+    count: int | str = 1
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.put_counters(target, "stun", game.amount(self.count))
+
+
+@dataclass(frozen=True)
 class PutStunCounters:
     """ "Put a stun counter on it." / "... on that creature.": the target of the effect before it."""
     count: int | str = 1
@@ -5300,6 +5334,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PumpSource(Modifier(keywords=frozenset({"haste"})))),
     (re.compile(r"tap (?:it|that creature)\.", re.I), lambda m: TapThat()),
     (re.compile(rf"put {_N} stun counters? on (?:it|that creature)\.", re.I), lambda m: PutStunCounters(_count(m[1]))),
+    (re.compile(rf"put {_N} stun counters? on (?:this creature|{{self}})\.".replace("{self}", "CARDNAME"), re.I),
+     lambda m: PutStunOnSource(_count(m[1]))),
+    (re.compile(r"all creatures able to block target (creature) this turn do so\.", re.I), lambda m: LureThisTurn(m[1].lower())),
+    (re.compile(r"target (creature) blocks this turn if able\.", re.I), lambda m: MustBlockThisTurn(m[1].lower())),
+    (re.compile(rf"target (creature) blocks (?:this creature|{{self}}) this turn if able\.".replace("{self}", "CARDNAME"), re.I),
+     lambda m: MustBlockThisTurn(m[1].lower(), source_only=True)),
     (re.compile(rf"tap target {_PERMANENT_KIND} and put {_N} stun counters? on (?:it|that creature)\.", re.I),
      lambda m: [Tap(m[1].lower()), PutStunCounters(_count(m[2]))]),
     (re.compile(rf"put {_N} stun counters? on each of them\.", re.I), lambda m: PutStunOnEach(_count(m[1]))),
@@ -5898,7 +5938,7 @@ def _parse(sentences: list[str]) -> list | None:
         if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
             return None  # "instead" has to change the effect just before it
     merged = _merge_no_regen(effects)
-    for merge in (_merge_three_way, _merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_conditional, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_new_target, _merge_stun, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
+    for merge in (_merge_three_way, _merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_conditional, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_new_target, _merge_stun_self, _merge_stun, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
         merged = merge(merged)
         if merged is None:
             return None
@@ -5957,6 +5997,15 @@ def _merge_control(effects: list) -> list | None:
             merged[-1] = dataclasses.replace(merged[-1], haste=True)
         else:
             merged.append(effect)
+    return merged
+
+
+def _merge_stun_self(effects: list) -> list:
+    """"Whenever this creature attacks, put a stun counter on it.": with no earlier effect to follow, "it" is the creature itself."""
+    merged: list = []
+    for effect in effects:
+        aimed = any(target_kind(e) or uses_subject(e) or uses_player(e) for e in merged)
+        merged.append(PutStunOnSource(effect.count) if isinstance(effect, PutStunCounters) and not aimed else effect)
     return merged
 
 

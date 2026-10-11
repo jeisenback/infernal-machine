@@ -217,10 +217,15 @@ class Combat:
                              and not self._has_enough_blockers(a)]
                 if not blockable:
                     continue
-                forced = [a for a in blockable if any(r.kind == "all_must_block" for r in combat_restrictions(a.attacker.card))]
+                forced = [a for a in blockable if self._lured(a.attacker)]
                 if forced:  # "All creatures able to block this creature do so."
                     self._block(seat, permanent, forced[0])
                     continue
+                if permanent.must_block_turn == self.game.turn:  # "Target creature blocks this turn if able."
+                    wanted = [a for a in blockable if permanent.must_block_what in (None, a.attacker)]
+                    if wanted:
+                        self._block(seat, permanent, wanted[0])
+                        continue
                 options = [NO_BLOCK] + [f"Block {self.game.label(a.attacker)}" for a in blockable]
                 choice = seat.player.choose(BLOCK_PROMPT + self.game.label(permanent), options)
                 if choice:
@@ -241,6 +246,13 @@ class Combat:
                 for blocker in attack.blockers:
                     if not self.game.has_keyword(blocker, "flanking"):
                         self.game.modify_until_end_of_turn(blocker, Modifier(-1, -1))
+
+    def _lured(self, attacker: Permanent) -> bool:
+        """Whether every creature able to block `attacker` has to: its own text, an effect this turn, or an Aura or Equipment on it."""
+        if attacker.lured_turn == self.game.turn or any(r.kind == "all_must_block" for r in combat_restrictions(attacker.card)):
+            return True
+        return any(p.attached_to is attacker and any(r.kind == "host_must_be_blocked_by_all" for r in combat_restrictions(p.card))
+                   for seat in self.game.live_seats() for p in seat.battlefield)
 
     def _block(self, seat: Seat, blocker: Permanent, attack: Attack) -> None:
         attack.blockers.append(blocker)
