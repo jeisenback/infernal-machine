@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -111,6 +111,7 @@ DISCARD_COST_PROMPT = "Choose a card to discard for "  # followed by the ability
 EXILE_COST_PROMPT = "Choose a card to exile from your graveyard for "  # followed by the ability's source
 COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
 ENTWINE_PROMPT = "Pay the entwine cost for "  # followed by the spell's name; options: YES_NO
+MADNESS_PROMPT = "Cast it for its madness cost: "  # followed by the card's name; options: YES_NO
 BUYBACK_PROMPT = "Pay the buyback cost for "  # followed by the spell's name; options: YES_NO
 KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
 MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
@@ -652,7 +653,7 @@ class Game:
                 i = seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])
                 card = seat.hand.pop(i)
                 self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
-                self._move_card(seat, card, "graveyard")
+                self._discard_into_zone(seat, card)
             for other in self.seats:  # CR 514.2
                 for permanent in other.battlefield:
                     permanent.damage = 0
@@ -885,7 +886,7 @@ class Game:
             card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT + name, [c.name for c in seat.hand])]
             seat.hand.remove(card)
             self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
-            self._move_card(seat, card, "graveyard")
+            self._discard_into_zone(seat, card)
         for _ in range(ability.exile_graveyard):
             options = self._exile_cost_choices(seat, ability)
             card = options[seat.player.choose(EXILE_COST_PROMPT + name, [c.name for c in options])]
@@ -1297,7 +1298,7 @@ class Game:
                 discarded = seat.hand[seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])]
                 seat.hand.remove(discarded)
                 self.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
-                self._move_card(seat, discarded, "graveyard")
+                self._discard_into_zone(seat, discarded)
             for _ in range(x if extra.sacrifice_x else 1 if extra.sacrifice else 0):
                 options = [p for p in seat.battlefield if _permanent_matches(extra.sacrifice, p.card)]
                 choice = options[seat.player.choose(SACRIFICE_COST_PROMPT + card.name, [self.label(p) for p in options])]
@@ -1787,14 +1788,15 @@ class Game:
 
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
               graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False,
-              copy: bool = False, bottom_after: bool = False) -> None:
+              copy: bool = False, bottom_after: bool = False, madness: AlternativeCost | None = None) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
         extra = ""
         if effects and isinstance(effects[0], Modal):
             effects, extra = self._choose_modes(seat, card, effects[0], from_command_zone, casting=True)
         # Alternative costs and kicker are announced before targets are chosen (CR 601.2b-c).
-        ways = [AlternativeCost("Cast without paying its mana cost")] if free else self._cast_ways(seat, card, from_command_zone, graveyard)
+        ways = ([AlternativeCost("Cast without paying its mana cost")] if free else [madness] if madness
+                else self._cast_ways(seat, card, from_command_zone, graveyard))
         alternative = ways[0]
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
@@ -4561,10 +4563,26 @@ class Game:
             else:
                 card = seat.hand.pop(seat.player.choose(DISCARD_CARD_PROMPT, [c.name for c in seat.hand]))
             self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
-            self._move_card(seat, card, "graveyard")
+            self._discard_into_zone(seat, card)
             discarded.append(card)
             self._discarded(seat, card, together=True)
         self._discarded_nonland(seat, discarded)
+
+    def _discard_into_zone(self, seat: Seat, card: Card) -> None:
+        """A card that was just discarded goes to the graveyard. With madness it goes to exile, and its owner may cast it for
+        its madness cost; if it isn't cast it goes to the graveyard then. (The choice is made at once, not from a trigger.)"""
+        cost = madness_cost(card)
+        if cost is None:
+            self._move_card(seat, card, "graveyard")
+            return
+        seat.exile.append(card)
+        self.broadcast({"event": "madness", "seat": seat.index, "card": card.name})
+        way = AlternativeCost(f"Madness {cost}", mana_cost=cost)
+        if self._payment(seat, card, alternative=way) is not None and seat.player.choose(MADNESS_PROMPT + card.name, YES_NO) == 0:
+            self._cast(seat, card, seat.exile, madness=way)
+        if any(c is card for c in seat.exile):  # not cast (declined, or no legal target): into the graveyard
+            seat.exile.remove(card)
+            self._move_card(seat, card, "graveyard")
 
     def reveal_and_discard(self, chooser: Seat, victim: Seat, excluded: tuple[str, ...], max_mv: int | None) -> None:
         """Thoughtseize: `victim` reveals their hand and `chooser` picks a card from it that isn't one of the
@@ -4577,7 +4595,7 @@ class Game:
         card = eligible[chooser.player.choose(CHOOSE_DISCARD_PROMPT, [c.name for c in eligible])]
         victim.hand.remove(card)
         self.broadcast({"event": "discard", "seat": victim.index, "card": card.name})
-        self._move_card(victim, card, "graveyard")
+        self._discard_into_zone(victim, card)
         self._discarded(victim, card)
 
     def mill(self, seat: Seat, count: int) -> list[Card]:

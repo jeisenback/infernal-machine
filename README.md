@@ -147,6 +147,10 @@ winner = game.play()
     creature, it gains the abilities written below the Backup line until end of turn.
   - Encore {N} (Angel of Indemnity): at sorcery speed, pay it and exile the card from your graveyard; each opponent gets
     a token copy with haste that attacks that opponent this turn if able and is sacrificed at the next end step.
+  - Madness {N} (Obsessive Search): a card with it that is discarded (by an effect, to hand size, or as a cost) goes to exile
+    instead of the graveyard, and its owner may cast it for the madness cost, if that can be paid and it has a legal target;
+    if it isn't cast it goes to the graveyard. The choice is made at once, not from a trigger on the stack, and discard
+    triggers still happen. Cycling a card, or a card that discards itself from your hand, does not get madness.
   - Unearth {N} (Dregscape Zombie): at sorcery speed, pay it and the card comes back from your graveyard (it is not
     cast, so nothing triggers on a cast, but enters triggers happen). It has haste until end of turn and is exiled at the
     next end step, or instead of dying or going to a hand. Only a mana cost is read.
