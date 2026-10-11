@@ -771,6 +771,10 @@ winner = game.play()
   - **Prowess:** whenever you cast a noncreature spell, +1/+1 until end of turn.
   - **Shadow:** it can block or be blocked only by creatures with shadow. **Skulk:** it can't be blocked by creatures
     with greater power. **Devoid** is accepted: the card data already has no color.
+  - **Fear:** only artifact and black creatures can block it. **Intimidate:** only artifact creatures and creatures that share a
+    color with it. **Horsemanship:** only creatures with horsemanship. **Islandwalk, Swampwalk, Mountainwalk, Forestwalk and
+    Plainswalk:** it can't be blocked while the defending player controls a land of that type (snow and nonbasic landwalk are
+    not read). A printed "This creature can't be blocked." works like the granted one.
   - **Living weapon:** a 0/0 black Phyrexian Germ token is created and the Equipment attached to it when it enters.
   - **Echo {cost}:** at your next upkeep after it enters you pay once (you are asked, if you can) or sacrifice it.
   - **Delve:** exiling cards from your graveyard pays for generic mana. The engine exiles as few as will do, and you
