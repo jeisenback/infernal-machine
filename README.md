@@ -800,6 +800,13 @@ winner = game.play()
     this turn."** and **"Target creature can't block this turn."** (as an ability, a spell or an enters trigger) last until end
     of turn. Not read: "can't block this creature" (only one attacker), "up to two target creatures can't block", and "target
     creature with power N or less can't be blocked".
+  - **Being blocked:** "Whenever this creature becomes blocked, ..." goes on the stack once the blockers are set, with the
+    player attacked as "defending player" and the number of blockers past the first. **Bushido N** (+N/+N when it blocks or
+    becomes blocked), **Afflict N** (the defending player loses N life) and **Rampage N** (+N/+N for each blocker past the
+    first) use it, and so does "blocks or becomes blocked, ..." in the card's own words. **"This creature must be blocked if
+    able."**: its defender picks one untapped creature that can block it (no question if only one can), and a creature
+    blocks only one attacker. Not read: "becomes blocked by a creature" and "blocks a creature" (they need to know which
+    creature), and "defending player discards a card".
   - **"This creature attacks each combat if able.":** the creature is never offered "Don't attack"; its controller still
     picks whom it attacks. A creature that can't attack (tapped, summoning sick, defender) is not asked.
   - **Infect:** its damage to a player is that many poison counters instead of life loss, and its damage to a creature is

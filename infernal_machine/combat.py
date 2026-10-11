@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 MYRIAD_PROMPT = "Myriad: create a token copy of "  # followed by the creature and the opponent; Yes or No
 ATTACK_PROMPT = "Attack with "  # followed by the creature's label
 BLOCK_PROMPT = "Block with "
+MUST_BLOCK_PROMPT = "Choose a creature that blocks "  # followed by the attacker that must be blocked if able
 ASSIGN_PROMPT = "Damage first to a blocker of "  # followed by the attacker's label
 NO_ATTACK = "Don't attack"
 NO_BLOCK = "Don't block"
@@ -201,8 +202,16 @@ class Combat:
             if id(seat) not in defenders:
                 continue
             self.game.send_state(seat)
+            for attack in self.attacks:  # "This creature must be blocked if able": one of the creatures that can block it does
+                if attack.defender is seat and any(r.kind == "must_be_blocked" for r in combat_restrictions(attack.attacker.card)):
+                    able = [p for p in seat.battlefield if not p.tapped and "Creature" in p.card.type_line
+                            and self._can_block(p, attack.attacker) and not any(p in a.blockers for a in self.attacks)]
+                    if able:
+                        pick = able[0] if len(able) == 1 else able[seat.player.choose(
+                            MUST_BLOCK_PROMPT + self.game.label(attack.attacker), [self.game.label(p) for p in able])]
+                        self._block(seat, pick, attack)
             for permanent in list(seat.battlefield):
-                if permanent.tapped or "Creature" not in permanent.card.type_line:
+                if permanent.tapped or "Creature" not in permanent.card.type_line or any(permanent in a.blockers for a in self.attacks):
                     continue
                 blockable = [a for a in self.attacks if a.defender is seat and self._can_block(permanent, a.attacker)
                              and not self._has_enough_blockers(a)]
@@ -226,6 +235,8 @@ class Combat:
                                      "reason": "menace" if needed == 2 else f"needs {needed} blockers"})
                 attack.blockers = []
             attack.blocked = bool(attack.blockers)
+            if attack.blockers:  # Bushido, Afflict, Rampage and "Whenever this creature becomes blocked": x is the blockers past the first
+                self.game.trigger("becomes_blocked", attack.attacker, attack.controller, player=attack.defender, x=len(attack.blockers) - 1)
             if self.game.has_keyword(attack.attacker, "flanking"):  # blocked by a creature without flanking: -1/-1
                 for blocker in attack.blockers:
                     if not self.game.has_keyword(blocker, "flanking"):
