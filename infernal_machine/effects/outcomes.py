@@ -1285,9 +1285,10 @@ class AttachAura:
         pass
 
 
-_ENCHANT = re.compile(r"Enchant ((?:land|creature card in a graveyard|creature|artifact|enchantment|planeswalker|permanent"
-                      r"|nonland permanent)"
-                      r"(?: an opponent controls| you control)?)", re.I)
+_ENCHANT_HEAD = (r"(?:(?:non-?[a-z]+|basic|tapped) )?(?:land|creature|artifact|enchantment|planeswalker|permanent|equipment"
+                 r"|wall|vehicle|forest|plains|island|swamp|mountain)")
+_ENCHANT = re.compile(rf"Enchant (creature card in a graveyard|{_ENCHANT_HEAD}(?:,? (?:or )?{_ENCHANT_HEAD})*"
+                      r"(?: an opponent controls| you control| you don't control)?)", re.I)
 
 
 @dataclass(frozen=True)
@@ -1358,6 +1359,24 @@ class AttackingTokens:
 
 
 @dataclass(frozen=True)
+class TokensJoinAttack:
+    """Mobilize: "Create two tapped and attacking 1/1 red Warrior creature tokens. Sacrifice them at the beginning of the
+    next end step." The second sentence is folded in by _merge_attacking_tokens."""
+    count: int
+    token: Card
+    sacrifice_at_end: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_source is not None:
+            game.tokens_join_attack(controller, game.resolving_source, self.token, game.amount(self.count), self.sacrifice_at_end)
+
+
+@dataclass(frozen=True)
+class _SacrificeThemLater:
+    """ "Sacrifice them at the beginning of the next end step.": only ever after TokensJoinAttack."""
+
+
+@dataclass(frozen=True)
 class _TheyGainHaste:
     """ "They gain haste until end of turn.": only ever after AttackingTokens."""
 
@@ -1372,6 +1391,10 @@ def _merge_attacking_tokens(effects: list) -> list | None:
     for effect in effects:
         if isinstance(effect, _TheyGainHaste) and merged and isinstance(merged[-1], CreateTokens):  # Sokenzan
             merged[-1] = dataclasses.replace(merged[-1], haste=True)
+        elif isinstance(effect, _SacrificeThemLater):
+            if not (merged and isinstance(merged[-1], TokensJoinAttack)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], sacrifice_at_end=True)
         elif isinstance(effect, (_TheyGainHaste, _ExileThemLater)):
             if not (merged and isinstance(merged[-1], AttackingTokens)):
                 return None
@@ -4332,6 +4355,16 @@ class BecomePrepared:
 
 
 @dataclass(frozen=True)
+class BecomeRenowned:
+    """Renown: "... and it becomes renowned." It won't trigger again (the condition "if it isn't renowned")."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.renowned = True
+
+
+@dataclass(frozen=True)
 class TargetPrepared:
     """ "Target creature becomes prepared / unprepared." Only a creature with a prepare spell can become prepared."""
     target: str  # "creature" or "creature that attacked this turn"
@@ -5122,6 +5155,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal (?:it|that card), )?(?:put (?:it|that card) into your hand, "
                 r"then shuffle|then shuffle and put (?:it|that card|the card) on top(?: of your library)?)\.", re.I),
      lambda m: SearchLibrary(_card_kind(m[1]), "hand" if "into your hand" in m[0] else "top", "reveal" in m[0].lower())),
+    (re.compile(r"search your library for a card with the same mana value as (?:this card|CARDNAME), reveal it, put it into your hand, then shuffle\.", re.I),
+     lambda m: SearchLibrary("card|mv=self", "hand", True)),  # Transmute
     (re.compile(r"search your library for a land card, put it into your graveyard, then shuffle\.", re.I),
      lambda m: SearchLibrary("land", "graveyard", False)),
     (re.compile(r"search your library for a land card, put (?:it|that card) onto the battlefield( tapped)?, then shuffle\.", re.I),
@@ -5362,6 +5397,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"search your library for up to X basic land cards, where X is the greatest power among creatures you control\. put those "
                 r"cards onto the battlefield tapped, then shuffle\.", re.I),
      lambda m: [DefineX(Amount("greatest_power", "creature")), SearchForLands("X", (), "X", True, False)]),  # Traverse the Outlands
+    (re.compile(r"put a \+1/\+1 counter on target (artifact creature) for each \+1/\+1 counter on (?:this creature|CARDNAME)\.", re.I),
+     lambda m: [DefineX(Amount("source_counters", "+1/+1")), PutCounters("X", "+1/+1", m[1].lower())]),  # Modular
     (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
     (re.compile(r"proliferate (X) times\.", re.I), lambda m: Proliferate("X")),
     (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
@@ -5540,6 +5577,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [PutCounters(1, _counter_name(m[2]), "creature", optional_target=True, distinct=n > 0) for n in range(_count(m[3]))]),
     (re.compile(rf"put {_N} {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
+    (re.compile(rf"put {_N} {_COUNTER} on target (attacking creature with lesser power)\.", re.I),  # Mentor
+     lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
     (re.compile(rf"put {_N} {_COUNTER} on another target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower(), another=True)),
     (re.compile(rf"put {_N} {_COUNTER} on each (creature|(?-i:[A-Z][a-z]+)(?: creature)?|artifact creature) you control\.", re.I),
@@ -5548,6 +5587,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCountersOnEntered(_counter_name(m[1]), _COLOR_WORDS[m[2].lower()] if m[2] else "")),
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
      lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),
+    (re.compile(rf"put {_N} {_COUNTER} on {_SELF} and it becomes renowned\.", re.I),  # Renown
+     lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), BecomeRenowned()]),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} gains protection from the color of your choice until end of turn\."),
      lambda m: GrantProtection(m[1].lower())),
     (re.compile(rf"(?i:{_SELF}) gains protection from the color of your choice until end of turn\."),
@@ -5625,6 +5666,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'for each opponent, create (.+) that attack that opponent this turn if able\.("?)', re.I), _attacking_tokens),
     (re.compile(r"they gain haste until end of turn\.", re.I), lambda m: _TheyGainHaste()),
     (re.compile(r"exile them at the beginning of the next end step\.", re.I), lambda m: _ExileThemLater()),
+    (re.compile(r"sacrifice them at the beginning of the next end step\.", re.I), lambda m: _SacrificeThemLater()),
+    (re.compile(r"create (.+?) tapped and attacking (\d+/\d+ [^.]*? creature tokens?)\.", re.I),  # Mobilize
+     lambda m: (lambda parsed: TokensJoinAttack(parsed[0], parsed[1]) if parsed else None)(_token(f"{m[1]} {m[2]}"))),
     (re.compile(r"prevent all combat damage that would be dealt this turn\.", re.I), lambda m: PreventAllCombatDamage()),
     (re.compile(rf"prevent the next {_NUM} damage that would be dealt to (any target|target creature|you|{_SELF}) this turn\.", re.I),
      lambda m: _prevent_next(_count(m[1]), m[2])),
@@ -6057,7 +6101,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "not_renowned", "subject_greater", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -6115,6 +6159,8 @@ _CONDITIONS = [
      lambda m: Condition("kicked", what=m[1] or "")),
     (re.compile(r"you have the city's blessing"), lambda m: Condition("citys_blessing")),
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
+    (re.compile(r"(?:it|that creature) has greater power or toughness than (?:this creature|CARDNAME)"), lambda m: Condition("subject_greater")),
+    (re.compile(rf"{_SELF} isn't renowned"), lambda m: Condition("not_renowned")),
     (re.compile(rf"{_SELF} is tapped"), lambda m: Condition("source_tapped")),
     (re.compile(r"you control no other ([A-Za-z]+)"), lambda m: Condition("control_no_other", what=_singular(m[1]))),
     (re.compile(r"you cast it"), lambda m: Condition("cast_it")),

@@ -26,7 +26,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (EVENTS, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -144,6 +144,7 @@ ENTWINE_PROMPT = "Pay the entwine cost for "  # followed by the spell's name; op
 MADNESS_PROMPT = "Cast it for its madness cost: "  # followed by the card's name; options: YES_NO
 BUYBACK_PROMPT = "Pay the buyback cost for "  # followed by the spell's name; options: YES_NO
 SYLVAN_PROMPT = "Draw two additional cards with Sylvan Library? "  # options: Yes, No
+DREDGE_PROMPT = "Dredge instead of drawing a card? "  # options: Draw a card, then one per card that can be dredged
 SYLVAN_CHOOSE_PROMPT = "Choose a card you drew this turn: "  # asked twice, for the two cards
 SYLVAN_PAY_PROMPT = "Pay life for it or put it on top of your library: "  # followed by the card's name
 REBOUND_PROMPT = "Cast it again with rebound: "  # followed by the card's name; options: YES_NO
@@ -262,6 +263,7 @@ class Permanent:
     must_attack: "Seat | None" = None  # an Encore token: it attacks this player this turn if able
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
     prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
+    renowned: bool = False  # Renown: it has already got its counters
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
     stored: int = 0  # a number it remembers (the life Soulgorger Orgg's controller lost)
     goad_forever: "Seat | None" = None  # goaded for the rest of the game by this player (Life of the Party's copies)
@@ -859,7 +861,7 @@ class Game:
             if (found := cycling(card)) and self._can_cycle(seat, found[1], found[3]):
                 actions.append(CYCLE + card.name)
             for ability in hand_abilities(card)[:1]:
-                if self._pay_cost(seat, self._hand_ability_cost(seat, ability)) is not None \
+                if (not ability.sorcery_speed or sorcery_timing) and self._pay_cost(seat, self._hand_ability_cost(seat, ability)) is not None \
                         and self._effects_possible(seat, ability.effects, source_qualities(card)):
                     actions.append(ACTIVATE_HAND + card.name)
         for card in _unique(seat.graveyard):
@@ -1318,7 +1320,7 @@ class Game:
                 gifted = [mana for other in self.seats for a in other.battlefield if a.attached_to is permanent
                           for mana in granted_mana(a.card)]  # "Enchanted land has "{T}: Add {G}{G}."": the better of the two
                 extra = [ManaSource(permanent, mana, pain, damage) for other in self.seats for a in other.battlefield
-                         if a.attached_to is permanent for mana in additional_land_mana(a.card)]  # Wild Growth
+                         if a.attached_to is permanent for mana in additional_land_mana(a.card, a.chosen_color)]  # Wild Growth, Utopia Sprawl
                 if seat.extra_mountain_mana_turn == self.turn and "Mountain" in card.type_line:  # Molten Tide
                     extra.append(ManaSource(permanent, frozenset("R"), pain, damage))
                 if (bonus := mana_bonus(card)) is not None and all(any(p.card.name == name for p in seat.battlefield) for name in bonus[0]):
@@ -2558,7 +2560,7 @@ class Game:
                             "ability": _shown(ability.text, item.card), "declined": True})
             return
         condition = getattr(ability, "condition", None)
-        if condition and not self.condition_holds(condition, seat, item.source, item.x, item.player):  # checked again on resolution (CR 603.4)
+        if condition and not self.condition_holds(condition, seat, item.source, item.x, item.player, item.subject):  # checked again on resolution (CR 603.4)
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": _shown(ability.text, item.card), "condition_false": True})
             return
@@ -2747,7 +2749,7 @@ class Game:
 
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0,
                subject: Permanent | None = None, player: Seat | None = None, spell: "StackItem | None" = None) -> None:
-        if ability.condition and not self.condition_holds(ability.condition, controller, permanent, x, player):
+        if ability.condition and not self.condition_holds(ability.condition, controller, permanent, x, player, subject):
             return
         if ability.once_per_turn:  # "This ability triggers only once each turn."
             if permanent.triggered_turn.get(ability.text) == self.turn:
@@ -2756,13 +2758,16 @@ class Game:
         self.pending.append(PendingTrigger(ability, permanent, controller, x, subject, player, spell=spell))
 
     def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None, x: int = 0,
-                        player: Seat | None = None) -> bool:
+                        player: Seat | None = None, subject: Permanent | None = None) -> bool:
         """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`. `x` is the
         number the event carried (how many attackers went at the controller, for "two or more of those creatures");
-        `player` is the player the trigger is about ("that player")."""
+        `player` is the player the trigger is about ("that player"); `subject` the permanent it is about ("that creature")."""
         kind = condition.kind
-        if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player):
+        if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player, subject):
             return False
+        if kind == "subject_greater":  # Evolve: the creature that entered has greater power or toughness than the source
+            return (source is not None and subject is not None
+                    and (self.power(subject) > self.power(source) or (self.toughness(subject) or 0) > (self.toughness(source) or 0)))
         if kind == "all_hands_empty":  # Howltooth Hollow
             return not any(s.hand for s in self.live_seats())
         if kind == "creature_with_power":  # Garruk's Uprising: a creature you control with power N or greater
@@ -2871,6 +2876,8 @@ class Game:
             return source is not None and source.tapped
         if kind == "not_prepared":
             return source is not None and not source.prepared
+        if kind == "not_renowned":
+            return source is not None and not source.renowned
         if kind == "graveyard_at_least":
             return sum(_card_matches(condition.what, c) for c in seat.graveyard) >= condition.count
         if kind == "any_hand_at_most":
@@ -3068,8 +3075,10 @@ class Game:
                         and not (spell_filter.controller == "opponent" and i.controller is caster)]
             return options
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
+        lesser = self._source_now() if kind.endswith(" with lesser power") else None  # Mentor
         wanted = parse_filter(re.sub(r"mana value x\b", lambda m: "mana value %d" % (
-            self.x_value if self.resolving_item is not None else self.targeting_x), kind.removesuffix(" that attacked this turn")))
+            self.x_value if self.resolving_item is not None else self.targeting_x),
+            kind.removesuffix(" that attacked this turn").removesuffix(" with lesser power")))
         controller = wanted.controller
         for seat in self.live_seats():
             if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
@@ -3080,6 +3089,8 @@ class Game:
                 if controller == "own" and (permanent.owner or seat) is not caster:
                     continue
                 if attacked and permanent.attacked_turn != self.turn:
+                    continue
+                if kind.endswith(" with lesser power") and (lesser is None or self.power(permanent) >= self.power(lesser)):
                     continue
                 if not self._in_state(permanent, wanted.state):
                     continue
@@ -3185,6 +3196,8 @@ class Game:
 
     def draw(self, seat: Seat, count: int, announce: bool = True) -> None:
         for _ in range(count):
+            if self._dredge(seat):
+                continue
             if not seat.library:
                 if any(replacement_effects(p.card).win_on_empty_draw for p in seat.battlefield if not self.loses_abilities(p)):
                     seat.wins_game = True  # Laboratory Maniac
@@ -3205,6 +3218,22 @@ class Game:
                 seat.draw_count += 1
                 self.happened("drew", seat, *(["extra"] if not self._draw_step_draw else []),
                               *(["second"] if seat.draw_count == 2 else []))
+
+    def _dredge(self, seat: Seat) -> bool:
+        """Dredge: instead of drawing, the player may mill N cards and return a card with "Dredge N" from the graveyard to their
+        hand (it takes a library of at least N cards). Whether a draw was replaced."""
+        dredgers = [c for c in _unique(seat.graveyard) if (n := dredge_of(c)) is not None and n <= len(seat.library)]
+        if not dredgers:
+            return False
+        pick = seat.player.choose(DREDGE_PROMPT, ["Draw a card"] + [f"Dredge {dredge_of(c)}: {c.name}" for c in dredgers])
+        if pick == 0:
+            return False
+        card = dredgers[pick - 1]
+        self.mill(seat, dredge_of(card))
+        seat.graveyard.remove(card)
+        seat.hand.append(card)
+        self.broadcast({"event": "dredged", "seat": seat.index, "card": card.name})
+        return True
 
     def sylvan_library(self, seat: Seat, life: int) -> None:
         """Sylvan Library: the player may draw two more cards; if they do they choose two cards of those drawn this turn (the
@@ -3382,9 +3411,26 @@ class Game:
     def destroy(self, permanent: Permanent, no_regen: bool = False) -> None:
         if self.has_keyword(permanent, "indestructible"):
             return
-        if not no_regen and self._regenerated(permanent):
+        if self._saved_from_destruction(permanent, no_regen):
             return
         self._leave_battlefield(permanent, "destroyed")
+
+    def _saved_from_destruction(self, permanent: Permanent, no_regen: bool = False) -> bool:
+        """Whether a regeneration shield or an Aura with umbra armor stands in for `permanent` being destroyed (the shield
+        unless it "can't be regenerated")."""
+        return (not no_regen and self._regenerated(permanent)) or self._umbra_armor(permanent)
+
+    def _umbra_armor(self, permanent: Permanent) -> bool:
+        """Umbra armor: instead of being destroyed the permanent loses all damage, and the Aura is destroyed."""
+        aura = next((a for other in self.seats for a in other.battlefield
+                     if a.attached_to is permanent and "umbra_armor" in rules_statics(a.card)), None)
+        if aura is None:
+            return False
+        permanent.damage = 0
+        permanent.deathtouched = False
+        self._leave_battlefield(aura, "destroyed")
+        self.broadcast({"event": "umbra_armor", "card": permanent.card.name, "aura": aura.card.name})
+        return True
 
     def regenerate(self, permanent: Permanent) -> None:
         """Give `permanent` a regeneration shield until end of turn."""
@@ -3475,7 +3521,7 @@ class Game:
         """Destroy them all at once; indestructible ones survive, and so do ones with a regeneration shield
         unless they "can't be regenerated". `gives`: tokens for what was destroyed (see _give_back). Returns what was destroyed."""
         doomed = [p for p in permanents if not self.has_keyword(p, "indestructible")
-                  and (no_regen or not self._regenerated(p))]
+                  and not self._saved_from_destruction(p, no_regen)]
         self._leave_together([(p, "destroyed") for p in doomed])
         self._give_back(doomed, gives, caster)
         return [p for p in doomed if not self.on_battlefield(p)]
@@ -3703,6 +3749,19 @@ class Game:
                 self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
                 self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": attack.defender.index})
 
+    def tokens_join_attack(self, seat: Seat, source: Permanent, token: Card, count: int, sacrifice_at_end: bool) -> None:
+        """Mobilize: `count` tokens, tapped and attacking whom `source` attacks; they were never declared, so attack triggers don't
+        see them. With `sacrifice_at_end` they are sacrificed as the next end step begins."""
+        attack = next((a for a in self.combat.attacks if a.attacker is source), None)
+        made = self.create_tokens(seat, token, count)
+        for permanent in made:
+            permanent.tapped = True
+            if attack is not None:
+                self.combat.attacks.append(Attack(permanent, seat, attack.defender, walker=attack.walker))
+                self.broadcast({"event": "attack", "seat": seat.index, "card": permanent.card.name, "defender": attack.defender.index})
+        if sacrifice_at_end:
+            self.leave_at_next_end_step(made, "sacrificed", "graveyard")
+
     def token_attacking(self, seat: Seat, token: Card, defender: Seat) -> None:
         """A token created for `seat`, tapped and attacking `defender`; it was never declared, so attack triggers don't see it."""
         for made in self.create_tokens(seat, token, 1):
@@ -3858,6 +3917,8 @@ class Game:
         many cards are found (Buried Alive), and the searcher may stop early."""
         chosen = []
         card_type = card_type.replace("mv<=x", f"mv<={self.x_value}")  # Chord of Calling
+        if "mv=self" in card_type and self.resolving_item is not None:  # Transmute: the mana value of the card that was discarded
+            card_type = card_type.replace("mv=self", f"mv={int(self.resolving_item.card.cmc)}")
         for _ in range(count):
             matches = _unique([c for c in seat.library if _card_matches(card_type, c)])
             if not matches:
@@ -5358,7 +5419,8 @@ class Game:
             if artifact_too and permanent.real_card is not None and "Artifact" not in permanent.card.type_line:  # Phyrexian Metamorph
                 permanent.card = dataclasses.replace(permanent.card, type_line="Artifact " + permanent.card.type_line)
         counters = {counter: (x if count == "X" else 2 * x if count == "2X" else count)
-                    for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped).items()}
+                    for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped, any(
+                        o.damage_taken_turn == self.turn for o in self.opponents(seat))).items()}
         if permanent.extra_counters:  # Opal Palace: mana spent on the commander
             counters["+1/+1"] = counters.get("+1/+1", 0) + permanent.extra_counters
         if extra_when_copy and permanent.real_card is not None:  # Altered Ego: X additional counters on the copy
@@ -5868,7 +5930,7 @@ class Game:
                         dying.append((permanent, "died"))
                     elif (creature and (permanent.damage >= current or permanent.deathtouched)
                           and not self.has_keyword(permanent, "indestructible")):
-                        if not self._regenerated(permanent):
+                        if not self._saved_from_destruction(permanent):
                             dying.append((permanent, "destroyed"))
             if dying:  # all at once (CR 704.3)
                 self._leave_together(dying)
