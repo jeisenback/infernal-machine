@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -299,6 +299,7 @@ class StackItem:
     sacrificed_power: int = 0  # for an ability: the power of the creature sacrificed to pay for it
     tapped_power: int = 0  # for an ability: the power of the creature tapped to pay for it (Station)
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
+    cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
 
 
 GERM = Card(name="Phyrexian Germ", type_line="Token Creature — Phyrexian Germ", colors=("B",), power="0", toughness="0")
@@ -1006,6 +1007,8 @@ class Game:
 
     def uncounterable(self, item: StackItem) -> bool:
         """Whether a permanent its controller has says the spell can't be countered (Rhythm of the Wild, Hexing Squelcher)."""
+        if item.cant_be_countered:
+            return True
         return any(owner is item.controller and (key == "uncounterable:spell" or key == "uncounterable:creature"
                                                  and "Creature" in item.card.type_line)
                    for owner, _, key in self._static_rules())
@@ -1098,6 +1101,15 @@ class Game:
         finally:
             self._spending_spell, self._spending_from_hand = None, False
 
+    @staticmethod
+    def _restricted_mana_ok(source: Permanent, limited, spell: Card | None) -> bool:
+        """Whether `source`'s restricted any-color mana can pay for `spell`: a creature spell of the type it chose, or a legendary spell."""
+        if spell is None:
+            return False
+        if limited.spell == "legendary":
+            return "Legendary" in spell.type_line
+        return "Creature" in spell.type_line and source.chosen_type in spell.type_line.partition("\u2014")[2].split()
+
     def _restriction_ok(self, restriction: str | None) -> bool:
         """Whether mana limited by `restriction` can pay for what is being paid for now."""
         if restriction is None:
@@ -1178,6 +1190,8 @@ class Game:
                     types = self._reflected_types(seat, *reflect)
                     if not types:
                         continue
+                if (limited := restricted_mana(card)) is not None:  # Cavern of Souls: any color only for the right spells
+                    types = frozenset("C") | (frozenset("WUBRG") if self._restricted_mana_ok(permanent, limited, self._spending_spell) else frozenset())
                 types = types | self._land_type_mana(permanent)  # Urborg: it is a Swamp too
                 lands.extend([ManaSource(permanent, _snowy(permanent, types), pain, damage)] + extra)
             elif not (permanent.sick and "Creature" in card.type_line and not mana_ability_needs_no_tap(card)):
@@ -1202,6 +1216,8 @@ class Game:
                     continue
                 units = ([frozenset("WUBRG")] * max(0, self.power(permanent)) if makes_mana_by_power(card)
                          else mana_ability(card, seat.color_identity) or [])  # (the power's worth need not be one color here)
+                if (limited := restricted_mana(card)) is not None and self._restricted_mana_ok(permanent, limited, self._spending_spell):
+                    units = [units[0] | frozenset("WUBRG")] + units[1:] if units else [frozenset("WUBRG")]  # Delighted Halfling
                 restriction = mana_restriction(card)
                 if not self._restriction_ok(restriction):
                     continue
@@ -1952,6 +1968,8 @@ class Game:
         with self._paying_for(seat, paying):
             tapped = self._pay_cost(seat, cost)
         self._spend_mana(seat, tapped)
+        no_counter = any((limited := restricted_mana(p.card)) is not None and limited.uncounterable
+                         and self._restricted_mana_ok(p, limited, paying) for p in tapped)
         spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
         for _ in range(delve):
             exiled = seat.graveyard[seat.player.choose(DELVE_PROMPT + card.name, [c.name for c in seat.graveyard])]
@@ -1968,7 +1986,7 @@ class Game:
         item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, bought_back=bought_back, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after, from_graveyard=graveyard is not None,
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
-                         bestowed=bool(alternative and alternative.bestow), mana_spent=spent)
+                         bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter)
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -3473,7 +3491,7 @@ class Game:
                     continue
                 if buff.self_only and source is not permanent:
                     continue
-                if buff.color and buff.color not in permanent.card.colors:
+                if buff.color and (source.chosen_color if buff.color == "chosen" else buff.color) not in permanent.card.colors:
                     continue
                 if buff.token and not _is_token(permanent.card):
                     continue
@@ -4787,6 +4805,13 @@ class Game:
             counters["+1/+1"] = counters.get("+1/+1", 0) + permanent.extra_counters
         if extra_when_copy and permanent.real_card is not None:  # Altered Ego: X additional counters on the copy
             counters["+1/+1"] = counters.get("+1/+1", 0) + x
+        if "Creature" in permanent.card.type_line:  # Metallic Mimic: other creatures of the type it named come with a counter
+            kinds = permanent.card.type_line.partition("\u2014")[2].split()
+            counters["+1/+1"] = counters.get("+1/+1", 0) + sum(
+                replacement_effects(p.card).enter_counter_chosen for p in seat.battlefield
+                if p.chosen_type is not None and p.chosen_type in kinds)
+            if not counters["+1/+1"]:
+                del counters["+1/+1"]
         if "Creature" in permanent.card.type_line and not _is_token(permanent.card) and seat.died_turn == self.turn:
             bonus = sum(replacement_effects(p.card).enter_counters_per_death for p in seat.battlefield) * seat.died
             if bonus:  # Gorma, the Gullet
@@ -4801,6 +4826,11 @@ class Game:
             permanent.paragon_life = (seat, next((found[1] for p in seat.battlefield if (found := graveyard_permission(p.card))), 2))
         if chooses_creature_type(permanent.card):
             permanent.chosen_type = self._choose_creature_type(seat, permanent.card)
+            if is_chosen_type_itself(permanent.card):  # Roaming Throne: it is that type too
+                head, dash, tail = permanent.card.type_line.partition("\u2014")
+                permanent.real_card = permanent.real_card or permanent.card
+                permanent.card = dataclasses.replace(permanent.card, type_line=f"{head.strip()} \u2014 {tail.strip()} {permanent.chosen_type}"
+                                                     if dash else f"{head.strip()} \u2014 {permanent.chosen_type}")
         if chooses_color(permanent.card):
             names = {"White": "W", "Blue": "U", "Black": "B", "Red": "R", "Green": "G"}
             names = {name: letter for name, letter in names.items() if letter != color_choice_excludes(permanent.card)}
@@ -5162,6 +5192,10 @@ class Game:
         times = self._trigger_times_entering(controller, event, entering, cause)
         if source is not None and {"Shaman", "Wizard"} & set(self.subtypes(source)):
             times += sum(replacement_effects(p.card).extra_trigger == "wizard" for p in controller.battlefield if p is not source)
+        if source is not None and "Creature" in source.card.type_line:  # Roaming Throne: another creature of the type it named
+            kinds = self.subtypes(source)
+            times += sum(replacement_effects(p.card).extra_trigger == "chosen_type" and p.chosen_type in kinds
+                         for p in controller.battlefield if p is not source)
         return times
 
     def _trigger_times_entering(self, controller: Seat, event: str, entering: Card | None, cause: Seat | None = None) -> int:

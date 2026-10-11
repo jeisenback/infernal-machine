@@ -1723,12 +1723,24 @@ def is_choose_type_line(line: str) -> bool:
     return _CHOOSE_TYPE.fullmatch(line) is not None
 
 
-_AFFECTED = (r"Creatures you control of the chosen type|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
+_CHOSEN_SELF = re.compile(r"This (?:creature|artifact|enchantment|land) is the chosen type in addition to its other types\.")
+
+
+def is_chosen_self_line(line: str) -> bool:
+    return _CHOSEN_SELF.fullmatch(line) is not None
+
+
+def is_chosen_type_itself(card: Card) -> bool:
+    """Roaming Throne, Metallic Mimic, Adaptive Automaton: it is also the creature type it chose as it entered."""
+    return any(_CHOSEN_SELF.fullmatch(line) for line in rules_lines(card))
+
+
+_AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
              r"|(?:Attacking )?[A-Z][\w'-]*s you control|(?:White|Blue|Black|Red|Green) creatures")
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
                                r"this game\.")
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|(?:have|has) {_KEYWORDS})\.")
-_AFFECTED_WHO = re.compile(r"(?P<chosen>Creatures you control of the chosen type)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+_AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures you control of the chosen (?P<chosen_what>type|color))|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s you control"
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
@@ -1776,9 +1788,11 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
         if m := _STATIC.fullmatch(sentence):
             who = _AFFECTED_WHO.fullmatch(m[1])
             colors = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
-            buffs.append(StaticBuff(_modifier(m, 2), who["other"] is not None,
-                                    "chosen" if who["chosen"] else who["sub"] or who["tribe"], line,
-                                    condition=condition, color=colors.get((who["color"] or who["global"] or "").lower()),
+            chosen_color = bool(who["chosen"]) and who["chosen_what"] == "color"
+            buffs.append(StaticBuff(_modifier(m, 2), who["other"] is not None or (who["other_chosen"] or "").startswith("O"),
+                                    "chosen" if who["chosen"] and not chosen_color else who["sub"] or who["tribe"], line,
+                                    condition=condition,
+                                    color="chosen" if chosen_color else colors.get((who["color"] or who["global"] or "").lower()),
                                     attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]),
                                     token=bool(who["tokens"]),
                                     with_counters=bool(who["counters"]), plus_counter=bool(who["plus"])))
@@ -1925,6 +1939,7 @@ class Replacements:
     die_exile: str | None = None  # "opponent": their creatures are exiled instead of dying (Liesa); "self": this one is
     extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice;
     #                                    "spell": casting or copying an instant or sorcery does
+    enter_counter_chosen: int = 0  # Metallic Mimic: other creatures of the type it chose enter with that many more +1/+1 counters
 
 
 @lru_cache(maxsize=None)
@@ -1965,6 +1980,10 @@ def replacement_effects(card: Card) -> Replacements:
             found["extra_trigger"] = "spell"
         elif _EXTRA_TRIGGER_WIZARD.fullmatch(line):
             found["extra_trigger"] = "wizard"
+        elif _EXTRA_TRIGGER_CHOSEN.fullmatch(line):
+            found["extra_trigger"] = "chosen_type"
+        elif line == _ENTER_CHOSEN:
+            found["enter_counter_chosen"] = found.get("enter_counter_chosen", 0) + 1
         elif line == _LIFE_GAIN_PLUS_ONE:
             found["life_gain_plus"] = found.get("life_gain_plus", 0) + 1
     return Replacements(**found)
@@ -1983,8 +2002,15 @@ _EXTRA_TRIGGER_WIZARD = re.compile(r"If a triggered ability of a Shaman or anoth
                                    r"an additional time\.")
 
 
+# Roaming Throne.
+_EXTRA_TRIGGER_CHOSEN = re.compile(r"If a triggered ability of another creature you control of the chosen type triggers, it triggers "
+                                   r"an additional time\.")
+# Metallic Mimic.
+_ENTER_CHOSEN = "Each other creature you control of the chosen type enters with an additional +1/+1 counter on it."
+
+
 def is_replacement_line(line: str) -> bool:
-    return (_EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT)
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None)
@@ -7994,6 +8020,30 @@ _CONDITION_WORD = re.compile(r"(?:Metalcraft|Threshold|Hellbent|Delirium|Revolt)
 def _mana_line(card: Card) -> str | None:
     """The card's plain "{T}: Add ..." line (Signet-style lines are filter_mana_ability's)."""
     return next((line for line in rules_lines(card) if _mana_match(line)), None)
+
+
+@dataclass(frozen=True)
+class RestrictedMana:
+    """Cavern of Souls, Unclaimed Territory, Delighted Halfling: a second mana ability for one mana of any color that can only
+    be spent on some spells ("creature spell of the chosen type", "legendary spell"), and perhaps makes that spell uncounterable."""
+    spell: str  # "chosen_creature" or "legendary"
+    uncounterable: bool
+
+
+_RESTRICTED_MANA = re.compile(r"\{T\}: Add one mana of any color\. Spend this mana only to cast "
+                              r"(a creature spell of the chosen type|a legendary spell)(, and that spell can't be countered)?\.")
+
+
+@lru_cache(maxsize=None)
+def restricted_mana(card: Card) -> RestrictedMana | None:
+    for line in rules_lines(card):
+        if m := _RESTRICTED_MANA.fullmatch(line):
+            return RestrictedMana("chosen_creature" if "chosen type" in m[1] else "legendary", bool(m[2]))
+    return None
+
+
+def is_restricted_mana_line(line: str) -> bool:
+    return _RESTRICTED_MANA.fullmatch(line) is not None
 
 
 def mana_condition(card: Card) -> "Condition | None":
