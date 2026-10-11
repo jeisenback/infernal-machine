@@ -763,6 +763,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     for it fires, so a new event for an occurrence the game already announces needs only a declaration. An event the game
     does not declare is an error, not a trigger that silently never fires; `tests/test_events.py` checks that every declared
     event is announced somewhere and every announcement names a declared event.
+  - Urza's Saga: a chapter that says 'This Saga gains "..."' (`GainsAbility`) adds the line to the permanent's text for as long as it stays
+    (the card goes back to the graveyard as printed; a gained "{T}: Add {C}." also tells a land what it makes), and "search for an
+    artifact card with mana cost {0} or {1}, put it onto the battlefield" (read as mana value 1 or less). A land with no mana of
+    its own is no longer a mana source.
   - Teferi's Protection: on top of the Ring's player protection, "your life total can't change" until your next turn
     (`Seat.life_locked`; `change_life` does nothing while it holds), "all permanents you control phase out" (the existing phasing,
     with what is attached), and a spell's own "Exile CARDNAME." sentence (it is exiled instead of going to the graveyard).

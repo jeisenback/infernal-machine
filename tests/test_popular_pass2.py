@@ -1,5 +1,6 @@
 """The second popularity pass: the most played cards still missing a rules line, each from the card's own Oracle text."""
 
+import dataclasses
 import unittest
 
 from infernal_machine.cards import Card
@@ -15,9 +16,9 @@ from tests.test_x_targets import script
 
 VERGE = real("Blazemire Verge", "", "Land", "{T}: Add {B}.\n{T}: Add {R}. Activate only if you control a Swamp or a Mountain.")
 SPIRE = real("Spire of Industry", "", "Land", "{T}: Add {C}.\n{T}, Pay 1 life: Add one mana of any color. Activate only if you control an artifact.")
-TOWER = real("Urza's Tower", "", "Land — Urza's Tower", "{T}: Add {C}. If you control an Urza's Mine and an Urza's Power-Plant, add {C}{C}{C} instead.")
-MINE = real("Urza's Mine", "", "Land — Urza's Mine", "{T}: Add {C}. If you control an Urza's Power-Plant and an Urza's Tower, add {C}{C} instead.")
-PLANT = real("Urza's Power-Plant", "", "Land — Urza's Power-Plant", "{T}: Add {C}. If you control an Urza's Mine and an Urza's Tower, add {C}{C} instead.")
+TOWER = dataclasses.replace(real("Urza's Tower", "", "Land — Urza's Tower", "{T}: Add {C}. If you control an Urza's Mine and an Urza's Power-Plant, add {C}{C}{C} instead."), produced_mana=("C",))
+MINE = dataclasses.replace(real("Urza's Mine", "", "Land — Urza's Mine", "{T}: Add {C}. If you control an Urza's Power-Plant and an Urza's Tower, add {C}{C} instead."), produced_mana=("C",))
+PLANT = dataclasses.replace(real("Urza's Power-Plant", "", "Land — Urza's Power-Plant", "{T}: Add {C}. If you control an Urza's Mine and an Urza's Tower, add {C}{C} instead."), produced_mana=("C",))
 SPIRIT_GUIDE = real("Simian Spirit Guide", "{2}{R}", "Creature — Ape Spirit", "Exile this card from your hand: Add {R}.", "2", "2")
 SWAMP = Card(name="Swamp", type_line="Basic Land — Swamp", produced_mana=("B",))
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))

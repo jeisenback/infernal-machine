@@ -3710,6 +3710,22 @@ class UntapThat:
 
 
 @dataclass(frozen=True)
+class GainsAbility:
+    """Urza's Saga: 'This Saga gains "{T}: Add {C}."' For as long as it stays on the battlefield its text has the line, as a Class's
+    does once it levels up (the card it really is waits in `real_card` until it leaves)."""
+    line: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        source = game.resolving_source
+        if source is not None and game.on_battlefield(source):
+            source.real_card = source.real_card or source.card
+            made = re.match(r"\{T\}: Add ((?:\{[WUBRGC]\})+)\.", self.line)  # a land is told what it makes by its data
+            produced = source.card.produced_mana + tuple(s for s in re.findall(r"[WUBRGC]", made[1]) if s not in source.card.produced_mana) if made \
+                else source.card.produced_mana
+            source.card = dataclasses.replace(source.card, oracle_text=f"{source.card.oracle_text}\n{self.line}", produced_mana=produced)
+
+
+@dataclass(frozen=True)
 class PlayerProtection:
     """The One Ring: "You gain protection from everything until your next turn." Nothing can target you and all damage to you is
     prevented, until your next turn begins."""
@@ -4885,6 +4901,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchForLands(_count(m[1]), (), 0, False, True)),
     (re.compile(rf"untap up to {_NUM} lands\.", re.I), lambda m: UntapLands(_count(m[1]))),
     (re.compile(r"you gain protection from everything until your next turn\.", re.I), lambda m: PlayerProtection()),
+    (re.compile(r"(?:this (?:Saga|creature|artifact|enchantment|land)|CARDNAME) gains \"(.+)\"\.?", re.I),  # the ability stays: a Saga's chapter
+     lambda m: GainsAbility(line) if _is_known_ability(line := m[1].replace("'", '"')) else None),
+    (re.compile(r"search your library for an? ([a-z]+) card with mana cost \{0\} or \{1\}, put it onto the battlefield, then shuffle\.", re.I),
+     lambda m: SearchLibrary(f"{m[1].lower()}|mv<=1", "battlefield", False)),  # (mana value 1 or less: the same for every such artifact)
     (re.compile(r"until your next turn, your life total can't change and you gain protection from everything\.", re.I),
      lambda m: [LifeLocked(), PlayerProtection()]),
     (re.compile(r"all permanents you control phase out\.", re.I), lambda m: PhaseOutAll()),
