@@ -224,6 +224,17 @@ class GainLife:
 
 
 @dataclass(frozen=True)
+class PlayerLosesLife:
+    """Afflict N: "defending player loses N life", the player the trigger is about."""
+    amount: int
+    uses_player = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.change_life(target, -self.amount)
+
+
+@dataclass(frozen=True)
 class OpponentsLoseLife:
     amount: int
 
@@ -1355,6 +1366,7 @@ _COMBAT_RESTRICTIONS = [
      lambda m: CombatRestriction("cant_block", _power_test(m, 1))),
     (re.compile(r"All creatures able to block (?:this creature|CARDNAME) do so\.", re.I),
      lambda m: CombatRestriction("all_must_block")),
+    (re.compile(rf"{_SELF} must be blocked if able\.", re.I), lambda m: CombatRestriction("must_be_blocked")),
     (re.compile(rf"{_SELF} can't be blocked by more than {_NUM} creatures?\.", re.I),
      lambda m: CombatRestriction("max_blockers", str(_count(m[1])))),
     (re.compile(rf"{_SELF} can't be blocked except by {_NUM} or more creatures\.", re.I),
@@ -6818,6 +6830,7 @@ _TRIGGERS = {
     "attacks": re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I),
     "attacks_player": re.compile(rf"Whenever {_SELF} attacks an opponent, (.+)", re.I),
     "blocks": re.compile(rf"Whenever {_SELF} blocks, (.+)", re.I),
+    "becomes_blocked": re.compile(rf"Whenever {_SELF} becomes blocked, (.+)", re.I),
     "ally_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
     "attacked": re.compile(r"Whenever a creature attacks you, (.+)", re.I),
     "attacked_or_walker": re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),
@@ -6896,6 +6909,7 @@ _SELF_EVENTS = {
     "dies": r"dies",
     "attacks": r"attacks",
     "blocks": r"blocks",
+    "becomes_blocked": r"becomes blocked",
     "combat_damage_to_player": r"deals combat damage to a player",
     "targeted": r"becomes the target of an? (?:spell|spell or ability)",
 }
@@ -7092,6 +7106,16 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
                                               Watch("noncreature spell", caster="you")))
         if "exalted" in words:  # whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn
             abilities.append(TriggeredAbility("attack_alone", (OnSubject(PumpSource(Modifier(1, 1))),), False, "Exalted"))
+        for word in words:  # Bushido N, Afflict N, Rampage N: abilities of blocking and being blocked
+            if m := _BLOCK_KEYWORD.fullmatch(word):
+                n = int(m[2])
+                if m[1] == "bushido":
+                    abilities += [TriggeredAbility(event, (PumpSource(Modifier(n, n)),), False, word.capitalize())
+                                  for event in ("blocks", "becomes_blocked")]
+                elif m[1] == "afflict":
+                    abilities.append(TriggeredAbility("becomes_blocked", (PlayerLosesLife(n),), False, word.capitalize()))
+                else:  # rampage: +N/+N for each creature blocking it beyond the first (the trigger carries that number)
+                    abilities.append(TriggeredAbility("becomes_blocked", (PumpSourceX(n, n),), False, word.capitalize()))
         if "living weapon" in words:
             abilities.append(TriggeredAbility("enters", (LivingWeapon(),), False, "Living weapon"))
         for keyword, counter in (("persist", "-1/-1"), ("undying", "+1/+1")):
@@ -7110,6 +7134,7 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
 
 _TRIGGERS_ONCE = " This ability triggers only once each turn."
 _BACKUP = re.compile(r"Backup (\d+)")
+_BLOCK_KEYWORD = re.compile(r"(bushido|afflict|rampage) (\d+)")
 _HIDEAWAY = re.compile(r"Hideaway (\d+)")
 
 
