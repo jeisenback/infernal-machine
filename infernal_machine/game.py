@@ -25,7 +25,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -59,6 +59,7 @@ CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
+UNEARTH = "Unearth: "  # followed by the card's name
 SUSPEND = "Suspend: "  # followed by the card's name
 CAST_PARAGON = "Cast from graveyard (once a turn): "  # Serra Paragon
 PLAY_PARAGON = "Play land from graveyard: "
@@ -221,6 +222,7 @@ class Permanent:
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
     stored: int = 0  # a number it remembers (the life Soulgorger Orgg's controller lost)
     goad_forever: "Seat | None" = None  # goaded for the rest of the game by this player (Life of the Party's copies)
+    unearthed: bool = False  # brought back with unearth: exiled instead of going anywhere else, and at the next end step
     paragon_life: tuple["Seat", int] | None = None  # played with Serra Paragon: (who gains life, how much) when it goes to the graveyard
 
 
@@ -728,6 +730,8 @@ class Game:
             for card in _unique(seat.graveyard):
                 if (cost := encore_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
                     actions.append(ENCORE + card.name)
+                if (cost := unearth_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
+                    actions.append(UNEARTH + card.name)
         for card in _unique([c for c, until in seat.exile_play if self.turn <= until and c in seat.exile]):
             if is_land(card):
                 if sorcery_timing and seat.lands_played < 1:
@@ -1462,6 +1466,8 @@ class Game:
             seat.exile.append(card)
             seat.suspended.append([card, counters])
             self.broadcast({"event": "suspended", "seat": seat.index, "card": card.name, "counters": counters})
+        elif action.startswith(UNEARTH):
+            self._unearth(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(UNEARTH)))
         elif action.startswith(ENCORE):
             self._encore(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ENCORE)))
         elif action.startswith(CAST_PREPARED):
@@ -3484,6 +3490,21 @@ class Game:
         self._left_graveyard(seat, [dead.card])
         self._enter(seat, Permanent(dead.card, sick=True, loyalty=_starting_loyalty(dead.card), counters={counter: 1}))
 
+    def _unearth(self, seat: Seat, card: Card) -> None:
+        """Unearth: pay its cost and return it from the graveyard (it is not cast); it has haste, and is exiled at the beginning
+        of the next end step or instead of leaving the battlefield some other way."""
+        tapped = self._payment(seat, dataclasses.replace(card, mana_cost=unearth_cost(card)))
+        self._spend_mana(seat, tapped)
+        seat.graveyard.remove(card)
+        self.broadcast({"event": "unearth", "seat": seat.index, "card": card.name})
+        self._left_graveyard(seat, [card])
+        permanent = Permanent(card, sick=True, unearthed=True)
+        self._enter(seat, permanent)
+        self.modify_until_end_of_turn(permanent, Modifier(keywords=frozenset({"haste"})))
+        fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+        self.at_end_step.append((fire_turn, lambda: self._leave_together(
+            [(permanent, "exiled")] if self.on_battlefield(permanent) else [], "exile")))
+
     def _encore(self, seat: Seat, card: Card) -> None:
         """Encore: pay its cost and exile it from the graveyard; for each opponent, a token copy with haste attacks that
         opponent this turn if able and is sacrificed at the beginning of the next end step."""
@@ -4861,6 +4882,8 @@ class Game:
             controller = permanent.last_controller
             destination = ("exile" if destination_all == "graveyard" and permanent.counters.get("finality")
                            and "Creature" in permanent.card.type_line else destination_all)  # a finality counter: exiled, not dying
+            if permanent.unearthed:
+                destination = "exile"  # unearth: exiled if it would leave the battlefield, so it never dies or goes to a hand
             if destination == "graveyard":
                 if self.graveyarded_turn != self.turn:
                     self.graveyarded_turn, self.graveyarded_count = self.turn, 0
