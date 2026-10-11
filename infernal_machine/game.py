@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import itertools
 import random
 import re
 from itertools import combinations, permutations
@@ -114,10 +115,11 @@ NOT_A_COPY = "Don't copy anything"
 CREW_PROMPT = "Choose a creature to tap to crew "  # followed by the Vehicle's name
 PROLIFERATE_PROMPT = "Proliferate: choose a permanent"
 DONE = "Done"
-SINGLE_TARGET_KINDS = {  # what "Change the target of target ..." can be aimed at
-    "spell with a single target": lambda item: not item.ability,
-    "spell or ability with a single target": lambda item: True,
-    "activated ability with a single target": lambda item: isinstance(item.ability, ActivatedAbility),
+STACK_TARGET_KINDS = {  # what "Change the target of target ..." can be aimed at: which items, and whether they need a lone target
+    "spell with a single target": (lambda item: not item.ability, True),
+    "spell or ability with a single target": (lambda item: True, True),
+    "activated ability with a single target": (lambda item: isinstance(item.ability, ActivatedAbility), True),
+    "spell or ability": (lambda item: True, False),  # Deflecting Swat
 }
 NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
@@ -323,6 +325,7 @@ class StackItem:
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
     whole: Card | None = None  # cast as one half of this card (an Adventure, a split half): the card that moves between zones
     from_hand: bool = False  # cast from its owner's hand (rebound only works then)
+    shuffle_after: bool = False  # Green Sun's Zenith: shuffled into its owner's library once it has resolved
 
     @property
     def physical(self) -> Card:
@@ -1490,9 +1493,15 @@ class Game:
 
     def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0,
                         bought_back: bool = False) -> bool:
-        """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs, a non-mana
-        kicker cost, and `alternative`'s condition, life and card to exile."""
+        """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs (one of the two in "sacrifice an
+        artifact or discard a card"), a non-mana kicker cost, and `alternative`'s condition, life and card to exile."""
         extras = self._extra_costs(card, kicked, bought_back)
+        plain = [c for c in extras if not c.options]
+        choices = [c for c in extras if c.options]
+        return any(self._extras_payable(seat, card, alternative, plain + list(picked))
+                   for picked in itertools.product(*(c.options for c in choices)))
+
+    def _extras_payable(self, seat: Seat, card: Card, alternative: AlternativeCost | None, extras: list) -> bool:
         others = list(seat.hand)
         if card in others:
             others.remove(card)
@@ -1536,7 +1545,7 @@ class Game:
             seat.hand.remove(exiled)
             self.broadcast({"event": "exiled_from_hand", "seat": seat.index, "card": exiled.name})
             self._move_card(seat, exiled, "exile")
-        extras = self._extra_costs(card, kicked, bought_back)
+        extras = self._chosen_extras(seat, card, alternative, self._extra_costs(card, kicked, bought_back))
         for extra in extras:
             if extra.discard:
                 discarded = seat.hand[seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])]
@@ -1551,6 +1560,15 @@ class Game:
                 + (x if any(c.life_x for c in additional_costs(card)) else 0))
         if life:
             self.change_life(seat, -life)
+
+    def _chosen_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, extras: list) -> list:
+        """`extras` with each "this or that" cost replaced by the one `seat` pays (asked when both can be paid)."""
+        chosen = [c for c in extras if not c.options]
+        for entry in (c for c in extras if c.options):
+            payable = [o for o in entry.options if self._extras_payable(seat, card, alternative, [*chosen, o])] or list(entry.options[:1])
+            chosen.append(payable[seat.player.choose(COST_PROMPT + card.name, [_extra_text(o) for o in payable])] if len(payable) > 1
+                          else payable[0])
+        return chosen
 
     def _max_x(self, seat: Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str = "") -> int:
         x = 0
@@ -2360,6 +2378,10 @@ class Game:
             self.broadcast({"event": "buyback", "seat": item.controller.index, "card": item.card.name})
             self._move_card(item.controller, card, "hand")
             return
+        if item.shuffle_after and resolved and not item.is_copy:
+            item.controller.library.append(card)
+            self.rng.shuffle(item.controller.library)
+            return
         if item.bottom_after and card.name not in item.controller.commander_names:
             item.controller.library.append(card)
             return
@@ -2507,6 +2529,10 @@ class Game:
             return sum(_has_type(p.card, amount.what) for s in self.live_seats() for p in s.battlefield)
         if kind == "you_control":
             return sum(_has_type(p.card, amount.what) for p in controller.battlefield)
+        if kind == "greatest_power":
+            kind_wanted = amount.what.removeprefix("other ")
+            return max((self.power(p) for p in controller.battlefield if _has_type(p.card, kind_wanted)
+                        and not (kind_wanted != amount.what and p is self.resolving_source)), default=0)
         if kind == "graveyard":
             return sum(_card_matches(amount.what, c) for c in controller.graveyard)
         if kind == "half_life":
@@ -2948,9 +2974,10 @@ class Game:
         """Legal targets of `kind` for a spell or ability `caster` controls, as (label, object). `colors` are the
         colors of the source: a permanent with protection from one of them can't be chosen."""
         options: list[tuple[str, Any]] = []
-        if kind in SINGLE_TARGET_KINDS:  # Deflection, Bolt Bend, Reroute
+        if kind in STACK_TARGET_KINDS:  # Deflection, Bolt Bend, Reroute, Deflecting Swat
+            wanted, lone = STACK_TARGET_KINDS[kind]
             return [(f"{'Ability' if i.ability else 'Spell'}: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
-                    if SINGLE_TARGET_KINDS[kind](i) and self._lone_target(i) is not None]
+                    if wanted(i) and (not lone or self._lone_target(i) is not None)]
         if kind == "creature card in a graveyard":  # Animate Dead is cast on one
             kind = "graveyard:creature:any"
         if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|any>"
@@ -2999,19 +3026,23 @@ class Game:
         chosen = [i for i, t in enumerate(item.targets) if t is not None and not isinstance(t, list)]
         return chosen[0] if len(chosen) == 1 and not any(isinstance(t, list) and t for t in item.targets) else None
 
-    def change_target(self, chooser: Seat, item: StackItem) -> None:
-        """`chooser` picks a new target for the one target of `item`: another one that is legal for it. With none, nothing changes."""
-        index = self._lone_target(item)
-        if index is None:
-            return
-        effect = [e for e in item.effects if target_kind(e)][index]
-        kind = self._fixed_kind(target_kind(effect), item.source, item.x)
-        options = [o for o in self.target_options(kind, item.controller, source_qualities(item.card))
-                   if o[1] is not item.targets[index]]
-        if options:
-            label, new = options[chooser.player.choose(TARGET_PROMPT + item.card.name, [o[0] for o in options])]
-            item.targets[index] = new
-            self.broadcast({"event": "target_changed", "seat": chooser.index, "card": item.card.name, "to": label})
+    def change_target(self, chooser: Seat, item: StackItem, every: bool = False) -> None:
+        """`chooser` picks a new target for the one target of `item`: another one that is legal for it. With none, nothing changes.
+        With `every`, each of its targets may be changed, and may stay (Deflecting Swat)."""
+        effects = [e for e in item.effects or [] if target_kind(e)]
+        indexes = [i for i, t in enumerate(item.targets) if t is not None and not isinstance(t, list)] if every else [self._lone_target(item)]
+        for index in indexes:
+            if index is None:
+                return
+            current = item.targets[index]
+            kind = self._fixed_kind(target_kind(effects[index]), item.source, item.x)
+            options = self.target_options(kind, item.controller, source_qualities(item.card))
+            options = sorted(options, key=lambda o: o[1] is not current) if every else [o for o in options if o[1] is not current]
+            if options:
+                label, new = options[chooser.player.choose(TARGET_PROMPT + item.card.name, [o[0] for o in options])]
+                item.targets[index] = new
+                if new is not current:
+                    self.broadcast({"event": "target_changed", "seat": chooser.index, "card": item.card.name, "to": label})
 
     def label(self, permanent: Permanent) -> str:
         """How a permanent is shown in choices: "Grizzly Bears 2/2 (seat 1, #3)"."""
@@ -3681,6 +3712,7 @@ class Game:
         of the library ("top") after shuffling. Only "reveal" shows others which card. With a `count` above one, up to that
         many cards are found (Buried Alive), and the searcher may stop early."""
         chosen = []
+        card_type = card_type.replace("mv<=x", f"mv<={self.x_value}")  # Chord of Calling
         for _ in range(count):
             matches = _unique([c for c in seat.library if _card_matches(card_type, c)])
             if not matches:
@@ -3936,6 +3968,10 @@ class Game:
     def fight(self, first: Permanent, second: Permanent, one_sided: bool = False) -> None:
         """Two creatures each deal damage equal to their power to the other at the same time (CR 701.14). With
         `one_sided`, only `first` deals damage."""
+        if isinstance(second, Seat):  # "deals damage equal to its power to any target" aimed at a player
+            if self.on_battlefield(first):
+                self.damage(second, self.power(first), source=first)
+            return
         if not (self.on_battlefield(first) and self.on_battlefield(second)):
             return
         hit_second, hit_first = self.power(first), self.power(second)
@@ -4353,13 +4389,17 @@ class Game:
         self._searched(seat)
 
     def search_for_lands(self, seat: Seat, count: int, subtypes: tuple[str, ...], battlefield: int,
-                         tapped: bool, reveal: bool, basic_only: bool = False) -> None:
+                         tapped: bool, reveal: bool, basic_only: bool = False, share_type: bool = False) -> None:
         """Search for up to `count` lands (basic lands, or any land with one of `subtypes`): the first
-        `battlefield` go onto the battlefield and the rest into the hand, then the library is shuffled."""
+        `battlefield` go onto the battlefield and the rest into the hand, then the library is shuffled. With `share_type`
+        every land after the first has a land type the first one has (Myriad Landscape)."""
         to_battlefield: list[Card] = []
         to_hand: list[Card] = []
         for n in range(count):
             matches = _unique([c for c in seat.library if _is_searched_land(c, subtypes) and (not basic_only or "Basic" in c.type_line)])
+            if share_type and n:
+                first_types = set((to_battlefield + to_hand)[0].type_line.partition("\u2014")[2].split())
+                matches = [c for c in matches if first_types & set(c.type_line.partition("\u2014")[2].split())]
             if not matches:
                 break
             onto = n < battlefield
@@ -5817,6 +5857,11 @@ def _take_face(cards: list[Card], name: str) -> Card:
     card = next(c for c in cards if c.name == name or (c.back and c.back.name == name))
     cards.remove(card)
     return card.back if card.back and card.back.name == name else card
+
+
+def _extra_text(cost) -> str:
+    """How an additional cost is shown when there is a choice of two."""
+    return f"Sacrifice a {cost.sacrifice}" if cost.sacrifice else "Discard a card" if cost.discard else f"Pay {cost.life} life"
 
 
 def _unique(cards: list[Card]) -> list[Card]:

@@ -768,6 +768,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     the point of view of the spell's controller, and "unless that spell's controller pays {2}" (Divert) is asked of that player.
     Not understood: "that targets only a player / this creature", "the new target must be ...", changing several targets, and
     Willbender's turned-face-up trigger.
+  - Third popularity pass (`tests/test_popular_pass3.py`), the most played cards still missing a line: the Landscape fetch lands
+    ("a basic Swamp, Forest, or Island card", Myriad Landscape's two lands that share a type); "Target creature you control deals
+    damage equal to its power to ..." to a creature or planeswalker, any target, or each other creature and each opponent;
+    "the greatest power among (other) creatures you control" as an amount; "this or that" additional costs made only of a
+    sacrifice, a discard or life (`AdditionalCost.options`; a mana option such as Redirect Lightning's is not); search for a creature
+    "with mana value X or less" onto the battlefield and "Shuffle CARDNAME into its owner's library"; Deflecting Swat's "choose new
+    targets" (each target may stay); and a few single lines (Mithril Coat, Untimely Malfunction, Rakdos Charm, Damn).
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
