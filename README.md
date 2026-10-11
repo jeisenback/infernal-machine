@@ -787,6 +787,13 @@ winner = game.play()
     color with it. **Horsemanship:** only creatures with horsemanship. **Islandwalk, Swampwalk, Mountainwalk, Forestwalk and
     Plainswalk:** it can't be blocked while the defending player controls a land of that type (snow and nonbasic landwalk are
     not read). A printed "This creature can't be blocked." works like the granted one.
+  - **Blocking limits** read from the creature's own text: "can't be blocked by creatures with power N or less / greater" (by
+    the blocker's current power), "by artifact creatures", "by Walls", "by blue creatures" (any color), "by creatures with
+    flying"; "can't be blocked except by black creatures" / "by creatures with flying"; "can't be blocked by more than one
+    creature" (further blockers are not offered the block); "can't be blocked except by three or more creatures" (fewer
+    blockers than that and it is unblocked instead, as with menace); "can't block creatures with power N or greater"; and
+    "can't block and can't be blocked". The group forms ("each creature you control can't be blocked by more than one
+    creature") and the activated "{1}{G}: can't be blocked this turn" forms are not read.
   - **"This creature attacks each combat if able.":** the creature is never offered "Don't attack"; its controller still
     picks whom it attacks. A creature that can't attack (tapped, summoning sick, defender) is not asked.
   - **Infect:** its damage to a player is that many poison counters instead of life loss, and its damage to a creature is

@@ -1321,12 +1321,42 @@ def flat_attack_tax(card: Card) -> int:
 class CombatRestriction:
     """A static ability that limits who attacks or blocks: `kind` is "no_attack_tribe" (Inklings can't attack you),
     "no_attack_enchanted" (creatures enchanted by an Aura you control can't attack you), "block_only_flying" (Brazen Borrower)
-    or "weaker_cant_block" (Elusive Otter: creatures with less power can't block it)."""
+    or "weaker_cant_block" (Elusive Otter: creatures with less power can't block it). The blocking ones take a creature test
+    in `what` ("power<=2", "type:Artifact", "color:U", "keyword:flying"): "not_blocked_by" (can't be blocked by creatures that
+    pass it), "only_blocked_by" (can't be blocked except by creatures that pass it), "cant_block" (can't block attackers that pass
+    it); and a number in `what`: "max_blockers" (can't be blocked by more than N creatures), "min_blockers" (can't be blocked
+    except by N or more creatures)."""
     kind: str
     what: str = ""  # the creature type for "no_attack_tribe"
 
 
+_NUM = r"(\d+|one|two|three|four|five)"
+_COLORS = "|".join(_COLOR_LETTER)
+
+
+def _power_test(m: re.Match, first: int) -> str:
+    return f"power{'<=' if m[first + 1].lower() == 'less' else '>='}{m[first]}"
+
+
 _COMBAT_RESTRICTIONS = [
+    (re.compile(rf"{_SELF} can't be blocked by creatures with power (\d+) or (less|greater)\.", re.I),
+     lambda m: CombatRestriction("not_blocked_by", _power_test(m, 1))),
+    (re.compile(rf"{_SELF} can't be blocked by (artifact creatures|Walls)\.", re.I),
+     lambda m: CombatRestriction("not_blocked_by", "type:" + ("Artifact" if m[1].lower().startswith("a") else "Wall"))),
+    (re.compile(rf"{_SELF} can't be blocked by ({_COLORS}) creatures\.", re.I),
+     lambda m: CombatRestriction("not_blocked_by", "color:" + _COLOR_LETTER[m[1].lower()])),
+    (re.compile(rf"{_SELF} can't be blocked by creatures with flying\.", re.I),
+     lambda m: CombatRestriction("not_blocked_by", "keyword:flying")),
+    (re.compile(rf"{_SELF} can't be blocked except by ({_COLORS}) creatures\.", re.I),
+     lambda m: CombatRestriction("only_blocked_by", "color:" + _COLOR_LETTER[m[1].lower()])),
+    (re.compile(rf"{_SELF} can't be blocked except by creatures with flying\.", re.I),
+     lambda m: CombatRestriction("only_blocked_by", "keyword:flying")),
+    (re.compile(rf"{_SELF} can't block creatures with power (\d+) or (less|greater)\.", re.I),
+     lambda m: CombatRestriction("cant_block", _power_test(m, 1))),
+    (re.compile(rf"{_SELF} can't be blocked by more than {_NUM} creatures?\.", re.I),
+     lambda m: CombatRestriction("max_blockers", str(_count(m[1])))),
+    (re.compile(rf"{_SELF} can't be blocked except by {_NUM} or more creatures\.", re.I),
+     lambda m: CombatRestriction("min_blockers", str(_count(m[1])))),
     (re.compile(r"((?-i:[A-Z][a-z]+))s can't attack you or planeswalkers you control\.", re.I),
      lambda m: CombatRestriction("no_attack_tribe", m[1])),
     (re.compile(r"Each creature that's enchanted by an Aura you control can't attack you or planeswalkers you control\."),
@@ -1597,7 +1627,7 @@ _ATTACHED_TYPED = re.compile(rf"Enchanted creature gets {_PT}, has ({_KW}(?: and
 _ATTACHED_GOADED = re.compile(rf"Enchanted creature gets {_PT}(?:, has ({_KW}),)? and is goaded\.")
 
 
-_CANT = re.compile(rf"{_SELF} can't (attack or block|attack|block|be blocked)\.", re.I)
+_CANT = re.compile(rf"{_SELF} can't (attack or block|attack|block|be blocked|block and can't be blocked)\.", re.I)
 _MUST_ATTACK = re.compile(rf"{_SELF} attacks each combat if able\.", re.I)
 _SELF_STATIC = re.compile(rf"{_SELF} (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS})\.", re.I)
 _AS_LONG_AS_FIRST = re.compile(r"As long as (.+?), (.+\.)")
@@ -1644,7 +1674,8 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             buffs.append(StaticBuff(modifier, False, None, line, self_only=True, condition=condition,
                                     per=_PER_LOWER[m[3].lower()]))
         elif m := _CANT.fullmatch(sentence):  # "This creature can't block." (a token's, for one)
-            keywords = {"attack": {CANT_ATTACK}, "block": {CANT_BLOCK}, "be blocked": {CANT_BE_BLOCKED}}.get(m[1].lower(), {CANT_ATTACK, CANT_BLOCK})
+            keywords = {"attack": {CANT_ATTACK}, "block": {CANT_BLOCK}, "be blocked": {CANT_BE_BLOCKED},
+                        "block and can't be blocked": {CANT_BLOCK, CANT_BE_BLOCKED}}.get(m[1].lower(), {CANT_ATTACK, CANT_BLOCK})
             buffs.append(StaticBuff(Modifier(0, 0, frozenset(keywords)), False, None, line, self_only=True, condition=condition))
         elif _MUST_ATTACK.fullmatch(sentence):
             buffs.append(StaticBuff(Modifier(0, 0, frozenset({MUST_ATTACK})), False, None, line, self_only=True, condition=condition))

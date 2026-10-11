@@ -204,7 +204,8 @@ class Combat:
             for permanent in list(seat.battlefield):
                 if permanent.tapped or "Creature" not in permanent.card.type_line:
                     continue
-                blockable = [a for a in self.attacks if a.defender is seat and self._can_block(permanent, a.attacker)]
+                blockable = [a for a in self.attacks if a.defender is seat and self._can_block(permanent, a.attacker)
+                             and not self._has_enough_blockers(a)]
                 if not blockable:
                     continue
                 options = [NO_BLOCK] + [f"Block {self.game.label(a.attacker)}" for a in blockable]
@@ -216,12 +217,20 @@ class Combat:
                     self.game.broadcast({"event": "block", "seat": seat.index, "card": permanent.card.name,
                                          "attacker": attack.attacker.card.name})
         for attack in self.attacks:
-            # Menace: a creature blocked by only one creature is unblocked instead (CR 702.111b).
-            if self.game.has_keyword(attack.attacker, "menace") and len(attack.blockers) == 1:
+            # Menace: a creature blocked by only one creature is unblocked instead (CR 702.111b); so is one that can't be
+            # blocked except by three or more, when fewer than that block it.
+            needed = max([2 if self.game.has_keyword(attack.attacker, "menace") else 0]
+                         + [int(r.what) for r in combat_restrictions(attack.attacker.card) if r.kind == "min_blockers"])
+            if 0 < len(attack.blockers) < needed:
                 self.game.broadcast({"event": "block_removed", "card": attack.blockers[0].card.name,
-                                     "reason": "menace"})
+                                     "reason": "menace" if needed == 2 else f"needs {needed} blockers"})
                 attack.blockers = []
             attack.blocked = bool(attack.blockers)
+
+    @staticmethod
+    def _has_enough_blockers(attack: Attack) -> bool:
+        """Whether a creature that "can't be blocked by more than one creature" already has all the blockers it can have."""
+        return any(r.kind == "max_blockers" and len(attack.blockers) >= int(r.what) for r in combat_restrictions(attack.attacker.card))
 
     def has_first_strike(self) -> bool:
         creatures = [a.attacker for a in self.attacks] + [b for a in self.attacks for b in a.blockers]
@@ -318,6 +327,12 @@ class Combat:
             return False
         if self._evades(blocker, attacker):
             return False
+        for r in combat_restrictions(attacker.card):  # "can't be blocked by creatures with power 2 or less", "... except by black creatures"
+            if (r.kind == "not_blocked_by" and self._passes(blocker, r.what)) \
+                    or (r.kind == "only_blocked_by" and not self._passes(blocker, r.what)):
+                return False
+        if any(r.kind == "cant_block" and self._passes(attacker, r.what) for r in combat_restrictions(blocker.card)):
+            return False  # "This creature can't block creatures with power 3 or greater."
         if self._has(attacker, "skulk") and self.game.power(blocker) > self.game.power(attacker):
             return False
         if any(r.kind == "block_only_flying" for r in combat_restrictions(blocker.card)) and not self._has(attacker, "flying"):
@@ -330,6 +345,18 @@ class Combat:
         if self._has(attacker, "flying"):
             return self._has(blocker, "flying") or self._has(blocker, "reach")
         return True
+
+    def _passes(self, creature: Permanent, test: str) -> bool:
+        """Whether a creature passes a restriction's test: "power<=2", "power>=3", "type:Artifact", "color:U", "keyword:flying"."""
+        kind, _, value = test.partition(":")
+        if test.startswith("power"):
+            power = self.game.power(creature)
+            return power <= int(test[7:]) if test[5] == "<" else power >= int(test[7:])
+        if kind == "type":
+            return value in creature.card.type_line
+        if kind == "color":
+            return value in creature.card.colors
+        return self._has(creature, value)
 
     def _evades(self, blocker: Permanent, attacker: Permanent) -> bool:
         """Whether the attacker's fear, intimidate, horsemanship or landwalk keeps this creature from blocking it."""
