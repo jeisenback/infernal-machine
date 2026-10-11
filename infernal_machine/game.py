@@ -24,7 +24,7 @@ from .cards import Card, Deck, has_keyword, shown_type_line
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
-from .effects import (EVENTS, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
+from .effects import (EVENTS, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
@@ -132,6 +132,7 @@ STACK_TARGET_KINDS = {  # what "Change the target of target ..." can be aimed at
     "spell or ability that targets only this creature": (lambda item, target, me: target is me, True),
     "spell or ability": (lambda item, target, me: True, False),  # Deflecting Swat, Spellskite
 }
+MORPH_RETURN_PROMPT = "Return which permanent to turn face up "  # followed by the creature's name
 CHANGE_WHICH_PROMPT = "Change which target of "  # followed by the spell's name
 NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
@@ -249,7 +250,7 @@ class Permanent:
     must_block_what: "Permanent | None" = None  # ... that creature in particular ("blocks this creature this turn if able")
     vow_of: "Seat | None" = None  # Promise of Loyalty: while it has a vow counter it can't attack this player
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
-    turn_up_cost: str = ""  # Morph, Megamorph, Disguise: the mana cost to turn it face up (a manifested card uses its own mana cost)
+    turn_up_cost: "MorphCost | None" = None  # Morph, Megamorph, Disguise: what it costs to turn it face up (a manifested card pays its own mana cost)
     megamorph: bool = False  # it gets a +1/+1 counter when it is turned face up
     doors: tuple[str, ...] = ()  # a Room: the names of its unlocked doors (its `card` reads as only those; the whole card is `real_card`)
     cast: bool = False  # it came from a spell that was cast ("When it enters, if you cast it")
@@ -343,7 +344,7 @@ class StackItem:
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
     whole: Card | None = None  # cast as one half of this card (an Adventure, a split half): the card that moves between zones
     from_hand: bool = False  # cast from its owner's hand (rebound only works then)
-    face_down: tuple[str, str] | None = None  # cast face down: (Morph, Megamorph or Disguise; the cost to turn it face up)
+    face_down: tuple[str, "MorphCost"] | None = None  # cast face down: (Morph, Megamorph or Disguise; the cost to turn it face up)
     shuffle_after: bool = False  # Green Sun's Zenith: shuffled into its owner's library once it has resolved
 
     @property
@@ -2136,7 +2137,7 @@ class Game:
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
               graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False,
               copy: bool = False, bottom_after: bool = False, madness: AlternativeCost | None = None,
-              whole: Card | None = None, face_down: tuple[str, str] | None = None) -> None:
+              whole: Card | None = None, face_down: tuple[str, MorphCost] | None = None) -> None:
         effects = _effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
         extra = ""
@@ -3616,16 +3617,59 @@ class Game:
     def _turn_up_options(self, seat: Seat) -> list[Permanent]:
         """Face-down creatures of `seat` (manifested, or cast with morph) that it can afford to turn face up."""
         return [p for p in seat.battlefield if p.manifested and p.real_card is not None
-                and "Creature" in p.real_card.type_line and self._payment(seat, self._turn_up_card(p)) is not None]
+                and "Creature" in p.real_card.type_line and self._payment(seat, self._turn_up_card(p)) is not None
+                and self._morph_payable(seat, p)]
 
     @staticmethod
     def _turn_up_card(permanent: Permanent) -> Card:
         """The card to pay for when turning `permanent` face up: its morph cost, or a manifested card's own mana cost."""
         real = permanent.real_card
-        return dataclasses.replace(real, mana_cost=permanent.turn_up_cost) if permanent.turn_up_cost else real
+        return dataclasses.replace(real, mana_cost=permanent.turn_up_cost.mana or "{0}") if permanent.turn_up_cost else real
+
+    def _morph_payable(self, seat: Seat, permanent: Permanent) -> bool:
+        """Whether `seat` can pay the part of a morph cost that isn't mana: a sacrifice, a card to reveal or discard, a return, life."""
+        cost = permanent.turn_up_cost
+        if cost is None:
+            return True
+        if cost.sacrifice and len(self._morph_permanents(seat, permanent, cost.sacrifice)) < cost.count:
+            return False
+        if cost.bounce and len(self._morph_permanents(seat, permanent, cost.bounce)) < cost.count:
+            return False
+        if cost.discard and not any(_card_matches(cost.discard, c) for c in seat.hand):
+            return False
+        return (not cost.reveal or any(cost.reveal in c.colors for c in seat.hand)) and cost.life <= seat.life
+
+    @staticmethod
+    def _morph_permanents(seat: Seat, permanent: Permanent, kind: str) -> list[Permanent]:
+        """The permanents of `kind` ("another creature", "Mountain") that can pay for turning `permanent` face up."""
+        return [p for p in seat.battlefield if p is not permanent and _permanent_matches(kind.removeprefix("another "), p.card)]
+
+    def _pay_morph(self, seat: Seat, permanent: Permanent) -> None:
+        cost = permanent.turn_up_cost
+        if cost is None:
+            return
+        for _ in range(cost.count if cost.sacrifice else 0):
+            options = self._morph_permanents(seat, permanent, cost.sacrifice)
+            self._leave_together([(options[seat.player.choose(SACRIFICE_COST_PROMPT + permanent.real_card.name,
+                                                               [self.label(p) for p in options])], "sacrificed")])
+        for _ in range(cost.count if cost.bounce else 0):
+            options = self._morph_permanents(seat, permanent, cost.bounce)
+            self.return_to_hand(options[seat.player.choose(MORPH_RETURN_PROMPT + permanent.real_card.name, [self.label(p) for p in options])])
+        if cost.discard:
+            options = [c for c in seat.hand if _card_matches(cost.discard, c)]
+            discarded = options[seat.player.choose(DISCARD_PROMPT, [c.name for c in options])]
+            seat.hand.remove(discarded)
+            self.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
+            self._discard_into_zone(seat, discarded)
+        if cost.reveal:
+            revealed = next(c for c in seat.hand if cost.reveal in c.colors)
+            self.broadcast({"event": "revealed", "seat": seat.index, "card": revealed.name})
+        if cost.life:
+            self.change_life(seat, -cost.life)
 
     def turn_face_up(self, seat: Seat, permanent: Permanent) -> None:
         self._spend_mana(seat, self._payment(seat, self._turn_up_card(permanent)))
+        self._pay_morph(seat, permanent)
         permanent.card, permanent.real_card, permanent.manifested = permanent.real_card, None, False
         self.broadcast({"event": "turned_face_up", "seat": seat.index, "card": permanent.card.name})
         if permanent.megamorph:
