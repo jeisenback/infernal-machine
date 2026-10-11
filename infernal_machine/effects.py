@@ -1353,6 +1353,8 @@ _COMBAT_RESTRICTIONS = [
      lambda m: CombatRestriction("only_blocked_by", "keyword:flying")),
     (re.compile(rf"{_SELF} can't block creatures with power (\d+) or (less|greater)\.", re.I),
      lambda m: CombatRestriction("cant_block", _power_test(m, 1))),
+    (re.compile(r"All creatures able to block (?:this creature|CARDNAME) do so\.", re.I),
+     lambda m: CombatRestriction("all_must_block")),
     (re.compile(rf"{_SELF} can't be blocked by more than {_NUM} creatures?\.", re.I),
      lambda m: CombatRestriction("max_blockers", str(_count(m[1])))),
     (re.compile(rf"{_SELF} can't be blocked except by {_NUM} or more creatures\.", re.I),
@@ -5365,7 +5367,7 @@ def overloaded_effects(card: Card) -> list | None:
     if not any(_OVERLOAD.fullmatch(line) for line in rules_lines(card)):
         return None
     lines = [line for line in rules_lines(card) if not is_casting_cost_line(line)]
-    return _parse(_split_sentences(re.sub(r"\btarget\b", "each", "\n".join(lines))))
+    return _parse(_split_sentences(re.sub(r"\b([Tt])arget\b", lambda m: "Each" if m[1] == "T" else "each", "\n".join(lines))))
 
 
 def is_overload_line(line: str) -> bool:
@@ -6236,6 +6238,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ShuffleIntoLibrary()),
     (re.compile(rf"target {_PERMANENT_KIND} can't be blocked this turn\.", re.I),
      lambda m: Pump(Modifier(keywords=frozenset({CANT_BE_BLOCKED})), m[1].lower())),
+    (re.compile(rf"target {_PERMANENT_KIND} can't block this turn\.", re.I),
+     lambda m: Pump(Modifier(keywords=frozenset({CANT_BLOCK})), m[1].lower())),
+    (re.compile(rf"{_SELF} can't be blocked this turn\.", re.I),
+     lambda m: PumpSource(Modifier(keywords=frozenset({CANT_BE_BLOCKED})))),
     (re.compile(rf"(?i:each other creature that's attacking one of your opponents) {_CHANGE}"),
      lambda m: PumpOtherAttackers(_modifier(m, 1))),
     (re.compile(rf"(?i:one or two target creatures each) {_CHANGE}"),

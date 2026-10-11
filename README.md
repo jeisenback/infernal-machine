@@ -794,6 +794,12 @@ winner = game.play()
     blockers than that and it is unblocked instead, as with menace); "can't block creatures with power N or greater"; and
     "can't block and can't be blocked". The group forms ("each creature you control can't be blocked by more than one
     creature") and the activated "{1}{G}: can't be blocked this turn" forms are not read.
+  - **Flanking:** when it is blocked, each blocker without flanking gets -1/-1 until end of turn (done as the blockers are
+    set, not from a trigger on the stack). **"All creatures able to block this creature do so."** forces every untapped
+    creature that can block it to, and they are not asked about other attackers. **"{2}{U}: This creature can't be blocked
+    this turn."** and **"Target creature can't block this turn."** (as an ability, a spell or an enters trigger) last until end
+    of turn. Not read: "can't block this creature" (only one attacker), "up to two target creatures can't block", and "target
+    creature with power N or less can't be blocked".
   - **"This creature attacks each combat if able.":** the creature is never offered "Don't attack"; its controller still
     picks whom it attacks. A creature that can't attack (tapped, summoning sick, defender) is not asked.
   - **Infect:** its damage to a player is that many poison counters instead of life loss, and its damage to a creature is
