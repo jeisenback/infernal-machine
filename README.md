@@ -783,6 +783,10 @@ winner = game.play()
   - **Prowess:** whenever you cast a noncreature spell, +1/+1 until end of turn.
   - **Shadow:** it can block or be blocked only by creatures with shadow. **Skulk:** it can't be blocked by creatures
     with greater power. **Devoid** is accepted: the card data already has no color.
+  - **Changeling** (and the older "this card is every creature type"): the card's type line lists every creature type
+    (`infernal_machine/creature_types.py`, from Scryfall's catalog), so a Goblin lord, a trigger that watches Goblins and a
+    tribal attack restriction all see it. Players are shown "every creature type". A type added by a later set is missing
+    until it is added to that list. Not read: giving or taking away creature types (Maskwood Nexus, Amoeboid Changeling).
   - **Fear:** only artifact and black creatures can block it. **Intimidate:** only artifact creatures and creatures that share a
     color with it. **Horsemanship:** only creatures with horsemanship. **Islandwalk, Swampwalk, Mountainwalk, Forestwalk and
     Plainswalk:** it can't be blocked while the defending player controls a land of that type (snow and nonbasic landwalk are
