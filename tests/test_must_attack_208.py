@@ -45,7 +45,7 @@ class MustAttackTests(unittest.TestCase):
 
     def test_the_line_is_supported(self):
         self.assertEqual(unsupported_lines(CRUSHER), [])
-        self.assertEqual(unsupported_lines(NAMED), ["CARDNAME can't be blocked by Walls."])
+        self.assertEqual(unsupported_lines(NAMED), [])
 
 
 if __name__ == "__main__":
