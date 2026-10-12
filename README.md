@@ -655,7 +655,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     instead" (Furnace of Rath, Dictate of the Twin Gods, Angrath's Marauders, City on Fire, Fiery Emancipation, Gratuitous
     Violence for a creature you control, Charging Tuskodon for itself), the same to an opponent or an opponent's permanents
     (Twinflame Tyrant) or an opponent only (Fiendish Duo), noncombat only (Solphim), and "that much damage plus N" (Tomik).
-    Spells count as sources you control. Doubling applies before prevention, and several stack (two doublers: four times).
+    Spells count as sources you control. Doubling, "plus N" and prevention shields are all replacement effects, so the player being dealt the
+    damage (the controller, for a permanent) chooses the order (CR 616.1) and is asked only when the order changes the result (3 damage with a
+    shield of 2 and a doubler: 2 if the shield goes first, 4 if the doubling does); the least damage is listed first. Several stack (two doublers:
+    four times).
     Narrower sources (a red source, a Giant, an odd mana value, "another source") are not read.
   - Blightsteel Colossus, Darksteel Colossus, Legacy Weapon, Progenitus and Nexus of Fate: "If CARDNAME would be put into a
     graveyard from anywhere, reveal CARDNAME and shuffle it into its owner's library instead." It works from every zone
