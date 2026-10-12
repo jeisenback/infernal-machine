@@ -17,7 +17,7 @@ import random
 import re
 from itertools import combinations, permutations
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar
 
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword, shown_type_line
@@ -35,8 +35,10 @@ from .effects import (EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, 
                       triggered_abilities, uses_player, uses_source, uses_subject)
 from .undercity import ROOMS, START
 from .filters import parse_filter
-from .mana import GENERIC_ONLY, SNOW, Cost, parse_cost, pay
+from .mana import GENERIC_ONLY, SNOW, Cost, cost_of, parse_cost, pay
 from .player import Player
+
+_T = TypeVar("_T")
 
 STARTING_LIFE = 40
 HAND_SIZE = 7
@@ -305,7 +307,7 @@ def _pain(source: ManaSource, symbol: frozenset[str] | None) -> int:
     return source.damage if source.pain and all(t in source.pain for t in options) else 0
 
 
-class Payment(list):
+class Payment(list["Permanent"]):
     """The permanents to tap for a cost; `pain` is the damage their mana deals to the payer, `life` the life it costs,
     `pool` the mana types it uses up from the payer's mana pool."""
     pain: int = 0
@@ -313,6 +315,13 @@ class Payment(list):
     pool: tuple[frozenset[str], ...] = ()
     filters: tuple["Permanent", ...] = ()  # the permanents whose Signet-style ability ("{1}, {T}: Add ...") was used
     counters: tuple[tuple["Permanent", str, int], ...] = ()  # the lands whose mana cost counters (Vivid, depletion, storage): which, how many
+
+
+def _checked(value: _T | None) -> _T:
+    """`value` for a caller that has already checked there is one (the action was legal, so the cost can be paid, the card has
+    the ability, the spell has targets)."""
+    assert value is not None
+    return value
 
 
 @dataclass(eq=False)
@@ -897,7 +906,7 @@ class Game:
                     actions.append(ACTIVATE_HAND + card.name)
         for card in _unique(seat.graveyard):
             for ability in activated_abilities(card):
-                if ability.from_graveyard and self._pay_cost(seat, parse_cost(ability.mana_cost)) is not None:
+                if ability.from_graveyard and self._pay_cost(seat, cost_of(ability.mana_cost)) is not None:
                     actions.append(ACTIVATE_GRAVEYARD + card.name)
                     break
         if sorcery_timing:
@@ -1085,8 +1094,8 @@ class Game:
             self._leave_together([(p, "sacrificed") for p in chosen])
 
     def _ability_payment(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility,
-                         x: int = 0) -> list[Permanent] | None:
-        cost = (parse_cost(ability.mana_cost) if ability.mana_cost else Cost()).with_x(x)
+                         x: int = 0) -> Payment | None:
+        cost = (cost_of(ability.mana_cost) if ability.mana_cost else Cost()).with_x(x)
         # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
         self._spending_x = "{X}" in ability.mana_cost
         try:
@@ -1459,7 +1468,7 @@ class Game:
 
     def _payment(self, seat: Seat, card: Card, from_command_zone: bool = False, x: int = 0,
                  alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",
-                 delve: int = 0) -> list[Permanent] | None:
+                 delve: int = 0) -> Payment | None:
         """The permanents to tap for `card` with X = `x`, or None if it can't be paid for now."""
         cost = self._cast_cost(seat, card, from_command_zone, x, alternative, kickers, extra, delve)
         if cost is None:
@@ -1481,9 +1490,9 @@ class Game:
         if from_command_zone:
             cost = cost.plus_generic(self.commander_tax(seat, card))
         for kicker in kickers:
-            cost = cost + parse_cost(kicker)
+            cost = cost + cost_of(kicker)
         if extra:  # entwine, or escalate for each mode beyond the first
-            cost = cost + parse_cost(extra)
+            cost = cost + cost_of(extra)
         return cost.with_x(x).reduced(self.cost_reduction(seat, card) + delve)
 
     def cost_reduction(self, seat: Seat, card: Card) -> int:
@@ -1554,14 +1563,14 @@ class Game:
         return len([gone for _ in range(wanted) for gone in self.sacrifice(seat, "creature")])
 
     def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0,
-                        bought_back: bool = False, afford: Callable[[str], list[Permanent] | None] | None = None) -> bool:
+                        bought_back: bool = False, afford: Callable[[str], Payment | None] | None = None) -> bool:
         """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs (one of the options in "sacrifice
         an artifact or discard a card or pay {2}"), a non-mana kicker cost, and `alternative`'s condition, life and card to exile.
         `afford` gives the permanents that pay the mana cost with the extra mana an option adds, or None if it can't be paid."""
         return bool(self._payable_options(seat, card, alternative, kicked, bought_back, afford))
 
     def _payable_options(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0,
-                         bought_back: bool = False, afford: Callable[[str], list[Permanent] | None] | None = None) -> list[tuple]:
+                         bought_back: bool = False, afford: Callable[[str], Payment | None] | None = None) -> list[tuple]:
         """The ways to choose one option of each "this or that" additional cost that `seat` can pay (one empty way if the card
         has none)."""
         extras = self._extra_costs(card, kicked, bought_back)
@@ -1593,7 +1602,7 @@ class Game:
         return {id(p) for p in payment if not is_land(p.card) and mana_ability_sacrifices(p.card)}
 
     def _pick_options(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int, bought_back: bool,
-                      afford: Callable[[str], list[Permanent] | None]) -> tuple:
+                      afford: Callable[[str], Payment | None]) -> tuple:
         """The option of each "this or that" additional cost that `seat` pays: asked when more than one way can be paid."""
         ways = self._payable_options(seat, card, alternative, kicked, bought_back, afford)
         if len(ways) > 1:
@@ -1667,7 +1676,7 @@ class Game:
             x += 1
         return x
 
-    def _pay_cost(self, seat: Seat, cost: Cost, exclude: Permanent | None = None) -> list[Permanent] | None:
+    def _pay_cost(self, seat: Seat, cost: Cost, exclude: Permanent | None = None) -> Payment | None:
         """The permanents to tap for `cost`, or None if it can't be paid. A Phyrexian symbol is paid with mana
         when that works, otherwise with 2 life (never down to 0 life)."""
         for by_life in range(len(cost.phyrexian) + 1):
@@ -1680,7 +1689,7 @@ class Game:
                 return payment
         return None
 
-    def _pay_mana(self, seat: Seat, cost: Cost, exclude: Permanent | None = None) -> list[Permanent] | None:
+    def _pay_mana(self, seat: Seat, cost: Cost, exclude: Permanent | None = None) -> Payment | None:
         """The permanents to tap for a cost of mana only, or None if it can't be paid.
 
         Signet-style sources ("{1}, {T}: Add {W}{U}.") are tried only when plain
@@ -1803,7 +1812,7 @@ class Game:
             self._cast(seat, card, seat.exile)
         elif action.startswith(CAST_FACE_DOWN):
             card = next(c for c in seat.hand if c.name == action.removeprefix(CAST_FACE_DOWN))
-            kind, cost = morph_of(card)
+            kind, cost = _checked(morph_of(card))
             self._cast(seat, FACE_DOWN_DISGUISED if kind == "Disguise" else FACE_DOWN, seat.hand, whole=card, face_down=(kind, cost))
         elif action.startswith(TURN_UP):
             permanent = next(p for p in self._turn_up_options(seat) if self.label(p) == action.removeprefix(TURN_UP))
@@ -1838,8 +1847,8 @@ class Game:
                 self._cast(seat, whole.alternate, seat.graveyard, graveyard=graveyard_casts(whole.alternate)[0], whole=whole)
         elif action.startswith(SUSPEND):
             card = next(c for c in seat.hand if c.name == action.removeprefix(SUSPEND))
-            counters, cost = suspend_of(card)
-            self._spend_mana(seat, self._payment(seat, dataclasses.replace(card, mana_cost=cost)))
+            counters, cost = _checked(suspend_of(card))
+            self._spend_mana(seat, _checked(self._payment(seat, dataclasses.replace(card, mana_cost=cost))))
             seat.hand.remove(card)
             seat.exile.append(card)
             seat.suspended.append([card, counters])
@@ -1850,7 +1859,7 @@ class Game:
             self._encore(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ENCORE)))
         elif action.startswith(UNLOCK):
             room, door = self._unlocks(seat)[action]
-            self._spend_mana(seat, self._payment(seat, door))
+            self._spend_mana(seat, _checked(self._payment(seat, door)))
             self.unlock_door(room, door)
         elif action.startswith(CAST_PREPARED):
             name = action.removeprefix(CAST_PREPARED)
@@ -1959,12 +1968,12 @@ class Game:
 
     def _can_cycle(self, seat: Seat, cost: str, life: int) -> bool:
         """Cycling costs mana, or life you can spare (never down to 0)."""
-        return life < seat.life if life else self._pay_cost(seat, parse_cost(cost)) is not None
+        return life < seat.life if life else self._pay_cost(seat, cost_of(cost)) is not None
 
     def _cycle(self, seat: Seat, card: Card) -> None:
         """Cycling: pay the cost, discard the card, and draw a card when the ability resolves."""
-        word, cost, effects, life = cycling(card)
-        tapped = self._pay_cost(seat, parse_cost(cost)) if cost else []
+        word, cost, effects, life = _checked(cycling(card))
+        tapped = _checked(self._pay_cost(seat, cost_of(cost))) if cost else Payment()
         self._spend_mana(seat, tapped)
         if life:
             self.change_life(seat, -life)
@@ -1980,7 +1989,7 @@ class Game:
         """Foretell: a special action. {2} is paid and the card goes from the hand to exile face down; from the next turn it can be cast
         for its foretell cost."""
         card = next(c for c in seat.hand if c.name == name)
-        self._spend_mana(seat, self._payment(seat, dataclasses.replace(card, mana_cost=FORETELL_COST)))
+        self._spend_mana(seat, _checked(self._payment(seat, dataclasses.replace(card, mana_cost=FORETELL_COST))))
         seat.hand.remove(card)
         seat.exile.append(card)
         seat.foretold.append((self.turn, card))
@@ -2010,11 +2019,11 @@ class Game:
         """Ninjutsu: pay its cost, return an unblocked attacker to its owner's hand, and the ability goes on the stack; when it resolves
         the card comes in tapped and attacking whom the creature attacked."""
         card = next(c for c in self._ninjutsu_cards(seat) if c.name == name)
-        cost, _ = ninjutsu_of(card)
+        cost, _ = _checked(ninjutsu_of(card))
         attacks = self._unblocked_attackers(seat)
         pick = seat.player.choose(NINJUTSU_PROMPT + card.name, [self.label(a.attacker) for a in attacks]) if len(attacks) > 1 else 0
         attack = attacks[pick]
-        self._spend_mana(seat, self._payment(seat, dataclasses.replace(card, mana_cost=cost)))
+        self._spend_mana(seat, _checked(self._payment(seat, dataclasses.replace(card, mana_cost=cost))))
         self.return_to_hand(attack.attacker)
         ability = ActivatedAbility(f"Ninjutsu {cost}", (NinjutsuEnter(),), mana_cost=cost)
         self.stack.append(StackItem(card, seat, [NinjutsuEnter()], [], ability, player=attack.defender, subject=attack.walker))
@@ -2036,7 +2045,7 @@ class Game:
 
     def _hand_ability_cost(self, seat: Seat, ability: ActivatedAbility) -> Cost:
         """The mana an ability from the hand costs: Channel abilities cost {1} less for each permanent of a kind they count (Boseiju)."""
-        cost = parse_cost(ability.mana_cost) if ability.mana_cost else Cost()
+        cost = cost_of(ability.mana_cost) if ability.mana_cost else Cost()
         if ability.discount_each:
             cost = cost.reduced(sum(_permanent_matches(ability.discount_each, p.card) for p in seat.battlefield))
         return cost
@@ -2052,8 +2061,8 @@ class Game:
             for effect in effects:
                 effect.resolve(self, seat, None)
             return
-        targets, labels = self._choose_targets(seat, effects, card.name, colors=source_qualities(card))
-        tapped = self._pay_cost(seat, self._hand_ability_cost(seat, ability)) if ability.mana_cost else []
+        targets, labels = _checked(self._choose_targets(seat, effects, card.name, colors=source_qualities(card)))
+        tapped = _checked(self._pay_cost(seat, self._hand_ability_cost(seat, ability))) if ability.mana_cost else Payment()
         self._spend_mana(seat, tapped)
         self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cost"})
         self._move_card(seat, card, "graveyard")
@@ -2065,7 +2074,7 @@ class Game:
         """"{B}{G}: Return this card from your graveyard to the battlefield tapped.": only its mana cost is paid; the card
         stays where it is until the ability resolves."""
         ability = next(a for a in activated_abilities(card) if a.from_graveyard)
-        tapped = self._pay_cost(seat, parse_cost(ability.mana_cost)) if ability.mana_cost else []
+        tapped = _checked(self._pay_cost(seat, cost_of(ability.mana_cost))) if ability.mana_cost else Payment()
         self._spend_mana(seat, tapped)
         self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
@@ -2075,15 +2084,15 @@ class Game:
         effects = list(ability.effects)
         if effects and isinstance(effects[0], Modal):
             effects, _ = self._choose_modes(seat, permanent.card, effects[0], source=permanent)
-        targets, labels = self._choose_targets(seat, effects, permanent.card.name, permanent,
-                                               source_qualities(permanent.card))
+        targets, labels = _checked(self._choose_targets(seat, effects, permanent.card.name, permanent,
+                                                        source_qualities(permanent.card)))
         x = 0
-        if ability.mana_cost and parse_cost(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then paid
+        if ability.mana_cost and cost_of(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then paid
             most = 0
             while most < MAX_X and self._ability_payment(seat, permanent, ability, most + 1) is not None:
                 most += 1
             x = seat.player.choose(X_PROMPT + permanent.card.name, [str(n) for n in range(most + 1)])
-        tapped = self._ability_payment(seat, permanent, ability, x)
+        tapped = _checked(self._ability_payment(seat, permanent, ability, x))
         self._spend_mana(seat, tapped)
         if ability.tap:
             self.tap(permanent)
@@ -2103,7 +2112,7 @@ class Game:
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
                         "tapped": [p.card.name for p in tapped]})
-        if ability.mana_cost and parse_cost(ability.mana_cost).x:  # Unbound Flourishing
+        if ability.mana_cost and cost_of(ability.mana_cost).x:  # Unbound Flourishing
             self.happened("activate_x", seat, spell=item)
         self._check_ward(item)
         if ability.sacrifice:
@@ -2292,7 +2301,7 @@ class Game:
             seat, paying, from_command_zone, 0, alternative, kickers, extra + mana))
         extra += "".join(o.mana for o in picked)  # "pay {3}{B}" as an additional cost
         x = 0  # announced before the targets (CR 601.2b-c): "up to X target creatures" needs it
-        if alternative is None and (parse_cost(paying.mana_cost).x or any(c.sacrifice_x for c in additional_costs(card))):
+        if alternative is None and (cost_of(paying.mana_cost).x or any(c.sacrifice_x for c in additional_costs(card))):
             # casting without paying the mana cost makes X 0; Immoral Bargain has X only in its additional cost
             most = self._max_x(seat, paying, from_command_zone, kickers, extra)
             for effect in effects or []:  # "Exile X target creatures": there have to be X legal targets
@@ -2337,7 +2346,7 @@ class Game:
                          if self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=k) is not None)
         cost = self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve)
         with self._paying_for(seat, paying):
-            tapped = self._pay_cost(seat, cost)
+            tapped = _checked(self._pay_cost(seat, cost))
         self._spend_mana(seat, tapped)
         no_counter = any((limited := restricted_mana(p.card)) is not None and limited.uncounterable
                          and self._restricted_mana_ok(p, limited, paying) for p in tapped)
@@ -2817,17 +2826,19 @@ class Game:
             self.resolving_target = None
 
     def _apply_effects_now(self, item: StackItem) -> bool:
+        effects = item.effects
+        assert effects is not None  # a spell whose text isn't understood is not applied (see _resolve)
         seat = item.controller
         colors = source_qualities(item.card)
         declared = {}  # a target list that had targets when the spell was put on the stack
-        for index, (e, t) in enumerate(zip([e for e in item.effects if target_kind(e)], item.targets)):
+        for index, (e, t) in enumerate(zip([e for e in effects if target_kind(e)], item.targets)):
             if getattr(e, "multi_target", False):  # keep only the targets that are still legal
                 declared[index] = bool(t)
                 item.targets[index] = [p for p in t if self.is_legal_target(target_kind(e), p, seat, colors)]
         legal = [(index in declared and (not declared[index] or bool(t)))  # a list with none chosen still resolves
                  or (t is None and getattr(e, "optional_target", False))
                  or (index not in declared and self.is_legal_target(self._fixed_kind(target_kind(e), item.source, item.x), t, seat, colors))
-                 for index, (e, t) in enumerate(zip([e for e in item.effects if target_kind(e)], item.targets))]
+                 for index, (e, t) in enumerate(zip([e for e in effects if target_kind(e)], item.targets))]
         about = {"seat": seat.index, "card": item.card.name}
         if item.ability:
             about["ability"] = _shown(item.ability.text, item.card)
@@ -2837,7 +2848,7 @@ class Game:
         self.broadcast({"event": "resolve", **about})
         checks = iter(zip(item.targets, legal))
         previous = None  # the last targeting effect's target, for "Its controller ..." follow-ups
-        for effect in item.effects:
+        for effect in effects:
             target = None
             if target_kind(effect):
                 candidate, ok = next(checks)
@@ -3908,7 +3919,7 @@ class Game:
             self.change_life(seat, -cost.life)
 
     def turn_face_up(self, seat: Seat, permanent: Permanent) -> None:
-        self._spend_mana(seat, self._payment(seat, self._turn_up_card(permanent)))
+        self._spend_mana(seat, _checked(self._payment(seat, self._turn_up_card(permanent))))
         self._pay_morph(seat, permanent)
         permanent.card, permanent.real_card, permanent.manifested = permanent.real_card, None, False
         self.broadcast({"event": "turned_face_up", "seat": seat.index, "card": permanent.card.name})
@@ -4397,7 +4408,7 @@ class Game:
     def _unearth(self, seat: Seat, card: Card) -> None:
         """Unearth: pay its cost and return it from the graveyard (it is not cast); it has haste, and is exiled at the beginning
         of the next end step or instead of leaving the battlefield some other way."""
-        tapped = self._payment(seat, dataclasses.replace(card, mana_cost=unearth_cost(card)))
+        tapped = _checked(self._payment(seat, dataclasses.replace(card, mana_cost=unearth_cost(card))))
         self._spend_mana(seat, tapped)
         seat.graveyard.remove(card)
         self.broadcast({"event": "unearth", "seat": seat.index, "card": card.name})
@@ -4412,7 +4423,7 @@ class Game:
     def _encore(self, seat: Seat, card: Card) -> None:
         """Encore: pay its cost and exile it from the graveyard; for each opponent, a token copy with haste attacks that
         opponent this turn if able and is sacrificed at the beginning of the next end step."""
-        tapped = self._payment(seat, dataclasses.replace(card, mana_cost=encore_cost(card)))
+        tapped = _checked(self._payment(seat, dataclasses.replace(card, mana_cost=encore_cost(card))))
         self._spend_mana(seat, tapped)
         seat.graveyard.remove(card)
         self.broadcast({"event": "encore", "seat": seat.index, "card": card.name})
@@ -4631,7 +4642,7 @@ class Game:
         seat.hand.remove(card)
         entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card))
         self._enter(seat, entering)
-        cost = parse_cost(card.mana_cost).reduced(reduction) if card.mana_cost else Cost()
+        cost = cost_of(card.mana_cost).reduced(reduction) if card.mana_cost else Cost()
         paid = self._pay_cost(seat, cost) if cost.generic or cost.colored else []
         if paid is not None and (not paid or seat.player.choose(UNLESS_PROMPT + card.name, ["Pay the reduced cost", "Sacrifice it"]) == 0):
             self._spend_mana(seat, paid)
@@ -4784,9 +4795,9 @@ class Game:
         return ward_cost(permanent.card) or next((keyword.removeprefix("ward ") for modifier in self.modifiers(permanent)
                                                   for keyword in modifier.keywords if keyword.startswith("ward ")), None)
 
-    def _ward_payment(self, payer: Seat, fields: dict) -> list[Permanent] | None:
+    def _ward_payment(self, payer: Seat, fields: dict) -> Payment | None:
         """The permanents to tap for a ward cost's mana (none if it has no mana), or None if it can't be paid."""
-        return self._pay_cost(payer, parse_cost(fields["mana_cost"])) if fields.get("mana_cost") else []
+        return self._pay_cost(payer, cost_of(fields["mana_cost"])) if fields.get("mana_cost") else Payment()
 
     def can_pay_ward(self, payer: Seat, cost_text: str) -> bool:
         fields = ward_fields(cost_text) or {}
@@ -5106,7 +5117,7 @@ class Game:
         for permanent in list(seat.battlefield):
             if permanent.echo_pending and (echo := echo_cost(permanent.card)):  # Echo: pay once, or sacrifice it
                 permanent.echo_pending = False
-                paid = self._pay_cost(seat, parse_cost(echo))
+                paid = self._pay_cost(seat, cost_of(echo))
                 if paid is not None and seat.player.choose(UPKEEP_PROMPT + permanent.card.name, YES_NO) == 0:
                     self._spend_mana(seat, paid)
                 else:
@@ -5445,7 +5456,7 @@ class Game:
 
     def pays_unless(self, payer: Seat, cost_text: str, source: Card) -> bool:
         """"... unless that player pays {1}": whether `payer` can and chooses to pay the cost (and pays it)."""
-        payment = self._pay_cost(payer, parse_cost(cost_text))
+        payment = self._pay_cost(payer, cost_of(cost_text))
         if payment is None or payer.player.choose(UNLESS_PROMPT + source.name, [f"Pay {cost_text}", "Don't pay"]) != 0:
             return False
         self._spend_mana(payer, payment)
@@ -5454,7 +5465,7 @@ class Game:
 
     def pays_optional(self, payer: Seat, cost_text: str, source: Card | None) -> bool:
         """ "You may pay {2}. If you do, ...": whether `payer` can and chooses to pay the cost (and pays it)."""
-        payment = self._pay_cost(payer, parse_cost(cost_text))
+        payment = self._pay_cost(payer, cost_of(cost_text))
         name = source.name if source is not None else ""
         if payment is None or payer.player.choose(MAY_PAY_PROMPT + name, [f"Pay {cost_text}", "Don't pay"]) != 0:
             return False
@@ -5799,7 +5810,7 @@ class Game:
         copy targets that creature instead of `source`."""
         if item not in self.stack:
             return
-        kind = next((target_kind(e) for e in item.effects if target_kind(e)), None)
+        kind = next((target_kind(e) for e in item.effects or () if target_kind(e)), None)
         if kind is None:
             return
         legal = [p for _, p in self.target_options(kind, caster, source_qualities(item.card))]

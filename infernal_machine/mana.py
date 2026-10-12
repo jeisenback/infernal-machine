@@ -69,6 +69,13 @@ def parse_cost(mana_cost: str) -> Cost | None:
     return Cost(generic, tuple(colored), x, tuple(twobrid), tuple(phyrexian))
 
 
+def cost_of(mana_cost: str) -> Cost:
+    """`parse_cost` for a cost the parsers already accepted (an ability's, a kicker's, an echo's), which always parses."""
+    cost = parse_cost(mana_cost)
+    assert cost is not None, mana_cost
+    return cost
+
+
 def pay(cost: Cost, sources: list[frozenset[str]], paid_for: dict[int, frozenset[str]] | None = None) -> list[int] | None:
     """Pick which sources to tap for `cost`; each source makes one mana of one of its types.
     A Phyrexian symbol is paid with mana here (the caller may pay life for some of them first); a twobrid
