@@ -44,7 +44,8 @@ python tools/coverage_audit.py --top 1         # how many Commander-legal cards 
 python tools/play_smoke.py                     # every fully playable card casts or plays without an error
 ```
 
-CI (`.github/workflows`): `tests` (required), `precon report` (every card of the five precon decks must be fully playable),
+CI (`.github/workflows`): `tests` (required) and its `typecheck` job (pyright, not blocking until the count is 0; run it with
+`pip install pyright==1.1.414 && python -m pyright`), `precon report` (every card of the five precon decks must be fully playable),
 `bot games` (120 four-player bot games between the precon decks, none may raise; seed `g` is game `g`), and `coverage audit` (weekly,
 a measurement that never fails).
 
