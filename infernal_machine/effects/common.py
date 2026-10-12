@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 
 from ..cards import Card
 from ..characteristics import Modifier
@@ -119,7 +120,12 @@ def _join_modes(text: str) -> str:
 
 def rules_lines(card: Card) -> list[str]:
     """The card's rules text, one ability per line, as the other functions here see it."""
-    return [line.strip() for line in _rules_text(card).splitlines() if line.strip()]
+    return list(_rules_lines(card))
+
+
+@lru_cache(maxsize=None)
+def _rules_lines(card: Card) -> tuple[str, ...]:
+    return tuple(line.strip() for line in _rules_text(card).splitlines() if line.strip())
 
 
 _WHOLE_LINE = re.compile(
