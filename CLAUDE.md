@@ -26,9 +26,10 @@ To add a line:
 3. **Export it** from `effects/__init__.py` (explicit lists) if it is a new public name.
 4. **Do the work in `Game`** (`game.py`; combat is `combat.py`).
 5. **Test it from the card's real Oracle text**, never from invented wording: `tests/real.py` (`REAL`, built from
-   `tests/real_oracle_texts.json`) or `real(name, cost, type_line, text, power, toughness)` in `tests/test_rules_text_81.py`. Play
-   the card through the game (`table3`, `script`, `run_stack`), include a case where the effect must not apply, and check the new
-   guards by mutation: undo the guard and see a test fail.
+   `tests/real_oracle_texts.json`) or `real(name, cost, type_line, text, power, toughness)`. Play the card through the game
+   (`table3`, `script`, `run_stack`, `lands`, `pick`, `BEAR`, `OGRE`), include a case where the effect must not apply, and check the
+   new guards by mutation: undo the guard and see a test fail. The shared fixtures are in `tests/helpers.py`: import them from there,
+   never from another test file. Name a new test file for the behaviour (`test_ninjutsu.py`), not the issue number.
 6. **Add a bullet to the README** card-effects section.
 
 Cite the Comprehensive Rules in a comment where a rule is applied (`# CR 502.4`).

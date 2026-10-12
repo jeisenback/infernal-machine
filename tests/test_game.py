@@ -6,26 +6,10 @@ import unittest
 from infernal_machine.cards import Card, Deck
 from infernal_machine.game import PASS, STARTING_LIFE, Game
 from infernal_machine.tcp import accept_players, listen
+from tests.helpers import ScriptedPlayer  # noqa: F401  (it lives in tests/helpers.py; other tests still import it from here)
 
 LAND = Card(name="Wastes", type_line="Basic Land")
 SPELL = Card(name="Sol Ring", type_line="Artifact")
-
-
-class ScriptedPlayer:
-    """Answers prompts from a policy function and records every event."""
-
-    def __init__(self, name, policy=None):
-        self.name = name
-        self.events = []
-        self.prompts = []
-        self.policy = policy or (lambda prompt, options: 0)
-
-    def notify(self, event):
-        self.events.append(event)
-
-    def choose(self, prompt, options):
-        self.prompts.append((prompt, list(options)))
-        return self.policy(prompt, options)
 
 
 def deck(lands=40, spells=59):

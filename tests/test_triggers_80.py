@@ -10,14 +10,13 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import triggered_abilities
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.helpers import FOREST, PLAINS  # noqa: F401  (they live in tests/helpers.py; other tests still import them from here)
 from tests.test_combat import BEAR, OGRE, creature
 from tests.test_effects import lands, pick
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 from tests.test_x_targets import script
 
-FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
-PLAINS = Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",))
 RELIC = Card(name="Relic", type_line="Artifact", mana_cost="{1}", cmc=1.0)
 SHRINE = Card(name="Shrine", type_line="Enchantment", mana_cost="{2}", cmc=2.0)
 GREEN_BEAR = Card(name="Green Bear", type_line="Creature — Bear", colors=("G",), power="2", toughness="2", mana_cost="{1}{G}", cmc=2.0)

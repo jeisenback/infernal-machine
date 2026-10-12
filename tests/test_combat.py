@@ -3,17 +3,11 @@ import unittest
 from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
 from infernal_machine.game import Game, Permanent
+from tests.helpers import BEAR, OGRE, creature  # noqa: F401  (they live in tests/helpers.py; other tests still import them from here)
 from tests.test_effects import FOREST, table
 from tests.test_game import ScriptedPlayer
 
 
-def creature(name, power, toughness, text=""):
-    return Card(name=name, mana_cost="{1}", type_line="Creature — Test", power=str(power),
-                toughness=str(toughness), oracle_text=text)
-
-
-BEAR = creature("Bear", 2, 2)
-OGRE = creature("Ogre", 3, 3)
 BIRD = creature("Bird", 1, 1, "Flying")
 SPIDER = creature("Spider", 1, 3, "Reach")
 GOBLIN = creature("Goblin", 2, 1, "Menace")

@@ -1,14 +1,14 @@
 import unittest
 
-from infernal_machine.cards import Card, Deck
+from infernal_machine.cards import Card
 from infernal_machine.effects import (DamageEach, DestroyAll, EachSacrifices, ExileAll,
                                       TargetSacrifices, spell_effects)
-from infernal_machine.game import CAST, COMMAND_ZONE_PROMPT, SACRIFICE_PROMPT, Game, Permanent
+from infernal_machine.game import CAST, COMMAND_ZONE_PROMPT, SACRIFICE_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.helpers import table3  # noqa: F401  (it lives in tests/helpers.py; other tests still import it from here)
 from tests.real import REAL
-from tests.test_effects import BEAR, DARKSTEEL, FOREST, SOL_RING, lands, pick, table
+from tests.test_effects import BEAR, DARKSTEEL, SOL_RING, lands, pick, table
 from tests.test_exile import COMMANDER, OGRE
-from tests.test_game import ScriptedPlayer
 from tests.test_tokens import RAISE
 from tests.test_triggers import MARTYR
 from tests.test_watch_triggers import PAWN, ZULAPORT
@@ -25,16 +25,6 @@ BANISH = Card(name="Banish All", mana_cost="{4}{W}", type_line="Sorcery", oracle
 EDICT = REAL["Cruel Edict"]
 TRIBUTE = Card(name="Tribute", mana_cost="{1}{B}", type_line="Sorcery", oracle_text="Each opponent sacrifices a creature.")
 SWEEP = Card(name="Fleshbag", mana_cost="{1}{B}", type_line="Sorcery", oracle_text="Each player sacrifices a creature.")
-
-
-def table3(*policies):
-    players = [ScriptedPlayer(name, policy) for name, policy in zip("ABC", policies + (None,) * 3)]
-    deck = Deck(commanders=[COMMANDER], main=[FOREST] * 20, sideboard=[])
-    game = Game([(p, deck) for p in players], seed=1)
-    game.turn, game.active, game.step = 2, 0, "main1"
-    for seat in game.seats:
-        seat.hand, seat.command_zone = [], []
-    return game, players
 
 
 def names(seat):

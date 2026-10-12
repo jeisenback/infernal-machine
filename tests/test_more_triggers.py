@@ -5,6 +5,7 @@ from infernal_machine.effects import Draw, GainLife, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
+from tests.helpers import resolve_triggers, run_stack, take_turn_attacking  # noqa: F401  (they live in tests/helpers.py; other tests still import them from here)
 from tests.test_combat import BEAR, attack_all, creature
 from tests.test_effects import table
 
@@ -80,10 +81,6 @@ ROOTHA = Card(name="Rootha", mana_cost="{U}", type_line="Enchantment",
               oracle_text="At the beginning of combat on your turn, if you've cast an instant or sorcery spell this turn, "
                           "draw a card.")
 PLAINS = Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",))
-
-
-def resolve_triggers(game, seat):
-    game._priority_round(seat)
 
 
 class ParseTests(unittest.TestCase):
@@ -202,11 +199,6 @@ class PlayerEventTests(unittest.TestCase):
         game.sacrifice(b)
         resolve_triggers(game, a)
         self.assertEqual(a.hand, [])
-
-
-def take_turn_attacking(game, seat):
-    game.turn = 3
-    game._take_turn(seat)
 
 
 class CombatTriggerTests(unittest.TestCase):
@@ -404,14 +396,6 @@ class OncePerTurnTests(unittest.TestCase):
     def test_report_accepts_them(self):
         for card in (QUINTORIUS, YAHENNI, MERCHANT, MAZIREK, DESTINY, CHIROGRAPHY, BREWER):
             self.assertEqual(unsupported_lines(card), [], card.name)
-
-
-def run_stack(game):
-    """Put the triggers on the stack and resolve everything, including what resolving triggers in turn."""
-    while game.pending or game.stack:
-        game._put_triggers_on_stack()
-        while game.stack:
-            game._resolve(game.stack.pop())
 
 
 class XSpellTests(unittest.TestCase):
