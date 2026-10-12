@@ -89,7 +89,9 @@ class Combat:
             permanent.attacked_turn = self.game.turn
             declared.append((permanent, defender, walker))
         if owed:  # every attacker was chosen so that this can be paid (see _attackable)
-            self.game._spend_mana(seat, self.game._pay_cost(seat, Cost(generic=owed)))
+            payment = self.game._pay_cost(seat, Cost(generic=owed))
+            assert payment is not None
+            self.game._spend_mana(seat, payment)
         for permanent, defender, walker in declared:
             self.game.trigger("attacks", permanent, seat)
             if self.game.has_keyword(permanent, "myriad"):
