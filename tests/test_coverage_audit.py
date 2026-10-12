@@ -64,6 +64,55 @@ class ShapeTests(unittest.TestCase):
         self.assertEqual(len(audit.shape("x" * 300)), 100)
 
 
+class MechanismTests(unittest.TestCase):
+    def test_a_keyword_or_ability_word_names_its_own_mechanism(self):
+        self.assertEqual(audit.mechanism_of("Offspring {2}", ["Offspring"]), "Offspring")
+        self.assertEqual(audit.mechanism_of("Delirium \u2014 This creature gets +1/+1.", []), "Delirium")
+
+    def test_other_lines_take_the_first_pattern_that_fits(self):
+        self.assertEqual(audit.mechanism_of("This creature can't attack unless you control a Swamp.", []), "Attack/block restrictions")
+        self.assertEqual(audit.mechanism_of("Create a token that's a copy of target creature.", []), "Copy effects")
+        self.assertEqual(audit.mechanism_of("Whenever the moon is full, frobnicate the widget.", []), "Other")
+
+
+MOON = "Whenever the moon is full, frobnicate the widget."
+MECH_POOL = [
+    card("Bear A", "Creature — Bear", "This creature can't attack unless you control a Swamp.", rank=10, mana_cost="{1}", power="1", toughness="1"),
+    card("Bear B", "Creature — Bear", "This creature can't block unless you control a Swamp.\n" + MOON, rank=20, mana_cost="{1}", power="1", toughness="1"),
+    card("Bear C", "Creature — Bear", "This creature can't attack unless you control a Swamp.", rank=9000, mana_cost="{1}", power="1", toughness="1"),
+    card("Moon Elk", "Creature — Elk", MOON, rank=30, mana_cost="{1}", power="1", toughness="1"),
+    card("Copy Cat", "Creature — Cat", "Create a token that's a copy of target creature.", rank=1, mana_cost="{1}", power="1", toughness="1"),
+    card("Copy Dog", "Creature — Dog", "Create a token that's a copy of target creature.", rank=2, mana_cost="{1}", power="1", toughness="1"),
+]
+
+
+class MechanismReportTests(unittest.TestCase):
+    def setUp(self):
+        self.result = audit.analyze(MECH_POOL)
+        self.group = self.result["mechanisms"]["Attack/block restrictions"]
+
+    def test_cards_are_grouped_most_played_first(self):
+        self.assertEqual(self.group["cards"], ["Bear A", "Bear B", "Bear C"])
+
+    def test_a_card_whose_other_gap_is_elsewhere_is_not_an_only_gap(self):
+        self.assertEqual(self.group["only"], ["Bear A", "Bear C"])
+        self.assertEqual(self.result["mechanisms"]["Other"]["only"], ["Moon Elk"])
+
+    def test_the_table_ranks_by_popular_only_gap_cards(self):
+        text = audit.render_mechanisms(self.result)
+        self.assertIn("| Attack/block restrictions | 3 | 2 | 2 | 1 | Bear A #10, Bear C #9000 |", text)
+        self.assertLess(text.index("| Copy effects |"), text.index("| Attack/block restrictions |"), "two popular only-gap cards beat one")
+        self.assertIn("2 cards have a line that fits no mechanism.", text)
+
+    def test_the_drill_down_lists_the_wordings(self):
+        text = audit.render_mechanism(self.result, "attack/block")
+        self.assertIn("### Attack/block restrictions: 3 cards, 2 with this as the only gap", text)
+        self.assertIn("`This creature can't attack unless you control a Swamp.`", text)
+
+    def test_an_unknown_mechanism_says_so(self):
+        self.assertTrue(audit.render_mechanism(self.result, "nonsense").startswith("No mechanism matches `nonsense`"))
+
+
 class RenderTests(unittest.TestCase):
     def test_the_summary_names_the_numbers_and_the_groups(self):
         text = audit.render(audit.analyze(POOL), top=5)
