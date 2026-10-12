@@ -504,7 +504,7 @@ class Caster:
                     getattr(effect, "max_targets", 0) or (self.game.targeting_max if self.game.targeting_max is not None else g.MAX_TARGETS))
                 for _ in range(limit):
                     pool = [(i, o) for i, o in enumerate(self.game.target_options(kind, seat, colors)) if i not in taken_here
-                            and not (getattr(effect, "another", False) and o[1] is source)]  # "other target creatures"
+                            and not (getattr(effect, "another", False) and self.game.option_is_source(o[1], source))]  # "other target creatures"
                     if not pool:
                         break
                     pick = seat.player.choose(g.TARGET_PROMPT + source_name,
@@ -519,7 +519,7 @@ class Caster:
                 continue
             taken = chosen.setdefault(kind, set())
             options = [(i, o) for i, o in enumerate(self.game.target_options(kind, seat, colors))
-                       if not (getattr(effect, "another", False) and o[1] is source)
+                       if not (getattr(effect, "another", False) and self.game.option_is_source(o[1], source))
                        and not (getattr(effect, "same_controller", False) and targets
                                 and self.game.controller_of(o[1]) is not self.game.controller_of(targets[-1]))
                        and not (getattr(effect, "distinct", False) and i in taken)]
