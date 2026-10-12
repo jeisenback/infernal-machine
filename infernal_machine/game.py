@@ -4162,8 +4162,10 @@ class Game:
         creature = "Creature" in permanent.card.type_line
         subtypes = self.subtypes(permanent)
         in_graveyards = [(s, Permanent(c)) for s in self.seats for c in s.graveyard if graveyard_statics(c)]  # Anger
+        stripped = {id(a.attached_to) for s in self.seats for a in s.battlefield if a.attached_to is not None  # once, not per source
+                    and any(LOSES_ALL in b.modifier.keywords for b in attached_abilities(a.card))}
         for owner, source in [(s, p) for s in self.seats for p in s.battlefield] + in_graveyards:
-            if self.loses_abilities(source):
+            if id(source) in stripped:
                 continue
             for buff in static_abilities(source.card):
                 if not creature and not buff.permanents:
