@@ -436,7 +436,7 @@ class Caster:
         modes) and escalate (each mode beyond the first) are offered if they can be paid for."""
         colors = source_qualities(card)
         available = [i for i, effects in enumerate(modal.modes) if self.game._targets_exist(seat, effects, colors, source)]
-        if len(available) < modal.min:
+        if len(available) < (min(modal.min, 1) if modal.repeat else modal.min):
             return [], ""
         if modal.optional and seat.player.choose(g.OPTIONAL_PROMPT + card.name, g.YES_NO) != 0:
             return [], ""  # "you may choose two": declined
@@ -448,11 +448,11 @@ class Caster:
                 and seat.player.choose(g.ENTWINE_PROMPT + card.name, g.YES_NO) == 0):
             return [effect for modes in modal.modes for effect in modes], entwine
         chosen: list[int] = []
-        while len(chosen) < modal.max and len(chosen) < len(available):
+        while len(chosen) < modal.max and (modal.repeat or len(chosen) < len(available)):
             if escalate and chosen and self._payment(seat, card, from_command_zone,
                                                      extra=escalate * len(chosen)) is None:
                 break  # another mode would cost more than the caster has
-            remaining = [i for i in available if i not in chosen]
+            remaining = [i for i in available if modal.repeat or i not in chosen]
             options = [g._shown(modal.texts[i], card) for i in remaining]
             if len(chosen) >= modal.min:
                 options.append(g.DONE_MODES)

@@ -1011,6 +1011,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   be chosen twice, and "one or both" / "one or more" let you stop with "Done choosing modes" once you have enough.
   Chosen modes happen in the order printed. If any mode isn't supported, the whole card is unsupported, and the
   report lists the mode.
+  - **Confluence** ("Choose three. You may choose the same mode more than once."; "Choose up to four" for Moment of
+    Reckoning): you make that many picks, and a mode may be picked again. A mode with no legal target is not offered,
+    but one possible mode is enough to fill all the picks; each pick chooses its own targets. "Choose X" and the
+    pawprint Seasons ("worth of modes") are not read.
   - **Entwine {cost}:** offered (yes or no) when every mode has a target and the extra cost can be paid; paying it
     does all the modes. **Escalate {cost}:** each mode beyond the first adds the cost, and a mode that would cost
     more than the caster has isn't offered. Only mana costs are understood ("Escalate\u2014Discard a card" leaves
