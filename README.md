@@ -881,7 +881,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     answer for all 32,115 cards as before the split.
   - Mana payment left `game.py` for `infernal_machine/payment.py` (#284), the way combat did: `ManaPayer` holds which permanents can
     make which mana, what pays a cost, and tapping them (with `ManaSource` and `Payment`). `Game` keeps thin methods that call it
-    (`_pay_cost`, `_mana_sources`, `_spend_mana`), so the effects and the tests did not change. Casting is next.
+    (`_pay_cost`, `_mana_sources`, `_spend_mana`), so the effects and the tests did not change. Casting followed in
+    `infernal_machine/casting.py`: `Caster` holds the ways to cast a spell, its costs and options (kicker, buyback, gift, modes,
+    X), its targets and putting it on the stack; names that stay in `game.py` (the prompts, `StackItem`, the card helpers) are
+    reached as `g.NAME`, so either module can be imported first.
   - Events are a registry (`effects/events.py`): each "Whenever ..." an ability can wait for is declared once, with its rules
     text and, for the ones the game announces to a player's permanents, the occurrence that sets it off and who hears it
     (the player or each opponent). The game says what happened (`Game.happened("discarded", seat)`) and every event declared
