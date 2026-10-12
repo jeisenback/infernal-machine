@@ -21,8 +21,8 @@ sys.path.insert(0, os.getcwd())
 
 from infernal_machine.cards import Card, Deck  # noqa: E402
 from infernal_machine.combat import Attack  # noqa: E402
-from infernal_machine.effects import foretell_of, is_aftermath, morph_of, ninjutsu_of  # noqa: E402
-from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, CAST_FACE_DOWN, CAST_FORETOLD, CAST_GRAVEYARD, FORETELL, NINJUTSU, PLAY_LAND, TURN_UP, Game, Permanent  # noqa: E402
+from infernal_machine.effects import disturb_of, foretell_of, is_aftermath, morph_of, ninjutsu_of  # noqa: E402
+from infernal_machine.game import ACTIVATE, CAST, CAST_DISTURB, CAST_EXILE, CAST_FACE_DOWN, CAST_FORETOLD, CAST_GRAVEYARD, FORETELL, NINJUTSU, PLAY_LAND, TURN_UP, Game, Permanent  # noqa: E402
 from infernal_machine.report import unsupported_lines  # noqa: E402
 from tests.test_effects import BEAR, COMMANDER, FOREST, OGRE, RAINBOW  # noqa: E402
 from tests.test_game import ScriptedPlayer  # noqa: E402
@@ -70,7 +70,7 @@ def play(card: Card) -> bool:
             break
         game._perform(mine, abilities[0])
         run_stack(game)
-    return bool(ways) | play_other_half(card) | play_face_down(card) | play_transformed(card) | play_ninjutsu(card) | play_foretell(card)
+    return bool(ways) | play_other_half(card) | play_face_down(card) | play_transformed(card) | play_ninjutsu(card) | play_foretell(card) | play_disturb(card)
 
 
 def play_other_half(card: Card) -> bool:
@@ -115,6 +115,25 @@ def play_transformed(card: Card) -> bool:
         run_stack(game)
     if game.on_battlefield(permanent):
         game.transform(permanent, by_day_night=True)
+        game._check_state()
+    return True
+
+
+def play_disturb(card: Card) -> bool:
+    """Put the card in the graveyard and cast its back face with disturb, then let that go back (it is exiled)."""
+    if disturb_of(card) is None:
+        return False
+    game, mine = table(card)
+    mine.hand.remove(card)
+    mine.graveyard.append(card)
+    if CAST_DISTURB + card.name not in game.legal_actions(mine):
+        return False
+    game._perform(mine, CAST_DISTURB + card.name)
+    run_stack(game)
+    game._check_state()
+    back = next((p for p in mine.battlefield if p.transformed_from is card), None)
+    if back is not None:
+        game.destroy(back)
         game._check_state()
     return True
 

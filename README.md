@@ -848,6 +848,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     cost)` way (so X in the foretell cost works) whose `StackItem.foretold` makes "If this spell was foretold, ..." true (Poison the
     Cup, Starnheim Unleashed). Not understood: cards that grant foretell (Dream Devourer, Bohn), reduce its cost (Cosmos Charger, Ranar),
     count foretold cards (Niko Defies Destiny, Alrund), or foretell from elsewhere (Ethereal Valkyrie, The Foretold Soldier).
+  - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
+    offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
+    Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a
+    permanent enters as the back face (`transformed_from` the card) and "If CARDNAME would be put into a graveyard from anywhere, exile
+    it instead" (`Replacements.graveyard_self`) exiles it when it leaves. Not understood: the back faces whose own abilities have no
+    template yet (Dennick, Mirrorhall Mimic, Brine Comber, and others).
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
