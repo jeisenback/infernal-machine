@@ -10,12 +10,21 @@ most cards, and those that are a card's only gap (the cheapest wins). "Fully pla
 not that the card behaves correctly.
 
     python tools/coverage_audit.py --mechanisms          # also group the gaps by mechanism, ranked by popularity
-    python tools/coverage_audit.py --mechanism "Copy"    # the wordings inside one mechanism (a substring of its name)
+    python tools/coverage_audit.py --mechanism "Copy"    # the wordings inside one mechanism or family (a substring of its name)
+    python tools/coverage_audit.py --next                # the best things to build next, in order
 
 A mechanism is a keyword or ability word at the start of an unsupported line, or else the first of the `MECHANISMS` patterns that
 matches it; the patterns are a heuristic, so the groups are a guide to what to build next, not exact counts. "All cards" counts every card with a line in the mechanism, playable or not, so a row shows how much of it is covered. A card's "only gap"
 mechanism is the one that holds all its unsupported lines, so building it alone could make the card playable. The tables are sorted
 by the only-gap cards in the top `POPULAR` of EDHREC rank.
+
+`--next` ranks pieces of work. A family is a keyword or ability word, or one of the `FAMILIES` patterns (a wording that repeats
+across cards and would be built once); add a family when a `--mechanism` drill-down shows one. Each unplayable card needs the
+families of its unsupported lines, and a card with a line no family covers is never counted as unlocked. The ranking is greedy:
+it picks the family that unlocks the most weighted cards, assumes it built, and repeats. A card that needs two families shares its
+weight between them while neither is built, so a pair that unlocks nothing alone can still be suggested. A card weighs
+`1 / (1 + rank / WEIGHT_KNEE)` (no rank, no weight), so rank 100 counts for far more than rank 4,900. The result is an estimate: a
+family's wordings can still differ from one another, and a card the engine reads is not always a card it plays correctly.
 """
 
 from __future__ import annotations
@@ -86,6 +95,26 @@ MECHANISMS: tuple[tuple[str, str], ...] = (
     ("Modal, reflexive and conditional structure", r"\u2022|choose one|choose two|\bwhen you do\b|you may pay|if you do|if you don't|if able|may have|may choose|unless you|then if|if that"),
 )
 _MECHANISMS = tuple((name, re.compile(pattern, re.I)) for name, pattern in MECHANISMS)
+
+# Pieces of work that are not a keyword: a wording that repeats across cards. A line belongs to every family it matches, so a line
+# that mixes two (exile the top card, cast it without paying) needs both.
+FAMILIES: tuple[tuple[str, str], ...] = (
+    ("Enter as a copy of a permanent (clone)", r"\benters?\b[^.]* as a copy of"),
+    ("Token copy of a creature or permanent", r"tokens? (?:that's|that are|which is) (?:a )?cop(?:y|ies) of|create [^.]*\bcop(?:y|ies) of"),
+    ("Copy with changes (an except clause)", r"\bcop(?:y|ies) of [^.]*,? except"),
+    ("Copy a spell", r"\bcop(?:y|ies) (?:it|that spell|this spell|the spell|each (?:instant|sorcery|spell)|target (?:instant|sorcery|spell)[^.]*spell)\b|\bmay copy (?:it|this|that)\b|\bcopy target (?:instant|sorcery)"),
+    ("Copy an ability", r"\bcopy (?:that|target) (?:ability|triggered ability|activated ability)"),
+    ("Cast or play from the top of the library", r"(?:cast|play)[^.,]* from the top of (?:your|their|the) library"),
+    ("Cast spells from a graveyard", r"(?:you may|may) (?:cast|play)[^.,]* from (?:your|a|an|target|each|their|among|any)[^.]*graveyard|(?:cast|play)[^.,]* from graveyards"),
+    ("Exile the top cards, you may play or cast them", r"exile (?:the )?top [^\n]*?(?:you may|may) (?:play|cast)"),
+    ("Cast without paying its mana cost", r"without paying (?:its|their) mana cost"),
+    ("Can't attack or block unless", r"can't (?:attack|block)(?: or block)? unless"),
+    ("Forced combat (must attack, must block, must be blocked)", r"attacks? each (?:combat|turn) if able|blocks? each (?:combat|turn) if able|must be blocked"),
+)
+_FAMILIES = tuple((name, re.compile(pattern, re.I)) for name, pattern in FAMILIES)
+_FAMILY_NAMES = frozenset(name for name, _ in FAMILIES)
+_RULE_NAMES = frozenset(name for name, _ in MECHANISMS) | {"Other"}
+WEIGHT_KNEE = 1000  # the rank at which a card counts for half of the most played ones
 _ABILITY_WORD = re.compile(r"^([A-Z][A-Za-z' !-]{2,24}) \u2014 ")
 
 
@@ -136,6 +165,46 @@ def mechanism_of(line: str, keywords: list[str] | tuple[str, ...] = ()) -> str:
     return next((name for name, pattern in _MECHANISMS if pattern.search(line)), "Other")
 
 
+def families_of(line: str, keywords: list[str] | tuple[str, ...] = ()) -> frozenset[str]:
+    """The pieces of work an unsupported line needs: its keyword or ability word, else every one of `FAMILIES` that matches;
+    empty when no family covers it."""
+    name = mechanism_of(line, keywords)
+    if name not in _RULE_NAMES:
+        return frozenset({name})
+    return frozenset(family for family, pattern in _FAMILIES if pattern.search(line))
+
+
+def weight(rank: int | None) -> float:
+    """How much a card counts: 1 for the most played, a half at `WEIGHT_KNEE`, nothing for a card with no rank."""
+    return 1 / (1 + rank / WEIGHT_KNEE) if rank else 0.0
+
+
+def next_targets(cards: list[tuple[str, int | None, frozenset[str]]], limit: int = 15) -> list[dict]:
+    """The families to build, best first. `cards` are (name, rank, families the card still needs). Greedy: take the family whose
+    cards weigh the most (a card needing several shares its weight between those not yet built), assume it built, repeat."""
+    need = {name: families for name, _, families in cards}
+    rank = {name: r for name, r, _ in cards}
+    by_family: dict[str, list[str]] = collections.defaultdict(list)
+    for name, families in need.items():
+        for family in families:
+            by_family[family].append(name)
+    built: set[str] = set()
+    picks: list[dict] = []
+    while len(picks) < limit:
+        scores = {f: sum(weight(rank[n]) / len(need[n] - built) for n in names)
+                  for f, names in by_family.items() if f not in built}
+        if not scores or max(scores.values()) <= 0:
+            break
+        best = min(scores, key=lambda f: (-scores[f], -len(by_family[f]), f))
+        built.add(best)
+        unlocked = sorted((n for n in by_family[best] if need[n] <= built), key=lambda n: rank[n] or 10 ** 7)
+        waiting = collections.Counter(f for n in by_family[best] for f in need[n] - built)
+        picks.append({"family": best, "unlocks": len(unlocked), "popular": sum(1 for n in unlocked if rank[n] and rank[n] <= POPULAR),
+                      "weight": round(sum(weight(rank[n]) for n in unlocked), 2), "also_needs": waiting.most_common(1)[0][0] if waiting else "",
+                      "cards": unlocked[:3]})
+    return picks
+
+
 _REMINDER = re.compile(r"\([^)]*\)")
 
 
@@ -160,6 +229,9 @@ def analyze(pool: list[dict]) -> dict:
     crashes: list[str] = []
     best_rank: dict[str, int] = {}
     everywhere: collections.Counter[str] = collections.Counter()  # cards per mechanism, playable or not
+    needs: list[tuple[str, int | None, frozenset[str]]] = []  # each unplayable card and the families it needs
+    blocked = 0  # unplayable cards with a line no family covers
+    family_shapes: dict[str, dict[str, set[str]]] = collections.defaultdict(lambda: collections.defaultdict(set))
     groups: dict[str, dict[str, Any]] = collections.defaultdict(lambda: {"cards": set(), "only": set(), "shapes": collections.defaultdict(set)})
     for data in pool:
         try:
@@ -183,6 +255,15 @@ def analyze(pool: list[dict]) -> dict:
         for line in lines:
             shapes[shape(line)].add(card.name)
         mechanisms = [mechanism_of(line, data.get("keywords") or ()) for line in lines]
+        if lines:
+            per_line = [families_of(line, data.get("keywords") or ()) for line in lines]
+            if not all(per_line):
+                blocked += 1
+            else:
+                needs.append((card.name, data.get("edhrec_rank"), frozenset().union(*per_line)))
+            for line, families in zip(lines, per_line):
+                for family in families & _FAMILY_NAMES:
+                    family_shapes[family][shape(line)].add(card.name)
         everywhere.update(card_mechanisms(card, data.get("keywords") or ()) | set(mechanisms))
         for line, mechanism in zip(lines, mechanisms):
             groups[mechanism]["cards"].add(card.name)
@@ -197,7 +278,9 @@ def analyze(pool: list[dict]) -> dict:
     return {"total": total, "playable": playable, "by_type": dict(by_type), "popular": popular, "one_gap": one_gap,
             "shapes": {s: by_rank(names) for s, names in shapes.items()},
             "only_gap": {s: by_rank(names) for s, names in only_gap.items()},
-            "best_rank": best_rank, "crashes": crashes,
+            "best_rank": best_rank, "crashes": crashes, "blocked": blocked, "next": next_targets(needs),
+            "families": {f: {"cards": by_rank({n for names in shapes_.values() for n in names}),
+                             "shapes": {s: by_rank(names) for s, names in shapes_.items()}} for f, shapes_ in family_shapes.items()},
             "mechanisms": {m: {"all": everywhere[m], "cards": by_rank(g["cards"]), "only": by_rank(g["only"]),
                                "shapes": {s: by_rank(names) for s, names in g["shapes"].items()}} for m, g in groups.items()}}
 
@@ -259,19 +342,34 @@ def render_mechanisms(result: dict, top: int = 25) -> str:
 
 
 def render_mechanism(result: dict, name: str, top: int = 25) -> str:
-    """The unsupported wordings inside the mechanisms whose name contains `name`, the ones on the most popular cards first."""
+    """The unsupported wordings inside the mechanisms and families whose name contains `name`, the ones on the most popular cards first."""
     rank = result["best_rank"]
-    wanted = [m for m in result["mechanisms"] if name.lower() in m.lower()]
+    groups = {m: (f"{len(g['cards'])} of {g['all']} cards not playable, {len(g['only'])} with this as the only gap", g["shapes"])
+              for m, g in result["mechanisms"].items()}
+    groups.update({f: (f"a family, {len(g['cards'])} cards not playable", g["shapes"]) for f, g in result["families"].items()})
+    wanted = [m for m in groups if name.lower() in m.lower()]
     if not wanted:
-        return f"No mechanism matches `{name}`. Try: " + ", ".join(sorted(result["mechanisms"])[:12]) + ", ..."
+        return f"No mechanism or family matches `{name}`. Try: " + ", ".join(sorted(groups)[:12]) + ", ..."
     out = []
     for mechanism in wanted:
-        g = result["mechanisms"][mechanism]
-        out += [f"### {mechanism}: {len(g['cards'])} of {g['all']} cards not playable, {len(g['only'])} with this as the only gap", "",
-                f"| Cards | In top {POPULAR} | Unsupported line | Most played |", "|---|---|---|---|"]
-        for line, names in sorted(g["shapes"].items(), key=lambda kv: (-_popular(kv[1], rank), -len(kv[1])))[:top]:
+        summary, shapes = groups[mechanism]
+        out += [f"### {mechanism}: {summary}", "", f"| Cards | In top {POPULAR} | Unsupported line | Most played |", "|---|---|---|---|"]
+        for line, names in sorted(shapes.items(), key=lambda kv: (-_popular(kv[1], rank), -len(kv[1])))[:top]:
             out.append(f"| {len(names)} | {_popular(names, rank)} | `{line.replace('|', '/')}` | {_best(names, rank)} |")
         out.append("")
+    return "\n".join(out)
+
+
+def render_next(result: dict) -> str:
+    """The families to build, in order, with what each one unlocks once the ones above it are built."""
+    out = [f"## Next targets: the best piece of work first, each assuming those above it are built", "",
+           "| # | Family | Cards unlocked | In top " + str(POPULAR) + " | Weighted | Also needs | Most played |", "|---|---|---|---|---|---|---|"]
+    rank = result["best_rank"]
+    for i, pick in enumerate(result["next"], 1):
+        out.append(f"| {i} | {pick['family']} | {pick['unlocks']} | {pick['popular']} | {pick['weight']} | {pick['also_needs'] or '-'} "
+                   f"| {_best(pick['cards'], rank, 3) or '-'} |")
+    out += ["", f"{result['blocked']} unplayable cards have a line no family covers, so they are never counted as unlocked. "
+                f"A card weighs 1 / (1 + rank / {WEIGHT_KNEE}); \"Weighted\" is the total for the cards a row unlocks.", ""]
     return "\n".join(out)
 
 
@@ -281,7 +379,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--top", type=int, default=40)
     parser.add_argument("--json", help="also write the numbers here")
     parser.add_argument("--mechanisms", action="store_true", help="also group the gaps by mechanism")
-    parser.add_argument("--mechanism", metavar="NAME", help="only the wordings inside the mechanisms whose name contains NAME")
+    parser.add_argument("--mechanism", metavar="NAME", help="only the wordings inside the mechanisms or families whose name contains NAME")
+    parser.add_argument("--next", action="store_true", help="also rank the families to build next")
     args = parser.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
     result = analyze(fetch_pool(args.pool))
@@ -291,6 +390,8 @@ def main(argv: list[str]) -> int:
         print(render(result, args.top))
         if args.mechanisms:
             print(render_mechanisms(result, args.top))
+        if args.next:
+            print(render_next(result))
     if args.json:
         with open(args.json, "w") as f:
             json.dump(result, f)
