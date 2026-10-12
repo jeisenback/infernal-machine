@@ -3,44 +3,15 @@ Oracle text from Scryfall, with cases where the effect must not apply."""
 
 import unittest
 
-from infernal_machine.cards import Card, _mana_value
-from infernal_machine.game import CAST, CAST_GRAVEYARD, DECLINE, Permanent
+from infernal_machine.cards import Card
+from infernal_machine.game import CAST_GRAVEYARD, DECLINE, Permanent
 from infernal_machine.report import unsupported_lines
+from tests.helpers import Table, battlefield_names, real  # noqa: F401  (they live in tests/helpers.py; other tests still import them from here)
 from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick
+from tests.test_effects import pick
 from tests.test_mass_effects import table3
 from tests.test_more_triggers import run_stack
 from tests.test_triggers_80 import BIG, FOREST, PLAINS, RELIC, SHRINE
-from tests.test_x_targets import script
-
-
-def real(name, cost, type_line, text, power=None, toughness=None, colors=()):
-    return Card(name=name, mana_cost=cost, cmc=_mana_value(cost), type_line=type_line, oracle_text=text, power=power,
-                toughness=toughness, colors=colors)
-
-
-class Table:
-    """Seat 0 casts `card` with `n` lands against two opponents; `answers` are the replies to what the game asks."""
-
-    def __init__(self, card, *answers, n=6, mine=(), theirs=(), graveyard=(), library=None, policy=None):
-        self.game, _ = table3(policy or script(*answers))
-        self.a, self.b, self.c = self.game.seats
-        self.a.battlefield = list(mine) + lands(n)
-        self.b.battlefield = list(theirs)
-        self.a.hand = [card]
-        self.a.graveyard = list(graveyard)
-        self.a.library = list(library if library is not None else [FOREST] * 10)
-        self.card = card
-
-    def cast(self):
-        self.game._perform(self.a, CAST + self.card.name)
-        run_stack(self.game)
-        self.game._check_state()
-        return self
-
-
-def battlefield_names(seat):
-    return sorted(p.card.name for p in seat.battlefield if p.card.name != "City of Brass")
 
 
 GALE = real("Aether Gale", "{3}{U}{U}", "Sorcery", "Return six target nonland permanents to their owners' hands.")

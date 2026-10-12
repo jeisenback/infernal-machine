@@ -11,6 +11,7 @@ from infernal_machine.effects import (CopyTokensOfTargets, CreateTokens, Destroy
                                       strive_cost, triggered_abilities)
 from infernal_machine.game import CAST, TARGET_PROMPT, X_PROMPT, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
+from tests.helpers import script  # noqa: F401  (it lives in tests/helpers.py; other tests still import it from here)
 from tests.test_combat import BEAR, OGRE
 from tests.test_effects import lands, pick
 from tests.test_game import ScriptedPlayer
@@ -40,12 +41,6 @@ WARDEN = Card(name="Token Watcher", type_line="Enchantment",
 
 def count(seat, name):
     return sum(p.card.name == name for p in seat.battlefield)
-
-
-def script(*answers):
-    """A policy that answers each question with the first option starting with the next answer, then passes."""
-    queue = iter(answers)
-    return lambda prompt, options: pick(next(queue, "Pass"))(prompt, options)
 
 
 class CurseOfTheSwineTests(unittest.TestCase):

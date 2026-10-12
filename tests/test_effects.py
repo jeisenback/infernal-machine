@@ -1,14 +1,12 @@
 import unittest
 
-from infernal_machine.cards import Card, Deck
+from infernal_machine.cards import Card
 from infernal_machine.effects import (Counter, Damage, Destroy, Draw, FetchBasicLand, GainLife,
                                       OpponentsLoseLife, mana_ability, spell_effects)
-from infernal_machine.game import CAST, CAST_COMMANDER, COMMAND_ZONE_PROMPT, PASS, Game, Permanent
+from infernal_machine.game import CAST, CAST_COMMANDER, COMMAND_ZONE_PROMPT, PASS, Permanent
+from tests.helpers import FOREST, RAINBOW, TABLE_COMMANDER, lands, pick, table  # noqa: F401  (they live in tests/helpers.py; other tests still import them from here)
 from tests.real import REAL
-from tests.test_game import ScriptedPlayer
 
-RAINBOW = Card(name="City of Brass", type_line="Land", produced_mana=tuple("WUBRG"))
-FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 BOLT = Card(name="Lightning Bolt", mana_cost="{R}", type_line="Instant",
             oracle_text="Lightning Bolt deals 3 damage to any target.")
 DIVINATION = Card(name="Divination", mana_cost="{2}{U}", type_line="Sorcery", oracle_text="Draw two cards.")
@@ -25,32 +23,7 @@ DARKSTEEL = Card(name="Darksteel Myr", mana_cost="{3}", type_line="Artifact Crea
                  oracle_text="Indestructible", power="0", toughness="1")
 TROLL = Card(name="Troll", mana_cost="{G}", type_line="Creature — Troll", oracle_text="Hexproof", toughness="2")
 WALKER = Card(name="Walker", mana_cost="{3}", type_line="Legendary Planeswalker — Test", loyalty="3")
-COMMANDER = Card(name="Omnath", mana_cost="{G}", type_line="Legendary Creature — Elemental", toughness="1")
-
-
-def pick(*labels):
-    """Policy: take the first option starting with any of `labels`, in order; else pass/first."""
-    def policy(prompt, options):
-        for label in labels:
-            for i, option in enumerate(options):
-                if option.startswith(label):
-                    return i
-        return options.index(PASS) if PASS in options else 0
-    return policy
-
-
-def table(policy_a=None, policy_b=None, library=(FOREST,) * 20):
-    a, b = ScriptedPlayer("A", policy_a), ScriptedPlayer("B", policy_b)
-    deck = Deck(commanders=[COMMANDER], main=list(library), sideboard=[])
-    game = Game([(a, deck), (b, deck)], seed=1)
-    game.turn, game.active, game.step = 2, 0, "main1"
-    for seat in game.seats:
-        seat.hand, seat.command_zone = [], []
-    return game, a, b
-
-
-def lands(n, card=RAINBOW):
-    return [Permanent(card) for _ in range(n)]
+COMMANDER = TABLE_COMMANDER
 
 
 class ParseTests(unittest.TestCase):
