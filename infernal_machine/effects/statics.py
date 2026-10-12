@@ -527,6 +527,7 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                 continue
         if m := _STATIC.fullmatch(sentence):
             who = _AFFECTED_WHO.fullmatch(m[1])
+            assert who is not None  # _AFFECTED_WHO describes the same phrases as _AFFECTED
             colors = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
             chosen_color = bool(who["chosen"]) and who["chosen_what"] == "color"
             buffs.append(StaticBuff(_modifier(m, 2), _other(who),

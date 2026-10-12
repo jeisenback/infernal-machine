@@ -155,7 +155,7 @@ class WebServer(ThreadingHTTPServer):
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m infernal_machine.web", description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(prog="python -m infernal_machine.web", description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--host", default="localhost", help="the game server")
     parser.add_argument("--port", type=int, default=4000)
     parser.add_argument("--name", help="your name at the table (needed to play; spectators may leave it out)")
