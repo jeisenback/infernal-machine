@@ -651,6 +651,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Void: only an opponent's cards.) Every route to a graveyard is covered: spells, dying, discarding, milling, cycling.
     Things still die, so dies triggers happen; a commander can still choose the command zone. Rest in Peace's "exile
     all cards from all graveyards" is supported.
+  - Damage doubling: "If a source (you control) would deal damage to a permanent or player, it deals double (triple) that damage
+    instead" (Furnace of Rath, Dictate of the Twin Gods, Angrath's Marauders, City on Fire, Fiery Emancipation, Gratuitous
+    Violence for a creature you control, Charging Tuskodon for itself), the same to an opponent or an opponent's permanents
+    (Twinflame Tyrant) or an opponent only (Fiendish Duo), noncombat only (Solphim), and "that much damage plus N" (Tomik).
+    Spells count as sources you control. Doubling applies before prevention, and several stack (two doublers: four times).
+    Narrower sources (a red source, a Giant, an odd mana value, "another source") are not read.
   - Blightsteel Colossus, Darksteel Colossus, Legacy Weapon, Progenitus and Nexus of Fate: "If CARDNAME would be put into a
     graveyard from anywhere, reveal CARDNAME and shuffle it into its owner's library instead." It works from every zone
     (dying, discarding, milling, a resolved spell); a creature that is shuffled in never dies, and a commander can still
