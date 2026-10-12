@@ -25,7 +25,7 @@ from .combat import Attack, Combat
 from . import casting
 from .effects import (EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_extra_counters, chooses_creature_type, clone_is_artifact, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_extra_counters, chooses_creature_type, clone_is_artifact, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, unearth_cost, damage_prevention, damage_modifiers, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -2727,6 +2727,7 @@ class Game:
         if isinstance(target, Seat) and target.protected:  # protection from everything
             self.broadcast({"event": "damage_prevented", "seat": target.index, "amount": amount})
             return
+        amount = self._modified_damage(target, amount, source, combat)
         prevented = self._damage_after_prevention(target, amount, source, combat)
         if prevented < amount:
             self.broadcast({"event": "damage_prevented", "amount": amount - prevented,
@@ -2798,6 +2799,34 @@ class Game:
                             "source": source.card.name if source else None})
         if controller and source is not None and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
+
+    def _modified_damage(self, target: Seat | Permanent, amount: int, source: Permanent | None, combat: bool) -> int:
+        """`amount` damage after the replacement effects that double, triple or add to it (CR 614.1, 616.1): "If a source you control
+        would deal damage to a permanent or player, it deals double that damage instead." Doubling goes first, then additions."""
+        if amount <= 0:
+            return amount
+        dealer = self.controller_of(source) if source is not None else (self.resolving_item.controller if self.resolving_item else None)
+        victim_seat = target if isinstance(target, Seat) else self.controller_of(target)
+        factor, plus = 1, 0
+        for seat in self.live_seats():
+            for permanent in seat.battlefield:
+                if self.loses_abilities(permanent):
+                    continue
+                for mod in damage_modifiers(permanent.card):
+                    if (mod.kind == "combat" and not combat) or (mod.kind == "noncombat" and combat):
+                        continue
+                    if mod.source == "you" and dealer is not seat:
+                        continue
+                    if mod.source == "creature" and (source is None or dealer is not seat or "Creature" not in source.card.type_line):
+                        continue
+                    if mod.source == "self" and source is not permanent:
+                        continue
+                    if mod.victim in ("opponent", "opponent_player") and (victim_seat is None or victim_seat is seat):
+                        continue
+                    if mod.victim in ("opponent_player", "player") and not isinstance(target, Seat):
+                        continue
+                    factor, plus = factor * mod.factor, plus + mod.plus
+        return amount * factor + plus if factor != 1 or plus else amount
 
     def give_poison(self, seat: Seat, count: int) -> None:
         if count > 0:

@@ -744,6 +744,40 @@ def replacement_effects(card: Card) -> Replacements:
     return Replacements(**found)
 
 
+@dataclass(frozen=True)
+class DamageModifier:
+    """A static replacement effect on damage (CR 614.1, 616.1): "If a source you control would deal damage to a permanent or player,
+    it deals double that damage instead." (Angrath's Marauders), "... noncombat damage to an opponent or a permanent an opponent
+    controls, it deals that much damage plus 1 instead." (Tomik)"""
+    source: str  # "any" (a source), "you" (a source you control), "creature" (a creature you control), "self" (this creature)
+    victim: str  # "any" (a permanent or player), "opponent" (an opponent or a permanent an opponent controls), "player" (a player),
+    #              "opponent_player" (an opponent: a player only)
+    kind: str  # "any", "combat" or "noncombat" damage
+    factor: int = 1  # double: 2, triple: 3
+    plus: int = 0  # "that much damage plus N"
+
+
+_DAMAGE_MODIFIER = re.compile(
+    rf"If (a source|a source you control|a creature you control|{_SELF}) would deal (noncombat |combat )?damage to "
+    r"(a permanent or player|an opponent or a permanent an opponent controls|an opponent|a player), (?:it|that source) deals "
+    r"(?:(double|triple) that damage|that much damage plus (\d+))(?: to that [a-z ]+)? instead\.")
+
+
+def _damage_modifier(line: str) -> DamageModifier | None:
+    if not (m := _DAMAGE_MODIFIER.fullmatch(line)):
+        return None
+    source = {"a source": "any", "a source you control": "you", "a creature you control": "creature"}.get(m[1], "self")
+    victim = {"a permanent or player": "any", "an opponent or a permanent an opponent controls": "opponent",
+              "an opponent": "opponent_player", "a player": "player"}[m[3]]
+    return DamageModifier(source, victim, (m[2] or "any").strip().replace(" ", "") or "any",
+                          {"double": 2, "triple": 3}.get(m[4] or "", 1), int(m[5] or 0))
+
+
+@lru_cache(maxsize=None)
+def damage_modifiers(card: Card) -> tuple[DamageModifier, ...]:
+    return tuple(mod for line in rules_lines(card) if (mod := _damage_modifier(line)) is not None)
+
+
 _LIFE_GAIN_PLUS_ONE = "If you would gain life, you gain that much life plus 1 instead."
 
 
@@ -785,7 +819,7 @@ def is_replacement_line(line: str) -> bool:
     return (line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT)
-            or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None)
+            or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None or _damage_modifier(line) is not None)
 
 
 _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy of "
