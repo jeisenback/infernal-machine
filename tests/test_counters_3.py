@@ -8,6 +8,7 @@ from infernal_machine.combat import Attack
 from infernal_machine.effects import (HYPOTHESIS_COUNTER_PROMPT, PARITY_PROMPT, Counter, OpponentsLoseCounters,
                                       RemoveAllCountersDraw, VowCounters, ZimonesHypothesis, spell_effects, suspend_of)
 from infernal_machine.game import CAST, MODE_PROMPT, OPTIONAL_PROMPT, SUSPEND, X_PROMPT, Permanent, StackItem
+from infernal_machine.mana import Cost
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
 from tests.test_combat import BEAR
@@ -351,8 +352,8 @@ class NilsTests(unittest.TestCase):
         a.battlefield = [Permanent(self.NILS)]
         carrier = Permanent(BEAR, counters={"+1/+1": 2})
         b.battlefield = [carrier, *lands(1)]
-        self.assertEqual(game.combat._attack_tax(carrier, a), 2)
-        self.assertEqual(game.combat._attack_tax(carrier, c), 0)
+        self.assertEqual(game.combat._attack_tax(carrier, a), Cost(generic=2))
+        self.assertEqual(game.combat._attack_tax(carrier, c), Cost())
         self.assertEqual(game.combat._attackable(b, carrier, game.opponents(b), [])[0], [c])  # it cannot pay {2}
         b.battlefield.append(Permanent(RELIC))
         b.battlefield += lands(1)

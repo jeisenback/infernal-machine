@@ -161,16 +161,35 @@ def attack_tax_per_counter(card: Card) -> int:
 
 
 def is_attack_tax_line(line: str) -> bool:
-    return _ATTACK_TAX.fullmatch(line) is not None or _FLAT_ATTACK_TAX.fullmatch(line) is not None
+    return _ATTACK_TAX.fullmatch(line) is not None or _attack_tax(line) is not None
+
+
+@dataclass(frozen=True)
+class AttackTax:
+    """What each creature that attacks this card's controller costs its controller: the `cost` ({2}, {W/P}), or `amount` generic mana
+    when the cost is {X} and X is a count the card's controller works out ("the number of enchantments you control")."""
+    cost: str = ""
+    amount: Amount | None = None
 
 
 _FLAT_ATTACK_TAX = re.compile(r"Creatures can't attack you(?: or planeswalkers you control)? unless their controller pays "
-                              r"\{(\d+)\} for each creature they control that's attacking you(?: or planeswalkers you control)?\.")
+                              r"(\{\d+\}|\{[WUBRG]/P\}|\{X\}) for each (?:creature they control that's attacking you(?: or planeswalkers you control)?"
+                              r"|of those creatures)(?:, where X is (.+))?\.")
 
 
-def flat_attack_tax(card: Card) -> int:
-    """Ghostly Prison: how much each creature attacking its controller costs to attack with."""
-    return sum(int(m[1]) for line in rules_lines(card) if (m := _FLAT_ATTACK_TAX.fullmatch(line)))
+def _attack_tax(line: str) -> AttackTax | None:
+    """The tax a "Creatures can't attack you unless their controller pays ..." line sets, or None if it isn't one we understand."""
+    if not (m := _FLAT_ATTACK_TAX.fullmatch(line)):
+        return None
+    if m[1] == "{X}":
+        amount = _amount(m[2]) if m[2] else None
+        return AttackTax(amount=amount) if amount is not None else None
+    return AttackTax(cost=m[1]) if not m[2] else None
+
+
+def attack_taxes(card: Card) -> list[AttackTax]:
+    """Ghostly Prison, Baird, Norn's Annex, Sphere of Safety: the tax on each creature attacking the card's controller."""
+    return [tax for line in rules_lines(card) if (tax := _attack_tax(line)) is not None]
 
 
 @dataclass(frozen=True)
