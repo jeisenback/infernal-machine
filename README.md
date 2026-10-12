@@ -813,6 +813,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     destruction (`Game._saved_from_destruction`). An Aura may enchant a Forest, a Mountain, an Equipment, "artifact or creature you control"
     and the like (`_ENCHANT_HEAD`); Utopia Sprawl adds mana of the color chosen as it entered. Not understood: Mobilize X, "red or green
     creature" Auras, Dog Umbra and Umbra Mystic, Gift, Spree, Ninjutsu, Foretell.
+  - Transforming double-faced cards and day/night (`tests/test_transform.py`): a `transform` card keeps its back face as `Card.flip`
+    (mana value that of the front face); `Game.transform` swaps `Permanent.card` for it and keeps the front in
+    `Permanent.transformed_from`, so counters, damage and Auras stay and the card leaves as its front face. A card is fully playable
+    only if its back face is too (`unsupported_lines`). "Transform this creature", "When it transforms into CARDNAME", "Exile this Saga,
+    then return it to the battlefield transformed" and "When it dies, return it ... transformed" are understood. Daybound and
+    nightbound follow the day/night rule (`Game.day_night`, `_update_day_night` at each untap step: the previous turn's player cast no
+    spells or two or more), and only that rule turns them over; the older "if no spells were cast last turn" werewolves use the
+    upkeep conditions `no_spells_last_turn` and `two_spells_last_turn`. Not understood: Disturb, Craft, Living metal, More Than Meets the
+    Eye, Meld, and transform costs or conditions that no template reads yet.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same

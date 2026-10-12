@@ -97,6 +97,7 @@ _SELF_EVENTS = {
     "becomes_blocked": r"becomes blocked",
     "combat_damage_to_player": r"deals combat damage to a player",
     "targeted": r"becomes the target of an? (?:spell|spell or ability)",
+    "transformed": r"transforms into CARDNAME",
 }
 
 

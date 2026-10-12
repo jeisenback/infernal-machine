@@ -69,7 +69,7 @@ def play(card: Card) -> bool:
             break
         game._perform(mine, abilities[0])
         run_stack(game)
-    return bool(ways) | play_other_half(card) | play_face_down(card)
+    return bool(ways) | play_other_half(card) | play_face_down(card) | play_transformed(card)
 
 
 def play_other_half(card: Card) -> bool:
@@ -91,6 +91,29 @@ def play_other_half(card: Card) -> bool:
     if CAST_EXILE + card.name in game.legal_actions(mine):
         game._perform(mine, CAST_EXILE + card.name)
         run_stack(game)
+        game._check_state()
+    return True
+
+
+def play_transformed(card: Card) -> bool:
+    """Put a transforming card onto the battlefield, turn it over, use its back face's abilities and turn it back."""
+    if card.flip is None or "Land" in card.type_line:
+        return False
+    game, mine = table(card)
+    game._enter(mine, Permanent(card, sick=False))
+    run_stack(game)
+    permanent = next(p for p in mine.battlefield if p.card is card)
+    game.transform(permanent, by_day_night=True)
+    run_stack(game)
+    game._check_state()
+    for _ in range(3):
+        abilities = [x for x in game.legal_actions(mine) if x.startswith(ACTIVATE) and card.flip.name in x]
+        if not abilities:
+            break
+        game._perform(mine, abilities[0])
+        run_stack(game)
+    if game.on_battlefield(permanent):
+        game.transform(permanent, by_day_night=True)
         game._check_state()
     return True
 
