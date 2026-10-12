@@ -392,7 +392,7 @@ class PendingTrigger:
     subject: "Permanent | None" = None  # what a watching trigger saw happen
     player: "Seat | None" = None  # who did it
     card: Card | None = None  # for a dungeon room's ability, which has no permanent behind it
-    spell: "StackItem | None" = None  # for a cast trigger: the spell that was cast
+    spell: "StackItem | Card | tuple | None" = None  # for a cast trigger: the spell that was cast
 
     @property
     def source(self) -> Card:
@@ -1034,7 +1034,7 @@ class Game:
             permanent.until_end_of_turn.append(Modifier(0, 0, on_your_turn, your_turn=True))
         self.broadcast({"event": "became_creature", "card": permanent.card.name, "power": power, "toughness": toughness})
 
-    def move_counters(self, source: Permanent, destination: Permanent, counter: str, count: int | None) -> None:
+    def move_counters(self, source: Permanent, destination: Permanent, counter: str | None, count: int | None) -> None:
         """Move up to `count` counters (all of them if None) from one permanent to another. They are moved, not put
         on it, so nothing that doubles counters applies."""
         if counter is None:  # Nexus Mentality: all counters, of every kind
@@ -2816,7 +2816,7 @@ class Game:
             return self.x_value // 2
         if value == "hX+":  # ... rounded up
             return (self.x_value + 1) // 2
-        return self.x_value if value == "X" else 2 * self.x_value if value == "2X" else value
+        return self.x_value if value == "X" else 2 * self.x_value if value == "2X" else int(value)
 
     def _apply_effects(self, item: StackItem) -> bool:
         """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""
@@ -2879,7 +2879,7 @@ class Game:
     # --- triggered abilities -------------------------------------------------
 
     def trigger(self, event: str, permanent: Permanent, controller: Seat, subject: Permanent | None = None,
-                player: Seat | None = None, x: int = 0, spell: "StackItem | Card | None" = None, text: str | None = None) -> None:
+                player: Seat | None = None, x: int = 0, spell: "StackItem | Card | tuple | None" = None, text: str | None = None) -> None:
         """Note that `permanent`'s abilities for `event` triggered; they go on the stack
         the next time a player would get priority (CR 603.3). With `text`, only the ability printed as that line (a Room's door)."""
         if event not in EVENTS and not event.startswith("chapter_"):
@@ -2927,7 +2927,7 @@ class Game:
             self.happened("discarded_nonland", seat, spell=nonland)
 
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0,
-               subject: Permanent | None = None, player: Seat | None = None, spell: "StackItem | None" = None) -> None:
+               subject: Permanent | None = None, player: Seat | None = None, spell: "StackItem | Card | tuple | None" = None) -> None:
         if ability.condition and not self.condition_holds(ability.condition, controller, permanent, x, player, subject):
             return
         if ability.once_per_turn:  # "This ability triggers only once each turn."
@@ -3533,7 +3533,7 @@ class Game:
             if combat and amount > 0 and source is not None and not self.loses_abilities(source) \
                     and (toxic := toxic_of(source.card)):
                 self.give_poison(target, toxic)  # Toxic N: that many poison counters in addition to the damage
-            if combat and controller:
+            if combat and controller and source is not None:  # (a controller means there is a source)
                 self.trigger("combat_damage_to_player", source, controller, player=target, x=amount)
                 if target is self.monarch and controller is not target:  # CR 725.2
                     self.become_monarch(controller)
@@ -3555,7 +3555,7 @@ class Game:
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
                         self.trigger("token_combat_damage", permanent, controller, subject=source)
-            if combat and controller and source.card.name in controller.commander_names:
+            if combat and controller and source is not None and source.card.name in controller.commander_names:
                 key = (controller.index, source.card.name)
                 target.commander_damage[key] = target.commander_damage.get(key, 0) + amount
                 self.broadcast({"event": "commander_damage", "seat": target.index, "from_seat": controller.index,
@@ -3574,7 +3574,7 @@ class Game:
                 target.loyalty -= amount
             self.broadcast({"event": "damage", "card": target.card.name, "amount": amount,
                             "source": source.card.name if source else None})
-        if controller and self.has_keyword(source, "lifelink"):
+        if controller and source is not None and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
 
     def give_poison(self, seat: Seat, count: int) -> None:
@@ -3749,12 +3749,12 @@ class Game:
         if gives.who == "each player":
             for seat in self.turn_order_from_active():
                 power = sum(p.last_power for p in left if p.last_controller is seat) if gives.power_counters else 0
-                self.create_tokens(seat, gives.token, gives.count, (power, "+1/+1") if power else None)
+                self.create_tokens(seat, gives.token, self.amount(gives.count), (power, "+1/+1") if power else None)
             return
         for permanent in left:
             if gives.who == "you" and permanent.last_controller is not caster:
                 continue
-            self.create_tokens(caster if gives.who == "you" else permanent.last_controller, gives.token, gives.count)
+            self.create_tokens(caster if gives.who == "you" else permanent.last_controller, gives.token, self.amount(gives.count))
 
     def return_to_hand(self, permanent: Permanent) -> None:
         """Bounce: a permanent goes to its owner's hand (a token just stops existing)."""
@@ -4401,7 +4401,9 @@ class Game:
     def return_with_counter(self, dead: Permanent | None, counter: str, tapped: bool = False) -> None:
         """Persist and undying: put the card that just died back onto the battlefield with a counter, under its
         owner's control, if it is still in the graveyard (a token or a commander sent elsewhere isn't)."""
-        seat = (dead.owner or dead.last_controller) if dead is not None else None
+        if dead is None:
+            return
+        seat = dead.owner or dead.last_controller
         if seat is None or dead.card not in seat.graveyard:
             return
         seat.graveyard.remove(dead.card)
@@ -5690,7 +5692,7 @@ class Game:
             self._become_copy(seat, permanent, *clone)
             if artifact_too and permanent.real_card is not None and "Artifact" not in permanent.card.type_line:  # Phyrexian Metamorph
                 permanent.card = dataclasses.replace(permanent.card, type_line="Artifact " + permanent.card.type_line)
-        counters = {counter: (x if count == "X" else 2 * x if count == "2X" else count)
+        counters = {counter: (x if count == "X" else 2 * x if count == "2X" else int(count))
                     for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped, any(
                         o.damage_taken_turn == self.turn for o in self.opponents(seat))).items()}
         if permanent.extra_counters:  # Opal Palace: mana spent on the commander

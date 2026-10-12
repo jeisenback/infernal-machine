@@ -231,7 +231,7 @@ class ScryfallSource:
             for card_data in data.get("data", []):
                 card = Card.from_scryfall(card_data)
                 found[card.name] = card
-            missing += [fronts.get(ident["name"], ident["name"]) for ident in data.get("not_found", [])]
+            missing += [fronts.get(name := str(ident["name"]), name) for ident in data.get("not_found", [])]
         if missing:
             raise CardNotFound(", ".join(missing))
         return _match_requested(wanted, found)

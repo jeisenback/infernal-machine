@@ -70,6 +70,12 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, blo
     "... enters with a +1/+1 counter on it for each time it was kicked."; and, when `bloodthirsty`, "If an opponent
     was dealt damage this turn, this creature enters with N +1/+1 counters on it." """
     counters: dict[str, int | str] = {}
+
+    def add(name: str, number: int) -> None:
+        held = counters.get(name, 0)
+        assert isinstance(held, int)  # "X" and "2X" stand alone
+        counters[name] = held + number
+
     for line in rules_lines(card):
         if b := _IF_BLOODTHIRSTY.match(line):
             if not bloodthirsty:
@@ -80,13 +86,16 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, blo
         if m := _ENTERS_WITH.fullmatch(line):
             name = _counter_name(m[3])
             count = "2X" if m[1].lower() == "twice x" else _count(m[2])  # "2X": twice the X paid
-            counters[name] = count if count in ("X", "2X") else counters.get(name, 0) + count
+            if isinstance(count, int):
+                add(name, count)
+            else:
+                counters[name] = count
         elif escaped and (m := _ESCAPES_WITH.fullmatch(line)):
             name = _counter_name(m[2])
-            counters[name] = counters.get(name, 0) + _number(m[1])
+            add(name, _number(m[1]))
         elif kicked and (m := _ENTERS_PER_KICK.fullmatch(line)):
             name = _counter_name(m[1])
-            counters[name] = counters.get(name, 0) + kicked
+            add(name, kicked)
     return counters
 
 
@@ -540,11 +549,13 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     permanents=bool(who["perms"]), opponents=bool(who["opps"])))
         elif m := _COUNTER_SCALED.fullmatch(sentence):  # Door of Destinies: +1/+1 for each charge counter on it
             who = _AFFECTED_WHO.fullmatch(m[1])
+            assert who is not None
             buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), _other(who),
                                     "chosen" if who["chosen"] else _who_subtype(who), line, condition=condition,
                                     per=("source_counters", m[4])))
         elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
             who = _AFFECTED_WHO.fullmatch(m[1])
+            assert who is not None
             buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
                                     _who_subtype(who), line, condition=condition, per=("commander_casts", "")))
         elif m := _BOTH_SCALED.fullmatch(sentence):

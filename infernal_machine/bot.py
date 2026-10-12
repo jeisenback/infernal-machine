@@ -105,11 +105,11 @@ class BotPlayer:
         if prompt.startswith(ATTACK_PROMPT):
             if _stats(prompt)[0] <= 0:
                 return 0
-            return min(range(1, len(options)), key=lambda i: self._life.get(_seat_of(options[i]), 0))
+            return min(range(1, len(options)), key=lambda i: self._life_of(_seat_of(options[i])))
         if prompt.startswith(BLOCK_PROMPT):
             return self._block(prompt, options)
         if prompt.startswith(SHOCK_PROMPT):
-            return 0 if self._life.get(self._seat, 0) > 10 else 1  # pay life only while healthy
+            return 0 if self._life_of(self._seat) > 10 else 1  # pay life only while healthy
         if prompt.startswith(DANCE_PROMPT):  # Dance with Calamity: keep exiling while the total is well under the limit
             return 0 if _prompt_number(prompt, "(") < 4 and _prompt_number(prompt, "total mana value ") < 9 else 1
         if prompt.startswith(DEVOUR_PROMPT):  # the bot keeps its creatures
@@ -214,14 +214,18 @@ class BotPlayer:
         return (card is not None and "Aura" in card.type_line and "can't attack or block" not in card.oracle_text
                 and "You control enchanted creature" not in card.oracle_text)
 
+    def _life_of(self, seat: int | None) -> int:
+        """The last life total heard for a seat; 0 for one not heard from."""
+        return self._life.get(seat, 0) if seat is not None else 0
+
     def _block(self, prompt: str, options: Sequence[str]) -> int:
         toughness = _stats(prompt)[1]
         powers = {i: _stats(options[i])[0] for i in range(1, len(options))}
         survivable = [i for i, p in powers.items() if p < toughness]
         if survivable:
-            return max(survivable, key=powers.get)
-        if self._life.get(self._seat, 0) <= self.CHUMP_LIFE:
-            return max(powers, key=powers.get)
+            return max(survivable, key=powers.__getitem__)
+        if self._life_of(self._seat) <= self.CHUMP_LIFE:
+            return max(powers, key=powers.__getitem__)
         return 0
 
 
@@ -285,7 +289,8 @@ def _stats(label: str) -> tuple[int, int]:
     match = re.search(r" (\S+)/(\S+) \(seat", label)
     if not match:
         return 0, 0
-    return tuple(int(v) if v.isdigit() else 0 for v in match.groups())
+    power, toughness = (int(v) if v.isdigit() else 0 for v in match.groups())
+    return power, toughness
 
 
 def _seat_of(label: str) -> int | None:
