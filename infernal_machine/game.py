@@ -723,6 +723,9 @@ class Game:
             self.combat = Combat(self)
             for permanent in list(seat.battlefield):
                 self.trigger("combat", permanent, seat)
+            for holder in self.live_seats():  # "At the beginning of each combat": whoever's turn it is
+                for permanent in list(holder.battlefield):
+                    self.trigger("each_combat", permanent, holder)
         elif self.step == "declare_attackers":
             self.combat.declare_attackers(seat)
         elif self.step == "declare_blockers":

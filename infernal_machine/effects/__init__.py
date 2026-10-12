@@ -61,6 +61,7 @@ from .outcomes import (  # noqa: F401
     NinjutsuEnter,
     RevealTopToHandDrain,
     DistributeCounters,
+    DoubleStats,
     Transform,
     ReturnTransformed,
     CLUE,
