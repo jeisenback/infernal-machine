@@ -608,6 +608,7 @@ class Modal:
     texts: tuple[str, ...]
     commander_both: bool = False  # "If you control a commander as you cast this spell, you may choose both instead."
     optional: bool = False  # "you may choose two": the controller may choose none
+    repeat: bool = False  # "You may choose the same mode more than once." (a Confluence): `max` picks, each mode any number of times
 
 
 _MODAL_COUNTS = {"one": (1, 1), "up to one": (0, 1), "two": (2, 2), "three": (3, 3), "one or both": (1, 2), "one or more": (1, 0)}
@@ -616,11 +617,18 @@ _MODAL_COUNTS = {"one": (1, 1), "up to one": (0, 1), "two": (2, 2), "three": (3,
 _MODAL_HEADER = re.compile(r"Choose (one or both|one or more|up to one|one|two|three) \u2014", re.I)
 
 
+_MODAL_REPEAT = re.compile(r"Choose (three|four|five|up to four)\. You may choose the same mode more than once\.")
+
+
+_REPEAT_COUNTS = {"three": (3, 3), "four": (4, 4), "five": (5, 5), "up to four": (0, 4)}
+
+
 _MODAL_COMMANDER = re.compile(r"Choose one\. If you control a commander as you cast this spell, you may choose both instead\.")
 
 
 def is_modal_header(line: str) -> bool:
-    return _MODAL_HEADER.fullmatch(line) is not None or _MODAL_COMMANDER.fullmatch(line) is not None
+    return (_MODAL_HEADER.fullmatch(line) is not None or _MODAL_REPEAT.fullmatch(line) is not None
+            or _MODAL_COMMANDER.fullmatch(line) is not None)
 
 
 def mode_text(line: str) -> str:
@@ -628,7 +636,7 @@ def mode_text(line: str) -> str:
     return line[2:] if line.startswith("\u2022 ") else line
 
 
-def _parse_modal(how: str, lines: list[str]) -> list | None:
+def _parse_modal(how: str, lines: list[str], repeat: bool = False) -> list | None:
     modes, texts = [], []
     for line in lines:
         if not line.startswith("\u2022 "):
@@ -638,6 +646,9 @@ def _parse_modal(how: str, lines: list[str]) -> list | None:
             return None
         modes.append(tuple(effects))
         texts.append(mode_text(line))
+    if repeat:  # a mode may be chosen again, so two modes can fill "choose three"
+        low, high = _REPEAT_COUNTS[how]
+        return [Modal(low, high, tuple(modes), tuple(texts), repeat=True)] if modes else None
     low, high = _MODAL_COUNTS[how]
     high = high or len(modes)
     return [Modal(low, high, tuple(modes), tuple(texts))] if len(modes) >= max(low, 1) else None

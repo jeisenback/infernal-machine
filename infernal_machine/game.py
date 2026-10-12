@@ -1676,7 +1676,8 @@ class Game:
                           source: Permanent | None = None) -> bool:
         """Whether the targets exist: for a modal spell or ability, for enough of its modes."""
         if effects and isinstance(effects[0], Modal):
-            return sum(self._targets_exist(seat, modes, colors, source) for modes in effects[0].modes) >= effects[0].min
+            modal = effects[0]
+            return sum(self._targets_exist(seat, modes, colors, source) for modes in modal.modes) >= (min(modal.min, 1) if modal.repeat else modal.min)
         return self._targets_exist(seat, effects, colors, source)
 
     def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset(),
