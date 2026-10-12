@@ -81,7 +81,7 @@ class Combat:
                     defender = opponents[choice - 1]
                 else:
                     walker = walkers[choice - 1 - len(opponents)]
-                    defender = self.game.controller_of(walker)
+                    defender = self.game.controller(walker)
             if not self.game.has_keyword(permanent, "vigilance"):
                 self.game.tap(permanent)
             owed += self._attack_tax(permanent, defender)  # Nils: {X} to attack, X the counters on the attacker
@@ -296,6 +296,7 @@ class Combat:
             for blocker in blockers:
                 if self._deals_damage_now(blocker, first_strike_step):
                     hits.append((blocker, attacker, max(0, self.game.power(blocker))))
+        from .game import Seat  # game imports this module, so it can't be imported at the top
         hit_players: dict[tuple[int, int], tuple[Seat, list[Permanent]]] = {}  # (hitter, player hit) -> who did it
         dealt: dict[tuple[int, int], dict[int, int]] = {}  # the same key -> how much each of them dealt
         outer = self.game._batch
@@ -305,7 +306,7 @@ class Combat:
                 if amount > 0:
                     hitter = self.game.controller_of(source)
                     self.game.damage(target, amount, source=source, combat=True)
-                    if hitter is not None and not hasattr(target, "card"):  # a player, not a permanent
+                    if hitter is not None and isinstance(target, Seat):  # a player, not a permanent
                         hit_players.setdefault((hitter.index, target.index), (hitter, []))[1].append(source)
                         dealt.setdefault((hitter.index, target.index), {})[id(source)] = amount
         finally:

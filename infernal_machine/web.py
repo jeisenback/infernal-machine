@@ -17,6 +17,7 @@ import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import cast
 from urllib.parse import parse_qs, urlparse
 
 from .client import Client
@@ -81,7 +82,7 @@ class WebClient(Client):
             self._bump()
         return choice
 
-    def answer(self, prompt_id: int, choice: int) -> bool:
+    def answer(self, prompt_id: object, choice: object) -> bool:
         """The page's answer to the open prompt; False if it is for another prompt or not one of its options."""
         with self._changed:
             prompt = self.prompt
@@ -102,7 +103,9 @@ class WebClient(Client):
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server: "WebServer"
+    @property
+    def web(self) -> "WebServer":
+        return cast("WebServer", self.server)
 
     def do_GET(self) -> None:
         url = urlparse(self.path)
@@ -112,7 +115,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._reply(204, b"", "image/x-icon")
         elif url.path == "/state":
             since = int(parse_qs(url.query).get("since", ["-1"])[0])
-            self._reply(200, json.dumps(self.server.client.view(since, self.server.poll_seconds)).encode("utf-8"),
+            self._reply(200, json.dumps(self.web.client.view(since, self.web.poll_seconds)).encode("utf-8"),
                         "application/json")
         else:
             self._reply(404, b"Not found", "text/plain")
@@ -125,7 +128,7 @@ class _Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
         except ValueError:
             body = {}
-        taken = isinstance(body, dict) and self.server.client.answer(body.get("id"), body.get("choice"))
+        taken = isinstance(body, dict) and self.web.client.answer(body.get("id"), body.get("choice"))
         self._reply(200 if taken else 409, json.dumps({"ok": taken}).encode("utf-8"), "application/json")
 
     def _reply(self, status: int, body: bytes, content_type: str) -> None:

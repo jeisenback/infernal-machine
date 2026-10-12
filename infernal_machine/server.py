@@ -25,6 +25,7 @@ from .bot import BotPlayer
 from .cards import BulkSource, CachedSource, CardNotFound, CardSource, Deck, ScryfallSource, load_deck
 from .commander import deck_problems
 from .game import Game
+from .player import Player
 from .tcp import Disconnected, TcpPlayer, TimedOut, listen
 
 MAX_PROBLEMS_SHOWN = 10
@@ -274,7 +275,7 @@ def run_table(server: socket.socket, humans: int, bot_decks: list[str], source: 
     pilots = [AutoPilotPlayer(human, BotPlayer(human.name, deck), seat, timer)
               for seat, (human, deck) in enumerate(seated)]
     try:
-        players = [(pilot, deck) for pilot, (_, deck) in zip(pilots, seated)]
+        players: list[tuple[Player, Deck]] = [(pilot, deck) for pilot, (_, deck) in zip(pilots, seated)]
         players += [(BotPlayer(name, deck), deck) for name, deck in bots]
         game = Game(players, seed=seed)
         game.spectators.append(spectators)

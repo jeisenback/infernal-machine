@@ -7,6 +7,7 @@ Run it on a decklist file (cards are fetched from Scryfall and cached):
 
 from __future__ import annotations
 
+import io
 import re
 import sys
 from collections import defaultdict
@@ -162,7 +163,8 @@ def format_report(reports: list[CardReport]) -> str:
 def main(argv: list[str]) -> int:
     from .cards import BulkSource, load_deck
 
-    sys.stdout.reconfigure(encoding="utf-8")  # card text has characters like − that the Windows console can't print
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8")  # card text has characters like − that the Windows console can't print
     if len(argv) != 2:
         print("usage: python -m infernal_machine.report DECKLIST", file=sys.stderr)
         return 2

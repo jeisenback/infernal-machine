@@ -386,7 +386,7 @@ EVOKE_SACRIFICE = TriggeredAbility("enters", (SacrificeSelf(),), False,
 @dataclass(eq=False)
 class PendingTrigger:
     ability: TriggeredAbility
-    permanent: "Permanent"
+    permanent: "Permanent | None"  # None for a dungeon room's ability, which has no permanent behind it (see `card`)
     controller: "Seat"
     x: int = 0  # for "Whenever you cast a spell with {X}, put X counters ...": that spell's X
     subject: "Permanent | None" = None  # what a watching trigger saw happen
@@ -396,7 +396,7 @@ class PendingTrigger:
 
     @property
     def source(self) -> Card:
-        return self.card or self.permanent.card
+        return self.card or _checked(self.permanent).card
 
 
 @dataclass(eq=False)
@@ -917,7 +917,7 @@ class Game:
 
     def _door_unlocked(self, room: Permanent, door: Card) -> None:
         """A door of `room` just unlocked: its "When you unlock this door" abilities trigger (and no other door's)."""
-        seat = self.controller_of(room)
+        seat = self.controller(room)
         self.broadcast({"event": "door_unlocked", "seat": seat.index, "card": _checked(room.real_card).name, "door": door.name})
         for line in rules_lines(door):
             self.trigger("unlock_door", room, seat, text=line)
@@ -2435,7 +2435,7 @@ class Game:
             self._observe("expend", card, seat, x=total)
         for target in (t for chosen in item.targets for t in (chosen if isinstance(chosen, list) else [chosen])):
             if isinstance(target, Permanent) and self.on_battlefield(target):  # "Whenever this creature becomes the target of a spell"
-                self.trigger("targeted", target, self.controller_of(target))
+                self.trigger("targeted", target, self.controller(target))
         self._check_ward(item)
 
     def _choose_buyback(self, seat: Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str,
@@ -3358,7 +3358,7 @@ class Game:
 
     def label(self, permanent: Permanent) -> str:
         """How a permanent is shown in choices: "Grizzly Bears 2/2 (seat 1, #3)"."""
-        seat = self.controller_of(permanent)
+        seat = self.controller(permanent)
         n = next(i for i, p in enumerate(seat.battlefield) if p is permanent) + 1
         stats = ""
         if "Creature" in permanent.card.type_line:
@@ -3370,6 +3370,14 @@ class Game:
 
     def controller_of(self, permanent: Permanent) -> Seat | None:
         return next((s for s in self.seats if any(p is permanent for p in s.battlefield)), None)
+
+    def controller(self, permanent: Permanent) -> Seat:
+        """The controller of a permanent the caller knows is on the battlefield (it was just found there, or just checked)."""
+        return _checked(self.controller_of(permanent))
+
+    def owner_of(self, permanent: Permanent) -> Seat:
+        """Whose card the permanent is: the seat it entered under, else whoever controls it, else whoever last did."""
+        return _checked(permanent.owner or self.controller_of(permanent) or permanent.last_controller)
 
     def on_battlefield(self, permanent: Permanent) -> bool:
         return self.controller_of(permanent) is not None
@@ -3549,7 +3557,7 @@ class Game:
                 for watched, watcher, effect in list(self.combat.damage_watches):  # "Whenever that creature deals ... this combat"
                     if watched is source and self.on_battlefield(watcher):
                         self._queue(TriggeredAbility("ally_combat_damage", (effect.then,), False, effect.text), watcher,
-                                    self.controller_of(watcher))
+                                    self.controller(watcher))
                 self._observe("combat_damage_dealt", source.card, controller, subject=source)  # "Whenever a Ninja you control deals ..."
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
@@ -3685,7 +3693,7 @@ class Game:
                 value = self.power(permanent) if restriction.stat == "power" else self.toughness(permanent)
                 if value is None or "Creature" not in permanent.card.type_line:
                     return False
-            at_most = self.x_value if restriction.at_most == "X" else restriction.at_most
+            at_most = None if restriction.at_most is None else self.amount(restriction.at_most)
             if (restriction.at_least is not None and value < restriction.at_least) or \
                     (at_most is not None and value > at_most):
                 return False
@@ -3754,7 +3762,7 @@ class Game:
         for permanent in left:
             if gives.who == "you" and permanent.last_controller is not caster:
                 continue
-            self.create_tokens(caster if gives.who == "you" else permanent.last_controller, gives.token, self.amount(gives.count))
+            self.create_tokens(_checked(caster) if gives.who == "you" else _checked(permanent.last_controller), gives.token, self.amount(gives.count))
 
     def return_to_hand(self, permanent: Permanent) -> None:
         """Bounce: a permanent goes to its owner's hand (a token just stops existing)."""
@@ -3982,7 +3990,7 @@ class Game:
     def exile_dead_make_spirit_copy(self, seat: Seat, dead: Permanent) -> None:
         """Hofri Ghostforge: exile the creature that just died from its owner's graveyard; if that works, `seat` creates a token
         that's a copy of it, a Spirit too, which sends the exiled card back to the graveyard when it leaves."""
-        owner = dead.owner or dead.last_controller
+        owner = self.owner_of(dead)
         if owner is None or not self.exile_from_graveyard(GraveyardTarget(dead.card, owner)):
             return
         card = dead.card
@@ -4483,7 +4491,7 @@ class Game:
         card = copied.card
         text = (card.oracle_text + f"\n{keyword}").strip()
         permanent.card = dataclasses.replace(card, type_line=card.type_line.removeprefix("Token "), oracle_text=text)
-        self.broadcast({"event": "copied_permanent", "seat": (seat or self.controller_of(permanent)).index,
+        self.broadcast({"event": "copied_permanent", "seat": (seat or self.controller(permanent)).index,
                         "card": permanent.original.name, "as": card.name})
 
     def may_become_copy(self, seat: Seat, permanent: Permanent, cards: list[Card]) -> None:
@@ -4629,7 +4637,7 @@ class Game:
 
     def return_at_next_upkeep(self, dead: Permanent) -> None:
         """Phytotitan: its card comes back tapped at the beginning of its owner's next upkeep."""
-        owner = dead.owner or dead.last_controller
+        owner = self.owner_of(dead)
         card = dead.card
         self.at_owner_upkeep.append((owner, self.turn, lambda: self._return_card_tapped(owner, card)))
 
@@ -4668,7 +4676,7 @@ class Game:
 
     def exile_noting(self, target: Permanent, source: Permanent | None) -> None:
         """Exile `target` and remember the card on `source` ("the exiled card's owner ..."). Tokens are not remembered."""
-        owner = target.owner or self.controller_of(target)
+        owner = self.owner_of(target)
         card, before = target.transformed_from or target.card, len(owner.exile)
         self.exile(target)
         if source is not None and not _is_token(card) and len(owner.exile) > before:
@@ -4679,7 +4687,7 @@ class Game:
         is exiled. A token is exiled for good, since it would stop existing anyway."""
         if source is not None and not self.on_battlefield(source):
             return
-        owner = target.owner or self.controller_of(target)
+        owner = self.owner_of(target)
         card, before = target.card, len(owner.exile)
         self.exile(target)
         if source is not None and not _is_token(card) and len(owner.exile) > before:  # not sent to the command zone
@@ -4696,7 +4704,7 @@ class Game:
             return
         if not by_day_night and day_night_face(permanent.card) is not None:
             return
-        seat = self.controller_of(permanent)
+        seat = self.controller(permanent)
         if front is None:
             permanent.transformed_from, permanent.card = permanent.card, _checked(permanent.card.flip)
         else:
@@ -4736,7 +4744,7 @@ class Game:
         """Exile `target`, then return it to the battlefield (or its owner's hand) right away (`when` is "now") or as the
         next end step begins ("end_step"). A token is gone for good; it comes back under `controller`'s control if
         the card says "under your control", otherwise under its owner's."""
-        owner = target.owner or self.controller_of(target)
+        owner = self.owner_of(target)
         card, before = target.transformed_from or target.card, len(owner.exile)
         self.exile(target)
         if _is_token(card) or len(owner.exile) <= before:  # a token ceases to exist; a commander went to the command zone
@@ -5109,7 +5117,7 @@ class Game:
     def chaos_warp(self, permanent: Permanent) -> None:
         """Its owner shuffles it into their library, reveals the top card and puts it onto the battlefield if it is a
         permanent card (an Aura stays on top: it would have nothing to enchant)."""
-        owner = permanent.owner or self.controller_of(permanent)
+        owner = self.owner_of(permanent)
         self._leave_together([(permanent, "returned")], destination="library")
         self.rng.shuffle(owner.library)
         if not owner.library:
@@ -5256,7 +5264,7 @@ class Game:
             return
         permanent.level += 1
         permanent.card = class_view(permanent.real_card, permanent.level)
-        self.broadcast({"event": "class_level", "seat": self.controller_of(permanent).index, "card": permanent.real_card.name,
+        self.broadcast({"event": "class_level", "seat": self.controller(permanent).index, "card": permanent.real_card.name,
                         "level": permanent.level})
 
     def put_exiled_with_into_graveyard(self, seat: Seat, source: Permanent) -> Card | None:
@@ -5279,7 +5287,7 @@ class Game:
             return
         together = [permanent] + [a for s in self.seats for a in s.battlefield if a.attached_to is permanent]
         for one in together:
-            holder = self.controller_of(one)
+            holder = self.controller(one)
             holder.battlefield = [p for p in holder.battlefield if p is not one]
             holder.phased_out.append(one)
         left = {id(p) for p in together}
@@ -5493,14 +5501,14 @@ class Game:
         """Move `seat`'s marker into the next room of the Undercity (the first room if it has none yet); leaving the
         last room completes the dungeon, and the venture starts a fresh one. The room's ability is put on the stack."""
         room = seat.undercity_room
-        options = ROOMS[room].leads_to if room else (START,)
+        options: tuple[str, ...] = ROOMS[room].leads_to if room else (START,)
         if not options:
             self.broadcast({"event": "dungeon_completed", "seat": seat.index, "dungeon": "Undercity"})
             options = (START,)
-        entered = options[seat.player.choose(VENTURE_PROMPT, list(options))] if len(options) > 1 else options[0]
+        entered = options[seat.player.choose(VENTURE_PROMPT, list(options)) if len(options) > 1 else 0]
         seat.undercity_room = entered
         self.broadcast({"event": "venture", "seat": seat.index, "room": entered})
-        effects = (ThroneOfTheDeadThree(),) if entered == "Throne of the Dead Three" else tuple(line_effects(ROOMS[entered].text))
+        effects = (ThroneOfTheDeadThree(),) if entered == "Throne of the Dead Three" else tuple(line_effects(ROOMS[entered].text) or ())
         ability = TriggeredAbility("venture", effects, False, ROOMS[entered].text)
         self.pending.append(PendingTrigger(ability, None, seat, card=Card(name=entered, type_line="Dungeon Room")))
 
@@ -5958,19 +5966,19 @@ class Game:
             permanent.last_auras = {s.index: n for s in self.seats
                                     if (n := sum(p.attached_to is permanent and "Aura" in p.card.type_line for p in s.battlefield))}
         for permanent, _ in leaving:
-            owner = permanent.last_controller
+            owner = _checked(permanent.last_controller)
             owner.battlefield = [p for p in owner.battlefield if p is not permanent]
         left = {id(permanent) for permanent, _ in leaving}  # an attacker that leaves is removed from combat
         self.combat.attacks = [a for a in self.combat.attacks if id(a.attacker) not in left]
-        gone = [(permanent, permanent.last_controller) for permanent, _ in leaving]
+        gone = [(permanent, _checked(permanent.last_controller)) for permanent, _ in leaving]
         for permanent, reason in leaving:
-            self.broadcast({"event": reason, "seat": permanent.last_controller.index, "card": permanent.card.name})
+            self.broadcast({"event": reason, "seat": _checked(permanent.last_controller).index, "card": permanent.card.name})
         # Sacrifice triggers look back in time, so what was sacrificed sees itself go.
         everyone = [(p, s) for s in self.live_seats() for p in s.battlefield] + gone
         for permanent, reason in leaving:
             if reason != "sacrificed":
                 continue
-            controller = permanent.last_controller
+            controller = _checked(permanent.last_controller)
             for watcher, watcher_seat in everyone:
                 if watcher_seat is controller and "Creature" in permanent.card.type_line:
                     self.trigger("sacrifice_creature", watcher, controller)
@@ -5982,7 +5990,7 @@ class Game:
             self._observe("sacrifice", permanent.card, controller, subject=permanent, extra=gone)  # Tireless Tracker, Mirkwood Bats
         destination_all = destination
         for permanent, _ in leaving:
-            controller = permanent.last_controller
+            controller = _checked(permanent.last_controller)
             destination = ("exile" if destination_all == "graveyard" and permanent.counters.get("finality")
                            and "Creature" in permanent.card.type_line else destination_all)  # a finality counter: exiled, not dying
             if destination == "graveyard" and replacement_effects(permanent.card).graveyard_self:

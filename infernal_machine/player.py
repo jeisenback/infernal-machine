@@ -13,3 +13,4 @@ class Player(Protocol):
 
     def choose(self, prompt: str, options: Sequence[str]) -> int:
         """Ask the player to pick one of `options`; returns its index."""
+        ...
