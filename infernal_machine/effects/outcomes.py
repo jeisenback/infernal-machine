@@ -3331,13 +3331,16 @@ class _TheyGain:
 
 @dataclass(frozen=True)
 class CopySelfToken:
-    """Leitmotif Composer: "Create a token that's a copy of this creature." """
+    """Leitmotif Composer: "Create a token that's a copy of this creature." Offspring: "create a 1/1 token copy of it"."""
+    one_by_one: bool = False  # CR 702.175a: the copy is 1/1 instead of the printed size
     uses_source = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             card = target.card if target.card.type_line.startswith("Token") else \
                 dataclasses.replace(target.card, type_line="Token " + target.card.type_line)
+            if self.one_by_one:
+                card = dataclasses.replace(card, power="1", toughness="1")
             game.create_tokens(controller, card, 1)
 
 

@@ -97,6 +97,9 @@ class AdditionalCost:
 _KICKER = re.compile(rf"(?:Multik|K)icker ({_MANA_SYMBOLS})(?: and/or ({_MANA_SYMBOLS}))?")
 
 
+_OFFSPRING = re.compile(rf"Offspring ({_MANA_SYMBOLS})")
+
+
 _KICKER_OTHER = re.compile(rf"Kicker\u2014(?:Sacrifice an? (creature|artifact|land|artifact or creature|permanent)"
                            rf"|(Discard a card)|Pay (?!X ){_N_FIXED} life)\.")
 
@@ -274,9 +277,10 @@ _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|nonc
 
 def kicker_costs(card: Card) -> tuple[str, ...]:
     """The mana kicker costs: one for "Kicker {1}{U}" or "Multikicker {1}{G}", two for "Kicker {R} and/or {W}",
-    none if there's no kicker or it isn't mana."""
+    none if there's no kicker or it isn't mana. Offspring is paid like a kicker: "You may pay an additional {2} as you cast
+    this spell" (CR 702.175a), and its trigger asks whether the spell was kicked."""
     for line in rules_lines(card):
-        if m := _KICKER.fullmatch(line):
+        if m := _KICKER.fullmatch(line) or _OFFSPRING.fullmatch(line):
             return tuple(cost for cost in m.groups() if cost)
     return ()
 

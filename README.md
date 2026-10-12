@@ -178,6 +178,9 @@ winner = game.play()
   - Two kicker costs ("Kicker {R} and/or {W}"): each is offered separately, when it can be paid, and
     "if it was kicked with its {R} kicker" / "If this spell was kicked with its {1}{B} kicker, ..." check that
     specific cost (Thornscape Battlemage).
+  - Offspring {N}: offered like a kicker as the creature spell is cast; if it was paid, a 1/1 token copy of the creature
+    enters with it (CR 702.175a) and has the creature's own abilities. The token was not cast, so it does not make another
+    token.
   - Additional costs: "As an additional cost to cast this spell, sacrifice a creature / an artifact / an artifact
     or creature / a land / a permanent", "discard a card" or "pay N life". They're paid after mana, so a creature
     that tapped for mana can still be sacrificed. Effects that read the paid cost ("the sacrificed creature's
