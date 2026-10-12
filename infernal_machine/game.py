@@ -11,6 +11,7 @@ other rules text is not implemented yet.
 from __future__ import annotations
 
 import dataclasses
+import itertools
 import random
 import re
 from collections.abc import Sequence
@@ -25,7 +26,7 @@ from .combat import Attack, Combat
 from . import casting
 from .effects import (EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_extra_counters, chooses_creature_type, clone_is_artifact, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, unearth_cost, damage_prevention, damage_modifiers, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_extra_counters, chooses_creature_type, clone_is_artifact, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -61,6 +62,7 @@ CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
+EVERYTHING = 10**9  # more damage than there will ever be: "prevent all damage"
 SHUFFLED = "library_shuffled"  # where a card goes when it is shuffled into its owner's library instead of a graveyard
 ETERNALIZE = "Eternalize: "  # followed by the card's name
 UNEARTH = "Unearth: "  # followed by the card's name
@@ -169,6 +171,7 @@ PROTECTION_PROMPT = "Choose a color for protection: "  # followed by the source'
 WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
 COLOR_LETTERS = {name: letter for letter, name in COLOR_NAMES.items()}
+DAMAGE_ORDER_PROMPT = "Choose the order the damage is changed in: "  # followed by who is dealt it; options are the orders, least damage first
 MODE_PROMPT = "Choose a mode for "  # followed by the spell's name; options are the modes, then DONE_MODES once enough are chosen
 DONE_MODES = "Done choosing modes"
 SEARCH_CARD_PROMPT = "Choose a card to search for"  # options are card names
@@ -2760,12 +2763,10 @@ class Game:
         if isinstance(target, Seat) and target.protected:  # protection from everything
             self.broadcast({"event": "damage_prevented", "seat": target.index, "amount": amount})
             return
-        amount = self._modified_damage(target, amount, source, combat)
-        prevented = self._damage_after_prevention(target, amount, source, combat)
-        if prevented < amount:
-            self.broadcast({"event": "damage_prevented", "amount": amount - prevented,
+        amount, prevented = self._damage_replaced(target, amount, source, combat)
+        if prevented:
+            self.broadcast({"event": "damage_prevented", "amount": prevented,
                             **({"card": target.card.name} if isinstance(target, Permanent) else {"seat": target.index})})
-            amount = prevented
             if amount <= 0:
                 return
         controller = self.controller_of(source) if source else None
@@ -2840,14 +2841,12 @@ class Game:
         if controller and source is not None and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
 
-    def _modified_damage(self, target: Seat | Permanent, amount: int, source: Permanent | None, combat: bool) -> int:
-        """`amount` damage after the replacement effects that double, triple or add to it (CR 614.1, 616.1): "If a source you control
-        would deal damage to a permanent or player, it deals double that damage instead." Doubling goes first, then additions."""
-        if amount <= 0:
-            return amount
+    def _damage_modifiers(self, target: Seat | Permanent, source: Permanent | None, combat: bool) -> list[tuple[Permanent, DamageModifier]]:
+        """The replacement effects that double, triple or add to this damage (CR 614.1): "If a source you control would deal damage to
+        a permanent or player, it deals double that damage instead.", each with the permanent that has it."""
         dealer = self.controller_of(source) if source is not None else (self.resolving_item.controller if self.resolving_item else None)
         victim_seat = target if isinstance(target, Seat) else self.controller_of(target)
-        factor, plus = 1, 0
+        found = []
         for seat in self.live_seats():
             for permanent in seat.battlefield:
                 if self.loses_abilities(permanent):
@@ -2865,8 +2864,45 @@ class Game:
                         continue
                     if mod.victim in ("opponent_player", "player") and not isinstance(target, Seat):
                         continue
-                    factor, plus = factor * mod.factor, plus + mod.plus
-        return amount * factor + plus if factor != 1 or plus else amount
+                    found.append((permanent, mod))
+        return found
+
+    def _damage_replaced(self, target: Seat | Permanent, amount: int, source: Permanent | None, combat: bool) -> tuple[int, int]:
+        """(the damage that is dealt, the damage prevented) once the replacement and prevention effects that apply to `amount` damage
+        have been applied. They are all replacement effects, so the player being dealt the damage (or the controller of the permanent)
+        chooses the order (CR 616.1): doubling before a shield of 2 against 3 damage is 4, a shield before the doubling is 2. The player is
+        asked only when the order changes the result; the least damage is listed first."""
+        if amount <= 0:
+            return amount, 0
+        mods = self._damage_modifiers(target, source, combat)
+        if not mods:
+            after = self._damage_after_prevention(target, amount, source, combat)
+            return after, amount - after
+        capacity = self._prevention_capacity(target, source, combat)
+        steps: list[tuple[str, int, int]] = [(p.card.name, m.factor, m.plus) for p, m in mods]  # (name, factor, plus)
+        if capacity:
+            steps.append(("prevention", 0, 0))
+        outcomes: dict[int, tuple[list[str], int]] = {}  # damage dealt -> (the order, the damage prevented)
+        for order in itertools.permutations(steps):
+            dealt, stopped = amount, 0
+            for name, factor, plus in order:
+                if name == "prevention":
+                    used = min(dealt, capacity)
+                    dealt, stopped = dealt - used, stopped + used
+                elif dealt > 0:  # nothing is left to replace once it is all prevented
+                    dealt = dealt * factor + plus
+            if dealt not in outcomes or stopped < outcomes[dealt][1]:  # the same damage: the order that keeps more of the shield
+                outcomes[dealt] = ([name for name, _, _ in order], stopped)
+        ordered = sorted(outcomes)
+        pick = 0
+        if len(ordered) > 1:
+            who = target if isinstance(target, Seat) else self.controller_of(target)
+            label = f"player {target.index}" if isinstance(target, Seat) else self.label(target)
+            options = [f"{n} damage ({' then '.join(outcomes[n][0])})" for n in ordered]
+            pick = (who or self.seats[0]).player.choose(DAMAGE_ORDER_PROMPT + label, options)
+        dealt = ordered[pick]
+        self._use_shields(target, outcomes[dealt][1])
+        return dealt, outcomes[dealt][1]
 
     def give_poison(self, seat: Seat, count: int) -> None:
         if count > 0:
@@ -2877,30 +2913,39 @@ class Game:
         """Prevent the next `amount` damage that would be dealt to `what` this turn."""
         self.shields.append([what, amount, self.turn])
 
-    def _damage_after_prevention(self, target: Seat | Permanent, amount: int, source: Permanent | None, combat: bool) -> int:
-        """How much of `amount` damage is still dealt after prevention: a Fog this turn, a static "prevent all damage that would be
-        dealt to this creature", and the shields used up in the order they were made. Damage that can't be prevented is all dealt."""
-        if amount <= 0:
-            return amount
+    def _prevention_capacity(self, target: Seat | Permanent, source: Permanent | None, combat: bool) -> int:
+        """How much of this damage can be prevented: none if it can't be prevented, everything for a Fog this turn or a static "prevent
+        all damage that would be dealt to this creature", else what the shields made this turn still hold."""
         everyone = [p for s in self.live_seats() for p in s.battlefield if not self.loses_abilities(p)]
         if any("unpreventable" in damage_prevention(p.card) for p in everyone) \
                 or (source is not None and "unpreventable:self" in damage_prevention(source.card)):
-            return amount
-        if combat and self.fog_turn == self.turn:
             return 0
+        if combat and self.fog_turn == self.turn:
+            return EVERYTHING
         if isinstance(target, Permanent):
             rules = damage_prevention(target.card) if not self.loses_abilities(target) else frozenset()
             if "self:all" in rules or ("self:combat" in rules and combat) \
                     or ("self:creatures" in rules and source is not None and "Creature" in source.card.type_line):
-                return 0
+                return EVERYTHING
         elif any("you:all" in damage_prevention(p.card) for p in target.battlefield if not self.loses_abilities(p)):
-            return 0
+            return EVERYTHING
+        return sum(entry[1] for entry in self.shields if entry[0] is target and entry[2] == self.turn and entry[1] > 0)
+
+    def _use_shields(self, target: Seat | Permanent, used: int) -> None:
+        """Use up `used` points of the shields on `target`, in the order they were made."""
         for entry in self.shields:
-            if entry[0] is target and entry[2] == self.turn and entry[1] > 0:
-                used = min(amount, entry[1])
-                entry[1] -= used
-                amount -= used
-        return amount
+            if used > 0 and entry[0] is target and entry[2] == self.turn and entry[1] > 0:
+                taken = min(used, entry[1])
+                entry[1] -= taken
+                used -= taken
+
+    def _damage_after_prevention(self, target: Seat | Permanent, amount: int, source: Permanent | None, combat: bool) -> int:
+        """How much of `amount` damage is still dealt after prevention."""
+        if amount <= 0:
+            return amount
+        used = min(amount, self._prevention_capacity(target, source, combat))
+        self._use_shields(target, used)
+        return amount - used
 
     def prevent_combat_damage(self, seat: Seat, token: Card | None) -> None:
         """Inkshield: no combat damage is dealt to `seat` this turn; `token` is created for each point prevented."""

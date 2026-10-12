@@ -240,6 +240,7 @@ from .statics import (  # noqa: F401
     clone_kind,
     color_choice_excludes,
     combat_restrictions,
+    DamageModifier,
     damage_modifiers,
     damage_prevention,
     enters_by_discarding_land,
