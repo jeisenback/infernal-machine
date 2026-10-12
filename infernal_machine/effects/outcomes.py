@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import re
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from ..cards import Card
 from ..characteristics import LOSES_HEXPROOF, Modifier
@@ -895,7 +895,7 @@ class MoveCountersToOthers:
 @dataclass(frozen=True)
 class MoveCountersOnto:
     """The second target: the counters (up to `count`, or all if None) move from the first target to this one."""
-    count: int | str | None  # a number, None for all of them, or "any" for a number the controller chooses
+    count: int | Literal["any"] | None  # a number, None for all of them, or "any" for a number the controller chooses
     counter: str | None  # None: every kind
     target: str
     another: bool = True
@@ -1333,8 +1333,8 @@ class CreateTokens:
         count = self.more if self.more_if and game.condition_holds(self.more_if, controller, game.resolving_source) else self.count
         token = self.token
         if "X" in (token.power, token.toughness):  # "an X/X ... token": its size is fixed as it's created
-            token = dataclasses.replace(token, power=str(game.amount(token.power)),
-                                        toughness=str(game.amount(token.toughness)))
+            token = dataclasses.replace(token, power=str(game.amount(token.power or 0)),
+                                        toughness=str(game.amount(token.toughness or 0)))
         counters = (game.amount(self.counters[0]), self.counters[1]) if self.counters else None
         made = game.create_tokens(controller, token, game.amount(count), counters, tapped=self.tapped)
         if self.haste:
@@ -1375,7 +1375,7 @@ class AttackingTokens:
     """Furygale Flocking: "For each opponent, create two 3/3 blue and red Elemental creature tokens with flying that attack
     that opponent this turn if able. They gain haste until end of turn. Exile them at the beginning of the next end step."
     The second and third sentences are folded in by _merge_attacking_tokens."""
-    count: int  # for each opponent
+    count: Quantity  # for each opponent
     token: Card
     haste: bool = False
     exile_at_end: bool = False
@@ -1389,7 +1389,7 @@ class AttackingTokens:
 class TokensJoinAttack:
     """Mobilize: "Create two tapped and attacking 1/1 red Warrior creature tokens. Sacrifice them at the beginning of the
     next end step." The second sentence is folded in by _merge_attacking_tokens."""
-    count: int
+    count: Quantity
     token: Card
     sacrifice_at_end: bool = False
 
@@ -1559,11 +1559,11 @@ class ThreeWaySplit:
     """Expressive Iteration: "Look at the top three cards of your library. Put one of them into your hand, put one of them
     on the bottom of your library, and exile one of them. You may play the exiled card this turn." (three sentences, folded
     together by _merge_three_way)"""
-    count: int
+    count: Quantity
     play: bool
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.three_way_split(controller, self.count, self.play)
+        game.three_way_split(controller, game.amount(self.count), self.play)
 
 
 @dataclass(frozen=True)
@@ -1655,7 +1655,7 @@ class CopySpellForEachOtherCreature:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         item = game.resolving_item
-        if target is not None and item is not None and hasattr(item.carried, "targets"):
+        if target is not None and item is not None and item.source is not None and hasattr(item.carried, "targets"):
             game.copy_spell_for_each_other_creature(item.carried, target, item.source)
 
 
@@ -2090,7 +2090,7 @@ class _PopulatedTokenRider:
 @dataclass(frozen=True)
 class EachCreatesTokens:
     """ "Each opponent creates a 1/1 white Spirit creature token with flying." / "Each player creates a Treasure token." """
-    count: int
+    count: Quantity
     token: Card
     who: str  # "each opponent" or "each player"
 
@@ -2117,7 +2117,7 @@ class TargetPutsCountersOnEach:
 @dataclass(frozen=True)
 class TargetCreatesTokens:
     """ "Target opponent creates a Treasure token." """
-    count: int
+    count: Quantity
     token: Card
     target: str  # "player" or "opponent"
     distinct: bool = False
@@ -2130,7 +2130,7 @@ class TargetCreatesTokens:
 @dataclass(frozen=True)
 class TargetControllerCreatesTokens:
     """Beast Within: "Its controller creates a 3/3 green Beast creature token." """
-    count: int
+    count: Quantity
     token: Card
     follows_target = True
 
@@ -2694,7 +2694,7 @@ class GiveBack:
     """ "For each creature destroyed this way, its controller creates a 1/1 white Spirit creature token." Only ever the
     end of a DestroyAll or ExileAll (see _merge_wipe_gift). Ceaseless Conflict pays only the caster, for their own
     nontoken creatures; Oversimplify gives each player one token with a counter per point of power they lost."""
-    count: int
+    count: Quantity
     token: Card
     who: str = "controller"  # "controller": each one's controller gets tokens for it; "you": the caster; "each player"
     nontoken: bool = False  # "for each nontoken creature you controlled that was destroyed this way"
@@ -3559,7 +3559,7 @@ def _if_you_do(m: re.Match) -> Any:
 def _then_if(m: re.Match) -> Any:
     condition = _condition(m[1])
     inner = _parse([m[2][:1].upper() + m[2][1:] + "."]) if condition else None
-    if not inner or len(inner) != 1 or target_kind(inner[0]):
+    if condition is None or not inner or len(inner) != 1 or target_kind(inner[0]):
         return None
     return Conditional(condition, inner[0])
 
@@ -4616,7 +4616,8 @@ class UnlessPays:
         if self.cost_power:
             source = game.resolving_source
             cost = "{%d}" % (game.power(source) if source is not None and game.on_battlefield(source) else 0)
-        if target is not None and game.pays_unless(target, cost, game.resolving_item.card):
+        item = game.resolving_item
+        if target is not None and item is not None and game.pays_unless(target, cost, item.card):
             return
         for effect in self.effects:
             effect.resolve(game, controller, None)
@@ -5810,10 +5811,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PumpEach(Modifier(keywords=frozenset({LOSES_HEXPROOF})), opponents=True)),
     (re.compile(rf"(?i:creatures your opponents control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), opponents=True)),
     (re.compile(rf"(?i:all creatures) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), everyone=True)),
-    (re.compile(rf"move (?:{_N}|all|any number of) {_COUNTER} from target (creature) onto another target (creature)"
+    (re.compile(rf"move (?:{_N_FIXED}|all|any number of) {_COUNTER} from target (creature) onto another target (creature)"
                 r"( with the same controller)?\.", re.I),
      lambda m: [MoveCountersFrom(m[3].lower()),
-                MoveCountersOnto("any" if m[0].lower().startswith("move any number") else _count(m[1]) if m[1] else None,
+                MoveCountersOnto("any" if m[0].lower().startswith("move any number") else _number(m[1]) if m[1] else None,
                                  _counter_name(m[2]), m[4].lower(), same_controller=bool(m[5]))]),
     (re.compile(rf"(?:Until end of turn, )(?:CARDNAME|this land) becomes an? {_ANIMATED}\.\"?"), lambda m: _animate(m, None)),
     (re.compile(rf"(?i:CARDNAME|this land) becomes an? {_ANIMATED} (?i:until end of turn)\.\"?"), lambda m: _animate(m, None)),
@@ -6133,7 +6134,7 @@ def _merge_votes(effects: list) -> list | None:
             merged.append(VoteToExile())
             i += 2
             continue
-        if isinstance(effect, VoteStart):
+        if isinstance(effect, VoteStart) and effect.options is not None:
             outcomes = []
             i += 1
             while i < len(effects) and isinstance(effects[i], VoteOutcome):
