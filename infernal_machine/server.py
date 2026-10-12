@@ -293,7 +293,7 @@ def run_table(server: socket.socket, humans: int, bot_decks: list[str], source: 
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m infernal_machine.server", description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(prog="python -m infernal_machine.server", description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=4000)
     parser.add_argument("--humans", type=int, default=1, help="how many players will connect")

@@ -95,6 +95,7 @@ def _card_kind(phrase: str | None) -> str:
     """"creature card with mana value 3 or less" -> "creature|mv<=3"; "card" -> "card". The kind is what the
     game matches library and graveyard cards against."""
     m = _CARD_PHRASE.fullmatch((phrase or "card").lower())
+    assert m is not None
     kind = m[1] or "card"
     if m[2]:
         kind += "|mv" + {"or less": "<=", "or greater": ">="}.get(m[3], "=") + m[2]
