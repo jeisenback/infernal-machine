@@ -350,6 +350,7 @@ class StackItem:
     tapped_power: int = 0  # for an ability: the power of the creature tapped to pay for it (Station)
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
     cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
+    warped: bool = False  # cast for its warp cost: exiled at the next end step, castable from exile on a later turn
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
     whole: Card | None = None  # cast as one half of this card (an Adventure, a split half): the card that moves between zones
     from_hand: bool = False  # cast from its owner's hand (rebound only works then)
@@ -879,7 +880,7 @@ class Game:
             if is_land(card):
                 if sorcery_timing and seat.lands_played < self._land_drops(seat):
                     actions.append(PLAY_EXILE + card.name)
-            elif (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card):
+            elif (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card, from_hand=False):
                 actions.append(CAST_EXILE + card.name)
         for spell in _unique([p.card.prepare for p in seat.battlefield if p.prepared and p.card.prepare]):
             if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, spell)) and self._can_cast(seat, spell):
@@ -1181,10 +1182,10 @@ class Game:
                    for owner, _, key in self._static_rules())
 
     def _can_cast(self, seat: Seat, card: Card, from_command_zone: bool = False,
-                  graveyard: GraveyardCast | None = None) -> bool:
+                  graveyard: GraveyardCast | None = None, from_hand: bool = True) -> bool:
         if self._cast_barred(seat, card):
             return False
-        if not self._cast_ways(seat, card, from_command_zone, graveyard):
+        if not self._cast_ways(seat, card, from_command_zone, graveyard, from_hand):
             return False
         effects, colors = kicked_effects(_effects(card), 0) or [], source_qualities(card)
         if not self._effects_possible(seat, effects, colors):
@@ -1516,7 +1517,7 @@ class Game:
         return reduction
 
     def _cast_ways(self, seat: Seat, card: Card, from_command_zone: bool,
-                   graveyard: GraveyardCast | None = None) -> list[AlternativeCost | None]:
+                   graveyard: GraveyardCast | None = None, from_hand: bool = True) -> list[AlternativeCost | None]:
         """The ways `seat` can cast `card` now: None for its mana cost, then its alternative costs. Casting from
         the graveyard has one way: its flashback or escape cost (and enough other cards to exile)."""
         if graveyard:
@@ -1526,7 +1527,8 @@ class Game:
                 return []
             return [None] if others >= graveyard.exile and graveyard.life <= seat.life and self._payment(seat, paying) is not None else []
         return [way for way in [None, *alternative_costs(card)]
-                if self._can_pay_extras(seat, card, way, afford=lambda extra, way=way: self._payment(
+                if not (way and way.warp and not from_hand)  # warp is a way to cast from the hand only
+                and self._can_pay_extras(seat, card, way, afford=lambda extra, way=way: self._payment(
                     seat, card, from_command_zone, alternative=way, extra=extra,
                     delve=self._delve_max(seat, card) if way is None else 0) is not None)
                 and not (way and way.bestow and not self.target_options("creature", seat, source_qualities(card)))]
@@ -2243,7 +2245,7 @@ class Game:
             effects, extra = self._choose_modes(seat, card, effects[0], from_command_zone, casting=True)
         # Alternative costs and kicker are announced before targets are chosen (CR 601.2b-c).
         ways = ([AlternativeCost("Cast without paying its mana cost")] if free else [madness] if madness
-                else self._cast_ways(seat, card, from_command_zone, graveyard))
+                else self._cast_ways(seat, card, from_command_zone, graveyard, zone is seat.hand))
         alternative = ways[0]
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
@@ -2327,7 +2329,7 @@ class Game:
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter,
-                         dashed=bool(alternative and alternative.dash), whole=whole, face_down=face_down,
+                         dashed=bool(alternative and alternative.dash), warped=bool(alternative and alternative.warp), whole=whole, face_down=face_down,
                          from_hand=zone is seat.hand)
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
@@ -2516,6 +2518,9 @@ class Game:
             self._enter(seat, entering, x=item.x)
             if door is not None:
                 self._door_unlocked(entering, door)
+            if item.warped:  # exiled as the next end step begins, then it may be cast from exile on a later turn
+                fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
+                self.at_end_step.append((fire_turn, lambda: self._warp_exile(entering, seat)))
             if item.dashed:  # Ragavan: it has haste this turn and is back in its owner's hand at the end step
                 self.modify_until_end_of_turn(entering, Modifier(keywords=frozenset({"haste"})))
                 self.leave_at_next_end_step([entering], "returned", "hand")
@@ -4485,6 +4490,13 @@ class Game:
             self.happened("tokens_enter", seat)
         return made
 
+    def _warp_exile(self, permanent: Permanent, owner: Seat) -> None:
+        """Warp: the creature is exiled at the beginning of the next end step; its owner may cast it from exile on a later turn."""
+        card = permanent.card
+        self._leave_together([(permanent, "exiled")], "exile")
+        if card in owner.exile:
+            owner.exile_play.append((card, FOREVER))
+
     def leave_at_next_end_step(self, permanents: list[Permanent], reason: str, destination: str) -> None:
         """They leave the battlefield (exiled, sacrificed) as the next end step begins."""
         fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
@@ -5912,6 +5924,8 @@ class Game:
                 for attachment, attachment_seat in everyone:  # "When enchanted creature dies"
                     if attachment.attached_to is permanent:
                         self.trigger("host_dies", attachment, attachment_seat, subject=permanent)
+                self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
+            elif destination == "graveyard" and "Artifact" in permanent.card.type_line:  # "creature or artifact ... dies", a token too
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
             self._observe("permanent_leaves", permanent.card, controller, subject=permanent, extra=gone)
             if permanent.real_card is not None:  # a Clone goes to the graveyard as itself

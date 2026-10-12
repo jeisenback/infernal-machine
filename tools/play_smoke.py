@@ -21,7 +21,7 @@ sys.path.insert(0, os.getcwd())
 
 from infernal_machine.cards import Card, Deck  # noqa: E402
 from infernal_machine.combat import Attack  # noqa: E402
-from infernal_machine.effects import disturb_of, foretell_of, is_aftermath, morph_of, ninjutsu_of  # noqa: E402
+from infernal_machine.effects import alternative_costs, disturb_of, foretell_of, is_aftermath, morph_of, ninjutsu_of  # noqa: E402
 from infernal_machine.game import ACTIVATE, CAST, CAST_DISTURB, CAST_EXILE, CAST_FACE_DOWN, CAST_FORETOLD, CAST_GRAVEYARD, FORETELL, NINJUTSU, PLAY_LAND, TURN_UP, Game, Permanent  # noqa: E402
 from infernal_machine.report import unsupported_lines  # noqa: E402
 from tests.test_effects import BEAR, COMMANDER, FOREST, OGRE, RAINBOW  # noqa: E402
@@ -70,7 +70,7 @@ def play(card: Card) -> bool:
             break
         game._perform(mine, abilities[0])
         run_stack(game)
-    return bool(ways) | play_other_half(card) | play_face_down(card) | play_transformed(card) | play_ninjutsu(card) | play_foretell(card) | play_disturb(card)
+    return bool(ways) | play_other_half(card) | play_face_down(card) | play_transformed(card) | play_ninjutsu(card) | play_foretell(card) | play_disturb(card) | play_warp(card)
 
 
 def play_other_half(card: Card) -> bool:
@@ -116,6 +116,24 @@ def play_transformed(card: Card) -> bool:
     if game.on_battlefield(permanent):
         game.transform(permanent, by_day_night=True)
         game._check_state()
+    return True
+
+
+def play_warp(card: Card) -> bool:
+    """Cast the card for its warp cost, and let the end step exile it."""
+    if not any(way.warp for way in alternative_costs(card)):
+        return False
+    game, mine = table(card)
+    mine.player.policy = lambda prompt, options: next((i for i, o in enumerate(options) if o.startswith("Warp")), 0)
+    if CAST + card.name not in game.legal_actions(mine):
+        return False
+    game._perform(mine, CAST + card.name)
+    run_stack(game)
+    game._check_state()
+    game.step = "end"
+    game._turn_based_actions(mine)
+    run_stack(game)
+    game._check_state()
     return True
 
 

@@ -6214,7 +6214,7 @@ _CONDITIONS = [
     (re.compile(r"a land entered the battlefield under your control this turn"), lambda m: Condition("land_entered")),
     (re.compile(r"you control a prime number of lands"), lambda m: Condition("lands_prime")),
     (re.compile(r"you gained life this turn"), lambda m: Condition("gained_life")),
-    (re.compile(rf"you gained {_N} or more life this turn"), lambda m: Condition("gained_life_at_least", _count(m[1]))),
+    (re.compile(rf"you(?:'ve)? gained {_N} or more life this turn"), lambda m: Condition("gained_life_at_least", _count(m[1]))),
     (re.compile(rf"{_N} or more creatures died this turn"), lambda m: Condition("creatures_died", _count(m[1]))),
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
     (re.compile(rf"X is {_N} or more"), lambda m: Condition("x_at_least", _count(m[1]))),
