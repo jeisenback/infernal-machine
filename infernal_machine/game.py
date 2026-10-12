@@ -1321,8 +1321,8 @@ class Game:
         return spell is not None and (spell.cmc >= 5 or "{X}" in spell.mana_cost)
 
     def _mana_sources(self, seat: Seat, exclude: Permanent | None = None) -> list[ManaSource]:
-        """One entry per mana each untapped permanent can make: nonland sources first,
-        then lands, and sources that sacrifice themselves (Treasure) last."""
+        """One entry per mana each untapped permanent can make: nonland sources first, then lands, and sources that sacrifice
+        themselves (Treasure) last. `pay` does not take them in that order; `_pay_mana` leaves the sacrificing ones for last."""
         abilities, lands, sacrifices = [], [], []
         pooled = [ManaSource(None, unit) for unit in seat.mana_pool]
         foods = sum(_has_type(p.card, "food") for p in seat.battlefield)  # Gilded Goose: one Food per use
@@ -1705,11 +1705,13 @@ class Game:
         """
         sources = self._mana_sources(seat, exclude)
         filters = self._filter_sources(seat, exclude)
-        for size in range(len(filters) + 1):
-            for combo in combinations(filters, size):
-                chosen = self._pay_with_filters(cost, sources, combo)
-                if chosen is not None:
-                    return chosen
+        keepers = [s for s in sources if not self._sacrifices_itself(s)]
+        for pool in ([keepers] if len(keepers) < len(sources) else []) + [sources]:  # a Treasure or Eldrazi Spawn is spent only if nothing else will pay
+            for size in range(len(filters) + 1):
+                for combo in combinations(filters, size):
+                    chosen = self._pay_with_filters(cost, pool, combo)
+                    if chosen is not None:
+                        return chosen
         if seat.life_mana_turn == self.turn and seat.life > 1:  # Channel: only when nothing that costs nothing will do
             lives = [ManaSource(None, frozenset("C"), frozenset("C"), 1, life=True) for _ in range(min(seat.life - 1, MAX_LIFE_MANA))]
             for size in range(len(filters) + 1):
@@ -1718,6 +1720,12 @@ class Game:
                     if chosen is not None and chosen.life < seat.life:  # never down to 0
                         return chosen
         return None
+
+    @staticmethod
+    def _sacrifices_itself(source: ManaSource) -> bool:
+        """Whether making this mana sacrifices its permanent (Treasure, Eldrazi Spawn)."""
+        permanent = source.permanent
+        return permanent is not None and not is_land(permanent.card) and mana_ability_sacrifices(permanent.card)
 
     def _pay_with_filters(self, cost: Cost, sources: list[ManaSource], combo) -> Payment | None:
         """Pay `cost` using the filters in `combo`, in any order: each filter's own cost is paid from plain sources or
