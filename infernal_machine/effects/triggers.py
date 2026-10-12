@@ -23,6 +23,7 @@ from .outcomes import (
     _parse_modal_inline,
     _SPELL_COLORS,
     Backup,
+    CopySelfToken,
     Condition,
     ContractAttack,
     CreateTokens,
@@ -337,6 +338,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
     for number, line in enumerate(lines):  # Backup N gives the abilities written below it
         if m := _BACKUP.fullmatch(line):
             abilities.append(TriggeredAbility("enters", (Backup(int(m[1]), "\n".join(lines[number + 1:])),), False, line))
+        if _OFFSPRING_LINE.fullmatch(line):  # CR 702.175a: if the extra cost was paid, a 1/1 copy of it enters with it
+            abilities.append(TriggeredAbility("enters", (CopySelfToken(one_by_one=True),), False, line, condition=Condition("kicked")))
         if m := _HIDEAWAY.fullmatch(line):
             abilities.append(TriggeredAbility("enters", (Hideaway(int(m[1])),), False, line))
     for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard
@@ -384,6 +387,8 @@ _BLOCK_KEYWORD = re.compile(r"(bushido|afflict|rampage) (\d+)")
 
 
 _HIDEAWAY = re.compile(r"Hideaway (\d+)")
+
+_OFFSPRING_LINE = re.compile(r"Offspring (?:\{[^}]+\})+")
 
 
 _PAY_TO_RETURN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, return this card from your graveyard to the "
