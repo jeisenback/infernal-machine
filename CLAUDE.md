@@ -46,8 +46,8 @@ python tools/play_smoke.py                     # every fully playable card casts
 
 CI (`.github/workflows`): `tests` (required) and its `typecheck` job (pyright, not blocking until the count is 0; run it with
 `pip install pyright==1.1.414 && python -m pyright`), `precon report` (every card of the five precon decks must be fully playable),
-`bot games` (120 four-player bot games between the precon decks, none may raise; seed `g` is game `g`), and `coverage audit` (weekly,
-a measurement that never fails).
+`bot games` (120 four-player bot games between the precon decks, none may raise; seed `g` is game `g`; it runs on every pull request, and
+its job `bot games (all shards)` is the one to require next to `tests`), and `coverage audit` (weekly, a measurement that never fails).
 
 Replay a failing bot game: `python tools/bot_games.py --start SEED --games 1`. It needs `.cache/oracle_bulk.json`; where the bulk
 host is unreachable, build it from the cached Commander pool:
