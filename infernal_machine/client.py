@@ -98,13 +98,17 @@ class Narrator:
         kind, card = e["event"], e.get("card", "")
         seat = e.get("seat")
         who = self.who(seat) if seat is not None else ""
-        v = (lambda base, third=None: self.verb(seat, base, third)) if seat is not None else None
+
+        def v(base: str, third: str | None = None) -> str:
+            assert seat is not None, f"a {kind} event with no seat has no verb"
+            return self.verb(seat, base, third)
+
         targets = f" targeting {', '.join(e['targets'])}" if e.get("targets") else ""
         ability = (e.get("ability") or "").rstrip(".")  # sentences below add their own period
         if kind == "seat":
-            self.names[seat] = e["name"]
+            self.names[e["seat"]] = e["name"]
             commanders = ", ".join(e["commanders"])
-            return f"Seat {seat}: {e['name']}" + (f" (commander: {commanders})" if commanders else "")
+            return f"Seat {e['seat']}: {e['name']}" + (f" (commander: {commanders})" if commanders else "")
         if kind == "lobby":
             return f"Players joined: {', '.join(e['joined'])} ({len(e['joined'])}/{e['humans']})"
         if kind == "starting_player":
@@ -114,7 +118,7 @@ class Narrator:
         if kind == "kept":
             return f"{who} {v('keep')} {e['hand_size']} cards."
         if kind == "turn":
-            return f"\n--- Turn {e['turn']}: {self.poss(seat)} turn ---"
+            return f"\n--- Turn {e['turn']}: {self.poss(e['seat'])} turn ---"
         if kind == "draw":
             return f"You draw {card}."
         if kind in ("drew", "state"):
@@ -187,11 +191,11 @@ class Narrator:
         if kind == "put_onto_battlefield":
             return f"{card} enters the battlefield{' tapped' if e.get('tapped') else ''} for {who}."
         if kind == "left_graveyard":
-            return f"{card} leaves {self.poss(seat)} graveyard for the {e['to']}."
+            return f"{card} leaves {self.poss(e['seat'])} graveyard for the {e['to']}."
         if kind == "graveyard_exiled":
-            return f"{self.poss(seat).capitalize()} graveyard is exiled."
+            return f"{self.poss(e['seat']).capitalize()} graveyard is exiled."
         if kind == "exiled_from_hand":
-            return f"{who} {v('exile')} {card} from {self.poss(seat)} hand."
+            return f"{who} {v('exile')} {card} from {self.poss(e['seat'])} hand."
         if kind == "discard":
             return f"{who} {v('discard')} {card}."
         if kind == "searched":
@@ -239,7 +243,7 @@ class Client:
 
     def run(self) -> None:
         """Play until the server closes the connection or the player's input ends."""
-        hello = {"type": "hello", "name": self.name}
+        hello: dict[str, object] = {"type": "hello", "name": self.name}
         if self.deck_text:
             hello["deck"] = self.deck_text
         if self.password:
@@ -330,7 +334,7 @@ class Client:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m infernal_machine.client", description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(prog="python -m infernal_machine.client", description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=4000)
     parser.add_argument("--name", help="your name at the table (needed to play; spectators may leave it out)")
