@@ -74,7 +74,7 @@ class SacrificeXTests(unittest.TestCase):
         self.assertEqual(options, ["0", "1"])
 
     def test_only_the_spawn_that_pays_is_lost_to_the_count(self):
-        t, options = self.asked([Permanent(SPAWN, sick=False), Permanent(SPAWN, sick=False), Permanent(BEAR)])
+        t, options = self.asked([Permanent(SPAWN, sick=False), Permanent(SPAWN, sick=False), Permanent(BEAR)], n=2)
         self.assertEqual(options, ["0", "1", "2"], "one Spawn pays the {1}; the other Spawn and the Bear can be sacrificed")
 
 
