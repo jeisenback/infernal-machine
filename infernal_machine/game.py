@@ -507,6 +507,7 @@ class Game:
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
         self.at_owner_upkeep: list[tuple[Seat, int, Callable[[], None]]] = []  # (whose upkeep, the turn it was set up, what)
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
+        self.targeting_player: Seat | None = None  # the player a trigger is about while its targets are chosen ("that player controls")
         self.targeting_source: Permanent | None = None  # the permanent whose ability is having its targets chosen ("this creature")
         self.targeting_max: int | None = None  # how many targets "any number of target ..." may have (Strive: what the mana pays for)
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
@@ -3078,11 +3079,13 @@ class Game:
                 if not effects:
                     continue
             self.targeting_x = trigger.x  # "mana value X or less, where X is the damage dealt" (Venerable Warsinger)
+            self.targeting_player = trigger.player
             try:
                 chosen = self._choose_targets(seat, effects, trigger.source.name, trigger.permanent,
                                               source_qualities(trigger.source))
             finally:
                 self.targeting_x = 0
+                self.targeting_player = None
             if chosen is None:
                 continue
             targets, labels = chosen
@@ -3130,6 +3133,12 @@ class Game:
                         and not (spell_filter.controller == "you" and i.controller is not caster)
                         and not (spell_filter.controller == "opponent" and i.controller is caster)]
             return options
+        that_player = None
+        if kind.endswith(" that player controls"):  # Throat Slitter: what the player this trigger is about controls
+            kind = kind.removesuffix(" that player controls")
+            that_player = self.resolving_item.player if self.resolving_item is not None else self.targeting_player
+            if that_player is None:
+                return options
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
         lesser = self._source_now() if kind.endswith(" with lesser power") else None  # Mentor
         wanted = parse_filter(re.sub(r"mana value x\b", lambda m: "mana value %d" % (
@@ -3138,6 +3147,8 @@ class Game:
         controller = wanted.controller
         for seat in self.live_seats():
             if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
+                continue
+            if that_player is not None and seat is not that_player:
                 continue
             for n, permanent in enumerate(seat.battlefield):
                 if not wanted.matches(permanent.card) or self.has_keyword(permanent, "shroud"):
@@ -3399,6 +3410,7 @@ class Game:
                     if watched is source and self.on_battlefield(watcher):
                         self._queue(TriggeredAbility("ally_combat_damage", (effect.then,), False, effect.text), watcher,
                                     self.controller_of(watcher))
+                self._observe("combat_damage_dealt", source.card, controller, subject=source)  # "Whenever a Ninja you control deals ..."
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):

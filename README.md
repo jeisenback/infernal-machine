@@ -834,6 +834,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     player or planeswalker (`Game.ninjutsu_enter`) without being declared as an attacker. Not understood: Silver-Fur Master's discount
     and the many ninjas' own combat-damage triggers that no template reads yet ("that player discards", "target creature that player
     controls", "a Ninja you control deals combat damage").
+  - Ninja combat-damage triggers (`tests/test_ninja_triggers.py`): a self trigger of "deals combat damage to a player" may speak of
+    "that player" (`Event.maybe_player`: "that player discards two cards", "look at that player's hand"), and a target may be
+    "creature that player controls" (`Game.targeting_player` while the trigger's targets are chosen, the resolving item's `player`
+    after: Throat Slitter, Mistblade Shinobi). "Whenever a Ninja you control deals combat damage to a player" and "one or more Ninja or
+    Rogue creatures you control deal ..." are watches on the new occurrence `combat_damage_dealt` (the second once per combat, via
+    the batch Combat.deal_damage opens). Yuriko's reveal-and-drain is `RevealTopToHandDrain`; "Activate only during your turn." and a
+    bare creature type as a target ("target Ninja you control") are read. Not understood: Skullsnatcher, Silent-Blade Oni, Coiling
+    Stalker, Moon-Circuit Hacker, the counter-removing ninjas, Orochi Soul-Reaver (manifest), Silver-Fur Master.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same

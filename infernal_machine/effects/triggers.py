@@ -30,6 +30,7 @@ from .outcomes import (
     Draw,
     Exile,
     ExileTopOfThatPlayerMayCast,
+    RevealTopToHandDrain,
     ExileUntilLeaves,
     Hideaway,
     LivingWeapon,
@@ -140,6 +141,8 @@ _WATCHES = {
     "sacrifice": re.compile(r"Whenever you sacrifice (?:an?|another) (token|artifact|land|Clue|Food|Treasure|enchantment), (.+)", re.I),
     "creature_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
     "expend": re.compile(r"Whenever you expend (\d+), (.+)", re.I),
+    "combat_damage_dealt": re.compile(rf"Whenever (a|one or more) ({_TRIBE}(?: or {_TRIBE})*)(?: creatures?)? you control deals? combat damage "
+                                      r"to a player, (.+)", re.I),  # Ingenious Infiltrator, Prosperous Thief
 }
 
 
@@ -176,6 +179,7 @@ _PLAYER_PRONOUNS = [
     (re.compile(r"\bhave that player (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bto that player\b", re.I), "to target player"),
     (re.compile(r"\bthat opponent (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),  # Tomik
+    (re.compile(r"\blook at that player's hand\b", re.I), "look at target player's hand"),  # Walker of Secret Ways
 ]
 
 
@@ -260,6 +264,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         return "sacrifice", Watch(m[1].lower(), yours=True), m[2]
     if qualifier and (m := _WATCHES["creature_attacks"].fullmatch(line)):  # "a creature you control with power 2 or less attacks"
         return "creature_attacks", Watch("creature", yours=True, qualifier=qualifier), m[1]
+    if m := _WATCHES["combat_damage_dealt"].fullmatch(line):
+        return "combat_damage_dealt", Watch(m[2].lower(), yours=True, batch=m[1].lower() == "one or more"), m[3]
     if m := _WATCHES["expend"].fullmatch(line):
         return "expend", Watch("expend", yours=True, expend=int(m[1])), m[2]
     for event in ("permanent_enters", "creature_dies", "permanent_leaves", "permanent_taps", "permanent_to_graveyard"):
@@ -397,6 +403,9 @@ _SYLVAN_BODY = re.compile(r"you may draw two additional cards\. If you do, choos
                          r"For each of those cards, pay (\d+) life or put the card on top of your library\.", re.I)
 
 
+_YURIKO_BODY = ("reveal the top card of your library and put that card into your hand. Each opponent loses life equal to that card's mana value.")
+
+
 _RAGAVAN_BODY = ("create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.")
 
 
@@ -407,6 +416,8 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
         return [ReturnSelfAsEnchantment()], False, False, None
     if m := _SYLVAN_BODY.fullmatch(rest):
         return [SylvanLibrary(int(m[1]))], False, False, None
+    if rest == _YURIKO_BODY:
+        return [RevealTopToHandDrain()], False, False, None
     if rest == _RAGAVAN_BODY:
         return [CreateTokens(1, TREASURE), ExileTopOfThatPlayerMayCast()], False, False, None
     if m := _PAY_TO_RETURN.fullmatch(rest):
@@ -612,6 +623,8 @@ def _trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
             effects, optional, once, condition = _event_body(match[1], event.about_creature, event.about_player)
         else:
             effects, optional, once, condition = _trigger_body(match[1])
+            if effects is None and event.maybe_player:  # "that player discards two cards": about the player this dealt damage to
+                effects, optional, once, condition = _event_body(match[1], False, True)
         if effects is not None and event.name != "dies" and any(isinstance(e, (ReturnSelfToBattlefield, ReturnSelfAsEnchantment)) for e in effects):
             effects = None  # "return it to the battlefield": it is only gone when the creature has died
         if effects is None:
