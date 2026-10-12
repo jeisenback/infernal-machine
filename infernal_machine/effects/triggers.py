@@ -114,14 +114,14 @@ _WHO = rf"(?:({_SELF}) or another|(another)|an?)"
 _TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
 
 
-_PERMANENT_WATCH = rf"(enchanted creature|nontoken creature|creature token|(?:white|blue|black|red|green) creature|token|creature|land|artifact|enchantment|permanent|{_TRIBE})"
+_PERMANENT_WATCH = rf"(enchanted creature|nontoken creature|creature token|(?:white|blue|black|red|green) creature|token|creature or artifact|creature|land|artifact|enchantment|permanent|{_TRIBE})"
 
 
 _WATCHES = {
     "permanent_enters": re.compile(
         rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? enters(?: the battlefield)?"
         rf"( under your control| under an opponent's control)?, (.+)", re.I),
-    "creature_dies": re.compile(rf"Whenever {_WHO} (enchanted creature|nontoken creature|creature token|token|creature|{_TRIBE})"
+    "creature_dies": re.compile(rf"Whenever {_WHO} (enchanted creature|nontoken creature|creature token|token|creature or artifact|creature|{_TRIBE})"
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
     "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? leaves the battlefield, (.+)", re.I),
     "permanent_taps": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? becomes tapped, (.+)", re.I),
@@ -430,7 +430,7 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
             return [MayPay(m[1], inner[0])], False, False, None
         return None, False, False, None
     condition = None
-    if m := re.fullmatch(r"(.+?) if (none of those creatures attacked you)\.?", rest):  # Firemane Commando
+    if m := re.fullmatch(r"(.+?) if (none of those creatures attacked you|you've gained \d+ or more life this turn)\.?", rest):  # Firemane Commando
         rest, condition = m[1] + ".", _condition(m[2])
     elif rest.startswith("if ") and ", " in rest:
         text, rest = rest[3:].split(", ", 1)

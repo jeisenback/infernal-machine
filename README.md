@@ -854,6 +854,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     permanent enters as the back face (`transformed_from` the card) and "If CARDNAME would be put into a graveyard from anywhere, exile
     it instead" (`Replacements.graveyard_self`) exiles it when it leaves. Not understood: the back faces whose own abilities have no
     template yet (Dennick, Mirrorhall Mimic, Brine Comber, and others).
+  - Warp (`tests/test_warp.py`): `Warp {cost}` is an alternative cost (`AlternativeCost.warp`), offered only when casting from the
+    hand. A creature cast for it is exiled as the next end step begins (`Game._warp_exile`) and its owner may then cast it from exile
+    (`exile_play`) from a later turn, for its full mana cost. "Creature or artifact" is a watch kind for entering and dying (a non-creature
+    artifact that goes to a graveyard is announced as dying), and "..., if you've gained N or more life this turn" is read after the effect.
+    Not understood: Warp costs that are not mana (Timeline Culler), Warp-Strike, and the other abilities of the Warp cards that have no
+    template yet (Memorial Team Leader, Starwinder, Quantum Riddler, ...).
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same

@@ -78,6 +78,7 @@ class AlternativeCost:
     overload: bool = False  # every "target" in the spell becomes "each"
     bestow: bool = False  # cast as an Aura spell with enchant creature
     dash: bool = False  # the creature has haste and returns to its owner's hand at the next end step (Ragavan)
+    warp: bool = False  # exiled at the next end step, and castable from exile on a later turn
 
 
 @dataclass(frozen=True)
@@ -391,6 +392,9 @@ _EVOKE = re.compile(r"Evoke ((?:\{[^}]+\})+)")
 _DASH = re.compile(r"Dash ((?:\{[^}]+\})+)")
 
 
+_WARP = re.compile(r"Warp ((?:\{[^}]+\})+)")
+
+
 _OVERLOAD = re.compile(r"Overload ((?:\{[^}]+\})+)")
 
 
@@ -415,6 +419,9 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
             continue
         if m := _DASH.fullmatch(line):
             costs.append(AlternativeCost(f"Dash {m[1]}", mana_cost=m[1], dash=True))
+            continue
+        if m := _WARP.fullmatch(line):
+            costs.append(AlternativeCost(f"Warp {m[1]}", mana_cost=m[1], warp=True))
             continue
         if m := _OVERLOAD.fullmatch(line):
             if overloaded_effects(card):
@@ -538,7 +545,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_DISTURB, _FORETELL, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
-                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _DASH, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
+                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
 
