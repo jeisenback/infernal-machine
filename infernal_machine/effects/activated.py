@@ -182,6 +182,9 @@ _SORCERY_ONLY = "Activate only as a sorcery."
 _ONCE_EACH_TURN = "Activate only once each turn."
 
 
+_YOUR_TURN_ONLY = "Activate only during your turn."
+
+
 _INSTANT_ONLY = "Activate only as an instant."  # what every ability without a timing restriction is already
 
 
@@ -294,6 +297,9 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
         sentences.remove(_ONCE_EACH_TURN)
     if _INSTANT_ONLY in sentences:
         sentences.remove(_INSTANT_ONLY)
+    if _YOUR_TURN_ONLY in sentences:
+        fields["condition"] = Condition("your_turn")
+        sentences.remove(_YOUR_TURN_ONLY)
     for sentence in list(sentences):
         if m := _ACTIVATE_ONLY_IF.fullmatch(sentence):
             if (condition := _condition(m[2])) is None:

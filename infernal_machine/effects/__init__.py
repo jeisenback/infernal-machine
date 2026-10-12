@@ -53,6 +53,7 @@ from .outcomes import (  # noqa: F401
     BecomePrepared,
     BecomeRenowned,
     NinjutsuEnter,
+    RevealTopToHandDrain,
     DistributeCounters,
     Transform,
     ReturnTransformed,

@@ -4413,6 +4413,21 @@ class Transform:
 
 
 @dataclass(frozen=True)
+class RevealTopToHandDrain:
+    """Yuriko: "Reveal the top card of your library and put that card into your hand. Each opponent loses life equal to that card's
+    mana value." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if not controller.library:
+            return
+        card = controller.library.pop(0)
+        controller.hand.append(card)
+        game.broadcast({"event": "revealed", "seat": controller.index, "card": card.name})
+        for opponent in game.opponents(controller):
+            game.change_life(opponent, -int(card.cmc))
+
+
+@dataclass(frozen=True)
 class NinjutsuEnter:
     """The effect of Ninjutsu: "Put this card onto the battlefield from your hand tapped and attacking." (the game fills in whom)"""
 
@@ -4919,7 +4934,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|non(?:white|blue|black|red|green|artifact) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
-                   r"|creature or planeswalker|creature or enchantment|(?-i:[A-Z][a-z]+) creature)(?: an opponent controls| you don't control| you control| you own)?"
+                   r"|creature or planeswalker|creature or enchantment|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that player controls)?"
                    r"(?: with mana value (?:\d+ or (?:less|greater)|X))?)")
 
 

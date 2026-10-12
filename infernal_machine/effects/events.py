@@ -29,6 +29,7 @@ class Event:
     about_creature: bool = False  # it is about some other creature: there "it" and "that creature" mean that creature
     about_player: bool = False  # it is about what another player did: there "that player" and "they" mean that player
     host_gone: bool = False  # the enchanted or equipped creature is gone by the time it resolves
+    maybe_player: bool = False  # it may be about "that player" (the one dealt damage); read as about the player only if that is needed
 
 
 EVENTS: dict[str, Event] = {}
@@ -36,9 +37,10 @@ _HEARD: dict[str, list[Event]] = {}
 
 
 def declare(name: str, text: re.Pattern, to: str = "direct", happens: str | tuple[str, ...] = (), needs: str = "",
-            about_creature: bool = False, about_player: bool = False, host_gone: bool = False) -> Event:
+            about_creature: bool = False, about_player: bool = False, host_gone: bool = False,
+            maybe_player: bool = False) -> Event:
     occurrences = (happens,) if isinstance(happens, str) else tuple(happens)
-    event = Event(name, text, to, occurrences or (name,), needs, about_creature, about_player, host_gone)
+    event = Event(name, text, to, occurrences or (name,), needs, about_creature, about_player, host_gone, maybe_player)
     EVENTS[name] = event
     if to != "direct":
         for occurrence in event.happens:
@@ -93,7 +95,7 @@ declare("opponent_search", re.compile(r"Whenever an opponent searches their libr
 declare("opponent_sacrifice_creature", re.compile(r"Whenever an opponent sacrifices a creature, (.+)", re.I))
 declare("second_draw", re.compile(r"Whenever you draw your second card each turn, (.+)", re.I),
         to="you", happens="drew", needs="second")
-declare("combat_damage_to_player", re.compile(rf"When(?:ever)? {_SELF} deals combat damage to a player, (.+)", re.I))
+declare("combat_damage_to_player", re.compile(rf"When(?:ever)? {_SELF} deals combat damage to a player, (.+)", re.I), maybe_player=True)
 declare("upkeep", re.compile(r"At the beginning of your upkeep, (.+)", re.I))
 declare("end_step", re.compile(r"At the beginning of your end step, (.+)", re.I))
 declare("each_upkeep", re.compile(r"At the beginning of each upkeep, (.+)", re.I))
