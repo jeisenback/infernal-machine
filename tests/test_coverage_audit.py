@@ -81,6 +81,82 @@ class MechanismTests(unittest.TestCase):
         self.assertEqual(audit.mechanism_of("Whenever the moon is full, frobnicate the widget.", []), "Other")
 
 
+class FamilyTests(unittest.TestCase):
+    def test_a_keyword_is_its_own_family(self):
+        self.assertEqual(audit.families_of("Offspring {2}", ["Offspring"]), {"Offspring"})
+
+    def test_a_line_belongs_to_every_family_it_matches(self):
+        line = "Create a token that's a copy of target creature you control, except it isn't legendary."
+        self.assertEqual(audit.families_of(line), {"Token copy of a creature or permanent", "Copy with changes (an except clause)"})
+
+    def test_a_line_no_family_covers_is_empty(self):
+        self.assertEqual(audit.families_of("Whenever the moon is full, frobnicate the widget."), frozenset())
+
+    def test_a_graveyard_return_is_not_a_cast_from_the_graveyard(self):
+        self.assertEqual(audit.families_of("When this creature enters, return target creature card from your graveyard to your hand."), frozenset())
+        self.assertEqual(audit.families_of("When you cast this spell, return target creature card from your graveyard to your hand."), frozenset())
+        self.assertEqual(audit.families_of("You may cast creature spells from your graveyard."), {"Cast spells from a graveyard"})
+
+    def test_exile_alone_is_not_exile_the_top_card_and_play_it(self):
+        self.assertEqual(audit.families_of("Exile target creature."), frozenset())
+        self.assertEqual(audit.families_of("Exile the top card of your library. You may play it this turn."),
+                         {"Exile the top cards, you may play or cast them"})
+
+
+class WeightTests(unittest.TestCase):
+    def test_a_card_counts_for_half_at_the_knee_and_nothing_without_a_rank(self):
+        self.assertAlmostEqual(audit.weight(audit.WEIGHT_KNEE), 0.5)
+        self.assertEqual(audit.weight(None), 0.0)
+        self.assertGreater(audit.weight(100), 4 * audit.weight(4900), "rank 100 is worth far more than rank 4,900")
+
+
+class NextTargetTests(unittest.TestCase):
+    def test_the_family_that_unlocks_the_most_goes_first_and_is_assumed_built(self):
+        picks = audit.next_targets([("A", 100, frozenset({"X"})), ("B", 100, frozenset({"X", "Y"})), ("C", 50000, frozenset({"Y"})),
+                                    ("D", None, frozenset({"Z"}))])
+        self.assertEqual([p["family"] for p in picks], ["X", "Y"], "Z only has a card with no rank, so it is never suggested")
+        self.assertEqual((picks[0]["unlocks"], picks[0]["cards"], picks[0]["also_needs"]), (1, ["A"], "Y"))
+        self.assertEqual((picks[1]["unlocks"], picks[1]["cards"], picks[1]["also_needs"]), (2, ["B", "C"], ""))
+
+    def test_a_pair_that_unlocks_nothing_alone_is_still_suggested(self):
+        picks = audit.next_targets([("P1", 10, frozenset({"A", "B"})), ("P2", 20, frozenset({"A", "B"})), ("Q", 5000, frozenset({"C"}))])
+        self.assertEqual([(p["family"], p["unlocks"]) for p in picks[:2]], [("A", 0), ("B", 2)])
+        self.assertEqual(picks[0]["also_needs"], "B")
+
+    def test_a_card_that_needs_two_families_shares_its_weight(self):
+        picks = audit.next_targets([("P", 10, frozenset({"A", "B"})), ("Q", 300, frozenset({"C"}))])
+        self.assertEqual(picks[0]["family"], "C", "half of rank 10 is worth less than all of rank 300")
+
+    def test_the_limit_caps_the_list(self):
+        cards = [(f"C{i}", 10 + i, frozenset({f"F{i}"})) for i in range(5)]
+        self.assertEqual(len(audit.next_targets(cards, limit=3)), 3)
+
+
+class NextReportTests(unittest.TestCase):
+    def setUp(self):
+        cat = "Create a token that's a copy of target creature you control, except it isn't legendary."
+        self.result = audit.analyze([
+            card("Copy Cat", "Creature — Cat", cat, rank=10, mana_cost="{1}", power="1", toughness="1"),
+            card("Copy Dog", "Creature — Dog", cat, rank=20, mana_cost="{1}", power="1", toughness="1"),
+            card("Moon Elk", "Creature — Elk", MOON, rank=30, mana_cost="{1}", power="1", toughness="1"),
+            card("Mixed Elk", "Creature — Elk", MOON + "\n" + cat, rank=40, mana_cost="{1}", power="1", toughness="1"),
+        ])
+
+    def test_a_card_with_an_uncovered_line_is_blocked_not_unlocked(self):
+        self.assertEqual(self.result["blocked"], 2)
+        self.assertEqual({p["family"] for p in self.result["next"]}, {"Token copy of a creature or permanent", "Copy with changes (an except clause)"})
+
+    def test_the_report_lists_the_order_and_the_blocked_count(self):
+        text = audit.render_next(self.result)
+        self.assertIn("| 1 | Copy with changes (an except clause) | 0 | 0 | 0 | Token copy of a creature or permanent | - |", text)
+        self.assertIn("| 2 | Token copy of a creature or permanent | 2 | 2 | 1.97 | - | Copy Cat #10, Copy Dog #20 |", text)
+        self.assertIn("2 unplayable cards have a line no family covers", text)
+
+    def test_the_drill_down_finds_a_family_by_name(self):
+        text = audit.render_mechanism(self.result, "token copy")
+        self.assertIn("### Token copy of a creature or permanent: a family, 3 cards not playable", text)
+
+
 MOON = "Whenever the moon is full, frobnicate the widget."
 MECH_POOL = [
     card("Bear A", "Creature — Bear", "This creature can't attack unless you control a Swamp.", rank=10, mana_cost="{1}", power="1", toughness="1"),
@@ -128,7 +204,7 @@ class MechanismReportTests(unittest.TestCase):
         self.assertEqual(back_only["mechanisms"]["Attack/block restrictions"]["all"], 1, "a gap on the back face counts, though the front text has none")
 
     def test_an_unknown_mechanism_says_so(self):
-        self.assertTrue(audit.render_mechanism(self.result, "nonsense").startswith("No mechanism matches `nonsense`"))
+        self.assertTrue(audit.render_mechanism(self.result, "nonsense").startswith("No mechanism or family matches `nonsense`"))
 
 
 class RenderTests(unittest.TestCase):
