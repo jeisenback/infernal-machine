@@ -10,7 +10,7 @@ from typing import Any
 
 from ..cards import Card
 
-from .common import _COUNTER, _N, _SELF, _THRESHOLD, _count, _counter_name, _split_sentences, rules_lines
+from .common import _COUNTER, _N, _N_FIXED, _SELF, _THRESHOLD, _count, _counter_name, _number, _split_sentences, rules_lines
 from .outcomes import (
     AddMana,
     Amount,
@@ -83,6 +83,7 @@ class ActivatedAbility:
     crew: int = 0  # "Crew N": tap untapped creatures you control with total power N or more
     reconfigure: str = ""  # "attach" (only with another creature to attach to) or "unattach" (only while attached)
     remove_counter: str = ""  # "Remove a +1/+1 counter from this creature": the kind of counter
+    remove_count: int = 1  # ... and how many ("Remove three spore counters")
     condition: "Condition | None" = None  # "Activate only if you control two or more white permanents."
     discard_self: bool = False  # "Discard this card": activated from the hand, like cycling (Magma Opus)
     exile_from_hand: bool = False  # "Exile this card from your hand": activated from the hand (the Spirit Guides)
@@ -149,7 +150,7 @@ _CARDS = r"(an?|two|three|four)"
 _SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (?:other )?(creature|(?:white|blue|black|red|green) creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+)s?")
 
 
-_REMOVE_COUNTER_COST = re.compile(rf"Remove an? {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
+_REMOVE_COUNTER_COST = re.compile(rf"Remove {_N_FIXED} {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
 
 
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
@@ -276,7 +277,7 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
         elif m := _EXILE_COST.fullmatch(part):
             fields.update(exile_graveyard=_NUMBER[m[1]], exile_graveyard_kind=m[2] or "")
         elif m := _REMOVE_COUNTER_COST.fullmatch(part):
-            fields["remove_counter"] = _counter_name(m[1])
+            fields.update(remove_counter=_counter_name(m[2]), remove_count=_number(m[1]))
         else:
             return None
     return fields

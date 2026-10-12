@@ -1320,7 +1320,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   | Sacrifice a creature / another creature / an artifact (land, enchantment, permanent) | "Sacrifice a creature: Draw a card." |
   | Discard a card | "{1}, Discard a card: Draw a card." |
   | Exile a card from your graveyard | "{1}, Exile a card from your graveyard: You gain 1 life." |
-  | Remove a counter from this (+1/+1 or a named one) | "{2}{G}, Remove a +1/+1 counter from this creature: Destroy target artifact or enchantment." |
+  | Remove a counter, or two to five, from this (+1/+1 or a named one) | "{2}{G}, Remove a +1/+1 counter from this creature: Destroy target artifact or enchantment." / "Remove three spore counters from this creature: Create a 1/1 green Saproling creature token." (the Thallids) |
   | Sacrifice a Food / Treasure / Clue | "{1}, Sacrifice a Food: Target creature gains indestructible until end of turn. Tap it." |
 
   - They can be activated whenever you have priority, unless they say "Activate only as a sorcery".

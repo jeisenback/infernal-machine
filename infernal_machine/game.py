@@ -946,7 +946,7 @@ class Game:
             return False
         if ability.sacrifice_other and len(self._sacrifice_choices(seat, permanent, ability)) < ability.sacrifice_count:
             return False
-        if ability.remove_counter and not permanent.counters.get(ability.remove_counter, 0):
+        if ability.remove_counter and permanent.counters.get(ability.remove_counter, 0) < ability.remove_count:
             return False
         if ability.tap_creatures and len(self._crew_candidates(seat, permanent, ability.tap_legendary, ability.tap_type)) < ability.tap_creatures:
             return False
@@ -1060,7 +1060,7 @@ class Game:
         if ability.exile_graveyard:
             self._left_graveyard(seat)
         if ability.remove_counter:
-            self.remove_counters(source, ability.remove_counter, 1)
+            self.remove_counters(source, ability.remove_counter, ability.remove_count)
         chosen = []
         for _ in range(ability.sacrifice_count if ability.sacrifice_other else 0):
             options = [p for p in self._sacrifice_choices(seat, source, ability) if p not in chosen]
