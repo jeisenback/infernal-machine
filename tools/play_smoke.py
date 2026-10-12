@@ -20,8 +20,9 @@ import sys
 sys.path.insert(0, os.getcwd())
 
 from infernal_machine.cards import Card, Deck  # noqa: E402
-from infernal_machine.effects import is_aftermath, morph_of  # noqa: E402
-from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, CAST_FACE_DOWN, CAST_GRAVEYARD, PLAY_LAND, TURN_UP, Game, Permanent  # noqa: E402
+from infernal_machine.combat import Attack  # noqa: E402
+from infernal_machine.effects import is_aftermath, morph_of, ninjutsu_of  # noqa: E402
+from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, CAST_FACE_DOWN, CAST_GRAVEYARD, NINJUTSU, PLAY_LAND, TURN_UP, Game, Permanent  # noqa: E402
 from infernal_machine.report import unsupported_lines  # noqa: E402
 from tests.test_effects import BEAR, COMMANDER, FOREST, OGRE, RAINBOW  # noqa: E402
 from tests.test_game import ScriptedPlayer  # noqa: E402
@@ -69,7 +70,7 @@ def play(card: Card) -> bool:
             break
         game._perform(mine, abilities[0])
         run_stack(game)
-    return bool(ways) | play_other_half(card) | play_face_down(card) | play_transformed(card)
+    return bool(ways) | play_other_half(card) | play_face_down(card) | play_transformed(card) | play_ninjutsu(card)
 
 
 def play_other_half(card: Card) -> bool:
@@ -115,6 +116,26 @@ def play_transformed(card: Card) -> bool:
     if game.on_battlefield(permanent):
         game.transform(permanent, by_day_night=True)
         game._check_state()
+    return True
+
+
+def play_ninjutsu(card: Card) -> bool:
+    """Attack with a creature, and once blockers are declared use the card's ninjutsu in its place."""
+    if ninjutsu_of(card) is None:
+        return False
+    game, mine = table(card)
+    attacker = next(p for p in mine.battlefield if p.card is BEAR)
+    game.combat.attacks.append(Attack(attacker, mine, game.seats[1]))
+    game.step = "declare_blockers"
+    if NINJUTSU + card.name not in game.legal_actions(mine):
+        return False
+    game._perform(mine, NINJUTSU + card.name)
+    run_stack(game)
+    game._check_state()
+    game.step = "combat_damage"
+    game.combat.deal_damage(first_strike_step=False)
+    run_stack(game)
+    game._check_state()
     return True
 
 
