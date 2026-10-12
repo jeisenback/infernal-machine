@@ -244,6 +244,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | Exile target card from a graveyard. | |
 | Return (another) target permanent to its owner's hand. Return all creatures to their owners' hands. | Cyclonic Rift, Evacuation, Rushing River |
 | Return target (creature) card from your graveyard to your hand / to the battlefield. | Raise Dead, Zombify |
+| Return another target (artifact, creature, Elf) card from your graveyard to your hand. ("Another" leaves out the dying creature's own card, unless an identical card is also there.) | Myr Retriever, Dutiful Attendant |
 | Put target creature card from a graveyard onto the battlefield under your control. | Reanimate |
 | Search your library for a (creature / legendary creature / Aura / Equipment / nonbasic land) card (with mana value N or less), (reveal it,) put it into your hand, then shuffle. | Demonic Tutor, Stoneforge-style |
 | Search your library for a nonbasic land card / up to two Forest cards, put it onto the battlefield (tapped), then shuffle. | Skyshroud Claim |

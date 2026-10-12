@@ -1680,6 +1680,15 @@ class Game:
             return sum(self._targets_exist(seat, modes, colors, source) for modes in modal.modes) >= (min(modal.min, 1) if modal.repeat else modal.min)
         return self._targets_exist(seat, effects, colors, source)
 
+    @staticmethod
+    def option_is_source(option: Any, source: Permanent | None) -> bool:
+        """Whether a target option is the source of the ability itself, for an "another" target: the permanent, or (a dies trigger such as
+        Myr Retriever's) its own card in a graveyard, unless an identical card is there too."""
+        if isinstance(option, GraveyardTarget):
+            return (source is not None and option.card == source.card
+                    and sum(c == source.card for c in option.seat.graveyard) <= 1)
+        return option is source
+
     def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset(),
                        source: Permanent | None = None) -> bool:
         """Whether every targeting effect (but "up to one target") has a legal target; a `distinct` one needs one
@@ -1692,7 +1701,7 @@ class Game:
                 needed = 1 + (sum(k == kind for k, _, _ in kinds[:i]) if distinct else 0)
                 kind = kind.removesuffix(" with mana value x")  # X isn't chosen yet: any creature could do
                 options = [o for _, o in self.target_options(self._fixed_kind(kind, source), seat, colors)
-                           if not (another and o is source)]
+                           if not (another and self.option_is_source(o, source))]
                 if len(options) < needed:
                     return False
             return True
