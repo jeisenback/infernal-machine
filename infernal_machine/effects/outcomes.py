@@ -1125,6 +1125,24 @@ class GrantProtection:
 
 
 @dataclass(frozen=True)
+class DoubleStats:
+    """ "Double target creature's power and toughness until end of turn." / "Double the power of each creature you control until end of
+    turn." / "Double this creature's power until end of turn.": it gets +P/+T equal to its power and toughness as this resolves, and
+    several creatures are doubled together."""
+    power: bool
+    toughness: bool
+    target: str | None = None  # "creature", "creature you control"
+    each: bool = False  # each creature you control
+    uses_source: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        creatures = [p for p in controller.battlefield if "Creature" in p.card.type_line] if self.each else [target] if target is not None else []
+        doubled = [(p, game.power(p) if self.power else 0, (game.toughness(p) or 0) if self.toughness else 0) for p in creatures]
+        for permanent, power, toughness in doubled:
+            game.modify_until_end_of_turn(permanent, Modifier(power, toughness))
+
+
+@dataclass(frozen=True)
 class PumpSource:
     """ "This creature gets +1/+0 until end of turn." """
     modifier: Modifier
@@ -5790,6 +5808,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:{_SELF}) gains protection from the color of your choice until end of turn\."),
      lambda m: GrantProtection(uses_source=True)),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
+    (re.compile(r"double the (power|power and toughness) of each creature you control until end of turn\.", re.I),
+     lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), each=True)),
+    (re.compile(rf"double the (power|power and toughness) of target {_PERMANENT_KIND} until end of turn\.", re.I),
+     lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), target=m[2].lower())),
+    (re.compile(rf"double target {_PERMANENT_KIND}'s (power|power and toughness) until end of turn\.", re.I),
+     lambda m: DoubleStats("power" in m[2].lower(), "toughness" in m[2].lower(), target=m[1].lower())),
+    (re.compile(rf"double (?:{_SELF}'s|its) (power|power and toughness) until end of turn\.", re.I),
+     lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), uses_source=True)),
     (re.compile(rf"creatures named {_SELF} can't be blocked this turn\.", re.I),
      lambda m: PumpNamed(Modifier(keywords=frozenset({CANT_BE_BLOCKED})))),
     (re.compile(r"shuffle any number of target cards from your graveyard into your library\.", re.I),

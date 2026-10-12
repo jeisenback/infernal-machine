@@ -102,6 +102,7 @@ declare("end_step", re.compile(r"At the beginning of your end step, (.+)", re.I)
 declare("each_upkeep", re.compile(r"At the beginning of each upkeep, (.+)", re.I))
 declare("each_end_step", re.compile(r"At the beginning of (?:each|the) end step, (.+)", re.I))
 declare("combat", re.compile(r"At the beginning of combat on your turn, (.+)", re.I))
+declare("each_combat", re.compile(r"At the beginning of each combat, (.+)", re.I))  # Unnatural Growth: every player's combat
 declare("gain_life", re.compile(r"Whenever you gain life, (.+)", re.I), to="you", happens="life_gained")
 declare("lose_life", re.compile(r"Whenever you lose life, (.+)", re.I), to="you", happens="life_lost")
 declare("sacrifice_creature", re.compile(r"Whenever you sacrifice a creature, (.+)", re.I))
