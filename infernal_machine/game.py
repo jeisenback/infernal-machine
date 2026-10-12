@@ -2754,6 +2754,13 @@ class Game:
                 self.give_poison(target, amount)
             else:
                 self.change_life(target, -amount)
+            if amount > 0 and source is not None:  # Curiosity: "Whenever enchanted creature deals damage to an opponent"
+                for holder in self.live_seats():
+                    for attachment in list(holder.battlefield) if holder is not target else ():
+                        if attachment.attached_to is source:
+                            self.trigger("host_damage_opponent", attachment, holder, source, player=target)
+                            if combat:
+                                self.trigger("host_combat_damage_opponent", attachment, holder, source, player=target)
             if combat and amount > 0 and source is not None and not self.loses_abilities(source) \
                     and (toxic := toxic_of(source.card)):
                 self.give_poison(target, toxic)  # Toxic N: that many poison counters in addition to the damage
