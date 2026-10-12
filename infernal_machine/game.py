@@ -61,6 +61,7 @@ CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
+SHUFFLED = "library_shuffled"  # where a card goes when it is shuffled into its owner's library instead of a graveyard
 ETERNALIZE = "Eternalize: "  # followed by the card's name
 UNEARTH = "Unearth: "  # followed by the card's name
 SUSPEND = "Suspend: "  # followed by the card's name
@@ -5213,6 +5214,8 @@ class Game:
                            and "Creature" in permanent.card.type_line else destination_all)  # a finality counter: exiled, not dying
             if destination == "graveyard" and replacement_effects(permanent.card).graveyard_self:
                 destination = "exile"  # the back of a Disturb card: exiled instead of going to a graveyard
+            if destination == "graveyard" and replacement_effects(permanent.card).graveyard_shuffle:
+                destination = SHUFFLED  # Blightsteel Colossus: shuffled into its library, so it never dies
             if destination == "graveyard" and "Creature" in permanent.card.type_line and self._dies_exiled(permanent, controller):
                 destination = "exile"  # Lava Coil, Liesa, Gloomshrieker: exiled instead of dying
             if permanent.unearthed:
@@ -5350,15 +5353,22 @@ class Game:
     def _move_card(self, seat: Seat, card: Card, zone: str) -> None:
         """Put a card into its owner's graveyard, exile or hand; a commander may go to the
         command zone instead (CR 903.9). Rest in Peace and its kind send a card to exile instead of a graveyard."""
-        if zone == "graveyard" and self._exiled_instead(seat):
+        if zone == "graveyard" and replacement_effects(card).graveyard_shuffle:
+            zone = SHUFFLED  # the card's own replacement effect works from every zone (CR 614.12)
+        elif zone == "graveyard" and self._exiled_instead(seat):
             zone = "exile"
         if card.name in seat.commander_names:
-            if seat.player.choose(COMMAND_ZONE_PROMPT, ["Command zone", zone.capitalize()]) == 0:
+            if seat.player.choose(COMMAND_ZONE_PROMPT, ["Command zone", "Library" if zone == SHUFFLED else zone.capitalize()]) == 0:
                 seat.command_zone.append(card)
                 self.broadcast({"event": "to_command_zone", "seat": seat.index, "card": card.name})
                 return
         if zone == "library_top":
             seat.library.insert(0, card)
+            return
+        if zone == SHUFFLED:  # revealed, then shuffled into its owner's library
+            self.broadcast({"event": "revealed", "seat": seat.index, "card": card.name})
+            seat.library.append(card)
+            self.rng.shuffle(seat.library)
             return
         {"exile": seat.exile, "hand": seat.hand, "graveyard": seat.graveyard, "library": seat.library}[zone].append(card)
         if zone == "graveyard":  # "Whenever a creature card is put into your graveyard from anywhere"
