@@ -129,7 +129,7 @@ def mechanism_of(line: str, keywords: list[str] | tuple[str, ...] = ()) -> str:
     or the first of `MECHANISMS` that matches; "Other" when nothing does."""
     lowered = line.lower()
     for keyword in sorted(keywords, key=len, reverse=True):
-        if lowered.startswith(keyword.lower()):
+        if lowered.startswith(keyword.lower()) and not lowered[len(keyword):len(keyword) + 1].isalpha():  # "Enchant player", not "Enchanted creature ..."
             return keyword
     if word := _ABILITY_WORD.match(line):
         return word[1]

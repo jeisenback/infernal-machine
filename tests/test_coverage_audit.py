@@ -69,6 +69,12 @@ class MechanismTests(unittest.TestCase):
         self.assertEqual(audit.mechanism_of("Offspring {2}", ["Offspring"]), "Offspring")
         self.assertEqual(audit.mechanism_of("Delirium \u2014 This creature gets +1/+1.", []), "Delirium")
 
+    def test_a_longer_word_is_not_the_keyword(self):
+        self.assertEqual(audit.mechanism_of("Enchant player", ["Enchant"]), "Enchant")
+        self.assertEqual(audit.mechanism_of("Equip {2}", ["Equip"]), "Equip")
+        self.assertEqual(audit.mechanism_of("Enchanted creature has flash.", ["Enchant"]), "Auras and Equipment")
+        self.assertEqual(audit.mechanism_of("Equipped creature has first strike.", ["Equip"]), "Auras and Equipment")
+
     def test_other_lines_take_the_first_pattern_that_fits(self):
         self.assertEqual(audit.mechanism_of("This creature can't attack unless you control a Swamp.", []), "Attack/block restrictions")
         self.assertEqual(audit.mechanism_of("Create a token that's a copy of target creature.", []), "Copy effects")
