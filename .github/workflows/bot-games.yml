@@ -1,7 +1,6 @@
 name: bot games
 on:
-  pull_request:
-    paths: ["infernal_machine/**", "examples/precons/**", "tools/bot_games.py", ".github/workflows/bot-games.yml"]
+  pull_request:  # every pull request, so the "bot games (all shards)" check is always reported and can be required
   push:
     branches: [main]
     paths: ["infernal_machine/**", "examples/precons/**", "tools/bot_games.py", ".github/workflows/bot-games.yml"]
@@ -36,3 +35,11 @@ jobs:
           key: oracle-bulk-${{ steps.week.outputs.week }}
       - name: Twenty four-player games between the precon decks, none may crash
         run: python tools/bot_games.py --start ${{ matrix.start }} --games 20
+  result:
+    name: bot games (all shards)  # the one check to require: it fails if any shard fails or does not run
+    needs: games
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed
+        run: test "${{ needs.games.result }}" = "success"
