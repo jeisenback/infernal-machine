@@ -653,6 +653,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     graveyard from anywhere, reveal CARDNAME and shuffle it into its owner's library instead." It works from every zone
     (dying, discarding, milling, a resolved spell); a creature that is shuffled in never dies, and a commander can still
     choose the command zone.
+  - Draw doubling: "If you would draw a card, draw two cards instead." (Thought Reflection) and the form that skips the first
+    card of your draw step (Alhammarret's Archive, Teferi's Ageless Insight, Bard, King of Dale). Each one applies once to a draw,
+    so two of them make four.
   - Doubling Season and Parallel Lives: tokens an effect creates under your control, and counters an effect puts on your
     permanents (including the counters a permanent enters with), are doubled. Several stack (two doublers: four times).
     Hardened Scales adds one to +1/+1 counters on your creatures first, then doubling applies.
