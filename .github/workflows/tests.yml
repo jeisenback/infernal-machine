@@ -33,7 +33,6 @@ jobs:
     name: typecheck (pyright)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true  # not blocking while the first findings are worked off (#283); delete this line once the count is 0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,10 +40,8 @@ jobs:
           python-version: "3.13"
       - name: Install pyright (CI only; the engine itself has no dependencies)
         run: python -m pip install pyright==1.1.414
-      - name: Check the type annotations of infernal_machine
+      - name: The pyright error count may fall but not rise (#309)
         run: |
-          status=0
-          python -m pyright > pyright.txt || status=$?
+          python -m pyright > pyright.txt || true
           cat pyright.txt
-          echo "pyright: $(tail -n 1 pyright.txt)" >> "$GITHUB_STEP_SUMMARY"
-          exit $status
+          python tools/pyright_ratchet.py pyright.txt
