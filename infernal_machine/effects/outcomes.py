@@ -779,6 +779,30 @@ class PutCountersOnChosenCreature:
         game.put_counters(creatures[pick], self.counter, game.amount(self.count))
 
 
+DISTRIBUTE_PROMPT = "Put a counter on which creature for "  # followed by the source's name
+
+
+@dataclass(frozen=True)
+class DistributeCounters:
+    """ "Distribute three +1/+1 counters among one, two, or three target creatures you control." The counters are given out one at
+    a time as the effect resolves, to any creature of the kind (so any split among any number of them is possible). Nothing is
+    targeted, but a creature that couldn't be targeted (hexproof, protection from the source) is left out all the same."""
+    count: int | str
+    counter: str
+    kind: str  # "creature" or "creature you control"
+    another: bool = False  # "other target creatures": not the source itself
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        source = game.resolving_item.card.name if game.resolving_item is not None else "the ability"
+        for _ in range(game.amount(self.count)):
+            options = [p for _, p in game.target_options(self.kind, controller, game.resolving_colors)]
+            options = [p for p in options if not (self.another and p is game.resolving_source)]
+            if not options:
+                return
+            pick = controller.player.choose(DISTRIBUTE_PROMPT + source, [game.label(p) for p in options]) if len(options) > 1 else 0
+            game.put_counters(options[pick], self.counter, 1)
+
+
 @dataclass(frozen=True)
 class PutCountersOnEachUpToX:
     """Silkguard: "Put a +1/+1 counter on each of up to X target creatures you control." The targets are one list."""
@@ -5617,6 +5641,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
     (re.compile(rf"put {_N} {_COUNTER} on target (attacking creature with lesser power)\.", re.I),  # Mentor
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
+    (re.compile(rf"distribute {_N} {_COUNTER} among (?:one or two|one, two, or three|up to {_N}|any number of) (other )?(?:target )?"
+                r"creatures( you control)?\.", re.I),
+     lambda m: DistributeCounters(_count(m[1]), _counter_name(m[2]), "creature" + (" you control" if m[5] else ""), another=m[4] is not None)),
     (re.compile(rf"put {_N} {_COUNTER} on another target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower(), another=True)),
     (re.compile(rf"put {_N} {_COUNTER} on each (creature|(?-i:[A-Z][a-z]+)(?: creature)?|artifact creature) you control\.", re.I),
