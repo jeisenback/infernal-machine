@@ -13,9 +13,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .characteristics import Modifier, source_qualities
-from .effects import (CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, Annihilate, TriggeredAbility, attack_tax_per_counter, combat_restrictions,
-                      flat_attack_tax)
-from .mana import Cost
+from .effects import (CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, Annihilate, TriggeredAbility, attack_tax_per_counter, attack_taxes,
+                      combat_restrictions)
+from .mana import Cost, cost_of
 
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
@@ -55,7 +55,7 @@ class Combat:
         opponents = self.game.opponents(seat)
         self.game.send_state(seat)
         all_walkers = [p for o in opponents for p in o.battlefield if p.loyalty is not None]
-        owed = 0  # the total cost to attack so far
+        owed = Cost()  # the total cost to attack so far
         declared: list[tuple[Permanent, Seat, Permanent | None]] = []
         for permanent in list(seat.battlefield):
             if not self._can_attack(permanent):
@@ -88,8 +88,8 @@ class Combat:
             self.attacks.append(Attack(permanent, seat, defender, walker=walker))
             permanent.attacked_turn = self.game.turn
             declared.append((permanent, defender, walker))
-        if owed:  # every attacker was chosen so that this can be paid (see _attackable)
-            payment = self.game._pay_cost(seat, Cost(generic=owed))
+        if owed != Cost():  # every attacker was chosen so that this can be paid (see _attackable)
+            payment = self.game._pay_cost(seat, owed)
             assert payment is not None
             self.game._spend_mana(seat, payment)
         for permanent, defender, walker in declared:
@@ -163,11 +163,15 @@ class Combat:
         """Whether an Aura `holder` controls is attached to `creature`."""
         return any(p.attached_to is creature and "Aura" in p.card.type_line for p in holder.battlefield)
 
-    def _attack_tax(self, permanent: Permanent, defender: Seat) -> int:
-        """What attacking `defender` costs `permanent`: Nils makes each counter on the attacker cost {1}."""
+    def _attack_tax(self, permanent: Permanent, defender: Seat) -> Cost:
+        """What attacking `defender` costs `permanent`: Nils makes each counter on the attacker cost {1}; Ghostly Prison, Baird and
+        the like charge each attacker, a fixed cost or {X} for a count the defender works out (Sphere of Safety)."""
         counters = sum(permanent.counters.values())
-        tax = counters * sum(attack_tax_per_counter(p.card) for p in defender.battlefield) if counters else 0
-        return tax + sum(flat_attack_tax(p.card) for p in defender.battlefield)  # Ghostly Prison: {2} for each attacker
+        tax = Cost(generic=counters * sum(attack_tax_per_counter(p.card) for p in defender.battlefield)) if counters else Cost()
+        for source in defender.battlefield:
+            for each in attack_taxes(source.card):
+                tax += Cost(generic=self.game.evaluate(each.amount, defender)) if each.amount is not None else cost_of(each.cost)
+        return tax
 
     def _barred_from_attacking(self, permanent: Permanent, defender: Seat) -> bool:
         """Whether a static ability of the defender's keeps `permanent` from attacking them (or their planeswalkers)."""
@@ -183,15 +187,16 @@ class Combat:
         return False
 
     def _attackable(self, seat: Seat, permanent: Permanent, opponents: list[Seat],
-                    walkers: list[Permanent], owed: int = 0) -> tuple[list[Seat], list[Permanent]]:
+                    walkers: list[Permanent], owed: Cost | None = None) -> tuple[list[Seat], list[Permanent]]:
         """The players (and their planeswalkers) `permanent` may attack: not the one a vow counter keeps it from
         (Promise of Loyalty), and not one whose attack tax the attacking player can't pay on top of the `owed` that the
         attackers chosen before it already cost. It taps to attack (unless it has vigilance), so its own mana is out."""
+        owed = Cost() if owed is None else owed
         barred = permanent.vow_of if permanent.counters.get("vow") else None
         untapped = permanent if not self.game.has_keyword(permanent, "vigilance") else None
         allowed = [o for o in opponents if o is not barred and not self._barred_from_attacking(permanent, o) and (
-            not (tax := self._attack_tax(permanent, o))
-            or self.game._pay_cost(seat, Cost(generic=owed + tax), untapped) is not None)]
+            (tax := self._attack_tax(permanent, o)) == Cost()
+            or self.game._pay_cost(seat, owed + tax, untapped) is not None)]
         return allowed, [w for w in walkers if self.game.controller_of(w) in allowed]
 
     def add_attacker(self, permanent: Permanent, controller: Seat, defender: Seat) -> None:
