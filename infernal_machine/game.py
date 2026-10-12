@@ -1580,12 +1580,17 @@ class Game:
     def _sacrifices_survive(self, seat: Seat, extras: list, payment: list[Permanent]) -> bool:
         """Whether enough permanents are left for the sacrifice costs once the mana payment has sacrificed the sources that go
         with their mana (a Treasure or an Eldrazi Spawn can pay for the mana or be the sacrifice, not both)."""
-        spent = {id(p) for p in payment if not is_land(p.card) and mana_ability_sacrifices(p.card)}
+        spent = self._sacrificed_for_mana(payment)
         for kind in {c.sacrifice for c in extras if c.sacrifice and not c.sacrifice_x}:
             needed = sum(c.sacrifice == kind for c in extras if not c.sacrifice_x)
             if sum(_permanent_matches(kind, p.card) for p in seat.battlefield if id(p) not in spent) < needed:
                 return False
         return True
+
+    @staticmethod
+    def _sacrificed_for_mana(payment: list[Permanent]) -> set[int]:
+        """The sources in a mana payment that are sacrificed to make their mana (Treasure, Eldrazi Spawn), by id."""
+        return {id(p) for p in payment if not is_land(p.card) and mana_ability_sacrifices(p.card)}
 
     def _pick_options(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int, bought_back: bool,
                       afford: Callable[[str], list[Permanent] | None]) -> tuple:
@@ -2295,9 +2300,13 @@ class Game:
                     most = min(most, len(self.target_options(target_kind(effect), seat, source_qualities(card))))
             if x_limited_by_players(card):
                 most = min(most, len(self.live_seats()))
-            for cost in additional_costs(card):  # "sacrifice X creatures": there have to be X of them
+            for cost in additional_costs(card):  # "sacrifice X creatures": there have to be X of them, after the mana has taken its sources
                 if cost.sacrifice_x:
                     most = min(most, sum(_permanent_matches(cost.sacrifice, p.card) for p in seat.battlefield))
+                    while most and sum(_permanent_matches(cost.sacrifice, p.card) for p in seat.battlefield
+                                       if id(p) not in self._sacrificed_for_mana(self._payment(
+                                           seat, paying, from_command_zone, most, alternative, kickers, extra) or [])) < most:
+                        most -= 1
             choices = self._x_values_with_targets(seat, effects, source_qualities(card), most)
             if not choices:  # nothing could be targeted for any X that can be paid
                 return

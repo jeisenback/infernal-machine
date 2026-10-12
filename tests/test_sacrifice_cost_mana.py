@@ -8,6 +8,7 @@ from infernal_machine.game import CAST, Permanent
 from tests.test_combat import BEAR
 from tests.test_mass_effects import table3
 from tests.test_rules_text_81 import real
+from tests.test_x_spells_sweep_153 import BARGAIN, RELIC, SHRINE, Table, battlefield_names, priority_cast
 from tests.test_x_targets import script
 
 PLAINS = Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",))
@@ -59,6 +60,22 @@ class SpawnTests(unittest.TestCase):
         self.assertTrue(offered(game, a, OFFERING))
         game._perform(a, CAST + OFFERING.name)
         self.assertEqual(a.battlefield, [], "the Spawn paid for the mana and the Bear was the sacrifice")
+
+
+class SacrificeXTests(unittest.TestCase):
+    """Immoral Bargain: X creatures are sacrificed, and a Spawn that paid for the mana is not one of them (bot games, seed 109)."""
+
+    def asked(self, mine, **more):
+        t = priority_cast(Table(BARGAIN, CAST, mine=mine, theirs=[Permanent(RELIC), Permanent(SHRINE)], **more))
+        return t, [options for prompt, options in t.a.player.prompts if prompt.startswith("Choose X")][0]
+
+    def test_a_spawn_that_pays_for_the_mana_is_not_a_creature_to_sacrifice(self):
+        t, options = self.asked([Permanent(SPAWN, sick=False), Permanent(BEAR)], n=2)
+        self.assertEqual(options, ["0", "1"])
+
+    def test_only_the_spawn_that_pays_is_lost_to_the_count(self):
+        t, options = self.asked([Permanent(SPAWN, sick=False), Permanent(SPAWN, sick=False), Permanent(BEAR)])
+        self.assertEqual(options, ["0", "1", "2"], "one Spawn pays the {1}; the other Spawn and the Bear can be sacrificed")
 
 
 class UnaffectedTests(unittest.TestCase):
