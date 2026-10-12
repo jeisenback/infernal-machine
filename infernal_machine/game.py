@@ -1532,7 +1532,7 @@ class Game:
                 if not (way and way.warp and not from_hand)  # warp is a way to cast from the hand only
                 and self._can_pay_extras(seat, card, way, afford=lambda extra, way=way: self._payment(
                     seat, card, from_command_zone, alternative=way, extra=extra,
-                    delve=self._delve_max(seat, card) if way is None else 0) is not None)
+                    delve=self._delve_max(seat, card) if way is None else 0))
                 and not (way and way.bestow and not self.target_options("creature", seat, source_qualities(card)))]
 
     def _extra_costs(self, card: Card, kicked: int, bought_back: bool = False) -> list:
@@ -1554,24 +1554,41 @@ class Game:
         return len([gone for _ in range(wanted) for gone in self.sacrifice(seat, "creature")])
 
     def _can_pay_extras(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0,
-                        bought_back: bool = False, afford: Callable[[str], bool] | None = None) -> bool:
+                        bought_back: bool = False, afford: Callable[[str], list[Permanent] | None] | None = None) -> bool:
         """Whether `seat` can pay the parts of casting `card` that aren't mana: additional costs (one of the options in "sacrifice
         an artifact or discard a card or pay {2}"), a non-mana kicker cost, and `alternative`'s condition, life and card to exile.
-        `afford` says whether the mana cost can be paid with the extra mana an option adds."""
+        `afford` gives the permanents that pay the mana cost with the extra mana an option adds, or None if it can't be paid."""
         return bool(self._payable_options(seat, card, alternative, kicked, bought_back, afford))
 
     def _payable_options(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int = 0,
-                         bought_back: bool = False, afford: Callable[[str], bool] | None = None) -> list[tuple]:
+                         bought_back: bool = False, afford: Callable[[str], list[Permanent] | None] | None = None) -> list[tuple]:
         """The ways to choose one option of each "this or that" additional cost that `seat` can pay (one empty way if the card
         has none)."""
         extras = self._extra_costs(card, kicked, bought_back)
         plain = [c for c in extras if not c.options]
-        return [picked for picked in itertools.product(*(c.options for c in extras if c.options))
-                if self._extras_payable(seat, card, alternative, plain + list(picked))
-                and (afford is None or afford("".join(o.mana for o in picked)))]
+        ways = []
+        for picked in itertools.product(*(c.options for c in extras if c.options)):
+            if not self._extras_payable(seat, card, alternative, plain + list(picked)):
+                continue
+            if afford is not None:
+                payment = afford("".join(o.mana for o in picked))
+                if payment is None or not self._sacrifices_survive(seat, plain + list(picked), payment):
+                    continue
+            ways.append(picked)
+        return ways
+
+    def _sacrifices_survive(self, seat: Seat, extras: list, payment: list[Permanent]) -> bool:
+        """Whether enough permanents are left for the sacrifice costs once the mana payment has sacrificed the sources that go
+        with their mana (a Treasure or an Eldrazi Spawn can pay for the mana or be the sacrifice, not both)."""
+        spent = {id(p) for p in payment if not is_land(p.card) and mana_ability_sacrifices(p.card)}
+        for kind in {c.sacrifice for c in extras if c.sacrifice and not c.sacrifice_x}:
+            needed = sum(c.sacrifice == kind for c in extras if not c.sacrifice_x)
+            if sum(_permanent_matches(kind, p.card) for p in seat.battlefield if id(p) not in spent) < needed:
+                return False
+        return True
 
     def _pick_options(self, seat: Seat, card: Card, alternative: AlternativeCost | None, kicked: int, bought_back: bool,
-                      afford: Callable[[str], bool]) -> tuple:
+                      afford: Callable[[str], list[Permanent] | None]) -> tuple:
         """The option of each "this or that" additional cost that `seat` pays: asked when more than one way can be paid."""
         ways = self._payable_options(seat, card, alternative, kicked, bought_back, afford)
         if len(ways) > 1:
@@ -2267,7 +2284,7 @@ class Game:
             extra += buyback_cost(card) or ""
         effects = kicked_effects(effects, kicked, kickers)
         picked = self._pick_options(seat, card, alternative, kicked, bought_back, lambda mana: self._payment(
-            seat, paying, from_command_zone, 0, alternative, kickers, extra + mana) is not None)
+            seat, paying, from_command_zone, 0, alternative, kickers, extra + mana))
         extra += "".join(o.mana for o in picked)  # "pay {3}{B}" as an additional cost
         x = 0  # announced before the targets (CR 601.2b-c): "up to X target creatures" needs it
         if alternative is None and (parse_cost(paying.mana_cost).x or any(c.sacrifice_x for c in additional_costs(card))):
