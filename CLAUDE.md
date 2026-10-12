@@ -69,3 +69,7 @@ PY
 
 `python tools/coverage_audit.py --mechanisms --next` ranks the work by how much each piece unlocks, weighted by how played the cards
 are; `--mechanism NAME` lists the unsupported wordings inside one mechanism or family. The backlog is tracked in issue #219.
+
+`_TEMPLATES` is read in order, so its order is part of the meaning. `python tools/template_audit.py` lists the templates no sentence in
+the pool reaches and the sentences two templates read differently (the first listed wins); run it after reordering or adding a broad
+template.

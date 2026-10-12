@@ -23,6 +23,8 @@ jobs:
           key: commander-pool-${{ steps.week.outputs.week }}
       - name: How much of the Commander card pool the engine understands
         run: python tools/coverage_audit.py --mechanisms --next --json coverage-audit.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Which rules-text templates are unused, and which sentences two of them read
+        run: python tools/template_audit.py | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Whether the fully playable cards actually play
         run: python tools/play_smoke.py | tee -a "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
