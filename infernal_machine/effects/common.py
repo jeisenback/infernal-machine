@@ -17,6 +17,7 @@ _VOTE_PREFIX = r"(?:[A-Z][\w' -]* \u2014 )?"  # "Will of the council — ", "Cou
 
 
 _N = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+|X)"
+_N_FIXED = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)"  # a number that is never X, for an effect that reads it as a plain int
 
 
 _REMINDER = re.compile(r"\s*\([^)]*\)")
@@ -41,6 +42,13 @@ def _count(word: str) -> Quantity:
     if lowered == "half x up":
         return "hX+"
     return int(word) if word.isdigit() else _NUMBERS[lowered]
+
+
+def _number(word: str) -> int:
+    """A number from rules text for an effect that has no X: its template matches `_N_FIXED`, so the word is never "X"."""
+    value = _count(word)
+    assert isinstance(value, int), f"{word!r} is not a fixed number; the template should match _N_FIXED"
+    return value
 
 
 _WORDS = {1: "a", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}

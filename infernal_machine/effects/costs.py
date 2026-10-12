@@ -14,7 +14,8 @@ from .common import (
     _COLOR_NAMES,
     _MANA_SYMBOLS,
     _N,
-    _count,
+    _N_FIXED,
+    _number,
     _split_sentences,
     rules_lines,
 )
@@ -97,19 +98,19 @@ _KICKER = re.compile(rf"(?:Multik|K)icker ({_MANA_SYMBOLS})(?: and/or ({_MANA_SY
 
 
 _KICKER_OTHER = re.compile(rf"Kicker\u2014(?:Sacrifice an? (creature|artifact|land|artifact or creature|permanent)"
-                           rf"|(Discard a card)|Pay (?!X ){_N} life)\.")
+                           rf"|(Discard a card)|Pay (?!X ){_N_FIXED} life)\.")
 
 
 _BUYBACK = re.compile(rf"Buyback ({_MANA_SYMBOLS})")
 
 
-_BUYBACK_OTHER = re.compile(rf"Buyback\u2014(?:Sacrifice an? (land)|Pay {_N} life)\.")
+_BUYBACK_OTHER = re.compile(rf"Buyback\u2014(?:Sacrifice an? (land)|Pay {_N_FIXED} life)\.")
 
 
 _FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast this spell without paying its mana cost\.")
 
 
-_PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N} life and )?exile an? ({_COLOR_NAMES}) card "
+_PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N_FIXED} life and )?exile an? ({_COLOR_NAMES}) card "
                     r"from your hand rather than pay this spell's mana cost\.")
 
 
@@ -118,7 +119,7 @@ _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifi
 
 
 _ADDITIONAL_PART = (r"(?:sacrifice an? (artifact or creature|creature or planeswalker|creature or enchantment|creature or land|creature|artifact|land"
-                    rf"|permanent|green creature)|(discard a card)|pay {_N} life|pay ((?:\{{[^}}]+\}})+))")
+                    rf"|permanent|green creature)|(discard a card)|pay {_N_FIXED} life|pay ((?:\{{[^}}]+\}})+))")
 
 
 _ADDITIONAL_EITHER = re.compile(rf"As an additional cost to cast this spell, ({_ADDITIONAL_PART}(?:(?:, or |, | or ){_ADDITIONAL_PART})+)\.")
@@ -188,13 +189,13 @@ _MORPH_OTHER = re.compile(rf"(Morph|Megamorph|Disguise)\u2014(.+?)\.?")
 _MORPH_NOUN = r"((?-i:[A-Z][a-z]+?))s?"  # "Mountains", "Bird"
 _MORPH_COSTS = [
     (re.compile(r"Sacrifice another creature"), lambda m: MorphCost(sacrifice="another creature")),
-    (re.compile(rf"Sacrifice {_N} {_MORPH_NOUN}"), lambda m: MorphCost(sacrifice=m[2], count=_count(m[1]))),
+    (re.compile(rf"Sacrifice {_N_FIXED} {_MORPH_NOUN}"), lambda m: MorphCost(sacrifice=m[2], count=_number(m[1]))),
     (re.compile(rf"Reveal an? ({_COLOR_NAMES}) card in your hand"), lambda m: MorphCost(reveal=_COLOR_LETTER[m[1].lower()])),
-    (re.compile(rf"Return {_N} {_MORPH_NOUN} you control to (?:its|their) owner's hand"),
-     lambda m: MorphCost(bounce=m[2], count=_count(m[1]))),
+    (re.compile(rf"Return {_N_FIXED} {_MORPH_NOUN} you control to (?:its|their) owner's hand"),
+     lambda m: MorphCost(bounce=m[2], count=_number(m[1]))),
     (re.compile(r"Discard a card"), lambda m: MorphCost(discard="card")),
     (re.compile(r"Discard an? ((?-i:[A-Z][a-z]+)) card"), lambda m: MorphCost(discard=m[1])),
-    (re.compile(rf"Pay {_N} life"), lambda m: MorphCost(life=_count(m[1]))),
+    (re.compile(rf"Pay {_N_FIXED} life"), lambda m: MorphCost(life=_number(m[1]))),
 ]
 
 
@@ -284,7 +285,7 @@ def kicker_other_cost(card: Card) -> AdditionalCost | None:
     """A kicker cost that isn't mana: "Kicker—Sacrifice a land.", "Kicker—Discard a card.", "Kicker—Pay 3 life." """
     for line in rules_lines(card):
         if m := _KICKER_OTHER.fullmatch(line):
-            return AdditionalCost(sacrifice=m[1], discard=bool(m[2]), life=_count(m[3]) if m[3] else 0)
+            return AdditionalCost(sacrifice=m[1], discard=bool(m[2]), life=_number(m[3]) if m[3] else 0)
     return None
 
 
@@ -297,7 +298,7 @@ def buyback_other_cost(card: Card) -> AdditionalCost | None:
     """A buyback cost that isn't mana: "Buyback\u2014Sacrifice a land." or "Buyback\u2014Pay 4 life." """
     for line in rules_lines(card):
         if m := _BUYBACK_OTHER.fullmatch(line):
-            return AdditionalCost(sacrifice=m[1], life=_count(m[2]) if m[2] else 0)
+            return AdditionalCost(sacrifice=m[1], life=_number(m[2]) if m[2] else 0)
     return None
 
 
@@ -441,7 +442,7 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
         if _FREE_WITH_COMMANDER.fullmatch(line):
             costs.append(AlternativeCost("Cast without paying its mana cost", commander=True))
         elif m := _PITCH.fullmatch(line):
-            life = _count(m[2]) if m[2] else 0
+            life = _number(m[2]) if m[2] else 0
             text = f"Pay {life} life and exile a {m[3]} card" if life else f"Exile a {m[3]} card"
             costs.append(AlternativeCost(text, not_your_turn=bool(m[1]), life=life, exile_color=_COLOR_LETTER[m[3]]))
     return costs
@@ -468,7 +469,7 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
         elif m := _FROM_GRAVEYARD_BY_PAYING.fullmatch(line):
             found.append(GraveyardCast("From the graveyard", m[1]))
         elif m := _ESCAPE.fullmatch(line):
-            found.append(GraveyardCast("Escape", m[1], exile=_count(m[2])))
+            found.append(GraveyardCast("Escape", m[1], exile=_number(m[2])))
         elif _RETRACE.fullmatch(line):
             found.append(GraveyardCast("Retrace", card.mana_cost, discard_land=True))
         elif _AFTERMATH.fullmatch(line):
@@ -502,10 +503,10 @@ def additional_costs(card: Card) -> list[AdditionalCost]:
         if m := _ADDITIONAL.fullmatch(line):
             life_x = (m[3] or "").upper() == "X"
             costs.append(AdditionalCost(sacrifice=m[1] or (m[5].removesuffix("s") if m[5] else None), discard=bool(m[2]),
-                                        life=0 if life_x or not m[3] else _count(m[3]), life_x=life_x, sacrifice_x=bool(m[5])))
+                                        life=0 if life_x or not m[3] else _number(m[3]), life_x=life_x, sacrifice_x=bool(m[5])))
         elif m := _ADDITIONAL_EITHER.fullmatch(line):  # Demand Answers, Bitter Triumph, Redirect Lightning, Eaten Alive
             costs.append(AdditionalCost(options=tuple(
-                AdditionalCost(sacrifice=part[0] or None, discard=bool(part[1]), life=_count(part[2]) if part[2] else 0, mana=part[3])
+                AdditionalCost(sacrifice=part[0] or None, discard=bool(part[1]), life=_number(part[2]) if part[2] else 0, mana=part[3])
                 for part in re.findall(_ADDITIONAL_PART, m[1]))))
     return costs
 

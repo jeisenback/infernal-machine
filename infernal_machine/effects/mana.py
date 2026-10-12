@@ -8,7 +8,7 @@ from functools import lru_cache
 
 from ..cards import Card
 
-from .common import _ANY_N, _N, _SELF, _THRESHOLD, _count, rules_lines
+from .common import _ANY_N, _N_FIXED, _SELF, _THRESHOLD, _number, rules_lines
 from .outcomes import Condition, _condition
 
 
@@ -274,19 +274,19 @@ def mana_life_condition(card: Card) -> "Condition | None":
 _MANA_PATTERNS = (_ADD_SYMBOLS, _ADD_EITHER, _ADD_THREE, _ADD_ANY, _ADD_IDENTITY, _ADD_ANY_N, _ADD_COMBO, _ADD_AMONG, _ADD_IMPRINTED)
 
 
-_PAIN = re.compile(rf"\{{T\}}: Add \{{([WUBRGC])\}} or \{{([WUBRGC])\}}\. {_SELF} deals {_N} damage to you\.", re.I)
+_PAIN = re.compile(rf"\{{T\}}: Add \{{([WUBRGC])\}} or \{{([WUBRGC])\}}\. {_SELF} deals {_N_FIXED} damage to you\.", re.I)
 
 
 # Ancient Tomb: two mana, and the damage is dealt once however much of it is used.
-_PAIN_MULTI = re.compile(rf"\{{T\}}: Add ((?:\{{[WUBRGC]\}}){{2,}})\. {_SELF} deals {_N} damage to you\.", re.I)
+_PAIN_MULTI = re.compile(rf"\{{T\}}: Add ((?:\{{[WUBRGC]\}}){{2,}})\. {_SELF} deals {_N_FIXED} damage to you\.", re.I)
 
 
 # City of Brass: the damage comes from the land becoming tapped.
-_TAPPED_PAIN = re.compile(rf"Whenever {_SELF} becomes tapped, it deals {_N} damage to you\.", re.I)
+_TAPPED_PAIN = re.compile(rf"Whenever {_SELF} becomes tapped, it deals {_N_FIXED} damage to you\.", re.I)
 
 
 # Mana Confluence: paying life, not damage.
-_PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N} life: Add (one mana of any color|\{{([WUBRG])\}}(?: or \{{([WUBRG])\}})?)\.{_IF_TAIL}", re.I)
+_PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N_FIXED} life: Add (one mana of any color|\{{([WUBRG])\}}(?: or \{{([WUBRG])\}})?)\.{_IF_TAIL}", re.I)
 
 
 # Room of Refuge: one mana of the color chosen as it entered. A Thriving land or Gate also makes its own color.
@@ -355,11 +355,11 @@ def mana_pain(card: Card) -> tuple[frozenset[str], int] | None:
     that cost damage when produced, and how much."""
     for line in rules_lines(card):
         if m := _PAIN.fullmatch(line):
-            return frozenset((m[1], m[2])), _count(m[3])
+            return frozenset((m[1], m[2])), _number(m[3])
         if m := _PAIN_MULTI.fullmatch(line):
-            return frozenset(re.findall(r"[WUBRGC]", m[1])), _count(m[2])
+            return frozenset(re.findall(r"[WUBRGC]", m[1])), _number(m[2])
         if m := _TAPPED_PAIN.fullmatch(line):  # every color it makes hurts
-            return frozenset("WUBRGC"), _count(m[1])
+            return frozenset("WUBRGC"), _number(m[1])
     return None
 
 
@@ -377,7 +377,7 @@ def reflected_mana(card: Card) -> tuple[bool, bool] | None:
 
 def mana_life_cost(card: Card) -> int:
     """Life paid each time a land is tapped for mana ("{T}, Pay 1 life: Add one mana of any color."), or 0."""
-    return next((_count(m[1]) for line in rules_lines(card) if (m := _PAY_LIFE_ANY.fullmatch(line))), 0)
+    return next((_number(m[1]) for line in rules_lines(card) if (m := _PAY_LIFE_ANY.fullmatch(line))), 0)
 
 
 def mana_life_types(card: Card) -> frozenset[str]:
