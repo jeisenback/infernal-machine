@@ -70,6 +70,7 @@ declare("enters_untapped", re.compile(rf"When {_SELF} enters untapped, (.+)", re
 declare("leaves", re.compile(rf"When(?:ever)? {_SELF} leaves the battlefield, (.+)", re.I))
 declare("tokens_created", re.compile(r"Whenever you create one or more creature tokens, (.+)", re.I), to="you")
 declare("tokens_enter", re.compile(r"Whenever one or more tokens you control enter, (.+)", re.I), to="you")
+declare("foretold", re.compile(r"Whenever you foretell a card, (.+)", re.I), to="you")  # Game._foretell
 declare("draw", re.compile(r"Whenever you draw a card, (.+)", re.I), to="you", happens="drew")
 declare("opponent_draw", re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
         to="opponents", happens="drew", about_player=True)

@@ -26,7 +26,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (EVENTS, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -63,6 +63,9 @@ CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
 UNEARTH = "Unearth: "  # followed by the card's name
 SUSPEND = "Suspend: "  # followed by the card's name
+FORETELL = "Foretell: "  # followed by the card's name: pay {2} and exile it face down from the hand
+CAST_FORETOLD = "Cast foretold: "  # followed by the card's name: cast from exile for its foretell cost, on a later turn
+FORETELL_COST = "{2}"
 NINJUTSU = "Ninjutsu: "  # followed by the card's name: return an unblocked attacker, and it comes in attacking in its place
 NINJUTSU_PROMPT = "Return which unblocked attacker to hand for ninjutsu with "  # followed by the card's name
 CAST_PARAGON = "Cast from graveyard (once a turn): "  # Serra Paragon
@@ -351,6 +354,7 @@ class StackItem:
     from_hand: bool = False  # cast from its owner's hand (rebound only works then)
     face_down: tuple[str, "MorphCost"] | None = None  # cast face down: (Morph, Megamorph or Disguise; the cost to turn it face up)
     shuffle_after: bool = False  # Green Sun's Zenith: shuffled into its owner's library once it has resolved
+    foretold: bool = False  # cast from exile after being foretold ("If this spell was foretold")
 
     @property
     def physical(self) -> Card:
@@ -415,6 +419,7 @@ class Seat:
     life_lost_amount: int = 0  # how much they lost on life_lost_turn
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
     suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
+    foretold: list = field(default_factory=list)  # (turn, card) for each foretold card in exile (it can be cast from the next turn on)
     player_counters: dict[str, int] = field(default_factory=dict)  # counters on the player: poison, energy, ...
     died_turn: int | None = None  # the turn `died` counts for
     died: int = 0  # creatures that died under this player's control that turn
@@ -846,6 +851,14 @@ class Game:
                     and self._payment(seat, FACE_DOWN) is not None:
                 actions.append(CAST_FACE_DOWN + card.name)
         actions += [NINJUTSU + c.name for c in self._ninjutsu_cards(seat)]
+        if seat.index == self.active:  # Foretell: pay {2} to exile it face down, any time you have priority on your turn
+            actions += [FORETELL + c.name for c in _unique(seat.hand)
+                        if foretell_of(c) and self._payment(seat, dataclasses.replace(c, mana_cost=FORETELL_COST)) is not None]
+        for turn, card in seat.foretold:  # ... and cast it from exile on a later turn for its foretell cost
+            if turn < self.turn and card in seat.exile and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) \
+                    and self._can_cast(seat, card, graveyard=GraveyardCast("Foretell", foretell_of(card))) \
+                    and CAST_FORETOLD + card.name not in actions:
+                actions.append(CAST_FORETOLD + card.name)
         for card in _unique(seat.hand):  # Suspend N: pay the cost, exile it with time counters
             if (suspend := suspend_of(card)) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) \
                     and self._payment(seat, dataclasses.replace(card, mana_cost=suspend[1])) is not None:
@@ -1764,6 +1777,10 @@ class Game:
             self.turn_face_up(seat, permanent)
         elif action.startswith(CYCLE):
             self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
+        elif action.startswith(FORETELL):
+            self._foretell(seat, action.removeprefix(FORETELL))
+        elif action.startswith(CAST_FORETOLD):
+            self._cast_foretold(seat, action.removeprefix(CAST_FORETOLD))
         elif action.startswith(NINJUTSU):
             self._ninjutsu(seat, action.removeprefix(NINJUTSU))
         elif action.startswith(ACTIVATE_HAND):
@@ -1922,6 +1939,24 @@ class Game:
         self.happened("cycled", seat)
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
+
+    def _foretell(self, seat: Seat, name: str) -> None:
+        """Foretell: a special action. {2} is paid and the card goes from the hand to exile face down; from the next turn it can be cast
+        for its foretell cost."""
+        card = next(c for c in seat.hand if c.name == name)
+        self._spend_mana(seat, self._payment(seat, dataclasses.replace(card, mana_cost=FORETELL_COST)))
+        seat.hand.remove(card)
+        seat.exile.append(card)
+        seat.foretold.append((self.turn, card))
+        self.broadcast({"event": "foretold", "seat": seat.index})
+        self.happened("foretold", seat)
+
+    def _cast_foretold(self, seat: Seat, name: str) -> None:
+        card = next(c for turn, c in seat.foretold if c.name == name and turn < self.turn and c in seat.exile)
+        before = seat.exile.count(card)
+        self._cast(seat, card, seat.exile, graveyard=GraveyardCast("Foretell", foretell_of(card)))
+        if seat.exile.count(card) < before:  # it was cast (it stays foretold if it couldn't be)
+            seat.foretold.remove(next(entry for entry in seat.foretold if entry[1] == card))
 
     def _ninjutsu_cards(self, seat: Seat) -> list[Card]:
         """The cards whose ninjutsu `seat` can use right now: after blockers are declared, with an unblocked attacker to return and
@@ -2277,7 +2312,8 @@ class Game:
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back, picked)
         sacrificed = self._sacrifice_for_copies(seat, card)
-        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, bought_back=bought_back, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after, from_graveyard=graveyard is not None,
+        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, bought_back=bought_back, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
+                         foretold=graveyard is not None and graveyard.word == "Foretell", from_graveyard=graveyard is not None and graveyard.word != "Foretell",
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter,
@@ -2335,7 +2371,7 @@ class Game:
                 ability = TriggeredAbility("cast", (CopySpellTimes(copies),), False, "Copy that spell")
                 self.stack.append(StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         self._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared,
-                      prepared=prepared is not None, spell=item, from_graveyard=graveyard is not None)
+                      prepared=prepared is not None, spell=item, from_graveyard=graveyard is not None and graveyard.word != "Foretell")
         if seat.spent_turn != self.turn:
             seat.spent_turn, seat.spent_amount = self.turn, 0
         before, seat.spent_amount = seat.spent_amount, seat.spent_amount + spent
@@ -2816,6 +2852,8 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player, subject):
             return False
+        if kind == "foretold":  # the spell resolving was cast from exile for its foretell cost
+            return self.resolving_item is not None and self.resolving_item.foretold
         if kind == "no_spells_last_turn":  # the old werewolves: nobody cast a spell in the previous turn
             return not any(turn == self.turn - 1 for other in self.seats for turn, _ in other.cast_log)
         if kind == "two_spells_last_turn":  # ... or one player cast two or more

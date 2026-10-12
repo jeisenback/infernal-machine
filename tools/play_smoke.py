@@ -21,8 +21,8 @@ sys.path.insert(0, os.getcwd())
 
 from infernal_machine.cards import Card, Deck  # noqa: E402
 from infernal_machine.combat import Attack  # noqa: E402
-from infernal_machine.effects import is_aftermath, morph_of, ninjutsu_of  # noqa: E402
-from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, CAST_FACE_DOWN, CAST_GRAVEYARD, NINJUTSU, PLAY_LAND, TURN_UP, Game, Permanent  # noqa: E402
+from infernal_machine.effects import foretell_of, is_aftermath, morph_of, ninjutsu_of  # noqa: E402
+from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, CAST_FACE_DOWN, CAST_FORETOLD, CAST_GRAVEYARD, FORETELL, NINJUTSU, PLAY_LAND, TURN_UP, Game, Permanent  # noqa: E402
 from infernal_machine.report import unsupported_lines  # noqa: E402
 from tests.test_effects import BEAR, COMMANDER, FOREST, OGRE, RAINBOW  # noqa: E402
 from tests.test_game import ScriptedPlayer  # noqa: E402
@@ -70,7 +70,7 @@ def play(card: Card) -> bool:
             break
         game._perform(mine, abilities[0])
         run_stack(game)
-    return bool(ways) | play_other_half(card) | play_face_down(card) | play_transformed(card) | play_ninjutsu(card)
+    return bool(ways) | play_other_half(card) | play_face_down(card) | play_transformed(card) | play_ninjutsu(card) | play_foretell(card)
 
 
 def play_other_half(card: Card) -> bool:
@@ -115,6 +115,24 @@ def play_transformed(card: Card) -> bool:
         run_stack(game)
     if game.on_battlefield(permanent):
         game.transform(permanent, by_day_night=True)
+        game._check_state()
+    return True
+
+
+def play_foretell(card: Card) -> bool:
+    """Foretell the card, and cast it from exile on the next turn when it can be."""
+    if foretell_of(card) is None:
+        return False
+    game, mine = table(card)
+    if FORETELL + card.name not in game.legal_actions(mine):
+        return False
+    game._perform(mine, FORETELL + card.name)
+    game.turn += 1
+    for permanent in mine.battlefield:
+        permanent.tapped = False
+    if CAST_FORETOLD + card.name in game.legal_actions(mine):
+        game._perform(mine, CAST_FORETOLD + card.name)
+        run_stack(game)
         game._check_state()
     return True
 
