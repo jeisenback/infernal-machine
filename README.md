@@ -647,6 +647,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Void: only an opponent's cards.) Every route to a graveyard is covered: spells, dying, discarding, milling, cycling.
     Things still die, so dies triggers happen; a commander can still choose the command zone. Rest in Peace's "exile
     all cards from all graveyards" is supported.
+  - Blightsteel Colossus, Darksteel Colossus, Legacy Weapon, Progenitus and Nexus of Fate: "If CARDNAME would be put into a
+    graveyard from anywhere, reveal CARDNAME and shuffle it into its owner's library instead." It works from every zone
+    (dying, discarding, milling, a resolved spell); a creature that is shuffled in never dies, and a commander can still
+    choose the command zone.
   - Doubling Season and Parallel Lives: tokens an effect creates under your control, and counters an effect puts on your
     permanents (including the counters a permanent enters with), are doubled. Several stack (two doublers: four times).
     Hardened Scales adds one to +1/+1 counters on your creatures first, then doubling applies.

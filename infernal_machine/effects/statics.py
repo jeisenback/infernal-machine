@@ -608,6 +608,10 @@ _REPLACE_ANY_GRAVEYARD = "If a card or token would be put into a graveyard from 
 _REPLACE_SELF_GRAVEYARD = "If CARDNAME would be put into a graveyard from anywhere, exile it instead."  # the back of a Disturb card
 
 
+_REPLACE_SHUFFLE_GRAVEYARD = ("If CARDNAME would be put into a graveyard from anywhere, reveal CARDNAME and shuffle it into its "
+                              "owner's library instead.")  # Blightsteel Colossus, Progenitus, Nexus of Fate
+
+
 _REPLACE_OPPONENT_GRAVEYARD = "If a card would be put into an opponent's graveyard from anywhere, exile it instead."
 
 
@@ -685,6 +689,7 @@ class Replacements:
     plus_one_factor: int = 1  # how many times as many +1/+1 counters go on its controller's creatures (Branching Evolution)
     manufactor: bool = False  # Academy Manufactor: a Clue, Food or Treasure token becomes one of each
     graveyard_self: bool = False  # this one is exiled instead of going to a graveyard (a Disturb back)
+    graveyard_shuffle: bool = False  # this one is revealed and shuffled into its owner's library instead (CR 614.1)
     die_exile: str | None = None  # "opponent": their creatures are exiled instead of dying (Liesa); "self": this one is
     extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice;
     #                                    "spell": casting or copying an instant or sorcery does
@@ -701,6 +706,8 @@ def replacement_effects(card: Card) -> Replacements:
             found.setdefault("graveyard", "opponent")
         elif line == _REPLACE_SELF_GRAVEYARD:
             found["graveyard_self"] = True
+        elif line == _REPLACE_SHUFFLE_GRAVEYARD:
+            found["graveyard_shuffle"] = True
         elif line in (_DOUBLE_TOKENS, _DOUBLE_TOKENS_NOW):
             found["tokens"] = found.get("tokens", 1) * 2
         elif line == _DOUBLE_LIFE:
@@ -782,7 +789,7 @@ def enters_by_discarding_land(card: Card) -> bool:
 
 
 def is_replacement_line(line: str) -> bool:
-    return (line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT)
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None)
