@@ -75,10 +75,14 @@ class BotPlayer:
         self._life: dict[int, int] = {}
         self._state: dict | None = None  # the latest board snapshot
 
+    def _card(self, name: str) -> Card:
+        """The card called `name`. One from another deck (Plargg and Nassari casts opponents' cards) is known by name only."""
+        return self._cards.get(name) or Card(name=name)
+
     def notify(self, event: dict) -> None:
         kind = event.get("event")
         if kind == "opening_hand":
-            self._hand = [self._cards[name] for name in event["cards"]]
+            self._hand = [self._card(name) for name in event["cards"]]
             self._mulligans = event["mulligans"]
         elif kind == "seat":
             self._life[event["seat"]] = event["life"]
@@ -101,7 +105,7 @@ class BotPlayer:
         if prompt == KEEP_PROMPT:
             return 0 if keep_hand(self._hand, self._mulligans) else 1
         if prompt in (BOTTOM_PROMPT, DISCARD_PROMPT, DISCARD_CARD_PROMPT):
-            return worst_card([self._cards[name] for name in options])
+            return worst_card([self._card(name) for name in options])
         if prompt.startswith(ATTACK_PROMPT):
             if _stats(prompt)[0] <= 0:
                 return 0
