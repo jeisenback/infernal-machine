@@ -368,12 +368,18 @@ class StackItem:
     face_down: tuple[str, "MorphCost"] | None = None  # cast face down: (Morph, Megamorph or Disguise; the cost to turn it face up)
     shuffle_after: bool = False  # Green Sun's Zenith: shuffled into its owner's library once it has resolved
     gift: "Seat | None" = None  # the opponent promised a gift as it was cast
+    owner: "Seat | None" = None  # whose card it is when that is not the caster (cast from another player's exile: Plargg and Nassari, Etali)
     foretold: bool = False  # cast from exile after being foretold ("If this spell was foretold")
 
     @property
     def physical(self) -> Card:
         """The card that leaves the stack: the whole card when one of its halves was cast."""
         return self.whole or self.card
+
+    @property
+    def home(self) -> "Seat":
+        """Whose zones the card goes to when it leaves the stack: its owner's (CR 108.3, 400.3)."""
+        return self.owner or self.controller
 
 
 GERM = Card(name="Phyrexian Germ", type_line="Token Creature — Phyrexian Germ", colors=("B",), power="0", toughness="0")
@@ -408,6 +414,7 @@ class Seat:
     hand: list[Card] = field(default_factory=list)
     battlefield: list[Permanent] = field(default_factory=list)
     exile_play: list[tuple[Card, int]] = field(default_factory=list)  # exiled cards its owner may play, and the last turn they can
+    borrowed: list[tuple[Card, "Seat"]] = field(default_factory=list)  # cards in this exile that belong to other players (Ragavan), and whose
     undercity_room: str | None = None  # where this player's venture marker is, if they are in the Undercity
     mana_pool: list[frozenset[str]] = field(default_factory=list)  # mana added by rituals, gone at the end of the step
     graveyard: list[Card] = field(default_factory=list)
@@ -2373,7 +2380,7 @@ class Game:
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter,
                          dashed=bool(alternative and alternative.dash), warped=bool(alternative and alternative.warp), whole=whole, face_down=face_down,
-                         from_hand=zone is seat.hand)
+                         from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone))
         self.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -2565,7 +2572,7 @@ class Game:
                 card = dataclasses.replace(card, type_line="Token " + card.type_line.removeprefix("Token "))
             if item.face_down is not None:  # cast with morph: it enters face down, the real card kept for turning up
                 kind, cost = item.face_down
-                entering = Permanent(card, sick=True, cast=not item.is_copy, real_card=item.whole, manifested=True, owner=seat,
+                entering = Permanent(card, sick=True, cast=not item.is_copy, real_card=item.whole, manifested=True, owner=item.home,
                                      turn_up_cost=cost, megamorph=kind == "Megamorph")
                 self._enter(seat, entering, x=item.x)
                 return
@@ -2576,7 +2583,7 @@ class Game:
             entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers,
                                  escaped=item.escaped, cast=not item.is_copy, doors=(door.name,) if door else (),
                                  transformed_from=whole if whole.flip is card else None,
-                                 real_card=whole if door else None,
+                                 real_card=whole if door else None, owner=item.owner,
                                  extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0))
             if enters_by_discarding_land(card) and not self._discard_land_to_enter(seat, card):  # Mox Diamond
                 return
@@ -2609,33 +2616,46 @@ class Game:
         elif not item.is_copy:
             self._finish_spell(item, resolved)
 
+    def _cast_owner(self, seat: Seat, card: Card, zone: list[Card]) -> Seat | None:
+        """Whose card `card` is when `seat` casts it from `zone` and it isn't theirs: the seat whose zone it is in, or the one
+        Ragavan took it from. None for the caster's own card."""
+        for other in self.seats:
+            if other is not seat and any(zone is z for z in (other.hand, other.graveyard, other.exile, other.library)):
+                return other
+        if zone is seat.exile:
+            entry = next((e for e in seat.borrowed if e[0] is card), None)
+            if entry is not None:
+                seat.borrowed.remove(entry)
+                return entry[1]
+        return None
+
     def _finish_spell(self, item: StackItem, resolved: bool = True) -> None:
         """A resolved instant or sorcery goes to its graveyard; exiled after flashback; or, cast with Quintorius, to the bottom of
         its owner's library. One that was bought back returns to its owner's hand, but only if it resolved."""
-        card = item.physical
+        card, home = item.physical, item.home
         if item.bought_back and resolved:
             self.broadcast({"event": "buyback", "seat": item.controller.index, "card": item.card.name})
-            self._move_card(item.controller, card, "hand")
+            self._move_card(home, card, "hand")
             return
         if item.shuffle_after and resolved and not item.is_copy:
-            item.controller.library.append(card)
-            self.rng.shuffle(item.controller.library)
+            home.library.append(card)
+            self.rng.shuffle(home.library)
             return
-        if item.bottom_after and card.name not in item.controller.commander_names:
-            item.controller.library.append(card)
+        if item.bottom_after and card.name not in home.commander_names:
+            home.library.append(card)
             return
         if resolved and item.from_hand and has_keyword(item.card, "rebound") and not item.is_copy:
-            item.controller.exile.append(card)  # Ephemerate: it comes back at the next upkeep
+            home.exile.append(card)  # Ephemerate: it comes back at the next upkeep
             item.controller.rebounding.append((card, self.turn))
             self.broadcast({"event": "rebound", "seat": item.controller.index, "card": card.name})
             return
         if resolved and "Adventure" in item.card.type_line:
             # it goes on an adventure: exiled, and its owner may cast the creature from there for as long as it stays
-            item.controller.exile.append(card)
-            item.controller.exile_play.append((card, FOREVER))
+            home.exile.append(card)
+            home.exile_play.append((card, FOREVER))
             self.broadcast({"event": "adventure", "seat": item.controller.index, "card": card.name})
             return
-        self._move_card(item.controller, card, "exile" if item.exile_after else "graveyard")
+        self._move_card(home, card, "exile" if item.exile_after else "graveyard")
 
     def _discard_land_to_enter(self, seat: Seat, card: Card) -> bool:
         """Mox Diamond: "you may discard a land card instead"; without doing so it goes to its owner's graveyard."""
@@ -2662,7 +2682,7 @@ class Game:
             self._enter(seat, Permanent(aura, sick=True, attached_to=target, bestowed_from=card, kicked=item.kicked))
             self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
         else:
-            self._enter(seat, Permanent(card, sick=True), x=item.x)
+            self._enter(seat, Permanent(card, sick=True, owner=item.owner), x=item.x)
 
     def _resolve_aura(self, item: StackItem) -> None:
         """An Aura spell enters attached to its target, or goes to the graveyard if the target
@@ -2683,11 +2703,11 @@ class Game:
             if creature is None:  # it could not come back (it was exiled instead, say): the Aura has nothing to enchant
                 self._move_card(seat, card, "graveyard")
                 return
-            self._enter(seat, Permanent(card, sick=True, attached_to=creature, kicked=item.kicked, kickers=item.kickers))
+            self._enter(seat, Permanent(card, sick=True, attached_to=creature, kicked=item.kicked, kickers=item.kickers, owner=item.owner))
             self.broadcast({"event": "attached", "card": card.name, "to": creature.card.name})
             return
         self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-        self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked, kickers=item.kickers,
+        self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked, kickers=item.kickers, owner=item.owner,
                                     transformed_from=item.whole if item.whole is not None and item.whole.flip is card else None))
         self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
         if item.gift is not None:
@@ -4789,7 +4809,7 @@ class Game:
         self.broadcast({"event": "countered", "seat": item.controller.index, "card": item.card.name,
                         "ability": _shown(item.ability.text, item.card) if item.ability else None})
         if not item.ability and not item.is_copy:  # countering an ability doesn't touch its source; a copy just ends
-            self._move_card(item.controller, item.physical, "exile" if exile or item.exile_after else "graveyard")
+            self._move_card(item.home, item.physical, "exile" if exile or item.exile_after else "graveyard")
 
     def _check_ward(self, item: StackItem) -> None:
         """Whenever a permanent with ward becomes the target of an opponent's spell or ability, a ward trigger
@@ -4911,6 +4931,7 @@ class Game:
             return
         card = victim.library.pop(0)
         seat.exile.append(card)
+        seat.borrowed.append((card, victim))
         seat.exile_play.append((card, self.turn))
         self.broadcast({"event": "exiled_from_library", "seat": victim.index, "cards": [card.name], "may_play": True})
 
