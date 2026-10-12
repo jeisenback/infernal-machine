@@ -24,9 +24,9 @@ from .cards import Card, Deck, has_keyword, shown_type_line
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
-from .effects import (EVENTS, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
+from .effects import (EVENTS, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, day_night_face, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -63,6 +63,8 @@ CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
 UNEARTH = "Unearth: "  # followed by the card's name
 SUSPEND = "Suspend: "  # followed by the card's name
+NINJUTSU = "Ninjutsu: "  # followed by the card's name: return an unblocked attacker, and it comes in attacking in its place
+NINJUTSU_PROMPT = "Return which unblocked attacker to hand for ninjutsu with "  # followed by the card's name
 CAST_PARAGON = "Cast from graveyard (once a turn): "  # Serra Paragon
 PLAY_PARAGON = "Play land from graveyard: "
 PLAY_GRAVEYARD = "Play land from the graveyard: "  # Crucible of Worlds: any number of lands, within the land drops
@@ -842,6 +844,7 @@ class Game:
             if (morph := morph_of(card)) and sorcery_timing and not self._cast_barred(seat, card) \
                     and self._payment(seat, FACE_DOWN) is not None:
                 actions.append(CAST_FACE_DOWN + card.name)
+        actions += [NINJUTSU + c.name for c in self._ninjutsu_cards(seat)]
         for card in _unique(seat.hand):  # Suspend N: pay the cost, exile it with time counters
             if (suspend := suspend_of(card)) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) \
                     and self._payment(seat, dataclasses.replace(card, mana_cost=suspend[1])) is not None:
@@ -1760,6 +1763,8 @@ class Game:
             self.turn_face_up(seat, permanent)
         elif action.startswith(CYCLE):
             self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
+        elif action.startswith(NINJUTSU):
+            self._ninjutsu(seat, action.removeprefix(NINJUTSU))
         elif action.startswith(ACTIVATE_HAND):
             self._activate_from_hand(seat, _take(seat.hand, action.removeprefix(ACTIVATE_HAND)))
         elif action.startswith(ACTIVATE_GRAVEYARD):
@@ -1916,6 +1921,46 @@ class Game:
         self.happened("cycled", seat)
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
+
+    def _ninjutsu_cards(self, seat: Seat) -> list[Card]:
+        """The cards whose ninjutsu `seat` can use right now: after blockers are declared, with an unblocked attacker to return and
+        the mana for it. From the hand, or for Commander ninjutsu the command zone too."""
+        if self.step != "declare_blockers" or not self._unblocked_attackers(seat):
+            return []
+        commanders = [c for c in seat.command_zone if (found := ninjutsu_of(c)) and found[1]]
+        return [c for c in _unique(seat.hand + commanders)
+                if (found := ninjutsu_of(c)) and self._payment(seat, dataclasses.replace(c, mana_cost=found[0])) is not None]
+
+    def _unblocked_attackers(self, seat: Seat) -> list[Attack]:
+        return [a for a in self.combat.attacks if a.controller is seat and not a.blocked and not a.blockers and self.on_battlefield(a.attacker)]
+
+    def _ninjutsu(self, seat: Seat, name: str) -> None:
+        """Ninjutsu: pay its cost, return an unblocked attacker to its owner's hand, and the ability goes on the stack; when it resolves
+        the card comes in tapped and attacking whom the creature attacked."""
+        card = next(c for c in self._ninjutsu_cards(seat) if c.name == name)
+        cost, _ = ninjutsu_of(card)
+        attacks = self._unblocked_attackers(seat)
+        pick = seat.player.choose(NINJUTSU_PROMPT + card.name, [self.label(a.attacker) for a in attacks]) if len(attacks) > 1 else 0
+        attack = attacks[pick]
+        self._spend_mana(seat, self._payment(seat, dataclasses.replace(card, mana_cost=cost)))
+        self.return_to_hand(attack.attacker)
+        ability = ActivatedAbility(f"Ninjutsu {cost}", (NinjutsuEnter(),), mana_cost=cost)
+        self.stack.append(StackItem(card, seat, [NinjutsuEnter()], [], ability, player=attack.defender, subject=attack.walker))
+        self.broadcast({"event": "ninjutsu", "seat": seat.index, "card": card.name, "returned": attack.attacker.card.name})
+
+    def ninjutsu_enter(self, seat: Seat, item: StackItem) -> None:
+        """A ninjutsu ability resolves: the card, if it is still in the hand (or command zone), enters tapped and attacking; it was never
+        declared as an attacker, so attack triggers don't see it."""
+        card = item.card
+        zone = next((z for z in (seat.hand, seat.command_zone) if card in z), None)
+        if zone is None:
+            return
+        zone.remove(card)
+        permanent = Permanent(card, sick=True, tapped=True, loyalty=_starting_loyalty(card), owner=seat)
+        self._enter(seat, permanent)
+        if item.player is not None and self.on_battlefield(permanent):
+            self.combat.attacks.append(Attack(permanent, seat, item.player, walker=item.subject))
+            self.broadcast({"event": "attack", "seat": seat.index, "card": card.name, "defender": item.player.index})
 
     def _hand_ability_cost(self, seat: Seat, ability: ActivatedAbility) -> Cost:
         """The mana an ability from the hand costs: Channel abilities cost {1} less for each permanent of a kind they count (Boseiju)."""

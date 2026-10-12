@@ -827,6 +827,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     given out one at a time as it resolves, so any split works, and nothing is targeted; a creature with hexproof or protection from the
     source is left out. Not understood: -2/-1 counters, "Vehicles and/or creatures", a "where X is" clause, and a second sentence
     on the same line (Glint Weaver, Undercity Upheaval).
+  - Ninjutsu and Commander ninjutsu (`tests/test_ninjutsu.py`): `Ninjutsu {cost}` is the action `Ninjutsu: <card>`, offered to the
+    active player once blockers are declared (`declare_blockers`) when they have an unblocked attacker (one that is neither blocked nor
+    stays blocked) and the mana; Commander ninjutsu also from the command zone. Paying returns the attacker to its owner's hand and puts
+    the ability on the stack (`Game._ninjutsu`); when it resolves the card, if it is still there, enters tapped and attacking the same
+    player or planeswalker (`Game.ninjutsu_enter`) without being declared as an attacker. Not understood: Silver-Fur Master's discount
+    and the many ninjas' own combat-damage triggers that no template reads yet ("that player discards", "target creature that player
+    controls", "a Ninja you control deals combat damage").
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same

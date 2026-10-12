@@ -4413,6 +4413,15 @@ class Transform:
 
 
 @dataclass(frozen=True)
+class NinjutsuEnter:
+    """The effect of Ninjutsu: "Put this card onto the battlefield from your hand tapped and attacking." (the game fills in whom)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.ninjutsu_enter(controller, game.resolving_item)
+
+
+@dataclass(frozen=True)
 class BecomeRenowned:
     """Renown: "... and it becomes renowned." It won't trigger again (the condition "if it isn't renowned")."""
     uses_source = True
