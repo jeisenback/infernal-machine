@@ -822,6 +822,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     spells or two or more), and only that rule turns them over; the older "if no spells were cast last turn" werewolves use the
     upkeep conditions `no_spells_last_turn` and `two_spells_last_turn`. Not understood: Disturb, Craft, Living metal, More Than Meets the
     Eye, Meld, and transform costs or conditions that no template reads yet.
+  - Distribute counters (`tests/test_distribute_counters.py`): "Distribute four +1/+1 counters among any number of target creatures you
+    control" (Verdurous Gearhulk, The Earth Crystal, Elven Rite, Grove's Bounty with X) is `DistributeCounters`: the counters are
+    given out one at a time as it resolves, so any split works, and nothing is targeted; a creature with hexproof or protection from the
+    source is left out. Not understood: -2/-1 counters, "Vehicles and/or creatures", a "where X is" clause, and a second sentence
+    on the same line (Glint Weaver, Undercity Upheaval).
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same
