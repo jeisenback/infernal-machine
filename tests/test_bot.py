@@ -107,6 +107,18 @@ class JudgmentTests(unittest.TestCase):
         self.assertEqual(board(4, mine=2, theirs=2).choose("Priority: main1", options), 0)
         self.assertEqual(board(9, mine=3, theirs=1).choose("Priority: main1", [PASS, CAST + ONE_SIDED.name]), 1)
 
+    def test_casts_the_adventure_half_of_a_card(self):
+        theft = Card(name="Petty Theft", mana_cost="{1}{U}", cmc=2, type_line="Instant \u2014 Adventure")
+        borrower = Card(name="Brazen Borrower", mana_cost="{1}{U}{U}", cmc=3, type_line="Creature \u2014 Faerie Rogue", alternate=theft)
+        bot = BotPlayer("Bot", Deck([COMMANDER], [LAND, borrower], []))
+        self.assertEqual(bot.choose("Priority: main1", [PASS, CAST + theft.name]), 1)
+        self.assertEqual(bot.choose("Priority: main1", [PASS, CAST + theft.name, CAST + borrower.name]), 2, "the dearer of the two")
+        self.assertEqual(bot.choose("Priority: main1", [PASS, CAST + CHEAP.name, CAST + theft.name]), 2, "the half counts at its own mana value")
+
+    def test_a_cast_it_does_not_know_does_not_crash_the_choice(self):
+        bot = BotPlayer("Bot", Deck([COMMANDER], [LAND, PRICEY], []))
+        self.assertEqual(bot.choose("Priority: main1", [PASS, CAST + "Mystery Spell", CAST + PRICEY.name]), 2)
+
     def test_cycles_extra_lands_and_expensive_spells(self):
         self.assertEqual(board(6).choose("Priority: main1", [PASS, CYCLE + LAND_CYCLER.name]), 1)
         self.assertEqual(board(2).choose("Priority: main1", [PASS, CYCLE + LAND_CYCLER.name]), 0)

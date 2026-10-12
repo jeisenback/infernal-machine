@@ -67,6 +67,7 @@ class BotPlayer:
         self.name = name
         self._cards = {c.name: c for c in deck.commanders + deck.main}
         self._cards.update({c.prepare.name: c.prepare for c in list(self._cards.values()) if c.prepare})  # the spell halves
+        self._cards.update({c.alternate.name: c.alternate for c in list(self._cards.values()) if c.alternate})  # Adventures and other cast-from-hand halves
         self._hand: list[Card] = []
         self._mulligans = 0
         self._seat: int | None = None
@@ -167,7 +168,7 @@ class BotPlayer:
                  if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)) and not _is_ritual(self._cards.get(_cast_name(option)))
                  and not self._unhelpful_wipe(self._cards.get(_cast_name(option)))]
         if casts:
-            return max(casts, key=lambda i: self._cards[_cast_name(options[i])].cmc)
+            return max(casts, key=lambda i: self._cards[name].cmc if (name := _cast_name(options[i])) in self._cards else 0)
         for i, option in enumerate(options):
             if option.startswith(CYCLE) and self._cycle_away(self._cards.get(option.removeprefix(CYCLE))):
                 return i
