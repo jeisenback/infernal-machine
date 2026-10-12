@@ -189,3 +189,8 @@ def _alternative(words: list[str]) -> Alternative:
 def matches(kind: str, card) -> bool:
     """Whether `card` is of the kind the text names."""
     return parse_filter(kind).matches(card)
+
+
+def has_type(card, kind: str) -> bool:
+    """Whether a card has a type or subtype: "creature", "Plains", "Snake", or one of several ("Swamp or Mountain")."""
+    return parse_filter(kind).matches(card)
