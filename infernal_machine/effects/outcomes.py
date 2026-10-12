@@ -608,6 +608,7 @@ class Modal:
     texts: tuple[str, ...]
     commander_both: bool = False  # "If you control a commander as you cast this spell, you may choose both instead."
     optional: bool = False  # "you may choose two": the controller may choose none
+    repeat: bool = False  # "You may choose the same mode more than once." (a Confluence): `max` picks, each mode any number of times
 
 
 _MODAL_COUNTS = {"one": (1, 1), "up to one": (0, 1), "two": (2, 2), "three": (3, 3), "one or both": (1, 2), "one or more": (1, 0)}
@@ -616,11 +617,18 @@ _MODAL_COUNTS = {"one": (1, 1), "up to one": (0, 1), "two": (2, 2), "three": (3,
 _MODAL_HEADER = re.compile(r"Choose (one or both|one or more|up to one|one|two|three) \u2014", re.I)
 
 
+_MODAL_REPEAT = re.compile(r"Choose (three|four|five|up to four)\. You may choose the same mode more than once\.")
+
+
+_REPEAT_COUNTS = {"three": (3, 3), "four": (4, 4), "five": (5, 5), "up to four": (0, 4)}
+
+
 _MODAL_COMMANDER = re.compile(r"Choose one\. If you control a commander as you cast this spell, you may choose both instead\.")
 
 
 def is_modal_header(line: str) -> bool:
-    return _MODAL_HEADER.fullmatch(line) is not None or _MODAL_COMMANDER.fullmatch(line) is not None
+    return (_MODAL_HEADER.fullmatch(line) is not None or _MODAL_REPEAT.fullmatch(line) is not None
+            or _MODAL_COMMANDER.fullmatch(line) is not None)
 
 
 def mode_text(line: str) -> str:
@@ -628,7 +636,7 @@ def mode_text(line: str) -> str:
     return line[2:] if line.startswith("\u2022 ") else line
 
 
-def _parse_modal(how: str, lines: list[str]) -> list | None:
+def _parse_modal(how: str, lines: list[str], repeat: bool = False) -> list | None:
     modes, texts = [], []
     for line in lines:
         if not line.startswith("\u2022 "):
@@ -638,6 +646,9 @@ def _parse_modal(how: str, lines: list[str]) -> list | None:
             return None
         modes.append(tuple(effects))
         texts.append(mode_text(line))
+    if repeat:  # a mode may be chosen again, so two modes can fill "choose three"
+        low, high = _REPEAT_COUNTS[how]
+        return [Modal(low, high, tuple(modes), tuple(texts), repeat=True)] if modes else None
     low, high = _MODAL_COUNTS[how]
     high = high or len(modes)
     return [Modal(low, high, tuple(modes), tuple(texts))] if len(modes) >= max(low, 1) else None
@@ -1111,6 +1122,24 @@ class GrantProtection:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.grant_protection_of_choice(target, controller)
+
+
+@dataclass(frozen=True)
+class DoubleStats:
+    """ "Double target creature's power and toughness until end of turn." / "Double the power of each creature you control until end of
+    turn." / "Double this creature's power until end of turn.": it gets +P/+T equal to its power and toughness as this resolves, and
+    several creatures are doubled together."""
+    power: bool
+    toughness: bool
+    target: str | None = None  # "creature", "creature you control"
+    each: bool = False  # each creature you control
+    uses_source: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        creatures = [p for p in controller.battlefield if "Creature" in p.card.type_line] if self.each else [target] if target is not None else []
+        doubled = [(p, game.power(p) if self.power else 0, (game.toughness(p) or 0) if self.toughness else 0) for p in creatures]
+        for permanent, power, toughness in doubled:
+            game.modify_until_end_of_turn(permanent, Modifier(power, toughness))
 
 
 @dataclass(frozen=True)
@@ -5779,6 +5808,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:{_SELF}) gains protection from the color of your choice until end of turn\."),
      lambda m: GrantProtection(uses_source=True)),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
+    (re.compile(r"double the (power|power and toughness) of each creature you control until end of turn\.", re.I),
+     lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), each=True)),
+    (re.compile(rf"double the (power|power and toughness) of target {_PERMANENT_KIND} until end of turn\.", re.I),
+     lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), target=m[2].lower())),
+    (re.compile(rf"double target {_PERMANENT_KIND}'s (power|power and toughness) until end of turn\.", re.I),
+     lambda m: DoubleStats("power" in m[2].lower(), "toughness" in m[2].lower(), target=m[1].lower())),
+    (re.compile(rf"double (?:{_SELF}'s|its) (power|power and toughness) until end of turn\.", re.I),
+     lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), uses_source=True)),
     (re.compile(rf"creatures named {_SELF} can't be blocked this turn\.", re.I),
      lambda m: PumpNamed(Modifier(keywords=frozenset({CANT_BE_BLOCKED})))),
     (re.compile(r"shuffle any number of target cards from your graveyard into your library\.", re.I),

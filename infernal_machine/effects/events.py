@@ -102,6 +102,7 @@ declare("end_step", re.compile(r"At the beginning of your end step, (.+)", re.I)
 declare("each_upkeep", re.compile(r"At the beginning of each upkeep, (.+)", re.I))
 declare("each_end_step", re.compile(r"At the beginning of (?:each|the) end step, (.+)", re.I))
 declare("combat", re.compile(r"At the beginning of combat on your turn, (.+)", re.I))
+declare("each_combat", re.compile(r"At the beginning of each combat, (.+)", re.I))  # Unnatural Growth: every player's combat
 declare("gain_life", re.compile(r"Whenever you gain life, (.+)", re.I), to="you", happens="life_gained")
 declare("lose_life", re.compile(r"Whenever you lose life, (.+)", re.I), to="you", happens="life_lost")
 declare("sacrifice_creature", re.compile(r"Whenever you sacrifice a creature, (.+)", re.I))
@@ -136,6 +137,10 @@ declare("any_sacrifice", re.compile(r"Whenever a player sacrifices a permanent, 
 declare("other_sacrifice", re.compile(r"Whenever a player sacrifices another permanent, (.+)", re.I))
 declare("host_dies", re.compile(r"When(?:ever)? (?:enchanted|equipped) creature dies, (.+)", re.I), host_gone=True)
 declare("host_combat_damage", re.compile(r"Whenever (?:enchanted|equipped) creature deals combat damage to a player, (.+)", re.I), about_creature=True, about_player=True)
+declare("host_damage_opponent", re.compile(r"Whenever (?:enchanted|equipped) creature deals damage to an opponent, (.+)", re.I),
+        about_creature=True, about_player=True)  # Curiosity: any damage, to an opponent of the Aura's controller
+declare("host_combat_damage_opponent", re.compile(r"Whenever (?:enchanted|equipped) creature deals combat damage to an opponent, (.+)", re.I),
+        about_creature=True, about_player=True)  # Sleeper's Robe
 declare("put_into_graveyard", re.compile(rf"When {_SELF} is put into a graveyard from the battlefield, (.+)", re.I))
 declare("first_life_loss", re.compile(r"Whenever you lose life for the first time each turn, (.+)", re.I),
         to="you", happens="life_lost", needs="first")

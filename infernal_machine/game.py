@@ -61,6 +61,7 @@ CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
+SHUFFLED = "library_shuffled"  # where a card goes when it is shuffled into its owner's library instead of a graveyard
 ETERNALIZE = "Eternalize: "  # followed by the card's name
 UNEARTH = "Unearth: "  # followed by the card's name
 SUSPEND = "Suspend: "  # followed by the card's name
@@ -722,6 +723,9 @@ class Game:
             self.combat = Combat(self)
             for permanent in list(seat.battlefield):
                 self.trigger("combat", permanent, seat)
+            for holder in self.live_seats():  # "At the beginning of each combat": whoever's turn it is
+                for permanent in list(holder.battlefield):
+                    self.trigger("each_combat", permanent, holder)
         elif self.step == "declare_attackers":
             self.combat.declare_attackers(seat)
         elif self.step == "declare_blockers":
@@ -1675,7 +1679,8 @@ class Game:
                           source: Permanent | None = None) -> bool:
         """Whether the targets exist: for a modal spell or ability, for enough of its modes."""
         if effects and isinstance(effects[0], Modal):
-            return sum(self._targets_exist(seat, modes, colors, source) for modes in effects[0].modes) >= effects[0].min
+            modal = effects[0]
+            return sum(self._targets_exist(seat, modes, colors, source) for modes in modal.modes) >= (min(modal.min, 1) if modal.repeat else modal.min)
         return self._targets_exist(seat, effects, colors, source)
 
     def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset(),
@@ -2625,28 +2630,47 @@ class Game:
 
     def draw(self, seat: Seat, count: int, announce: bool = True) -> None:
         for _ in range(count):
-            if self._dredge(seat):
+            for _ in range(self._cards_per_draw(seat)):
+                if not self._draw_one(seat, announce):
+                    return
+
+    def _cards_per_draw(self, seat: Seat) -> int:
+        """How many cards one draw becomes: "If you would draw a card, draw two cards instead." (Thought Reflection) multiplies, and
+        each replacement applies once (CR 614.5), so two of them make four."""
+        factor = 1
+        for permanent in seat.battlefield:
+            if self.loses_abilities(permanent):
                 continue
-            if not seat.library:
-                if any(replacement_effects(p.card).win_on_empty_draw for p in seat.battlefield if not self.loses_abilities(p)):
-                    seat.wins_game = True  # Laboratory Maniac
-                    self.broadcast({"event": "wins_game", "seat": seat.index})
-                else:
-                    seat.drew_from_empty = True
-                return
-            card = seat.library.pop(0)
-            seat.hand.append(card)
-            if seat.drawn_turn != self.turn:
-                seat.drawn_turn, seat.drawn_cards = self.turn, []
-            seat.drawn_cards.append(card)
-            if announce:
-                seat.player.notify({"event": "draw", "card": card.name})
-                self.broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
-                if seat.draw_turn != self.turn:
-                    seat.draw_turn, seat.draw_count = self.turn, 0
-                seat.draw_count += 1
-                self.happened("drew", seat, *(["extra"] if not self._draw_step_draw else []),
-                              *(["second"] if seat.draw_count == 2 else []))
+            for kind in replacement_effects(permanent.card).draw_double:
+                if kind == "always" or (kind == "extra" and not self._draw_step_draw):
+                    factor *= 2
+        return factor
+
+    def _draw_one(self, seat: Seat, announce: bool) -> bool:
+        """One card drawn (or dredged); False if the draw ended the player's drawing because the library was empty."""
+        if self._dredge(seat):
+            return True
+        if not seat.library:
+            if any(replacement_effects(p.card).win_on_empty_draw for p in seat.battlefield if not self.loses_abilities(p)):
+                seat.wins_game = True  # Laboratory Maniac
+                self.broadcast({"event": "wins_game", "seat": seat.index})
+            else:
+                seat.drew_from_empty = True
+            return False
+        card = seat.library.pop(0)
+        seat.hand.append(card)
+        if seat.drawn_turn != self.turn:
+            seat.drawn_turn, seat.drawn_cards = self.turn, []
+        seat.drawn_cards.append(card)
+        if announce:
+            seat.player.notify({"event": "draw", "card": card.name})
+            self.broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
+            if seat.draw_turn != self.turn:
+                seat.draw_turn, seat.draw_count = self.turn, 0
+            seat.draw_count += 1
+            self.happened("drew", seat, *(["extra"] if not self._draw_step_draw else []),
+                          *(["second"] if seat.draw_count == 2 else []))
+        return True
 
     def _dredge(self, seat: Seat) -> bool:
         """Dredge: instead of drawing, the player may mill N cards and return a card with "Dredge N" from the graveyard to their
@@ -2753,6 +2777,13 @@ class Game:
                 self.give_poison(target, amount)
             else:
                 self.change_life(target, -amount)
+            if amount > 0 and source is not None:  # Curiosity: "Whenever enchanted creature deals damage to an opponent"
+                for holder in self.live_seats():
+                    for attachment in list(holder.battlefield) if holder is not target else ():
+                        if attachment.attached_to is source:
+                            self.trigger("host_damage_opponent", attachment, holder, source, player=target)
+                            if combat:
+                                self.trigger("host_combat_damage_opponent", attachment, holder, source, player=target)
             if combat and amount > 0 and source is not None and not self.loses_abilities(source) \
                     and (toxic := toxic_of(source.card)):
                 self.give_poison(target, toxic)  # Toxic N: that many poison counters in addition to the damage
@@ -5242,6 +5273,8 @@ class Game:
                            and "Creature" in permanent.card.type_line else destination_all)  # a finality counter: exiled, not dying
             if destination == "graveyard" and replacement_effects(permanent.card).graveyard_self:
                 destination = "exile"  # the back of a Disturb card: exiled instead of going to a graveyard
+            if destination == "graveyard" and replacement_effects(permanent.card).graveyard_shuffle:
+                destination = SHUFFLED  # Blightsteel Colossus: shuffled into its library, so it never dies
             if destination == "graveyard" and "Creature" in permanent.card.type_line and self._dies_exiled(permanent, controller):
                 destination = "exile"  # Lava Coil, Liesa, Gloomshrieker: exiled instead of dying
             if permanent.unearthed:
@@ -5379,15 +5412,22 @@ class Game:
     def _move_card(self, seat: Seat, card: Card, zone: str) -> None:
         """Put a card into its owner's graveyard, exile or hand; a commander may go to the
         command zone instead (CR 903.9). Rest in Peace and its kind send a card to exile instead of a graveyard."""
-        if zone == "graveyard" and self._exiled_instead(seat):
+        if zone == "graveyard" and replacement_effects(card).graveyard_shuffle:
+            zone = SHUFFLED  # the card's own replacement effect works from every zone (CR 614.12)
+        elif zone == "graveyard" and self._exiled_instead(seat):
             zone = "exile"
         if card.name in seat.commander_names:
-            if seat.player.choose(COMMAND_ZONE_PROMPT, ["Command zone", zone.capitalize()]) == 0:
+            if seat.player.choose(COMMAND_ZONE_PROMPT, ["Command zone", "Library" if zone == SHUFFLED else zone.capitalize()]) == 0:
                 seat.command_zone.append(card)
                 self.broadcast({"event": "to_command_zone", "seat": seat.index, "card": card.name})
                 return
         if zone == "library_top":
             seat.library.insert(0, card)
+            return
+        if zone == SHUFFLED:  # revealed, then shuffled into its owner's library
+            self.broadcast({"event": "revealed", "seat": seat.index, "card": card.name})
+            seat.library.append(card)
+            self.rng.shuffle(seat.library)
             return
         {"exile": seat.exile, "hand": seat.hand, "graveyard": seat.graveyard, "library": seat.library}[zone].append(card)
         if zone == "graveyard":  # "Whenever a creature card is put into your graveyard from anywhere"

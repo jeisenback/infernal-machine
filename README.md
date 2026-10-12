@@ -331,6 +331,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | Target creature gets +N/+N (and gains keywords) / gains keywords until end of turn. | Giant Growth |
 | Creatures you control (or your opponents control) get +N/+N (and gain keywords) until end of turn. | |
 | Target creature gets +X/+X (-X/-X, +X/+0, ...) until end of turn, for each ... / where X is ... | |
+| Double target creature's (this creature's, each creature you control's) power (and toughness) until end of turn: it gets +P/+T equal to its current size, the creatures of "each" together. "At the beginning of each combat, ..." happens in every player's combat. | Unleash Fury, Unnatural Growth |
 | Target creature becomes a 4/4 Dragon until end of turn. / has base power and toughness 0/1 until end of turn. | |
 | Put N <kind> counters on target <permanent>. / Remove N (all) <kind> counters from target <permanent>. / Remove all counters from target <permanent>. | |
 | Double the number of +1/+1 counters on each creature you control. | |
@@ -623,7 +624,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - **Other equip costs:** "Equip—Pay 3 life.", "Equip—Sacrifice a creature.", "Equip—Discard a card." are paid like any
     ability cost. "Equip legendary creature {3}" (a restriction on what it can equip) isn't supported.
   - **Triggers on what is attached:** "Whenever equipped (or enchanted) creature dies / deals combat damage to a
-    player, ..." (the Equipment's or Aura's controller gets the trigger). "When this Aura is put into a graveyard
+    player, ..." (the Equipment's or Aura's controller gets the trigger). "Whenever enchanted creature deals damage to
+    an opponent, you may draw a card" (Curiosity, Keen Sense, Ophidian Eye; any damage, combat or not) and its combat
+    form (Sleeper's Robe): the opponent is an opponent of the Aura's controller, and damage to a creature or of 0 does not count. "When this Aura is put into a graveyard
     from the battlefield, return it to its owner's hand" (Rancor) works for any permanent, and so does "When
     enchanted creature dies, return this Aura to its owner's hand": it comes back from the graveyard it is in.
     Exiled, it isn't returned. Other Aura returns on "When enchanted creature dies" work too: "return it to the
@@ -653,6 +656,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (Twinflame Tyrant) or an opponent only (Fiendish Duo), noncombat only (Solphim), and "that much damage plus N" (Tomik).
     Spells count as sources you control. Doubling applies before prevention, and several stack (two doublers: four times).
     Narrower sources (a red source, a Giant, an odd mana value, "another source") are not read.
+  - Blightsteel Colossus, Darksteel Colossus, Legacy Weapon, Progenitus and Nexus of Fate: "If CARDNAME would be put into a
+    graveyard from anywhere, reveal CARDNAME and shuffle it into its owner's library instead." It works from every zone
+    (dying, discarding, milling, a resolved spell); a creature that is shuffled in never dies, and a commander can still
+    choose the command zone.
+  - Draw doubling: "If you would draw a card, draw two cards instead." (Thought Reflection) and the form that skips the first
+    card of your draw step (Alhammarret's Archive, Teferi's Ageless Insight, Bard, King of Dale). Each one applies once to a draw,
+    so two of them make four.
   - Doubling Season and Parallel Lives: tokens an effect creates under your control, and counters an effect puts on your
     permanents (including the counters a permanent enters with), are doubled. Several stack (two doublers: four times).
     Hardened Scales adds one to +1/+1 counters on your creatures first, then doubling applies.
@@ -1013,6 +1023,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   be chosen twice, and "one or both" / "one or more" let you stop with "Done choosing modes" once you have enough.
   Chosen modes happen in the order printed. If any mode isn't supported, the whole card is unsupported, and the
   report lists the mode.
+  - **Confluence** ("Choose three. You may choose the same mode more than once."; "Choose up to four" for Moment of
+    Reckoning): you make that many picks, and a mode may be picked again. A mode with no legal target is not offered,
+    but one possible mode is enough to fill all the picks; each pick chooses its own targets. "Choose X" and the
+    pawprint Seasons ("worth of modes") are not read.
   - **Entwine {cost}:** offered (yes or no) when every mode has a target and the extra cost can be paid; paying it
     does all the modes. **Escalate {cost}:** each mode beyond the first adds the cost, and a mode that would cost
     more than the caster has isn't offered. Only mana costs are understood ("Escalate\u2014Discard a card" leaves
