@@ -239,7 +239,7 @@ _BESTOW = re.compile(r"Bestow ((?:\{[^}]+\})+)")
 _ENCORE = re.compile(r"Encore ((?:\{[^}]+\})+)")
 
 
-_ETERNALIZE = re.compile(r"Eternalize ((?:\{[^}]+\})+)")
+_ETERNALIZE = re.compile(r"Eternalize(?: ((?:\{[^}]+\})+)|\u2014((?:\{[^}]+\})+), Discard a card\.)")
 
 
 _UNEARTH = re.compile(r"Unearth ((?:\{[^}]+\})+)")
@@ -264,9 +264,14 @@ def unearth_cost(card: Card) -> str | None:
 
 
 def eternalize_cost(card: Card) -> str | None:
-    """Eternalize {cost}: from the graveyard, as a sorcery, exile it to make a 4/4 black Zombie token copy with no mana cost
-    (a mana cost only; "Eternalize\u2014{2}{W}{W}, Discard a card." is not supported)."""
-    return next((m[1] for line in rules_lines(card) if (m := _ETERNALIZE.fullmatch(line))), None)
+    """Eternalize {cost}: from the graveyard, as a sorcery, exile it to make a 4/4 black Zombie token copy with no mana cost. The mana
+    part of "Eternalize\u2014{2}{W}{W}, Discard a card." is the same (see `eternalize_discards`)."""
+    return next((m[1] or m[2] for line in rules_lines(card) if (m := _ETERNALIZE.fullmatch(line))), None)
+
+
+def eternalize_discards(card: Card) -> bool:
+    """Whether paying the eternalize cost also discards a card ("Eternalize\u2014{3}{U}{U}, Discard a card.")."""
+    return any(m[2] for line in rules_lines(card) if (m := _ETERNALIZE.fullmatch(line)))
 
 
 def encore_cost(card: Card) -> str | None:

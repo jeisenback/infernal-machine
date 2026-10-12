@@ -321,6 +321,7 @@ from .costs import (  # noqa: F401
     echo_cost,
     encore_cost,
     eternalize_cost,
+    eternalize_discards,
     entwine_cost,
     escalate_cost,
     granted_affinity,

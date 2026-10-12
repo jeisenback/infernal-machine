@@ -26,7 +26,7 @@ from .combat import Attack, Combat
 from . import casting
 from .effects import (EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_extra_counters, chooses_creature_type, clone_is_artifact, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_extra_counters, chooses_creature_type, clone_is_artifact, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -869,7 +869,8 @@ class Game:
             for card in _unique(seat.graveyard):
                 if (cost := encore_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
                     actions.append(ENCORE + card.name)
-                if (cost := eternalize_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
+                if (cost := eternalize_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None \
+                        and (seat.hand or not eternalize_discards(card)):
                     actions.append(ETERNALIZE + card.name)
                 if (cost := unearth_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
                     actions.append(UNEARTH + card.name)
@@ -3779,6 +3780,8 @@ class Game:
         cost (CR 702.129a). The token is a copy of the card as it is in the graveyard, so it keeps the card's other types."""
         tapped = _checked(self._payment(seat, dataclasses.replace(card, mana_cost=eternalize_cost(card))))
         self._spend_mana(seat, tapped)
+        if eternalize_discards(card):  # "Eternalize\u2014{3}{U}{U}, Discard a card."
+            self.discard(seat, 1)
         seat.graveyard.remove(card)
         self.broadcast({"event": "eternalize", "seat": seat.index, "card": card.name})
         self._move_card(seat, card, "exile")
