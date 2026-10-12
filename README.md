@@ -178,6 +178,9 @@ winner = game.play()
   - Two kicker costs ("Kicker {R} and/or {W}"): each is offered separately, when it can be paid, and
     "if it was kicked with its {R} kicker" / "If this spell was kicked with its {1}{B} kicker, ..." check that
     specific cost (Thornscape Battlemage).
+  - Eternalize {cost}: from the graveyard at sorcery speed, pay it and exile the card to create a token copy that is a
+    4/4 black Zombie (plus the card's own creature types) with no mana cost (CR 702.129a). "Eternalize—{cost}, Discard a
+    card." is not supported.
   - Offspring {N}: offered like a kicker as the creature spell is cast; if it was paid, a 1/1 token copy of the creature
     enters with it (CR 702.175a) and has the creature's own abilities. The token was not cast, so it does not make another
     token.

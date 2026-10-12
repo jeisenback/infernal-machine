@@ -239,6 +239,9 @@ _BESTOW = re.compile(r"Bestow ((?:\{[^}]+\})+)")
 _ENCORE = re.compile(r"Encore ((?:\{[^}]+\})+)")
 
 
+_ETERNALIZE = re.compile(r"Eternalize ((?:\{[^}]+\})+)")
+
+
 _UNEARTH = re.compile(r"Unearth ((?:\{[^}]+\})+)")
 
 
@@ -258,6 +261,12 @@ def madness_cost(card: Card) -> str | None:
 def unearth_cost(card: Card) -> str | None:
     """Unearth {cost}: from the graveyard to the battlefield with haste, exiled at the next end step (a mana cost only)."""
     return next((m[1] for line in rules_lines(card) if (m := _UNEARTH.fullmatch(line))), None)
+
+
+def eternalize_cost(card: Card) -> str | None:
+    """Eternalize {cost}: from the graveyard, as a sorcery, exile it to make a 4/4 black Zombie token copy with no mana cost
+    (a mana cost only; "Eternalize\u2014{2}{W}{W}, Discard a card." is not supported)."""
+    return next((m[1] for line in rules_lines(card) if (m := _ETERNALIZE.fullmatch(line))), None)
 
 
 def encore_cost(card: Card) -> str | None:
@@ -557,7 +566,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _FLASHBACK, _RETRACE, _ENCORE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)

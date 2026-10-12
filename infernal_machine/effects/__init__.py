@@ -317,6 +317,7 @@ from .costs import (  # noqa: F401
     devour,
     echo_cost,
     encore_cost,
+    eternalize_cost,
     entwine_cost,
     escalate_cost,
     granted_affinity,
