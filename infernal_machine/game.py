@@ -26,7 +26,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (EVENTS, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -64,6 +64,7 @@ ENCORE = "Encore: "  # followed by the card's name
 UNEARTH = "Unearth: "  # followed by the card's name
 SUSPEND = "Suspend: "  # followed by the card's name
 FORETELL = "Foretell: "  # followed by the card's name: pay {2} and exile it face down from the hand
+CAST_DISTURB = "Cast with disturb: "  # followed by the card's name: its back face, from the graveyard
 CAST_FORETOLD = "Cast foretold: "  # followed by the card's name: cast from exile for its foretell cost, on a later turn
 FORETELL_COST = "{2}"
 NINJUTSU = "Ninjutsu: "  # followed by the card's name: return an unblocked attacker, and it comes in attacking in its place
@@ -854,6 +855,11 @@ class Game:
         if seat.index == self.active:  # Foretell: pay {2} to exile it face down, any time you have priority on your turn
             actions += [FORETELL + c.name for c in _unique(seat.hand)
                         if foretell_of(c) and self._payment(seat, dataclasses.replace(c, mana_cost=FORETELL_COST)) is not None]
+        for card in _unique(seat.graveyard):  # Disturb: cast the back face from the graveyard; it is exiled if it would go back
+            if (cost := disturb_of(card)) and card.flip is not None \
+                    and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card.flip)) \
+                    and self._can_cast(seat, card.flip, graveyard=GraveyardCast("Disturb", cost)):
+                actions.append(CAST_DISTURB + card.name)
         for turn, card in seat.foretold:  # ... and cast it from exile on a later turn for its foretell cost
             if turn < self.turn and card in seat.exile and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) \
                     and self._can_cast(seat, card, graveyard=GraveyardCast("Foretell", foretell_of(card))) \
@@ -1183,7 +1189,8 @@ class Game:
         effects, colors = kicked_effects(_effects(card), 0) or [], source_qualities(card)
         if not self._effects_possible(seat, effects, colors):
             return False
-        if parse_cost(card.mana_cost).x and any((kind := target_kind(e)) and kind.endswith(" with mana value x") for e in effects):
+        cost = parse_cost(card.mana_cost)  # None for a back face, which has no mana cost of its own
+        if cost is not None and cost.x and any((kind := target_kind(e)) and kind.endswith(" with mana value x") for e in effects):
             # "target creature with mana value X": some X it can pay for has to match a creature
             return bool(self._x_values_with_targets(seat, effects, colors, self._max_x(seat, card, from_command_zone, ())))
         return True
@@ -1779,6 +1786,9 @@ class Game:
             self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
         elif action.startswith(FORETELL):
             self._foretell(seat, action.removeprefix(FORETELL))
+        elif action.startswith(CAST_DISTURB):
+            card = next(c for c in seat.graveyard if c.name == action.removeprefix(CAST_DISTURB))
+            self._cast(seat, card.flip, seat.graveyard, graveyard=GraveyardCast("Disturb", disturb_of(card), exile_after=True), whole=card)
         elif action.startswith(CAST_FORETOLD):
             self._cast_foretold(seat, action.removeprefix(CAST_FORETOLD))
         elif action.startswith(NINJUTSU):
@@ -2496,6 +2506,7 @@ class Game:
                 card = room_view(whole, (door.name,))
             entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers,
                                  escaped=item.escaped, cast=not item.is_copy, doors=(door.name,) if door else (),
+                                 transformed_from=whole if whole.flip is card else None,
                                  real_card=whole if door else None,
                                  extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0))
             if enters_by_discarding_land(card) and not self._discard_land_to_enter(seat, card):  # Mox Diamond
@@ -2585,7 +2596,7 @@ class Game:
         if target is None or not self.is_legal_target(aura_kind(card), target, seat, source_qualities(card)):
             self.broadcast({"event": "fizzle", "seat": seat.index, "card": card.name})
             if not item.is_copy:
-                self._move_card(seat, card, "graveyard")
+                self._move_card(seat, item.physical, "exile" if item.exile_after else "graveyard")
             return
         if item.is_copy:  # a copy of an Aura spell becomes a token Aura
             card = dataclasses.replace(card, type_line="Token " + card.type_line.removeprefix("Token "))
@@ -2600,7 +2611,8 @@ class Game:
             self.broadcast({"event": "attached", "card": card.name, "to": creature.card.name})
             return
         self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
-        self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked, kickers=item.kickers))
+        self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked, kickers=item.kickers,
+                                    transformed_from=item.whole if item.whole is not None and item.whole.flip is card else None))
         self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
 
     def return_to_hand_from_graveyard(self, card: Card) -> None:
@@ -5871,6 +5883,8 @@ class Game:
             controller = permanent.last_controller
             destination = ("exile" if destination_all == "graveyard" and permanent.counters.get("finality")
                            and "Creature" in permanent.card.type_line else destination_all)  # a finality counter: exiled, not dying
+            if destination == "graveyard" and replacement_effects(permanent.card).graveyard_self:
+                destination = "exile"  # the back of a Disturb card: exiled instead of going to a graveyard
             if destination == "graveyard" and "Creature" in permanent.card.type_line and self._dies_exiled(permanent, controller):
                 destination = "exile"  # Lava Coil, Liesa, Gloomshrieker: exiled instead of dying
             if permanent.unearthed:
