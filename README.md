@@ -867,6 +867,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     the effect before it ("instead ..."), `IfNotKicked` is "if the gift wasn't promised". The opponent gets the gift before the spell's
     other effects, or as a permanent enters (`Game._give_gift`). Not understood: "that creature's controller", a promised gift inside a
     sentence ("... if the gift was promised."), "instead" with two cards from a graveyard, Kitnap, Octomancer, Starforged Sword.
+  - Leftover templates (`tests/test_leftovers_4.py`): delirium (four card types in your graveyard, as a static and as an activation
+    condition), "is equipped", "each player has N or less life", "you didn't cast a spell this turn", lords for two tribes ("Wolves and
+    Werewolves"), tapping an untapped creature of a given type as a cost, "you attack with three or more creatures", "the end step" and
+    "When ... dies" wordings, a sacrifice of the creature with the greatest power, "return two target ... cards", the Gift damage to
+    that creature's controller, and a dead creature coming back transformed at the next end step.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same

@@ -100,7 +100,7 @@ declare("combat_damage_to_player", re.compile(rf"When(?:ever)? {_SELF} deals com
 declare("upkeep", re.compile(r"At the beginning of your upkeep, (.+)", re.I))
 declare("end_step", re.compile(r"At the beginning of your end step, (.+)", re.I))
 declare("each_upkeep", re.compile(r"At the beginning of each upkeep, (.+)", re.I))
-declare("each_end_step", re.compile(r"At the beginning of each end step, (.+)", re.I))
+declare("each_end_step", re.compile(r"At the beginning of (?:each|the) end step, (.+)", re.I))
 declare("combat", re.compile(r"At the beginning of combat on your turn, (.+)", re.I))
 declare("gain_life", re.compile(r"Whenever you gain life, (.+)", re.I), to="you", happens="life_gained")
 declare("lose_life", re.compile(r"Whenever you lose life, (.+)", re.I), to="you", happens="life_lost")
@@ -110,6 +110,7 @@ declare("token_combat_damage", re.compile(r"Whenever a creature token you contro
                                       re.I), about_creature=True)
 declare("host_attacks", re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I), about_creature=True)
 declare("attack_with_two", re.compile(r"Whenever you attack with two or more creatures, (.+)", re.I))
+declare("attack_with_three", re.compile(r"When(?:ever)? you attack with three or more creatures, (.+)", re.I))  # Legion's Landing
 declare("attack_alone", re.compile(r"Whenever (?:you attack with a creature alone|a creature you control attacks alone), (.+)", re.I),
         to="you", about_creature=True)
 declare("conjure", re.compile(r"Whenever you conjure one or more cards, (.+)", re.I), to="you")
