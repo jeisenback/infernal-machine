@@ -37,6 +37,7 @@ from .common import (
     _signed,
     _split_sentences,
     cant_be_countered,
+    Quantity,
 )
 from .targets import (
     MassFilter,
@@ -58,7 +59,7 @@ from .targets import (
 
 @dataclass(frozen=True)
 class Draw:
-    count: int
+    count: Quantity
     more: int = 0  # Zimone: "If you control eight or more lands, draw two cards instead."
     more_if: "Condition | None" = None
 
@@ -69,7 +70,7 @@ class Draw:
 
 @dataclass(frozen=True)
 class GainLife:
-    amount: int
+    amount: Quantity
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.change_life(controller, game.amount(self.amount))
@@ -108,7 +109,7 @@ class PlayerLosesLife:
 
 @dataclass(frozen=True)
 class OpponentsLoseLife:
-    amount: int
+    amount: Quantity
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for seat in game.opponents(controller):
@@ -117,7 +118,7 @@ class OpponentsLoseLife:
 
 @dataclass(frozen=True)
 class Damage:
-    amount: int
+    amount: Quantity
     target: str
     optional_target: bool = False  # one point of "4 damage divided as you choose among any number of targets"
     distinct: bool = False  # "... to each of up to two targets": the second can't be the first again
@@ -130,7 +131,7 @@ class Damage:
 @dataclass(frozen=True)
 class DamageToYou:
     """Mana Vault: "... it deals 1 damage to you." (the ability's controller, from its source)"""
-    amount: int
+    amount: Quantity
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.damage(controller, game.amount(self.amount))
@@ -692,7 +693,7 @@ class TargetControllerMayFetchBasicLand:
 
 @dataclass(frozen=True)
 class PutCounters:
-    count: int
+    count: Quantity
     counter: str  # "+1/+1" or "-1/-1"
     target: str
     another: bool = False  # "on another target creature you control": not the source itself
@@ -767,7 +768,7 @@ PUT_COUNTERS_PROMPT = "Put counters on which creature you control for "  # follo
 @dataclass(frozen=True)
 class PutCountersOnChosenCreature:
     """Breena: "you put two +1/+1 counters on a creature you control." Nothing is targeted; you choose as it resolves."""
-    count: int
+    count: Quantity
     counter: str
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
@@ -1020,7 +1021,7 @@ class OnPlayer:
 @dataclass(frozen=True)
 class PutCountersOnEach:
     """ "Put a +1/+1 counter on each creature you control." (or each Vampire you control: `kind`) """
-    count: int
+    count: Quantity
     counter: str
     kind: str = ""  # a creature type, "" for every creature
     grant: frozenset[str] = frozenset()  # Ursine Guide's spell: "They gain trample until end of turn."
@@ -1052,7 +1053,7 @@ class PutCountersOnEntered:
 @dataclass(frozen=True)
 class PutCountersOnSource:
     """ "Whenever this creature attacks, put a +1/+1 counter on it." """
-    count: int
+    count: Quantity
     counter: str
     uses_source = True
 
@@ -2471,7 +2472,7 @@ class PutCreatureFromHand:
 class MillThenReturn:
     """ "Mill four cards, then return a creature card (and a land card) from your graveyard to your hand / the battlefield
     (tapped)." The player picks each card among those in the graveyard, including what was just milled."""
-    count: int
+    count: Quantity
     kinds: tuple[str, ...]
     to: str  # "hand" or "battlefield"
     tapped: bool = False
@@ -4713,7 +4714,7 @@ class ExileUntilNonlandCast:
 @dataclass(frozen=True)
 class PutBackTop:
     """ "Look at the top three cards of your library, then put them back in any order. (You may shuffle.)" """
-    count: int
+    count: Quantity
     shuffle: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:

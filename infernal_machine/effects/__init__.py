@@ -28,6 +28,7 @@ from .common import (  # noqa: F401
     MUST_ATTACK,
     PROTECTION,
     PROTECTION_CHOSEN,
+    Quantity,
     protection_tokens,
     rules_lines,
 )
