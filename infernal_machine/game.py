@@ -2627,28 +2627,47 @@ class Game:
 
     def draw(self, seat: Seat, count: int, announce: bool = True) -> None:
         for _ in range(count):
-            if self._dredge(seat):
+            for _ in range(self._cards_per_draw(seat)):
+                if not self._draw_one(seat, announce):
+                    return
+
+    def _cards_per_draw(self, seat: Seat) -> int:
+        """How many cards one draw becomes: "If you would draw a card, draw two cards instead." (Thought Reflection) multiplies, and
+        each replacement applies once (CR 614.5), so two of them make four."""
+        factor = 1
+        for permanent in seat.battlefield:
+            if self.loses_abilities(permanent):
                 continue
-            if not seat.library:
-                if any(replacement_effects(p.card).win_on_empty_draw for p in seat.battlefield if not self.loses_abilities(p)):
-                    seat.wins_game = True  # Laboratory Maniac
-                    self.broadcast({"event": "wins_game", "seat": seat.index})
-                else:
-                    seat.drew_from_empty = True
-                return
-            card = seat.library.pop(0)
-            seat.hand.append(card)
-            if seat.drawn_turn != self.turn:
-                seat.drawn_turn, seat.drawn_cards = self.turn, []
-            seat.drawn_cards.append(card)
-            if announce:
-                seat.player.notify({"event": "draw", "card": card.name})
-                self.broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
-                if seat.draw_turn != self.turn:
-                    seat.draw_turn, seat.draw_count = self.turn, 0
-                seat.draw_count += 1
-                self.happened("drew", seat, *(["extra"] if not self._draw_step_draw else []),
-                              *(["second"] if seat.draw_count == 2 else []))
+            for kind in replacement_effects(permanent.card).draw_double:
+                if kind == "always" or (kind == "extra" and not self._draw_step_draw):
+                    factor *= 2
+        return factor
+
+    def _draw_one(self, seat: Seat, announce: bool) -> bool:
+        """One card drawn (or dredged); False if the draw ended the player's drawing because the library was empty."""
+        if self._dredge(seat):
+            return True
+        if not seat.library:
+            if any(replacement_effects(p.card).win_on_empty_draw for p in seat.battlefield if not self.loses_abilities(p)):
+                seat.wins_game = True  # Laboratory Maniac
+                self.broadcast({"event": "wins_game", "seat": seat.index})
+            else:
+                seat.drew_from_empty = True
+            return False
+        card = seat.library.pop(0)
+        seat.hand.append(card)
+        if seat.drawn_turn != self.turn:
+            seat.drawn_turn, seat.drawn_cards = self.turn, []
+        seat.drawn_cards.append(card)
+        if announce:
+            seat.player.notify({"event": "draw", "card": card.name})
+            self.broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
+            if seat.draw_turn != self.turn:
+                seat.draw_turn, seat.draw_count = self.turn, 0
+            seat.draw_count += 1
+            self.happened("drew", seat, *(["extra"] if not self._draw_step_draw else []),
+                          *(["second"] if seat.draw_count == 2 else []))
+        return True
 
     def _dredge(self, seat: Seat) -> bool:
         """Dredge: instead of drawing, the player may mill N cards and return a card with "Dredge N" from the graveyard to their
