@@ -736,7 +736,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "Sacrifice another black creature" (Ayara); "Whenever another creature enters, you may gain 1 life" (Soul's Attendant);
     Ragavan (a Treasure, and the top card of the damaged player's library, which you may cast until end of turn) with Dash (the
     alternative cost gives haste and returns the creature to its owner's hand at the next end step); Etali, Primal Storm (the top
-    card of every library, cast for free in any number); Esper Sentinel ("draw a card unless that player pays {X}", X being its
+    card of every library, cast for free in any number); a card cast from another player's library or exile (Plargg and Nassari,
+    Etali, Ragavan) is its owner's: it goes to the owner's graveyard, hand or exile, not the caster's;
+    Esper Sentinel ("draw a card unless that player pays {X}", X being its
     power, for the first noncreature spell an opponent casts each turn); Ledger Shredder (connive: draw, discard, and a counter if
     the discard wasn't a land); Phyrexian Metamorph (a copy of an artifact or creature, and an artifact too); and Imperial
     Recruiter ("a creature card with power 2 or less"). The Ferocious ability word is read like Metalcraft. Not read: Eternalize,
