@@ -14,3 +14,7 @@ packages = ["infernal_machine", "infernal_machine.effects"]
 
 [tool.setuptools.package-data]
 infernal_machine = ["web.html"]
+
+[tool.pyright]
+include = ["infernal_machine"]
+pythonVersion = "3.11"  # the oldest version the project supports; CI runs the tests on 3.11 and 3.13

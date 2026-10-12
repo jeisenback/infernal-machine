@@ -1488,7 +1488,7 @@ You can connect by hand with `nc localhost 4000`.
 python3 -m unittest discover -s tests -t .
 ```
 
-The same command runs on every pull request and every push to `main` (`.github/workflows/tests.yml`), on Python 3.11 and 3.13.
+The same command runs on every pull request and every push to `main` (`.github/workflows/tests.yml`), on Python 3.11 and 3.13. The same workflow has a `typecheck` job that runs `pyright` over `infernal_machine/` (configured in `pyproject.toml`; installed in CI only, the engine has no dependencies). It does not block yet: the first run found 398 errors, mostly `X | None` passed where `X` is expected, and it will be made blocking once the count is 0. The count is in the job summary.
 
 A second workflow (`.github/workflows/precon-report.yml`) runs the card report on each deck in `examples/precons` and fails if any card has an unsupported line. It runs when the engine or the decks change, and every Monday, since Scryfall's Oracle text can change.
 
