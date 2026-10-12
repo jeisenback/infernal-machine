@@ -44,9 +44,8 @@ python tools/coverage_audit.py --top 1         # how many Commander-legal cards 
 python tools/play_smoke.py                     # every fully playable card casts or plays without an error
 ```
 
-CI (`.github/workflows`): `tests` (required) and its `typecheck` job (pyright; the error count may fall but not rise above
-`.github/pyright-baseline`, so lower that number when a change lowers the count; plan in #309; run it with
-`pip install pyright==1.1.414 && python -m pyright`), `precon report` (every card of the five precon decks must be fully playable),
+CI (`.github/workflows`): `tests` (required) and its `typecheck` job (pyright: no type errors; run it with
+`pip install pyright==1.1.414 && python -m pyright`; an `Optional` you know is there is unwrapped with `_checked(value)` in `game.py`), `precon report` (every card of the five precon decks must be fully playable),
 `bot games` (120 four-player bot games between the precon decks, none may raise; seed `g` is game `g`; it runs on every pull request, and
 its job `bot games (all shards)` is the one to require next to `tests`), and `coverage audit` (weekly, a measurement that never fails).
 

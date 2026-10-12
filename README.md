@@ -1488,7 +1488,7 @@ You can connect by hand with `nc localhost 4000`.
 python3 -m unittest discover -s tests -t .
 ```
 
-The same command runs on every pull request and every push to `main` (`.github/workflows/tests.yml`), on Python 3.11 and 3.13. The same workflow has a `typecheck` job that runs `pyright` over `infernal_machine/` (configured in `pyproject.toml`; installed in CI only, the engine has no dependencies). It is a ratchet (`tools/pyright_ratchet.py`): the error count, in the job summary, may fall but not rise above the number in `.github/pyright-baseline` (398 when it was added, mostly `X | None` passed where `X` is expected), and a pull request that lowers the count lowers that number. At 0 any error fails the job. The plan is issue #309.
+The same command runs on every pull request and every push to `main` (`.github/workflows/tests.yml`), on Python 3.11 and 3.13. The same workflow has a `typecheck` job that runs `pyright` over `infernal_machine/` (configured in `pyproject.toml`; installed in CI only, the engine has no dependencies). It reports no errors, and any error fails the job (it began as a ratchet at 398 errors, mostly `X | None` passed where `X` is expected, and was brought to 0 under issue #309).
 
 A second workflow (`.github/workflows/precon-report.yml`) runs the card report on each deck in `examples/precons` and fails if any card has an unsupported line. It runs when the engine or the decks change, and every Monday, since Scryfall's Oracle text can change.
 
