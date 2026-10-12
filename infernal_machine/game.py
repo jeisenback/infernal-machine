@@ -963,7 +963,7 @@ class Game:
             return False
         if ability.remove_counter and not permanent.counters.get(ability.remove_counter, 0):
             return False
-        if ability.tap_creatures and len(self._crew_candidates(seat, permanent, ability.tap_legendary)) < ability.tap_creatures:
+        if ability.tap_creatures and len(self._crew_candidates(seat, permanent, ability.tap_legendary, ability.tap_type)) < ability.tap_creatures:
             return False
         if ability.condition and not self.condition_holds(ability.condition, seat, permanent):
             return False
@@ -992,11 +992,11 @@ class Game:
         return [p for p in seat.battlefield if _permanent_matches(ability.sacrifice_other, p.card)
                 and not (ability.sacrifice_another and p is source)]
 
-    def _crew_candidates(self, seat: Seat, vehicle: Permanent, legendary: bool = False) -> list[Permanent]:
+    def _crew_candidates(self, seat: Seat, vehicle: Permanent, legendary: bool = False, kind: str = "") -> list[Permanent]:
         """The untapped creatures that could crew `vehicle` (summoning sickness doesn't matter, CR 702.122); only legendary
         ones, for Relic of Legends."""
         return [p for p in seat.battlefield if p is not vehicle and not p.tapped and "Creature" in p.card.type_line
-                and (not legendary or "Legendary" in p.card.type_line)]
+                and (not legendary or "Legendary" in p.card.type_line) and (not kind or kind in p.card.type_line.partition("\u2014")[2].split())]
 
     def become_creature(self, vehicle: Permanent) -> None:
         """A crewed Vehicle is an artifact creature until end of turn."""
@@ -1052,7 +1052,7 @@ class Game:
                 crewed += self.power(member)
         self.cost_tapped_power = 0
         for _ in range(ability.tap_creatures):  # like crewing, but a fixed number of creatures
-            options = self._crew_candidates(seat, source, ability.tap_legendary)
+            options = self._crew_candidates(seat, source, ability.tap_legendary, ability.tap_type)
             member = options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])]
             self.cost_tapped_power += self.power(member)
             self.tap(member)
@@ -2902,6 +2902,16 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player, subject):
             return False
+        if kind == "no_spell_cast_turn":
+            return not any(turn == self.turn for turn, _ in seat.cast_log)
+        if kind == "delirium":  # four or more card types among the cards in the graveyard
+            types = {t for c in seat.graveyard for t in ("Artifact", "Battle", "Creature", "Enchantment", "Instant", "Kindred", "Land", "Planeswalker", "Sorcery")
+                     if t in c.type_line.partition("\u2014")[0]}
+            return len(types) >= 4
+        if kind == "each_life_at_most":  # Cryptolith Fragment: every player has that much life or less
+            return all(s.life <= condition.count for s in self.live_seats())
+        if kind == "source_equipped":
+            return source is not None and any(a.attached_to is source and "Equipment" in a.card.type_line for s in self.seats for a in s.battlefield)
         if kind == "foretold":  # the spell resolving was cast from exile for its foretell cost
             return self.resolving_item is not None and self.resolving_item.foretold
         if kind == "no_spells_last_turn":  # the old werewolves: nobody cast a spell in the previous turn
@@ -4171,7 +4181,7 @@ class Game:
                 if wanted == "Commander":  # Guardian Augmenter: not a creature type, a role
                     if _is_token(permanent.card) or not any(permanent.card.name in s.commander_names for s in self.seats):
                         continue
-                elif (buff.other and source is permanent) or (wanted and wanted not in subtypes) or (buff.subtype == "chosen" and not wanted):
+                elif (buff.other and source is permanent) or (wanted and not any(w in subtypes for w in wanted.split("|"))) or (buff.subtype == "chosen" and not wanted):
                     continue
                 if buff.self_only and source is not permanent:
                     continue

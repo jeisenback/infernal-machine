@@ -117,6 +117,9 @@ class Combat:
         if len(self.attacks) >= 2:
             for permanent in list(seat.battlefield):
                 self.game.trigger("attack_with_two", permanent, seat)
+        if len(self.attacks) >= 3:
+            for permanent in list(seat.battlefield):
+                self.game.trigger("attack_with_three", permanent, seat)
         if self.attacks:
             for holder in self.game.live_seats():  # Killian: an attacker enchanted by an Aura that holder controls (any attacker)
                 if any(self._enchanted_by(a.attacker, holder) for a in self.attacks):

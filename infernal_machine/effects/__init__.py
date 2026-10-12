@@ -52,6 +52,7 @@ from .outcomes import (  # noqa: F401
     BecomeMonarch,
     BecomePrepared,
     BecomeRenowned,
+    DamageTargetsController,
     FISH,
     OCTOPUS,
     IfNotKicked,

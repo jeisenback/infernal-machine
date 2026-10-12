@@ -92,6 +92,7 @@ class ActivatedAbility:
     life_identity: bool = False  # "Pay life equal to the number of colors in your commanders' color identity" (War Room)
     from_graveyard: bool = False  # the ability works from the graveyard ("Return this card from your graveyard ...")
     tap_legendary: bool = False  # ... and they have to be legendary (Relic of Legends)
+    tap_type: str = ""  # ... or of this creature type (Chosen of Markov)
     discard_hand: bool = False  # "Discard your hand" (Lion's Eye Diamond)
     discount_each: str = ""  # "This ability costs {1} less to activate for each legendary creature you control": that kind
 
@@ -109,6 +110,9 @@ def is_station_line(line: str) -> bool:
 
 
 _ACTIVATED = re.compile(r"([^:\"]+): (.+)")
+
+
+_COST_ABILITY_WORD = re.compile(r"^[A-Z][a-z]+ \u2014 (?=\{)")
 
 
 _CHANNEL = re.compile(r"Channel \u2014 (.+)")
@@ -155,7 +159,7 @@ _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
 _EXILE_FROM_HAND = re.compile(r"Exile (?:CARDNAME|this card) from your hand")
 
 
-_TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) untapped (legendary )?creatures? you control")
+_TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) untapped (legendary )?(creatures?|(?-i:[A-Z][a-z]+)s?) you control")
 
 
 _DISCARD_HAND = re.compile(r"Discard your hand")
@@ -206,6 +210,7 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
                                               sorcery_speed=True, tap_creatures=1))
             continue
         body, discount = _channel_body(line)  # Channel \u2014 {1}{G}, Discard this card: ... (Boseiju)
+        body = _COST_ABILITY_WORD.sub("", body)  # Delirium \u2014 {2}{B}: ... (the word is only a label)
         threshold = _THRESHOLD.fullmatch(body)  # "12+ | {1}{R}, {T}: ...": only with that many charge counters on it
         match = _ACTIVATED.fullmatch(threshold[2] if threshold else body)
         if not match or is_mana_ability(line):
@@ -260,6 +265,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
         elif m := _TAP_CREATURES.fullmatch(part):
             fields["tap_creatures"] = _NUMBER[m[1]]
             fields["tap_legendary"] = m[2] is not None
+            if not m[3].startswith("creature"):
+                fields["tap_type"] = m[3].removesuffix("s")  # "Tap an untapped Vampire you control"
         elif _DISCARD_HAND.fullmatch(part):
             fields["discard_hand"] = True  # Lion's Eye Diamond
         elif _EXILE_SELF.fullmatch(part):

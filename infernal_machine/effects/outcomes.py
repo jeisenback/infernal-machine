@@ -1876,6 +1876,7 @@ class ReturnTransformed:
     to the battlefield (tapped) transformed under its owner's control."""
     dies: bool = False
     tapped: bool = False
+    end_step: bool = False  # ... at the beginning of the next end step (Loyal Cathar)
 
     @property
     def uses_source(self) -> bool:
@@ -1888,7 +1889,11 @@ class ReturnTransformed:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is None:
             return
-        if self.dies:
+        if self.dies and self.end_step:
+            fire_turn = game.turn + 1 if game.step in ("end", "cleanup") else game.turn
+            game.at_end_step.append((fire_turn, lambda: game.return_dead_to_battlefield(
+                target, controller, under_owner=True, tapped=self.tapped, transformed=True)))
+        elif self.dies:
             game.return_dead_to_battlefield(target, controller, under_owner=True, tapped=self.tapped, transformed=True)
         else:
             game.flicker(target, controller, "now", "battlefield", under_owner=False, transformed=True)
@@ -3054,10 +3059,11 @@ class TargetSacrifices:
     """ "Target player sacrifices a creature." (target is "player" or "opponent") """
     target: str
     kind: str = "creature"
+    greatest: bool = False  # "a creature with the greatest power among creatures they control" (Consumed by Greed)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.sacrifice(target, self.kind)
+            game.sacrifice(target, self.kind, greatest=self.greatest)
 
 
 _MASS_KINDS = {"battles": "battle", "creatures": "creature", "creature tokens": "creature", "artifacts": "artifact", "enchantments": "enchantment",
@@ -3236,6 +3242,18 @@ class ReturnFromGraveyard:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.return_from_graveyard(target, controller, self.to, self.tapped, self.finality)
+
+
+@dataclass(frozen=True)
+class DamageTargetsController:
+    """Blooming Blast: "... also deals 3 damage to that creature's controller." (the creature the effect before it targeted)"""
+    amount: int
+    follows_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        owner = game.controller_of(target) if target is not None else None
+        if owner is not None:
+            game.damage(owner, self.amount, source=game.resolving_source)
 
 
 @dataclass(frozen=True)
@@ -5283,6 +5301,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"return {_UP_TO} target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),
      lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand",
                                     optional_target=True, distinct=n > 0) for n in range(_count(m[1]))]),
+    (re.compile(rf"return (two|three) target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),  # exactly that many
+     lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand", distinct=n > 0)
+                for n in range(_count(m[1]))]),
     (re.compile(rf"return up to one target {_CARD_TYPE} from your graveyard to your hand\.", re.I),  # Witch of the Moors
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand", optional_target=True)),
     (re.compile(rf"return target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
@@ -5581,6 +5602,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"exile {_SELF}, then return it to the battlefield transformed under your control\.", re.I), lambda m: ReturnTransformed()),
     (re.compile(rf"return it to the battlefield( tapped)? and transformed under (?:its owner's|your) control\.", re.I),
      lambda m: ReturnTransformed(dies=True, tapped=m[1] is not None)),
+    (re.compile(r"return it to the battlefield transformed under (?:its owner's|your) control at the beginning of the next end step\.", re.I),
+     lambda m: ReturnTransformed(dies=True, end_step=True)),
     (re.compile(r"conjure a card named (.+?) onto the battlefield\.", re.I), lambda m: Conjure(m[1])),
     (re.compile(r"tap enchanted creature\.", re.I), lambda m: TapEnchanted()),
     (re.compile(r"tap enchanted creature\. It becomes unprepared\.", re.I), lambda m: TapEnchanted(unprepare=True)),
@@ -5721,6 +5744,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"Let X be (.+)\."), lambda m: DefineX(a) if (a := _amount(m[1])) else None),
     (re.compile(rf"target (player|opponent) sacrifices an? {_SACRIFICE_KIND}\.", re.I),
      lambda m: TargetSacrifices(m[1].lower(), m[2].lower())),
+    (re.compile(rf"{_SELF} also deals {_N} damage to that creature's controller\.", re.I), lambda m: DamageTargetsController(_count(m[1]))),
+    (re.compile(r"target (player|opponent) sacrifices a creature with the greatest power among creatures they control\.", re.I),
+     lambda m: TargetSacrifices(m[1].lower(), greatest=True)),
     (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
     (re.compile(rf"put a ({_COUNTER}) on each of up to (two|three) target creatures\.", re.I),  # Elegant Rotunda
      lambda m: [PutCounters(1, _counter_name(m[2]), "creature", optional_target=True, distinct=n > 0) for n in range(_count(m[3]))]),
@@ -6255,7 +6281,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "not_renowned", "foretold", "no_spells_last_turn", "two_spells_last_turn", "day", "night", "subject_greater", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "not_renowned", "foretold", "no_spell_cast_turn", "delirium", "each_life_at_most", "source_equipped", "no_spells_last_turn", "two_spells_last_turn", "day", "night", "subject_greater", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -6316,6 +6342,10 @@ _CONDITIONS = [
     (re.compile(r"(?:it|that creature) has greater power or toughness than (?:this creature|CARDNAME)"), lambda m: Condition("subject_greater")),
     (re.compile(rf"{_SELF} isn't renowned"), lambda m: Condition("not_renowned")),
     (re.compile(r"this spell was foretold"), lambda m: Condition("foretold")),
+    (re.compile(r"you didn't cast a spell this turn"), lambda m: Condition("no_spell_cast_turn")),
+    (re.compile(r"there are four or more card types among cards in your graveyard"), lambda m: Condition("delirium")),
+    (re.compile(r"each player has (\d+) or less life"), lambda m: Condition("each_life_at_most", int(m[1]))),
+    (re.compile(rf"{_SELF} is equipped"), lambda m: Condition("source_equipped")),
     (re.compile(r"no spells were cast last turn"), lambda m: Condition("no_spells_last_turn")),
     (re.compile(r"a player cast two or more spells last turn"), lambda m: Condition("two_spells_last_turn")),
     (re.compile(r"it's (day|night)"), lambda m: Condition(m[1])),
@@ -6330,7 +6360,8 @@ _CONDITIONS = [
     (re.compile(r"you were the monarch as the turn began"), lambda m: Condition("monarch_at_turn_start")),
     # Eminence: the ability only works from those two zones, which is where the game looks for it.
     (re.compile(rf"{_SELF} is in the command zone or on the battlefield"), lambda m: Condition("eminence")),
-    (re.compile(rf"there are {_N} or more cards in your graveyard"), lambda m: Condition("graveyard_at_least", _count(m[1]), "card")),
+    (re.compile(rf"(?:there are {_N} or more cards in your graveyard|{_N} or more cards are in your graveyard)"),
+     lambda m: Condition("graveyard_at_least", _count(m[1] or m[2]), "card")),
     (re.compile(r"an opponent was dealt noncombat damage this turn"), lambda m: Condition("opponent_dealt_noncombat_damage")),
     (re.compile(rf"there are {_N} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
      lambda m: Condition("graveyard_at_least", _count(m[1]), m[2].replace(" and/or ", " or "))),
