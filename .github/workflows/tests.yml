@@ -40,8 +40,5 @@ jobs:
           python-version: "3.13"
       - name: Install pyright (CI only; the engine itself has no dependencies)
         run: python -m pip install pyright==1.1.414
-      - name: The pyright error count may fall but not rise (#309)
-        run: |
-          python -m pyright > pyright.txt || true
-          cat pyright.txt
-          python tools/pyright_ratchet.py pyright.txt
+      - name: No type errors (#309)
+        run: python -m pyright

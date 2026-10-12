@@ -3021,7 +3021,7 @@ class ContractAttack:
         if game.seats[item.x] is not controller:
             game.modify_until_end_of_turn(target, Modifier(2, 0))
         else:
-            game.change_life(game.controller_of(target), -2)
+            game.change_life(game.controller(target), -2)
 
 
 @dataclass(frozen=True)
