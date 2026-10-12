@@ -81,6 +81,8 @@ MECH_POOL = [
     card("Bear B", "Creature — Bear", "This creature can't block unless you control a Swamp.\n" + MOON, rank=20, mana_cost="{1}", power="1", toughness="1"),
     card("Bear C", "Creature — Bear", "This creature can't attack unless you control a Swamp.", rank=9000, mana_cost="{1}", power="1", toughness="1"),
     card("Moon Elk", "Creature — Elk", MOON, rank=30, mana_cost="{1}", power="1", toughness="1"),
+    card("Safe Bear", "Creature — Bear", "This creature can't attack or block.", rank=40, mana_cost="{1}", power="1", toughness="1"),
+    card("Reminder Bear", "Creature — Bear", "Trample (This creature can't attack unless you control a Swamp.)", rank=50, mana_cost="{1}", power="1", toughness="1"),
     card("Copy Cat", "Creature — Cat", "Create a token that's a copy of target creature.", rank=1, mana_cost="{1}", power="1", toughness="1"),
     card("Copy Dog", "Creature — Dog", "Create a token that's a copy of target creature.", rank=2, mana_cost="{1}", power="1", toughness="1"),
 ]
@@ -100,14 +102,24 @@ class MechanismReportTests(unittest.TestCase):
 
     def test_the_table_ranks_by_popular_only_gap_cards(self):
         text = audit.render_mechanisms(self.result)
-        self.assertIn("| Attack/block restrictions | 3 | 2 | 2 | 1 | Bear A #10, Bear C #9000 |", text)
+        self.assertIn("| Attack/block restrictions | 4 | 3 | 2 | 2 | 1 | Bear A #10, Bear C #9000 |", text)
         self.assertLess(text.index("| Copy effects |"), text.index("| Attack/block restrictions |"), "two popular only-gap cards beat one")
         self.assertIn("2 cards have a line that fits no mechanism.", text)
 
     def test_the_drill_down_lists_the_wordings(self):
         text = audit.render_mechanism(self.result, "attack/block")
-        self.assertIn("### Attack/block restrictions: 3 cards, 2 with this as the only gap", text)
+        self.assertIn("### Attack/block restrictions: 3 of 4 cards not playable, 2 with this as the only gap", text)
         self.assertIn("`This creature can't attack unless you control a Swamp.`", text)
+
+    def test_all_cards_counts_playable_ones_and_never_fewer_than_the_gaps(self):
+        group = self.group
+        self.assertEqual((group["all"], len(group["cards"])), (4, 3), "Safe Bear is playable, and the reminder text on Reminder Bear is ignored")
+        back_only = audit.analyze([
+            {"name": "Front // Back", "layout": "transform", "cmc": 1, "mana_cost": "{1}", "type_line": "Creature — Bear // Creature — Wolf", "edhrec_rank": 60,
+             "card_faces": [{"name": "Front", "mana_cost": "{1}", "type_line": "Creature — Bear", "oracle_text": "Trample", "power": "1", "toughness": "1"},
+                            {"name": "Back", "mana_cost": "", "type_line": "Creature — Wolf", "oracle_text": "This creature can't attack unless you control a Swamp.",
+                             "power": "1", "toughness": "1"}]}])
+        self.assertEqual(back_only["mechanisms"]["Attack/block restrictions"]["all"], 1, "a gap on the back face counts, though the front text has none")
 
     def test_an_unknown_mechanism_says_so(self):
         self.assertTrue(audit.render_mechanism(self.result, "nonsense").startswith("No mechanism matches `nonsense`"))

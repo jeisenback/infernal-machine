@@ -13,7 +13,7 @@ not that the card behaves correctly.
     python tools/coverage_audit.py --mechanism "Copy"    # the wordings inside one mechanism (a substring of its name)
 
 A mechanism is a keyword or ability word at the start of an unsupported line, or else the first of the `MECHANISMS` patterns that
-matches it; the patterns are a heuristic, so the groups are a guide to what to build next, not exact counts. A card's "only gap"
+matches it; the patterns are a heuristic, so the groups are a guide to what to build next, not exact counts. "All cards" counts every card with a line in the mechanism, playable or not, so a row shows how much of it is covered. A card's "only gap"
 mechanism is the one that holds all its unsupported lines, so building it alone could make the card playable. The tables are sorted
 by the only-gap cards in the top `POPULAR` of EDHREC rank.
 """
@@ -136,6 +136,15 @@ def mechanism_of(line: str, keywords: list[str] | tuple[str, ...] = ()) -> str:
     return next((name for name, pattern in _MECHANISMS if pattern.search(line)), "Other")
 
 
+_REMINDER = re.compile(r"\([^)]*\)")
+
+
+def card_mechanisms(card: Card, keywords: list[str] | tuple[str, ...] = ()) -> set[str]:
+    """The mechanisms any line of the card's text belongs to (reminder text left out), playable or not."""
+    lines = (_REMINDER.sub("", line).strip() for line in card.oracle_text.split("\n"))
+    return {mechanism_of(line, keywords) for line in lines if line}
+
+
 def kind_of(card: Card) -> str:
     return next((word for word in TYPES if word in card.type_line), "Other")
 
@@ -150,6 +159,7 @@ def analyze(pool: list[dict]) -> dict:
     one_gap = 0
     crashes: list[str] = []
     best_rank: dict[str, int] = {}
+    everywhere: collections.Counter[str] = collections.Counter()  # cards per mechanism, playable or not
     groups: dict[str, dict[str, Any]] = collections.defaultdict(lambda: {"cards": set(), "only": set(), "shapes": collections.defaultdict(set)})
     for data in pool:
         try:
@@ -173,6 +183,7 @@ def analyze(pool: list[dict]) -> dict:
         for line in lines:
             shapes[shape(line)].add(card.name)
         mechanisms = [mechanism_of(line, data.get("keywords") or ()) for line in lines]
+        everywhere.update(card_mechanisms(card, data.get("keywords") or ()) | set(mechanisms))
         for line, mechanism in zip(lines, mechanisms):
             groups[mechanism]["cards"].add(card.name)
             groups[mechanism]["shapes"][shape(line)].add(card.name)
@@ -187,7 +198,7 @@ def analyze(pool: list[dict]) -> dict:
             "shapes": {s: by_rank(names) for s, names in shapes.items()},
             "only_gap": {s: by_rank(names) for s, names in only_gap.items()},
             "best_rank": best_rank, "crashes": crashes,
-            "mechanisms": {m: {"cards": by_rank(g["cards"]), "only": by_rank(g["only"]),
+            "mechanisms": {m: {"all": everywhere[m], "cards": by_rank(g["cards"]), "only": by_rank(g["only"]),
                                "shapes": {s: by_rank(names) for s, names in g["shapes"].items()}} for m, g in groups.items()}}
 
 
@@ -235,11 +246,11 @@ def render_mechanisms(result: dict, top: int = 25) -> str:
     unnamed = {m: g for m, g in result["mechanisms"].items() if m != "Other" and m not in named}
     out = [f"## Mechanisms: gaps grouped, sorted by the only-gap cards in the top {POPULAR} of EDHREC rank", ""]
     for title, groups in (("Keywords and ability words", named), ("Rules-text mechanisms", unnamed)):
-        out += [f"### {title}", "", f"| Mechanism | Cards | In top {POPULAR} | Only gap | Only gap, top {POPULAR} | Most played only-gap cards |",
-                "|---|---|---|---|---|---|"]
+        out += [f"### {title}", "", f"| Mechanism | All cards | Not playable | In top {POPULAR} | Only gap | Only gap, top {POPULAR} | Most played only-gap cards |",
+                "|---|---|---|---|---|---|---|"]
         order = sorted(groups.items(), key=lambda kv: (-_popular(kv[1]["only"], rank), -len(kv[1]["only"]), kv[0]))
         for name, g in order[:top]:
-            out.append(f"| {name} | {len(g['cards'])} | {_popular(g['cards'], rank)} | {len(g['only'])} | {_popular(g['only'], rank)} "
+            out.append(f"| {name} | {g['all']} | {len(g['cards'])} | {_popular(g['cards'], rank)} | {len(g['only'])} | {_popular(g['only'], rank)} "
                        f"| {_best(g['only'] or g['cards'], rank)} |")
         out.append("")
     if other := result["mechanisms"].get("Other"):
@@ -256,7 +267,7 @@ def render_mechanism(result: dict, name: str, top: int = 25) -> str:
     out = []
     for mechanism in wanted:
         g = result["mechanisms"][mechanism]
-        out += [f"### {mechanism}: {len(g['cards'])} cards, {len(g['only'])} with this as the only gap", "",
+        out += [f"### {mechanism}: {len(g['cards'])} of {g['all']} cards not playable, {len(g['only'])} with this as the only gap", "",
                 f"| Cards | In top {POPULAR} | Unsupported line | Most played |", "|---|---|---|---|"]
         for line, names in sorted(g["shapes"].items(), key=lambda kv: (-_popular(kv[1], rank), -len(kv[1])))[:top]:
             out.append(f"| {len(names)} | {_popular(names, rank)} | `{line.replace('|', '/')}` | {_best(names, rank)} |")
