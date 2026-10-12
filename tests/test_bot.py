@@ -2,7 +2,7 @@ import unittest
 
 from infernal_machine.bot import BotPlayer, goldfish, keep_hand, worst_card
 from infernal_machine.cards import Card, Deck
-from infernal_machine.game import (CAST, CYCLE, DONE_MODES, KEEP_ON_TOP, MODE_PROMPT, PASS, PUT_IN_GRAVEYARD, PUT_ON_BOTTOM,
+from infernal_machine.game import (CAST, CYCLE, DISCARD_PROMPT, DONE_MODES, KEEP_ON_TOP, MODE_PROMPT, PASS, PUT_IN_GRAVEYARD, PUT_ON_BOTTOM,
                                    SCRY_PROMPT, SURVEIL_PROMPT, Game)
 
 LAND = Card(name="Wastes", type_line="Basic Land")
@@ -118,6 +118,16 @@ class JudgmentTests(unittest.TestCase):
     def test_a_cast_it_does_not_know_does_not_crash_the_choice(self):
         bot = BotPlayer("Bot", Deck([COMMANDER], [LAND, PRICEY], []))
         self.assertEqual(bot.choose("Priority: main1", [PASS, CAST + "Mystery Spell", CAST + PRICEY.name]), 2)
+
+    def test_a_card_from_another_deck_in_the_hand_does_not_crash_a_discard(self):
+        bot = BotPlayer("Bot", Deck([COMMANDER], [LAND, PRICEY], []))  # Plargg and Nassari cast an opponent's Altered Ego
+        self.assertEqual(bot.choose(DISCARD_PROMPT, [LAND.name, "Altered Ego", PRICEY.name]), 2, "the dearest card it knows")
+        self.assertIn(bot.choose(DISCARD_PROMPT, [LAND.name, "Altered Ego"]), (0, 1))
+
+    def test_an_opening_hand_with_a_card_it_does_not_know(self):
+        bot = BotPlayer("Bot", Deck([COMMANDER], [LAND], []))
+        bot.notify({"event": "opening_hand", "cards": [LAND.name, "Altered Ego"], "mulligans": 0})
+        self.assertEqual([c.name for c in bot._hand], [LAND.name, "Altered Ego"])
 
     def test_cycles_extra_lands_and_expensive_spells(self):
         self.assertEqual(board(6).choose("Priority: main1", [PASS, CYCLE + LAND_CYCLER.name]), 1)
