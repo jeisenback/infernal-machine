@@ -25,11 +25,13 @@ from .common import (
     _KW,
     _LAND_TYPE,
     _N,
+    _N_FIXED,
     _NUM,
     _PT,
     _SELF,
     _WARD_MANA,
     _count,
+    _number,
     _counter_name,
     _keyword_list,
     _modifier,
@@ -47,7 +49,7 @@ from .mana import _ADD_ANY, _ADD_EITHER, _ADD_SYMBOLS, _mana_from_line, is_mana_
 _ENTERS_WITH = re.compile(rf"{_SELF} enters (?:tapped )?with (twice X|{_N}) {_COUNTER} on it\.", re.I)
 
 
-_ESCAPES_WITH = re.compile(rf"{_SELF} escapes with {_N} {_COUNTER} on it\.", re.I)  # Woe Strider
+_ESCAPES_WITH = re.compile(rf"{_SELF} escapes with {_N_FIXED} {_COUNTER} on it\.", re.I)  # Woe Strider
 
 
 _CLONE_EXTRA = re.compile(r".*, except it enters with X additional \+1/\+1 counters on it\.")  # Altered Ego
@@ -81,7 +83,7 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, blo
             counters[name] = count if count in ("X", "2X") else counters.get(name, 0) + count
         elif escaped and (m := _ESCAPES_WITH.fullmatch(line)):
             name = _counter_name(m[2])
-            counters[name] = counters.get(name, 0) + _count(m[1])
+            counters[name] = counters.get(name, 0) + _number(m[1])
         elif kicked and (m := _ENTERS_PER_KICK.fullmatch(line)):
             name = _counter_name(m[1])
             counters[name] = counters.get(name, 0) + kicked
@@ -203,9 +205,9 @@ _COMBAT_RESTRICTIONS = [
      lambda m: CombatRestriction("host_must_be_blocked_by_all")),  # Lure, Nemesis Mask
     (re.compile(rf"{_SELF} must be blocked if able\.", re.I), lambda m: CombatRestriction("must_be_blocked")),
     (re.compile(rf"{_SELF} can't be blocked by more than {_NUM} creatures?\.", re.I),
-     lambda m: CombatRestriction("max_blockers", str(_count(m[1])))),
+     lambda m: CombatRestriction("max_blockers", str(_number(m[1])))),
     (re.compile(rf"{_SELF} can't be blocked except by {_NUM} or more creatures\.", re.I),
-     lambda m: CombatRestriction("min_blockers", str(_count(m[1])))),
+     lambda m: CombatRestriction("min_blockers", str(_number(m[1])))),
     (re.compile(r"((?-i:[A-Z][a-z]+))s can't attack you or planeswalkers you control\.", re.I),
      lambda m: CombatRestriction("no_attack_tribe", m[1])),
     (re.compile(r"Each creature that's enchanted by an Aura you control can't attack you or planeswalkers you control\."),
@@ -328,7 +330,7 @@ def untaps_in_other_untap_steps(card: Card) -> tuple[str, int] | None:
     Drumbellower does it always: ("", 0), which any permanent satisfies."""
     for line in rules_lines(card):
         if m := _QUEST_UNTAP.fullmatch(line):
-            return m[2], _count(m[1])
+            return m[2], _number(m[1])
         if _ALWAYS_UNTAP.fullmatch(line):
             return "", 0
     return None
@@ -1089,22 +1091,22 @@ _ENTERS_TAPPED = [
     (re.compile(rf"{_SELF} enters tapped\.", re.I), lambda m: EntersTapped("always")),
     (re.compile(rf"{_SELF} enters tapped unless you control an? ({_LAND_TYPE}) or an? ({_LAND_TYPE})\.", re.I),
      lambda m: EntersTapped("unless_land_types", types=(m[1].capitalize(), m[2].capitalize()))),
-    (re.compile(rf"{_SELF} enters tapped unless you control {_N} or (fewer|more) other lands\.", re.I),
+    (re.compile(rf"{_SELF} enters tapped unless you control {_N_FIXED} or (fewer|more) other lands\.", re.I),
      lambda m: EntersTapped("unless_lands_at_most" if m[2].lower() == "fewer" else "unless_lands_at_least",
-                            count=_count(m[1]))),
-    (re.compile(rf"{_SELF} enters tapped unless you have {_N} or more opponents\.", re.I),
-     lambda m: EntersTapped("unless_opponents", count=_count(m[1]))),
-    (re.compile(rf"{_SELF} enters tapped unless you control {_N} or more basic lands\.", re.I),
-     lambda m: EntersTapped("unless_basic_lands", count=_count(m[1]))),
-    (re.compile(rf"{_SELF} enters tapped unless you control {_N} or more other ({_LAND_TYPE})s?\.", re.I),
-     lambda m: EntersTapped("unless_land_type_count", types=(m[2].capitalize(),), count=_count(m[1]))),
-    (re.compile(rf"{_SELF} enters tapped unless your opponents control {_N} or more lands\.", re.I),
-     lambda m: EntersTapped("unless_opponent_lands", count=_count(m[1]))),
+                            count=_number(m[1]))),
+    (re.compile(rf"{_SELF} enters tapped unless you have {_N_FIXED} or more opponents\.", re.I),
+     lambda m: EntersTapped("unless_opponents", count=_number(m[1]))),
+    (re.compile(rf"{_SELF} enters tapped unless you control {_N_FIXED} or more basic lands\.", re.I),
+     lambda m: EntersTapped("unless_basic_lands", count=_number(m[1]))),
+    (re.compile(rf"{_SELF} enters tapped unless you control {_N_FIXED} or more other ({_LAND_TYPE})s?\.", re.I),
+     lambda m: EntersTapped("unless_land_type_count", types=(m[2].capitalize(),), count=_number(m[1]))),
+    (re.compile(rf"{_SELF} enters tapped unless your opponents control {_N_FIXED} or more lands\.", re.I),
+     lambda m: EntersTapped("unless_opponent_lands", count=_number(m[1]))),
     (re.compile(rf"As {_SELF} enters, you may reveal an? ({_LAND_TYPE}) or ({_LAND_TYPE}) card from your hand\. "
                 rf"If you don't, {_SELF} enters tapped\.", re.I),
      lambda m: EntersTapped("reveal", types=(m[1].capitalize(), m[2].capitalize()))),
-    (re.compile(rf"As {_SELF} enters, you may pay {_N} life\. If you don't, it enters tapped\.", re.I),
-     lambda m: EntersTapped("shock", life=_count(m[1]))),
+    (re.compile(rf"As {_SELF} enters, you may pay {_N_FIXED} life\. If you don't, it enters tapped\.", re.I),
+     lambda m: EntersTapped("shock", life=_number(m[1]))),
     (re.compile(rf"{_SELF} enters tapped unless you control an? ({_LAND_TYPE})\.", re.I),
      lambda m: EntersTapped("unless_control", types=(m[1].capitalize(),))),
     (re.compile(rf"{_SELF} enters tapped unless you control a planeswalker\.", re.I),
@@ -1115,10 +1117,10 @@ _ENTERS_TAPPED = [
      lambda m: EntersTapped("unless_control", types=("Legendary+Creature",))),
     (re.compile(rf"{_SELF} enters tapped unless you control a Mount or Vehicle\.", re.I),
      lambda m: EntersTapped("unless_control", types=("Mount", "Vehicle"))),
-    (re.compile(rf"{_SELF} enters tapped unless a player has {_N} or less life\.", re.I),
-     lambda m: EntersTapped("unless_a_player_life", count=_count(m[1]))),
-    (re.compile(rf"If you control {_N} or more other lands, {_SELF} enters tapped\.", re.I),
-     lambda m: EntersTapped("if_lands_at_least", count=_count(m[1]))),
+    (re.compile(rf"{_SELF} enters tapped unless a player has {_N_FIXED} or less life\.", re.I),
+     lambda m: EntersTapped("unless_a_player_life", count=_number(m[1]))),
+    (re.compile(rf"If you control {_N_FIXED} or more other lands, {_SELF} enters tapped\.", re.I),
+     lambda m: EntersTapped("if_lands_at_least", count=_number(m[1]))),
     (re.compile(rf"If you were the starting player, {_SELF} enters tapped\.", re.I),
      lambda m: EntersTapped("if_starting_player")),
     (re.compile(rf"{_SELF} enters tapped if you were the starting player\.", re.I),
@@ -1126,7 +1128,7 @@ _ENTERS_TAPPED = [
     (re.compile(rf"As {_SELF} enters, you may reveal an? ([A-Z][a-z]+) card from your hand\. "
                 rf"If you don't, {_SELF} enters tapped\.", re.I),
      lambda m: EntersTapped("reveal", types=(m[1].capitalize(),))),
-    (re.compile(rf"{_SELF} enters tapped with {_N} {_COUNTER} on it\.", re.I), lambda m: EntersTapped("always")),
+    (re.compile(rf"{_SELF} enters tapped with {_N_FIXED} {_COUNTER} on it\.", re.I), lambda m: EntersTapped("always")),
     (re.compile(rf"{_SELF} enters tapped\. As (?:it|{_SELF}) enters, choose a color(?: other than (?:white|blue|black|red|green))?\.", re.I),
      lambda m: EntersTapped("always")),
 ]
