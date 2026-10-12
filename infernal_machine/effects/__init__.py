@@ -341,6 +341,7 @@ from .costs import (  # noqa: F401
     strive_cost,
     suspend_of,
     ninjutsu_of,
+    foretell_of,
     unearth_cost,
     x_limited_by_players,
     x_spell_discount,

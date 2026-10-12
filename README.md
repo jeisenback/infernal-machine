@@ -842,6 +842,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     the batch Combat.deal_damage opens). Yuriko's reveal-and-drain is `RevealTopToHandDrain`; "Activate only during your turn." and a
     bare creature type as a target ("target Ninja you control") are read. Not understood: Skullsnatcher, Silent-Blade Oni, Coiling
     Stalker, Moon-Circuit Hacker, the counter-removing ninjas, Orochi Soul-Reaver (manifest), Silver-Fur Master.
+  - Foretell (`tests/test_foretell.py`): `Foretell {cost}` is two actions. `Foretell: <card>` is offered on your own turn whenever you
+    have priority and {2}: the card goes from the hand to exile and is recorded in `Seat.foretold` as (turn, card). From a later turn
+    `Cast foretold: <card>` casts it from exile for the foretell cost at the card's usual timing, as a cast with a `GraveyardCast("Foretell",
+    cost)` way (so X in the foretell cost works) whose `StackItem.foretold` makes "If this spell was foretold, ..." true (Poison the
+    Cup, Starnheim Unleashed). Not understood: cards that grant foretell (Dream Devourer, Bohn), reduce its cost (Cosmos Charger, Ranar),
+    count foretold cards (Niko Defies Destiny, Alrund), or foretell from elsewhere (Ethereal Valkyrie, The Foretold Soldier).
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same

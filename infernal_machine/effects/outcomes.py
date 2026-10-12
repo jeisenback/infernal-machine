@@ -5137,6 +5137,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
+    (re.compile(r"if (this spell was foretold), (.+)\.", re.I), _then_if),
     (re.compile(r"if (X is \d+ or more), (?!double the number)(.+)\.", re.I), _then_if),
     (re.compile(rf"if X is {_N} or more, double the number of ([+\-\u2212]1/[+\-\u2212]1) counters on any number of other target "
                 r"creatures\.", re.I), lambda m: DoubleCountersOnTargets(_counter_name(m[2]), "creature", int(m[1]))),
@@ -6190,7 +6191,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "not_renowned", "no_spells_last_turn", "two_spells_last_turn", "day", "night", "subject_greater", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "not_renowned", "foretold", "no_spells_last_turn", "two_spells_last_turn", "day", "night", "subject_greater", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -6250,6 +6251,7 @@ _CONDITIONS = [
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
     (re.compile(r"(?:it|that creature) has greater power or toughness than (?:this creature|CARDNAME)"), lambda m: Condition("subject_greater")),
     (re.compile(rf"{_SELF} isn't renowned"), lambda m: Condition("not_renowned")),
+    (re.compile(r"this spell was foretold"), lambda m: Condition("foretold")),
     (re.compile(r"no spells were cast last turn"), lambda m: Condition("no_spells_last_turn")),
     (re.compile(r"a player cast two or more spells last turn"), lambda m: Condition("two_spells_last_turn")),
     (re.compile(r"it's (day|night)"), lambda m: Condition(m[1])),
