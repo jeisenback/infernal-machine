@@ -26,7 +26,10 @@ _SELF = (r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|plane
          r"|Aura|Equipment|Class|Vehicle|Saga|Room|token))")
 
 
-def _count(word: str) -> int | str:
+Quantity = int | str  # a number, or the "X", "2X", "hX", "hX+" the game fills in when the spell resolves (Game.amount)
+
+
+def _count(word: str) -> Quantity:
     """A number from rules text; "X" stays "X" ("twice X" is "2X") and the game fills it in (Game.amount)."""
     lowered = word.lower()  # some patterns see text that was lowercased first ("put X +1/+1 counters on it")
     if lowered == "x":
