@@ -25,7 +25,7 @@ from .combat import Attack, Combat
 from . import casting
 from .effects import (EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_extra_counters, chooses_creature_type, clone_is_artifact, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_extra_counters, chooses_creature_type, clone_is_artifact, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -61,6 +61,7 @@ CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
+ETERNALIZE = "Eternalize: "  # followed by the card's name
 UNEARTH = "Unearth: "  # followed by the card's name
 SUSPEND = "Suspend: "  # followed by the card's name
 FORETELL = "Foretell: "  # followed by the card's name: pay {2} and exile it face down from the hand
@@ -861,6 +862,8 @@ class Game:
             for card in _unique(seat.graveyard):
                 if (cost := encore_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
                     actions.append(ENCORE + card.name)
+                if (cost := eternalize_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
+                    actions.append(ETERNALIZE + card.name)
                 if (cost := unearth_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
                     actions.append(UNEARTH + card.name)
         for card in _unique([c for c, until in seat.exile_play if self.turn <= until and c in seat.exile]):
@@ -1399,6 +1402,8 @@ class Game:
             self.broadcast({"event": "suspended", "seat": seat.index, "card": card.name, "counters": counters})
         elif action.startswith(UNEARTH):
             self._unearth(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(UNEARTH)))
+        elif action.startswith(ETERNALIZE):
+            self._eternalize(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ETERNALIZE)))
         elif action.startswith(ENCORE):
             self._encore(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ENCORE)))
         elif action.startswith(UNLOCK):
@@ -3654,6 +3659,20 @@ class Game:
         self._move_card(seat, card, "exile")
         self._left_graveyard(seat, [card])
         self.attacking_tokens(seat, dataclasses.replace(card, type_line="Token " + card.type_line), 1, True, "sacrificed")
+
+    def _eternalize(self, seat: Seat, card: Card) -> None:
+        """Eternalize: pay its cost and exile it from the graveyard; create a token copy that is a 4/4 black Zombie with no mana
+        cost (CR 702.129a). The token is a copy of the card as it is in the graveyard, so it keeps the card's other types."""
+        tapped = _checked(self._payment(seat, dataclasses.replace(card, mana_cost=eternalize_cost(card))))
+        self._spend_mana(seat, tapped)
+        seat.graveyard.remove(card)
+        self.broadcast({"event": "eternalize", "seat": seat.index, "card": card.name})
+        self._move_card(seat, card, "exile")
+        self._left_graveyard(seat, [card])
+        kind, _, subtypes = card.type_line.partition(" \u2014 ")
+        token = dataclasses.replace(card, type_line=f"Token {kind} \u2014 Zombie {subtypes}".strip(), mana_cost="", cmc=0, colors=("B",),
+                                    power="4", toughness="4")
+        self.create_tokens(seat, token, 1)
 
     def attacking_tokens(self, seat: Seat, token: Card, count: int, haste: bool, at_end: str | None) -> None:
         """For each opponent, `count` tokens that attack that opponent this turn if able (Encore, Furygale Flocking);
