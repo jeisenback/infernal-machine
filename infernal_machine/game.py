@@ -26,7 +26,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (EVENTS, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, day_night_face, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -264,6 +264,7 @@ class Permanent:
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
     prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
     renowned: bool = False  # Renown: it has already got its counters
+    transformed_from: "Card | None" = None  # a transformed double-faced permanent: its front face (`card` is the back face)
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
     stored: int = 0  # a number it remembers (the life Soulgorger Orgg's controller lost)
     goad_forever: "Seat | None" = None  # goaded for the rest of the game by this player (Life of the Party's copies)
@@ -496,6 +497,8 @@ class Game:
         self.initiative: Seat | None = None
         self.graveyarded_turn, self.graveyarded_count = 0, 0  # permanents put into a graveyard this turn (Gravestorm)
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
+        self.previous_player: Seat | None = None  # whose turn came before this one, for the day/night rule
+        self.day_night: str | None = None  # None until a permanent with daybound or nightbound is around, then "day" or "night"
         self._batch: set[tuple[int, int]] | None = None  # watchers of "one or more ..." already told about this simultaneous event
         self.at_upkeep: list[tuple[int, Callable[[], None]]] = []  # (turn made, what) to do as the next turn's upkeep begins
         self.spectators: list = []  # watchers with notify(event): they see every public event and the board, never a hand
@@ -573,6 +576,7 @@ class Game:
         while self.winner() is None and self.turn < max_turns:
             self.turn += 1
             self._take_turn(self.seats[self.active])
+            self.previous_player = self.seats[self.active]
             self.active = self._next_turn_seat()
         winner = self.winner()
         self.broadcast({"event": "game_over", "winner": winner.index if winner else None, "turn": self.turn})
@@ -619,6 +623,7 @@ class Game:
 
     def _turn_based_actions(self, seat: Seat) -> None:
         if self.step == "untap":
+            self._update_day_night()
             seat.protected = seat.life_locked = False  # "until your next turn"
             self.combat = Combat(self)
             seat.battlefield += seat.phased_out  # they phase in first, then untap with everything else
@@ -2765,6 +2770,12 @@ class Game:
         kind = condition.kind
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player, subject):
             return False
+        if kind == "no_spells_last_turn":  # the old werewolves: nobody cast a spell in the previous turn
+            return not any(turn == self.turn - 1 for other in self.seats for turn, _ in other.cast_log)
+        if kind == "two_spells_last_turn":  # ... or one player cast two or more
+            return any(sum(1 for turn, _ in other.cast_log if turn == self.turn - 1) >= 2 for other in self.seats)
+        if kind in ("day", "night"):
+            return self.day_night == kind
         if kind == "subject_greater":  # Evolve: the creature that entered has greater power or toughness than the source
             return (source is not None and subject is not None
                     and (self.power(subject) > self.power(source) or (self.toughness(subject) or 0) > (self.toughness(source) or 0)))
@@ -3556,7 +3567,7 @@ class Game:
         self._leave_together([(p, "returned") for p in permanents], destination="hand")
 
     def return_from_graveyard(self, target: GraveyardTarget, controller: Seat, to: str, tapped: bool = False,
-                              finality: bool = False, enchantment: bool = False) -> None:
+                              finality: bool = False, enchantment: bool = False, transformed: bool = False) -> None:
         """Move a card out of a graveyard to its owner's hand, or onto the battlefield under
         `controller`'s control (it stays its owner's card)."""
         seat, card = target.seat, target.card
@@ -3571,6 +3582,8 @@ class Game:
             seat.library.insert(0, card) if to == "library_top" else seat.library.append(card)
         elif finality:
             self._enter(controller, self._finality_spirit(card, seat))
+        elif transformed and card.flip is not None:  # a werewolf that died comes back on its other face
+            self._enter(controller, self._transformed_permanent(card, seat, tapped))
         elif enchantment:  # the Enduring cycle: back as an enchantment that is no longer a creature
             self._enter(controller, Permanent(dataclasses.replace(card, power=None, toughness=None, type_line="Enchantment"),
                                               sick=True, owner=seat, real_card=card))
@@ -3601,13 +3614,13 @@ class Game:
         return next((s for s in self.seats if any(c is card for c in s.graveyard)), None)
 
     def return_dead_to_battlefield(self, dead: Permanent, controller: Seat, under_owner: bool, tapped: bool = False,
-                                   enchantment: bool = False) -> None:
+                                   enchantment: bool = False, transformed: bool = False) -> None:
         """A creature that just died comes back from its owner's graveyard, under `controller`'s control unless
         `under_owner`."""
         holder = self._graveyard_of(dead.card)
         if holder is not None:
             self.return_from_graveyard(GraveyardTarget(dead.card, holder), holder if under_owner else controller,
-                                       "battlefield", tapped, enchantment=enchantment)
+                                       "battlefield", tapped, enchantment=enchantment, transformed=transformed)
 
     def look_take(self, seat: Seat, count: int, take: int) -> None:
         """Look at the top `count` cards; `take` of them go to the hand and the rest to the bottom of the library."""
@@ -4448,7 +4461,7 @@ class Game:
     def exile_noting(self, target: Permanent, source: Permanent | None) -> None:
         """Exile `target` and remember the card on `source` ("the exiled card's owner ..."). Tokens are not remembered."""
         owner = target.owner or self.controller_of(target)
-        card, before = target.card, len(owner.exile)
+        card, before = target.transformed_from or target.card, len(owner.exile)
         self.exile(target)
         if source is not None and not _is_token(card) and len(owner.exile) > before:
             source.exiled_with.append((owner, card))
@@ -4464,12 +4477,58 @@ class Game:
         if source is not None and not _is_token(card) and len(owner.exile) > before:  # not sent to the command zone
             source.linked_exile.append((owner, card))
 
-    def flicker(self, target: Permanent, controller: Seat, when: str, to: str, under_owner: bool) -> None:
+    def transform(self, permanent: Permanent, by_day_night: bool = False) -> None:
+        """A double-faced permanent turns over to its other face (CR 701.28); the same permanent, with its counters, damage and
+        Auras. A permanent with daybound or nightbound is turned over only by the day/night rule. Anything else (a token, a
+        single-faced card, a copy) is left alone."""
+        if not self.on_battlefield(permanent):
+            return
+        front = permanent.transformed_from
+        if front is None and (permanent.card.flip is None or _is_token(permanent.card)):
+            return
+        if not by_day_night and day_night_face(permanent.card) is not None:
+            return
+        seat = self.controller_of(permanent)
+        if front is None:
+            permanent.transformed_from, permanent.card = permanent.card, permanent.card.flip
+        else:
+            permanent.card, permanent.transformed_from = front, None
+        permanent.loyalty = _starting_loyalty(permanent.card) if "Planeswalker" in permanent.card.type_line and permanent.loyalty is None \
+            else permanent.loyalty if "Planeswalker" in permanent.card.type_line else None
+        self.broadcast({"event": "transformed", "seat": seat.index, "card": permanent.card.name})
+        self.trigger("transformed", permanent, seat)
+
+    def _transformed_permanent(self, card: Card, owner: Seat, tapped: bool = False) -> Permanent:
+        """A new permanent that is `card` on its back face: a Saga that comes back as a creature, a werewolf that died."""
+        return Permanent(card.flip, sick=True, tapped=tapped, loyalty=_starting_loyalty(card.flip), owner=owner, transformed_from=card)
+
+    def _update_day_night(self) -> None:
+        """As a turn begins (CR 726.3): day becomes night if the previous turn's player cast no spells, night becomes day if they
+        cast two or more."""
+        if self.day_night is None or self.previous_player is None:
+            return
+        cast = sum(1 for turn, _ in self.previous_player.cast_log if turn == self.turn - 1)
+        if self.day_night == "day" and cast == 0:
+            self._set_day_night("night")
+        elif self.day_night == "night" and cast >= 2:
+            self._set_day_night("day")
+
+    def _set_day_night(self, new: str) -> None:
+        """It becomes day or night: every permanent with the face that goes with the other side turns over."""
+        self.day_night = new
+        self.broadcast({"event": "day_night", "now": new})
+        for seat in self.live_seats():
+            for permanent in list(seat.battlefield):
+                face = day_night_face(permanent.card)
+                if (new == "night" and face == "day") or (new == "day" and face == "night"):
+                    self.transform(permanent, by_day_night=True)
+
+    def flicker(self, target: Permanent, controller: Seat, when: str, to: str, under_owner: bool, transformed: bool = False) -> None:
         """Exile `target`, then return it to the battlefield (or its owner's hand) right away (`when` is "now") or as the
         next end step begins ("end_step"). A token is gone for good; it comes back under `controller`'s control if
         the card says "under your control", otherwise under its owner's."""
         owner = target.owner or self.controller_of(target)
-        card, before = target.card, len(owner.exile)
+        card, before = target.transformed_from or target.card, len(owner.exile)
         self.exile(target)
         if _is_token(card) or len(owner.exile) <= before:  # a token ceases to exist; a commander went to the command zone
             return
@@ -4482,7 +4541,7 @@ class Game:
                 owner.hand.append(card)
                 self.broadcast({"event": "returned_from_exile", "seat": owner.index, "card": card.name, "to": "hand"})
             else:
-                self._return_from_exile(owner if under_owner else controller, card, owner)
+                self._return_from_exile(owner if under_owner else controller, card, owner, transformed)
 
         if when == "now":
             bring_back()
@@ -4490,14 +4549,15 @@ class Game:
             fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
             self.at_end_step.append((fire_turn, bring_back))
 
-    def _return_from_exile(self, seat: Seat, card: Card, owner: Seat | None = None) -> None:
+    def _return_from_exile(self, seat: Seat, card: Card, owner: Seat | None = None, transformed: bool = False) -> None:
         """A card exiled "until" comes back as a new permanent under its owner's control."""
         holder = owner or seat  # the exile zone it is in belongs to its owner, who may not be the one it returns to
         if seat.lost or card not in holder.exile:
             return
         holder.exile.remove(card)
         self.broadcast({"event": "returned_from_exile", "seat": seat.index, "card": card.name})
-        self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=holder))
+        self._enter(seat, self._transformed_permanent(card, holder) if transformed and card.flip is not None
+                    else Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=holder))
 
     def exile_graveyard(self, seat: Seat) -> None:
         cards, seat.graveyard = seat.graveyard, []
@@ -5407,6 +5467,11 @@ class Game:
     # --- helpers -------------------------------------------------------------
 
     def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
+        if (face := day_night_face(permanent.card)) is not None:  # daybound: it is day if it was neither; at night it enters transformed
+            if self.day_night is None:
+                self._set_day_night(face)
+            elif face == "day" and self.day_night == "night" and permanent.card.flip is not None and permanent.transformed_from is None:
+                permanent.transformed_from, permanent.card = permanent.card, permanent.card.flip
         if is_class(permanent.card):  # a Class enters at level 1: it reads as the abilities of that level
             permanent.real_card, permanent.card, permanent.level = permanent.card, class_view(permanent.card, 1), 1
         extra_when_copy = False
@@ -5742,6 +5807,8 @@ class Game:
             self._observe("permanent_leaves", permanent.card, controller, subject=permanent, extra=gone)
             if permanent.real_card is not None:  # a Clone goes to the graveyard as itself
                 permanent.card, permanent.real_card = permanent.real_card, None
+            if permanent.transformed_from is not None:  # a double-faced card is its front face everywhere but the battlefield
+                permanent.card, permanent.transformed_from = permanent.transformed_from, None
             if permanent.reconfigured is not None:  # an attached Equipment creature goes back to being just a card
                 permanent.card, permanent.reconfigured = permanent.reconfigured, None
             if permanent.original is not None:  # a crewed Vehicle goes back to being just a card

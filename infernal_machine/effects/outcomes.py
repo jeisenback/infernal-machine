@@ -1847,6 +1847,30 @@ class ReturnSelfToBattlefield:
 
 
 @dataclass(frozen=True)
+class ReturnTransformed:
+    """Exile this Saga, then return it to the battlefield transformed under your control; or, when this creature dies, return it
+    to the battlefield (tapped) transformed under its owner's control."""
+    dies: bool = False
+    tapped: bool = False
+
+    @property
+    def uses_source(self) -> bool:
+        return not self.dies
+
+    @property
+    def uses_dead_source(self) -> bool:
+        return self.dies
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        if self.dies:
+            game.return_dead_to_battlefield(target, controller, under_owner=True, tapped=self.tapped, transformed=True)
+        else:
+            game.flicker(target, controller, "now", "battlefield", under_owner=False, transformed=True)
+
+
+@dataclass(frozen=True)
 class ReturnSelfAsEnchantment:
     """The Enduring cycle: "When this creature dies, if it was a creature, return it to the battlefield under its owner's control.
     It's an enchantment." (not a creature any more, so it can't die this way again)"""
@@ -4355,6 +4379,16 @@ class BecomePrepared:
 
 
 @dataclass(frozen=True)
+class Transform:
+    """ "Transform this creature." A daybound permanent only turns over with the day/night rule (see Game.transform)."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.transform(target)
+
+
+@dataclass(frozen=True)
 class BecomeRenowned:
     """Renown: "... and it becomes renowned." It won't trigger again (the condition "if it isn't renowned")."""
     uses_source = True
@@ -5432,6 +5466,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield tapped and attacking that opponent\.)"),
      lambda m: PutAttackingFromHand(tuple(re.findall(r"[A-Z][a-z]+", m[1])))),
     (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
+    (re.compile(rf"transform {_SELF}\.", re.I), lambda m: Transform()),
+    (re.compile(rf"exile {_SELF}, then return it to the battlefield transformed under your control\.", re.I), lambda m: ReturnTransformed()),
+    (re.compile(rf"return it to the battlefield( tapped)? and transformed under (?:its owner's|your) control\.", re.I),
+     lambda m: ReturnTransformed(dies=True, tapped=m[1] is not None)),
     (re.compile(r"conjure a card named (.+?) onto the battlefield\.", re.I), lambda m: Conjure(m[1])),
     (re.compile(r"tap enchanted creature\.", re.I), lambda m: TapEnchanted()),
     (re.compile(r"tap enchanted creature\. It becomes unprepared\.", re.I), lambda m: TapEnchanted(unprepare=True)),
@@ -6101,7 +6139,7 @@ class Condition:
     """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
     kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
     #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "not_renowned", "subject_greater", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
+    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "not_renowned", "no_spells_last_turn", "two_spells_last_turn", "day", "night", "subject_greater", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
@@ -6161,6 +6199,9 @@ _CONDITIONS = [
     (re.compile(rf"{_SELF} isn't prepared"), lambda m: Condition("not_prepared")),
     (re.compile(r"(?:it|that creature) has greater power or toughness than (?:this creature|CARDNAME)"), lambda m: Condition("subject_greater")),
     (re.compile(rf"{_SELF} isn't renowned"), lambda m: Condition("not_renowned")),
+    (re.compile(r"no spells were cast last turn"), lambda m: Condition("no_spells_last_turn")),
+    (re.compile(r"a player cast two or more spells last turn"), lambda m: Condition("two_spells_last_turn")),
+    (re.compile(r"it's (day|night)"), lambda m: Condition(m[1])),
     (re.compile(rf"{_SELF} is tapped"), lambda m: Condition("source_tapped")),
     (re.compile(r"you control no other ([A-Za-z]+)"), lambda m: Condition("control_no_other", what=_singular(m[1]))),
     (re.compile(r"you cast it"), lambda m: Condition("cast_it")),

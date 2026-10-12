@@ -354,6 +354,12 @@ def toxic_of(card: Card) -> int:
     return sum(int(m[1]) for line in rules_lines(card) for part in line.split(", ") if (m := _TOXIC.fullmatch(part)))
 
 
+def day_night_face(card: Card) -> str | None:
+    """"day" for a card with Daybound, "night" for one with Nightbound (a permanent that flips with the day/night rule)."""
+    lines = rules_lines(card)
+    return "day" if "Daybound" in lines else "night" if "Nightbound" in lines else None
+
+
 _DREDGE = re.compile(r"Dredge (\d+)", re.I)
 
 

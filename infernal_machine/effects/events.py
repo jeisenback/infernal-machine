@@ -63,6 +63,7 @@ declare("ally_attacks", re.compile(r"Whenever a creature you control attacks, (.
 declare("attacked", re.compile(r"Whenever a creature attacks you, (.+)", re.I), to="you", about_creature=True)
 declare("attacked_or_walker", re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),
         to="you", about_creature=True)
+declare("transformed", re.compile(rf"When(?:ever)? {_SELF} transforms into (?:{_SELF}|[A-Z][^,]*), (.+)", re.I))
 declare("enters_untapped", re.compile(rf"When {_SELF} enters untapped, (.+)", re.I))
 declare("leaves", re.compile(rf"When(?:ever)? {_SELF} leaves the battlefield, (.+)", re.I))
 declare("tokens_created", re.compile(r"Whenever you create one or more creature tokens, (.+)", re.I), to="you")

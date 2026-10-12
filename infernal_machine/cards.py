@@ -40,6 +40,7 @@ class Card:
     conjured: bool = False  # Alchemy: made during the game, so not from anyone's starting deck
     alternate: "Card | None" = None  # the other half that is cast from the hand instead: an Adventure, a split half, a modal back spell
     other_face: str = ""  # the name of a second face the engine can't play (a back that is a permanent, a meld)
+    flip: "Card | None" = None  # a transforming double-faced card's back face, which the permanent becomes when it transforms
 
     def __post_init__(self) -> None:
         """Changeling is every creature type in every zone, so its type line lists them all (and everything that looks for a
@@ -80,6 +81,15 @@ class Card:
         faces = data.get("card_faces", [])
         alternate = None
         other_face = ""
+        flip = None
+        if data.get("layout") == "transform" and len(faces) == 2:
+            second = faces[1]  # its mana value is the front face's, and it has no mana cost of its own
+            flip = cls(name=second["name"], cmc=float(data.get("cmc", 0)), type_line=second.get("type_line", ""),
+                       oracle_text=second.get("oracle_text", ""), colors=tuple(second.get("colors", [])),
+                       power=second.get("power"), toughness=second.get("toughness"), loyalty=second.get("loyalty"),
+                       color_identity=tuple(data.get("color_identity", [])),
+                       produced_mana=_face_mana(second, tuple(data.get("produced_mana", []))),
+                       commander_legal=data.get("legalities", {}).get("commander") == "legal", scryfall_id=data.get("id"))
         if data.get("layout") == "meld":
             other_face = "the melded card"
         elif len(faces) == 2 and (data.get("layout") in ("split", "adventure") or data.get("layout") == "modal_dfc" and back is None):
@@ -113,6 +123,7 @@ class Card:
             prepare=prepare,
             alternate=alternate,
             other_face=other_face,
+            flip=flip,
         )
 
     @classmethod
@@ -121,7 +132,8 @@ class Card:
         back = cls.from_dict(data["back"]) if data.get("back") else None
         prepare = cls.from_dict(data["prepare"]) if data.get("prepare") else None
         alternate = cls.from_dict(data["alternate"]) if data.get("alternate") else None
-        return cls(**{**data, **tuples, "back": back, "prepare": prepare, "alternate": alternate})
+        flip = cls.from_dict(data["flip"]) if data.get("flip") else None
+        return cls(**{**data, **tuples, "back": back, "prepare": prepare, "alternate": alternate, "flip": flip})
 
     def to_dict(self) -> dict:
         return asdict(self)

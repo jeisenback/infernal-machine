@@ -31,6 +31,7 @@ SUPPORTED_KEYWORDS = {
     "split second",  # nothing but mana abilities can be done while the spell is on the stack: see Game.legal_actions
     "rebound",  # exiled as it resolves from the hand, and cast free at the next upkeep: see Game._rebound
     "exalted",
+    "daybound", "nightbound",  # the day/night rule: see Game._update_day_night
     "decayed",  # can't block; sacrificed at end of combat when it attacks
     "changeling",  # every creature type: Card lists them all in its type line
     "convoke", "improvise",  # creatures (artifacts) tapped to help pay: see Game._convoke_sources
@@ -105,6 +106,8 @@ def unsupported_lines(card: Card) -> list[str]:
         problems.append(SECOND_FACE)
     if card.alternate is not None:  # the other half is cast from the hand, so its text has to work too
         problems += unsupported_lines(card.alternate)
+    if card.flip is not None:  # a transformed permanent plays as the back face, so its text has to work too
+        problems += [f"{card.flip.name}: {line}" for line in unsupported_lines(card.flip)]
     if card.prepare is not None:  # a prepared creature casts a copy of this half, so its text has to work too
         problems += [f"{card.prepare.name}: {line}" for line in unsupported_lines(card.prepare)]
     return problems
