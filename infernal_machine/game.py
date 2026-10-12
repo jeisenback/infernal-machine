@@ -26,7 +26,7 @@ from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_quali
 from .combat import Attack, Combat
 from .effects import (EVENTS, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, Cascade, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, Draw, GainLife, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
+                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, non_hand_cost_reduction, aura_controls, saga_chapters, entwine_cost, buyback_cost, buyback_other_cost, escalate_cost, granted_abilities, granted_mana, group_mana_grants, with_granted_mana, additional_land_mana, untaps_in_other_untap_steps, suspend_of, counter_mana, x_spell_discount, clone_extra_counters, makes_mana_by_power, chooses_creature_type, clone_is_artifact, granted_land_mana, mana_among_legendary, mana_of_imprinted, enters_by_discarding_land, reduced_by_greatest_power, chosen_cost_reductions, is_chosen_type_itself, restricted_mana, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Demonstrate, Backup, encore_cost, unearth_cost, damage_prevention, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, additional_costs, x_limited_by_players, alternative_costs, cost_reductions, cycling, hand_abilities, strive_cost, chooses_color, color_choice_excludes, chosen_color_mana, counter_removal_mana, may_skip_untap, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, reflected_mana, mana_ability_needs_no_tap,
                       affinity_for, cumulative_upkeep, devour, echo_cost, reanimation_aura, replicate_cost, storm_kind, CopySpellTimes, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, mana_condition, mana_per_count, mana_threshold,
                       no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       overloaded_effects, SacrificeSelf,
@@ -68,6 +68,7 @@ CAST_DISTURB = "Cast with disturb: "  # followed by the card's name: its back fa
 CAST_FORETOLD = "Cast foretold: "  # followed by the card's name: cast from exile for its foretell cost, on a later turn
 FORETELL_COST = "{2}"
 NINJUTSU = "Ninjutsu: "  # followed by the card's name: return an unblocked attacker, and it comes in attacking in its place
+GIFT_PROMPT = "Promise a gift with "  # followed by the card's name; options: no gift, or one opponent to give it to
 NINJUTSU_PROMPT = "Return which unblocked attacker to hand for ninjutsu with "  # followed by the card's name
 CAST_PARAGON = "Cast from graveyard (once a turn): "  # Serra Paragon
 PLAY_PARAGON = "Play land from graveyard: "
@@ -356,6 +357,7 @@ class StackItem:
     from_hand: bool = False  # cast from its owner's hand (rebound only works then)
     face_down: tuple[str, "MorphCost"] | None = None  # cast face down: (Morph, Megamorph or Disguise; the cost to turn it face up)
     shuffle_after: bool = False  # Green Sun's Zenith: shuffled into its owner's library once it has resolved
+    gift: "Seat | None" = None  # the opponent promised a gift as it was cast
     foretold: bool = False  # cast from exile after being foretold ("If this spell was foretold")
 
     @property
@@ -2255,6 +2257,8 @@ class Game:
         if alternative and alternative.overload:  # every "target" is "each": no targets
             effects = overloaded_effects(card) or effects
         kicked, kickers = (0, ()) if graveyard else self._choose_kicks(seat, card, effects, from_command_zone, alternative)
+        gift = None if graveyard or prepared is not None or copy else self._choose_gift(seat, card, effects)
+        kicked = kicked or int(gift is not None)  # a promised gift is a kick that costs nothing
         replicated = 0 if graveyard or prepared is not None else self._choose_replicate(seat, card, from_command_zone, kickers, extra, alternative)
         if replicated:
             extra += replicate_cost(card) * replicated
@@ -2324,7 +2328,7 @@ class Game:
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back, picked)
         sacrificed = self._sacrifice_for_copies(seat, card)
-        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, bought_back=bought_back, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
+        item = StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
                          foretold=graveyard is not None and graveyard.word == "Foretell", from_graveyard=graveyard is not None and graveyard.word != "Foretell",
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
@@ -2404,6 +2408,29 @@ class Game:
                 and self._payment(seat, card, from_command_zone, alternative=alternative, kickers=kickers,
                                   extra=extra + (mana or "")) is not None
                 and seat.player.choose(BUYBACK_PROMPT + card.name, YES_NO) == 0)
+
+    def _choose_gift(self, seat: Seat, card: Card, effects: list | None) -> Seat | None:
+        """Gift: the caster may promise an opponent the gift as the spell is cast (only if what a promised gift adds can be done).
+        Returns that opponent, or None."""
+        if gift_of(card) is None:
+            return None
+        opponents = [o for o in self.opponents(seat) if not o.lost]
+        if not opponents or not self._targets_exist(seat, kicked_effects(effects, 1) or [], source_qualities(card)):
+            return None
+        pick = seat.player.choose(GIFT_PROMPT + card.name, ["Don't promise a gift"] + [f"Give it to {o.name} (seat {o.index})" for o in opponents])
+        return opponents[pick - 1] if pick else None
+
+    def _give_gift(self, item: StackItem) -> None:
+        """The promised gift reaches the opponent: a card drawn, a token made (Treasure, Food, a tapped Fish, an 8/8 Octopus) or an extra turn."""
+        to, kind = item.gift, gift_of(item.card)
+        self.broadcast({"event": "gift", "seat": item.controller.index, "to": to.index, "gift": kind})
+        if kind == "card":
+            self.draw(to, 1)
+        elif kind == "extra turn":
+            self.extra_turns.append(to.index)
+        else:
+            token = {"Treasure": TREASURE, "Food": FOOD, "tapped Fish": FISH, "Octopus": OCTOPUS}[kind]
+            self.create_tokens(to, token, 1, tapped=kind == "tapped Fish")
 
     def _choose_kicks(self, seat: Seat, card: Card, effects: list | None, from_command_zone: bool,
                       alternative: AlternativeCost | None) -> tuple[int, tuple[str, ...]]:
@@ -2516,6 +2543,8 @@ class Game:
             if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
                 self._queue(EVOKE_SACRIFICE, entering, seat)
             self._enter(seat, entering, x=item.x)
+            if item.gift is not None:  # "when it enters, they draw a card"
+                self._give_gift(item)
             if door is not None:
                 self._door_unlocked(entering, door)
             if item.warped:  # exiled as the next end step begins, then it may be cast from exile on a later turn
@@ -2530,6 +2559,8 @@ class Game:
             if not item.is_copy:
                 self._finish_spell(item)
             return
+        if item.gift is not None:  # "they draw a card before its other effects"
+            self._give_gift(item)
         resolved = self._apply_effects(item)  # fizzled or not, the spell goes to the graveyard (or exile, after flashback)
         if item.suspend_after and not item.is_copy:  # "Exile it with three time counters on it"
             seat.exile.append(card)
@@ -2619,6 +2650,8 @@ class Game:
         self._enter(seat, Permanent(card, sick=True, attached_to=target, kicked=item.kicked, kickers=item.kickers,
                                     transformed_from=item.whole if item.whole is not None and item.whole.flip is card else None))
         self.broadcast({"event": "attached", "card": card.name, "to": target.card.name})
+        if item.gift is not None:
+            self._give_gift(item)
 
     def return_to_hand_from_graveyard(self, card: Card) -> None:
         """Put `card` from whichever graveyard it is in into its hand (it may already be gone)."""
