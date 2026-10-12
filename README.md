@@ -860,6 +860,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     artifact that goes to a graveyard is announced as dying), and "..., if you've gained N or more life this turn" is read after the effect.
     Not understood: Warp costs that are not mana (Timeline Culler), Warp-Strike, and the other abilities of the Warp cards that have no
     template yet (Memorial Team Leader, Starwinder, Quantum Riddler, ...).
+  - Gift (`tests/test_gift.py`): "Gift a card / a Treasure / a Food / a tapped Fish / an Octopus / an extra turn" asks as the spell is
+    cast whether to promise it (`Game._choose_gift`: the first option is no gift, then one per opponent; only offered when what a
+    promised gift adds can be done). A promised gift is a kick that costs nothing (`kicked` is 1), so the card's text is read
+    with "the gift was promised" as "this spell was kicked": `IfKicked` adds an effect (with its targets), `KickedReplaces` stands in for
+    the effect before it ("instead ..."), `IfNotKicked` is "if the gift wasn't promised". The opponent gets the gift before the spell's
+    other effects, or as a permanent enters (`Game._give_gift`). Not understood: "that creature's controller", a promised gift inside a
+    sentence ("... if the gift was promised."), "instead" with two cards from a graveyard, Kitnap, Octomancer, Starforged Sword.
   - `effects.py` is now the `infernal_machine/effects/` package, one module per purpose (`common`, `targets`, `outcomes`,
     `statics`, `costs`, `triggers`, `activated`, `mana`, `spells`), each importing only from the ones before it; `from
     infernal_machine.effects import ...` still works, so the game and the tests did not change. Every reader gives the same

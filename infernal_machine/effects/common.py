@@ -73,13 +73,18 @@ def _expand_keywords(text: str) -> str:
     return "\n".join(lines)
 
 
+def _gift_wording(text: str) -> str:
+    """A promised gift works like a free kicker: "if the gift was promised" reads as "if this spell was kicked"."""
+    return text.replace("the gift was promised", "this spell was kicked").replace("the gift wasn't promised", "this spell wasn't kicked")
+
+
 def _rules_text(card: Card) -> str:
     """Oracle text without reminder text, with the card's own name as CARDNAME.
 
     Legendary cards often call themselves by their short name ("Omnath" for
     "Omnath, Locus of Rage", "Kaalia" for "Kaalia of the Vast"), and double-faced cards by their front face's name.
     """
-    text = _expand_keywords(_REMINDER.sub("", card.oracle_text))
+    text = _gift_wording(_expand_keywords(_REMINDER.sub("", card.oracle_text)))
     front = card.name.split(" // ")[0]
     short = front.split(",")[0]
     if "," not in front and "Legendary" in card.type_line and " " in front and front.split(" ")[0] not in ("The", "A", "An"):

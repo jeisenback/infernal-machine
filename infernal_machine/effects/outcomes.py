@@ -2143,6 +2143,12 @@ FOOD = Card(name="Food", type_line="Token Artifact — Food",
             oracle_text="{2}, {T}, Sacrifice this artifact: You gain 3 life.")
 
 
+FISH = Card(name="Fish", type_line="Token Creature \u2014 Fish", colors=("U",), power="1", toughness="1")
+
+
+OCTOPUS = Card(name="Octopus", type_line="Token Creature \u2014 Octopus", colors=("U",), power="8", toughness="8")
+
+
 HEARTWOOD = Card(name="Heartwood", type_line="Token Artifact — Heartwood", oracle_text="{T}: Add {R} or {G}.",
                  colors=("R", "G"))
 
@@ -3291,6 +3297,12 @@ class _ItGains:
 
 
 @dataclass(frozen=True)
+class _ThatAlsoGains:
+    """ "That creature also gains indestructible until end of turn.": the creature a pump just gave +2/+2 (see _merge_three_way)."""
+    keywords: frozenset[str]
+
+
+@dataclass(frozen=True)
 class _TheyGain:
     """ "Those creatures gain flying until end of turn." / "They gain trample ..." after counters on several creatures."""
     keywords: frozenset[str]
@@ -3581,6 +3593,11 @@ def _merge_conditional(effects: list) -> list | None:
                 merged[-1] = dataclasses.replace(merged[-1], grant=effect.keywords)
             else:
                 merged.append(PumpSource(Modifier(keywords=effect.keywords)))
+        elif isinstance(effect, _ThatAlsoGains):
+            if not (merged and isinstance(merged[-1], Pump)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], modifier=dataclasses.replace(
+                merged[-1].modifier, keywords=merged[-1].modifier.keywords | effect.keywords))
         elif isinstance(effect, _TheyGain):
             if not (merged and isinstance(merged[-1], (PutCountersOnEach, PutCountersOnEachUpToX))):
                 return None
@@ -4889,6 +4906,23 @@ class KickedInstead:
     value: int | str
 
 
+@dataclass(frozen=True)
+class IfNotKicked:
+    """ "If the gift wasn't promised, you lose 2 life.": the effect happens only if the spell was not kicked (or its gift not promised)."""
+    effect: Any
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None and not game.resolving_item.kicked:
+            self.effect.resolve(game, controller, target)
+
+
+@dataclass(frozen=True)
+class KickedReplaces:
+    """ "If the gift was promised, instead counter target spell.": when kicked (or its gift promised) these effects stand in for the
+    effect just before."""
+    effects: tuple
+
+
 _KICKED_INSTEAD = [
     (re.compile(rf"if this spell was kicked, {_SELF} deals {_N} damage instead\.", re.I), "amount"),
     (re.compile(rf"if this spell was kicked, create {_N} of those tokens instead\.", re.I), "count"),
@@ -4896,9 +4930,22 @@ _KICKED_INSTEAD = [
 ]
 
 
+def _kicked_replaces(rest: str) -> KickedReplaces | None:
+    effects = _parse(_split_sentences(rest[:1].upper() + rest[1:]))
+    return KickedReplaces(tuple(effects)) if effects else None
+
+
+def _not_kicked(rest: str) -> IfNotKicked | None:
+    effects = _parse([rest[:1].upper() + rest[1:]])
+    return IfNotKicked(effects[0]) if effects and len(effects) == 1 else None
+
+
 def _kicked(m: re.Match) -> IfKicked | None:
     kicker, rest = m[1] or "", m[2]
-    effects = _parse([rest[:1].upper() + rest[1:]])
+    sentence = rest[:1].upper() + rest[1:]
+    effects = _parse([sentence])
+    if not effects and isinstance(also := _template(sentence), _ThatAlsoGains):  # joins the pump before it once kicked
+        return IfKicked(also, kicker)
     return IfKicked(effects[0], kicker) if effects else None
 
 
@@ -4909,12 +4956,21 @@ def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] =
         return None
     result = []
     for effect in effects:
-        if isinstance(effect, KickedInstead):
+        if isinstance(effect, KickedReplaces):
+            if kicked:
+                result[-1:] = list(effect.effects)
+        elif isinstance(effect, IfNotKicked):
+            if not kicked:
+                result.append(effect.effect)
+        elif isinstance(effect, KickedInstead):
             if kicked:
                 result[-1] = replace(result[-1], **{effect.field: effect.value})
         elif isinstance(effect, IfKicked):
             if kicked and (not effect.kicker or effect.kicker in kickers):
-                result.append(effect.effect)
+                if isinstance(effect.effect, _ThatAlsoGains):
+                    result[-1] = replace(result[-1], modifier=replace(result[-1].modifier, keywords=result[-1].modifier.keywords | effect.effect.keywords))
+                else:
+                    result.append(effect.effect)
         else:
             result.append(effect)
     return result
@@ -4942,10 +4998,11 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
 _PLURAL_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments": "enchantment",
                  "planeswalkers": "planeswalker", "permanents": "permanent", "nonland permanents": "nonland permanent",
                  "creature tokens": "creature token", "lands": "land", "artifacts or enchantments": "artifact or enchantment",
-                 "artifacts and/or creatures": "artifact or creature"}
+                 "artifacts and/or creatures": "artifact or creature",
+                 "artifacts and/or enchantments": "artifact or enchantment"}
 
 
-_PLURAL_KIND = (r"(creature tokens|nonland permanents|artifacts or enchantments|artifacts and/or creatures|creatures|artifacts|enchantments|planeswalkers"
+_PLURAL_KIND = (r"(creature tokens|nonland permanents|artifacts or enchantments|artifacts and/or enchantments|artifacts and/or creatures|creatures|artifacts|enchantments|planeswalkers"
                 r"|permanents|lands)( an opponent controls| you don't control| you control| your opponents control)?")
 
 
@@ -4977,6 +5034,8 @@ _RETURN_UP_TO_DAMAGE = re.compile(r"return target creature card with mana value 
 
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
+    (re.compile(r"if this spell was kicked, instead (.+)", re.I), lambda m: _kicked_replaces(m[1])),
+    (re.compile(r"if this spell wasn't kicked, (.+)", re.I), lambda m: _not_kicked(m[1])),
     (re.compile(rf"if this spell was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?, (.+)", re.I), _kicked),
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
     (re.compile(r"draw an additional card\.", re.I), lambda m: Draw(1)),
@@ -5019,6 +5078,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"exile each {_PERMANENT_KIND}\.", re.I), lambda m: ExileAll(m[1].lower())),
     (re.compile(rf"return each {_PERMANENT_KIND} to its owner's hand\.", re.I), lambda m: ReturnAllToHand(m[1].lower())),
     (re.compile(rf"destroy {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Destroy, m)),
+    (re.compile(rf"destroy (two|three) target {_PLURAL_KIND}\.", re.I),
+     lambda m: [Destroy(_PLURAL_KINDS[m[2].lower()] + _suffix(m[3]), distinct=n > 0) for n in range(_count(m[1]))]),
     (re.compile(rf"destroy up to one target {_PERMANENT_KIND}\.", re.I),
      lambda m: Destroy(m[1].lower(), optional_target=True)),
     (re.compile(r"counter target spell if it's (white|blue|black|red|green)\.", re.I),
@@ -5123,6 +5184,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _PutFromAmongThem(_card_kind(m[1]))),
     (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),
     (re.compile(rf"it gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ItGains(_keyword_list(m[1]))),
+    (re.compile(rf"that creature also gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ThatAlsoGains(_keyword_list(m[1]))),
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
     (re.compile(rf"if (.+), draw {_N} cards instead\.", re.I),
      lambda m: _InsteadDraw(c, _count(m[2])) if (c := _condition(m[1])) else None),
@@ -6071,6 +6133,8 @@ def _parse(sentences: list[str]) -> list | None:
     for i, effect in enumerate(effects):
         if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
             return None  # "instead" has to change the effect just before it
+        if isinstance(effect, KickedReplaces) and not i:
+            return None
     merged = _merge_no_regen(effects)
     for merge in (_merge_three_way, _merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_conditional, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_new_target, _merge_stun_self, _merge_stun, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
         merged = merge(merged)
