@@ -1051,6 +1051,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     controller draws a card.", "Return target permanent card with mana value 3 or less from your graveyard to the battlefield with an
     indestructible counter on it." for Season of the Burrow); Season of the Bold (a delayed trigger) is not read, and neither is
     "Choose X". A creature with a keyword counter (flying, indestructible, lifelink ...) has that keyword (CR 122.1b).
+  - **Spree** ("+ {1}{U} — Counter target spell."): you choose one or more modes, each once, and pay the mana cost plus the cost of every mode you chose; a mode you could not pay for on top of the ones already chosen is not offered, and the modes happen in printed order (CR 702.172). It works for a card whose every mode is read: Three Steps Ahead, Insatiable Avarice, Explosive Derailment, Phantom Interference and Unfortunate Accident. The others wait on one mode each (Return the Favor copies an ability, Requisition Raid puts a counter on each creature "target player controls", Shifting Grift exchanges control ...).
   - **Entwine {cost}:** offered (yes or no) when every mode has a target and the extra cost can be paid; paying it
     does all the modes. **Escalate {cost}:** each mode beyond the first adds the cost, and a mode that would cost
     more than the caster has isn't offered. Only mana costs are understood ("Escalate\u2014Discard a card" leaves
