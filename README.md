@@ -1485,6 +1485,27 @@ spells plus damage dealt by the last turn) and reports:
 It cannot see what a card's text does (removal, card draw, counterspells, life gain), so a low score means "does little in a
 goldfish", not "bad card". More games (`--games 2000`) tighten the error bars; 500 games of a 100-card deck takes about 30 seconds.
 
+## Matchups
+
+```
+python -m infernal_machine.matchup DECKLIST OPPONENT [OPPONENT ...] [--games 40] [--pod 4] [--workers N] [--time-limit 120]
+```
+
+`matchups(focus, opponents, games, pod, seed, max_turns, time_limit, workers)` in `matchup.py` plays `BotPlayer` games and
+reports, per opponent, wins-losses-draws, the win rate with its 95% (Wilson) interval, average game length, the win rate
+going first and going second, and how the focus deck lost (life, commander damage, poison, empty library). By default each
+opponent gets `games` duels with the focus deck alternating seats; with `--pod 4` each game seats the focus deck with three
+opponents drawn at random and the win rate is read against a fair share of 25%. Games run in parallel (`--workers`, default
+half the CPUs). Standard decks need the Standard game mode (see #354).
+
+Across all games it also reports how often the focus deck stumbled on lands (two or fewer after its first four turns) or had
+the lands but cast at most one spell, and how it did when that happened. A game that crashes or passes `--time-limit` is
+counted apart and the first error is shown, so engine bugs and runaway boards show up instead of hanging the run.
+
+The bots decide everything, so a deck that needs careful play (combos, holding up mana, politics) is under-rated and one the
+bot plays well is over-rated. Compare builds of one deck against the same opponents and seed instead of reading one win rate
+as the deck's strength; 40 games per opponent only separates differences of about 25 points.
+
 ## Playing over TCP
 
 **Server** (`python -m infernal_machine.server`) hosts one table:
