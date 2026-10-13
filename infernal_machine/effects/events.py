@@ -58,6 +58,7 @@ declare("targeted", re.compile(rf"When(?:ever)? {_SELF} becomes the target of an
 declare("cast_self", re.compile(r"When you cast this spell, (.+)", re.I))  # goes on the stack above the spell (Game._cast)
 declare("dies", re.compile(rf"When(?:ever)? {_SELF} dies, (.+)", re.I))
 declare("attacks", re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I))
+declare("attacks_alone", re.compile(rf"Whenever {_SELF} attacks alone, (.+)", re.I))  # Grunn, the Lonely King
 declare("attacks_player", re.compile(rf"Whenever {_SELF} attacks an opponent, (.+)", re.I))
 declare("blocks", re.compile(rf"Whenever {_SELF} blocks, (.+)", re.I))
 declare("becomes_blocked", re.compile(rf"Whenever {_SELF} becomes blocked, (.+)", re.I))

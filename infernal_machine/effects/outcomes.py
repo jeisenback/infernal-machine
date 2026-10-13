@@ -1183,19 +1183,26 @@ class CopyChosenPermanent:
 @dataclass(frozen=True)
 class DoubleStats:
     """ "Double target creature's power and toughness until end of turn." / "Double the power of each creature you control until end of
-    turn." / "Double this creature's power until end of turn.": it gets +P/+T equal to its power and toughness as this resolves, and
-    several creatures are doubled together."""
+    turn." / "Double this creature's power until end of turn." / "double target creature's power X times": it gets +P/+T equal to its
+    power and toughness as this resolves (again for each time), and several creatures are doubled together."""
     power: bool
     toughness: bool
     target: str | None = None  # "creature", "creature you control"
     each: bool = False  # each creature you control
+    subtype: str = ""  # "each Dragon you control" (Thrakkus the Butcher)
+    times: Quantity = 1  # "X times" (Exponential Growth)
     uses_source: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        creatures = [p for p in controller.battlefield if "Creature" in p.card.type_line] if self.each else [target] if target is not None else []
-        doubled = [(p, game.power(p) if self.power else 0, (game.toughness(p) or 0) if self.toughness else 0) for p in creatures]
-        for permanent, power, toughness in doubled:
-            game.modify_until_end_of_turn(permanent, Modifier(power, toughness))
+        creatures = ([p for p in controller.battlefield if "Creature" in p.card.type_line
+                      and (not self.subtype or self.subtype in p.card.type_line.partition("\u2014")[2].split())]
+                     if self.each else [target] if target is not None else [])
+        for _ in range(game.amount(self.times)):
+            doubled = [(p, game.power(p) if self.power else 0, (game.toughness(p) or 0) if self.toughness else 0) for p in creatures]
+            for permanent, power, toughness in doubled:
+                game.modify_until_end_of_turn(permanent, Modifier(power, toughness))
+        if target is not None and not self.each and game.resolving_item is not None and game.resolving_item.carried is None:
+            game.resolving_item.carried = target  # "Then it fights ...": the creature just doubled
 
 
 @dataclass(frozen=True)
@@ -3692,7 +3699,7 @@ def _merge_conditional(effects: list) -> list | None:
                 return None
             merged[-1] = dataclasses.replace(merged[-1], mana_each=effect.options)
         elif isinstance(effect, Fight) and effect.optional_target:  # "Then it fights ...": it is the creature just pumped
-            if not (merged and isinstance(merged[-1], PumpX)):
+            if not (merged and isinstance(merged[-1], (PumpX, DoubleStats))):
                 return None
             merged.append(effect)
         elif isinstance(effect, _PutFromAmongThem):
@@ -5874,6 +5881,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: CopyChosenPermanent("artifact or creature you control")),
     (re.compile(r"double the (power|power and toughness) of each creature you control until end of turn\.", re.I),
      lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), each=True)),
+    (re.compile(r"double the (power|power and toughness) of each ([A-Z][a-z]+) you control until end of turn\.", re.I),
+     lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), each=True, subtype=m[2])),
+    (re.compile(rf"until end of turn, double target {_PERMANENT_KIND}'s power X times\.", re.I),
+     lambda m: DoubleStats(True, False, target=m[1].lower(), times="X")),
     (re.compile(rf"double the (power|power and toughness) of target {_PERMANENT_KIND} until end of turn\.", re.I),
      lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), target=m[2].lower())),
     (re.compile(rf"double target {_PERMANENT_KIND}'s (power|power and toughness) until end of turn\.", re.I),

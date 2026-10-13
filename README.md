@@ -332,7 +332,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | Target creature gets +N/+N (and gains keywords) / gains keywords until end of turn. | Giant Growth |
 | Creatures you control (or your opponents control) get +N/+N (and gain keywords) until end of turn. | |
 | Target creature gets +X/+X (-X/-X, +X/+0, ...) until end of turn, for each ... / where X is ... | |
-| Double target creature's (this creature's, each creature you control's) power (and toughness) until end of turn: it gets +P/+T equal to its current size, the creatures of "each" together. "At the beginning of each combat, ..." happens in every player's combat. | Unleash Fury, Unnatural Growth |
+| Double target creature's (this creature's, each creature you control's, each Dragon you control's) power (and toughness) until end of turn, once or X times: it gets +P/+T equal to its current size, the creatures of "each" together; "Then it fights up to one target creature" follows it. "At the beginning of each combat, ..." happens in every player's combat, and "Whenever this creature attacks alone" only when it is the sole attacker. | Unleash Fury, Unnatural Growth, Grunn, Thrakkus, Exponential Growth, Dragonclaw Strike |
 | Target creature becomes a 4/4 Dragon until end of turn. / has base power and toughness 0/1 until end of turn. | |
 | Put N <kind> counters on target <permanent>. / Remove N (all) <kind> counters from target <permanent>. / Remove all counters from target <permanent>. | |
 | Double the number of +1/+1 counters on each creature you control. | |
