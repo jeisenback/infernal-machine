@@ -1035,6 +1035,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Reckoning): you make that many picks, and a mode may be picked again. A mode with no legal target is not offered,
     but one possible mode is enough to fill all the picks; each pick chooses its own targets. "Choose X" and the
     pawprint Seasons ("worth of modes") are not read.
+  - **Pawprint modes** ("Choose up to five {P} worth of modes. You may choose the same mode more than once.", a Season): each
+    mode costs the pawprints written before it; you keep picking until the five are spent or you say "Done choosing modes", and a
+    mode that no longer fits is not offered. Season of Gathering, Season of Loss and Season of Weaving work ("Choose artifact or
+    enchantment. Destroy all permanents of the chosen type.", "Choose an artifact or creature you control. Create a token that's a
+    copy of it.", "Draw a card for each creature that died under your control this turn."); Season of the Bold (a delayed trigger)
+    and Season of the Burrow are not read, and neither is "Choose X".
   - **Entwine {cost}:** offered (yes or no) when every mode has a target and the extra cost can be paid; paying it
     does all the modes. **Escalate {cost}:** each mode beyond the first adds the cost, and a mode that would cost
     more than the caster has isn't offered. Only mana costs are understood ("Escalate\u2014Discard a card" leaves

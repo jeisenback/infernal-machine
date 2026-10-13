@@ -7,7 +7,7 @@ import dataclasses
 from ..cards import Card
 
 from .common import _split_sentences, rules_lines
-from .outcomes import _MODAL_COMMANDER, _MODAL_HEADER, _MODAL_REPEAT, _SPELL_MASTERY, _parse, _parse_modal
+from .outcomes import _MODAL_COMMANDER, _MODAL_HEADER, _MODAL_PAWPRINTS, _MODAL_REPEAT, _SPELL_MASTERY, _parse, _parse_modal, _parse_pawprint_modal
 from .activated import _ACTIVATED, _channel_body, _cost_fields
 from .costs import is_casting_cost_line
 from .statics import is_replacement_line
@@ -20,6 +20,8 @@ def spell_effects(card: Card) -> list | None:
              and not is_replacement_line(line)]  # Nexus of Fate: its own replacement effect is not a step of the spell
     if lines and (m := _MODAL_HEADER.fullmatch(lines[0])):
         return _parse_modal(m[1].lower(), lines[1:])
+    if lines and (m := _MODAL_PAWPRINTS.fullmatch(lines[0])):
+        return _parse_pawprint_modal(m[1].lower(), lines[1:])
     if lines and (m := _MODAL_REPEAT.fullmatch(lines[0])):
         return _parse_modal(m[1].lower(), lines[1:], repeat=True)
     if lines and _MODAL_COMMANDER.fullmatch(lines[0]):

@@ -609,6 +609,7 @@ class Modal:
     commander_both: bool = False  # "If you control a commander as you cast this spell, you may choose both instead."
     optional: bool = False  # "you may choose two": the controller may choose none
     repeat: bool = False  # "You may choose the same mode more than once." (a Confluence): `max` picks, each mode any number of times
+    costs: tuple[int, ...] = ()  # pawprint modes (a Season): what each mode costs of the `max` pawprints to spend
 
 
 _MODAL_COUNTS = {"one": (1, 1), "up to one": (0, 1), "two": (2, 2), "three": (3, 3), "one or both": (1, 2), "one or more": (1, 0)}
@@ -623,12 +624,37 @@ _MODAL_REPEAT = re.compile(r"Choose (three|four|five|up to four)\. You may choos
 _REPEAT_COUNTS = {"three": (3, 3), "four": (4, 4), "five": (5, 5), "up to four": (0, 4)}
 
 
+_MODAL_PAWPRINTS = re.compile(r"Choose up to (one|two|three|four|five) \{P\} worth of modes\. You may choose the same mode more than once\.")
+
+
+_PAWPRINT_MODE = re.compile(r"((?:\{P\})+) \u2014 (.+)")
+
+
+_PAWPRINT_COUNTS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+
+
+def _parse_pawprint_modal(how: str, lines: list[str]) -> list | None:
+    """A Season: "Choose up to five {P} worth of modes. You may choose the same mode more than once." and modes written "{P}{P} \u2014 ..."."""
+    modes, texts, costs = [], [], []
+    for line in lines:
+        if not (m := _PAWPRINT_MODE.fullmatch(line)):
+            return None
+        whole = _template(m[2])  # a mode of two sentences that only read together ("Choose artifact or enchantment. Destroy ...")
+        effects = ([whole] if not isinstance(whole, list) else whole) if whole is not None else _parse(_split_sentences(m[2]))
+        if not effects:
+            return None
+        modes.append(tuple(effects))
+        texts.append(line)
+        costs.append(len(m[1]) // 3)
+    return [Modal(0, _PAWPRINT_COUNTS[how], tuple(modes), tuple(texts), repeat=True, costs=tuple(costs))] if modes else None
+
+
 _MODAL_COMMANDER = re.compile(r"Choose one\. If you control a commander as you cast this spell, you may choose both instead\.")
 
 
 def is_modal_header(line: str) -> bool:
     return (_MODAL_HEADER.fullmatch(line) is not None or _MODAL_REPEAT.fullmatch(line) is not None
-            or _MODAL_COMMANDER.fullmatch(line) is not None)
+            or _MODAL_PAWPRINTS.fullmatch(line) is not None or _MODAL_COMMANDER.fullmatch(line) is not None)
 
 
 def mode_text(line: str) -> str:
@@ -1122,6 +1148,36 @@ class GrantProtection:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.grant_protection_of_choice(target, controller)
+
+
+CHOOSE_TYPE_PROMPT = "Choose a type"  # options: the types that can be chosen (Season of Gathering)
+
+
+CHOOSE_COPY_PROMPT = "Choose a permanent to copy"  # options: the permanents (Season of Weaving)
+
+
+@dataclass(frozen=True)
+class DestroyAllOfChosenType:
+    """Season of Gathering: "Choose artifact or enchantment. Destroy all permanents of the chosen type." """
+    kinds: tuple[str, ...]  # what can be chosen
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        kind = self.kinds[controller.player.choose(CHOOSE_TYPE_PROMPT, [k.capitalize() for k in self.kinds])]
+        game.destroy_all(game.mass_targets(kind, controller), False, None, controller)
+
+
+@dataclass(frozen=True)
+class CopyChosenPermanent:
+    """Season of Weaving: "Choose an artifact or creature you control. Create a token that's a copy of it." (chosen on resolution)"""
+    kind: str  # "artifact or creature you control"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        options = game.mass_targets(self.kind, controller)
+        if not options:
+            return
+        chosen = options[controller.player.choose(CHOOSE_COPY_PROMPT, [game.label(p) for p in options])]
+        card = chosen.card if chosen.card.type_line.startswith("Token") else dataclasses.replace(chosen.card, type_line="Token " + chosen.card.type_line)
+        game.create_tokens(controller, card, 1)
 
 
 @dataclass(frozen=True)
@@ -2818,6 +2874,7 @@ _AMOUNTS = [
     (re.compile(r"(?:the number of )?(?:(creature|land|artifact|enchantment|instant|sorcery|planeswalker) )?cards? in your graveyard",
                 re.I), lambda m: Amount("graveyard", (m[1] or "card").lower())),
     (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
+    (re.compile(r"(?:the number of )?creatures? that died under your control this turn", re.I), lambda m: Amount("creatures_died")),
     (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
     (re.compile(r"the amount of life you lost this turn", re.I), lambda m: Amount("life_lost")),
     (re.compile(r"half your life total, rounded (down|up)", re.I), lambda m: Amount("half_life", m[1].lower())),
@@ -5811,6 +5868,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:{_SELF}) gains protection from the color of your choice until end of turn\."),
      lambda m: GrantProtection(uses_source=True)),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} {_CHANGE}"), lambda m: Pump(_modifier(m, 2), m[1].lower())),
+    (re.compile(r"choose artifact or enchantment\. destroy all permanents of the chosen type\.", re.I),
+     lambda m: DestroyAllOfChosenType(("artifact", "enchantment"))),
+    (re.compile(r"choose an artifact or creature you control\. create a token that's a copy of it\.", re.I),
+     lambda m: CopyChosenPermanent("artifact or creature you control")),
     (re.compile(r"double the (power|power and toughness) of each creature you control until end of turn\.", re.I),
      lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), each=True)),
     (re.compile(rf"double the (power|power and toughness) of target {_PERMANENT_KIND} until end of turn\.", re.I),

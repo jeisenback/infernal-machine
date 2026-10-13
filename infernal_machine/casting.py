@@ -448,6 +448,15 @@ class Caster:
                 and seat.player.choose(g.ENTWINE_PROMPT + card.name, g.YES_NO) == 0):
             return [effect for modes in modal.modes for effect in modes], entwine
         chosen: list[int] = []
+        if modal.costs:  # a Season: spend up to `max` pawprints, each mode as often as it fits
+            left = modal.max
+            while usable := [i for i in available if modal.costs[i] <= left]:
+                pick = seat.player.choose(g.MODE_PROMPT + card.name, [g._shown(modal.texts[i], card) for i in usable] + [g.DONE_MODES])
+                if pick == len(usable):
+                    break
+                chosen.append(usable[pick])
+                left -= modal.costs[usable[pick]]
+            return [effect for i in sorted(chosen) for effect in modal.modes[i]], ""
         while len(chosen) < modal.max and (modal.repeat or len(chosen) < len(available)):
             if escalate and chosen and self._payment(seat, card, from_command_zone,
                                                      extra=escalate * len(chosen)) is None:
