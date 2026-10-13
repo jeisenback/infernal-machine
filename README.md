@@ -305,6 +305,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | Whenever equipped creature deals combat damage to a player, that player loses half their life, rounded up. ("that player" is who was hit) | Quietus Spike |
 | When this Aura enters, put a +1/+1 counter on enchanted creature. / Have the base power and toughness of other creatures you control become equal to CARDNAME's power and toughness until end of turn. | Seismic Tutelage, Tanazir Quandrix |
 | When this creature dies, return it to the battlefield tapped under its owner's control at the beginning of their next upkeep. | Phytotitan |
+| Draw a card (two, three cards) at the beginning of the next turn's upkeep. ("You draw ..." and the plain wording; an enters trigger too.) The cards come at the next upkeep, whoever's it is, and only the player who cast it draws them. | Portent, Clairvoyance, Flare, Balduvian Rage, Heal, Carrier Pigeons, Pyknite, Arcane Denial |
 | You may put a creature card from your hand onto the battlefield. If you do, sacrifice it unless you pay its mana cost reduced by {2}. | Flash |
 | Mill four cards, then return a creature card and a land card from your graveyard to your hand / a creature card to the battlefield (tapped). ("Exile this land" as a cost works) | Sudden Reclamation, Tomb Fortress, Port of Karfell |
 | When this creature enters, if it's not a token, each opponent creates a token that's a copy of it. The tokens are goaded for the rest of the game. | Life of the Party |
