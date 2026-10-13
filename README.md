@@ -175,6 +175,7 @@ winner = game.play()
     cost is added once they are chosen.
   - Kicker costs that aren't mana: "Kicker—Sacrifice a land / a creature / ...", "Kicker—Discard a card." and
     "Kicker—Pay N life." are paid like additional costs, and only offered when they can be paid.
+  - Bargain (sacrifice an artifact, enchantment, or token as you cast the spell, CR 702.166): paid like a kicker that is not mana, and "if this spell was bargained" / "if it was bargained" read as the kicker conditions. "If this spell was kicked, that creature gets -5/-5 until end of turn instead." (and "destroy that creature instead", "exile target nonland permanent instead") replaces the effect before it, "that creature" being the target of that effect, and "it fights up to one target creature you don't control" is the source creature fighting. "Add four mana in any combination of colors" gives each mana its own color. Candy Grapple, Kellan's Lightblades, Archon's Glory, High Fae Negotiator, Tenacious Tomeseeker, Troublemaker Ouphe, Realm-Scorcher Hellkite and Agatha's Champion work; the cost reduction of Ice Out, Johann's Stopgap and Hamlet Glutton (" costs {N} less if it's bargained"), Beseech the Mirror and the other long modes are not read.
   - Two kicker costs ("Kicker {R} and/or {W}"): each is offered separately, when it can be paid, and
     "if it was kicked with its {R} kicker" / "If this spell was kicked with its {1}{B} kicker, ..." check that
     specific cost (Thornscape Battlemage).

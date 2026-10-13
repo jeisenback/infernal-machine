@@ -63,6 +63,7 @@ _KEYWORD_RULES = [  # a keyword line and the rules text it stands for (the remin
     (re.compile(r"Evolve"), lambda m: "Whenever a creature you control enters, if that creature has greater power or toughness than this creature, "
         "put a +1/+1 counter on this creature."),
     (re.compile(r"Mentor"), lambda m: "Whenever this creature attacks, put a +1/+1 counter on target attacking creature with lesser power."),
+    (re.compile(r"Bargain"), lambda m: "Kicker\u2014Sacrifice an artifact, enchantment, or token."),  # CR 702.166: an optional additional cost, read as a kicker
     (re.compile(r"Bloodthirst (\d+)"), lambda m: f"If an opponent was dealt damage this turn, this creature enters with {_WORDS[int(m[1])]} +1/+1 "
         f"{'counter' if m[1] == '1' else 'counters'} on it."),
     (re.compile(r"Mobilize (\d+)"), lambda m: f"Whenever this creature attacks, create {_WORDS[int(m[1])]} tapped and attacking 1/1 red Warrior "
@@ -86,8 +87,10 @@ def _expand_keywords(text: str) -> str:
 
 
 def _gift_wording(text: str) -> str:
-    """A promised gift works like a free kicker: "if the gift was promised" reads as "if this spell was kicked"."""
-    return text.replace("the gift was promised", "this spell was kicked").replace("the gift wasn't promised", "this spell wasn't kicked")
+    """A promised gift works like a free kicker: "if the gift was promised" reads as "if this spell was kicked", and a bargain
+    (the sacrifice paid as the spell is cast) the same: "if this spell was bargained"."""
+    text = text.replace("the gift was promised", "this spell was kicked").replace("the gift wasn't promised", "this spell wasn't kicked")
+    return re.sub(r"\b(this spell|it) (was|wasn't) bargained\b", r"\1 \2 kicked", text)  # Bargain is an optional cost like a kicker
 
 
 def _rules_text(card: Card) -> str:
