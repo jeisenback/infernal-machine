@@ -18,6 +18,9 @@ LOSS = real("Season of Loss", "{3}{B}{B}", "Sorcery", HEADER + "{P} — Each pla
 WEAVING = real("Season of Weaving", "{4}{U}{U}", "Sorcery", HEADER + "{P} — Draw a card.\n{P}{P} — Choose an artifact or creature you "
                "control. Create a token that's a copy of it.\n{P}{P}{P} — Return each nonland, nontoken permanent to its owner's hand.",
                colors=("U",))
+BURROW = real("Season of the Burrow", "{3}{W}{W}", "Sorcery", HEADER + "{P} \u2014 Create a 1/1 white Rabbit creature token.\n{P}{P} \u2014 Exile target "
+              "nonland permanent. Its controller draws a card.\n{P}{P}{P} \u2014 Return target permanent card with mana value 3 or less from your "
+              "graveyard to the battlefield with an indestructible counter on it.", colors=("W",))
 TROPHY = real("Trophy", "{2}", "Artifact", "")
 SHRINE = real("Shrine", "{2}", "Enchantment", "")
 LIBRARY = [Card(name=f"Card {i}", type_line="Land") for i in range(12)]
@@ -93,6 +96,50 @@ class PawprintTests(unittest.TestCase):
         t = Table(WEAVING, policy=script("{P}{P}{P}", "{P}{P} — Choose", "Ogre"), n=8, mine=[Permanent(OGRE)], theirs=[Permanent(BEAR)]).cast()
         self.assertEqual((sorted(c.name for c in t.a.hand), sorted(c.name for c in t.b.hand)), (["Ogre"], ["Bear"]))
         self.assertEqual([p.card.type_line.startswith("Token") for p in t.a.battlefield if "Land" not in p.card.type_line], [True])  # the token stays
+
+
+class SeasonOfTheBurrowTests(unittest.TestCase):
+    def test_the_card_is_understood(self):
+        self.assertEqual(unsupported_lines(BURROW), [])
+
+    def test_exile_a_nonland_permanent_and_its_controller_draws(self):
+        t = Table(BURROW, policy=script("{P}{P} \u2014 Exile", "Done", "Ogre"), n=8, theirs=[Permanent(OGRE)], library=LIBRARY)
+        t.b.library = list(LIBRARY)
+        t.cast()
+        self.assertEqual((t.b.battlefield, [c.name for c in t.b.exile], len(t.b.hand), len(t.a.hand)), ([], ["Ogre"], 1, 0))
+
+    def test_your_own_permanent_draws_for_you(self):
+        t = Table(BURROW, policy=script("{P}{P} \u2014 Exile", "Done", "Ogre"), n=8, mine=[Permanent(OGRE)], library=LIBRARY).cast()
+        self.assertEqual((len(t.a.hand), [c.name for c in t.a.exile]), (1, ["Ogre"]))
+
+    def test_a_token_exiled_still_draws(self):
+        token = Permanent(Card(name="Rabbit", type_line="Token Creature \u2014 Rabbit", power="1", toughness="1"))
+        t = Table(BURROW, policy=script("{P}{P} \u2014 Exile", "Done", "Rabbit"), n=8, theirs=[token])
+        t.b.library = list(LIBRARY)
+        t.cast()
+        self.assertEqual((t.b.battlefield, len(t.b.hand)), ([], 1))
+
+    def test_return_a_cheap_permanent_with_an_indestructible_counter(self):
+        cheap, dear = creature("Cheap", 2, 2), real("Dear", "{3}{G}", "Creature \u2014 Bear", "", "4", "4")
+        t = Table(BURROW, policy=script("{P}{P}{P}", "Done", "Cheap"), n=8, graveyard=[cheap, dear]).cast()
+        (back,) = [p for p in t.a.battlefield if p.card.name == "Cheap"]
+        self.assertEqual((back.counters, t.game.has_keyword(back, "indestructible"), "Dear" in [c.name for c in t.a.graveyard]), ({"indestructible": 1}, True, True))
+        t.game.destroy(back)
+        self.assertIn(back, t.a.battlefield)  # it survives
+
+    def test_a_permanent_that_costs_too_much_is_not_a_target(self):
+        t = Table(BURROW, policy=script("{P}{P}{P}", "Done"), n=8, graveyard=[real("Dear", "{3}{G}", "Creature \u2014 Bear", "", "4", "4")])
+        t.cast()
+        asked = modes_asked(t)
+        self.assertTrue(all(not option.startswith("{P}{P}{P}") for option in asked[0]))  # nothing to return: the mode is not offered
+
+    def test_three_pawprints_and_two_fill_the_budget(self):
+        cheap = creature("Cheap", 2, 2)
+        t = Table(BURROW, policy=script("{P}{P}{P}", "{P}{P} \u2014 Exile", "Cheap", "Ogre"), n=8, graveyard=[cheap], theirs=[Permanent(OGRE)])
+        t.b.library = list(LIBRARY)
+        t.cast()
+        self.assertEqual(len(modes_asked(t)), 2)  # five pawprints spent: no third question
+        self.assertEqual(([p.card.name for p in t.a.battlefield if "Land" not in p.card.type_line], [c.name for c in t.b.exile]), (["Cheap"], ["Ogre"]))
 
 
 if __name__ == "__main__":
