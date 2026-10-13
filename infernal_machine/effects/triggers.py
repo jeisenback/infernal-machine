@@ -595,6 +595,33 @@ def _triggered_abilities(card: Card) -> list[TriggeredAbility]:
     return abilities
 
 
+# What a spell's delayed ability can watch the creature it targeted do (Game._remembered): "Whenever that creature deals combat damage to a
+# player or planeswalker this turn, draw that many cards." The values are the kinds of hit that set it off.
+_REMEMBERED_EVENTS = (
+    ("deals combat damage to a player or planeswalker", frozenset({"combat_player", "combat_planeswalker"})),
+    ("deals combat damage to a player", frozenset({"combat_player"})),
+    ("deals combat damage", frozenset({"combat_player", "combat_planeswalker", "combat_creature"})),
+    ("deals damage", frozenset({"damage"})),
+    ("attacks one of your opponents", frozenset({"attacks_opponent"})),
+    ("attacks the monarch", frozenset({"attacks_monarch"})),
+)
+_REMEMBERED = re.compile(r"(?:until end of turn, w|w)henever (?:that creature|it) (" + "|".join(re.escape(e) for e, _ in _REMEMBERED_EVENTS)
+                         + r")(?: this turn)?, (.+)", re.I)
+
+
+def remembered_ability(sentence: str) -> tuple[TriggeredAbility, frozenset[str]] | None:
+    """The delayed ability of a sentence about the creature the spell or ability before it targeted ("Whenever that creature deals combat
+    damage to a player this turn, ..."), and the kinds of hit that set it off; None if it isn't one or the rest isn't understood."""
+    match = _REMEMBERED.fullmatch(sentence)
+    if not match:
+        return None
+    effects, optional, once, condition = _event_body(match[2], True, False)
+    if effects is None:
+        return None
+    kinds = next(kinds for event, kinds in _REMEMBERED_EVENTS if event == match[1].lower())
+    return TriggeredAbility("remembered", tuple(effects), optional, sentence, once_per_turn=once, condition=condition), kinds
+
+
 def _trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
     """The triggered abilities one line (or one half of a compound line) is: [] if it is not a trigger, None if it is
     one that isn't fully understood."""
