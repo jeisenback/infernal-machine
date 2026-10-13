@@ -280,7 +280,7 @@ def main(argv: list[str]) -> int:
 
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("decklist")
     parser.add_argument("--games", type=int, default=1000)
     parser.add_argument("--turns", type=int, default=8)
