@@ -148,6 +148,8 @@ MORPH_RETURN_PROMPT = "Return which permanent to turn face up "  # followed by t
 CHANGE_WHICH_PROMPT = "Change which target of "  # followed by the spell's name
 NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
 SACRIFICE_PROMPT = "Choose a creature to sacrifice"
+EXPLOIT_PROMPT = "Exploit: choose a creature to sacrifice for "  # followed by the exploiting creature's name
+NO_EXPLOIT = "Don't sacrifice a creature"
 SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
 DISCARD_COST_PROMPT = "Choose a card to discard for "  # followed by the ability's source
 EXILE_COST_PROMPT = "Choose a card to exile from your graveyard for "  # followed by the ability's source
@@ -3583,6 +3585,17 @@ class Game:
             self.broadcast({"event": "searched", "seat": seat.index, "found": True, "to": to,
                             **({"card": found.name} if reveal else {})}, skip=seat)
             seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": to, "card": found.name})
+
+    def exploit(self, source: Permanent, seat: Seat) -> None:
+        """Exploit (CR 702.110): `seat` may sacrifice a creature, `source` itself among them; if it does, `source` exploited it."""
+        options = [p for p in seat.battlefield if "Creature" in p.card.type_line]
+        if not options:
+            return
+        pick = seat.player.choose(EXPLOIT_PROMPT + source.card.name, [self.label(p) for p in options] + [NO_EXPLOIT])
+        if pick == len(options):
+            return
+        self._leave_together([(options[pick], "sacrificed")])
+        self.trigger("exploits", source, seat, subject=options[pick])
 
     def sacrifice(self, seat: Seat, kind: str = "creature", count: int | None = 1, greatest: bool = False) -> list[Permanent]:
         """`seat` chooses `count` of its permanents of `kind` (a creature, artifact, land, ...) and sacrifices them

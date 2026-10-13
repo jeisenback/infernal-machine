@@ -470,6 +470,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     artifact you control, besides the land's own {T} mana), Adagia's token copy of an artifact or enchantment (legendary),
     Kavaron's Robot and attack bonus, Susur Secundi's draw. The counters do not come off.
   - Hideaway N (the five Hideaway lands: Howltooth Hollow, Mosswort Bridge, Shelldock Isle, Spinerock Knoll, Windbrisk
+  - **Exploit** (CR 702.110): when the creature enters you may sacrifice a creature (one of yours, itself included; the bots only give up one that is hardly worth keeping), and "When this creature exploits a creature, ..." then goes on the stack. Fell Stinger, Qarsi Sadist, Rakshasa Gravecaller, Sidisi, Undead Vizier and ten others work; the ones that need to know what was exploited (Profaner of the Dead, Silumgar Scavenger, Skull Skaab) or that give exploit to others (Colonel Autumn) wait.
     Heights): as the land enters you look at the top N cards, choose one to exile face down (the others go to the bottom in
     a random order; the other players are not told which). The land's ability plays that card for free, but only if its
     condition holds as the ability resolves: every hand empty, creatures you control with total power 10 or more, any
