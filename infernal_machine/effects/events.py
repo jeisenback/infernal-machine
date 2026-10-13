@@ -106,6 +106,7 @@ declare("combat", re.compile(r"At the beginning of combat on your turn, (.+)", r
 declare("each_combat", re.compile(r"At the beginning of each combat, (.+)", re.I))  # Unnatural Growth: every player's combat
 declare("gain_life", re.compile(r"Whenever you gain life, (.+)", re.I), to="you", happens="life_gained")
 declare("lose_life", re.compile(r"Whenever you lose life, (.+)", re.I), to="you", happens="life_lost")
+declare("exploits", re.compile(rf"When(?:ever)? {_SELF} exploits a creature, (.+)", re.I))  # the Exploit keyword (Game.exploit)
 declare("sacrifice_creature", re.compile(r"Whenever you sacrifice a creature, (.+)", re.I))
 declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals combat damage to a player, (.+)", re.I), about_creature=True)
 declare("token_combat_damage", re.compile(r"Whenever a creature token you control deals combat damage to a player, (.+)",

@@ -15,7 +15,7 @@ from .undercity import HELPS_ITS_TARGET
 from .effects import MOVE_COUNTERS_PROMPT
 from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PLAY_EXILE, PLAY_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
-                   MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, REPLICATE_PROMPT)
+                   MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
@@ -118,6 +118,9 @@ class BotPlayer:
             return 0 if _prompt_number(prompt, "(") < 4 and _prompt_number(prompt, "total mana value ") < 9 else 1
         if prompt.startswith(DEVOUR_PROMPT):  # the bot keeps its creatures
             return len(options) - 1
+        if prompt.startswith(EXPLOIT_PROMPT):  # only a creature that is hardly worth keeping
+            weakest = min(range(len(options) - 1), key=lambda i: sum(_stats(options[i])))
+            return weakest if sum(_stats(options[weakest])) <= 2 else len(options) - 1
         if prompt.startswith(REPLICATE_PROMPT):
             return len(options) - 1
         if prompt.startswith(LIFE_X_PROMPT):  # paying life for X: some, not everything

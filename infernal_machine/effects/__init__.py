@@ -63,6 +63,7 @@ from .outcomes import (  # noqa: F401
     DistributeCounters,
     DoubleStats,
     CreateDelayedTrigger,
+    Exploit,
     Transform,
     ReturnTransformed,
     CLUE,

@@ -33,6 +33,7 @@ from .outcomes import (
     ExileTopOfThatPlayerMayCast,
     RevealTopToHandDrain,
     ExileUntilLeaves,
+    Exploit,
     Hideaway,
     LivingWeapon,
     MayPay,
@@ -344,6 +345,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
             abilities.append(TriggeredAbility("enters", (Hideaway(int(m[1])),), False, line))
     for line in rules_lines(card):  # persist and undying are keywords that come back from the graveyard
         words = {word.strip().lower() for word in line.split(",")}
+        if "exploit" in words:  # CR 702.110: when it enters, you may sacrifice a creature
+            abilities.append(TriggeredAbility("enters", (Exploit(),), False, "Exploit"))
         if "prowess" in words:  # whenever you cast a noncreature spell, this gets +1/+1 until end of turn
             abilities.append(TriggeredAbility("cast", (PumpSource(Modifier(1, 1)),), False, "Prowess",
                                               Watch("noncreature spell", caster="you")))

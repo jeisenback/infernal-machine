@@ -1149,6 +1149,17 @@ class Hideaway:
 
 
 @dataclass(frozen=True)
+class Exploit:
+    """Exploit: "When this creature enters, you may sacrifice a creature." (it may be itself, CR 702.110); if you do, the creature
+    exploited a creature, which the abilities written "When this creature exploits a creature, ..." wait for."""
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exploit(target, controller)
+
+
+@dataclass(frozen=True)
 class PlayExiledCard:
     """A Hideaway land's "You may play the exiled card without paying its mana cost if <condition>." The condition is
     checked as the ability resolves."""
