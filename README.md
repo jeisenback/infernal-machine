@@ -1447,6 +1447,24 @@ stats = goldfish(deck, games=5000, turns=5)
   It reports how often you mulligan, how many lands the kept hand has, and how often
   you've made every land drop through each turn. The example above is a 38-land deck.
 
+## Simulating a deck
+
+```
+python -m infernal_machine.simulate DECKLIST [--games 1000] [--turns 8] [--seed 0] [--play]
+```
+
+`simulate(deck, games, turns, seed, on_the_play, free_mulligan)` in `simulate.py` plays the deck alone with the bot's
+mulligan rules and reports, per turn: how often every land drop was made, mana available and spent, how often a spell the
+lands' count could pay for was stuck on colors, and total combat damage dealt so far. Per card it reports how often the
+card was seen and cast, how often it was cast once seen, the average turn it was cast, and how long it sat in hand. Sorted
+worst-first, the card table points at cards that are too expensive, in the wrong colors, or never come together.
+
+It models mana and bodies, not rules text: a spell is cast when its cost can be paid (by `mana.pay`, color by color),
+mana rocks and mana creatures are sources, creatures attack unblocked from the turn after they enter (haste: at once),
+X is 0, a commander is cast once with no tax, and conditional "enters tapped" lands and shocklands count as untapped.
+Use it to compare builds, not to predict a game. Any card list works, so a 60-card deck is fine; a deck with a commander
+gets the free first mulligan, one without does not.
+
 ## Playing over TCP
 
 **Server** (`python -m infernal_machine.server`) hosts one table:
