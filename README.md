@@ -671,6 +671,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Draw doubling: "If you would draw a card, draw two cards instead." (Thought Reflection) and the form that skips the first
     card of your draw step (Alhammarret's Archive, Teferi's Ageless Insight, Bard, King of Dale). Each one applies once to a draw,
     so two of them make four.
+    Phial of Galadriel's "while you have no cards in hand" form looks at the hand before each card, and its "gain twice that much life while
+    you have 5 or less life" looks at your life before the gain; both stack with the other doublers.
   - Doubling Season and Parallel Lives: tokens an effect creates under your control, and counters an effect puts on your
     permanents (including the counters a permanent enters with), are doubled. Several stack (two doublers: four times).
     Hardened Scales adds one to +1/+1 counters on your creatures first, then doubling applies.

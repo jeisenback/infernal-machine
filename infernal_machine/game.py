@@ -2656,7 +2656,7 @@ class Game:
             if self.loses_abilities(permanent):
                 continue
             for kind in replacement_effects(permanent.card).draw_double:
-                if kind == "always" or (kind == "extra" and not self._draw_step_draw):
+                if kind == "always" or (kind == "extra" and not self._draw_step_draw) or (kind == "empty" and not seat.hand):
                     factor *= 2
         return factor
 
@@ -2732,6 +2732,8 @@ class Game:
         if amount > 0:  # Pest Rescuer: "you gain that much life plus 1 instead"; then The Wind Crystal: "twice that much"
             amount += sum(replacement_effects(p.card).life_gain_plus for p in seat.battlefield)
             amount *= self._factor(seat, "life_gain_factor")
+            if seat.life <= 5:  # Phial of Galadriel: "while you have 5 or less life", looked at before the life is gained
+                amount *= self._factor(seat, "life_gain_factor_low")
         if amount < 0:  # Bloodletter of Aclazotz: "twice that much life" during its controller's turn
             active = self.seats[self.active]
             if active is not seat:
