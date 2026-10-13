@@ -1465,6 +1465,26 @@ X is 0, a commander is cast once with no tax, and conditional "enters tapped" la
 Use it to compare builds, not to predict a game. Any card list works, so a 60-card deck is fine; a deck with a commander
 gets the free first mulligan, one without does not.
 
+## Tuning a deck
+
+```
+python -m infernal_machine.tune DECKLIST [--games 500] [--turns 8] [--seed 0] [--play] [--try "Card Name"]...
+```
+
+`tune(deck, games, turns, seed, candidates)` in `tune.py` scores a deck by the simulation's game value (mana spent on
+spells plus damage dealt by the last turn) and reports:
+
+- **Per card, weakest first:** what the card adds per game. The same games are replayed with the card swapped for a blank, so
+  every shuffle is identical and the difference is that card's contribution (only the games where it was drawn are replayed).
+  Each number has a standard error; "within noise" means more games are needed before believing it. Cards cast less than half
+  the time they are drawn are flagged.
+- **Land count:** the effect of moving one to three slots between the weakest cards and the most played basic land, and between
+  lands and a typical card.
+- **Swaps:** `--try` cards each take the weakest card's slot; the effect is the change in value.
+
+It cannot see what a card's text does (removal, card draw, counterspells, life gain), so a low score means "does little in a
+goldfish", not "bad card". More games (`--games 2000`) tighten the error bars; 500 games of a 100-card deck takes about 30 seconds.
+
 ## Playing over TCP
 
 **Server** (`python -m infernal_machine.server`) hosts one table:
