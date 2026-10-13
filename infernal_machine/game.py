@@ -509,6 +509,7 @@ class Game:
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
         self.targeting_player: Seat | None = None  # the player a trigger is about while its targets are chosen ("that player controls")
         self.targeting_source: Permanent | None = None  # the permanent whose ability is having its targets chosen ("this creature")
+        self.targeting_card: Card | None = None  # the card in a graveyard whose ability is having its targets chosen ("another target card")
         self.targeting_max: int | None = None  # how many targets "any number of target ..." may have (Strive: what the mana pays for)
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.cost_tapped_power = 0  # the power of what the ability being activated tapped as a cost (Station)
@@ -894,7 +895,9 @@ class Game:
                     actions.append(ACTIVATE_HAND + card.name)
         for card in _unique(seat.graveyard):
             for ability in activated_abilities(card):
-                if ability.from_graveyard and self._pay_cost(seat, cost_of(ability.mana_cost)) is not None:
+                if ability.from_graveyard and (sorcery_timing or not ability.sorcery_speed) \
+                        and self._pay_cost(seat, cost_of(ability.mana_cost)) is not None \
+                        and self._graveyard_targets_exist(seat, card, ability):
                     actions.append(ACTIVATE_GRAVEYARD + card.name)
                     break
         if sorcery_timing:
@@ -1629,15 +1632,33 @@ class Game:
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": labels, "tapped": [p.card.name for p in tapped]})
 
+    def _graveyard_targets_exist(self, seat: Seat, card: Card, ability: ActivatedAbility) -> bool:
+        """Whether an ability that works from the graveyard has its targets: "another target creature card" is not the card itself."""
+        saved, self.targeting_card = self.targeting_card, card
+        try:
+            return self._effects_possible(seat, ability.effects, source_qualities(card))
+        finally:
+            self.targeting_card = saved
+
     def _activate_from_graveyard(self, seat: Seat, card: Card) -> None:
         """"{B}{G}: Return this card from your graveyard to the battlefield tapped.": only its mana cost is paid; the card
-        stays where it is until the ability resolves."""
+        stays where it is until the ability resolves. "{3}{B}, Exile this card from your graveyard: Return another target creature card
+        from your graveyard to your hand.": the targets are chosen first (the card is still there to be excluded), then it is exiled."""
         ability = next(a for a in activated_abilities(card) if a.from_graveyard)
+        saved, self.targeting_card = self.targeting_card, card
+        try:
+            targets, labels = _checked(self._choose_targets(seat, list(ability.effects), card.name, None, source_qualities(card)))
+        finally:
+            self.targeting_card = saved
         tapped = _checked(self._pay_cost(seat, cost_of(ability.mana_cost))) if ability.mana_cost else Payment()
         self._spend_mana(seat, tapped)
-        self.stack.append(StackItem(card, seat, list(ability.effects), [], ability))
+        if ability.exile_from_graveyard:  # a cost: the ability exists apart from the card (CR 113.7a)
+            seat.graveyard.remove(card)
+            self._move_card(seat, card, "exile")
+            self._left_graveyard(seat, [card])
+        self.stack.append(StackItem(card, seat, list(ability.effects), targets, ability))
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
-                        "targets": [], "tapped": [p.card.name for p in tapped]})
+                        "targets": labels, "tapped": [p.card.name for p in tapped]})
 
     def _activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> None:
         effects = list(ability.effects)
@@ -1688,13 +1709,12 @@ class Game:
             return sum(self._targets_exist(seat, modes, colors, source) for modes in modal.modes) >= (min(modal.min, 1) if modal.repeat else modal.min)
         return self._targets_exist(seat, effects, colors, source)
 
-    @staticmethod
-    def option_is_source(option: Any, source: Permanent | None) -> bool:
-        """Whether a target option is the source of the ability itself, for an "another" target: the permanent, or (a dies trigger such as
-        Myr Retriever's) its own card in a graveyard, unless an identical card is there too."""
+    def option_is_source(self, option: Any, source: Permanent | None) -> bool:
+        """Whether a target option is the source of the ability itself, for an "another" target: the permanent, or its own card in a
+        graveyard (a dies trigger such as Myr Retriever's, or an ability that works from the graveyard), unless an identical card is there too."""
         if isinstance(option, GraveyardTarget):
-            return (source is not None and option.card == source.card
-                    and sum(c == source.card for c in option.seat.graveyard) <= 1)
+            own = source.card if source is not None else self.targeting_card
+            return own is not None and option.card == own and sum(c == own for c in option.seat.graveyard) <= 1
         return option is source
 
     def _targets_exist(self, seat: Seat, effects, colors: frozenset[str] = frozenset(),

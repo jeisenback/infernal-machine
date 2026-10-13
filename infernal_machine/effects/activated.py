@@ -87,6 +87,7 @@ class ActivatedAbility:
     condition: "Condition | None" = None  # "Activate only if you control two or more white permanents."
     discard_self: bool = False  # "Discard this card": activated from the hand, like cycling (Magma Opus)
     exile_from_hand: bool = False  # "Exile this card from your hand": activated from the hand (the Spirit Guides)
+    exile_from_graveyard: bool = False  # "Exile this card from your graveyard": activated from the graveyard, the card is exiled as a cost
     exile_source: bool = False  # "Exile this artifact": the source is exiled as a cost (Perpetual Timepiece)
     bounce_source: bool = False  # "Return CARDNAME to its owner's hand": likewise (Rootha)
     tap_creatures: int = 0  # "Tap two untapped creatures you control": other creatures than the source (Harmonized Trio)
@@ -164,6 +165,9 @@ _TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) untapped (legendary )?(cr
 
 
 _DISCARD_HAND = re.compile(r"Discard your hand")
+
+
+_EXILE_FROM_GRAVEYARD = re.compile(r"Exile (?:CARDNAME|this card) from your graveyard")
 
 
 _EXILE_SELF = re.compile(r"Exile (?:CARDNAME|this (?:artifact|creature|permanent|enchantment|land))")
@@ -263,6 +267,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["discard_self"] = True
         elif _EXILE_FROM_HAND.fullmatch(part):
             fields["exile_from_hand"] = True
+        elif _EXILE_FROM_GRAVEYARD.fullmatch(part):
+            fields.update(exile_from_graveyard=True, from_graveyard=True)
         elif m := _TAP_CREATURES.fullmatch(part):
             fields["tap_creatures"] = _NUMBER[m[1]]
             fields["tap_legendary"] = m[2] is not None

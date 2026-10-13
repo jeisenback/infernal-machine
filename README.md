@@ -509,7 +509,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - More activated abilities (#73): costs that exile this permanent ("Exile this artifact", Perpetual Timepiece) or return it
     to its owner's hand (Rootha) are paid before the ability goes on the stack, so it outlives the source. An ability that
     says "Return this card from your graveyard to the battlefield tapped" (Teacher's Pest) is offered as "Activate from
-    graveyard: <card>". "Pay life equal to the number of colors in your commanders' color identity" (War Room) works.
+    graveyard: <card>", and so is one whose cost is "Exile this card from your graveyard" (the Souls, Renew, Bonebind Orator): its
+    targets are chosen while the card is still there, so "Return another target creature card" leaves it out, the card is exiled as the
+    cost is paid, and an ability that says "Activate only as a sorcery" is only offered then. "Pay life equal to the number of colors in
+    your commanders' color identity" (War Room) works.
     Alchemist's Refuge lets you cast every spell this turn at instant speed, Arcane Lighthouse takes hexproof and shroud
     off your opponents' creatures until end of turn, and Restless Spire's creature has first strike only during your turn.
     Also: "noncreature artifact or noncreature enchantment" and "noncreature, nonland permanent" as target kinds, "creatures
