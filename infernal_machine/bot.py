@@ -305,6 +305,23 @@ def _seat_of(label: str) -> int | None:
     return int(match[1]) if match else None
 
 
+def opening_hand(cards: list[Card], rng: random.Random, free_mulligan: bool = True) -> tuple[list[Card], list[Card], int]:
+    """Shuffle `cards`, mulligan by the bot's rules, and return (hand, library, mulligans taken). The bottomed cards of a
+    kept mulligan go to the bottom of the library; a free first mulligan bottoms nothing."""
+    library, hand = list(cards), []
+    mulligans = 0
+    while True:
+        library += hand
+        rng.shuffle(library)
+        hand, library = library[:HAND_SIZE], library[HAND_SIZE:]
+        if keep_hand(hand, mulligans):
+            break
+        mulligans += 1
+    for _ in range(max(0, mulligans - (1 if free_mulligan else 0))):
+        library.append(hand.pop(worst_card(hand)))
+    return hand, library, mulligans
+
+
 @dataclass
 class GoldfishStats:
     games: int
@@ -324,17 +341,7 @@ def goldfish(deck: Deck, games: int = 1000, turns: int = 5, seed: int = 0, free_
     on_curve = {turn: 0 for turn in range(1, turns + 1)}
     for game in range(games):
         rng = random.Random(f"{seed}-{game}")
-        library, hand = list(deck.main), []
-        mulligans = 0
-        while True:
-            library += hand
-            rng.shuffle(library)
-            hand, library = library[:HAND_SIZE], library[HAND_SIZE:]
-            if keep_hand(hand, mulligans):
-                break
-            mulligans += 1
-        for _ in range(max(0, mulligans - (1 if free_mulligan else 0))):
-            library.append(hand.pop(worst_card(hand)))
+        hand, library, mulligans = opening_hand(deck.main, rng, free_mulligan)
         mulliganed += mulligans > 0
         opening_lands += sum(1 for c in hand if is_land(c))
 
