@@ -381,6 +381,21 @@ class PendingTrigger:
 
 
 @dataclass(eq=False)
+class DelayedTrigger:
+    """A triggered ability a resolved spell or ability set up (CR 603.7): "Until end of turn, whenever you cast a spell, ...".
+    `watcher` stands in for the permanent a watching ability needs; it is not on the battlefield."""
+    ability: TriggeredAbility
+    watcher: "Permanent"
+    controller: "Seat"
+    born: int  # the turn it was set up
+    next_turn: bool = False  # "until the end of your next turn": it lasts through the controller's next turn
+
+    def expired(self, game: "Game") -> bool:
+        """Checked as a turn's cleanup step ends (CR 514.2)."""
+        return not self.next_turn or (game.turn > self.born and game.active == self.controller.index)
+
+
+@dataclass(eq=False)
 class Seat:
     player: Player
     index: int
@@ -489,6 +504,7 @@ class Game:
         self.caster = casting.Caster(self)
         self.combat = Combat(self)
         self.pending: list[PendingTrigger] = []  # triggered, not yet on the stack
+        self.delayed: list[DelayedTrigger] = []  # "Until end of turn, whenever ..." abilities that are set up (CR 603.7)
         self.extra_turns: list[int] = []  # seats that take an extra turn next; the last one asked for goes first
         self._plan: list[str] = list(STEPS)  # the steps of the current turn, extended by extra combat phases
         self._plan_index = 0
@@ -769,6 +785,7 @@ class Game:
             for permanent in [p for s in self.live_seats() for p in s.battlefield]:  # control "until end of turn" ends
                 if permanent.control_eot:
                     self._return_control(permanent)
+            self.delayed = [d for d in self.delayed if not d.expired(self)]
         self._check_state()
 
     def _priority_round(self, active: Seat) -> None:
@@ -2160,10 +2177,16 @@ class Game:
             if event.to == "you":
                 for permanent in list(seat.battlefield):
                     self.trigger(event.name, permanent, seat, subject, x=x, spell=spell)
+                hearers = [seat]
             else:
                 for opponent in self.opponents(seat):
                     for permanent in list(opponent.battlefield):
                         self.trigger(event.name, permanent, opponent, subject, seat, x=x, spell=spell)
+                hearers = self.opponents(seat)
+            for delayed in list(self.delayed):  # "Until end of turn, whenever you gain life, ..." (CR 603.7)
+                if delayed.ability.event == event.name and delayed.ability.watch is None and delayed.controller in hearers:
+                    self._queue(delayed.ability, delayed.watcher, delayed.controller, x, subject,
+                                None if event.to == "you" else seat, spell)
 
     def _searched(self, seat: Seat) -> None:
         """`seat` searched their library (found something or not)."""
@@ -2190,6 +2213,10 @@ class Game:
                 return
             permanent.triggered_turn[ability.text] = self.turn
         self.pending.append(PendingTrigger(ability, permanent, controller, x, subject, player, spell=spell))
+
+    def add_delayed(self, ability: TriggeredAbility, card: Card, controller: Seat, next_turn: bool = False) -> None:
+        """Set up `ability` for `controller` (CR 603.7): it watches until the turn ends, or the controller's next turn does."""
+        self.delayed.append(DelayedTrigger(ability, Permanent(card), controller, self.turn, next_turn))
 
     def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None, x: int = 0,
                         player: Seat | None = None, subject: Permanent | None = None) -> bool:
@@ -2355,12 +2382,13 @@ class Game:
         eminent = [(Permanent(c), s) for s in self.live_seats() for c in s.command_zone]
         # A few cards watch from the graveyard (Vanguard of the Restless), where a card is no Permanent either.
         buried = [(Permanent(c), s) for s in self.live_seats() for c in s.graveyard]
-        for watcher, watcher_seat in watchers + eminent + buried:
+        for watcher, watcher_seat in watchers + eminent + buried + [(d.watcher, d.controller) for d in self.delayed]:
             in_command_zone = any(watcher is p for p, _ in eminent)
             in_graveyard = any(watcher is p for p, _ in buried)
-            if self.loses_abilities(watcher):
+            delayed = [d.ability for d in self.delayed if d.watcher is watcher]
+            if not delayed and self.loses_abilities(watcher):
                 continue
-            for ability in triggered_abilities(watcher.card):
+            for ability in delayed or triggered_abilities(watcher.card):
                 watch = ability.watch
                 if not watch or ability.event != ("cast" if event == "copy" else event):
                     continue
