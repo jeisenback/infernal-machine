@@ -3120,7 +3120,7 @@ class Game:
         self._leave_together([(p, "returned") for p in permanents], destination="hand")
 
     def return_from_graveyard(self, target: GraveyardTarget, controller: Seat, to: str, tapped: bool = False,
-                              finality: bool = False, enchantment: bool = False, transformed: bool = False) -> None:
+                              finality: bool = False, enchantment: bool = False, transformed: bool = False, counter: str = "") -> None:
         """Move a card out of a graveyard to its owner's hand, or onto the battlefield under
         `controller`'s control (it stays its owner's card)."""
         seat, card = target.seat, target.card
@@ -3141,7 +3141,8 @@ class Game:
             self._enter(controller, Permanent(dataclasses.replace(card, power=None, toughness=None, type_line="Enchantment"),
                                               sick=True, owner=seat, real_card=card))
         else:
-            self._enter(controller, Permanent(card, sick=True, tapped=tapped, loyalty=_starting_loyalty(card), owner=seat))
+            self._enter(controller, Permanent(card, sick=True, tapped=tapped, loyalty=_starting_loyalty(card), owner=seat,
+                                              counters={counter: 1} if counter else {}))
 
     def _finality_spirit(self, card: Card, owner: Seat) -> Permanent:
         """Excava, the Risen Past: the card returns with a finality counter, as a 1/1 Spirit creature with flying in addition to its
@@ -3660,7 +3661,7 @@ class Game:
         if keyword in ("hexproof", "shroud") and any(LOSES_HEXPROOF in m.keywords for m in mods):
             return False  # Arcane Lighthouse
         printed = has_keyword(permanent.card, keyword) and not self.loses_abilities(permanent)
-        return printed or any(keyword in m.keywords for m in mods)
+        return printed or permanent.counters.get(keyword, 0) > 0 or any(keyword in m.keywords for m in mods)  # CR 122.1b: a keyword counter
 
     def loses_abilities(self, permanent: Permanent) -> bool:
         """Whether an Aura or Equipment on it takes away all its abilities (Infinite Coursework). Abilities that other

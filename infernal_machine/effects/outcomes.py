@@ -326,6 +326,19 @@ class Exile:
 
 
 @dataclass(frozen=True)
+class ExileControllerDraws:
+    """Season of the Burrow: "Exile target nonland permanent. Its controller draws a card." (its controller as it was exiled)"""
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            owner = game.controller_of(target)
+            game.exile_noting(target, game.resolving_source)
+            if owner is not None:
+                game.draw(owner, 1)
+
+
+@dataclass(frozen=True)
 class ExiledOwnerGetsToken:
     """Skyclave Apparition: "the exiled card's owner creates an X/X ... token, where X is the mana value of the exiled
     card." The target is the source, which has already left the battlefield."""
@@ -3335,10 +3348,11 @@ class ReturnFromGraveyard:
     distinct: bool = False
     finality: bool = False  # Excava: "with a finality counter on it. It's a 1/1 Spirit creature with flying in addition ..."
     another: bool = False  # Myr Retriever: "another target artifact card": not this creature's own card, now in the graveyard
+    counter: str = ""  # Season of the Burrow: "... to the battlefield with an indestructible counter on it"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.return_from_graveyard(target, controller, self.to, self.tapped, self.finality)
+            game.return_from_graveyard(target, controller, self.to, self.tapped, self.finality, counter=self.counter)
 
 
 @dataclass(frozen=True)
@@ -5409,6 +5423,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand", optional_target=True)),
     (re.compile(rf"return target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand")),
+    (re.compile(rf"return target {_CARD_TYPE} from your graveyard to the battlefield with an indestructible counter on it\.", re.I),
+     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "battlefield", counter="indestructible")),
+    (re.compile(rf"exile target {_PERMANENT_KIND}\. its controller draws a card\.", re.I), lambda m: ExileControllerDraws(m[1].lower())),
     (re.compile(rf"return another target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand", another=True)),
     (re.compile(rf"(?:return|put) target {_CARD_TYPE} from (your|a) graveyard (?:to|onto) the battlefield( tapped)?"
