@@ -6,7 +6,8 @@ Each game uses the bot's mulligan rules, draws a card a turn, plays one land a t
 (color by color, through `mana.pay`). It models mana and bodies only, not rules text: a spell is cast when its mana
 cost can be paid, and nothing else it does is simulated except that creatures attack for their power from the turn
 after they enter (or at once with haste). Mana rocks and mana creatures count as sources. Conditional "enters tapped"
-lands and shocklands are treated as untapped, X is 0, and commanders are cast once with no tax, so the numbers are
+lands and shocklands are treated as untapped, a land that fetches a basic land (Fabled Passage, Evolving Wilds) brings the
+basic the hand needs, X is 0, and commanders are cast once with no tax, so the numbers are
 for comparing builds, not for predicting a game. Works for any format: pass a 60-card list for Standard.
 """
 
@@ -39,6 +40,7 @@ class CardStats:
     cast_when_seen: float  # of the games where it was seen, the share where it was cast
     average_cast_turn: float | None  # first turn cast, over the games where it was cast
     average_wait: float | None  # turns between seeing it and casting it, over the games where it was cast
+    on_curve: float | None = None  # of the games where it could be cast by the last turn, the share where it was, on the turn its mana value allowed (or the turn it was seen, if later)
 
 
 @dataclass
@@ -53,6 +55,12 @@ class SimStats:
     stuck_on_colors: dict[int, float]  # turn -> share of games holding a spell the lands' count could pay for but their colors could not
     damage: dict[int, float]  # turn -> average total combat damage dealt so far (all unblocked, no removal)
     cards: list[CardStats] = field(default_factory=list)
+
+    @property
+    def on_curve(self) -> float | None:
+        """The spells drawn that were cast as soon as their mana value allowed, averaged over every copy in the deck."""
+        rated = [(c.copies, c.on_curve) for c in self.cards if c.on_curve is not None]
+        return round(sum(n * rate for n, rate in rated) / sum(n for n, _ in rated), 3) if rated else None
 
     @property
     def mana_efficiency(self) -> float:
@@ -81,6 +89,25 @@ def enters_tapped(card: Card) -> bool:
     """Whether it always enters tapped (a conditional "unless ..." land is counted as untapped)."""
     pattern = re.compile(rf"(This [\w ]+?|{re.escape(card.name)}) enters( the battlefield)? tapped\.?")
     return any(pattern.fullmatch(line) for line in _clean_lines(card))
+
+
+@dataclass(frozen=True)
+class Fetch:
+    """A land that is sacrificed for a basic land card: "{T}, Sacrifice this land: Search your library for a basic land card, put it
+    onto the battlefield tapped, then shuffle." (Evolving Wilds), with Fabled Passage's "Then if you control four or more lands, untap
+    that land." Played, it is taken to be cracked at once."""
+    tapped: bool
+    untap_at_four: bool
+
+
+def fetch_land(card: Card) -> Fetch | None:
+    """What a land that fetches a basic land is, or None. (A land that finds a Plains or an Island card by type is not read.)"""
+    pattern = re.compile(rf"\{{T\}}(?:, Pay 1 life)?, Sacrifice (?:this land|{re.escape(card.name)}): Search your library for a basic land card, "
+                         r"put it onto the battlefield( tapped)?, then shuffle\.( Then if you control four or more lands, untap that land\.)?")
+    for line in _clean_lines(card):
+        if m := pattern.fullmatch(line):
+            return Fetch(bool(m[1]), bool(m[2]))
+    return None
 
 
 def land_colors(card: Card) -> frozenset[str]:
@@ -142,15 +169,29 @@ def _blocked_on_colors(hand: list[Card], sources: list[frozenset[str]]) -> bool:
     return False
 
 
-def _play_land(lands: list[Card], spells: list[Card], sources: list[_Source], turn: int) -> Card | None:
+def _landing(land: Card, library: list[Card], wanted: set[str], sources: list[_Source], lands: int) -> tuple[frozenset[str], bool, Card | None]:
+    """What playing `land` puts into play: (the colors it taps for, whether it enters tapped, the basic land it took from the library).
+    A land that fetches takes the basic that adds a color the hand wants and the lands lack, and none if the library has no basic."""
+    fetch = fetch_land(land)
+    if fetch is None:
+        return land_colors(land), enters_tapped(land), None
+    have = {color for s in sources for color in s.colors}
+    basics = {land_colors(c): c for c in library if is_land(c) and "Basic" in c.type_line}
+    if not basics:
+        return frozenset(), True, None
+    colors = max(basics, key=lambda cs: (len(cs & wanted - have), len(cs & wanted), len(cs)))
+    return colors, fetch.tapped and not (fetch.untap_at_four and lands + 1 >= 4), basics[colors]
+
+
+def _play_land(lands: list[Card], spells: list[Card], sources: list[_Source], turn: int, library: list[Card], in_play: int) -> Card | None:
     """The land to play: the one that lets the most mana be spent this turn, then the one that covers the most colors
     the hand's spells ask for, preferring an untapped land."""
     wanted = set(re.findall(r"[WUBRG]", "".join(c.mana_cost for c in spells)))
     best, best_key = None, None
-    for land in {(land_colors(l), enters_tapped(l)): l for l in lands}.values():
-        tapped = enters_tapped(land)
-        now = [s.colors for s in sources if s.ready <= turn] + ([] if tapped else [land_colors(land)])
-        key = (sum(n for _, n in _plan(spells, now)), len(land_colors(land) & wanted), not tapped, len(land_colors(land)))
+    for land in {(land_colors(l), enters_tapped(l), fetch_land(l)): l for l in lands}.values():
+        colors, tapped, _ = _landing(land, library, wanted, sources, in_play)
+        now = [s.colors for s in sources if s.ready <= turn] + ([] if tapped or not colors else [colors])
+        key = (sum(n for _, n in _plan(spells, now)), len(colors & wanted), not tapped, len(colors))
         if best_key is None or key > best_key:
             best, best_key = land, key
     return best
@@ -167,6 +208,7 @@ def _play(deck: Deck, turns: int, rng: random.Random, on_the_play: bool, free_mu
               "spent": [], "stuck": [], "damage": [], "seen": seen_turn, "cast": cast_turn}
     missed = False
     total_damage = 0
+    lands_in_play = 0
     for turn in range(1, turns + 1):
         if library and not (turn == 1 and on_the_play):
             card = library.pop(0)
@@ -174,10 +216,16 @@ def _play(deck: Deck, turns: int, rng: random.Random, on_the_play: bool, free_mu
             if not is_land(card):
                 seen_turn.setdefault(card.name, turn)
         spells = [c for c in hand if not is_land(c)] + [c for c in command if c.name not in cast_turn]
-        land = _play_land([c for c in hand if is_land(c)], spells, sources, turn)
+        land = _play_land([c for c in hand if is_land(c)], spells, sources, turn, library, lands_in_play)
         if land is not None:
             hand.remove(land)
-            sources.append(_Source(land_colors(land), turn + 1 if enters_tapped(land) else turn))
+            wanted = set(re.findall(r"[WUBRG]", "".join(c.mana_cost for c in spells)))
+            colors, tapped, found = _landing(land, library, wanted, sources, lands_in_play)
+            if found is not None:
+                library.remove(found)
+            if colors:
+                sources.append(_Source(colors, turn + 1 if tapped else turn))
+                lands_in_play += 1
         else:
             missed = True
         result["land_drops"].append(not missed)
@@ -232,6 +280,8 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
             copies[card.name] += 1
     seen, cast = defaultdict(int), defaultdict(int)
     cast_turns, waits = defaultdict(list), defaultdict(list)
+    due_games, due_cast = defaultdict(int), defaultdict(int)
+    mana_value = {c.name: int(c.cmc) for c in deck.commanders + deck.main}
     for run in play_games(deck, games, turns, seed, on_the_play, free_mulligan):
         mulliganed += run["mulligans"] > 0
         opening_lands += run["opening_lands"]
@@ -243,13 +293,18 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
             damage[i] += run["damage"][i]
         for name, turn in run["seen"].items():
             seen[name] += 1
+            due = max(turn, mana_value[name], 1)  # the first turn the mana value and the draw allowed it
+            if due <= turns:
+                due_games[name] += 1
+                due_cast[name] += run["cast"].get(name, turns + 1) <= due
             if name in run["cast"]:
                 cast[name] += 1
                 cast_turns[name].append(run["cast"][name])
                 waits[name].append(run["cast"][name] - turn)
     avg = lambda values: round(sum(values) / len(values), 2) if values else None  # noqa: E731
     cards = [CardStats(name, copies[name], round(seen[name] / games, 3), round(cast[name] / games, 3),
-                       round(cast[name] / seen[name], 3) if seen[name] else 0.0, avg(cast_turns[name]), avg(waits[name]))
+                       round(cast[name] / seen[name], 3) if seen[name] else 0.0, avg(cast_turns[name]), avg(waits[name]),
+                       round(due_cast[name] / due_games[name], 3) if due_games[name] else None)
              for name in copies]
     per_turn = lambda values, digits=3: {i + 1: round(v / games, digits) for i, v in enumerate(values)}  # noqa: E731
     return SimStats(games=games, turns=turns, mulligan_rate=round(mulliganed / games, 3),
@@ -261,15 +316,17 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
 def format_simulation(stats: SimStats) -> str:
     lines = [f"{stats.games} games, {stats.turns} turns. Mulligan rate {stats.mulligan_rate:.1%}, "
              f"{stats.average_opening_lands} lands in the opening hand, {stats.mana_efficiency:.0%} of available mana spent.",
+             *([f"On curve: {stats.on_curve:.0%} of the spells drawn were cast as soon as their mana value allowed."] if stats.on_curve is not None else []),
              "", "turn  land drop  mana  spent  color-stuck  damage"]
     for turn in range(1, stats.turns + 1):
         lines.append(f"{turn:>4}  {stats.land_drop_rate[turn]:>9.1%}  {stats.mana_available[turn]:>4.1f}  {stats.mana_spent[turn]:>5.1f}  "
                      f"{stats.stuck_on_colors[turn]:>11.1%}  {stats.damage[turn]:>6.1f}")
-    lines += ["", "card                                  copies  seen  cast  cast if seen  avg turn  avg wait"]
+    lines += ["", "card                                  copies  seen  cast  cast if seen  avg turn  avg wait  on curve"]
     for card in sorted(stats.cards, key=lambda c: (c.cast_when_seen, c.name)):
         turn = f"{card.average_cast_turn:.1f}" if card.average_cast_turn is not None else "-"
         wait = f"{card.average_wait:.1f}" if card.average_wait is not None else "-"
-        lines.append(f"{card.name[:36]:<36}  {card.copies:>6}  {card.seen_rate:>4.0%}  {card.cast_rate:>4.0%}  {card.cast_when_seen:>11.0%}  {turn:>8}  {wait:>8}")
+        curve = f"{card.on_curve:.0%}" if card.on_curve is not None else "-"
+        lines.append(f"{card.name[:36]:<36}  {card.copies:>6}  {card.seen_rate:>4.0%}  {card.cast_rate:>4.0%}  {card.cast_when_seen:>11.0%}  {turn:>8}  {wait:>8}  {curve:>8}")
     return "\n".join(lines)
 
 
