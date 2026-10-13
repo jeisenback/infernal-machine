@@ -1255,6 +1255,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   "Sacrifices the creature with the greatest power" isn't supported yet.
 - **Fight, proliferate, persist and undying:**
   - "Target creature you control fights target creature you don't control." (also "fights another target creature")
+  - "It fights target creature you don't control." / "Then that creature fights up to one target creature an opponent controls.": the creature the sentence before it gave a pump or counters to is the one that fights; with no sentence before it, the source creature fights ("When this creature enters, it fights up to one target creature you don't control."). "Then it fights" after nothing is not read. Epic Confrontation, Hunt the Weak, Chelonian Tackle, Swift Kick, Savage Smash and the like work; the ones with a condition on the counters (Ancient Animus), another sentence ("exile it instead", excess damage) or a color in the target (Hunt the Hunter) do not.
     and "Target creature you control deals damage equal to its power to target creature you don't control." (a bite,
     one-sided). It takes two targets; each deals damage equal to its power to the other at the same time, with its
     deathtouch and lifelink. If either target is gone or they are the same creature, nothing happens.
