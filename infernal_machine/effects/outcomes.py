@@ -5268,7 +5268,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"tap {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Tap, m)),
     (re.compile(rf"its controller may draw up to {_N_FIXED} cards at the beginning of the next turn's upkeep\.", re.I),
      lambda m: DelayedDraw(_number(m[1]), True)),
-    (re.compile(r"you draw a card at the beginning of the next turn's upkeep\.", re.I), lambda m: DelayedDraw(1, False)),
+    (re.compile(rf"(?:you )?draw {_N_FIXED} cards? at the beginning of the next turn's upkeep\.", re.I),  # Portent: "Draw a card ..."
+     lambda m: DelayedDraw(_number(m[1]), False)),
     (re.compile(r"if that (?:creature|permanent|creature or planeswalker) would die this turn, exile it instead\.", re.I),
      lambda m: ExileTargetIfDies()),
     (re.compile(r"if a creature dealt damage this way would die this turn, exile it instead\.", re.I),
