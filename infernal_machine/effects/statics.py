@@ -758,29 +758,61 @@ def replacement_effects(card: Card) -> Replacements:
 class DamageModifier:
     """A static replacement effect on damage (CR 614.1, 616.1): "If a source you control would deal damage to a permanent or player,
     it deals double that damage instead." (Angrath's Marauders), "... noncombat damage to an opponent or a permanent an opponent
-    controls, it deals that much damage plus 1 instead." (Tomik)"""
+    controls, it deals that much damage plus 1 instead." (Tomik), "If another red source you control would deal damage ..." (Torbran)"""
     source: str  # "any" (a source), "you" (a source you control), "creature" (a creature you control), "self" (this creature)
     victim: str  # "any" (a permanent or player), "opponent" (an opponent or a permanent an opponent controls), "player" (a player),
-    #              "opponent_player" (an opponent: a player only)
+    #              "opponent_player" (an opponent: a player only), "none" (not said: any damage)
     kind: str  # "any", "combat" or "noncombat" damage
     factor: int = 1  # double: 2, triple: 3
     plus: int = 0  # "that much damage plus N"
+    groups: tuple[tuple[str, ...], ...] = ()  # what the source must be: every group needs one of its words (color, card type or subtype)
+    another: bool = False  # not the permanent with this ability
+    spell: bool = False  # the source is a spell ("a red spell")
+
+
+_WORD = r"(?:[a-z]+|[A-Z][a-z]+)"
+
+
+_DESC = rf"(?:(?:white|blue|black|red|green) (?!or\b))?{_WORD}(?:(?:, or |, | or ){_WORD})*"  # "red", "red or artifact", "red instant or sorcery"
 
 
 _DAMAGE_MODIFIER = re.compile(
-    rf"If (a source|a source you control|a creature you control|{_SELF}) would deal (noncombat |combat )?damage to "
-    r"(a permanent or player|an opponent or a permanent an opponent controls|an opponent|a player), (?:it|that source) deals "
+    rf"If ((?:a|an|another) (?:{_DESC} )?(?:source|spell)(?: you control)?|a source|a source you control"
+    rf"|a creature you control|an? [A-Z][a-z]+(?:, [A-Z][a-z]+)*,? or [A-Z][a-z]+ you control|{_SELF}) would deal (noncombat |combat )?damage"
+    r"(?: to (a permanent or player|an opponent or a permanent an opponent controls|an opponent|a player))?, (?:it|that source) deals "
     r"(?:(double|triple) that damage|that much damage plus (\d+))(?: to that [a-z ]+)? instead\.")
+
+
+_COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+
+
+def _parse_source(text: str) -> dict[str, Any]:
+    """The DamageModifier fields for who deals the damage: "a source you control", "another red source you control",
+    "a Giant source you control", "a red instant or sorcery spell you control", "a Lizard, Mouse, or Otter you control"."""
+    simple = {"a source": "any", "a source you control": "you", "a creature you control": "creature"}
+    if text in simple:
+        return {"source": simple[text]}
+    if text.startswith(("a ", "an ", "another ")) and (m := re.fullmatch(rf"(?:a|an) ([A-Z][a-z]+(?:, [A-Z][a-z]+)*,? or [A-Z][a-z]+) you control", text)):
+        return {"source": "you", "groups": (tuple(re.split(r", or |, | or ", m[1])), ("creature",))}
+    if m := re.fullmatch(rf"(a|an|another) (?:({_DESC}) )?(source|spell)( you control)?", text):
+        groups: list[tuple[str, ...]] = []
+        if m[2]:
+            desc = m[2]
+            if peeled := re.match(r"(white|blue|black|red|green) (?!or\b)", desc):  # "red instant or sorcery": red, and an instant or a sorcery
+                groups.append((peeled[1],))
+                desc = desc[peeled.end():]
+            groups.append(tuple(re.split(r", or |, | or ", desc)))
+        return {"source": "you" if m[4] else "any", "groups": tuple(groups), "another": m[1] == "another", "spell": m[3] == "spell"}
+    return {"source": "self"}
 
 
 def _damage_modifier(line: str) -> DamageModifier | None:
     if not (m := _DAMAGE_MODIFIER.fullmatch(line)):
         return None
-    source = {"a source": "any", "a source you control": "you", "a creature you control": "creature"}.get(m[1], "self")
     victim = {"a permanent or player": "any", "an opponent or a permanent an opponent controls": "opponent",
-              "an opponent": "opponent_player", "a player": "player"}[m[3]]
-    return DamageModifier(source, victim, (m[2] or "any").strip().replace(" ", "") or "any",
-                          {"double": 2, "triple": 3}.get(m[4] or "", 1), int(m[5] or 0))
+              "an opponent": "opponent_player", "a player": "player"}[m[3]] if m[3] else "any"
+    return DamageModifier(victim=victim, kind=(m[2] or "any").strip().replace(" ", "") or "any",
+                          factor={"double": 2, "triple": 3}.get(m[4] or "", 1), plus=int(m[5] or 0), **_parse_source(m[1]))  # type: ignore[arg-type]
 
 
 @lru_cache(maxsize=None)

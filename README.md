@@ -659,7 +659,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     damage (the controller, for a permanent) chooses the order (CR 616.1) and is asked only when the order changes the result (3 damage with a
     shield of 2 and a doubler: 2 if the shield goes first, 4 if the doubling does); the least damage is listed first. Several stack (two doublers:
     four times).
-    Narrower sources (a red source, a Giant, an odd mana value, "another source") are not read.
+    The source can be named: "a red source you control" (Torbran), "another red source" or "another source you control" (Embermaw
+    Hellion, Thor), "a red or artifact source" (Mechanized Warfare), a creature type ("a Giant source", "a Lizard, Mouse, Otter, or
+    Raccoon you control"), "an instant or sorcery source" (Pyromancer's Swath) and a spell ("a red instant or sorcery spell you
+    control", "a red spell" whoever controls it). A spell counts as a source of the color and types of its card. "With an odd mana
+    value", "that entered this turn", "plus X" and "prevent half" are not read.
   - Blightsteel Colossus, Darksteel Colossus, Legacy Weapon, Progenitus and Nexus of Fate: "If CARDNAME would be put into a
     graveyard from anywhere, reveal CARDNAME and shuffle it into its owner's library instead." It works from every zone
     (dying, discarding, milling, a resolved spell); a creature that is shuffled in never dies, and a commander can still

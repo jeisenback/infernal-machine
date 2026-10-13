@@ -62,6 +62,7 @@ CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
+_COLOR_LETTERS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 EVERYTHING = 10**9  # more damage than there will ever be: "prevent all damage"
 SHUFFLED = "library_shuffled"  # where a card goes when it is shuffled into its owner's library instead of a graveyard
 ETERNALIZE = "Eternalize: "  # followed by the card's name
@@ -2865,8 +2866,22 @@ class Game:
                         continue
                     if mod.victim in ("opponent_player", "player") and not isinstance(target, Seat):
                         continue
+                    if (mod.groups or mod.another or mod.spell) and not self._source_fits(mod, permanent, source):
+                        continue
                     found.append((permanent, mod))
         return found
+
+    def _source_fits(self, mod: DamageModifier, owner: Permanent, source: Permanent | None) -> bool:
+        """Whether the thing dealing the damage is what the modifier names: a permanent, or the spell that is resolving (a damage
+        spell's source is the spell). `owner` is the permanent with the modifier, for "another"."""
+        if source is None and (self.resolving_item is None or self.resolving_item.ability):
+            return False
+        card = source.card if source is not None else _checked(self.resolving_item).card
+        if (mod.spell and source is not None) or (mod.another and source is owner):
+            return False
+        qualities = source_qualities(card)
+        subtypes = card.type_line.partition("\u2014")[2].split()
+        return all(any(_COLOR_LETTERS.get(word, word.lower()) in qualities or word in subtypes for word in group) for group in mod.groups)
 
     def _damage_replaced(self, target: Seat | Permanent, amount: int, source: Permanent | None, combat: bool) -> tuple[int, int]:
         """(the damage that is dealt, the damage prevented) once the replacement and prevention effects that apply to `amount` damage
