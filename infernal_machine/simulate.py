@@ -113,20 +113,25 @@ def _cost(card: Card) -> Cost | None:
 
 
 def _plan(spells: list[Card], sources: list[frozenset[str]]) -> list[tuple[Card, int]]:
-    """The spells to cast now with the mana they spend: mana makers first, then the most expensive that fit."""
-    order = sorted(spells, key=lambda c: (not mana_sources(c), -c.cmc))
-    free = list(sources)
-    plan = []
-    for card in order:
-        cost = _cost(card)
-        if cost is None:
-            continue
-        used = pay(cost, free)
-        if used is None:
-            continue
-        plan.append((card, len(used)))
-        free = [s for i, s in enumerate(free) if i not in set(used)]
-    return plan
+    """The spells to cast now with the mana they spend: mana makers first, then spells by cost. It tries the most
+    expensive first and the cheapest first, and keeps whichever spends more mana (then casts more)."""
+    best: list[tuple[Card, int]] = []
+    for biggest_first in (True, False):
+        order = sorted(spells, key=lambda c: (not mana_sources(c), -c.cmc if biggest_first else c.cmc))
+        free = list(sources)
+        plan = []
+        for card in order:
+            cost = _cost(card)
+            if cost is None:
+                continue
+            used = pay(cost, free)
+            if used is None:
+                continue
+            plan.append((card, len(used)))
+            free = [s for i, s in enumerate(free) if i not in set(used)]
+        if (sum(n for _, n in plan), len(plan)) > (sum(n for _, n in best), len(best)):
+            best = plan
+    return best
 
 
 def _blocked_on_colors(hand: list[Card], sources: list[frozenset[str]]) -> bool:
@@ -199,6 +204,20 @@ def _play(deck: Deck, turns: int, rng: random.Random, on_the_play: bool, free_mu
     return result
 
 
+def play_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: bool, free_mulligan: bool) -> dict:
+    """Game number `n`: it shuffles the same way for the same seed and deck size, so two decks of one size can be compared."""
+    return _play(deck, turns, random.Random(f"{seed}-{n}"), on_the_play, free_mulligan)
+
+
+def play_games(deck: Deck, games: int, turns: int, seed: int, on_the_play: bool, free_mulligan: bool) -> list[dict]:
+    return [play_game(deck, n, turns, seed, on_the_play, free_mulligan) for n in range(games)]
+
+
+def game_value(run: dict) -> int:
+    """What one game was worth: all the mana it spent on spells plus the damage it dealt by the last turn."""
+    return sum(run["spent"]) + run["damage"][-1]
+
+
 def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_the_play: bool = False,
              free_mulligan: bool | None = None) -> SimStats:
     """Play `deck` alone `games` times for `turns` turns. A commander deck gets the free first mulligan unless told otherwise."""
@@ -213,8 +232,7 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
             copies[card.name] += 1
     seen, cast = defaultdict(int), defaultdict(int)
     cast_turns, waits = defaultdict(list), defaultdict(list)
-    for game in range(games):
-        run = _play(deck, turns, random.Random(f"{seed}-{game}"), on_the_play, free_mulligan)
+    for run in play_games(deck, games, turns, seed, on_the_play, free_mulligan):
         mulliganed += run["mulligans"] > 0
         opening_lands += run["opening_lands"]
         for i in range(turns):
