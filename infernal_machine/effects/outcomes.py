@@ -1219,6 +1219,20 @@ class DoubleStats:
 
 
 @dataclass(frozen=True)
+class CreateDelayedTrigger:
+    """ "Until end of turn, whenever you cast a spell, ..." / "Whenever you cast a creature spell this turn, draw a card.": the
+    triggered ability it names (read by effects/triggers.py) is set up as this resolves and lasts through the turn, or through
+    the controller's next turn (CR 603.7)."""
+    abilities: tuple
+    next_turn: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            for ability in self.abilities:
+                game.add_delayed(ability, game.resolving_item.card, controller, self.next_turn)
+
+
+@dataclass(frozen=True)
 class PumpSource:
     """ "This creature gets +1/+0 until end of turn." """
     modifier: Modifier
@@ -5195,6 +5209,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N} damage to you\.", re.I), lambda m: DamageToYou(_count(m[1]))),
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
+    (re.compile(rf"{_SELF} deals {_N} damage to up to one target creature\.", re.I),  # Season of the Bold
+     lambda m: Damage(_count(m[1]), "creature", optional_target=True)),
     (re.compile(rf"{_SELF} deals {_N} damage to each of one or two targets\.", re.I),  # Prismari Charm
      lambda m: [Damage(_count(m[1]), "any"), Damage(_count(m[1]), "any", optional_target=True, distinct=True)]),
     (re.compile(rf"{_SELF} deals {_N} damage to each of up to two target creatures and/or planeswalkers\.", re.I),  # Volcanic Salvo
@@ -6102,6 +6118,22 @@ def _clauses(sentence: str) -> list[str]:
     return [sentence]
 
 
+_DELAYED_TRIGGER = re.compile(r"(?:until (?:the )?end of (?:the turn|your next turn|turn), (whenever .+)|(whenever [^,]+?) this turn, (.+))", re.I)
+
+
+def _delayed_trigger(sentence: str) -> CreateDelayedTrigger | None:
+    """ "Until end of turn, whenever ..., ..." and "Whenever ... this turn, ...": the triggered ability the rest of the sentence
+    is, set up as the spell or ability resolves. The wording of the trigger itself is the permanents' (effects/triggers.py)."""
+    from .triggers import _trigger_part
+
+    match = _DELAYED_TRIGGER.fullmatch(sentence)
+    if not match:
+        return None
+    body = match[1] or f"{match[2]}, {match[3]}"
+    found = _trigger_part(body, body)
+    return CreateDelayedTrigger(tuple(found), next_turn="your next turn" in sentence.lower()) if found else None
+
+
 def _template(sentence: str) -> Any:
     """The effect of one sentence a template understands as written, or None."""
     for pattern, build in _TEMPLATES:
@@ -6109,7 +6141,7 @@ def _template(sentence: str) -> Any:
         effect = build(match) if match else None
         if effect is not None:
             return effect
-    return None
+    return _delayed_trigger(sentence)
 
 
 def _merge_mana_drain(effects: list) -> list | None:

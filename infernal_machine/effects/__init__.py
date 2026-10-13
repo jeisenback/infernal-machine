@@ -62,6 +62,7 @@ from .outcomes import (  # noqa: F401
     RevealTopToHandDrain,
     DistributeCounters,
     DoubleStats,
+    CreateDelayedTrigger,
     Transform,
     ReturnTransformed,
     CLUE,
