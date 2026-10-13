@@ -623,6 +623,7 @@ class Modal:
     optional: bool = False  # "you may choose two": the controller may choose none
     repeat: bool = False  # "You may choose the same mode more than once." (a Confluence): `max` picks, each mode any number of times
     costs: tuple[int, ...] = ()  # pawprint modes (a Season): what each mode costs of the `max` pawprints to spend
+    mode_costs: tuple[str, ...] = ()  # Spree: the mana each mode adds to the cost of the spell (CR 702.172)
 
 
 _MODAL_COUNTS = {"one": (1, 1), "up to one": (0, 1), "two": (2, 2), "three": (3, 3), "one or both": (1, 2), "one or more": (1, 0)}
@@ -662,16 +663,37 @@ def _parse_pawprint_modal(how: str, lines: list[str]) -> list | None:
     return [Modal(0, _PAWPRINT_COUNTS[how], tuple(modes), tuple(texts), repeat=True, costs=tuple(costs))] if modes else None
 
 
+_SPREE_MODE = re.compile(r"\+ ((?:\{[^}]+\})+) \u2014 (.+)")
+
+
+def _parse_spree(lines: list[str]) -> list | None:
+    """Spree: "+ {1}{U} \u2014 Counter target spell." Each mode has its own additional cost; the caster chooses one or more of them (CR 702.172)."""
+    modes, texts, costs = [], [], []
+    for line in lines:
+        if not (m := _SPREE_MODE.fullmatch(line)):
+            return None
+        whole = _template(m[2])  # a mode of two sentences that only read together
+        effects = ([whole] if not isinstance(whole, list) else whole) if whole is not None else _parse(_split_sentences(m[2]))
+        if not effects:
+            return None
+        modes.append(tuple(effects))
+        texts.append(line)
+        costs.append(m[1])
+    return [Modal(1, len(modes), tuple(modes), tuple(texts), mode_costs=tuple(costs))] if modes else None
+
+
 _MODAL_COMMANDER = re.compile(r"Choose one\. If you control a commander as you cast this spell, you may choose both instead\.")
 
 
 def is_modal_header(line: str) -> bool:
-    return (_MODAL_HEADER.fullmatch(line) is not None or _MODAL_REPEAT.fullmatch(line) is not None
+    return (line == "Spree" or _MODAL_HEADER.fullmatch(line) is not None or _MODAL_REPEAT.fullmatch(line) is not None
             or _MODAL_PAWPRINTS.fullmatch(line) is not None or _MODAL_COMMANDER.fullmatch(line) is not None)
 
 
 def mode_text(line: str) -> str:
-    """A mode of a modal spell without its bullet."""
+    """A mode of a modal spell without its bullet (or a Spree mode without its cost)."""
+    if m := _SPREE_MODE.fullmatch(line):
+        return m[2]
     return line[2:] if line.startswith("\u2022 ") else line
 
 
