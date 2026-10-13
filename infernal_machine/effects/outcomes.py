@@ -1222,14 +1222,21 @@ class DoubleStats:
 class CreateDelayedTrigger:
     """ "Until end of turn, whenever you cast a spell, ..." / "Whenever you cast a creature spell this turn, draw a card.": the
     triggered ability it names (read by effects/triggers.py) is set up as this resolves and lasts through the turn, or through
-    the controller's next turn (CR 603.7)."""
+    the controller's next turn (CR 603.7). With `when` it is about the creature targeted just before ("Whenever that creature deals
+    combat damage to a player this turn, ..."): it sets off when that creature does one of those things (Game._remembered)."""
     abilities: tuple
     next_turn: bool = False
+    when: frozenset = frozenset()
+
+    @property
+    def follows_target(self) -> bool:
+        return bool(self.when)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is not None:
-            for ability in self.abilities:
-                game.add_delayed(ability, game.resolving_item.card, controller, self.next_turn)
+        if game.resolving_item is None or (self.when and target is None):
+            return
+        for ability in self.abilities:
+            game.add_delayed(ability, game.resolving_item, controller, self.next_turn, target if self.when else None, self.when)
 
 
 @dataclass(frozen=True)
@@ -5418,7 +5425,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     # Sanguine Bond, Exquisite Blood: "that much" is the life the trigger's event carried, which the game keeps as X
     (re.compile(r"target (player|opponent) loses that much life\.", re.I), lambda m: TargetLoseLife("X", m[1].lower())),
     (re.compile(r"each opponent loses that much life\.", re.I), lambda m: OpponentsLoseLife("X")),
-    (re.compile(r"you gain that much life\.", re.I), lambda m: GainLife("X")),
+    (re.compile(r"you gain (?:that much life|life equal to that damage)\.", re.I), lambda m: GainLife("X")),
     (re.compile(rf"return (another |up to one )?target {_PERMANENT_KIND} to its owner's hand\.", re.I),
      # "Return another target ..." can be neither the source (a trigger's) nor the spell's earlier target (Rushing River).
      lambda m: ReturnToHand(m[2].lower(), (m[1] or "").lower() == "another ", (m[1] or "").lower() == "up to one ",
@@ -5693,7 +5700,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: MayCastFromHandFree(int(m[1]))),  # Rishkar's Expertise
     (re.compile(r"choose two target creature cards in your graveyard\. sacrifice a creature\. if you do, return the chosen cards to the "
                 r"battlefield tapped\.", re.I), lambda m: SacrificeToReturnChosen()),  # Victimize
-    (re.compile(r"choose target (creature)\.", re.I), lambda m: ChooseTarget(m[1].lower())),
+    (re.compile(r"choose target (creature(?: you control)?)\.", re.I), lambda m: ChooseTarget(m[1].lower())),
+    (re.compile(r"draw that many cards\.", re.I), lambda m: Draw("X")),
     (re.compile(r"until end of turn, that creature gains \"when this creature dies, return it to the battlefield tapped under its owner's "
                 r"control\.\"", re.I), lambda m: ReturnWhenItDiesThisTurn()),  # Malakir Rebirth
     (re.compile(r"search your library for up to X basic land cards, where X is the greatest power among creatures you control\. put those "
@@ -6124,8 +6132,10 @@ _DELAYED_TRIGGER = re.compile(r"(?:until (?:the )?end of (?:the turn|your next t
 def _delayed_trigger(sentence: str) -> CreateDelayedTrigger | None:
     """ "Until end of turn, whenever ..., ..." and "Whenever ... this turn, ...": the triggered ability the rest of the sentence
     is, set up as the spell or ability resolves. The wording of the trigger itself is the permanents' (effects/triggers.py)."""
-    from .triggers import _trigger_part
+    from .triggers import _trigger_part, remembered_ability
 
+    if remembered := remembered_ability(sentence):
+        return CreateDelayedTrigger((remembered[0],), when=remembered[1])
     match = _DELAYED_TRIGGER.fullmatch(sentence)
     if not match:
         return None

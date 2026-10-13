@@ -102,6 +102,7 @@ class Combat:
                 self.game._queue(TriggeredAbility("attacks", (Annihilate(n),), False, f"Annihilator {n}"), permanent, seat,
                                  player=defender)
             self.game.happened("ally_attacks", seat, subject=permanent)
+            self.game._remembered_attack(permanent, defender)
             self.game._observe("creature_attacks", permanent.card, seat, subject=permanent)  # with a qualifier (Raid Bombardment)
             self.game.happened("attacked_or_walker", defender, subject=permanent)
             if walker is None:

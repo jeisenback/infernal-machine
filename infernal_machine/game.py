@@ -389,6 +389,8 @@ class DelayedTrigger:
     controller: "Seat"
     born: int  # the turn it was set up
     next_turn: bool = False  # "until the end of your next turn": it lasts through the controller's next turn
+    only: "Permanent | None" = None  # "Whenever that creature deals combat damage ...": the creature it is about
+    when: frozenset = frozenset()  # ... and the kinds of hit that set it off (Game._remembered)
 
     def expired(self, game: "Game") -> bool:
         """Checked as a turn's cleanup step ends (CR 514.2)."""
@@ -2214,9 +2216,26 @@ class Game:
             permanent.triggered_turn[ability.text] = self.turn
         self.pending.append(PendingTrigger(ability, permanent, controller, x, subject, player, spell=spell))
 
-    def add_delayed(self, ability: TriggeredAbility, card: Card, controller: Seat, next_turn: bool = False) -> None:
-        """Set up `ability` for `controller` (CR 603.7): it watches until the turn ends, or the controller's next turn does."""
-        self.delayed.append(DelayedTrigger(ability, Permanent(card), controller, self.turn, next_turn))
+    def add_delayed(self, ability: TriggeredAbility, item: "StackItem", controller: Seat, next_turn: bool = False,
+                    only: Permanent | None = None, when: frozenset = frozenset()) -> None:
+        """Set up `ability` for `controller` (CR 603.7): it watches until the turn ends, or the controller's next turn does. A spell
+        that was kicked passes that on to its delayed ability's "if this spell was kicked"."""
+        watcher = Permanent(item.card, kicked=item.kicked, kickers=item.kickers)
+        self.delayed.append(DelayedTrigger(ability, watcher, controller, self.turn, next_turn, only, when))
+
+    def _remembered(self, creature: Permanent, kinds: set[str], amount: int = 0, player: Seat | None = None) -> None:
+        """`creature` did something (dealt damage ...) that a delayed ability about that creature watches for."""
+        for delayed in list(self.delayed):
+            if delayed.only is creature and delayed.when & kinds:
+                self._queue(delayed.ability, delayed.watcher, delayed.controller, amount, creature, player)
+
+    def _remembered_attack(self, creature: Permanent, defender: Seat) -> None:
+        for delayed in list(self.delayed):
+            kinds = {"attacks_opponent"} if defender in self.opponents(delayed.controller) else set()
+            if defender is self.monarch:
+                kinds.add("attacks_monarch")
+            if delayed.only is creature and delayed.when & kinds:
+                self._queue(delayed.ability, delayed.watcher, delayed.controller, 0, creature, defender)
 
     def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None, x: int = 0,
                         player: Seat | None = None, subject: Permanent | None = None) -> bool:
@@ -2870,9 +2889,9 @@ class Game:
                                     self.controller(watcher))
                 self._observe("combat_damage_dealt", source.card, controller, subject=source)  # "Whenever a Ninja you control deals ..."
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
-                    self.trigger("ally_combat_damage", permanent, controller, subject=source)
+                    self.trigger("ally_combat_damage", permanent, controller, subject=source, x=amount)  # x: "draw that many cards"
                     if _is_token(source.card):
-                        self.trigger("token_combat_damage", permanent, controller, subject=source)
+                        self.trigger("token_combat_damage", permanent, controller, subject=source, x=amount)
             if combat and controller and source is not None and source.card.name in controller.commander_names:
                 key = (controller.index, source.card.name)
                 target.commander_damage[key] = target.commander_damage.get(key, 0) + amount
@@ -2892,6 +2911,9 @@ class Game:
                 target.loyalty -= amount
             self.broadcast({"event": "damage", "card": target.card.name, "amount": amount,
                             "source": source.card.name if source else None})
+        if source is not None and amount > 0:  # "Whenever that creature deals combat damage to a player this turn, ..."
+            victim = "player" if isinstance(target, Seat) else "creature" if "Creature" in target.card.type_line else "planeswalker"
+            self._remembered(source, {"damage"} | ({f"combat_{victim}"} if combat else set()), amount, target if isinstance(target, Seat) else None)
         if controller and source is not None and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
 
