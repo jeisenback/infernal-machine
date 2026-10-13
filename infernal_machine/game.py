@@ -1990,6 +1990,8 @@ class Game:
         if kind == "auras_on_subject":  # Hateful Eidolon: the Auras you controlled that were attached to the creature that died
             subject = self.resolving_item.subject if self.resolving_item is not None else None
             return subject.last_auras.get(controller.index, 0) if subject is not None else 0
+        if kind == "creatures_died":  # creatures that died under your control this turn
+            return controller.died if controller.died_turn == self.turn else 0
         if kind == "creatures_entered":  # nontoken creatures that entered under your control this turn
             return controller.creatures_entered if controller.creatures_entered_turn == self.turn else 0
         if kind == "devotion":  # Gray Merchant of Asphodel: every {B} (hybrid and Phyrexian too) in the mana costs of your permanents
