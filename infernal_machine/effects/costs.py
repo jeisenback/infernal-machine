@@ -100,7 +100,7 @@ _KICKER = re.compile(rf"(?:Multik|K)icker ({_MANA_SYMBOLS})(?: and/or ({_MANA_SY
 _OFFSPRING = re.compile(rf"Offspring ({_MANA_SYMBOLS})")
 
 
-_KICKER_OTHER = re.compile(rf"Kicker\u2014(?:Sacrifice an? (creature|artifact|land|artifact or creature|permanent)"
+_KICKER_OTHER = re.compile(rf"Kicker\u2014(?:Sacrifice an? (creature|artifact|land|artifact or creature|permanent|artifact, enchantment, or token)"
                            rf"|(Discard a card)|Pay (?!X ){_N_FIXED} life)\.")
 
 

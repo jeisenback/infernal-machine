@@ -3756,7 +3756,7 @@ def _merge_conditional(effects: list) -> list | None:
                 return None
             merged[-1] = dataclasses.replace(merged[-1], mana_each=effect.options)
         elif isinstance(effect, Fight) and effect.optional_target:  # "Then it fights ...": it is the creature just pumped
-            if not (merged and isinstance(merged[-1], (PumpX, DoubleStats))):
+            if not (merged and isinstance(merged[-1], (PumpX, DoubleStats, FightSourceFirst))):
                 return None
             merged.append(effect)
         elif isinstance(effect, _PutFromAmongThem):
@@ -4300,6 +4300,16 @@ class Proliferate:
 class FightFirst:
     """The first target of a fight ("Target creature you control ... fights ..."): remembered for the second."""
     target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.carried = target
+
+
+@dataclass(frozen=True)
+class FightSourceFirst:
+    """ "When this creature enters, it fights up to one target creature you don't control.": the creature that fights is the source."""
+    uses_source = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if game.resolving_item is not None:
@@ -5093,6 +5103,13 @@ class IfNotKicked:
 
 
 @dataclass(frozen=True)
+class _KickedInsteadTail:
+    """ "If this spell was kicked, that creature gets -5/-5 until end of turn instead." (see _parse): what stands in for the effect before
+    it, with "that creature" the target of that effect."""
+    text: str
+
+
+@dataclass(frozen=True)
 class KickedReplaces:
     """ "If the gift was promised, instead counter target spell.": when kicked (or its gift promised) these effects stand in for the
     effect just before."""
@@ -5211,6 +5228,7 @@ _RETURN_UP_TO_DAMAGE = re.compile(r"return target creature card with mana value 
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
     (re.compile(r"if this spell was kicked, instead (.+)", re.I), lambda m: _kicked_replaces(m[1])),
+    (re.compile(r"if this spell was kicked, (.+?) instead\.", re.I), lambda m: _KickedInsteadTail(m[1])),
     (re.compile(r"if this spell wasn't kicked, (.+)", re.I), lambda m: _not_kicked(m[1])),
     (re.compile(rf"if this spell was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?, (.+)", re.I), _kicked),
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
@@ -5233,6 +5251,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"add one mana of any color\.", re.I), lambda m: AddMana((frozenset("WUBRG"),))),  # Phyrexian Altar, Springleaf Drum
     # the engine keeps one option set per mana, so the three of Lion's Eye Diamond can be spent as different colors
     (re.compile(r"add (two|three|four|five) mana of any one color\.", re.I), lambda m: AddMana((frozenset("WUBRG"),) * _ANY_N[m[1].lower()])),
+    (re.compile(r"add (two|three|four|five) mana in any combination of colors\.", re.I),  # Realm-Scorcher Hellkite: each mana its own color
+     lambda m: AddMana((frozenset("WUBRG"),) * _ANY_N[m[1].lower()])),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
 
     (re.compile(rf"{_SELF} deals {_N} damage to you\.", re.I), lambda m: DamageToYou(_count(m[1]))),
@@ -5741,6 +5761,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [FightFirst(m[1].lower()), Fight("any" if m[3] else (m[2] or m[4]).lower(), one_sided=True)]),
     (re.compile(r"target creature you control deals damage equal to its power to each other creature and each opponent\.", re.I),
      lambda m: [FightFirst("creature you control"), PowerDamageToEachOther()]),
+    (re.compile(rf"(?:it|this creature) fights up to one target {_FIGHTER}\.", re.I),  # Agatha's Champion: the creature itself
+     lambda m: [FightSourceFirst(), Fight(m[1].lower(), optional_target=True)]),
     (re.compile(rf"then it fights up to one target {_FIGHTER}\.", re.I),  # Primal Might: after a pump of the first creature
      lambda m: Fight(m[1].lower(), optional_target=True)),
     (re.compile(rf"look at the top {_N_FIXED} cards of your library\. Put {_N_FIXED} of them into your hand and the rest on the bottom of your "
@@ -6358,6 +6380,15 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     for i, effect in enumerate(effects):
+        if isinstance(effect, FightSourceFirst) and i and target_kind(effects[i - 1]):
+            return None  # "Put a +1/+1 counter on target creature. It fights ...": "it" is that creature, not the source
+        if isinstance(effect, _KickedInsteadTail):  # "that creature" is what the effect before it targets
+            kind = target_kind(effects[i - 1]) if i else None
+            about = re.sub(r"\bthat (?:creature|permanent)\b", f"target {kind}", effect.text) if kind else ""
+            replaced = _parse(_split_sentences(about[:1].upper() + about[1:] + ".")) if about else None
+            if not replaced:
+                return None
+            effects[i] = KickedReplaces(tuple(replaced))
         if isinstance(effect, KickedInstead) and not (i and hasattr(effects[i - 1], effect.field)):
             return None  # "instead" has to change the effect just before it
         if isinstance(effect, KickedReplaces) and not i:
