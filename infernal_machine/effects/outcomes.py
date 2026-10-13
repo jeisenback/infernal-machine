@@ -780,6 +780,8 @@ class PutCounters:
             game.put_counters(target, self.counter, game.amount(self.count))
             if self.grant:
                 game.modify_until_end_of_turn(target, Modifier(keywords=self.grant))
+            if game.resolving_item is not None and game.resolving_item.carried is None:
+                game.resolving_item.carried = target  # "Then it fights ...": the creature that got the counters
 
 
 @dataclass(frozen=True)
@@ -1171,6 +1173,8 @@ class Pump:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.modify_until_end_of_turn(target, self.modifier)
+            if game.resolving_item is not None and game.resolving_item.carried is None:
+                game.resolving_item.carried = target  # "It fights ...": the creature just pumped
 
 
 @dataclass(frozen=True)
@@ -3755,8 +3759,12 @@ def _merge_conditional(effects: list) -> list | None:
             if not (merged and isinstance(merged[-1], DestroyAll)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], mana_each=effect.options)
-        elif isinstance(effect, Fight) and effect.optional_target:  # "Then it fights ...": it is the creature just pumped
-            if not (merged and isinstance(merged[-1], (PumpX, DoubleStats, FightSourceFirst))):
+        elif isinstance(effect, Fight) and effect.follows:  # "It fights ...": the creature just pumped (or given counters), or the source
+            if not merged:
+                if effect.then:
+                    return None
+                merged.append(FightSourceFirst())
+            elif not isinstance(merged[-1], (Pump, PumpX, DoubleStats, PutCounters)):
                 return None
             merged.append(effect)
         elif isinstance(effect, _PutFromAmongThem):
@@ -4324,6 +4332,8 @@ class Fight:
     one_sided: bool = False
     another: bool = False  # "fights another target creature": not the first target
     optional_target: bool = False  # "fights up to one target creature"
+    follows: bool = False  # "It fights ...": the creature the sentence before it targeted, or the source if nothing did (see _merge_conditional)
+    then: bool = False  # "Then it fights ...": there has to be a sentence before it, it is never the source
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         first = game.resolving_item.carried if game.resolving_item is not None else None
@@ -5761,10 +5771,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [FightFirst(m[1].lower()), Fight("any" if m[3] else (m[2] or m[4]).lower(), one_sided=True)]),
     (re.compile(r"target creature you control deals damage equal to its power to each other creature and each opponent\.", re.I),
      lambda m: [FightFirst("creature you control"), PowerDamageToEachOther()]),
-    (re.compile(rf"(?:it|this creature) fights up to one target {_FIGHTER}\.", re.I),  # Agatha's Champion: the creature itself
-     lambda m: [FightSourceFirst(), Fight(m[1].lower(), optional_target=True)]),
-    (re.compile(rf"then it fights up to one target {_FIGHTER}\.", re.I),  # Primal Might: after a pump of the first creature
-     lambda m: Fight(m[1].lower(), optional_target=True)),
+    # "It fights ...": the creature the sentence before it targeted (Primal Might, Epic Confrontation), or, with none, the source (Agatha's Champion)
+    (re.compile(rf"(then )?(?:it|that creature|this creature) fights (up to one )?target {_FIGHTER}\.", re.I),
+     lambda m: Fight(m[3].lower(), optional_target=bool(m[2]), follows=True, then=bool(m[1]))),
     (re.compile(rf"look at the top {_N_FIXED} cards of your library\. Put {_N_FIXED} of them into your hand and the rest on the bottom of your "
                 r"library in any order\.", re.I), lambda m: LookTakeRestBottom(_number(m[1]), _number(m[2]))),
     (re.compile(r"target player draws X cards plus an additional card for each time they've cast a commander from the command zone "
@@ -6380,8 +6389,6 @@ def _parse(sentences: list[str]) -> list | None:
         for effect in found:  # one sentence can make several effects (a fight has two targets)
             effects += effect if isinstance(effect, list) else [effect]
     for i, effect in enumerate(effects):
-        if isinstance(effect, FightSourceFirst) and i and target_kind(effects[i - 1]):
-            return None  # "Put a +1/+1 counter on target creature. It fights ...": "it" is that creature, not the source
         if isinstance(effect, _KickedInsteadTail):  # "that creature" is what the effect before it targets
             kind = target_kind(effects[i - 1]) if i else None
             about = re.sub(r"\bthat (?:creature|permanent)\b", f"target {kind}", effect.text) if kind else ""
