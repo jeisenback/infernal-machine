@@ -1461,7 +1461,9 @@ worst-first, the card table points at cards that are too expensive, in the wrong
 
 It models mana and bodies, not rules text: a spell is cast when its cost can be paid (by `mana.pay`, color by color),
 mana rocks and mana creatures are sources, creatures attack unblocked from the turn after they enter (haste: at once),
-X is 0, a commander is cast once with no tax, and conditional "enters tapped" lands and shocklands count as untapped.
+X is 0, a commander is cast once with no tax, and conditional "enters tapped" lands and shocklands count as untapped. A land
+that fetches a basic land (Evolving Wilds, Terramorphic Expanse, Fabled Passage) is cracked when played: it takes the basic
+that adds a color the hand wants, removes it from the library, and enters tapped (Fabled Passage untaps with four lands).
 Use it to compare builds, not to predict a game. Any card list works, so a 60-card deck is fine; a deck with a commander
 gets the free first mulligan, one without does not.
 

@@ -2,7 +2,7 @@ import unittest
 
 from infernal_machine.bot import goldfish
 from infernal_machine.cards import Card, Deck
-from infernal_machine.simulate import enters_tapped, format_simulation, mana_sources, simulate
+from infernal_machine.simulate import Fetch, _landing, _Source, enters_tapped, fetch_land, format_simulation, mana_sources, simulate
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))
@@ -14,6 +14,18 @@ BEAR = Card(name="Grizzly Bears", mana_cost="{1}{G}", cmc=2, type_line="Creature
 HASTY = Card(name="Goblin Guide", mana_cost="{G}", cmc=1, type_line="Creature — Goblin", power="2", toughness="2", oracle_text="Haste")
 BLUE = Card(name="Counterspell", mana_cost="{U}{U}", cmc=2, type_line="Instant")
 TITAN = Card(name="Titan", mana_cost="{9}{G}", cmc=10, type_line="Creature — Giant", power="9", toughness="9")
+
+
+PASSAGE = Card(name="Fabled Passage", type_line="Land", oracle_text="{T}, Sacrifice this land: Search your library for a basic land card, "
+               "put it onto the battlefield tapped, then shuffle. Then if you control four or more lands, untap that land.")
+WILDS = Card(name="Evolving Wilds", type_line="Land", oracle_text="{T}, Sacrifice this land: Search your library for a basic land card, "
+             "put it onto the battlefield tapped, then shuffle.")
+STRAND = Card(name="Flooded Strand", type_line="Land", oracle_text="{T}, Pay 1 life, Sacrifice Flooded Strand: Search your library for a "
+              "Plains or Island card, put it onto the battlefield, then shuffle.")
+ICE_TUNNEL = Card(name="Ice Tunnel", type_line="Land \u2014 Island Swamp", produced_mana=("U", "B"),
+                  oracle_text="({T}: Add {U} or {B}.)\nThis land enters tapped.")
+SWAMP = Card(name="Swamp", type_line="Basic Land \u2014 Swamp", produced_mana=("B",))
+ISLAND_SOURCE = _Source(frozenset("U"), 1)
 
 
 def deck(*cards, commanders=()):
@@ -86,6 +98,75 @@ class SimulateTests(unittest.TestCase):
         text = format_simulation(simulate(deck(*[FOREST] * 30, *[BEAR] * 30), games=50, turns=3))
         self.assertIn("Grizzly Bears", text)
         self.assertIn("land drop", text)
+
+
+class FetchLandTests(unittest.TestCase):
+    def test_basic_land_fetches_are_read(self):
+        self.assertEqual(fetch_land(WILDS), Fetch(tapped=True, untap_at_four=False))
+        self.assertEqual(fetch_land(PASSAGE), Fetch(tapped=True, untap_at_four=True))
+
+    def test_other_lands_are_not_fetches(self):
+        self.assertIsNone(fetch_land(STRAND))  # it finds a land by type, which is not modeled
+        self.assertIsNone(fetch_land(ICE_TUNNEL))
+        self.assertIsNone(fetch_land(FOREST))
+
+    def test_it_takes_the_basic_that_adds_a_wanted_color(self):
+        colors, tapped, found = _landing(WILDS, [ISLAND, SWAMP], {"U", "B"}, [ISLAND_SOURCE], 1)
+        self.assertEqual((colors, tapped, found), (frozenset("B"), True, SWAMP))
+
+    def test_it_takes_what_the_library_has(self):
+        colors, _, found = _landing(WILDS, [ISLAND, FOREST], {"B"}, [], 0)
+        self.assertIn(found, (ISLAND, FOREST))  # no Swamp left, so something that still makes mana
+        self.assertEqual(colors, frozenset(found.produced_mana))
+
+    def test_with_no_basic_left_it_fetches_nothing(self):
+        self.assertEqual(_landing(WILDS, [BEAR, ICE_TUNNEL], {"B"}, [], 0), (frozenset(), True, None))
+
+    def test_fabled_passage_untaps_with_four_lands_only(self):
+        self.assertTrue(_landing(PASSAGE, [SWAMP], {"B"}, [], 2)[1])  # it would be the third land
+        self.assertFalse(_landing(PASSAGE, [SWAMP], {"B"}, [], 3)[1])  # the fourth
+        self.assertTrue(_landing(WILDS, [SWAMP], {"B"}, [], 3)[1])
+
+    def test_a_plain_land_is_played_as_it_is(self):
+        self.assertEqual(_landing(ICE_TUNNEL, [SWAMP], {"B"}, [], 0), (frozenset("UB"), True, None))
+        self.assertEqual(_landing(FOREST, [SWAMP], {"B"}, [], 0), (frozenset("G"), False, None))
+
+    def test_the_fetch_finds_the_color_the_deck_needs(self):
+        # Only Evolving Wilds and Islands: the fetched Island pays for {U}{U}. Without an Island in the library it cannot.
+        with_islands = simulate(deck(*[WILDS] * 20, *[ISLAND] * 20, *[BLUE] * 20), games=200, turns=6, seed=1)
+        without = simulate(deck(*[WILDS] * 20, *[SWAMP] * 20, *[BLUE] * 20), games=200, turns=6, seed=1)
+        self.assertGreater(with_islands.cards[0].cast_rate, 0.5)
+        self.assertEqual(without.cards[0].cast_rate, 0.0)
+
+    def test_a_fetched_basic_leaves_the_library(self):
+        # One Swamp in the deck: it can be drawn or fetched once, so there is never more than one source of mana.
+        stats = simulate(deck(*[WILDS] * 59, SWAMP), games=200, turns=6, seed=1)
+        self.assertLessEqual(max(stats.mana_available.values()), 1.0)
+
+    def test_a_fetch_with_nothing_to_fetch_makes_no_mana(self):
+        stats = simulate(deck(*[WILDS] * 60), games=20, turns=4)
+        self.assertEqual(stats.mana_available[4], 0.0)
+
+
+class OnCurveTests(unittest.TestCase):
+    def test_cheap_spells_in_a_land_heavy_deck_are_on_curve(self):
+        stats = simulate(deck(*[FOREST] * 30, *[HASTY] * 30), games=300, turns=6, seed=1)
+        self.assertGreater(stats.cards[0].on_curve, 0.8)
+        self.assertEqual(stats.on_curve, stats.cards[0].on_curve)
+
+    def test_a_card_that_can_never_be_cast_is_never_on_curve(self):
+        stats = simulate(deck(*[FOREST] * 30, *[BLUE] * 30), games=200, turns=5, seed=1)
+        self.assertEqual(stats.cards[0].on_curve, 0.0)
+
+    def test_a_card_too_expensive_for_the_game_length_is_not_rated(self):
+        stats = simulate(deck(*[FOREST] * 30, *[TITAN] * 30), games=100, turns=8, seed=1)
+        self.assertIsNone(stats.cards[0].on_curve)
+        self.assertIsNone(stats.on_curve)
+
+    def test_report_text_shows_it(self):
+        text = format_simulation(simulate(deck(*[FOREST] * 30, *[BEAR] * 30), games=100, turns=4, seed=1))
+        self.assertIn("On curve:", text)
+        self.assertIn("on curve", text)
 
 
 if __name__ == "__main__":
