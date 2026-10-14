@@ -7,17 +7,21 @@ Each game uses the bot's mulligan rules, draws a card a turn, plays one land a t
 cost can be paid, and nothing else it does is simulated except that creatures attack for their power from the turn
 after they enter (or at once with haste). Mana rocks and mana creatures count as sources. Conditional "enters tapped"
 lands and shocklands are treated as untapped, a land that fetches a basic land (Fabled Passage, Evolving Wilds) brings the
-basic the hand needs, X is 0, and commanders are cast once with no tax, so the numbers are
-for comparing builds, not for predicting a game. Works for any format: pass a 60-card list for Standard.
+basic the hand needs, X is 0, and a commander is cast from the command zone with its tax ({2} for each earlier cast), so the
+numbers are for comparing builds, not for predicting a game. `--commander-dies N` sends every commander on the battlefield back
+to the command zone at the start of turn N, as if removed, so the report shows how soon the recast comes and how much the tax
+costs a deck that leans on its commander. Eminence cost reducers and the rest of a commander's text are not modeled. Works for any
+format: pass a 60-card list for Standard.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import io
 import random
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 from .analysis import is_land
@@ -41,6 +45,9 @@ class CardStats:
     average_cast_turn: float | None  # first turn cast, over the games where it was cast
     average_wait: float | None  # turns between seeing it and casting it, over the games where it was cast
     on_curve: float | None = None  # of the games where it could be cast by the last turn, the share where it was, on the turn its mana value allowed (or the turn it was seen, if later)
+    average_casts: float = 0.0  # times cast per game (a commander is cast again after it goes back to the command zone)
+    recast_rate: float = 0.0  # share of games in which it was cast a second time
+    average_recast_turn: float | None = None  # the turn of that second cast, over the games where it happened
 
 
 @dataclass
@@ -183,6 +190,14 @@ def _landing(land: Card, library: list[Card], wanted: set[str], sources: list[_S
     return colors, fetch.tapped and not (fetch.untap_at_four and lands + 1 >= 4), basics[colors]
 
 
+COMMANDER_TAX = 2  # CR 903.8: {2} more for each time it has been cast from the command zone
+
+
+def _taxed(card: Card, tax: int) -> Card:
+    """The commander as it is cast now: its cost plus the tax, as a generic part of the mana cost."""
+    return dataclasses.replace(card, mana_cost=f"{card.mana_cost}{{{tax}}}", cmc=card.cmc + tax) if tax else card
+
+
 def _play_land(lands: list[Card], spells: list[Card], sources: list[_Source], turn: int, library: list[Card], in_play: int) -> Card | None:
     """The land to play: the one that lets the most mana be spent this turn, then the one that covers the most colors
     the hand's spells ask for, preferring an untapped land."""
@@ -197,15 +212,20 @@ def _play_land(lands: list[Card], spells: list[Card], sources: list[_Source], tu
     return best
 
 
-def _play(deck: Deck, turns: int, rng: random.Random, on_the_play: bool, free_mulligan: bool) -> dict:
+def _play(deck: Deck, turns: int, rng: random.Random, on_the_play: bool, free_mulligan: bool,
+          commander_dies_on: int | None = None) -> dict:
     hand, library, mulligans = opening_hand(deck.main, rng, free_mulligan)
-    command = list(deck.commanders)
+    command = list(deck.commanders)  # in the command zone now; a commander that is cast leaves it, and comes back if it dies
+    commander_casts: Counter = Counter()
+    commander_bodies: dict[str, tuple[_Body | None, list[_Source]]] = {}  # what a commander on the battlefield added
+    recast_turn: dict[str, int] = {}
     sources: list[_Source] = []
     bodies: list[_Body] = []
     seen_turn: dict[str, int] = {c.name: 0 for c in hand + command if not is_land(c)}
     cast_turn: dict[str, int] = {}
     result = {"mulligans": mulligans, "opening_lands": sum(1 for c in hand if is_land(c)), "land_drops": [], "available": [],
-              "spent": [], "stuck": [], "damage": [], "seen": seen_turn, "cast": cast_turn}
+              "spent": [], "stuck": [], "damage": [], "seen": seen_turn, "cast": cast_turn,
+              "casts": commander_casts, "recast": recast_turn}
     missed = False
     total_damage = 0
     lands_in_play = 0
@@ -215,7 +235,14 @@ def _play(deck: Deck, turns: int, rng: random.Random, on_the_play: bool, free_mu
             hand.append(card)
             if not is_land(card):
                 seen_turn.setdefault(card.name, turn)
-        spells = [c for c in hand if not is_land(c)] + [c for c in command if c.name not in cast_turn]
+        if commander_dies_on == turn:  # removed on the way to this turn: back to the command zone, its body and mana gone
+            for card in deck.commanders:
+                if card.name in commander_bodies:
+                    body, made_sources = commander_bodies.pop(card.name)
+                    bodies[:] = [b for b in bodies if b is not body]
+                    sources[:] = [src for src in sources if not any(src is m for m in made_sources)]
+                    command.append(card)
+        spells = [c for c in hand if not is_land(c)] + [_taxed(c, COMMANDER_TAX * commander_casts[c.name]) for c in command]
         land = _play_land([c for c in hand if is_land(c)], spells, sources, turn, library, lands_in_play)
         if land is not None:
             hand.remove(land)
@@ -235,30 +262,38 @@ def _play(deck: Deck, turns: int, rng: random.Random, on_the_play: bool, free_mu
         for card, amount in _plan(spells, ready):
             spent += amount
             cast_turn.setdefault(card.name, turn)
+            commander = next((c for c in command if c.name == card.name), None)
             if card in hand:
                 hand.remove(card)
-            else:
-                command.remove(card)
+            elif commander is not None:
+                command.remove(commander)
+                commander_casts[card.name] += 1
+                if commander_casts[card.name] == 2:
+                    recast_turn[card.name] = turn
             made = mana_sources(card)
-            if made:
-                sources += [_Source(colors, turn if "Artifact" in card.type_line else turn + 1) for colors in made]
-            if "Creature" in card.type_line:
-                bodies.append(_Body(_power(card), turn if "Haste" in card.oracle_text else turn + 1))
+            added = [_Source(colors, turn if "Artifact" in card.type_line else turn + 1) for colors in made]
+            sources += added
+            body = _Body(_power(card), turn if "Haste" in card.oracle_text else turn + 1) if "Creature" in card.type_line else None
+            if body is not None:
+                bodies.append(body)
+            if commander is not None:
+                commander_bodies[card.name] = (body, added)
         result["available"].append(len(ready))
         result["spent"].append(spent)
-        result["stuck"].append(_blocked_on_colors(hand + [c for c in command if c.name not in cast_turn], ready))
+        result["stuck"].append(_blocked_on_colors(hand + [_taxed(c, COMMANDER_TAX * commander_casts[c.name]) for c in command], ready))
         total_damage += sum(b.power for b in bodies if b.ready <= turn)
         result["damage"].append(total_damage)
     return result
 
 
-def play_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: bool, free_mulligan: bool) -> dict:
+def play_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: bool, free_mulligan: bool, commander_dies_on: int | None = None) -> dict:
     """Game number `n`: it shuffles the same way for the same seed and deck size, so two decks of one size can be compared."""
-    return _play(deck, turns, random.Random(f"{seed}-{n}"), on_the_play, free_mulligan)
+    return _play(deck, turns, random.Random(f"{seed}-{n}"), on_the_play, free_mulligan, commander_dies_on)
 
 
-def play_games(deck: Deck, games: int, turns: int, seed: int, on_the_play: bool, free_mulligan: bool) -> list[dict]:
-    return [play_game(deck, n, turns, seed, on_the_play, free_mulligan) for n in range(games)]
+def play_games(deck: Deck, games: int, turns: int, seed: int, on_the_play: bool, free_mulligan: bool,
+               commander_dies_on: int | None = None) -> list[dict]:
+    return [play_game(deck, n, turns, seed, on_the_play, free_mulligan, commander_dies_on) for n in range(games)]
 
 
 def game_value(run: dict) -> int:
@@ -267,8 +302,9 @@ def game_value(run: dict) -> int:
 
 
 def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_the_play: bool = False,
-             free_mulligan: bool | None = None) -> SimStats:
-    """Play `deck` alone `games` times for `turns` turns. A commander deck gets the free first mulligan unless told otherwise."""
+             free_mulligan: bool | None = None, commander_dies_on: int | None = None) -> SimStats:
+    """Play `deck` alone `games` times for `turns` turns. A commander deck gets the free first mulligan unless told otherwise.
+    With `commander_dies_on`, a commander on the battlefield goes back to the command zone at the start of that turn."""
     if free_mulligan is None:
         free_mulligan = bool(deck.commanders)
     mulliganed = opening_lands = 0
@@ -281,9 +317,14 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
     seen, cast = defaultdict(int), defaultdict(int)
     cast_turns, waits = defaultdict(list), defaultdict(list)
     due_games, due_cast = defaultdict(int), defaultdict(int)
+    total_casts, recast_turns = defaultdict(int), defaultdict(list)
     mana_value = {c.name: int(c.cmc) for c in deck.commanders + deck.main}
-    for run in play_games(deck, games, turns, seed, on_the_play, free_mulligan):
+    for run in play_games(deck, games, turns, seed, on_the_play, free_mulligan, commander_dies_on):
         mulliganed += run["mulligans"] > 0
+        for name, times in run["casts"].items():
+            total_casts[name] += times
+        for name, turn in run["recast"].items():
+            recast_turns[name].append(turn)
         opening_lands += run["opening_lands"]
         for i in range(turns):
             drops[i] += run["land_drops"][i]
@@ -304,7 +345,9 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
     avg = lambda values: round(sum(values) / len(values), 2) if values else None  # noqa: E731
     cards = [CardStats(name, copies[name], round(seen[name] / games, 3), round(cast[name] / games, 3),
                        round(cast[name] / seen[name], 3) if seen[name] else 0.0, avg(cast_turns[name]), avg(waits[name]),
-                       round(due_cast[name] / due_games[name], 3) if due_games[name] else None)
+                       round(due_cast[name] / due_games[name], 3) if due_games[name] else None,
+                       round(total_casts[name] / games, 2) if name in total_casts else round(cast[name] / games, 2),
+                       round(len(recast_turns[name]) / games, 3), avg(recast_turns[name]))
              for name in copies]
     per_turn = lambda values, digits=3: {i + 1: round(v / games, digits) for i, v in enumerate(values)}  # noqa: E731
     return SimStats(games=games, turns=turns, mulligan_rate=round(mulliganed / games, 3),
@@ -327,6 +370,11 @@ def format_simulation(stats: SimStats) -> str:
         wait = f"{card.average_wait:.1f}" if card.average_wait is not None else "-"
         curve = f"{card.on_curve:.0%}" if card.on_curve is not None else "-"
         lines.append(f"{card.name[:36]:<36}  {card.copies:>6}  {card.seen_rate:>4.0%}  {card.cast_rate:>4.0%}  {card.cast_when_seen:>11.0%}  {turn:>8}  {wait:>8}  {curve:>8}")
+    recast = [c for c in stats.cards if c.recast_rate]
+    if recast:
+        lines += ["", "commander recast (each recast costs {2} more):"]
+        lines += [f"  {c.name[:36]:<36}  first cast turn {c.average_cast_turn}, cast again in {c.recast_rate:.0%} of games, on turn {c.average_recast_turn} on average"
+                  for c in recast]
     return "\n".join(lines)
 
 
@@ -343,11 +391,12 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--turns", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--play", action="store_true", help="be on the play (no draw on turn 1)")
+    parser.add_argument("--commander-dies", type=int, metavar="TURN", help="send commanders back to the command zone at the start of this turn")
     parser.add_argument("--bulk", default=".cache/oracle_bulk.json")
     args = parser.parse_args(argv[1:])
     with open(args.decklist, encoding="utf-8") as f:
         deck = load_deck(f.read(), BulkSource(args.bulk))
-    print(format_simulation(simulate(deck, args.games, args.turns, args.seed, args.play)))
+    print(format_simulation(simulate(deck, args.games, args.turns, args.seed, args.play, commander_dies_on=args.commander_dies)))
     return 0
 
 
