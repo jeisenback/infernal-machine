@@ -14,10 +14,12 @@ A game that crashes or runs past `--time-limit` seconds is counted apart (and th
 
 from __future__ import annotations
 
+import ctypes
 import io
 import math
 import random
 import sys
+import threading
 import time
 import zlib
 from collections import Counter
@@ -65,9 +67,12 @@ class GameResult:
     error: str | None = None  # "timeout" or the exception
 
 
-def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60, time_limit: float = 120.0) -> GameResult:
-    """One game of bots, with `decks[focus_seat]` the deck being tested."""
-    game = Game([(BotPlayer(f"P{i}", deck), deck) for i, deck in enumerate(decks)], seed=seed)
+def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60, time_limit: float = 120.0,
+             bots: list | None = None) -> GameResult:
+    """One game of bots, with `decks[focus_seat]` the deck being tested. `bots` makes each seat's player, as
+    `bots[seat](name, deck)`; it defaults to `BotPlayer` everywhere (use `functools.partial` so a worker process can run it)."""
+    makers = bots or [BotPlayer] * len(decks)
+    game = Game([(make(f"P{i}", deck), deck) for i, (make, deck) in enumerate(zip(makers, decks))], seed=seed)
     result = GameResult(focus_seat)
     logs = result.logs = {i: SeatLog() for i in range(len(decks))}
     deadline = time.monotonic() + time_limit
@@ -91,13 +96,23 @@ def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60,
         forward(event, skip)
 
     game.broadcast = tap  # type: ignore[method-assign]
-    try:
-        winner = game.play(max_turns=max_turns)
-        result.winner = winner.index if winner else None
+    me = threading.get_ident()
+    # A game stuck inside the engine sends no events, so the check in `tap` never runs: a timer raises in this thread instead.
+    watchdog = threading.Timer(time_limit, lambda: ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(me), ctypes.py_object(_TimedOut)))
+    watchdog.daemon = True
+    try:  # the outer try catches a timer that fires late, between the game and the cancel
+        try:
+            watchdog.start()
+            winner = game.play(max_turns=max_turns)
+            result.winner = winner.index if winner else None
+        except _TimedOut:
+            result.error = "timeout"
+        except Exception as error:  # noqa: BLE001 - an engine crash is a finding, not a reason to stop the batch
+            result.error = f"{type(error).__name__}: {error}"[:200]
+        finally:
+            watchdog.cancel()
     except _TimedOut:
-        result.error = "timeout"
-    except Exception as error:  # noqa: BLE001 - an engine crash is a finding, not a reason to stop the batch
-        result.error = f"{type(error).__name__}: {error}"[:200]
+        result.error = result.error or "timeout"
     result.turns, result.starting_seat = game.turn, game.starting_seat
     return result
 
@@ -174,8 +189,9 @@ def _record(name: str, results: list[GameResult], pod: int) -> Record:
 
 
 def matchups(focus: Deck, opponents: dict[str, Deck], games: int = 40, pod: int = 2, seed: int = 0, max_turns: int = 60,
-             time_limit: float = 120.0, workers: int = 1) -> list[Record]:
-    """Play `games` games for each opponent (a duel), or `games` pod games in all if `pod` is more than 2."""
+             time_limit: float = 120.0, workers: int = 1, focus_bot=BotPlayer, opponent_bot=BotPlayer) -> list[Record]:
+    """Play `games` games for each opponent (a duel), or `games` pod games in all if `pod` is more than 2.
+    `focus_bot` and `opponent_bot` make the players, to compare two versions of a bot on the same decks."""
     plans: list[tuple[str, list[tuple]]] = []
     if pod <= 2:
         groups = [(name, [deck]) for name, deck in opponents.items()]
@@ -188,7 +204,8 @@ def matchups(focus: Deck, opponents: dict[str, Deck], games: int = 40, pod: int 
             others = fixed if fixed is not None else [opponents[k] for k in rng.choices(list(opponents), k=pod - 1)]
             seat = n % (len(others) + 1)
             decks = others[:seat] + [focus] + others[seat:]
-            tasks.append((decks, seat, zlib.crc32(f"{seed}-{name}-{n}".encode()), max_turns, time_limit))
+            bots = [opponent_bot] * seat + [focus_bot] + [opponent_bot] * (len(others) - seat)
+            tasks.append((decks, seat, zlib.crc32(f"{seed}-{name}-{n}".encode()), max_turns, time_limit, bots))
         plans.append((name, tasks))
     if workers > 1:
         with ProcessPoolExecutor(max_workers=workers) as pool:

@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Sequence
 
-from .analysis import is_land
+from .analysis import color_pips, is_land
 from .cards import Card, Deck
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
@@ -20,6 +20,7 @@ from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
 LAND_GOAL = 6  # lands (in play and in hand) the bot wants before it stops keeping more
 
 
@@ -63,7 +64,11 @@ class BotPlayer:
 
     CHUMP_LIFE = 10
 
-    def __init__(self, name: str, deck: Deck):
+    def __init__(self, name: str, deck: Deck, features: frozenset[str] = FEATURES):
+        """`features` turns judgments on: "timing" (tap-and-sacrifice abilities only after casting, never before the
+        main phase), "attack" (only attacks that can't be blocked and killed for nothing), "land" (plays the land its
+        hand needs), "target" (removal goes on the biggest opposing creature), "mana" (casts what spends the most mana)."""
+        self.features = features
         self.name = name
         self._cards = {c.name: c for c in deck.commanders + deck.main}
         self._cards.update({c.prepare.name: c.prepare for c in list(self._cards.values()) if c.prepare})  # the spell halves
@@ -107,7 +112,7 @@ class BotPlayer:
         if prompt in (BOTTOM_PROMPT, DISCARD_PROMPT, DISCARD_CARD_PROMPT):
             return worst_card([self._card(name) for name in options])
         if prompt.startswith(ATTACK_PROMPT):
-            if _stats(prompt)[0] <= 0:
+            if _stats(prompt)[0] <= 0 or ("attack" in self.features and not self._worth_attacking(prompt)):
                 return 0
             return min(range(1, len(options)), key=lambda i: self._life_of(_seat_of(options[i])))
         if prompt.startswith(BLOCK_PROMPT):
@@ -160,14 +165,18 @@ class BotPlayer:
             theirs = [i for i, option in enumerate(options) if _seat_of(option) != self._seat]
             if self._is_buff_aura(prompt.removeprefix(TARGET_PROMPT)) and mine:
                 return mine[0]
+            if "target" in self.features and theirs and self._is_removal(prompt.removeprefix(TARGET_PROMPT)):
+                sized = [i for i in theirs if sum(_stats(options[i])) > 0]
+                if sized:
+                    return max(sized, key=lambda i: sum(_stats(options[i])))
             return theirs[0] if theirs else 0
         if PASS not in options:
             return 0  # search, command zone and other yes/no choices: take the first option
         if self._stack and self._stack[-1] == self._seat:
             return options.index(PASS)
-        for i, option in enumerate(options):
-            if option.startswith((PLAY_LAND, PLAY_EXILE, PLAY_GRAVEYARD)):
-                return i
+        lands = [i for i, option in enumerate(options) if option.startswith((PLAY_LAND, PLAY_EXILE, PLAY_GRAVEYARD))]
+        if lands:
+            return self._best_land(lands, options) if "land" in self.features else lands[0]
         for i, option in enumerate(options):
             if option.startswith(CAST_COMMANDER):
                 return i
@@ -175,14 +184,96 @@ class BotPlayer:
                  if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)) and not _is_ritual(self._cards.get(_cast_name(option)))
                  and not self._unhelpful_wipe(self._cards.get(_cast_name(option)))]
         if casts:
+            if "mana" in self.features:
+                return self._best_cast(casts, options)
             return max(casts, key=lambda i: self._cards[name].cmc if (name := _cast_name(options[i])) in self._cards else 0)
         for i, option in enumerate(options):
             if option.startswith(CYCLE) and self._cycle_away(self._cards.get(option.removeprefix(CYCLE))):
                 return i
         for i, option in enumerate(options):
-            if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)):
+            if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)) and self._activation_time(prompt, option):
                 return i
         return options.index(PASS)
+
+    def _activation_time(self, prompt: str, option: str) -> bool:
+        """With "timing": equip, crew and loyalty abilities in either main phase, but an ability that taps or sacrifices
+        its source (a land it needs for spells, a creature that should attack) only in the second main phase."""
+        if "timing" not in self.features:
+            return True
+        step = prompt.removeprefix("Priority: ")
+        cost = option.split("): ", 1)[1].split(":", 1)[0]
+        if step == "main2":
+            return True
+        return step == "main1" and "{T}" not in cost and "Sacrifice" not in cost
+
+    def _best_land(self, lands: list[int], options: Sequence[str]) -> int:
+        """The land that adds the most colors the hand still needs and the lands in play lack; untapped ones first."""
+        state = self._state or {}
+        have: set[str] = set()
+        for seat in state.get("seats", []):
+            if seat["seat"] == self._seat:
+                for p in seat["battlefield"]:
+                    if "Land" in p["type"] and p.get("name") in self._cards:
+                        have |= set(self._cards[p["name"]].produced_mana)
+        needed: set[str] = set()
+        for name in state.get("hand", []):
+            card = self._cards.get(name)
+            if card is not None and not is_land(card):
+                needed |= set(color_pips(card.mana_cost))
+
+        def score(i: int) -> tuple[int, int, bool]:
+            card = self._card(options[i].split(": ", 1)[1])
+            colors = set(card.produced_mana) & set("WUBRG")
+            tapped = "enters tapped" in card.oracle_text or "enters the battlefield tapped" in card.oracle_text
+            return len((colors & needed) - have), len(colors & needed), not tapped
+
+        return max(lands, key=score)
+
+    def _best_cast(self, casts: list[int], options: Sequence[str]) -> int:
+        """Of the spells it can cast, the biggest one in the combination that spends the most of its untapped mana."""
+        mine = self._my_seat()
+        mana = sum(1 for p in mine["battlefield"] if not p.get("tapped") and (
+            "Land" in p["type"] or (p.get("name") in self._cards and self._cards[p["name"]].produced_mana))) if mine else 0
+        mana += len((mine or {}).get("mana_pool", []))
+        costs = {i: int(self._cards[name].cmc) if (name := _cast_name(options[i])) in self._cards else 0 for i in casts}
+        if max(costs.values()) > mana:  # the game says it can pay for that, so this count is wrong (a cost reduction, a mana ability it can't see)
+            return max(casts, key=costs.__getitem__)
+        best_total, best = -1, casts[0]
+        for mask in range(1, 1 << min(len(casts), 12)):
+            chosen = [casts[b] for b in range(min(len(casts), 12)) if mask >> b & 1]
+            total = sum(costs[i] for i in chosen)
+            if total <= mana and (total > best_total or (total == best_total and max(costs[i] for i in chosen) > costs[best])):
+                best_total, best = total, max(chosen, key=costs.__getitem__)
+        if best_total < 0:  # it cannot tell what it can pay (X spells, cost reductions): the plain rule
+            return max(casts, key=costs.__getitem__)
+        return best
+
+    def _is_removal(self, name: str) -> bool:
+        card = self._cards.get(name)
+        text = card.oracle_text.lower() if card else ""
+        return any(word in text for word in ("destroy", "exile", "damage", "return", "gain control", "-x/-x", "fight"))
+
+    def _worth_attacking(self, prompt: str) -> bool:
+        """Attack when it is lethal, when it can't be blocked, or when nothing could block and kill this creature and
+        survive; stay home when the opponents' board could be lethal next turn."""
+        power, toughness = _stats(prompt)
+        label = prompt.removeprefix(ATTACK_PROMPT)
+        card = next((c for n, c in self._cards.items() if label.startswith(n + " ")), None)
+        text = card.oracle_text.lower() if card else ""
+        mine = self._my_seat()
+        foes = [s for s in (self._state or {}).get("seats", []) if s["seat"] != self._seat and not s["lost"]]
+        if mine is None or not foes:
+            return True
+        ready = [p for p in mine["battlefield"] if p["power"] and not p["tapped"] and not p["sick"]]
+        if sum(p["power"] for p in ready) >= min(s["life"] for s in foes):
+            return True  # lethal
+        if "flying" in text or "can't be blocked" in text:
+            return True
+        blockers = [p for s in foes for p in s["battlefield"] if p["power"] is not None and not p["tapped"]]
+        if any(p["power"] >= toughness and p["toughness"] > power for p in blockers):
+            return False  # something kills it and survives
+        threat = sum(p["power"] for s in foes for p in s["battlefield"] if p["power"])  # summoning sickness wears off by their turn
+        return threat < mine["life"]
 
 
     def _my_seat(self) -> dict | None:
