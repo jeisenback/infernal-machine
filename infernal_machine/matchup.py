@@ -261,7 +261,7 @@ def main(argv: list[str]) -> int:
 
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("decklist", help="the deck being tested")
     parser.add_argument("opponents", nargs="+", help="decklists to play against")
     parser.add_argument("--games", type=int, default=40, help="per opponent (or in total with --pod)")

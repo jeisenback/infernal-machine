@@ -34,7 +34,7 @@ def features(text: str) -> frozenset[str]:
 def main() -> int:
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("decks", nargs="+")
     parser.add_argument("--features", default=",".join(sorted(FEATURES)))
     parser.add_argument("--against", default="")
