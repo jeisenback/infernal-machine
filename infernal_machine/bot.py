@@ -20,7 +20,9 @@ from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+COMMANDER_FIRST_TAX = 2  # cast the commander before anything else while its tax is at most this; after that it competes for mana
+COMMANDER_DAMAGE = 21
 LAND_GOAL = 6  # lands (in play and in hand) the bot wants before it stops keeping more
 
 
@@ -67,8 +69,10 @@ class BotPlayer:
     def __init__(self, name: str, deck: Deck, features: frozenset[str] = FEATURES):
         """`features` turns judgments on: "timing" (tap-and-sacrifice abilities only after casting, never before the
         main phase), "attack" (only attacks that can't be blocked and killed for nothing), "land" (plays the land its
-        hand needs), "target" (removal goes on the biggest opposing creature), "mana" (casts what spends the most mana)."""
+        hand needs), "target" (removal goes on the biggest opposing creature), "mana" (casts what spends the most mana),
+        "commander" (a commander with a high tax is weighed against other spells, and its damage goes where it adds up to 21)."""
         self.features = features
+        self._commanders = {c.name for c in deck.commanders}
         self.name = name
         self._cards = {c.name: c for c in deck.commanders + deck.main}
         self._cards.update({c.prepare.name: c.prepare for c in list(self._cards.values()) if c.prepare})  # the spell halves
@@ -114,6 +118,8 @@ class BotPlayer:
         if prompt.startswith(ATTACK_PROMPT):
             if _stats(prompt)[0] <= 0 or ("attack" in self.features and not self._worth_attacking(prompt)):
                 return 0
+            if "commander" in self.features and (lethal := self._commander_target(prompt, options)) is not None:
+                return lethal
             return min(range(1, len(options)), key=lambda i: self._life_of(_seat_of(options[i])))
         if prompt.startswith(BLOCK_PROMPT):
             return self._block(prompt, options)
@@ -177,12 +183,19 @@ class BotPlayer:
         lands = [i for i, option in enumerate(options) if option.startswith((PLAY_LAND, PLAY_EXILE, PLAY_GRAVEYARD))]
         if lands:
             return self._best_land(lands, options) if "land" in self.features else lands[0]
-        for i, option in enumerate(options):
-            if option.startswith(CAST_COMMANDER):
-                return i
+        commanders = [i for i, option in enumerate(options) if option.startswith(CAST_COMMANDER)]
+        if "commander" not in self.features:
+            if commanders:
+                return commanders[0]
+        else:
+            cheap = [i for i in commanders if self._tax(options[i]) <= COMMANDER_FIRST_TAX]
+            if cheap:
+                return cheap[0]
         casts = [i for i, option in enumerate(options)
                  if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)) and not _is_ritual(self._cards.get(_cast_name(option)))
                  and not self._unhelpful_wipe(self._cards.get(_cast_name(option)))]
+        if "commander" in self.features:
+            casts += [i for i in commanders if i not in casts]  # a commander that has grown expensive competes with the rest
         if casts:
             if "mana" in self.features:
                 return self._best_cast(casts, options)
@@ -194,6 +207,37 @@ class BotPlayer:
             if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)) and self._activation_time(prompt, option):
                 return i
         return options.index(PASS)
+
+    def _tax(self, option: str) -> int:
+        """The commander tax on a "Cast commander: ..." action."""
+        mine = self._my_seat()
+        name = option.removeprefix(CAST_COMMANDER)
+        return next((z["tax"] for z in (mine or {}).get("command_zone", []) if z["name"] == name), 0)
+
+    def _commander_target(self, prompt: str, options: Sequence[str]) -> int | None:
+        """For one of its own commanders attacking: the opponent it has hurt enough that this attack makes 21."""
+        label = prompt.removeprefix(ATTACK_PROMPT)
+        name = next((n for n in self._commanders if label.startswith(n + " ")), None)
+        if name is None:
+            return None
+        power = _stats(prompt)[0]
+        seats = {s["seat"]: s for s in (self._state or {}).get("seats", [])}
+        for i in range(1, len(options)):
+            foe = seats.get(_seat_of(options[i]))
+            dealt = sum(d["damage"] for d in (foe or {}).get("commander_damage", []) if d["from_seat"] == self._seat and d["commander"] == name)
+            if foe is not None and dealt + power >= COMMANDER_DAMAGE:
+                return i
+        return None
+
+    def _lethal_commander(self, options: Sequence[str]) -> int | None:
+        """The attacker to block: an opposing commander whose damage to this bot would reach 21 with this hit."""
+        mine = self._my_seat()
+        dealt = {d["commander"]: d["damage"] for d in (mine or {}).get("commander_damage", [])}
+        for i in range(1, len(options)):
+            name = next((n for n in dealt if options[i].startswith(n + " ")), None)
+            if name is not None and dealt[name] + _stats(options[i])[0] >= COMMANDER_DAMAGE:
+                return i
+        return None
 
     def _activation_time(self, prompt: str, option: str) -> bool:
         """With "timing": equip, crew and loyalty abilities in either main phase, but an ability that taps or sacrifices
@@ -235,7 +279,8 @@ class BotPlayer:
         mana = sum(1 for p in mine["battlefield"] if not p.get("tapped") and (
             "Land" in p["type"] or (p.get("name") in self._cards and self._cards[p["name"]].produced_mana))) if mine else 0
         mana += len((mine or {}).get("mana_pool", []))
-        costs = {i: int(self._cards[name].cmc) if (name := _cast_name(options[i])) in self._cards else 0 for i in casts}
+        costs = {i: int(self._cards[name].cmc) + (self._tax(options[i]) if options[i].startswith(CAST_COMMANDER) else 0)
+                 if (name := _cast_name(options[i])) in self._cards else 0 for i in casts}
         if max(costs.values()) > mana:  # the game says it can pay for that, so this count is wrong (a cost reduction, a mana ability it can't see)
             return max(casts, key=costs.__getitem__)
         best_total, best = -1, casts[0]
@@ -319,6 +364,8 @@ class BotPlayer:
     def _block(self, prompt: str, options: Sequence[str]) -> int:
         toughness = _stats(prompt)[1]
         powers = {i: _stats(options[i])[0] for i in range(1, len(options))}
+        if "commander" in self.features and (lethal := self._lethal_commander(options)) is not None:
+            return lethal
         survivable = [i for i, p in powers.items() if p < toughness]
         if survivable:
             return max(survivable, key=powers.__getitem__)
@@ -349,8 +396,8 @@ def _is_wipe(card: Card) -> bool:
 
 
 def _cast_name(option: str) -> str:
-    """The card in a "Cast: ..." or "Cast from graveyard: ..." action."""
-    return option.removeprefix(CAST).removeprefix(CAST_GRAVEYARD).removeprefix(CAST_EXILE).removeprefix(CAST_PREPARED)
+    """The card in a "Cast: ...", "Cast commander: ..." or "Cast from graveyard: ..." action."""
+    return option.removeprefix(CAST).removeprefix(CAST_COMMANDER).removeprefix(CAST_GRAVEYARD).removeprefix(CAST_EXILE).removeprefix(CAST_PREPARED)
 
 
 def _is_ritual(card: Card | None) -> bool:

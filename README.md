@@ -1452,6 +1452,11 @@ stats = goldfish(deck, games=5000, turns=5)
   - `land`: plays the land that adds a color the hand needs and the lands in play lack, an untapped one on a tie.
   - `target`: removal (destroy, exile, damage, bounce, steal) goes on the biggest opposing creature, not the first listed.
   - `mana`: of the spells it can cast, it picks the one in the combination that spends the most of its untapped mana.
+  - `commander`: the commander is cast first only while its tax is 2 or less (after that it competes with the other spells for the
+    mana); a commander that attacks goes at the player whose commander damage from it this attack would bring to 21; and it blocks
+    an opposing commander whose hit would bring the damage it has taken from that commander to 21 or more. In 146 four-player pods
+    (`compare_bots.py --pod 4`) it won 25.3% (19.0%-33.0%) against opponents without it, where a fair share is 25%: no measurable
+    difference, so these are rule-following choices, not a proven gain.
   `python tools/compare_bots.py DECK DECK ...` plays one version of the bot against another on the same decks and reports the
   win rate with its 95% interval. Against the plain bot on the five Secrets of Strixhaven precons (191 games) all five
   together won 67.5% (60.6%-73.8%); alone, timing won 65.5%, attack 57.6%, land 56.8%, target 55.2% and mana 52.9%.
