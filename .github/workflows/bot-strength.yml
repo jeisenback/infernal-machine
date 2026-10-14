@@ -1,0 +1,55 @@
+name: bot strength
+# Weekly: the default bot against the plain bot (no judgments) on the precon decks. It records the win rate and fails only
+# when the whole 95% interval is below 50%, meaning a change has made the bot reliably worse. It never runs on pull requests.
+on:
+  schedule:
+    - cron: "49 6 * * 1"  # Mondays, after the precon report, the bot games and the coverage audit
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bot-strength
+  cancel-in-progress: true
+jobs:
+  games:
+    name: games (seed ${{ matrix.seed }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [0, 1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Get this week's cache key
+        id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/oracle_bulk.json
+          key: oracle-bulk-${{ steps.week.outputs.week }}
+      - name: Eight duels per deck pair and direction, the default bot against the plain bot
+        run: python tools/compare_bots.py --games 8 --seed ${{ matrix.seed }} --workers 3 --time-limit 90 --json strength-${{ matrix.seed }}.json examples/precons/*.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: strength-${{ matrix.seed }}
+          path: strength-${{ matrix.seed }}.json
+  result:
+    name: bot strength (all shards)
+    needs: games
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: strength-*
+          merge-multiple: true
+      - name: Add the shards up
+        run: python tools/bot_strength_summary.py strength-*.json
