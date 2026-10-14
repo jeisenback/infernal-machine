@@ -46,13 +46,14 @@ def valid_pair(a: Card, b: Card) -> bool:
     return ka == kb
 
 
-def copy_limit(card: Card) -> int | None:
-    """How many copies a Commander deck may run; None means unlimited."""
+def copy_limit(card: Card, default: int = 1) -> int | None:
+    """How many copies a deck may run; None means unlimited. `default` is the format's limit for an ordinary card:
+    1 in Commander (singleton), 4 in Standard."""
     if "Basic" in card.type_line:
         return None
     match = _COPY_LIMIT.search(card.oracle_text)
     if not match:
-        return 1
+        return default
     if match.group(2) is None:
         return None
     return _NUMBERS.get(match.group(2), 1)

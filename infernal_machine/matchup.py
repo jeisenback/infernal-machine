@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 
 from .bot import BotPlayer
 from .cards import Deck
+from .formats import format_of
 from .game import Game
 
 EARLY_TURNS = 4  # the first turns of a seat, whose lands and spells say whether it stumbled
@@ -72,7 +73,8 @@ def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60,
     """One game of bots, with `decks[focus_seat]` the deck being tested. `bots` makes each seat's player, as
     `bots[seat](name, deck)`; it defaults to `BotPlayer` everywhere (use `functools.partial` so a worker process can run it)."""
     makers = bots or [BotPlayer] * len(decks)
-    game = Game([(make(f"P{i}", deck), deck) for i, (make, deck) in enumerate(zip(makers, decks))], seed=seed)
+    game = Game([(make(f"P{i}", deck), deck) for i, (make, deck) in enumerate(zip(makers, decks))], seed=seed,
+                format=format_of(decks))
     result = GameResult(focus_seat)
     logs = result.logs = {i: SeatLog() for i in range(len(decks))}
     deadline = time.monotonic() + time_limit

@@ -23,7 +23,7 @@ from typing import Callable, Sequence
 
 from .bot import BotPlayer
 from .cards import BulkSource, CachedSource, CardNotFound, CardSource, Deck, ScryfallSource, load_deck
-from .commander import deck_problems
+from .formats import COMMANDER, FORMATS, Format, deck_problems
 from .game import Game
 from .player import Player
 from .tcp import Disconnected, TcpPlayer, TimedOut, listen
@@ -150,7 +150,7 @@ def _reject_message(problems: list[str]) -> str:
     return "Your deck was rejected:\n" + "\n".join(f"- {p}" for p in shown) + (f"\n- and {more} more" if more else "")
 
 
-def load_human_deck(hello: dict, source: CardSource, check: bool) -> Deck:
+def load_human_deck(hello: dict, source: CardSource, check: bool, fmt: Format = COMMANDER) -> Deck:
     text = hello.get("deck")
     if not isinstance(text, str) or not text.strip():
         raise DeckRejected(_reject_message(['Send your decklist in the hello message ("deck").']))
@@ -158,14 +158,14 @@ def load_human_deck(hello: dict, source: CardSource, check: bool) -> Deck:
         deck = load_deck(text, source)
     except (CardNotFound, ValueError, OSError) as err:
         raise DeckRejected(_reject_message([f"Couldn't read your deck: {err}"])) from err
-    if check and (problems := deck_problems(deck)):
+    if check and (problems := deck_problems(deck, fmt)):
         raise DeckRejected(_reject_message(problems))
     return deck
 
 
 def seat_humans(server: socket.socket, count: int, source: CardSource, check: bool, taken_names: set[str],
                 log: Callable[[str], None] = print, handshake_timeout: float = 10.0, password: str | None = None,
-                spectators: Spectators | None = None) -> list[tuple[TcpPlayer, Deck]]:
+                spectators: Spectators | None = None, fmt: Format = COMMANDER) -> list[tuple[TcpPlayer, Deck]]:
     """Accept connections until `count` players with usable decks and unused names are seated.
     Anyone else is told why and dropped, and their place stays open. Spectators are welcomed and wait for the game."""
     seated: list[tuple[TcpPlayer, Deck]] = []
@@ -188,7 +188,7 @@ def seat_humans(server: socket.socket, count: int, source: CardSource, check: bo
             if not name or name in names:
                 player.send_error(f"The name {name!r} is empty or already taken; pick another.")
                 raise Disconnected("bad name")
-            deck = load_human_deck(hello, source, check)
+            deck = load_human_deck(hello, source, check, fmt)
             player.name = name
             player.welcome(len(seated))
             conn.settimeout(None)
@@ -253,7 +253,7 @@ def rejoin_players(server: socket.socket, pilots: dict[str, AutoPilotPlayer], ov
 
 def run_table(server: socket.socket, humans: int, bot_decks: list[str], source: CardSource, seed: int | None = None,
               check_decks: bool = True, max_turns: int = 300, log: Callable[[str], None] = print,
-              handshake_timeout: float = 10.0, timer: float = 0, password: str | None = None) -> str | None:
+              handshake_timeout: float = 10.0, timer: float = 0, password: str | None = None, fmt: Format = COMMANDER) -> str | None:
     """Wait for `humans` players on `server`, add one bot per entry of `bot_decks` (decklist texts), play the
     game, and return the winner's name (None if nobody won within `max_turns`). While the game runs, a player who
     dropped can connect again and take their seat back, and anyone can watch. With `timer`, each decision has that
@@ -263,21 +263,21 @@ def run_table(server: socket.socket, humans: int, bot_decks: list[str], source: 
     bots: list[tuple[str, Deck]] = []
     for n, text in enumerate(bot_decks, 1):
         deck = load_deck(text, source)
-        if check_decks and (problems := deck_problems(deck)):
+        if check_decks and (problems := deck_problems(deck, fmt)):
             raise ValueError(f"Bot deck {n} isn't legal: {'; '.join(problems[:MAX_PROBLEMS_SHOWN])}")
         bots.append((f"Bot {n}", deck))
 
     log(f"Waiting for {humans} player(s); {len(bots)} bot(s) will fill the other seats.")
     spectators = Spectators()
     seated = seat_humans(server, humans, source, check_decks, {name for name, _ in bots}, log, handshake_timeout,
-                         password, spectators)
+                         password, spectators, fmt)
     over = threading.Event()
     pilots = [AutoPilotPlayer(human, BotPlayer(human.name, deck), seat, timer)
               for seat, (human, deck) in enumerate(seated)]
     try:
         players: list[tuple[Player, Deck]] = [(pilot, deck) for pilot, (_, deck) in zip(pilots, seated)]
         players += [(BotPlayer(name, deck), deck) for name, deck in bots]
-        game = Game(players, seed=seed)
+        game = Game(players, seed=seed, format=fmt)
         game.spectators.append(spectators)
         threading.Thread(target=rejoin_players, args=(server, {p.name: p for p in pilots}, over, log, handshake_timeout,
                                                       password, spectators), daemon=True).start()
@@ -310,7 +310,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cache", default=".cache/cards.json", help="where fetched cards are saved")
     parser.add_argument("--bulk", metavar="FILE", help="look cards up in Scryfall's bulk Oracle Cards data, "
                         "downloaded to FILE and refreshed weekly, instead of calling the API per card")
-    parser.add_argument("--no-check", action="store_true", help="don't require decks to be legal Commander decks")
+    parser.add_argument("--format", choices=sorted(FORMATS), default="commander", help="the game to play (default commander)")
+    parser.add_argument("--no-check", action="store_true", help="don't require decks to be legal for the format")
     args = parser.parse_args(argv)
     if args.bots and not args.bot_deck:
         parser.error("--bot-deck is needed when there are bots")
@@ -326,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Listening on {args.host}:{server.getsockname()[1]}")
     try:
         run_table(server, args.humans, bot_decks, source, args.seed, not args.no_check, args.max_turns, timer=args.timer,
-                  password=args.password)
+                  password=args.password, fmt=FORMATS[args.format])
     except (ValueError, CardNotFound, OSError) as err:
         print(f"Error: {err}", file=sys.stderr)
         return 1

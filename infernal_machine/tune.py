@@ -21,6 +21,7 @@ from dataclasses import dataclass, field, replace
 from .analysis import is_land
 from .cards import Card, Deck
 from .commander import copy_limit
+from .formats import STANDARD
 from .simulate import game_value, play_game, play_games
 
 BLANK = Card(name="(blank)", type_line="Sorcery")  # no cost, so it is never cast: a dead card in the same slot
@@ -61,10 +62,14 @@ class TuningReport:
 
 def candidate_problem(deck: Deck, card: Card) -> str | None:
     """Why `card` can't be swapped into `deck`, or None. A Commander deck (one with a commander) needs the card inside the
-    commander's color identity, legal in Commander, and not past its copy limit (singleton, so a card already in it is out)."""
-    in_deck = sum(1 for c in deck.main + deck.commanders if c.name == card.name)
-    if not deck.commanders:
-        return "already at four copies" if in_deck >= 4 and "Basic" not in card.type_line else None
+    commander's color identity, legal in Commander, and not past its copy limit (singleton, so a card already in it is out).
+    A deck with no commander is a Standard deck: the card must be Standard-legal and under four copies in main and sideboard."""
+    in_deck = sum(1 for c in deck.main + deck.commanders + deck.sideboard if c.name == card.name)
+    if not deck.commanders:  # a Standard deck: legal in Standard, and the sideboard counts toward the four copies
+        if not card.standard_legal:
+            return "not legal in Standard"
+        limit = copy_limit(card, STANDARD.copy_limit)
+        return None if limit is None or in_deck < limit else f"already at {limit} copies"
     identity = {color for c in deck.commanders for color in c.color_identity}
     if set(card.color_identity) - identity:
         return f"outside the commander's color identity ({''.join(sorted(set(card.color_identity) - identity))})"

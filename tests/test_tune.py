@@ -57,7 +57,7 @@ class TuneTests(unittest.TestCase):
                                                                     BEAR])
         names = [name for name, _, _ in report.swaps]
         self.assertEqual(names, ["Wall"])
-        self.assertEqual(report.skipped, [("Hill Giant", "already at four copies"), ("Grizzly Bears", "already at four copies")])  # Grizzly Bears and Hill Giant are already in the deck
+        self.assertEqual(report.skipped, [("Hill Giant", "already at 4 copies"), ("Grizzly Bears", "already at 4 copies")])  # Grizzly Bears and Hill Giant are already in the deck
         self.assertEqual(report.swaps[0][1], "Counterspell")
 
     def test_a_commander_deck_only_tries_legal_candidates(self):
