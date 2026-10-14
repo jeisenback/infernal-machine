@@ -1455,6 +1455,7 @@ stats = goldfish(deck, games=5000, turns=5)
   `python tools/compare_bots.py DECK DECK ...` plays one version of the bot against another on the same decks and reports the
   win rate with its 95% interval. Against the plain bot on the five Secrets of Strixhaven precons (191 games) all five
   together won 67.5% (60.6%-73.8%); alone, timing won 65.5%, attack 57.6%, land 56.8%, target 55.2% and mana 52.9%.
+  A weekly CI job (`bot strength`) repeats this against the plain bot and fails if the whole interval drops below 50%.
 - **`goldfish`:** plays the deck alone many times with the same mulligan rules and one land a turn.
   It reports how often you mulligan, how many lands the kept hand has, and how often
   you've made every land drop through each turn. The example above is a 38-land deck.
