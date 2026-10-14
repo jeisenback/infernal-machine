@@ -20,6 +20,7 @@ from typing import Any, Callable, TypeVar
 
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword, shown_type_line
+from .formats import COMMANDER, Format
 from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
@@ -484,14 +485,16 @@ class Game:
 
     _draw_step_draw = False  # the turn-based draw of a draw step is in progress (Orcish Bowmasters ignores it)
 
-    def __init__(self, seats: list[tuple[Player, Deck]], seed: int | None = None):
+    def __init__(self, seats: list[tuple[Player, Deck]], seed: int | None = None, format: Format = COMMANDER):
         if len(seats) < 2:
-            raise ValueError("Commander needs at least two players")
+            raise ValueError(f"{format.name.capitalize()} needs at least two players")
+        self.format = format
         self.rng = random.Random(seed)
         self.seats = [
             Seat(
                 player,
                 i,
+                life=format.life,
                 library=list(deck.main),
                 command_zone=list(deck.commanders),
                 commander_names={c.name for c in deck.commanders},

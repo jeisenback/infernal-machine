@@ -1465,6 +1465,24 @@ stats = goldfish(deck, games=5000, turns=5)
   It reports how often you mulligan, how many lands the kept hand has, and how often
   you've made every land drop through each turn. The example above is a 38-land deck.
 
+## Standard
+
+The engine plays Standard as well as Commander. A format (`formats.py`: `COMMANDER`, `STANDARD`) sets the starting life, the deck
+size and the copy limit; `Game(seats, seed, format=STANDARD)` starts at 20 life with no command zone, commander tax or commander
+damage. A two-player game already follows the two-player rules: the player who goes first skips their first draw (CR 103.8a) and
+no mulligan is free (CR 103.5c).
+
+- **Deck rules (`formats.deck_problems(deck, STANDARD)`):** at least 60 cards in the main deck, at most 15 in the sideboard, no more
+  than four copies of a card counting the sideboard (basic lands, and cards that say "a deck can have any number of cards named",
+  have no limit), every card Standard-legal on Scryfall (`Card.standard_legal`), and no commander. Commander decks are checked as before.
+- **Which format a table plays:** `format_of(decks)` is Commander if every deck has a commander and Standard if none does; mixing the
+  two is an error. `matchups` and the simulation tools use it, so a 60-card list with no commander goes through `simulate`, `tune`
+  and `matchup` as it is.
+- **The server:** `python -m infernal_machine.server --format standard` checks every human and bot deck against Standard.
+- **Not there yet:** best-of-three with sideboarding (the sideboard is read and checked but not used in play), and a legality list
+  that follows rotation other than through Scryfall's own `legalities.standard`. Cards saved in `.cache/cards.json` before this
+  change have no Standard flag and count as legal; `.cache/oracle_bulk.json` is downloaded again on first use.
+
 ## Simulating a deck
 
 ```
@@ -1543,7 +1561,8 @@ as the deck's strength; 40 games per opponent only separates differences of abou
 | `--timer SECONDS` | a clock on every decision: when it runs out, a bot answers for the player (default: no limit) |
 | `--password TEXT` | players and spectators must give it to join (see below) |
 | `--cache FILE` | where fetched cards are saved (default `.cache/cards.json`) |
-| `--no-check` | accept decks that aren't legal Commander decks |
+| `--format commander\|standard` (default `commander`) | the game to play; decks are checked against it |
+| `--no-check` | accept decks that aren't legal for the format |
 
 Each human sends their decklist when they connect. The server fetches the cards, checks the deck, and either
 seats the player or explains why not (wrong size, a card outside the commander's colors, an unknown card, a name
