@@ -42,6 +42,16 @@ class Card:
     other_face: str = ""  # the name of a second face the engine can't play (a back that is a permanent, a meld)
     flip: "Card | None" = None  # a transforming double-faced card's back face, which the permanent becomes when it transforms
 
+    def __hash__(self) -> int:
+        """Cards key `lru_cache`s on every rules lookup, so this is hashed millions of times in a long game. The generated hash
+        walks every field (and the nested faces); this one hashes the few that tell cards apart (equal cards still hash equal)
+        and keeps the result."""
+        cached = self.__dict__.get("_hash")
+        if cached is None:
+            cached = hash((self.name, self.mana_cost, self.type_line, self.oracle_text, self.power, self.toughness))
+            object.__setattr__(self, "_hash", cached)
+        return cached
+
     def __post_init__(self) -> None:
         """Changeling is every creature type in every zone, so its type line lists them all (and everything that looks for a
         Goblin, or for creatures that share a type, finds it)."""
