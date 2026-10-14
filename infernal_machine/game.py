@@ -16,7 +16,7 @@ import random
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, ClassVar, TypeVar
 
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword, shown_type_line
@@ -228,6 +228,13 @@ POISON_LIMIT = 10  # CR 704.5c
 
 @dataclass(eq=False)
 class Permanent:
+    epoch: ClassVar[int] = 0  # bumped whenever any permanent's card or attachment is set; the board view's cache key includes it
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name == "card" or name == "attached_to":
+            Permanent.epoch += 1
+        object.__setattr__(self, name, value)
+
     card: Card
     tapped: bool = False
     sick: bool = False  # entered since its controller's last untap step
@@ -478,6 +485,16 @@ class Seat:
         return self.player.name
 
 
+
+class _BoardView:
+    """What is true of the whole board at once and is asked for many times a step: the static abilities in play, the permanents
+    stripped of their abilities, and the rules-changing statics. See Game._board_view."""
+    __slots__ = ("key", "sources", "stripped", "rules", "keepalive")
+
+    def __init__(self, key: tuple, sources: list, stripped: set, keepalive: list):
+        self.key, self.sources, self.stripped, self.keepalive = key, sources, stripped, keepalive
+        self.rules: list | None = None
+
 class Game:
     # What the mana being paid is for, so "Spend this mana only ..." sources can say whether they qualify: a spell, or an
     # ability whose cost has {X}.
@@ -509,6 +526,7 @@ class Game:
         self.combat = Combat(self)
         self.pending: list[PendingTrigger] = []  # triggered, not yet on the stack
         self.delayed: list[DelayedTrigger] = []  # "Until end of turn, whenever ..." abilities that are set up (CR 603.7)
+        self._view: _BoardView | None = None  # see _board_view
         self.extra_turns: list[int] = []  # seats that take an extra turn next; the last one asked for goes first
         self._plan: list[str] = list(STEPS)  # the steps of the current turn, extended by extra combat phases
         self._plan_index = 0
@@ -1135,8 +1153,11 @@ class Game:
 
     def _static_rules(self) -> list[tuple[Seat, Permanent, str]]:
         """Every rules-changing static ability on the battlefield: (its controller, the permanent, its key)."""
-        return [(s, p, key) for s in self.live_seats() for p in s.battlefield if not self.loses_abilities(p)
-                for key in rules_statics(p.card)]
+        view = self._board_view()
+        if view.rules is None:
+            view.rules = [(s, p, key) for s in self.live_seats() for p in s.battlefield if id(p) not in view.stripped
+                          for key in rules_statics(p.card)]
+        return view.rules
 
     def _instant_speed(self, seat: Seat, card: Card) -> bool:
         """Whether `seat` may cast `card` at instant speed: an instant, flash, or a permanent that lets it ("You may cast creature
@@ -1801,11 +1822,12 @@ class Game:
 
     def _permanent_view(self, p: Permanent, owner_viewing: Seat | None = None) -> dict:
         creature = "Creature" in p.card.type_line
+        mods = self.modifiers(p) if creature else []  # once for both power and toughness
         host = p.attached_to
         return {
             "name": p.card.name, "type": shown_type_line(p.card), "tapped": p.tapped, "token": _is_token(p.card),
             "sick": p.sick and creature,
-            "power": self.power(p) if creature else None, "toughness": self.toughness(p) if creature else None,
+            "power": characteristics.power(p, mods) if creature else None, "toughness": characteristics.toughness(p, mods) if creature else None,
             "damage": p.damage, "loyalty": p.loyalty, "counters": {k: v for k, v in p.counters.items() if v},
             "attached_to": host.card.name if host is not None and self.on_battlefield(host) else None,
             # a manifested card is face down for everyone but the player who controls it
@@ -3630,6 +3652,23 @@ class Game:
                  for buff in attached_abilities(a.card) if buff.subtype]
         return printed + added
 
+    def _board_view(self) -> _BoardView:
+        """The board-wide facts that `modifiers` and `_static_rules` start from, the same for every permanent asked about and asked
+        for several times a step, so built once and reused until the board changes. The key is which permanents and graveyard cards
+        are where (their `id`s, in order) and `Permanent.epoch`, which moves when a permanent's card or attachment is set. The cached
+        view keeps those objects alive, so an `id` in the key cannot be reused by a different object."""
+        key = (Permanent.epoch, tuple(tuple(map(id, s.battlefield)) for s in self.seats), tuple(tuple(map(id, s.graveyard)) for s in self.seats))
+        view = self._view
+        if view is not None and view.key == key:
+            return view
+        stripped = self._stripped()
+        pairs = [(s, p) for s in self.seats for p in s.battlefield] + [(s, Permanent(c)) for s in self.seats for c in s.graveyard if graveyard_statics(c)]
+        sources = [(owner, source, buffs) for owner, source in pairs if id(source) not in stripped and (buffs := static_abilities(source.card))]
+        # (building the graveyard Permanents above moved the epoch; take the key again so the next call finds this view)
+        key = (Permanent.epoch, key[1], key[2])
+        self._view = view = _BoardView(key, sources, stripped, [list(s.battlefield) for s in self.seats] + [list(s.graveyard) for s in self.seats])
+        return view
+
     def modifiers(self, permanent: Permanent) -> list[Modifier]:
         """Everything currently changing a permanent: its "until end of turn" effects, plus
         static abilities of permanents its controller controls ("Creatures you control get +1/+1")."""
@@ -3643,13 +3682,8 @@ class Game:
             return mods
         creature = "Creature" in permanent.card.type_line
         subtypes = self.subtypes(permanent)
-        in_graveyards = [(s, Permanent(c)) for s in self.seats for c in s.graveyard if graveyard_statics(c)]  # Anger
-        stripped = {id(a.attached_to) for s in self.seats for a in s.battlefield if a.attached_to is not None  # once, not per source
-                    and any(LOSES_ALL in b.modifier.keywords for b in attached_abilities(a.card))}
-        for owner, source in [(s, p) for s in self.seats for p in s.battlefield] + in_graveyards:
-            if id(source) in stripped:
-                continue
-            for buff in static_abilities(source.card):
+        for owner, source, buffs in self._board_view().sources:
+            for buff in buffs:
                 if not creature and not buff.permanents:
                     continue  # (only "Other permanents you control have indestructible" reaches a land or an artifact)
                 if buff.opponents:  # Elesh Norn: only the other players' creatures
@@ -3745,6 +3779,12 @@ class Game:
             return False  # Arcane Lighthouse
         printed = has_keyword(permanent.card, keyword) and not self.loses_abilities(permanent)
         return printed or permanent.counters.get(keyword, 0) > 0 or any(keyword in m.keywords for m in mods)  # CR 122.1b: a keyword counter
+
+    def _stripped(self) -> set[int]:
+        """`id`s of the permanents an Aura or Equipment takes every ability from (Infinite Coursework): one pass over the board
+        instead of a pass per permanent."""
+        return {id(a.attached_to) for s in self.seats for a in s.battlefield if a.attached_to is not None
+                and any(LOSES_ALL in b.modifier.keywords for b in attached_abilities(a.card))}
 
     def loses_abilities(self, permanent: Permanent) -> bool:
         """Whether an Aura or Equipment on it takes away all its abilities (Infinite Coursework). Abilities that other
