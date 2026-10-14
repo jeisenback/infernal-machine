@@ -2,8 +2,8 @@ import unittest
 
 from infernal_machine.bot import FEATURES, BotPlayer
 from infernal_machine.cards import Card, Deck
-from infernal_machine.combat import ATTACK_PROMPT
-from infernal_machine.game import CAST, PASS, PLAY_LAND, TARGET_PROMPT
+from infernal_machine.combat import ATTACK_PROMPT, BLOCK_PROMPT
+from infernal_machine.game import CAST, CAST_COMMANDER, PASS, PLAY_LAND, TARGET_PROMPT
 
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
 PLAINS = Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",))
@@ -14,8 +14,10 @@ THREE = Card(name="Three Drop", mana_cost="{2}{R}", cmc=3, type_line="Creature �
 TWO_A = Card(name="Two Drop A", mana_cost="{1}{R}", cmc=2, type_line="Creature — Imp", power="1", toughness="1")
 TWO_B = Card(name="Two Drop B", mana_cost="{1}{R}", cmc=2, type_line="Creature — Imp", power="1", toughness="1")
 FLIER = Card(name="Skyknight", mana_cost="{1}{W}", cmc=2, type_line="Creature — Knight", power="2", toughness="2", oracle_text="Flying")
+FOUR = Card(name="Four Drop", mana_cost="{3}{R}", cmc=4, type_line="Creature — Imp", power="2", toughness="2")
+FIVE = Card(name="Five Drop", mana_cost="{4}{R}", cmc=5, type_line="Creature — Imp", power="3", toughness="3")
 COMMANDER = Card(name="Boss", mana_cost="{3}{R}", cmc=4, type_line="Legendary Creature — Elf", power="3", toughness="3")
-DECK = Deck([COMMANDER], [MOUNTAIN, PLAINS, TAPPED, BOLT, BEAR, THREE, TWO_A, TWO_B, FLIER], [])
+DECK = Deck([COMMANDER], [MOUNTAIN, PLAINS, TAPPED, BOLT, BEAR, THREE, TWO_A, TWO_B, FLIER, FOUR, FIVE], [])
 
 
 def permanent(name, kind="Creature", power=None, toughness=None, tapped=False, sick=False):
@@ -117,6 +119,53 @@ class ManaTests(unittest.TestCase):
     def test_falls_back_to_the_biggest_when_it_cannot_count_the_mana(self):
         options = [PASS, CAST + THREE.name, CAST + TWO_A.name]
         self.assertEqual(bot([]).choose("Priority: main1", options), 1)  # no lands seen, yet the game says it can cast
+
+
+def pod(mine, tax=0, damage_to_me=(), damage_dealt=0, life=40):
+    """A bot (seat 0) in a three-player pod: seat 1 has taken `damage_dealt` from the bot's commander, seat 2 is on less life."""
+    b = BotPlayer("Bot", DECK)
+    b.notify({"event": "seat", "seat": 0, "name": "Bot", "life": life})
+    b.notify({"event": "seat", "seat": 1, "name": "Foe", "life": 30})
+    b.notify({"event": "seat", "seat": 2, "name": "Bar", "life": 12})
+    b.notify({"event": "state", "hand": [], "seats": [
+        {"seat": 0, "lost": False, "life": life, "mana_pool": [], "battlefield": list(mine), "command_zone": [{"name": "Boss", "tax": tax}],
+         "commander_damage": list(damage_to_me)},
+        {"seat": 1, "lost": False, "life": 30, "mana_pool": [], "battlefield": [], "command_zone": [],
+         "commander_damage": [{"from_seat": 0, "commander": "Boss", "damage": damage_dealt}] if damage_dealt else []},
+        {"seat": 2, "lost": False, "life": 12, "mana_pool": [], "battlefield": [], "command_zone": [], "commander_damage": []}]})
+    return b
+
+
+class CommanderTests(unittest.TestCase):
+    CASTS = [PASS, CAST_COMMANDER + "Boss", CAST + FIVE.name, CAST + FOUR.name]
+
+    def test_a_cheap_commander_is_cast_first(self):
+        self.assertEqual(pod(lands(9), tax=2).choose("Priority: main1", self.CASTS), 1)
+        self.assertEqual(pod(lands(9), tax=0).choose("Priority: main1", self.CASTS), 1)
+
+    def test_an_expensive_commander_competes_with_the_rest(self):
+        # Nine mana: the commander at tax 4 costs 8, the five-drop and four-drop together spend all nine.
+        self.assertEqual(pod(lands(9), tax=4).choose("Priority: main1", self.CASTS), 2)
+        self.assertEqual(pod(lands(9), tax=4).features & {"commander"}, {"commander"})
+
+    def test_without_the_feature_it_always_casts_the_commander_first(self):
+        b = pod(lands(9), tax=4)
+        b.features = b.features - {"commander"}
+        self.assertEqual(b.choose("Priority: main1", self.CASTS), 1)
+
+    def test_the_commander_attacks_the_player_it_can_finish(self):
+        options = ["Don't attack", "Attack Player: Foe (seat 1)", "Attack Player: Bar (seat 2)"]
+        boss = permanent("Boss", power=3, toughness=3)
+        self.assertEqual(pod([boss], damage_dealt=18).choose(ATTACK_PROMPT + "Boss 3/3 (seat 0, #5)", options), 1)  # 18 + 3 = 21
+        self.assertEqual(pod([boss], damage_dealt=10).choose(ATTACK_PROMPT + "Boss 3/3 (seat 0, #5)", options), 2)  # not enough: the lowest life
+        self.assertEqual(pod([boss, permanent("Imp", power=2, toughness=2)], damage_dealt=18).choose(ATTACK_PROMPT + "Imp 2/2 (seat 0, #6)", options), 2)
+
+    def test_it_blocks_the_commander_that_would_kill_it(self):
+        options = ["Don't block", "Foe Boss 3/3 (seat 1, #9)", "Other 2/2 (seat 1, #8)"]
+        hurt = [{"from_seat": 1, "commander": "Foe Boss", "damage": 19}]
+        self.assertEqual(pod([], damage_to_me=hurt).choose(BLOCK_PROMPT + "Wall 0/2 (seat 0, #3)", options), 1)
+        fine = [{"from_seat": 1, "commander": "Foe Boss", "damage": 5}]  # nowhere near 21, and the wall would die: no block
+        self.assertEqual(pod([], damage_to_me=fine).choose(BLOCK_PROMPT + "Wall 0/2 (seat 0, #3)", options), 0)
 
 
 if __name__ == "__main__":
