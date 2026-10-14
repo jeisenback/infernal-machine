@@ -53,6 +53,14 @@ class PlayOneTests(unittest.TestCase):
     def test_a_slow_game_is_a_timeout_not_a_result(self):
         self.assertEqual(play_one([BEARS, WALLS], 0, seed=1, time_limit=0.0).error, "timeout")
 
+    def test_a_game_stuck_without_events_is_stopped(self):
+        def stuck(self, max_turns=100):
+            while True:  # an engine loop that never broadcasts
+                pass
+        with mock.patch("infernal_machine.matchup.Game.play", stuck):
+            result = play_one([BEARS, WALLS], 0, seed=1, time_limit=0.5)
+        self.assertEqual(result.error, "timeout")
+
     def test_a_crash_is_caught_with_its_message(self):
         with mock.patch("infernal_machine.matchup.Game.play", side_effect=ValueError("boom")):
             self.assertEqual(play_one([BEARS, WALLS], 0, seed=1).error, "ValueError: boom")
