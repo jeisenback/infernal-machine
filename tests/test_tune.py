@@ -57,8 +57,23 @@ class TuneTests(unittest.TestCase):
                                                                     BEAR])
         names = [name for name, _, _ in report.swaps]
         self.assertEqual(names, ["Wall"])
-        self.assertEqual(report.skipped, ["Hill Giant", "Grizzly Bears"])  # Grizzly Bears and Hill Giant are already in the deck
+        self.assertEqual(report.skipped, [("Hill Giant", "already at four copies"), ("Grizzly Bears", "already at four copies")])  # Grizzly Bears and Hill Giant are already in the deck
         self.assertEqual(report.swaps[0][1], "Counterspell")
+
+    def test_a_commander_deck_only_tries_legal_candidates(self):
+        green = Card(name="Green Boss", mana_cost="{G}", cmc=1, type_line="Legendary Creature — Elf", color_identity=("G",))
+        off_color = Card(name="Blue Bear", mana_cost="{1}{U}", cmc=2, type_line="Creature — Bear", power="2", toughness="2", color_identity=("U",))
+        banned = Card(name="Banned Bear", mana_cost="{1}{G}", cmc=2, type_line="Creature — Bear", power="2", toughness="2", color_identity=("G",), commander_legal=False)
+        fine = Card(name="Fine Bear", mana_cost="{1}{G}", cmc=2, type_line="Creature — Bear", power="2", toughness="2", color_identity=("G",))
+        report = tune(deck(*[FOREST] * 40, *[BEAR] * 59, commanders=[green]), games=30, turns=4, seed=1, candidates=[off_color, banned, fine, BEAR])
+        self.assertEqual([n for n, _, _ in report.swaps], ["Fine Bear"])
+        self.assertEqual(dict(report.skipped), {"Blue Bear": "outside the commander's color identity (U)", "Banned Bear": "not legal in Commander",
+                                                "Grizzly Bears": "already in the deck"})
+
+    def test_a_deck_without_a_commander_allows_up_to_four_copies(self):
+        three = deck(*[FOREST] * 24, *[BEAR] * 33, *[OGRE] * 3)
+        report = tune(three, games=30, turns=4, seed=1, candidates=[OGRE, FOREST])
+        self.assertEqual({n for n, _, _ in report.swaps}, {"Hill Giant", "Forest"})  # a fourth copy is fine, and a basic land has no limit
 
     def test_the_commander_is_measured_too(self):
         report = tune(deck(*[FOREST] * 99, commanders=[COMMANDER]), games=40, turns=5, seed=1)

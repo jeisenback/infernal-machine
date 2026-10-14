@@ -1492,7 +1492,9 @@ spells plus damage dealt by the last turn) and reports:
   the time they are drawn are flagged.
 - **Land count:** the effect of moving one to three slots between the weakest cards and the most played basic land, and between
   lands and a typical card.
-- **Swaps:** `--try` cards each take the weakest card's slot; the effect is the change in value.
+- **Swaps:** `--try` cards each take the weakest card's slot; the effect is the change in value. A card the deck couldn't legally play
+  is listed as not tried, with the reason: in a Commander deck that is outside the commander's color identity, banned, or already
+  in the deck (singleton); in a deck with no commander, a fifth copy.
 
 It cannot see what a card's text does (removal, card draw, counterspells, life gain), so a low score means "does little in a
 goldfish", not "bad card". More games (`--games 2000`) tighten the error bars; 500 games of a 100-card deck takes about 30 seconds.

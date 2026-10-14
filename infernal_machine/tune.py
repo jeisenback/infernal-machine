@@ -20,6 +20,7 @@ from dataclasses import dataclass, field, replace
 
 from .analysis import is_land
 from .cards import Card, Deck
+from .commander import copy_limit
 from .simulate import game_value, play_game, play_games
 
 BLANK = Card(name="(blank)", type_line="Sorcery")  # no cost, so it is never cast: a dead card in the same slot
@@ -55,7 +56,24 @@ class TuningReport:
     cards: list[CardImpact]  # weakest first
     lands: dict[int, Effect]  # change in land count -> effect on value
     swaps: list[tuple[str, str, Effect]] = field(default_factory=list)  # (card tried, card it replaces, effect), best first
-    skipped: list[str] = field(default_factory=list)  # candidates already in the deck
+    skipped: list[tuple[str, str]] = field(default_factory=list)  # (candidate, why it was not tried)
+
+
+def candidate_problem(deck: Deck, card: Card) -> str | None:
+    """Why `card` can't be swapped into `deck`, or None. A Commander deck (one with a commander) needs the card inside the
+    commander's color identity, legal in Commander, and not past its copy limit (singleton, so a card already in it is out)."""
+    in_deck = sum(1 for c in deck.main + deck.commanders if c.name == card.name)
+    if not deck.commanders:
+        return "already at four copies" if in_deck >= 4 and "Basic" not in card.type_line else None
+    identity = {color for c in deck.commanders for color in c.color_identity}
+    if set(card.color_identity) - identity:
+        return f"outside the commander's color identity ({''.join(sorted(set(card.color_identity) - identity))})"
+    if not card.commander_legal:
+        return "not legal in Commander"
+    limit = copy_limit(card)
+    if limit is not None and in_deck >= limit:
+        return "already in the deck" if limit == 1 else f"already at the limit of {limit}"
+    return None
 
 
 def _effect(deltas: list[float]) -> Effect:
@@ -114,10 +132,12 @@ def tune(deck: Deck, games: int = 500, turns: int = 8, seed: int = 0, candidates
     impacts.sort(key=lambda c: (c.value.delta / c.copies, c.name))
 
     baseline = sum(game_value(run) for run in base) / games
-    names = {c.name for c in deck.main + deck.commanders}
+    legal, skipped = [], []
+    for card in candidates or []:
+        problem = candidate_problem(deck, card)
+        (skipped.append((card.name, problem)) if problem else legal.append(card))
     return TuningReport(games, turns, round(baseline, 2), impacts, _land_sweep(deck, impacts, *args),
-                        _swap_candidates(deck, impacts, candidates or [], seen_in, *args),
-                        [c.name for c in candidates or [] if c.name in names])
+                        _swap_candidates(deck, impacts, legal, seen_in, *args), skipped)
 
 
 def _land_sweep(deck: Deck, impacts: list[CardImpact], *args) -> dict[int, Effect]:
@@ -151,8 +171,6 @@ def _swap_candidates(deck: Deck, impacts: list[CardImpact], candidates: list[Car
     out = []
     slot = in_main[weakest.name][0]
     for card in candidates:
-        if card.name in in_main:
-            continue
         deltas = _deltas(deck, _swapped(deck, {slot: card}), *args, only=seen_in.get(weakest.name, set()))
         out.append((card.name, weakest.name, _effect(deltas)))
     return sorted(out, key=lambda t: -t[2].delta)
