@@ -1571,6 +1571,19 @@ The bots decide everything, so a deck that needs careful play (combos, holding u
 bot plays well is over-rated. Compare builds of one deck against the same opponents and seed instead of reading one win rate
 as the deck's strength; 40 games per opponent only separates differences of about 25 points.
 
+## When a deck has cards the engine can't play
+
+The engine casts a card it does not fully understand, but ignores the text it can't read: a spell with such text resolves and does
+nothing, and a creature arrives without that ability. So a result for a deck that holds such cards is not a result for the deck.
+The reports say so, using `report.unplayable_cards(deck)` (the same test as `python -m infernal_machine.report DECK`):
+
+- **Matchups:** a line for the focus deck and one for each opponent (or for all the opponents of a pod) naming the first few cards,
+  and that the win rates are unreliable. `Record.focus_unplayable` and `Record.opponent_unplayable` hold the cards.
+- **Tuning:** the deck's line, a "text the engine can't read" note on those cards in the card table (so a low score is not read as a
+  bad card), and, for a `--try` card, the first line of its text the engine can't read. The score comes from the goldfish, which
+  does not read card text for any card, so these notes do not change the numbers; they say what a matchup run would get wrong.
+- **Simulation:** one closing line that card text is not played, only mana and creature bodies.
+
 ## Playing over TCP
 
 **Server** (`python -m infernal_machine.server`) hosts one table:

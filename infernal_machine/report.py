@@ -140,6 +140,26 @@ def deck_report(deck: Deck) -> list[CardReport]:
     return [CardReport(card, counts[name], unsupported_lines(card)) for name, card in cards.items()]
 
 
+def unplayable_cards(deck: Deck) -> list[tuple[str, int, str]]:
+    """(name, copies, first unsupported line) for each card of the deck the engine can't fully play, most copies first."""
+    found = [(r.card.name, r.count, r.problems[0]) for r in deck_report(deck) if r.problems]
+    return sorted(found, key=lambda item: (-item[1], item[0]))
+
+
+IN_A_GAME = "It casts them but ignores the text it can't read, so a spell does nothing and a creature has none of that ability."
+
+
+def unplayable_note(cards: list[tuple[str, int, str]] | tuple[tuple[str, int], ...], subject: str, consequence: str = IN_A_GAME,
+                    shown: int = 5) -> str:
+    """One sentence for a report: how many cards the engine can't fully play, the first few, and what that means (`consequence`;
+    by default, what happens when the card is played in a game)."""
+    names = [item[0] for item in cards]
+    copies = sum(item[1] for item in cards)
+    listed = ", ".join(names[:shown]) + (f" and {len(names) - shown} more" if len(names) > shown else "")
+    return (f"{subject} has {len(names)} card{'s' if len(names) != 1 else ''} ({copies} cop{'ies' if copies != 1 else 'y'}) the engine can't fully "
+            f"play: {listed}. {consequence}")
+
+
 def format_report(reports: list[CardReport]) -> str:
     total = sum(r.count for r in reports)
     playable = sum(r.count for r in reports if not r.problems)

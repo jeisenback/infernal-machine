@@ -31,6 +31,7 @@ from .brackets import analyze
 from .cards import Deck
 from .formats import format_of
 from .game import Game
+from .report import unplayable_cards, unplayable_note
 
 EARLY_TURNS = 4  # the first turns of a seat, whose lands and spells say whether it stumbled
 
@@ -152,6 +153,8 @@ class Record:
     how_won: Counter = field(default_factory=Counter)  # the reason the opponents lost, when the focus deck won
     stumbled: tuple[int, int] = (0, 0)  # (games, of which the focus deck won) with two lands or fewer after four turns
     idle: tuple[int, int] = (0, 0)  # likewise for three-plus lands but at most one spell
+    focus_unplayable: tuple[tuple[str, int], ...] = ()  # (card, copies) in the focus deck that the engine can't fully play
+    opponent_unplayable: tuple[tuple[str, int], ...] = ()  # likewise in the opponent deck(s) this record was played against
     bracket: tuple[int, ...] = ()  # the Commander Bracket floors of the opponent decks it was played against (none for decks without a commander)
     focus_bracket: int | None = None  # the focus deck's
 
@@ -218,12 +221,22 @@ def matchups(focus: Deck, opponents: dict[str, Deck], games: int = 40, pod: int 
     else:
         results = [[_run(task) for task in tasks] for _, tasks in plans]
     records = [_record(name, rs, pod if pod > 2 else 2) for (name, _), rs in zip(plans, results)]
+    focus_cards = _unplayable(focus)
+    by_opponent = {name: _unplayable(deck) for name, deck in opponents.items()}
+    everyone = tuple(sorted({item for cards in by_opponent.values() for item in cards}))  # a pod draws from all of them
+    for record in records:
+        record.focus_unplayable = focus_cards
+        record.opponent_unplayable = everyone if pod > 2 else by_opponent.get(record.opponent, ())
     if focus.commanders:
         floor = {name: analyze(deck).floor for name, deck in opponents.items() if deck.commanders}
         for record in records:
             record.focus_bracket = analyze(focus).floor
             record.bracket = tuple(sorted({floor[n] for n in ([record.opponent] if pod <= 2 else opponents) if n in floor}))
     return records
+
+
+def _unplayable(deck: Deck) -> tuple[tuple[str, int], ...]:
+    return tuple((name, copies) for name, copies, _ in unplayable_cards(deck))
 
 
 def within_bracket(opponents: dict[str, Deck], highest: int) -> tuple[dict[str, Deck], dict[str, int]]:
@@ -261,6 +274,11 @@ def format_matchups(records: list[Record], focus: str = "focus deck") -> str:
         lost = ", ".join(f"{reason} {count}" for reason, count in r.how_lost.most_common()) or "-"
         lines.append(f"{r.opponent[:30]:<30} {f'{r.wins}-{r.losses}-{r.draws}':>9}  {rate:<16} {r.turns:>5}  "
                      f"{_pct(r.on_play):<12} {_pct(r.on_draw):<12} {lost}")
+    if records[0].focus_unplayable:
+        lines.append(unplayable_note(records[0].focus_unplayable, "The focus deck") + " Its win rates are unreliable.")
+    for r in records:
+        if r.opponent_unplayable:
+            lines.append(unplayable_note(r.opponent_unplayable, f"Opponent {r.opponent}") + " Results against it are unreliable.")
     total = sum(r.games for r in records)
     if total:
         stumbled = [sum(r.stumbled[i] for r in records) for i in (0, 1)]

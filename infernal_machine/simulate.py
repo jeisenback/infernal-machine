@@ -375,6 +375,7 @@ def format_simulation(stats: SimStats) -> str:
         lines += ["", "commander recast (each recast costs {2} more):"]
         lines += [f"  {c.name[:36]:<36}  first cast turn {c.average_cast_turn}, cast again in {c.recast_rate:.0%} of games, on turn {c.average_recast_turn} on average"
                   for c in recast]
+    lines += ["", "Card text is not played here, only mana and creature bodies: removal, card draw and the like show up as mana spent."]
     return "\n".join(lines)
 
 
