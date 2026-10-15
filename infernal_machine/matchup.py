@@ -102,11 +102,25 @@ def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60,
     game.broadcast = tap  # type: ignore[method-assign]
     me = threading.get_ident()
     # A game stuck inside the engine sends no events, so the check in `tap` never runs: a timer raises in this thread instead.
-    watchdog = threading.Timer(time_limit, lambda: ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(me), ctypes.py_object(_TimedOut)))
+    # It may only post that exception while the game is running. Posted earlier it lands inside `Thread.start()` (which waits on an
+    # event, and then never wakes: a hung test run), posted later it lands in the clean-up; so it is armed once `start()` has
+    # returned and disarmed, under the same lock the timer posts under, before the clean-up. A limit of zero starts no timer at all:
+    # the check in `tap` ends the game at its first event.
+    gate = threading.Lock()
+    armed = False
+
+    def expire() -> None:
+        with gate:
+            if armed:
+                ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(me), ctypes.py_object(_TimedOut))
+
+    watchdog = threading.Timer(time_limit, expire)
     watchdog.daemon = True
-    try:  # the outer try catches a timer that fires late, between the game and the cancel
+    try:  # the outer try catches an exception posted just before the timer was disarmed
         try:
-            watchdog.start()
+            if time_limit > 0:
+                watchdog.start()
+                armed = True
             winner = game.play(max_turns=max_turns)
             result.winner = winner.index if winner else None
         except _TimedOut:
@@ -114,6 +128,8 @@ def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60,
         except Exception as error:  # noqa: BLE001 - an engine crash is a finding, not a reason to stop the batch
             result.error = f"{type(error).__name__}: {error}"[:200]
         finally:
+            with gate:
+                armed = False
             watchdog.cancel()
     except _TimedOut:
         result.error = result.error or "timeout"

@@ -61,6 +61,48 @@ class PlayOneTests(unittest.TestCase):
             result = play_one([BEARS, WALLS], 0, seed=1, time_limit=0.5)
         self.assertEqual(result.error, "timeout")
 
+    def test_a_zero_limit_starts_no_timer(self):
+        with mock.patch("infernal_machine.matchup.threading.Timer") as timer:
+            result = play_one([BEARS, WALLS], 0, seed=1, time_limit=0.0)
+        self.assertEqual(result.error, "timeout")  # (the check on the first event ends it)
+        timer.return_value.start.assert_not_called()
+
+    def test_a_timer_that_fires_before_the_game_starts_does_nothing(self):
+        # Posted while the thread is still inside Timer.start(), the exception used to land there and hang the run.
+        class EagerTimer:
+            def __init__(self, interval, function):
+                self.function, self.daemon = function, False
+
+            def start(self):
+                self.function()
+
+            def cancel(self):
+                pass
+
+        with mock.patch("infernal_machine.matchup.threading.Timer", EagerTimer):
+            result = play_one([BEARS, WALLS], 0, seed=1, max_turns=6, time_limit=30.0)
+        self.assertIsNone(result.error)
+
+    def test_a_timer_that_fires_after_the_game_does_nothing(self):
+        fired = []
+
+        class LateTimer:
+            def __init__(self, interval, function):
+                fired.append(function)
+                self.daemon = False
+
+            def start(self):
+                pass
+
+            def cancel(self):
+                pass
+
+        with mock.patch("infernal_machine.matchup.threading.Timer", LateTimer):
+            result = play_one([BEARS, WALLS], 0, seed=1, max_turns=4, time_limit=30.0)
+        self.assertIsNone(result.error)
+        fired[0]()  # the timer expires after play_one has returned: it must not post into this thread
+        self.assertEqual(sum(range(1000)), 499500)
+
     def test_a_crash_is_caught_with_its_message(self):
         with mock.patch("infernal_machine.matchup.Game.play", side_effect=ValueError("boom")):
             self.assertEqual(play_one([BEARS, WALLS], 0, seed=1).error, "ValueError: boom")
