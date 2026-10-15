@@ -1,351 +1,354 @@
 {
- "colossal dreadmaw": {
-  "cmc": 6.0,
-  "color_identity": [
-   "G"
-  ],
-  "colors": [
-   "G"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{4}{G}{G}",
-  "name": "Colossal Dreadmaw",
-  "oracle_text": "Trample",
-  "power": "6",
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": "6",
-  "type_line": "Creature \u2014 Dinosaur"
- },
- "cultivate": {
-  "cmc": 3.0,
-  "color_identity": [
-   "G"
-  ],
-  "colors": [
-   "G"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{2}{G}",
-  "name": "Cultivate",
-  "oracle_text": "Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.",
-  "power": null,
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": null,
-  "type_line": "Sorcery"
- },
- "forest": {
-  "cmc": 0.0,
-  "color_identity": [
-   "G"
-  ],
-  "colors": [],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "",
-  "name": "Forest",
-  "oracle_text": "({T}: Add {G}.)",
-  "power": null,
-  "produced_mana": [
-   "G"
-  ],
-  "scryfall_id": null,
-  "toughness": null,
-  "type_line": "Basic Land \u2014 Forest"
- },
- "giant growth": {
-  "cmc": 1.0,
-  "color_identity": [
-   "G"
-  ],
-  "colors": [
-   "G"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{G}",
-  "name": "Giant Growth",
-  "oracle_text": "Target creature gets +3/+3 until end of turn.",
-  "power": null,
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": null,
-  "type_line": "Instant"
- },
- "giant spider": {
-  "cmc": 4.0,
-  "color_identity": [
-   "G"
-  ],
-  "colors": [
-   "G"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{3}{G}",
-  "name": "Giant Spider",
-  "oracle_text": "Reach",
-  "power": "2",
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": "4",
-  "type_line": "Creature \u2014 Spider"
- },
- "grizzly bears": {
-  "cmc": 2.0,
-  "color_identity": [
-   "G"
-  ],
-  "colors": [
-   "G"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{1}{G}",
-  "name": "Grizzly Bears",
-  "oracle_text": "",
-  "power": "2",
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": "2",
-  "type_line": "Creature \u2014 Bear"
- },
- "hill giant": {
-  "cmc": 4.0,
-  "color_identity": [
-   "R"
-  ],
-  "colors": [
-   "R"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{3}{R}",
-  "name": "Hill Giant",
-  "oracle_text": "",
-  "power": "3",
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": "3",
-  "type_line": "Creature \u2014 Giant"
- },
- "kaelen, stormcaller": {
-  "cmc": 4.0,
-  "color_identity": [
-   "R"
-  ],
-  "colors": [
-   "R"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{3}{R}",
-  "name": "Kaelen, Stormcaller",
-  "oracle_text": "Haste\nWhenever Kaelen attacks, each opponent loses 1 life.",
-  "power": "3",
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": "3",
-  "type_line": "Legendary Creature \u2014 Goblin Shaman"
- },
- "lightning bolt": {
-  "cmc": 1.0,
-  "color_identity": [
-   "R"
-  ],
-  "colors": [
-   "R"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{R}",
-  "name": "Lightning Bolt",
-  "oracle_text": "Lightning Bolt deals 3 damage to any target.",
-  "power": null,
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": null,
-  "type_line": "Instant"
- },
- "llanowar elves": {
-  "cmc": 1.0,
-  "color_identity": [
-   "G"
-  ],
-  "colors": [
-   "G"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{G}",
-  "name": "Llanowar Elves",
-  "oracle_text": "{T}: Add {G}.",
-  "power": "1",
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": "1",
-  "type_line": "Creature \u2014 Elf Druid"
- },
- "mind stone": {
-  "cmc": 2.0,
-  "color_identity": [],
-  "colors": [],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{2}",
-  "name": "Mind Stone",
-  "oracle_text": "{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.",
-  "power": null,
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": null,
-  "type_line": "Artifact"
- },
- "mira, greenwarden": {
-  "cmc": 4.0,
-  "color_identity": [
-   "G"
-  ],
-  "colors": [
-   "G"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{2}{G}{G}",
-  "name": "Mira, Greenwarden",
-  "oracle_text": "Other creatures you control get +1/+1.",
-  "power": "3",
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": "3",
-  "type_line": "Legendary Creature \u2014 Elf Druid"
- },
- "mountain": {
-  "cmc": 0.0,
-  "color_identity": [
-   "R"
-  ],
-  "colors": [],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "",
-  "name": "Mountain",
-  "oracle_text": "({T}: Add {R}.)",
-  "power": null,
-  "produced_mana": [
-   "R"
-  ],
-  "scryfall_id": null,
-  "toughness": null,
-  "type_line": "Basic Land \u2014 Mountain"
- },
- "pyroclasm": {
-  "cmc": 2.0,
-  "color_identity": [
-   "R"
-  ],
-  "colors": [
-   "R"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{1}{R}",
-  "name": "Pyroclasm",
-  "oracle_text": "Pyroclasm deals 2 damage to each creature.",
-  "power": null,
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": null,
-  "type_line": "Sorcery"
- },
- "raging goblin": {
-  "cmc": 1.0,
-  "color_identity": [
-   "R"
-  ],
-  "colors": [
-   "R"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{R}",
-  "name": "Raging Goblin",
-  "oracle_text": "Haste",
-  "power": "1",
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": "1",
-  "type_line": "Creature \u2014 Goblin Berserker"
- },
- "rampant growth": {
-  "cmc": 2.0,
-  "color_identity": [
-   "G"
-  ],
-  "colors": [
-   "G"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{1}{G}",
-  "name": "Rampant Growth",
-  "oracle_text": "Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
-  "power": null,
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": null,
-  "type_line": "Sorcery"
- },
- "shivan dragon": {
-  "cmc": 6.0,
-  "color_identity": [
-   "R"
-  ],
-  "colors": [
-   "R"
-  ],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{4}{R}{R}",
-  "name": "Shivan Dragon",
-  "oracle_text": "Flying\n{R}: Shivan Dragon gets +1/+0 until end of turn.",
-  "power": "5",
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": "5",
-  "type_line": "Creature \u2014 Dragon"
- },
- "sol ring": {
-  "cmc": 1.0,
-  "color_identity": [],
-  "colors": [],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{1}",
-  "name": "Sol Ring",
-  "oracle_text": "{T}: Add {C}{C}.",
-  "power": null,
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": null,
-  "type_line": "Artifact"
- },
- "swiftfoot boots": {
-  "cmc": 2.0,
-  "color_identity": [],
-  "colors": [],
-  "commander_legal": true,
-  "loyalty": null,
-  "mana_cost": "{2}",
-  "name": "Swiftfoot Boots",
-  "oracle_text": "Equipped creature has hexproof and haste.\nEquip {1}",
-  "power": null,
-  "produced_mana": [],
-  "scryfall_id": null,
-  "toughness": null,
-  "type_line": "Artifact \u2014 Equipment"
- }
+  "cards": {
+    "colossal dreadmaw": {
+      "cmc": 6.0,
+      "color_identity": [
+        "G"
+      ],
+      "colors": [
+        "G"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{4}{G}{G}",
+      "name": "Colossal Dreadmaw",
+      "oracle_text": "Trample",
+      "power": "6",
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": "6",
+      "type_line": "Creature \u2014 Dinosaur"
+    },
+    "cultivate": {
+      "cmc": 3.0,
+      "color_identity": [
+        "G"
+      ],
+      "colors": [
+        "G"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{2}{G}",
+      "name": "Cultivate",
+      "oracle_text": "Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.",
+      "power": null,
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": null,
+      "type_line": "Sorcery"
+    },
+    "forest": {
+      "cmc": 0.0,
+      "color_identity": [
+        "G"
+      ],
+      "colors": [],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "",
+      "name": "Forest",
+      "oracle_text": "({T}: Add {G}.)",
+      "power": null,
+      "produced_mana": [
+        "G"
+      ],
+      "scryfall_id": null,
+      "toughness": null,
+      "type_line": "Basic Land \u2014 Forest"
+    },
+    "giant growth": {
+      "cmc": 1.0,
+      "color_identity": [
+        "G"
+      ],
+      "colors": [
+        "G"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{G}",
+      "name": "Giant Growth",
+      "oracle_text": "Target creature gets +3/+3 until end of turn.",
+      "power": null,
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": null,
+      "type_line": "Instant"
+    },
+    "giant spider": {
+      "cmc": 4.0,
+      "color_identity": [
+        "G"
+      ],
+      "colors": [
+        "G"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{3}{G}",
+      "name": "Giant Spider",
+      "oracle_text": "Reach",
+      "power": "2",
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": "4",
+      "type_line": "Creature \u2014 Spider"
+    },
+    "grizzly bears": {
+      "cmc": 2.0,
+      "color_identity": [
+        "G"
+      ],
+      "colors": [
+        "G"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{1}{G}",
+      "name": "Grizzly Bears",
+      "oracle_text": "",
+      "power": "2",
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": "2",
+      "type_line": "Creature \u2014 Bear"
+    },
+    "hill giant": {
+      "cmc": 4.0,
+      "color_identity": [
+        "R"
+      ],
+      "colors": [
+        "R"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{3}{R}",
+      "name": "Hill Giant",
+      "oracle_text": "",
+      "power": "3",
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": "3",
+      "type_line": "Creature \u2014 Giant"
+    },
+    "kaelen, stormcaller": {
+      "cmc": 4.0,
+      "color_identity": [
+        "R"
+      ],
+      "colors": [
+        "R"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{3}{R}",
+      "name": "Kaelen, Stormcaller",
+      "oracle_text": "Haste\nWhenever Kaelen attacks, each opponent loses 1 life.",
+      "power": "3",
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": "3",
+      "type_line": "Legendary Creature \u2014 Goblin Shaman"
+    },
+    "lightning bolt": {
+      "cmc": 1.0,
+      "color_identity": [
+        "R"
+      ],
+      "colors": [
+        "R"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{R}",
+      "name": "Lightning Bolt",
+      "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+      "power": null,
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": null,
+      "type_line": "Instant"
+    },
+    "llanowar elves": {
+      "cmc": 1.0,
+      "color_identity": [
+        "G"
+      ],
+      "colors": [
+        "G"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{G}",
+      "name": "Llanowar Elves",
+      "oracle_text": "{T}: Add {G}.",
+      "power": "1",
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": "1",
+      "type_line": "Creature \u2014 Elf Druid"
+    },
+    "mind stone": {
+      "cmc": 2.0,
+      "color_identity": [],
+      "colors": [],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{2}",
+      "name": "Mind Stone",
+      "oracle_text": "{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.",
+      "power": null,
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": null,
+      "type_line": "Artifact"
+    },
+    "mira, greenwarden": {
+      "cmc": 4.0,
+      "color_identity": [
+        "G"
+      ],
+      "colors": [
+        "G"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{2}{G}{G}",
+      "name": "Mira, Greenwarden",
+      "oracle_text": "Other creatures you control get +1/+1.",
+      "power": "3",
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": "3",
+      "type_line": "Legendary Creature \u2014 Elf Druid"
+    },
+    "mountain": {
+      "cmc": 0.0,
+      "color_identity": [
+        "R"
+      ],
+      "colors": [],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "",
+      "name": "Mountain",
+      "oracle_text": "({T}: Add {R}.)",
+      "power": null,
+      "produced_mana": [
+        "R"
+      ],
+      "scryfall_id": null,
+      "toughness": null,
+      "type_line": "Basic Land \u2014 Mountain"
+    },
+    "pyroclasm": {
+      "cmc": 2.0,
+      "color_identity": [
+        "R"
+      ],
+      "colors": [
+        "R"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{1}{R}",
+      "name": "Pyroclasm",
+      "oracle_text": "Pyroclasm deals 2 damage to each creature.",
+      "power": null,
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": null,
+      "type_line": "Sorcery"
+    },
+    "raging goblin": {
+      "cmc": 1.0,
+      "color_identity": [
+        "R"
+      ],
+      "colors": [
+        "R"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{R}",
+      "name": "Raging Goblin",
+      "oracle_text": "Haste",
+      "power": "1",
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": "1",
+      "type_line": "Creature \u2014 Goblin Berserker"
+    },
+    "rampant growth": {
+      "cmc": 2.0,
+      "color_identity": [
+        "G"
+      ],
+      "colors": [
+        "G"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{1}{G}",
+      "name": "Rampant Growth",
+      "oracle_text": "Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+      "power": null,
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": null,
+      "type_line": "Sorcery"
+    },
+    "shivan dragon": {
+      "cmc": 6.0,
+      "color_identity": [
+        "R"
+      ],
+      "colors": [
+        "R"
+      ],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{4}{R}{R}",
+      "name": "Shivan Dragon",
+      "oracle_text": "Flying\n{R}: Shivan Dragon gets +1/+0 until end of turn.",
+      "power": "5",
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": "5",
+      "type_line": "Creature \u2014 Dragon"
+    },
+    "sol ring": {
+      "cmc": 1.0,
+      "color_identity": [],
+      "colors": [],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{1}",
+      "name": "Sol Ring",
+      "oracle_text": "{T}: Add {C}{C}.",
+      "power": null,
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": null,
+      "type_line": "Artifact"
+    },
+    "swiftfoot boots": {
+      "cmc": 2.0,
+      "color_identity": [],
+      "colors": [],
+      "commander_legal": true,
+      "loyalty": null,
+      "mana_cost": "{2}",
+      "name": "Swiftfoot Boots",
+      "oracle_text": "Equipped creature has hexproof and haste.\nEquip {1}",
+      "power": null,
+      "produced_mana": [],
+      "scryfall_id": null,
+      "toughness": null,
+      "type_line": "Artifact \u2014 Equipment"
+    }
+  },
+  "format": 4
 }
