@@ -1483,10 +1483,30 @@ no mulligan is free (CR 103.5c).
   that follows rotation other than through Scryfall's own `legalities.standard`. Cards saved in `.cache/cards.json` before this
   change have no Standard flag and count as legal; `.cache/oracle_bulk.json` is downloaded again on first use.
 
+## Commander Brackets
+
+```
+python -m infernal_machine.brackets DECKLIST
+```
+
+`brackets.analyze(deck)` reads the hard limits of the Commander Brackets (1 Exhibition, 2 Core, 3 Upgraded, 4 Optimized, 5 cEDH) off
+a deck's cards and returns the lowest bracket it can be played at (`floor`): the Game Changers in it (Scryfall's `game_changer` flag,
+so the list follows Scryfall; none below Bracket 3, up to three in Bracket 3), mass land denial (found by its Oracle text: destroys,
+exiles or returns all lands, or makes each player sacrifice four or more; not below Bracket 4), and its extra-turn cards, which are
+listed but not counted against it. It cannot see two-card infinite combos or how the deck is played, and it cannot tell Bracket 1
+from 2 or 4 from 5, so the floor is a first check before choosing opponents, not a rating.
+
+- **Tuning:** the report starts with the deck's Bracket line, and a `--try` card that is a Game Changer, is mass land denial, or
+  takes a Game Changer out says what the swap does to the floor.
+- **Matchups:** the report shows the focus deck's floor and each opponent's, and warns when an opponent can only be played at a
+  higher bracket than the focus deck, because those win rates compare unlike decks. `--max-bracket N` leaves such opponents out.
+- Decks without a commander (Standard) have no bracket. `.cache/oracle_bulk.json` is downloaded again on first use, because cards
+  gained the flag; cards saved in an older `.cache/cards.json` have no flag and count as ordinary until refetched.
+
 ## Simulating a deck
 
 ```
-python -m infernal_machine.simulate DECKLIST [--games 1000] [--turns 8] [--seed 0] [--play]
+python -m infernal_machine.simulate DECKLIST [--games 1000] [--turns 8] [--seed 0] [--play] [--commander-dies TURN]
 ```
 
 `simulate(deck, games, turns, seed, on_the_play, free_mulligan)` in `simulate.py` plays the deck alone with the bot's
@@ -1497,9 +1517,14 @@ worst-first, the card table points at cards that are too expensive, in the wrong
 
 It models mana and bodies, not rules text: a spell is cast when its cost can be paid (by `mana.pay`, color by color),
 mana rocks and mana creatures are sources, creatures attack unblocked from the turn after they enter (haste: at once),
-X is 0, a commander is cast once with no tax, and conditional "enters tapped" lands and shocklands count as untapped. A land
+X is 0, and conditional "enters tapped" lands and shocklands count as untapped. A land
 that fetches a basic land (Evolving Wilds, Terramorphic Expanse, Fabled Passage) is cracked when played: it takes the basic
 that adds a color the hand wants, removes it from the library, and enters tapped (Fabled Passage untaps with four lands).
+A commander is cast from the command zone at its mana value plus {2} for each earlier cast (CR 903.8), and partners are taxed
+separately. With `--commander-dies N` (`commander_dies_on=N`) every commander on the battlefield goes back to the command zone at
+the start of turn N, taking its body and any mana it made with it, and the report adds a "commander recast" section: the turn of
+the first cast, how often it was cast again, and the turn of the recast. That shows how much a deck leans on its commander. Eminence
+cost reducers and the rest of a commander's text are not modeled.
 Use it to compare builds, not to predict a game. Any card list works, so a 60-card deck is fine; a deck with a commander
 gets the free first mulligan, one without does not.
 
@@ -1528,7 +1553,7 @@ goldfish", not "bad card". More games (`--games 2000`) tighten the error bars; 5
 ## Matchups
 
 ```
-python -m infernal_machine.matchup DECKLIST OPPONENT [OPPONENT ...] [--games 40] [--pod 4] [--workers N] [--time-limit 120]
+python -m infernal_machine.matchup DECKLIST OPPONENT [OPPONENT ...] [--games 40] [--pod 4] [--max-bracket N] [--workers N] [--time-limit 120]
 ```
 
 `matchups(focus, opponents, games, pod, seed, max_turns, time_limit, workers)` in `matchup.py` plays `BotPlayer` games and

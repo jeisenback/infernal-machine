@@ -106,6 +106,24 @@ class TuneTests(unittest.TestCase):
         self.assertEqual(sum("the engine can't read" in line for line in text.splitlines() if " for " in line), 1)
 
 
+class WithBracketsTests(unittest.TestCase):
+    """Both notes on one line when a candidate is a Game Changer whose text the engine can't read."""
+
+    def test_a_swap_can_carry_both_notes(self):
+        dud = Card(name="Aaa Dud", mana_cost="{U}{U}{U}{U}", cmc=4, type_line="Creature — Wizard", power="1", toughness="1", color_identity=("G",))
+        odd_changer = Card(name="Odd Changer", mana_cost="{1}{G}", cmc=2, type_line="Sorcery", oracle_text=ODD_TEXT, color_identity=("G",), game_changer=True)
+        text = format_tuning(tune(deck(*[dud] * 8), games=30, turns=4, seed=1, candidates=[odd_changer]))
+        line = next(line for line in text.splitlines() if line.strip().startswith("Odd Changer for"))
+        self.assertIn("a Game Changer: the deck would have 1", line)
+        self.assertIn("the engine can't read:", line)
+        self.assertIn("Bracket: no hard limit above Bracket 1", text)
+
+    def test_the_deck_notes_come_together(self):
+        text = format_tuning(tune(deck(ODD), games=20, turns=3, seed=1))
+        lines = text.splitlines()
+        self.assertTrue(lines[1].startswith("Bracket:") and lines[2].startswith("The deck has 1 card"), lines[:4])
+
+
 class SimulateTests(unittest.TestCase):
     def test_the_simulation_says_what_it_does_not_read(self):
         text = format_simulation(simulate(deck(ODD), games=20, turns=4, seed=1))

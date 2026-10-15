@@ -19,6 +19,7 @@ from collections import Counter
 from dataclasses import dataclass, field, replace
 
 from .analysis import is_land
+from .brackets import BracketReport, analyze, bracket_floor, is_mass_land_denial
 from .cards import Card, Deck
 from .commander import copy_limit
 from .formats import STANDARD
@@ -61,6 +62,8 @@ class TuningReport:
     skipped: list[tuple[str, str]] = field(default_factory=list)  # (candidate, why it was not tried)
     unplayable: list[tuple[str, int, str]] = field(default_factory=list)  # (card, copies, first line) the engine can't fully play
     candidate_unplayable: dict[str, str] = field(default_factory=dict)  # candidate -> the first line of its text the engine can't read
+    bracket: BracketReport | None = None  # what the deck's cards say about its Commander Bracket (None for a deck with no commander)
+    swap_notes: dict[str, str] = field(default_factory=dict)  # candidate -> what trying it would do to the Bracket, when it does something
 
 
 def candidate_problem(deck: Deck, card: Card) -> str | None:
@@ -82,6 +85,26 @@ def candidate_problem(deck: Deck, card: Card) -> str | None:
     if limit is not None and in_deck >= limit:
         return "already in the deck" if limit == 1 else f"already at the limit of {limit}"
     return None
+
+
+def _bracket_notes(deck: Deck, swaps: list, tried: list[Card]) -> dict[str, str]:
+    """For each swap that changes the deck's Game Changers or brings in mass land denial: what that does to the Bracket."""
+    current = analyze(deck)
+    notes = {}
+    in_deck = {c.name: c for c in deck.main}  # the card a swap replaces is looked up by name
+    by_name = {c.name: c for c in tried}
+    for new, old, _ in swaps:
+        new_card = by_name[new]
+        gain = int(new_card.game_changer) - int(in_deck[old].game_changer if old in in_deck else False)
+        denial = bool(current.mass_land_denial) or is_mass_land_denial(new_card)
+        floor = bracket_floor(len(current.game_changers) + gain, int(denial))
+        if new_card.game_changer:
+            notes[new] = f"a Game Changer: the deck would have {len(current.game_changers) + gain}, and play at Bracket {floor} or higher"
+        elif is_mass_land_denial(new_card):
+            notes[new] = f"mass land denial: the deck would play at Bracket {floor} or higher"
+        elif gain < 0 and floor < current.floor:
+            notes[new] = f"drops a Game Changer: the deck could play at Bracket {floor}"
+    return notes
 
 
 def _effect(deltas: list[float]) -> Effect:
@@ -149,9 +172,11 @@ def tune(deck: Deck, games: int = 500, turns: int = 8, seed: int = 0, candidates
     for card in candidates or []:
         problem = candidate_problem(deck, card)
         (skipped.append((card.name, problem)) if problem else legal.append(card))
-    return TuningReport(games, turns, round(baseline, 2), impacts, _land_sweep(deck, impacts, *args),
-                        _swap_candidates(deck, impacts, legal, seen_in, *args), skipped, unplayable,
-                        {card.name: lines[0] for card in legal if (lines := unsupported_lines(card))})
+    swaps = _swap_candidates(deck, impacts, legal, seen_in, *args)
+    return TuningReport(games, turns, round(baseline, 2), impacts, _land_sweep(deck, impacts, *args), swaps, skipped,
+                        unplayable=unplayable, candidate_unplayable={card.name: lines[0] for card in legal if (lines := unsupported_lines(card))},
+                        bracket=analyze(deck) if deck.commanders else None,
+                        swap_notes=_bracket_notes(deck, swaps, legal) if deck.commanders else {})
 
 
 def _land_sweep(deck: Deck, impacts: list[CardImpact], *args) -> dict[int, Effect]:
@@ -197,6 +222,7 @@ def _plusminus(effect: Effect) -> str:
 def format_tuning(report: TuningReport) -> str:
     lines = [f"{report.games} games, {report.turns} turns. Average game value {report.baseline} "
              "(mana spent on spells + damage dealt by the last turn).",
+             *([f"Bracket: {report.bracket.summary()}."] if report.bracket else []),
              *([unplayable_note(report.unplayable, "The deck", "The goldfish does not read card text, so these numbers do not change, "
                                 "but a matchup run would play these cards without that text.")] if report.unplayable else []), "",
              "Per card, weakest first: what the card adds per game, replayed with the card as a blank.",
@@ -210,6 +236,7 @@ def format_tuning(report: TuningReport) -> str:
     if report.swaps:
         lines += ["", "Swaps (best first): the card replaces the weakest card in the deck."]
         lines += [f"  {new} for {old}: {_plusminus(effect)}"
+                  + (f"  [{report.swap_notes[new]}]" if new in report.swap_notes else "")
                   + (f"  [the engine can't read: {report.candidate_unplayable[new][:60]}]" if new in report.candidate_unplayable else "")
                   for new, old, effect in report.swaps]
     return "\n".join(lines)
