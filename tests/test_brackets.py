@@ -1,5 +1,6 @@
 """Commander Brackets: Game Changers, mass land denial and extra turns read off a deck's cards (#362)."""
 
+import dataclasses
 import unittest
 
 from infernal_machine.brackets import analyze, bracket_floor, has_extra_turn, is_mass_land_denial
@@ -114,7 +115,7 @@ class TuneTests(unittest.TestCase):
         self.assertIn("Fourth for", format_tuning(report))
 
     def test_mass_land_denial_candidate(self):
-        green_armageddon = Card(**{**ARMAGEDDON.__dict__, "color_identity": ("G",)})
+        green_armageddon = dataclasses.replace(ARMAGEDDON, color_identity=("G",))
         report = self.run_tune(commander_deck(*[DUD] * 8), green_armageddon)
         self.assertIn("mass land denial", report.swap_notes["Armageddon"])
 

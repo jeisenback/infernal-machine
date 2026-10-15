@@ -47,7 +47,7 @@ class Card:
     def __hash__(self) -> int:
         """Cards key `lru_cache`s on every rules lookup, so this is hashed millions of times in a long game. The generated hash
         walks every field (and the nested faces); this one hashes the few that tell cards apart (equal cards still hash equal)
-        and keeps the result."""
+        and keeps the result in the card's `__dict__` as `_hash`, so copy a card with `dataclasses.replace`, never `Card(**vars(card))`."""
         cached = self.__dict__.get("_hash")
         if cached is None:
             cached = hash((self.name, self.mana_cost, self.type_line, self.oracle_text, self.power, self.toughness))
