@@ -35,6 +35,7 @@ class Card:
     produced_mana: tuple[str, ...] = ()
     commander_legal: bool = True
     standard_legal: bool = True
+    game_changer: bool = False  # on Scryfall's Commander Game Changers list (Commander Brackets)
     scryfall_id: str | None = None
     back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
     prepare: "Card | None" = None  # a prepare card's spell half, which a prepared creature can cast a copy of
@@ -78,7 +79,7 @@ class Card:
                            oracle_text=back_face.get("oracle_text", ""),
                            color_identity=tuple(data.get("color_identity", [])),
                            produced_mana=_face_mana(back_face, tuple(data.get("produced_mana", []))),
-                           commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal",
+                           commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", game_changer=bool(data.get("game_changer")),
                            scryfall_id=data.get("id"))
         prepare = None
         if data.get("layout") == "prepare" and len(data.get("card_faces", [])) == 2:
@@ -87,7 +88,7 @@ class Card:
                           cmc=_mana_value(spell.get("mana_cost", "")), type_line=spell.get("type_line", ""),
                           oracle_text=spell.get("oracle_text", ""), colors=_cost_colors(spell.get("mana_cost", "")),
                           color_identity=tuple(data.get("color_identity", [])),
-                          commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal",
+                          commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", game_changer=bool(data.get("game_changer")),
                           scryfall_id=data.get("id"))
         faces = data.get("card_faces", [])
         alternate = None
@@ -100,7 +101,7 @@ class Card:
                        power=second.get("power"), toughness=second.get("toughness"), loyalty=second.get("loyalty"),
                        color_identity=tuple(data.get("color_identity", [])),
                        produced_mana=_face_mana(second, tuple(data.get("produced_mana", []))),
-                       commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", scryfall_id=data.get("id"))
+                       commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
         if data.get("layout") == "meld":
             other_face = "the melded card"
         elif len(faces) == 2 and (data.get("layout") in ("split", "adventure") or data.get("layout") == "modal_dfc" and back is None):
@@ -112,7 +113,7 @@ class Card:
                 alternate = cls(name=second["name"], mana_cost=second.get("mana_cost", ""), cmc=_mana_value(second.get("mana_cost", "")),
                                 type_line=second.get("type_line", ""), oracle_text=second.get("oracle_text", ""),
                                 colors=tuple(second.get("colors") or _cost_colors(second.get("mana_cost", ""))), color_identity=tuple(data.get("color_identity", [])),
-                                commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", scryfall_id=data.get("id"))
+                                commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
             else:
                 other_face = second["name"]  # not played: a back that is a permanent
         cmc = _mana_value(face.get("mana_cost", "")) if data.get("layout") == "split" and "mana_cost" in face else float(data.get("cmc", 0))
@@ -128,7 +129,7 @@ class Card:
             loyalty=face.get("loyalty"),
             color_identity=tuple(data.get("color_identity", [])),
             produced_mana=produced,
-            commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal",
+            commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", game_changer=bool(data.get("game_changer")),
             scryfall_id=data.get("id"),
             back=back,
             prepare=prepare,
@@ -329,7 +330,7 @@ class BulkSource:
     reused until it is `max_age_days` old. After that every lookup is offline.
     """
 
-    FORMAT = 3  # bumped when Card gains fields, so a copy saved earlier is downloaded again
+    FORMAT = 4  # bumped when Card gains fields, so a copy saved earlier is downloaded again
 
     def __init__(self, path: str | Path, max_age_days: float = 7.0, base_url: str = "https://api.scryfall.com",
                  user_agent: str = "infernal-machine/0.1", http: HttpFn = _urlopen_json,
