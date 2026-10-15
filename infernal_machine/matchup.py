@@ -27,6 +27,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 
 from .bot import BotPlayer
+from .brackets import analyze
 from .cards import Deck
 from .formats import format_of
 from .game import Game
@@ -151,6 +152,8 @@ class Record:
     how_won: Counter = field(default_factory=Counter)  # the reason the opponents lost, when the focus deck won
     stumbled: tuple[int, int] = (0, 0)  # (games, of which the focus deck won) with two lands or fewer after four turns
     idle: tuple[int, int] = (0, 0)  # likewise for three-plus lands but at most one spell
+    bracket: tuple[int, ...] = ()  # the Commander Bracket floors of the opponent decks it was played against (none for decks without a commander)
+    focus_bracket: int | None = None  # the focus deck's
 
     @property
     def win_rate(self) -> float:
@@ -214,7 +217,19 @@ def matchups(focus: Deck, opponents: dict[str, Deck], games: int = 40, pod: int 
             results = list(_chunk(pool, plans))
     else:
         results = [[_run(task) for task in tasks] for _, tasks in plans]
-    return [_record(name, rs, pod if pod > 2 else 2) for (name, _), rs in zip(plans, results)]
+    records = [_record(name, rs, pod if pod > 2 else 2) for (name, _), rs in zip(plans, results)]
+    if focus.commanders:
+        floor = {name: analyze(deck).floor for name, deck in opponents.items() if deck.commanders}
+        for record in records:
+            record.focus_bracket = analyze(focus).floor
+            record.bracket = tuple(sorted({floor[n] for n in ([record.opponent] if pod <= 2 else opponents) if n in floor}))
+    return records
+
+
+def within_bracket(opponents: dict[str, Deck], highest: int) -> tuple[dict[str, Deck], dict[str, int]]:
+    """The opponents whose Bracket floor is at most `highest`, and the floors of the ones left out."""
+    floors = {name: analyze(deck).floor for name, deck in opponents.items()}
+    return ({n: d for n, d in opponents.items() if floors[n] <= highest}, {n: f for n, f in floors.items() if f > highest})
 
 
 def _chunk(pool, plans):
@@ -232,6 +247,13 @@ def _pct(wins_games: tuple[int, int]) -> str:
 def format_matchups(records: list[Record], focus: str = "focus deck") -> str:
     lines = [f"{focus} against bots. Win rate with its 95% interval (fair share {records[0].fair_share:.0%}); "
              "win rate when going first / second; why it lost.", ""]
+    if records[0].focus_bracket is not None:
+        ours = records[0].focus_bracket
+        lines.insert(1, f"Bracket: the focus deck plays at Bracket {ours} or higher; opponents' floors: "
+                        + ", ".join(f"{r.opponent} {'/'.join(map(str, r.bracket)) or '?'}" for r in records) + ".")
+        stronger = sorted(r.opponent for r in records if any(b > ours for b in r.bracket))
+        if stronger:
+            lines.insert(2, f"Warning: {', '.join(stronger)} can only be played at a higher Bracket than the focus deck, so those win rates compare unlike decks.")
     lines.append(f"{'opponent':<30} {'W-L-D':>9}  {'win rate':<16} {'turns':>5}  {'first':<12} {'second':<12} how it lost")
     for r in records:
         low, high = r.interval
@@ -268,6 +290,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("opponents", nargs="+", help="decklists to play against")
     parser.add_argument("--games", type=int, default=40, help="per opponent (or in total with --pod)")
     parser.add_argument("--pod", type=int, default=2, help="players per game; above 2 draws the opponents at random")
+    parser.add_argument("--max-bracket", type=int, metavar="N", help="leave out opponents that can only be played at a Bracket above N")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--max-turns", type=int, default=60)
     parser.add_argument("--time-limit", type=float, default=120.0, help="seconds per game")
@@ -281,6 +304,13 @@ def main(argv: list[str]) -> int:
             return load_deck(f.read(), source)
 
     opponents = {os.path.splitext(os.path.basename(p))[0]: load(p) for p in args.opponents}
+    if args.max_bracket is not None:
+        opponents, left_out = within_bracket(opponents, args.max_bracket)
+        for name, floor in left_out.items():
+            print(f"Leaving out {name}: it plays at Bracket {floor} or higher.", file=sys.stderr)
+        if not opponents:
+            print("No opponent is left.", file=sys.stderr)
+            return 2
     records = matchups(load(args.decklist), opponents, args.games, args.pod, args.seed, args.max_turns, args.time_limit, args.workers)
     print(format_matchups(records, os.path.splitext(os.path.basename(args.decklist))[0]))
     return 0

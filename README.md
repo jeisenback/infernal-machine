@@ -1483,6 +1483,26 @@ no mulligan is free (CR 103.5c).
   that follows rotation other than through Scryfall's own `legalities.standard`. Cards saved in `.cache/cards.json` before this
   change have no Standard flag and count as legal; `.cache/oracle_bulk.json` is downloaded again on first use.
 
+## Commander Brackets
+
+```
+python -m infernal_machine.brackets DECKLIST
+```
+
+`brackets.analyze(deck)` reads the hard limits of the Commander Brackets (1 Exhibition, 2 Core, 3 Upgraded, 4 Optimized, 5 cEDH) off
+a deck's cards and returns the lowest bracket it can be played at (`floor`): the Game Changers in it (Scryfall's `game_changer` flag,
+so the list follows Scryfall; none below Bracket 3, up to three in Bracket 3), mass land denial (found by its Oracle text: destroys,
+exiles or returns all lands, or makes each player sacrifice four or more; not below Bracket 4), and its extra-turn cards, which are
+listed but not counted against it. It cannot see two-card infinite combos or how the deck is played, and it cannot tell Bracket 1
+from 2 or 4 from 5, so the floor is a first check before choosing opponents, not a rating.
+
+- **Tuning:** the report starts with the deck's Bracket line, and a `--try` card that is a Game Changer, is mass land denial, or
+  takes a Game Changer out says what the swap does to the floor.
+- **Matchups:** the report shows the focus deck's floor and each opponent's, and warns when an opponent can only be played at a
+  higher bracket than the focus deck, because those win rates compare unlike decks. `--max-bracket N` leaves such opponents out.
+- Decks without a commander (Standard) have no bracket. `.cache/oracle_bulk.json` is downloaded again on first use, because cards
+  gained the flag; cards saved in an older `.cache/cards.json` have no flag and count as ordinary until refetched.
+
 ## Simulating a deck
 
 ```
@@ -1528,7 +1548,7 @@ goldfish", not "bad card". More games (`--games 2000`) tighten the error bars; 5
 ## Matchups
 
 ```
-python -m infernal_machine.matchup DECKLIST OPPONENT [OPPONENT ...] [--games 40] [--pod 4] [--workers N] [--time-limit 120]
+python -m infernal_machine.matchup DECKLIST OPPONENT [OPPONENT ...] [--games 40] [--pod 4] [--max-bracket N] [--workers N] [--time-limit 120]
 ```
 
 `matchups(focus, opponents, games, pod, seed, max_turns, time_limit, workers)` in `matchup.py` plays `BotPlayer` games and
