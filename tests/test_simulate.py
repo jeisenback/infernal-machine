@@ -2,7 +2,8 @@ import unittest
 
 from infernal_machine.bot import goldfish
 from infernal_machine.cards import Card, Deck
-from infernal_machine.simulate import Fetch, _landing, _Source, enters_tapped, fetch_land, format_simulation, mana_sources, simulate
+from infernal_machine.mana import parse_cost
+from infernal_machine.simulate import Fetch, _landing, _Source, _taxed, enters_tapped, fetch_land, format_simulation, mana_sources, simulate
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))
@@ -13,6 +14,8 @@ ELF = Card(name="Llanowar Elves", mana_cost="{G}", cmc=1, type_line="Creature �
 BEAR = Card(name="Grizzly Bears", mana_cost="{1}{G}", cmc=2, type_line="Creature — Bear", power="2", toughness="2")
 HASTY = Card(name="Goblin Guide", mana_cost="{G}", cmc=1, type_line="Creature — Goblin", power="2", toughness="2", oracle_text="Haste")
 BLUE = Card(name="Counterspell", mana_cost="{U}{U}", cmc=2, type_line="Instant")
+BOSS = Card(name="Boss", mana_cost="{3}{G}", cmc=4, type_line="Legendary Creature — Elf", power="3", toughness="3")
+BOSS_TWO = Card(name="Second Boss", mana_cost="{4}{G}", cmc=5, type_line="Legendary Creature — Elf", power="4", toughness="4")
 TITAN = Card(name="Titan", mana_cost="{9}{G}", cmc=10, type_line="Creature — Giant", power="9", toughness="9")
 
 
@@ -167,6 +170,52 @@ class OnCurveTests(unittest.TestCase):
         text = format_simulation(simulate(deck(*[FOREST] * 30, *[BEAR] * 30), games=100, turns=4, seed=1))
         self.assertIn("On curve:", text)
         self.assertIn("on curve", text)
+
+
+class CommanderTaxTests(unittest.TestCase):
+    """Every card is a Forest, so a land is played every turn: on the play, turn N has N lands."""
+
+    def run_boss(self, dies_on=None, turns=10, commanders=(BOSS,)):
+        return simulate(deck(*[FOREST] * 99, commanders=commanders), games=10, turns=turns, seed=1, on_the_play=True, commander_dies_on=dies_on)
+
+    def card(self, stats, name="Boss"):
+        return next(c for c in stats.cards if c.name == name)
+
+    def test_the_tax_is_two_more_generic_mana(self):
+        self.assertEqual(_taxed(BOSS, 0), BOSS)
+        taxed = _taxed(BOSS, 2)
+        self.assertEqual(taxed.cmc, 6)
+        cost = parse_cost(taxed.mana_cost)
+        assert cost is not None
+        self.assertEqual((cost.generic, len(cost.colored)), (5, 1))  # {3}{2} and {G}
+
+    def test_a_commander_that_never_dies_is_cast_once_at_its_mana_value(self):
+        boss = self.card(self.run_boss())
+        self.assertEqual((boss.average_cast_turn, boss.average_casts, boss.recast_rate), (4.0, 1.0, 0.0))
+
+    def test_the_recast_waits_for_the_tax(self):
+        boss = self.card(self.run_boss(dies_on=5))  # back in the command zone at turn 5: four lands, and it now costs six
+        self.assertEqual((boss.average_cast_turn, boss.average_recast_turn, boss.recast_rate, boss.average_casts), (4.0, 6.0, 1.0, 2.0))
+
+    def test_a_commander_that_is_removed_stops_attacking_until_it_is_back(self):
+        alive, removed = self.run_boss(), self.run_boss(dies_on=5)
+        self.assertEqual((alive.damage[5], removed.damage[5], removed.damage[6]), (3.0, 0.0, 0.0))  # recast on turn 6, attacks on 7
+        self.assertEqual(removed.damage[7], 3.0)
+
+    def test_a_commander_removed_before_it_was_cast_changes_nothing(self):
+        early = self.card(self.run_boss(dies_on=3))
+        self.assertEqual((early.average_cast_turn, early.recast_rate), (4.0, 0.0))
+
+    def test_partners_are_taxed_separately(self):
+        stats = self.run_boss(dies_on=9, turns=14, commanders=(BOSS, BOSS_TWO))
+        for name, tax in (("Boss", 6), ("Second Boss", 7)):
+            card = self.card(stats, name)
+            self.assertEqual(card.average_casts, 2.0)
+            self.assertGreaterEqual(card.average_recast_turn, tax)  # it can't come back before its own cost in lands, on the play
+
+    def test_the_report_shows_the_recast(self):
+        self.assertIn("commander recast", format_simulation(self.run_boss(dies_on=5)))
+        self.assertNotIn("commander recast", format_simulation(self.run_boss()))
 
 
 if __name__ == "__main__":

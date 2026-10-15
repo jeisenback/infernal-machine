@@ -1486,7 +1486,7 @@ no mulligan is free (CR 103.5c).
 ## Simulating a deck
 
 ```
-python -m infernal_machine.simulate DECKLIST [--games 1000] [--turns 8] [--seed 0] [--play]
+python -m infernal_machine.simulate DECKLIST [--games 1000] [--turns 8] [--seed 0] [--play] [--commander-dies TURN]
 ```
 
 `simulate(deck, games, turns, seed, on_the_play, free_mulligan)` in `simulate.py` plays the deck alone with the bot's
@@ -1497,9 +1497,14 @@ worst-first, the card table points at cards that are too expensive, in the wrong
 
 It models mana and bodies, not rules text: a spell is cast when its cost can be paid (by `mana.pay`, color by color),
 mana rocks and mana creatures are sources, creatures attack unblocked from the turn after they enter (haste: at once),
-X is 0, a commander is cast once with no tax, and conditional "enters tapped" lands and shocklands count as untapped. A land
+X is 0, and conditional "enters tapped" lands and shocklands count as untapped. A land
 that fetches a basic land (Evolving Wilds, Terramorphic Expanse, Fabled Passage) is cracked when played: it takes the basic
 that adds a color the hand wants, removes it from the library, and enters tapped (Fabled Passage untaps with four lands).
+A commander is cast from the command zone at its mana value plus {2} for each earlier cast (CR 903.8), and partners are taxed
+separately. With `--commander-dies N` (`commander_dies_on=N`) every commander on the battlefield goes back to the command zone at
+the start of turn N, taking its body and any mana it made with it, and the report adds a "commander recast" section: the turn of
+the first cast, how often it was cast again, and the turn of the recast. That shows how much a deck leans on its commander. Eminence
+cost reducers and the rest of a commander's text are not modeled.
 Use it to compare builds, not to predict a game. Any card list works, so a 60-card deck is fine; a deck with a commander
 gets the free first mulligan, one without does not.
 
