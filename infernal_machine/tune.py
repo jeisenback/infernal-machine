@@ -22,6 +22,7 @@ from .analysis import is_land
 from .cards import Card, Deck
 from .commander import copy_limit
 from .formats import STANDARD
+from .report import unplayable_cards, unplayable_note, unsupported_lines
 from .simulate import game_value, play_game, play_games
 
 BLANK = Card(name="(blank)", type_line="Sorcery")  # no cost, so it is never cast: a dead card in the same slot
@@ -58,6 +59,8 @@ class TuningReport:
     lands: dict[int, Effect]  # change in land count -> effect on value
     swaps: list[tuple[str, str, Effect]] = field(default_factory=list)  # (card tried, card it replaces, effect), best first
     skipped: list[tuple[str, str]] = field(default_factory=list)  # (candidate, why it was not tried)
+    unplayable: list[tuple[str, int, str]] = field(default_factory=list)  # (card, copies, first line) the engine can't fully play
+    candidate_unplayable: dict[str, str] = field(default_factory=dict)  # candidate -> the first line of its text the engine can't read
 
 
 def candidate_problem(deck: Deck, card: Card) -> str | None:
@@ -107,6 +110,8 @@ def tune(deck: Deck, games: int = 500, turns: int = 8, seed: int = 0, candidates
          on_the_play: bool = False, free_mulligan: bool | None = None) -> TuningReport:
     if free_mulligan is None:
         free_mulligan = bool(deck.commanders)
+    unplayable = unplayable_cards(deck)
+    unreadable = {name for name, _, _ in unplayable}
     base = play_games(deck, games, turns, seed, on_the_play, free_mulligan)
     args = (base, games, turns, seed, on_the_play, free_mulligan)
     seen_in: dict[str, set[int]] = {}
@@ -130,10 +135,13 @@ def tune(deck: Deck, games: int = 500, turns: int = 8, seed: int = 0, candidates
         effect = _effect([-d for d in _deltas(deck, changed, *args, only=seen)])
         rate = cast_in[name] / len(seen)
         note = "rarely cast when drawn" if rate < DEAD_WEIGHT else ""
+        if name in unreadable:
+            note = (note + "; " if note else "") + "text the engine can't read"
         impacts.append(CardImpact(name, len(in_main) + len(in_command), effect, round(len(seen) / games, 3), round(rate, 3), note))
     for name, indexes in slots.items():  # never drawn in any game: no evidence either way
         if name not in seen_in:
-            impacts.append(CardImpact(name, len(indexes), Effect(0.0, 0.0), 0.0, 0.0, "never drawn in these games"))
+            impacts.append(CardImpact(name, len(indexes), Effect(0.0, 0.0), 0.0, 0.0, "never drawn in these games"
+                                      + ("; text the engine can't read" if name in unreadable else "")))
     impacts.sort(key=lambda c: (c.value.delta / c.copies, c.name))
 
     baseline = sum(game_value(run) for run in base) / games
@@ -142,7 +150,8 @@ def tune(deck: Deck, games: int = 500, turns: int = 8, seed: int = 0, candidates
         problem = candidate_problem(deck, card)
         (skipped.append((card.name, problem)) if problem else legal.append(card))
     return TuningReport(games, turns, round(baseline, 2), impacts, _land_sweep(deck, impacts, *args),
-                        _swap_candidates(deck, impacts, legal, seen_in, *args), skipped)
+                        _swap_candidates(deck, impacts, legal, seen_in, *args), skipped, unplayable,
+                        {card.name: lines[0] for card in legal if (lines := unsupported_lines(card))})
 
 
 def _land_sweep(deck: Deck, impacts: list[CardImpact], *args) -> dict[int, Effect]:
@@ -187,7 +196,9 @@ def _plusminus(effect: Effect) -> str:
 
 def format_tuning(report: TuningReport) -> str:
     lines = [f"{report.games} games, {report.turns} turns. Average game value {report.baseline} "
-             "(mana spent on spells + damage dealt by the last turn).", "",
+             "(mana spent on spells + damage dealt by the last turn).",
+             *([unplayable_note(report.unplayable, "The deck", "The goldfish does not read card text, so these numbers do not change, "
+                                "but a matchup run would play these cards without that text.")] if report.unplayable else []), "",
              "Per card, weakest first: what the card adds per game, replayed with the card as a blank.",
              "card                                  copies  adds per game        seen  cast if seen  note"]
     for card in report.cards:
@@ -198,7 +209,9 @@ def format_tuning(report: TuningReport) -> str:
         lines += [f"  {k:+d} lands: {_plusminus(effect)}" for k, effect in report.lands.items()]
     if report.swaps:
         lines += ["", "Swaps (best first): the card replaces the weakest card in the deck."]
-        lines += [f"  {new} for {old}: {_plusminus(effect)}" for new, old, effect in report.swaps]
+        lines += [f"  {new} for {old}: {_plusminus(effect)}"
+                  + (f"  [the engine can't read: {report.candidate_unplayable[new][:60]}]" if new in report.candidate_unplayable else "")
+                  for new, old, effect in report.swaps]
     return "\n".join(lines)
 
 

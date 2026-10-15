@@ -327,6 +327,7 @@ def format_simulation(stats: SimStats) -> str:
         wait = f"{card.average_wait:.1f}" if card.average_wait is not None else "-"
         curve = f"{card.on_curve:.0%}" if card.on_curve is not None else "-"
         lines.append(f"{card.name[:36]:<36}  {card.copies:>6}  {card.seen_rate:>4.0%}  {card.cast_rate:>4.0%}  {card.cast_when_seen:>11.0%}  {turn:>8}  {wait:>8}  {curve:>8}")
+    lines += ["", "Card text is not played here, only mana and creature bodies: removal, card draw and the like show up as mana spent."]
     return "\n".join(lines)
 
 
