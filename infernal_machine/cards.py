@@ -283,8 +283,16 @@ def _match_requested(wanted: list[str], found: dict[str, Card]) -> dict[str, Car
     return result
 
 
+CARD_FORMAT = 4  # bumped whenever Card gains a field, so a card file saved earlier is fetched again instead of read with that field's default
+
+
 class CachedSource:
-    """Wraps another source with a JSON file cache so repeat lookups stay offline."""
+    """Wraps another source with a JSON file cache so repeat lookups stay offline.
+
+    The file is `{"format": CARD_FORMAT, "cards": {...}}`. A file in an older format, or the old bare mapping with no `format` key,
+    is read as empty: its cards are fetched again, once, rather than loaded with defaults for the fields they were saved without
+    (a card saved before `standard_legal` existed would otherwise count as Standard-legal for good).
+    """
 
     def __init__(self, source: CardSource, path: str | Path):
         self.source = source
@@ -292,7 +300,8 @@ class CachedSource:
         self._cards: dict[str, Card] = {}
         if self.path.exists():
             raw = json.loads(self.path.read_text())
-            self._cards = {key: Card.from_dict(value) for key, value in raw.items()}
+            if isinstance(raw, dict) and raw.get("format") == CARD_FORMAT and isinstance(raw.get("cards"), dict):
+                self._cards = {key: Card.from_dict(value) for key, value in raw["cards"].items()}
 
     def get(self, name: str) -> Card:
         return self.get_many([name])[name]
@@ -308,7 +317,7 @@ class CachedSource:
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        data = {key: card.to_dict() for key, card in self._cards.items()}
+        data = {"format": CARD_FORMAT, "cards": {key: card.to_dict() for key, card in self._cards.items()}}
         self.path.write_text(json.dumps(data, indent=2, sort_keys=True))
 
 
@@ -330,7 +339,7 @@ class BulkSource:
     reused until it is `max_age_days` old. After that every lookup is offline.
     """
 
-    FORMAT = 4  # bumped when Card gains fields, so a copy saved earlier is downloaded again
+    FORMAT = CARD_FORMAT  # a copy saved in another format is downloaded again
 
     def __init__(self, path: str | Path, max_age_days: float = 7.0, base_url: str = "https://api.scryfall.com",
                  user_agent: str = "infernal-machine/0.1", http: HttpFn = _urlopen_json,

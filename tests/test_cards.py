@@ -7,6 +7,7 @@ import urllib.error
 from pathlib import Path
 
 from infernal_machine.cards import (
+    CARD_FORMAT,
     BulkSource,
     CachedSource,
     Card,
@@ -136,6 +137,51 @@ class CachedSourceTests(unittest.TestCase):
             fresh = CachedSource(ScryfallSource(http=http, min_interval=0), path)
             self.assertEqual(fresh.get("LIGHTNING BOLT").name, "Lightning Bolt")
         self.assertEqual(len(http.requests), 1)
+
+
+class CachedSourceFormatTests(unittest.TestCase):
+    """A cache file saved before Card gained a field must be fetched again, not read with that field's default (#373)."""
+
+    OLD_BOLT = {key: value for key, value in Card.from_scryfall(BOLT).to_dict().items() if key != "standard_legal"}  # as saved by an older version
+
+    def fetch(self, contents):
+        """Look up Lightning Bolt through a cache file holding `contents`; return the card, the number of requests, and the file afterwards."""
+        http = FakeScryfall()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cards.json"
+            path.write_text(json.dumps(contents))
+            card = CachedSource(ScryfallSource(http=http, min_interval=0), path).get("Lightning Bolt")
+            return card, len(http.requests), json.loads(path.read_text())
+
+    def test_the_file_records_its_format(self):
+        _, _, saved = self.fetch({})  # (an empty mapping is not a valid cache; it is read as empty and refilled)
+        self.assertEqual(saved["format"], CARD_FORMAT)
+        self.assertEqual(list(saved["cards"]), ["lightning bolt"])
+
+    def test_a_current_file_is_used_without_the_network(self):
+        card, requests, _ = self.fetch({"format": CARD_FORMAT, "cards": {"lightning bolt": Card.from_scryfall(BOLT).to_dict()}})
+        self.assertEqual((card.name, requests), ("Lightning Bolt", 0))
+
+    def test_the_old_bare_mapping_is_fetched_again(self):
+        card, requests, saved = self.fetch({"lightning bolt": self.OLD_BOLT})
+        self.assertEqual(requests, 1)
+        self.assertFalse(card.standard_legal)  # the old entry would have read as legal: its file never said
+        self.assertEqual(saved["format"], CARD_FORMAT)
+
+    def test_a_file_in_another_format_is_fetched_again(self):
+        for other in (CARD_FORMAT - 1, CARD_FORMAT + 1, 0):
+            card, requests, saved = self.fetch({"format": other, "cards": {"lightning bolt": self.OLD_BOLT}})
+            self.assertEqual((requests, card.standard_legal, saved["format"]), (1, False, CARD_FORMAT), other)
+
+    def test_a_damaged_cards_entry_is_read_as_empty(self):
+        _, requests, _ = self.fetch({"format": CARD_FORMAT, "cards": ["not", "a", "mapping"]})
+        self.assertEqual(requests, 1)
+
+    def test_the_demo_cards_are_in_the_current_format(self):
+        # examples/demo_cards.json is hand-made and used offline (the tests forbid the network), so it is converted when the
+        # format changes, not fetched again: check its cards have the new fields, then set "format" in the file to CARD_FORMAT.
+        saved = json.loads((Path(__file__).parent.parent / "examples" / "demo_cards.json").read_text())
+        self.assertEqual(saved["format"], CARD_FORMAT, "examples/demo_cards.json is in an older card format")
 
 
 class BulkSourceTests(unittest.TestCase):

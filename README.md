@@ -1480,8 +1480,8 @@ no mulligan is free (CR 103.5c).
   and `matchup` as it is.
 - **The server:** `python -m infernal_machine.server --format standard` checks every human and bot deck against Standard.
 - **Not there yet:** best-of-three with sideboarding (the sideboard is read and checked but not used in play), and a legality list
-  that follows rotation other than through Scryfall's own `legalities.standard`. Cards saved in `.cache/cards.json` before this
-  change have no Standard flag and count as legal; `.cache/oracle_bulk.json` is downloaded again on first use.
+  that follows rotation other than through Scryfall's own `legalities.standard`. Cached cards from before this change are fetched again
+  (see "The card caches" below).
 
 ## Commander Brackets
 
@@ -1501,7 +1501,7 @@ from 2 or 4 from 5, so the floor is a first check before choosing opponents, not
 - **Matchups:** the report shows the focus deck's floor and each opponent's, and warns when an opponent can only be played at a
   higher bracket than the focus deck, because those win rates compare unlike decks. `--max-bracket N` leaves such opponents out.
 - Decks without a commander (Standard) have no bracket. `.cache/oracle_bulk.json` is downloaded again on first use, because cards
-  gained the flag; cards saved in an older `.cache/cards.json` have no flag and count as ordinary until refetched.
+  gained the flag; `.cache/cards.json` is fetched again too (see "The card caches" below).
 
 ## Simulating a deck
 
@@ -1583,6 +1583,19 @@ The reports say so, using `report.unplayable_cards(deck)` (the same test as `pyt
   bad card), and, for a `--try` card, the first line of its text the engine can't read. The score comes from the goldfish, which
   does not read card text for any card, so these notes do not change the numbers; they say what a matchup run would get wrong.
 - **Simulation:** one closing line that card text is not played, only mana and creature bodies.
+
+## The card caches
+
+Cards are looked up through one of two cache files, both under `.cache/` and both safe to delete:
+
+- `oracle_bulk.json` (`BulkSource`): Scryfall's bulk Oracle Cards data, downloaded once and refreshed after a week.
+- `cards.json` (`CachedSource`, the server's default): the cards fetched one by one from the Scryfall API.
+
+Each file records `CARD_FORMAT`, the version of the `Card` fields. When the engine adds a field to `Card` (Standard legality, Game
+Changers) it bumps that number, and a file saved in another format, or the older bare mapping with no format at all, is fetched
+again the next time a card is needed, rather than loaded with the new field's default (which would call every old card legal in
+Standard and no card a Game Changer). Nothing is lost but one round of lookups; offline play works from the files that are current.
+`examples/demo_cards.json` is a hand-made cache of this kind that ships with the repository for offline games.
 
 ## Playing over TCP
 

@@ -34,6 +34,13 @@ To add a line:
 
 Cite the Comprehensive Rules in a comment where a rule is applied (`# CR 502.4`).
 
+## When `Card` gains a field
+
+Bump `CARD_FORMAT` in `cards.py`. Both card files (`.cache/oracle_bulk.json` and `.cache/cards.json`) record it and are fetched again
+when it differs, instead of loading older cards with the new field's default. `examples/demo_cards.json` is hand-made and used offline
+(the tests forbid the network), so it is converted, not fetched: check its cards read right with the new field's default, then set
+`"format"` in the file to the new number (`tests/test_cards.py` fails until you do).
+
 ## Checks
 
 Run before you push:
