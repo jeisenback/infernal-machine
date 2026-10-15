@@ -1528,6 +1528,29 @@ cost reducers and the rest of a commander's text are not modeled.
 Use it to compare builds, not to predict a game. Any card list works, so a 60-card deck is fine; a deck with a commander
 gets the free first mulligan, one without does not.
 
+## Comparing two builds
+
+```
+python -m infernal_machine.compare BASELINE CHANGED OPPONENT [OPPONENT ...] [--games 40] [--pod 4] [--workers N] [--goldfish-games 500]
+```
+
+`tune` scores one swap at a time with a goldfish; `compare` asks whether a changed build actually does better in games.
+`compare_builds(baseline, changed, opponents, ...)` in `compare.py` plays both builds on the same games: game `n` against an
+opponent has the same seed, seat and opponents whichever build is playing (`matchup.plan_games`), so a pair of games differs only
+by the cards that changed. It reports:
+
+- **The difference** in score (a win is 1, a draw 1/2) over the pairs, changed minus baseline, with a 95% interval from the spread of
+  the per-pair differences, and whether that interval leaves out zero. This is much less noisy than comparing two separate win rates.
+- **How many pairs it takes:** at the observed spread, about how many pairs separate a 10 point and a 5 point difference from nothing,
+  so a "within noise" result says how much more to play.
+- **Pairs** the changed build did better in, the baseline did better in, and the same; a line per opponent when there are several.
+- **The goldfish** (`simulate`) of both builds side by side: mulligans, opening lands, mana spent, on-curve rate, land drops, damage.
+- **Notes:** the cards that changed, a change of Commander Bracket, builds of different sizes (they shuffle differently, so the games
+  pair less closely), and changed cards the engine can't read (it cannot see what they do).
+
+A pair is dropped if either game crashes or times out. The bots play every game, so the result is how the *bots* do with the two builds:
+a card they play badly is under-rated in both. The two builds must both have commanders or both have none.
+
 ## Tuning a deck
 
 ```
