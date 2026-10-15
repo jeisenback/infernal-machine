@@ -212,10 +212,10 @@ def _record(name: str, results: list[GameResult], pod: int) -> Record:
     return record
 
 
-def matchups(focus: Deck, opponents: dict[str, Deck], games: int = 40, pod: int = 2, seed: int = 0, max_turns: int = 60,
-             time_limit: float = 120.0, workers: int = 1, focus_bot=BotPlayer, opponent_bot=BotPlayer) -> list[Record]:
-    """Play `games` games for each opponent (a duel), or `games` pod games in all if `pod` is more than 2.
-    `focus_bot` and `opponent_bot` make the players, to compare two versions of a bot on the same decks."""
+def plan_games(focus: Deck, opponents: dict[str, Deck], games: int, pod: int, seed: int, max_turns: int, time_limit: float,
+               focus_bot=BotPlayer, opponent_bot=BotPlayer) -> list[tuple[str, list[tuple]]]:
+    """The games `matchups` plays, as (opponent or pod, tasks) in order. Game `n` against an opponent is the same seed, seat and
+    opponents whatever the focus deck is, so two builds planned with one seed play paired games (see compare.py)."""
     plans: list[tuple[str, list[tuple]]] = []
     if pod <= 2:
         groups = [(name, [deck]) for name, deck in opponents.items()]
@@ -231,11 +231,23 @@ def matchups(focus: Deck, opponents: dict[str, Deck], games: int = 40, pod: int 
             bots = [opponent_bot] * seat + [focus_bot] + [opponent_bot] * (len(others) - seat)
             tasks.append((decks, seat, zlib.crc32(f"{seed}-{name}-{n}".encode()), max_turns, time_limit, bots))
         plans.append((name, tasks))
+    return plans
+
+
+def play_plans(plans: list[tuple[str, list[tuple]]], workers: int = 1) -> list[list[GameResult]]:
+    """Play every planned game, in parallel with `workers` > 1; one list of results per plan, in the order planned."""
     if workers > 1:
         with ProcessPoolExecutor(max_workers=workers) as pool:
-            results = list(_chunk(pool, plans))
-    else:
-        results = [[_run(task) for task in tasks] for _, tasks in plans]
+            return list(_chunk(pool, plans))
+    return [[_run(task) for task in tasks] for _, tasks in plans]
+
+
+def matchups(focus: Deck, opponents: dict[str, Deck], games: int = 40, pod: int = 2, seed: int = 0, max_turns: int = 60,
+             time_limit: float = 120.0, workers: int = 1, focus_bot=BotPlayer, opponent_bot=BotPlayer) -> list[Record]:
+    """Play `games` games for each opponent (a duel), or `games` pod games in all if `pod` is more than 2.
+    `focus_bot` and `opponent_bot` make the players, to compare two versions of a bot on the same decks."""
+    plans = plan_games(focus, opponents, games, pod, seed, max_turns, time_limit, focus_bot, opponent_bot)
+    results = play_plans(plans, workers)
     records = [_record(name, rs, pod if pod > 2 else 2) for (name, _), rs in zip(plans, results)]
     focus_cards = _unplayable(focus)
     by_opponent = {name: _unplayable(deck) for name, deck in opponents.items()}
