@@ -73,3 +73,33 @@ class BoardViewTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StaleViewGuardTests(unittest.TestCase):
+    def setUp(self):
+        self.game, _, _ = table()
+        self.seat = self.game.seats[0]
+
+    def test_a_change_that_skips_the_counter_is_caught(self):
+        anthem = Permanent(ANTHEM)  # (made first: making a permanent moves the counter too)
+        self.seat.battlefield = [Permanent(BEAR)]
+        self.game._board_view()
+        list.append(self.seat.battlefield, anthem)  # around the tracked list: the counter does not move
+        with self.assertRaises(AssertionError):
+            self.game._board_view()
+
+    def test_a_tracked_change_is_not(self):
+        self.seat.battlefield = [Permanent(BEAR)]
+        self.game._board_view()
+        self.seat.battlefield.append(Permanent(ANTHEM))
+        self.game._board_view()
+
+    def test_controller_of_follows_a_permanent_changing_hands(self):
+        bear = Permanent(BEAR)
+        self.seat.battlefield.append(bear)
+        self.assertIs(self.game.controller_of(bear), self.seat)
+        self.seat.battlefield.remove(bear)
+        self.game.seats[1].battlefield.append(bear)
+        self.assertIs(self.game.controller_of(bear), self.game.seats[1])
+        self.game.seats[1].battlefield.remove(bear)
+        self.assertIsNone(self.game.controller_of(bear))

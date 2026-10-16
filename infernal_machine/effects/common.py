@@ -256,6 +256,7 @@ def _counter_name(text: str) -> str:
 _CANT_COUNTER = re.compile(r"This spell can't be countered\.")
 
 
+@lru_cache(maxsize=None)
 def cant_be_countered(card: Card) -> bool:
     return any(_CANT_COUNTER.fullmatch(line) for line in rules_lines(card))
 

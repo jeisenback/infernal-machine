@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 import dataclasses
 import re
 from dataclasses import dataclass
@@ -25,6 +27,7 @@ from .outcomes import Condition, Draw, SearchForLands, _condition, _parse
 _SUSPEND = re.compile(r"Suspend (\d+)—((?:\{[^}]+\})+)")
 
 
+@lru_cache(maxsize=None)
 def suspend_of(card: Card) -> tuple[int, str] | None:
     """Suspend N—{cost}: (the time counters, the cost to exile it from your hand with them)."""
     return next(((int(m[1]), m[2]) for line in rules_lines(card) if (m := _SUSPEND.fullmatch(line))), None)
@@ -33,6 +36,7 @@ def suspend_of(card: Card) -> tuple[int, str] | None:
 _STRIVE = re.compile(r"Strive \u2014 This spell costs ((?:\{[^}]+\})+) more to cast for each target beyond the first\.")
 
 
+@lru_cache(maxsize=None)
 def strive_cost(card: Card) -> str | None:
     """Twinflame's "Strive": the mana added for each target beyond the first, or None."""
     return next((m[1] for line in rules_lines(card) if (m := _STRIVE.fullmatch(line))), None)
@@ -46,6 +50,7 @@ _CYCLING_LAND_TYPES = {"plainscycling": "Plains", "islandcycling": "Island", "sw
                        "mountaincycling": "Mountain", "forestcycling": "Forest"}
 
 
+@lru_cache(maxsize=None)
 def cycling(card: Card) -> tuple[str, str, tuple, int] | None:
     """A card's cycling: (its name, like "Forestcycling", the mana cost, what the ability does when it resolves,
     the life it costs instead of mana). Plain cycling draws a card; basic landcycling and Forestcycling-style abilities fetch a land to your hand."""
@@ -155,6 +160,7 @@ class MorphCost:
 _GIFT = re.compile(r"Gift an? (card|Treasure|Food|tapped Fish|Octopus|extra turn)")
 
 
+@lru_cache(maxsize=None)
 def gift_of(card: Card) -> str | None:
     """What the card's Gift gives an opponent if it is promised: "card", "Treasure", "Food", "tapped Fish", "Octopus" or "extra turn"."""
     return next((m[1] for line in rules_lines(card) if (m := _GIFT.fullmatch(line))), None)
@@ -163,6 +169,7 @@ def gift_of(card: Card) -> str | None:
 _DISTURB = re.compile(r"Disturb ((?:\{[^}]+\})+)")
 
 
+@lru_cache(maxsize=None)
 def disturb_of(card: Card) -> str | None:
     """The mana cost to cast the back face of a transforming card from the graveyard ("Disturb {1}{U}")."""
     return next((m[1] for line in rules_lines(card) if (m := _DISTURB.fullmatch(line))), None)
@@ -171,6 +178,7 @@ def disturb_of(card: Card) -> str | None:
 _FORETELL = re.compile(r"Foretell ((?:\{[^}]+\})+)")
 
 
+@lru_cache(maxsize=None)
 def foretell_of(card: Card) -> str | None:
     """The mana cost to cast the card from exile once it has been foretold ("Foretell {1}{U}")."""
     return next((m[1] for line in rules_lines(card) if (m := _FORETELL.fullmatch(line))), None)
@@ -179,6 +187,7 @@ def foretell_of(card: Card) -> str | None:
 _NINJUTSU = re.compile(r"(Commander ninjutsu|Ninjutsu) ((?:\{[^}]+\})+)")
 
 
+@lru_cache(maxsize=None)
 def ninjutsu_of(card: Card) -> tuple[str, bool] | None:
     """The mana cost of the card's Ninjutsu, and whether it is "Commander ninjutsu" (usable from the command zone too)."""
     for line in rules_lines(card):
@@ -212,6 +221,7 @@ def _morph_line(line: str) -> tuple[str, MorphCost] | None:
     return None
 
 
+@lru_cache(maxsize=None)
 def morph_of(card: Card) -> tuple[str, MorphCost] | None:
     """(Morph, Megamorph or Disguise; what it costs to turn it face up) of a card that can be cast face down for {3}."""
     for line in rules_lines(card):
@@ -253,27 +263,32 @@ def bestow_aura(card: Card) -> Card:
     return dataclasses.replace(card, type_line="Enchantment " + chr(0x2014) + " Aura", oracle_text=card.oracle_text + chr(10) + "Enchant creature")
 
 
+@lru_cache(maxsize=None)
 def madness_cost(card: Card) -> str | None:
     """Madness {cost}: when the card is discarded it goes to exile, and its owner may cast it for this cost."""
     return next((m[1] for line in rules_lines(card) if (m := _MADNESS.fullmatch(line))), None)
 
 
+@lru_cache(maxsize=None)
 def unearth_cost(card: Card) -> str | None:
     """Unearth {cost}: from the graveyard to the battlefield with haste, exiled at the next end step (a mana cost only)."""
     return next((m[1] for line in rules_lines(card) if (m := _UNEARTH.fullmatch(line))), None)
 
 
+@lru_cache(maxsize=None)
 def eternalize_cost(card: Card) -> str | None:
     """Eternalize {cost}: from the graveyard, as a sorcery, exile it to make a 4/4 black Zombie token copy with no mana cost. The mana
     part of "Eternalize\u2014{2}{W}{W}, Discard a card." is the same (see `eternalize_discards`)."""
     return next((m[1] or m[2] for line in rules_lines(card) if (m := _ETERNALIZE.fullmatch(line))), None)
 
 
+@lru_cache(maxsize=None)
 def eternalize_discards(card: Card) -> bool:
     """Whether paying the eternalize cost also discards a card ("Eternalize\u2014{3}{U}{U}, Discard a card.")."""
     return any(m[2] for line in rules_lines(card) if (m := _ETERNALIZE.fullmatch(line)))
 
 
+@lru_cache(maxsize=None)
 def encore_cost(card: Card) -> str | None:
     """Encore {cost}: from the graveyard, for each opponent a token copy attacks that opponent this turn."""
     return next((m[1] for line in rules_lines(card) if (m := _ENCORE.fullmatch(line))), None)
@@ -289,6 +304,7 @@ _REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|nonc
                         r"you cast( that target a creature)? cost \{(\d+)\} less to cast\.", re.I)
 
 
+@lru_cache(maxsize=None)
 def kicker_costs(card: Card) -> tuple[str, ...]:
     """The mana kicker costs: one for "Kicker {1}{U}" or "Multikicker {1}{G}", two for "Kicker {R} and/or {W}",
     none if there's no kicker or it isn't mana. Offspring is paid like a kicker: "You may pay an additional {2} as you cast
@@ -299,6 +315,7 @@ def kicker_costs(card: Card) -> tuple[str, ...]:
     return ()
 
 
+@lru_cache(maxsize=None)
 def kicker_other_cost(card: Card) -> AdditionalCost | None:
     """A kicker cost that isn't mana: "Kicker—Sacrifice a land.", "Kicker—Discard a card.", "Kicker—Pay 3 life." """
     for line in rules_lines(card):
@@ -307,11 +324,13 @@ def kicker_other_cost(card: Card) -> AdditionalCost | None:
     return None
 
 
+@lru_cache(maxsize=None)
 def buyback_cost(card: Card) -> str | None:
     """The mana cost from "Buyback {3}": pay it as an additional cost and the spell returns to your hand as it resolves."""
     return next((m[1] for line in rules_lines(card) if (m := _BUYBACK.fullmatch(line))), None)
 
 
+@lru_cache(maxsize=None)
 def buyback_other_cost(card: Card) -> AdditionalCost | None:
     """A buyback cost that isn't mana: "Buyback\u2014Sacrifice a land." or "Buyback\u2014Pay 4 life." """
     for line in rules_lines(card):
@@ -320,16 +339,19 @@ def buyback_other_cost(card: Card) -> AdditionalCost | None:
     return None
 
 
+@lru_cache(maxsize=None)
 def entwine_cost(card: Card) -> str | None:
     """The mana cost from "Entwine {2}": pay it to choose all the modes of a modal spell."""
     return next((m[1] for line in rules_lines(card) if (m := _ENTWINE.fullmatch(line))), None)
 
 
+@lru_cache(maxsize=None)
 def escalate_cost(card: Card) -> str | None:
     """The mana cost from "Escalate {1}": pay it for each mode chosen beyond the first."""
     return next((m[1] for line in rules_lines(card) if (m := _ESCALATE.fullmatch(line))), None)
 
 
+@lru_cache(maxsize=None)
 def is_multikicker(card: Card) -> bool:
     """Multikicker: the kicker cost can be paid any number of times (CR 702.33c)."""
     return any(line.startswith("Multikicker ") and _KICKER.fullmatch(line) for line in rules_lines(card))
@@ -347,6 +369,7 @@ _AFFINITY = re.compile(r"Affinity for ([a-z]+?)s?")
 _STORM_LIKE = re.compile(r"(Storm|Gravestorm)")
 
 
+@lru_cache(maxsize=None)
 def devour(card: Card) -> int:
     """Devour N: as it enters you may sacrifice creatures; it enters with N +1/+1 counters for each. 0 if it has none."""
     for line in rules_lines(card):
@@ -355,6 +378,7 @@ def devour(card: Card) -> int:
     return 0
 
 
+@lru_cache(maxsize=None)
 def replicate_cost(card: Card) -> str | None:
     for line in rules_lines(card):
         if m := _REPLICATE.fullmatch(line):
@@ -362,6 +386,7 @@ def replicate_cost(card: Card) -> str | None:
     return None
 
 
+@lru_cache(maxsize=None)
 def affinity_for(card: Card) -> str | None:
     """Affinity for planeswalkers: costs {1} less for each planeswalker you control ("planeswalker")."""
     for line in rules_lines(card):
@@ -370,6 +395,7 @@ def affinity_for(card: Card) -> str | None:
     return None
 
 
+@lru_cache(maxsize=None)
 def storm_kind(card: Card) -> str | None:
     """"storm" or "gravestorm" for a spell that copies itself when cast."""
     for line in rules_lines(card):
@@ -386,6 +412,7 @@ def is_cast_keyword_line(line: str) -> bool:
 _ECHO = re.compile(r"Echo ((?:\{[^}]+\})+)")
 
 
+@lru_cache(maxsize=None)
 def echo_cost(card: Card) -> str | None:
     """Karmic Guide: the mana to pay at your next upkeep after it comes under your control, or sacrifice it."""
     for line in rules_lines(card):
@@ -401,6 +428,7 @@ def is_echo_line(line: str) -> bool:
 _CUMULATIVE_UPKEEP = re.compile(r"Cumulative upkeep ((?:\{[^}]+\})+)")
 
 
+@lru_cache(maxsize=None)
 def cumulative_upkeep(card: Card) -> str | None:
     """Mystic Remora: the mana to pay for each age counter at the beginning of your upkeep, or None."""
     for line in rules_lines(card):
@@ -506,6 +534,7 @@ _PARAGON = re.compile(r"Once during each of your turns, you may play a land from
                       r"graveyard from the battlefield, exile it and you gain (\d+) life\.\"")
 
 
+@lru_cache(maxsize=None)
 def graveyard_permission(card: Card) -> tuple[int, int] | None:
     """Serra Paragon: (the most mana value of the permanent spell, the life gained when it goes to the graveyard)."""
     return next(((int(m[1]), int(m[2])) for line in rules_lines(card) if (m := _PARAGON.fullmatch(line))), None)
@@ -529,6 +558,7 @@ def additional_costs(card: Card) -> list[AdditionalCost]:
     return costs
 
 
+@lru_cache(maxsize=None)
 def x_limited_by_players(card: Card) -> bool:
     """Open the Way: "X can't be greater than the number of players in the game." """
     return any(_X_LIMIT.fullmatch(line) for line in rules_lines(card))
@@ -564,6 +594,7 @@ _SACRIFICE_FOR_COPIES = re.compile(r"As an additional cost to cast this spell, y
                                    r"this spell for each creature sacrificed this way\.")
 
 
+@lru_cache(maxsize=None)
 def copies_per_sacrifice(card: Card) -> bool:
     """Plumb the Forbidden: you may sacrifice creatures as you cast it, and it is copied for each."""
     return any(_SACRIFICE_FOR_COPIES.fullmatch(line) for line in rules_lines(card))
@@ -585,6 +616,7 @@ def is_x_discount_line(line: str) -> bool:
     return _X_DISCOUNT.fullmatch(line) is not None
 
 
+@lru_cache(maxsize=None)
 def x_spell_discount(card: Card) -> bool:
     """Zimone, Infinite Analyst: its first X spell each turn costs {1} less for each +1/+1 counter on it."""
     return any(_X_DISCOUNT.fullmatch(line) for line in rules_lines(card))
@@ -594,6 +626,7 @@ _PER_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast for each "
                             r"(creature on the battlefield|instant and sorcery card in your graveyard)\.")
 
 
+@lru_cache(maxsize=None)
 def self_cost_reduction(card: Card) -> tuple[int, str] | None:
     """Blasphemous Act: "This spell costs {1} less to cast for each creature on the battlefield." (how much each,
     what is counted: "creature" on the battlefield or "instant or sorcery" card in your graveyard)."""
@@ -615,6 +648,7 @@ _GREATEST_POWER_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, wh
 _GRANTED_AFFINITY = re.compile(r"(Enchantment|Aura) spells you cast have affinity for Auras\.")  # Pearl-Ear, Imperial Advisor
 
 
+@lru_cache(maxsize=None)
 def conditional_cost_reduction(card: Card) -> tuple[int, Condition] | None:
     """Mortality Spear: "This spell costs {2} less to cast if you gained life this turn." (how much, and when)"""
     for line in rules_lines(card):
@@ -623,16 +657,19 @@ def conditional_cost_reduction(card: Card) -> tuple[int, Condition] | None:
     return None
 
 
+@lru_cache(maxsize=None)
 def reduced_by_total_power(card: Card) -> bool:
     """Volcanic Salvo: "This spell costs {X} less to cast, where X is the total power of creatures you control." """
     return any(_POWER_REDUCTION.fullmatch(line) for line in rules_lines(card))
 
 
+@lru_cache(maxsize=None)
 def reduced_by_greatest_power(card: Card) -> bool:
     """The Great Henge: "This spell costs {X} less to cast, where X is the greatest power among creatures you control." """
     return any(_GREATEST_POWER_REDUCTION.fullmatch(line) for line in rules_lines(card))
 
 
+@lru_cache(maxsize=None)
 def granted_affinity(card: Card) -> str | None:
     """Pearl-Ear: the kind of spell you cast that has affinity for Auras ("aura")."""
     return next((m[1].lower() for line in rules_lines(card) if (m := _GRANTED_AFFINITY.fullmatch(line))), None)
@@ -641,6 +678,7 @@ def granted_affinity(card: Card) -> str | None:
 _NON_HAND_REDUCTION = re.compile(r"Spells you cast from anywhere other than your hand cost \{(\d)\} less to cast\.")
 
 
+@lru_cache(maxsize=None)
 def non_hand_cost_reduction(card: Card) -> int:
     """Advanced Reconstruction's third level: spells you cast from anywhere other than your hand cost {2} less."""
     return sum(int(m[1]) for line in rules_lines(card) if (m := _NON_HAND_REDUCTION.fullmatch(line)))

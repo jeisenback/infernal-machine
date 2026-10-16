@@ -36,6 +36,7 @@ _EQUIP = re.compile(r"Equip (legendary creature )?((?:\{\d+\}|\{[WUBRGC]\})+)")
 _EQUIP_OTHER = re.compile(r"Equip\u2014(.+)\.")
 
 
+@lru_cache(maxsize=None)
 def _equip_other_cost(card: Card) -> ActivatedAbility | None:
     """ "Equip\u2014Pay 3 life." / "Equip\u2014Sacrifice a creature." / "Equip\u2014Discard a card.": an equip cost that isn't plain mana."""
     for line in rules_lines(card):
@@ -47,6 +48,7 @@ def _equip_other_cost(card: Card) -> ActivatedAbility | None:
 _RECONFIGURE = re.compile(r"Reconfigure ((?:\{\d+\}|\{[WUBRGC]\})+)")
 
 
+@lru_cache(maxsize=None)
 def reconfigure_cost(card: Card) -> str | None:
     """The mana cost from "Reconfigure {2}", or None."""
     return next((m[1] for line in rules_lines(card) if (m := _RECONFIGURE.fullmatch(line))), None)
@@ -56,6 +58,7 @@ def is_reconfigure_line(line: str) -> bool:
     return _RECONFIGURE.fullmatch(line) is not None
 
 
+@lru_cache(maxsize=None)
 def equip_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
     """Every "Equip {2}" and "Equip legendary creature {1}" line (Brotherhood Regalia has both)."""
     return tuple(ActivatedAbility(line, (Attach("legendary creature you control" if m[1] else "creature you control"),),

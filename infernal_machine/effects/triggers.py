@@ -297,6 +297,7 @@ def is_opening_hand_line(line: str) -> bool:
     return line == _OPENING_HAND
 
 
+@lru_cache(maxsize=None)
 def begins_on_battlefield(card: Card) -> bool:
     return any(is_opening_hand_line(line) for line in rules_lines(card))
 

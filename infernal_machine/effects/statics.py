@@ -136,6 +136,7 @@ def ward_fields(cost: str) -> dict[str, Any] | None:
     return fields
 
 
+@lru_cache(maxsize=None)
 def ward_cost(card: Card) -> str | None:
     """The cost of ward: "{2}" for "Ward {2}", or "Pay 3 life" for "Ward\u2014Pay 3 life." (or None)."""
     for line in rules_lines(card):
@@ -155,6 +156,7 @@ _ATTACK_TAX = re.compile(r"Each creature with one or more counters on it can't a
                          r"its controller pays \{X\}, where X is the number of counters on that creature\.")
 
 
+@lru_cache(maxsize=None)
 def attack_tax_per_counter(card: Card) -> int:
     """Nils, Discipline Enforcer: how many times the card taxes each counter on a creature that attacks its controller."""
     return sum(_ATTACK_TAX.fullmatch(line) is not None for line in rules_lines(card))
@@ -323,6 +325,7 @@ _PREVENTION_STATICS = [
 ]
 
 
+@lru_cache(maxsize=None)
 def damage_prevention(card: Card) -> frozenset[str]:
     """What a permanent's own text prevents or stops from being prevented: "self:all", "self:combat", "self:creatures" (damage dealt
     to it), "you:all" (to its controller), "unpreventable" (nobody's damage can be prevented), "unpreventable:self" (its own)."""
@@ -333,6 +336,7 @@ def is_prevention_line(line: str) -> bool:
     return any(pattern.fullmatch(line) for pattern, _ in _PREVENTION_STATICS)
 
 
+@lru_cache(maxsize=None)
 def combat_restrictions(card: Card) -> tuple[CombatRestriction, ...]:
     found = []
     for line in rules_lines(card):
@@ -353,6 +357,7 @@ _QUEST_UNTAP = re.compile(r"As long as there are (\w+) or more (\w+) counters on
 _ALWAYS_UNTAP = re.compile(r"Untap all creatures you control during each other player's untap step\.")  # Drumbellower
 
 
+@lru_cache(maxsize=None)
 def untaps_in_other_untap_steps(card: Card) -> tuple[str, int] | None:
     """Quest for Renewal: (the counter, how many of it) while which your creatures untap in everyone's untap step.
     Drumbellower does it always: ("", 0), which any permanent satisfies."""
@@ -371,6 +376,7 @@ def is_quest_untap_line(line: str) -> bool:
 _ANNIHILATOR = re.compile(r"Annihilator (\d+)", re.I)
 
 
+@lru_cache(maxsize=None)
 def annihilator_of(card: Card) -> int:
     """The N of the card's own "Annihilator N" keyword lines."""
     return sum(int(m[1]) for line in rules_lines(card) for part in line.split(", ") if (m := _ANNIHILATOR.fullmatch(part)))
@@ -379,11 +385,13 @@ def annihilator_of(card: Card) -> int:
 _TOXIC = re.compile(r"Toxic (\d+)", re.I)
 
 
+@lru_cache(maxsize=None)
 def toxic_of(card: Card) -> int:
     """The N of the card's own "Toxic N" keywords; each one gives that many poison counters."""
     return sum(int(m[1]) for line in rules_lines(card) for part in line.split(", ") if (m := _TOXIC.fullmatch(part)))
 
 
+@lru_cache(maxsize=None)
 def day_night_face(card: Card) -> str | None:
     """"day" for a card with Daybound, "night" for one with Nightbound (a permanent that flips with the day/night rule)."""
     lines = rules_lines(card)
@@ -393,6 +401,7 @@ def day_night_face(card: Card) -> str | None:
 _DREDGE = re.compile(r"Dredge (\d+)", re.I)
 
 
+@lru_cache(maxsize=None)
 def dredge_of(card: Card) -> int | None:
     """The N of the card's own "Dredge N" keyword: from the graveyard it may replace a draw by milling N cards."""
     return next((int(m[1]) for line in rules_lines(card) if (m := _DREDGE.fullmatch(line))), None)
@@ -429,6 +438,7 @@ class StaticBuff:
 _CHOOSE_TYPE = re.compile(r"As (?:CARDNAME|this [a-z]+) enters, choose a creature type\.")
 
 
+@lru_cache(maxsize=None)
 def chooses_creature_type(card: Card) -> bool:
     """Patchwork Banner: "As this artifact enters, choose a creature type." """
     return any(_CHOOSE_TYPE.fullmatch(line) for line in rules_lines(card))
@@ -445,6 +455,7 @@ def is_chosen_self_line(line: str) -> bool:
     return _CHOSEN_SELF.fullmatch(line) is not None
 
 
+@lru_cache(maxsize=None)
 def is_chosen_type_itself(card: Card) -> bool:
     """Roaming Throne, Metallic Mimic, Adaptive Automaton: it is also the creature type it chose as it entered."""
     return any(_CHOSEN_SELF.fullmatch(line) for line in rules_lines(card))
@@ -595,6 +606,7 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
     return tuple(buffs)
 
 
+@lru_cache(maxsize=None)
 def aura_kind(card: Card) -> str | None:
     """What an Aura enchants ("creature", "creature you control", "land", ...), or None if it isn't an Aura."""
     if "Aura" not in card.type_line:
@@ -869,6 +881,7 @@ _ENTERS_BY_DISCARD = ("If this artifact would enter, you may discard a land card
                       "battlefield. If you don't, put it into its owner's graveyard.")
 
 
+@lru_cache(maxsize=None)
 def enters_by_discarding_land(card: Card) -> bool:
     return any(line == _ENTERS_BY_DISCARD for line in rules_lines(card))
 
@@ -890,21 +903,25 @@ _TEMP_CLONE = re.compile(rf"As {_SELF} enters, you may have it become a copy of 
                          r"except it has ([a-z]+)\.")
 
 
+@lru_cache(maxsize=None)
 def temporary_clone_keyword(card: Card) -> str | None:
     """Cursed Mirror: the keyword a copy "until end of turn" gets, if the card enters that way."""
     return next((m[1].capitalize() for line in rules_lines(card) if (m := _TEMP_CLONE.fullmatch(line))), None)
 
 
+@lru_cache(maxsize=None)
 def clone_extra_counters(card: Card) -> bool:
     """Altered Ego: a copy "except it enters with X additional +1/+1 counters on it"."""
     return any((m := _CLONE.fullmatch(line)) and m[3] and "counters" in m[3] for line in rules_lines(card))
 
 
+@lru_cache(maxsize=None)
 def clone_is_artifact(card: Card) -> bool:
     """Phyrexian Metamorph: a copy "except it's an artifact in addition to its other types"."""
     return any((m := _CLONE.fullmatch(line)) and m[3] and "artifact" in m[3] for line in rules_lines(card))
 
 
+@lru_cache(maxsize=None)
 def clone_kind(card: Card) -> tuple[str, bool] | None:
     """For Clone: what the card may enter as a copy of ("creature") and whether it must be one you control."""
     for line in rules_lines(card):
@@ -929,6 +946,7 @@ _REANIMATION_AURA = re.compile(
     r"(?:this Aura|CARDNAME) leaves the battlefield, that creature's controller sacrifices it\.")
 
 
+@lru_cache(maxsize=None)
 def reanimation_aura(card: Card) -> tuple[bool] | None:
     """(enters tapped,) for Animate Dead and its kind; None for any other card."""
     for line in rules_lines(card):
@@ -1062,6 +1080,7 @@ def keeps_its_protection_aura(card: Card) -> bool:
     return any(_ATTACHED_CHOSEN_PROTECTION.fullmatch(line) for line in rules_lines(card))
 
 
+@lru_cache(maxsize=None)
 def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
     buffs = []
     for line in rules_lines(card):
@@ -1130,6 +1149,7 @@ def room_view(whole: Card, doors: tuple[str, ...]) -> Card:
 _CONTROL_AURA = "You control enchanted creature."
 
 
+@lru_cache(maxsize=None)
 def aura_controls(card: Card) -> bool:
     """Control Magic: an Aura that gives its controller control of the enchanted creature."""
     return "Aura" in card.type_line and _CONTROL_AURA in rules_lines(card)
@@ -1142,6 +1162,7 @@ def is_control_aura_line(line: str) -> bool:
 _CDA = re.compile(r"(?:CARDNAME's|This creature's) power and toughness are each equal to (.+)\.")
 
 
+@lru_cache(maxsize=None)
 def power_toughness_amount(card: Card) -> "Amount | None":
     """Overbeing of Myth: a characteristic-defining "power and toughness are each equal to ..." line."""
     for line in rules_lines(card):
@@ -1157,6 +1178,7 @@ def is_cda_line(line: str) -> bool:
 _HAND_BY_COUNTERS = re.compile(r"Your maximum hand size is equal to the number of (\w+) counters on (?:CARDNAME|this \w+)\.")
 
 
+@lru_cache(maxsize=None)
 def hand_size_counter(card: Card) -> str | None:
     """Midnight Oil: "Your maximum hand size is equal to the number of hour counters on this enchantment." """
     return next((m[1] for line in rules_lines(card) if (m := _HAND_BY_COUNTERS.fullmatch(line))), None)
@@ -1172,11 +1194,13 @@ _NO_MAX_HAND = "You have no maximum hand size."
 _NO_MAX_HAND_ALL = "Players have no maximum hand size."
 
 
+@lru_cache(maxsize=None)
 def players_have_no_max_hand(card: Card) -> bool:
     """Price of Knowledge: no player has a maximum hand size."""
     return any(line == _NO_MAX_HAND_ALL for line in rules_lines(card))
 
 
+@lru_cache(maxsize=None)
 def no_max_hand_size(card: Card) -> bool:
     """Reliquary Tower, Thought Vessel: their controller discards nothing down to seven at the end of turn."""
     return any(line == _NO_MAX_HAND for line in rules_lines(card))
@@ -1189,6 +1213,7 @@ def is_no_max_hand_line(line: str) -> bool:
 _EXTRA_VOTE = "While voting, you may vote an additional time."
 
 
+@lru_cache(maxsize=None)
 def extra_votes(card: Card) -> int:
     """Tivit, Seller of Secrets: how many additional times its controller may vote (the votes can differ)."""
     return int(any(line == _EXTRA_VOTE for line in rules_lines(card)))
@@ -1201,6 +1226,7 @@ def is_extra_vote_line(line: str) -> bool:
 _ENTERS_PREPARED = re.compile(rf"{_SELF} enters prepared\.", re.I)
 
 
+@lru_cache(maxsize=None)
 def enters_prepared(card: Card) -> bool:
     """Whether a prepare creature "enters prepared"."""
     return card.prepare is not None and any(_ENTERS_PREPARED.fullmatch(line) for line in rules_lines(card))
@@ -1260,11 +1286,13 @@ _ENTERS_TAPPED = [
 _CHOOSE_COLOR = re.compile(rf"(?:{_SELF} enters tapped\. )?As (?:it|{_SELF}) enters, choose a color(?: other than (white|blue|black|red|green))?\.", re.I)
 
 
+@lru_cache(maxsize=None)
 def chooses_color(card: Card) -> bool:
     """Room of Refuge and the like: "As it enters, choose a color." (the choice is kept on the permanent)."""
     return any(_CHOOSE_COLOR.fullmatch(line) for line in rules_lines(card))
 
 
+@lru_cache(maxsize=None)
 def color_choice_excludes(card: Card) -> str | None:
     """A Thriving land or Gate: "choose a color other than red" leaves out R."""
     return next((_COLOR_LETTER[m[1].lower()] for line in rules_lines(card) if (m := _CHOOSE_COLOR.fullmatch(line)) and m[1]), None)
@@ -1274,6 +1302,7 @@ def is_choose_color_line(line: str) -> bool:
     return _CHOOSE_COLOR.fullmatch(line) is not None
 
 
+@lru_cache(maxsize=None)
 def enters_tapped_rule(card: Card) -> EntersTapped | None:
     for line in rules_lines(card):
         for pattern, build in _ENTERS_TAPPED:
