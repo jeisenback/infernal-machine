@@ -23,6 +23,7 @@ from .brackets import BracketReport, analyze, bracket_floor, is_mass_land_denial
 from .cards import Card, Deck
 from .commander import copy_limit
 from .formats import STANDARD
+from .manabase import ManaBase, analyze_mana_base, format_mana_base
 from .report import unplayable_cards, unplayable_note, unsupported_lines
 from .simulate import game_value, play_game, play_games
 
@@ -64,6 +65,7 @@ class TuningReport:
     candidate_unplayable: dict[str, str] = field(default_factory=dict)  # candidate -> the first line of its text the engine can't read
     bracket: BracketReport | None = None  # what the deck's cards say about its Commander Bracket (None for a deck with no commander)
     swap_notes: dict[str, str] = field(default_factory=dict)  # candidate -> what trying it would do to the Bracket, when it does something
+    mana_base: ManaBase | None = None  # sources of each color the deck needs and has (None for a deck with no colored symbols)
 
 
 def candidate_problem(deck: Deck, card: Card) -> str | None:
@@ -176,7 +178,15 @@ def tune(deck: Deck, games: int = 500, turns: int = 8, seed: int = 0, candidates
     return TuningReport(games, turns, round(baseline, 2), impacts, _land_sweep(deck, impacts, *args), swaps, skipped,
                         unplayable=unplayable, candidate_unplayable={card.name: lines[0] for card in legal if (lines := unsupported_lines(card))},
                         bracket=analyze(deck) if deck.commanders else None,
-                        swap_notes=_bracket_notes(deck, swaps, legal) if deck.commanders else {})
+                        swap_notes=_bracket_notes(deck, swaps, legal) if deck.commanders else {}, mana_base=_mana_base(deck, base, turns))
+
+
+def _mana_base(deck: Deck, base: list[dict], turns: int) -> ManaBase | None:
+    """The deck's mana base analysis, with how often the goldfish games held a spell stuck on colors on turns 3 and 5."""
+    mana_base = analyze_mana_base(deck)
+    if mana_base:
+        mana_base.stuck = {turn: sum(run["stuck"][turn - 1] for run in base) / len(base) for turn in (3, 5) if turn <= turns and base}
+    return mana_base
 
 
 def _land_sweep(deck: Deck, impacts: list[CardImpact], *args) -> dict[int, Effect]:
@@ -233,6 +243,8 @@ def format_tuning(report: TuningReport) -> str:
     if report.lands:
         lines += ["", "Land count (change in lands -> change in value):"]
         lines += [f"  {k:+d} lands: {_plusminus(effect)}" for k, effect in report.lands.items()]
+    if report.mana_base:
+        lines += ["", format_mana_base(report.mana_base)]
     if report.swaps:
         lines += ["", "Swaps (best first): the card replaces the weakest card in the deck."]
         lines += [f"  {new} for {old}: {_plusminus(effect)}"
