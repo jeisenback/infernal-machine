@@ -1528,6 +1528,29 @@ cost reducers and the rest of a commander's text are not modeled.
 Use it to compare builds, not to predict a game. Any card list works, so a 60-card deck is fine; a deck with a commander
 gets the free first mulligan, one without does not.
 
+## Mana base
+
+```
+python -m infernal_machine.manabase DECKLIST [--target 0.9] [--coverage 0.8] [--slack N] [--play | --draw]
+```
+
+`tune` sweeps the total land count; `manabase.analyze_mana_base(deck)` says how many sources of each *color* the deck needs and has,
+and the tuning report ends its land section with the result. For one spell, the sources needed are the fewest for which the chance of
+holding at least as many colored sources as the spell has pips of that color, among the cards seen by the turn it should be cast, is at
+least the target (the hypergeometric distribution: a library of N cards, S of them sources). The turn is the spell's mana value plus
+`slack`, or its pip count if that is higher. A mana base is built around what most of a color's spells ask for, not its one hardest
+card, so the number shown as *needed* covers 80% of the color's spells (counting copies), and the most demanding spells are named beside
+it with what they need; the verdict says "short by N" against the first and "(hardest short by N)" against the second.
+
+- **Sources** are lands: basics, duals and any-color lands (limited to the commander's colors), and a land that fetches a basic counts
+  for the colors of the basics in the deck. Mana rocks and mana creatures that make a color are listed apart, not counted.
+- **Defaults follow the format:** a Commander deck is on the draw with two turns of slack (90% on the exact turn of the mana value is out
+  of reach for three colors), a Standard deck on the play with none. `--play`, `--draw` and `--slack` override them.
+- **Left out:** mulligans, hybrid and Phyrexian symbols (they can be paid another way), and X spells (they are cast whenever there is
+  mana enough). A commander counts like any spell. Published tables (Frank Karsten's, for one) make further assumptions, so their
+  numbers can differ from these; read the result as advice to weigh against the deck, not a verdict.
+- **Tuning report:** also shows, from the goldfish games, how often a spell was stuck on colors on turns 3 and 5.
+
 ## Comparing two builds
 
 ```
