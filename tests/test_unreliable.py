@@ -56,6 +56,12 @@ class MatchupTests(unittest.TestCase):
         self.assertIn("Its win rates are unreliable.", text)
         self.assertNotIn("Opponent clean", text)
 
+    def test_the_focus_deck_sentence_can_be_left_out(self):
+        records = self.run_matchups(deck(ODD), odd=deck(ODDER))
+        text = format_matchups(records, "focus", focus_warning=False)
+        self.assertNotIn("The focus deck has", text)
+        self.assertIn("Opponent odd has 1 card", text)  # (the opponents' sentences stay)
+
     def test_an_opponent_is_flagged_by_name(self):
         text = format_matchups(self.run_matchups(deck(), odd=deck(ODDER), clean=deck()), "focus")
         self.assertIn("Opponent odd has 1 card", text)

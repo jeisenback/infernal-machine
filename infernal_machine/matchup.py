@@ -288,7 +288,7 @@ def _pct(wins_games: tuple[int, int]) -> str:
     return f"{wins / games:.0%} of {games}" if games else "-"
 
 
-def format_matchups(records: list[Record], focus: str = "focus deck") -> str:
+def format_matchups(records: list[Record], focus: str = "focus deck", *, focus_warning: bool = True) -> str:
     lines = [f"{focus} against bots. Win rate with its 95% interval (fair share {records[0].fair_share:.0%}); "
              "win rate when going first / second; why it lost.", ""]
     if records[0].focus_bracket is not None:
@@ -305,7 +305,7 @@ def format_matchups(records: list[Record], focus: str = "focus deck") -> str:
         lost = ", ".join(f"{reason} {count}" for reason, count in r.how_lost.most_common()) or "-"
         lines.append(f"{r.opponent[:30]:<30} {f'{r.wins}-{r.losses}-{r.draws}':>9}  {rate:<16} {r.turns:>5}  "
                      f"{_pct(r.on_play):<12} {_pct(r.on_draw):<12} {lost}")
-    if records[0].focus_unplayable:
+    if records[0].focus_unplayable and focus_warning:  # (`analyze` says it once, at the top)
         lines.append(unplayable_note(records[0].focus_unplayable, "The focus deck") + " Its win rates are unreliable.")
     for r in records:
         if r.opponent_unplayable:
