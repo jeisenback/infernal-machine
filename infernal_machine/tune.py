@@ -229,12 +229,14 @@ def _plusminus(effect: Effect) -> str:
     return f"{effect.delta:+.2f} ±{effect.error:.2f}" + ("" if effect.clear else "  (within noise)")
 
 
-def format_tuning(report: TuningReport) -> str:
+def format_tuning(report: TuningReport, *, bracket: bool = True, unplayable: bool = True, mana_base: bool = True) -> str:
+    """The report as text. A caller that prints the Bracket, the cards the engine can't play or the mana base itself (`analyze`) turns
+    them off here so they are not said twice."""
     lines = [f"{report.games} games, {report.turns} turns. Average game value {report.baseline} "
              "(mana spent on spells + damage dealt by the last turn).",
-             *([f"Bracket: {report.bracket.summary()}."] if report.bracket else []),
+             *([f"Bracket: {report.bracket.summary()}."] if report.bracket and bracket else []),
              *([unplayable_note(report.unplayable, "The deck", "The goldfish does not read card text, so these numbers do not change, "
-                                "but a matchup run would play these cards without that text.")] if report.unplayable else []), "",
+                                "but a matchup run would play these cards without that text.")] if report.unplayable and unplayable else []), "",
              "Per card, weakest first: what the card adds per game, replayed with the card as a blank.",
              "card                                  copies  adds per game        seen  cast if seen  note"]
     for card in report.cards:
@@ -243,7 +245,7 @@ def format_tuning(report: TuningReport) -> str:
     if report.lands:
         lines += ["", "Land count (change in lands -> change in value):"]
         lines += [f"  {k:+d} lands: {_plusminus(effect)}" for k, effect in report.lands.items()]
-    if report.mana_base:
+    if report.mana_base and mana_base:
         lines += ["", format_mana_base(report.mana_base)]
     if report.swaps:
         lines += ["", "Swaps (best first): the card replaces the weakest card in the deck."]
