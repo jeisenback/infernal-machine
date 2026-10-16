@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -13,14 +14,18 @@ from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
 from .undercity import HELPS_ITS_TARGET
 from .effects import MOVE_COUNTERS_PROMPT
-from .game import (NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PLAY_EXILE, PLAY_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
+from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PLAY_EXILE, PLAY_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+HIGH_TAX = 6  # a commander cast from the command zone three times has this much tax; past it, a graveyard with a way out can be the better place
+# A card that brings a card back from a graveyard to the battlefield or the hand: where a commander that dies can be worth leaving.
+RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
+                       r"|return enchanted creature card to the battlefield", re.IGNORECASE)
 COMMANDER_FIRST_TAX = 2  # cast the commander before anything else while its tax is at most this; after that it competes for mana
 COMMANDER_DAMAGE = 21
 LAND_GOAL = 6  # lands (in play and in hand) the bot wants before it stops keeping more
@@ -70,9 +75,14 @@ class BotPlayer:
         """`features` turns judgments on: "timing" (tap-and-sacrifice abilities only after casting, never before the
         main phase), "attack" (only attacks that can't be blocked and killed for nothing), "land" (plays the land its
         hand needs), "target" (removal goes on the biggest opposing creature), "mana" (casts what spends the most mana),
-        "commander" (a commander with a high tax is weighed against other spells, and its damage goes where it adds up to 21)."""
+        "commander" (a commander with a high tax is weighed against other spells, and its damage goes where it adds up to 21),
+        "threat" (in a pod, it finishes an opponent it can kill and otherwise attacks the one with the most on the board, not the one on
+        the lowest life), "destination" (a commander that would be bounced goes to the hand to be cast without tax, and one that would
+        die with a lot of tax on it goes to the graveyard if the deck can bring it back)."""
         self.features = features
         self._commanders = {c.name for c in deck.commanders}
+        self._commander_casts: Counter = Counter()  # times each of its commanders was cast from the command zone: the tax is two mana a time
+        self._recursion = any(RECURSION.search(c.oracle_text) for c in deck.main)
         self.name = name
         self._cards = {c.name: c for c in deck.commanders + deck.main}
         self._cards.update({c.prepare.name: c.prepare for c in list(self._cards.values()) if c.prepare})  # the spell halves
@@ -103,6 +113,8 @@ class BotPlayer:
             self._state = event
         elif kind in ("cast", "trigger", "activate"):
             self._stack.append(event["seat"])
+            if kind == "cast" and event["seat"] == self._seat and event.get("from") == "command_zone":
+                self._commander_casts[event["card"]] += 1
         elif kind in ("resolve", "fizzle") and self._stack:
             self._stack.pop()
         elif kind == "countered" and event["seat"] in self._stack:
@@ -120,7 +132,9 @@ class BotPlayer:
                 return 0
             if "commander" in self.features and (lethal := self._commander_target(prompt, options)) is not None:
                 return lethal
-            return min(range(1, len(options)), key=lambda i: self._life_of(_seat_of(options[i])))
+            return self._attack_target(options)
+        if prompt == COMMAND_ZONE_PROMPT:
+            return self._commander_zone(options)
         if prompt.startswith(BLOCK_PROMPT):
             return self._block(prompt, options)
         if prompt.startswith(SHOCK_PROMPT):
@@ -207,6 +221,37 @@ class BotPlayer:
             if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)) and self._activation_time(prompt, option):
                 return i
         return options.index(PASS)
+
+    def _attack_target(self, options: Sequence[str]) -> int:
+        """The opponent to attack. The plain bot takes the one on the lowest life. With "threat" and more than one choice it finishes an
+        opponent its ready creatures can kill, and otherwise attacks the most dangerous: the most creature power on the board, then
+        nonland permanents and cards in hand, and on a tie the lower life."""
+        lowest = min(range(1, len(options)), key=lambda i: self._life_of(_seat_of(options[i])))
+        mine = self._my_seat()
+        seats = {s["seat"]: s for s in (self._state or {}).get("seats", [])}
+        foes = [(i, seats[_seat_of(options[i])]) for i in range(1, len(options)) if _seat_of(options[i]) in seats]
+        if "threat" not in self.features or mine is None or len(foes) < 2:
+            return lowest
+        reach = sum(p["power"] for p in mine["battlefield"] if p.get("power") and not p.get("tapped") and not p.get("sick"))
+        killable = [(i, s) for i, s in foes if s["life"] <= reach]
+        if killable:
+            return min(killable, key=lambda f: f[1]["life"])[0]
+        return max(foes, key=lambda f: (_threat(f[1]), -f[1]["life"]))[0]
+
+    def _commander_zone(self, options: Sequence[str]) -> int:
+        """Where a commander goes when it would be put in a graveyard, exile, hand or library: 0 for the command zone, 1 for there. Only
+        the hand (cast from there, it pays no tax) and, with a lot of tax and a way back, the graveyard are worth it."""
+        if "destination" not in self.features:
+            return 0
+        zone = options[1].lower()
+        in_zone = {z["name"] for z in (self._my_seat() or {}).get("command_zone", [])}
+        away = [name for name in self._commanders if name not in in_zone] or list(self._commanders)
+        tax = COMMANDER_TAX * max((self._commander_casts[name] for name in away), default=0)
+        if zone == "hand" and tax >= COMMANDER_TAX:
+            return 1
+        if zone == "graveyard" and tax >= HIGH_TAX and self._recursion:
+            return 1
+        return 0
 
     def _tax(self, option: str) -> int:
         """The commander tax on a "Cast commander: ..." action."""
@@ -372,6 +417,12 @@ class BotPlayer:
         if self._life_of(self._seat) <= self.CHUMP_LIFE:
             return max(powers, key=powers.__getitem__)
         return 0
+
+
+def _threat(seat: dict) -> float:
+    """How dangerous a player looks: creature power first, then half a point for each nonland permanent and card in hand."""
+    board = seat.get("battlefield", [])
+    return sum(p.get("power") or 0 for p in board) + 0.5 * sum(1 for p in board if "Land" not in p.get("type", "")) + 0.5 * seat.get("hand", 0)
 
 
 _MODE_GOOD = ("destroy", "exile", "counter target", "damage", "return target")  # removal and interaction
