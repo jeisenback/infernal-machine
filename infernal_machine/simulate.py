@@ -11,7 +11,8 @@ basic the hand needs, X is 0, and a commander is cast from the command zone with
 numbers are for comparing builds, not for predicting a game. `--commander-dies N` sends every commander on the battlefield back
 to the command zone at the start of turn N, as if removed, so the report shows how soon the recast comes and how much the tax
 costs a deck that leans on its commander. Eminence cost reducers and the rest of a commander's text are not modeled. Works for any
-format: pass a 60-card list for Standard.
+format: pass a 60-card list for Standard. `goldfish.py` plays the same deck through the real engine, with every card's text, and
+reports in this module's shape so the two can be set side by side.
 """
 
 from __future__ import annotations
@@ -62,6 +63,9 @@ class SimStats:
     stuck_on_colors: dict[int, float]  # turn -> share of games holding a spell the lands' count could pay for but their colors could not
     damage: dict[int, float]  # turn -> average total combat damage dealt so far (all unblocked, no removal)
     cards: list[CardStats] = field(default_factory=list)
+    drawn: dict[int, float] = field(default_factory=dict)  # turn -> average cards drawn so far (only the engine goldfish knows)
+    permanents: dict[int, float] = field(default_factory=dict)  # turn -> average permanents on the battlefield at its end (engine goldfish)
+    dropped: int = 0  # games the engine goldfish could not finish (an error or a time limit), left out of every number
 
     @property
     def on_curve(self) -> float | None:
@@ -307,9 +311,17 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
     With `commander_dies_on`, a commander on the battlefield goes back to the command zone at the start of that turn."""
     if free_mulligan is None:
         free_mulligan = bool(deck.commanders)
+    return summarize(deck, play_games(deck, games, turns, seed, on_the_play, free_mulligan, commander_dies_on), turns)
+
+
+def summarize(deck: Deck, runs: list[dict], turns: int) -> SimStats:
+    """The report for finished games. A run is a dict as `_play` returns it; one from the engine goldfish (`goldfish.py`) may also have
+    "drawn" and "permanents" (a number per turn)."""
+    games = len(runs)
     mulliganed = opening_lands = 0
     drops, available, spent = ([0.0] * turns for _ in range(3))
     stuck, damage = [0] * turns, [0.0] * turns
+    drawn, permanents = [0.0] * turns, [0.0] * turns
     copies: dict[str, int] = defaultdict(int)
     for card in deck.commanders + deck.main:
         if not is_land(card):
@@ -319,7 +331,7 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
     due_games, due_cast = defaultdict(int), defaultdict(int)
     total_casts, recast_turns = defaultdict(int), defaultdict(list)
     mana_value = {c.name: int(c.cmc) for c in deck.commanders + deck.main}
-    for run in play_games(deck, games, turns, seed, on_the_play, free_mulligan, commander_dies_on):
+    for run in runs:
         mulliganed += run["mulligans"] > 0
         for name, times in run["casts"].items():
             total_casts[name] += times
@@ -332,7 +344,12 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
             spent[i] += run["spent"][i]
             stuck[i] += run["stuck"][i]
             damage[i] += run["damage"][i]
+            if "drawn" in run:
+                drawn[i] += run["drawn"][i]
+                permanents[i] += run["permanents"][i]
         for name, turn in run["seen"].items():
+            if name not in copies:
+                continue  # (a card the engine gave the player that is not in the deck)
             seen[name] += 1
             due = max(turn, mana_value[name], 1)  # the first turn the mana value and the draw allowed it
             if due <= turns:
@@ -342,6 +359,7 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
                 cast[name] += 1
                 cast_turns[name].append(run["cast"][name])
                 waits[name].append(run["cast"][name] - turn)
+    games = games or 1
     avg = lambda values: round(sum(values) / len(values), 2) if values else None  # noqa: E731
     cards = [CardStats(name, copies[name], round(seen[name] / games, 3), round(cast[name] / games, 3),
                        round(cast[name] / seen[name], 3) if seen[name] else 0.0, avg(cast_turns[name]), avg(waits[name]),
@@ -350,10 +368,12 @@ def simulate(deck: Deck, games: int = 1000, turns: int = 8, seed: int = 0, on_th
                        round(len(recast_turns[name]) / games, 3), avg(recast_turns[name]))
              for name in copies]
     per_turn = lambda values, digits=3: {i + 1: round(v / games, digits) for i, v in enumerate(values)}  # noqa: E731
-    return SimStats(games=games, turns=turns, mulligan_rate=round(mulliganed / games, 3),
+    has_engine_columns = any("drawn" in run for run in runs)
+    return SimStats(games=len(runs), turns=turns, mulligan_rate=round(mulliganed / games, 3),
                     average_opening_lands=round(opening_lands / games, 2), land_drop_rate=per_turn(drops),
                     mana_available=per_turn(available, 2), mana_spent=per_turn(spent, 2),
-                    stuck_on_colors=per_turn(stuck), damage=per_turn(damage, 1), cards=cards)
+                    stuck_on_colors=per_turn(stuck), damage=per_turn(damage, 1), cards=cards,
+                    drawn=per_turn(drawn, 2) if has_engine_columns else {}, permanents=per_turn(permanents, 1) if has_engine_columns else {})
 
 
 def format_simulation(stats: SimStats) -> str:
