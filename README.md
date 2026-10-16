@@ -1638,6 +1638,21 @@ The reports say so, using `report.unplayable_cards(deck)` (the same test as `pyt
   does not read card text for any card, so these notes do not change the numbers; they say what a matchup run would get wrong.
 - **Simulation:** one closing line that card text is not played, only mana and creature bodies.
 
+## Runaway boards
+
+Nothing in the rules stops a token engine that copies itself (a copy of each creature every turn, or within one resolution), but each
+step costs more as the board grows, so such a game never finishes. `Game(..., board_limit=300)` (`game.BOARD_LIMIT`; `None` for no
+limit) ends a game as a draw when more than that many permanents are in play, all players together. The check is where a permanent
+enters the battlefield, so a single effect that makes tokens without end stops at the limit instead of making them all. `Game.play`
+catches `BoardLimitReached`, sets `game.ended` to `"board_limit"`, returns no winner (even if a player had just lost: the turn was cut
+off mid-way), and the `game_over` event carries `"reason": "board_limit"`. A real game seldom has 100 permanents; the largest of 48
+precon games was about 70, and a limit of 300 only ends a game that has gone wrong.
+
+- **Matchups:** such a game is a draw in the W-L-D count and is also counted in `Record.board_limit`; the report says how many ended
+  that way, so a runaway is not mistaken for a timeout or a crash.
+- **`tools/bot_games.py`:** prints the seeds of games that ended at the limit and still exits 0, since a runaway board is a finding and not
+  a crash; replay one with `--start SEED --games 1`.
+
 ## The card caches
 
 Cards are looked up through one of two cache files, both under `.cache/` and both safe to delete:
