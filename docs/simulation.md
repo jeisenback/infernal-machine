@@ -64,6 +64,23 @@ cost reducers and the rest of a commander's text are not modeled.
 Use it to compare builds, not to predict a game. Any card list works, so a 60-card deck is fine; a deck with a commander
 gets the free first mulligan, one without does not.
 
+### The same goldfish through the engine
+
+```
+python -m infernal_machine.goldfish DECKLIST [--games 100] [--turns 8] [--seed 0] [--play] [--workers N] [--model-games 1000]
+```
+
+The model above reads no card text. `goldfish(deck, games, turns, seed, on_the_play, workers)` in `goldfish.py` plays the deck for real:
+`BotPlayer` plays it in `Game` against an idle second seat (it keeps its hand, passes every priority, never attacks or plays a card,
+and its life is so high that nothing ends the game), and the report is built from what the engine did, in the model's own shape
+(`SimStats`). Damage is the life the idle seat lost, so removal, tricks and everything a card's text does are in it, where the model sums
+every creature's power; mana available is counted at the first main phase after the land drop, spent from the casts, and a game
+number `n` shuffles the same way for the same seed and deck. It adds two columns the model cannot have, the cards drawn and the
+permanents on the battlefield by turn. With `--model-games` it prints the model beside it (mulligans, mana spent, on curve, land
+drops, damage) so the gap is visible: that gap is what the model leaves out. The engine is slow, a game takes a few seconds, so the
+default is 100 games where the model runs thousands, and `tune` keeps using the model. A game the engine cannot finish (an error, or
+the time limit) is left out and counted, and a deck with cards the engine can't read gets the usual warning.
+
 ## Mana base
 
 ```
