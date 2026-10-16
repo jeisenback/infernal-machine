@@ -30,7 +30,7 @@ from .bot import BotPlayer
 from .brackets import analyze
 from .cards import Deck
 from .formats import format_of
-from .game import Game
+from .game import BOARD_LIMIT, Game
 from .report import unplayable_cards, unplayable_note
 
 EARLY_TURNS = 4  # the first turns of a seat, whose lands and spells say whether it stumbled
@@ -65,6 +65,7 @@ class GameResult:
     winner: int | None = None  # seat index; None for no winner by the turn limit
     turns: int = 0
     starting_seat: int = 0
+    ended: str | None = None  # why it stopped without a winner, if the game said ("board_limit")
     reasons: dict[int, str] = field(default_factory=dict)  # seat -> why it lost
     logs: dict[int, SeatLog] = field(default_factory=dict)
     error: str | None = None  # "timeout" or the exception
@@ -133,7 +134,7 @@ def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60,
             watchdog.cancel()
     except _TimedOut:
         result.error = result.error or "timeout"
-    result.turns, result.starting_seat = game.turn, game.starting_seat
+    result.turns, result.starting_seat, result.ended = game.turn, game.starting_seat, game.ended
     return result
 
 
@@ -158,7 +159,8 @@ class Record:
     games: int  # finished games: wins + losses + draws
     wins: int = 0
     losses: int = 0
-    draws: int = 0  # no winner by the turn limit
+    draws: int = 0  # no winner by the turn limit, or because the board passed the limit (counted in `board_limit` too)
+    board_limit: int = 0  # games that ended because the board passed BOARD_LIMIT permanents
     errors: int = 0  # crashed or timed out
     first_error: str = ""
     fair_share: float = 0.5
@@ -194,6 +196,7 @@ def _record(name: str, results: list[GameResult], pod: int) -> Record:
         won = r.winner == r.focus_seat
         record.wins += won
         record.draws += r.winner is None
+        record.board_limit += r.ended == "board_limit"
         record.losses += r.winner is not None and not won
         side = play if r.starting_seat == r.focus_seat else draw
         side[0] += won
@@ -307,6 +310,10 @@ def format_matchups(records: list[Record], focus: str = "focus deck") -> str:
     for r in records:
         if r.opponent_unplayable:
             lines.append(unplayable_note(r.opponent_unplayable, f"Opponent {r.opponent}") + " Results against it are unreliable.")
+    for r in records:
+        if r.board_limit:
+            lines.append(f"{r.opponent}: {r.board_limit} game(s) ended as draws because the board passed {BOARD_LIMIT} permanents (a token engine "
+                         "out of control); they are in the D column.")
     total = sum(r.games for r in records)
     if total:
         stumbled = [sum(r.stumbled[i] for r in records) for i in (0, 1)]

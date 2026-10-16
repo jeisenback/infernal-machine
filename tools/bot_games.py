@@ -22,7 +22,7 @@ sys.path.insert(0, os.getcwd())
 
 from infernal_machine.bot import BotPlayer  # noqa: E402
 from infernal_machine.cards import BulkSource, load_deck  # noqa: E402
-from infernal_machine.game import Game  # noqa: E402
+from infernal_machine.game import BOARD_LIMIT, Game  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
@@ -38,6 +38,8 @@ def main(argv: list[str]) -> int:
              for path in sorted(glob.glob("examples/precons/*.txt"))]
     wins: collections.Counter = collections.Counter()
     crashes: list[tuple[int, list[str], str]] = []
+    limited: list[int] = []  # games that ended because the board passed the permanent limit: a runaway, not a crash
+    limit = BOARD_LIMIT
     started = time.time()
     for seed in range(args.start, args.start + args.games):
         picks = random.Random(seed).sample(decks, 4)
@@ -49,8 +51,14 @@ def main(argv: list[str]) -> int:
         else:
             if winner is not None:
                 wins[winner.player.name] += 1
+            if game.ended == "board_limit":
+                limited.append(seed)
+                limit = game.board_limit or BOARD_LIMIT
     print(f"games {args.start}..{args.start + args.games - 1}: {args.games - len(crashes)} finished, "
           f"{len(crashes)} crashed, wins {dict(wins)}, {time.time() - started:.0f}s")
+    if limited:
+        print(f"{len(limited)} ended as draws at the board limit ({limit} permanents), seeds {limited}: a token engine out of control. "
+              "Replay one with --start SEED --games 1.")
     for seed, names, trace in crashes:
         print(f"\nseed {seed} ({', '.join(names)}):\n{trace}")
     return 1 if crashes else 0

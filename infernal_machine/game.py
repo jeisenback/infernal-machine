@@ -41,6 +41,7 @@ from .player import Player
 _T = TypeVar("_T")
 
 STARTING_LIFE = 40
+BOARD_LIMIT = 300  # permanents in play, all players together, past which a game is ended as a draw (see BoardLimitReached)
 HAND_SIZE = 7
 STEPS = [
     "untap",
@@ -496,16 +497,26 @@ class _BoardView:
         self.key, self.sources, self.stripped, self.keepalive = key, sources, stripped, keepalive
         self.rules: list | None = None
 
+
+class BoardLimitReached(Exception):
+    """Too many permanents are in play. Nothing in the rules stops a token engine that copies itself (a copy of a creature for each
+    creature, every turn, or within one resolution), but each step costs more as the board grows, so such a game never finishes.
+    `Game.play` catches this and ends the game as a draw, with `Game.ended` set to "board_limit"."""
+
+
 class Game:
     # What the mana being paid is for, so "Spend this mana only ..." sources can say whether they qualify: a spell, or an
     # ability whose cost has {X}.
 
     _draw_step_draw = False  # the turn-based draw of a draw step is in progress (Orcish Bowmasters ignores it)
 
-    def __init__(self, seats: list[tuple[Player, Deck]], seed: int | None = None, format: Format = COMMANDER):
+    def __init__(self, seats: list[tuple[Player, Deck]], seed: int | None = None, format: Format = COMMANDER,
+                 board_limit: int | None = BOARD_LIMIT):
         if len(seats) < 2:
             raise ValueError(f"{format.name.capitalize()} needs at least two players")
         self.format = format
+        self.board_limit = board_limit  # None for no limit
+        self.ended: str | None = None  # why the game stopped without a winner, if it did: "board_limit"
         self.rng = random.Random(seed)
         self.seats = [
             Seat(
@@ -618,13 +629,17 @@ class Game:
         """Run setup and turns until one player is left or `max_turns` is reached."""
         self.setup()
         self.regular = self.active
-        while self.winner() is None and self.turn < max_turns:
-            self.turn += 1
-            self._take_turn(self.seats[self.active])
-            self.previous_player = self.seats[self.active]
-            self.active = self._next_turn_seat()
-        winner = self.winner()
-        self.broadcast({"event": "game_over", "winner": winner.index if winner else None, "turn": self.turn})
+        try:
+            while self.winner() is None and self.turn < max_turns:
+                self.turn += 1
+                self._take_turn(self.seats[self.active])
+                self.previous_player = self.seats[self.active]
+                self.active = self._next_turn_seat()
+        except BoardLimitReached:
+            self.ended = "board_limit"  # the turn was cut off mid-way: nobody wins
+        winner = None if self.ended else self.winner()
+        self.broadcast({"event": "game_over", "winner": winner.index if winner else None, "turn": self.turn,
+                        **({"reason": self.ended} if self.ended else {})})
         return winner
 
     def _next_turn_seat(self) -> int:
@@ -5233,6 +5248,8 @@ class Game:
         if saga_chapters(permanent.card):  # a Saga arrives with a lore counter, which triggers chapter I
             permanent.counters["lore"] = permanent.counters.get("lore", 0) + 1
         seat.battlefield.append(permanent)
+        if self.board_limit is not None and sum(len(s.battlefield) for s in self.seats) > self.board_limit:
+            raise BoardLimitReached(self.board_limit)
         if "Land" in permanent.card.type_line:
             seat.land_entered_turn = self.turn
         if "Creature" in permanent.card.type_line and not _is_token(permanent.card):
