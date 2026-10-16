@@ -110,6 +110,14 @@ by the cards that changed. It reports:
 A pair is dropped if either game crashes or times out. The bots play every game, so the result is how the *bots* do with the two builds:
 a card they play badly is under-rated in both. The two builds must both have commanders or both have none.
 
+**Stopping early** (`--early-stop`, `early_stop=True`): the games are played in up to ten rounds, and the comparison stops when it is
+settled, saying which: *clear* (the interval leaves out zero: "clearly better after 62 of 200 planned pairs") or *hopeless* (separating
+a 5 point difference, or `--target`, would take more than three times the pairs planned, so more games would not settle it either;
+"within noise, about 900 pairs needed"). Nothing stops before 30 pairs. Stopping the first time an ordinary 95% interval excludes
+zero would call equal builds clear far more than one time in twenty, so with ten looks each look's interval is widened to 99.5%
+(each look gets 5% / looks), which keeps the chance that equal builds ever come out clear at 5% or less; the output prints the width
+used and the rule. A run that is never settled plays every pair and reports it. The pairs are the same games either way.
+
 ## Tuning a deck
 
 ```
