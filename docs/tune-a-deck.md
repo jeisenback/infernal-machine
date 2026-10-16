@@ -124,6 +124,31 @@ The caution that matters: the goldfish reads no card text, so a removal spell or
 nothing *in a goldfish*. A low score means "does little alone", not "bad card". To measure those you need other players: that is the next
 two steps.
 
+### Removal and card draw: measure them in real games
+
+The goldfish scores a removal spell as nothing, so the cards it ranks lowest are exactly the ones it may be wrong about. `impact` plays
+the *same* games with and without a card (every copy swapped for a blank) against other decks and reports what the card added:
+
+```
+python -m infernal_machine.impact my_deck.txt opponent1.txt opponent2.txt --top 6 --games 30
+Card impact in real games: 30 paired games against PrismariArtistry_SOC, QuandrixUnlimited_SOC for each of 6 cards. ...
+The unchanged deck scores 48.3%.
+
+card                                  copies  impact                       pairs  differ  for 5 pts  note
+Secret Rendezvous                          1    -3.3 ± 2.3  (within noise)     60       2          -
+Fateful Tempest                            1    -1.7 ± 2.9  (within noise)     60       3          -
+Archaeomancer's Map                        1    +1.7 ± 1.7  (within noise)     60       1          -
+Lorehold Charm                             1    +1.7 ± 1.7  (within noise)     60       1          -
+Monologue Tax                              1    +1.7 ± 1.7  (within noise)     60       1          -
+Faithless Looting                          1    +5.0 ± 3.7  (within noise)     60       5          -
+```
+
+The honest answer here is "not enough games to say". Out of 60 pairs, a card changed the result in only 1 to 5 (the *differ* column):
+each card is drawn in a fraction of the games, and often changes nothing when it is. The dash under *for 5 pts* means too few pairs
+differed to estimate how many it would take. To see a few points of effect you need hundreds of pairs per card (`--games 100` or more),
+and every card you add to `--cards` is another full set of games, so measure the handful you are unsure of. Testing six cards at 95%
+will make one look clear about one time in twenty by chance; re-run the one you like with another `--seed`.
+
 ## 6. How does it do against other decks? (matchups)
 
 ```
