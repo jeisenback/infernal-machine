@@ -53,11 +53,13 @@ _ADD_AMONG = re.compile(_TAP + r"one mana of any color among legendary creatures
 _ADD_IMPRINTED = re.compile(_TAP + r"one mana of any of the exiled card's colors\." + _IF_TAIL)
 
 
+@lru_cache(maxsize=None)
 def mana_among_legendary(card: Card) -> bool:
     """Mox Amber: its mana is any color among the legendary creatures and planeswalkers its controller controls."""
     return any(_ADD_AMONG.fullmatch(line) for line in rules_lines(card))
 
 
+@lru_cache(maxsize=None)
 def mana_of_imprinted(card: Card) -> bool:
     """Chrome Mox: its mana is any color of the card exiled with it."""
     return any(_ADD_IMPRINTED.fullmatch(line) for line in rules_lines(card))
@@ -78,6 +80,7 @@ _COUNTERS_RIDER = re.compile(r"(.+\.) If you spend this mana to cast your comman
 _BONUS_RIDER = re.compile(r"(.+\.) If you control an? (.+?) and an? (.+?), add ((?:\{C\})+) instead\.")
 
 
+@lru_cache(maxsize=None)
 def mana_bonus(card: Card) -> tuple[tuple[str, str], int] | None:
     """(the two permanents to control, how much mana the land makes then) for an Urza land, or None."""
     for line in rules_lines(card):
@@ -94,6 +97,7 @@ class ManaSpentTrigger:
     counters: bool = False  # Opal Palace: no scry; the commander enters with that many +1/+1 counters more
 
 
+@lru_cache(maxsize=None)
 def mana_spent_trigger(card: Card) -> ManaSpentTrigger | None:
     for line in rules_lines(card):
         if _COUNTERS_RIDER.fullmatch(line):
@@ -120,12 +124,14 @@ _NEXT_X_RIDER = re.compile(r"(.+\.) When you next cast a spell with \{X\} in its
                            r"half X life, rounded down\.")
 
 
+@lru_cache(maxsize=None)
 def has_next_x_rider(card: Card) -> bool:
     """Brass Infiniscope: tapping it for mana makes "when you next cast a spell with {X} in its mana cost this turn, you draw a
     card and gain half X life, rounded down"."""
     return any(_NEXT_X_RIDER.fullmatch(line) for line in rules_lines(card))
 
 
+@lru_cache(maxsize=None)
 def _without_spent_rider(line: str) -> str:
     """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
     m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line) or _COUNTERS_RIDER.fullmatch(line) or _BONUS_RIDER.fullmatch(line)
@@ -157,6 +163,7 @@ _CHARGE_MANA = re.compile(r"\{T\}: (Choose a color\. Add one mana of that color|
                           r"(?:CARDNAME|this [a-z]+)\.(?: Spend this mana only on costs that contain \{X\}\.)?")
 
 
+@lru_cache(maxsize=None)
 def charge_mana(card: Card) -> tuple[frozenset[str], str | None] | None:
     """The types of the mana per charge counter this permanent makes when tapped, and its spending restriction."""
     for line in rules_lines(card):
@@ -188,6 +195,7 @@ _COUNTER_MANA = re.compile(r"Remove an? ([a-z]+) counter from (?:CARDNAME|this [
                            r"Activate only once each turn\.")
 
 
+@lru_cache(maxsize=None)
 def counter_mana(card: Card) -> str | None:
     """Mana Bloom: the counter its mana ability removes (it makes one mana of any color, once each turn)."""
     return next((m[1] for line in rules_lines(card) if (m := _COUNTER_MANA.fullmatch(line))), None)
@@ -196,6 +204,7 @@ def counter_mana(card: Card) -> str | None:
 _ADD_POWER = re.compile(_TAP + r"X mana of any one color, where X is this creature's power\." + _IF_TAIL)
 
 
+@lru_cache(maxsize=None)
 def makes_mana_by_power(card: Card) -> bool:
     """Kami of Whispered Hopes: "{T}: Add X mana of any one color, where X is this creature's power." """
     return any(_ADD_POWER.fullmatch(line) for line in rules_lines(card))
@@ -214,6 +223,7 @@ def mana_ability_needs_no_tap(card: Card) -> bool:
     return bool(line and "{T}" not in line.split(":")[0])
 
 
+@lru_cache(maxsize=None)
 def _mana_match(line: str) -> re.Match | None:
     """The match of a plain "{T}: Add ..." line, unless its "Activate only if" condition isn't understood."""
     line = _without_spent_rider(line)
@@ -228,6 +238,7 @@ def _mana_match(line: str) -> re.Match | None:
 _CONDITION_WORD = re.compile(r"(?:Metalcraft|Threshold|Hellbent|Delirium|Revolt|Ferocious) \u2014 ")  # the ability word of the "Activate only if" that follows
 
 
+@lru_cache(maxsize=None)
 def _mana_line(card: Card) -> str | None:
     """The card's plain "{T}: Add ..." line (Signet-style lines are filter_mana_ability's)."""
     return next((line for line in rules_lines(card) if _mana_match(line)), None)
@@ -265,6 +276,7 @@ def mana_condition(card: Card) -> "Condition | None":
     return _condition(text) if text else None
 
 
+@lru_cache(maxsize=None)
 def mana_life_condition(card: Card) -> "Condition | None":
     """Spire of Industry: "{T}, Pay 1 life: Add one mana of any color. Activate only if you control an artifact." (only that line)."""
     text = next((m.group(m.re.groups) for rule in rules_lines(card) if (m := _PAY_LIFE_ANY.fullmatch(rule))), None)
@@ -293,6 +305,7 @@ _PAY_LIFE_ANY = re.compile(rf"\{{T\}}, Pay {_N_FIXED} life: Add (one mana of any
 _ADD_CHOSEN = re.compile(r"\{T\}: Add (?:\{([WUBRG])\} or )?one mana of the chosen color\.")
 
 
+@lru_cache(maxsize=None)
 def chosen_color_mana(card: Card) -> tuple[str | None] | None:
     """(its own color or None,) for a land whose mana ability makes the chosen color; None for any other card."""
     return next(((m[1],) for line in rules_lines(card) if (m := _ADD_CHOSEN.fullmatch(line))), None)
@@ -317,6 +330,7 @@ class CounterMana:
     each: bool = False  # one mana (`mana[0]`) per counter, and as many counters come off as the mana used
 
 
+@lru_cache(maxsize=None)
 def counter_removal_mana(card: Card) -> CounterMana | None:
     """A land whose mana costs a counter (the Vivid lands, the depletion lands, the storage lands), or None."""
     for line in rules_lines(card):
@@ -332,6 +346,7 @@ def counter_removal_mana(card: Card) -> CounterMana | None:
 _MAY_NOT_UNTAP = re.compile(r"You may choose not to untap (?:CARDNAME|this [a-z]+) during your untap step\.")
 
 
+@lru_cache(maxsize=None)
 def may_skip_untap(card: Card) -> bool:
     return any(_MAY_NOT_UNTAP.fullmatch(line) for line in rules_lines(card))
 
@@ -350,6 +365,7 @@ def is_mana_ability(line: str) -> bool:
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))
 
 
+@lru_cache(maxsize=None)
 def mana_pain(card: Card) -> tuple[frozenset[str], int] | None:
     """For painlands and Talismans ("{T}: Add {G} or {U}. This land deals 1 damage to you."): the types
     that cost damage when produced, and how much."""
@@ -366,6 +382,7 @@ def mana_pain(card: Card) -> tuple[frozenset[str], int] | None:
 _REFLECT = re.compile(r"\{T\}: Add one mana of any (color|type) that a land (an opponent controls|you control) could produce\.")
 
 
+@lru_cache(maxsize=None)
 def reflected_mana(card: Card) -> tuple[bool, bool] | None:
     """Exotic Orchard ("... any color that a land an opponent controls could produce") and Reflecting Pool ("... any
     type that a land you control could produce"): (looks at opponents' lands, colorless counts), or None."""
@@ -375,11 +392,13 @@ def reflected_mana(card: Card) -> tuple[bool, bool] | None:
     return None
 
 
+@lru_cache(maxsize=None)
 def mana_life_cost(card: Card) -> int:
     """Life paid each time a land is tapped for mana ("{T}, Pay 1 life: Add one mana of any color."), or 0."""
     return next((_number(m[1]) for line in rules_lines(card) if (m := _PAY_LIFE_ANY.fullmatch(line))), 0)
 
 
+@lru_cache(maxsize=None)
 def mana_life_types(card: Card) -> frozenset[str]:
     """The mana a land with a life-cost mana ability makes: any color (Mana Confluence) or the listed ones (Horizon lands)."""
     for line in rules_lines(card):
@@ -409,6 +428,7 @@ def land_mana_units(card: Card) -> list[frozenset[str]] | None:
     return None
 
 
+@lru_cache(maxsize=None)
 def is_identity_mana_land(card: Card) -> bool:
     """Command Tower: a land that makes one mana of any color in your commander's color identity."""
     return "Land" in card.type_line and any(_ADD_IDENTITY.fullmatch(_without_spent_rider(line)) for line in rules_lines(card))
@@ -421,6 +441,7 @@ _FILTER = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\}|\{[WUBRG]/[WUBRG]\})+), \{T\}: A
 _PER_COUNT = re.compile(r"(?:((?:\{\d+\}|\{[WUBRGC]\})+), )?\{T\}: Add \{([WUBRGC])\} for each ([A-Za-z]+) you control\.")
 
 
+@lru_cache(maxsize=None)
 def mana_per_count(card: Card) -> tuple[str, str, str] | None:
     """(the mana it costs, '' if none; the color it makes; what it counts) for a "Add {G} for each creature you
     control" ability."""
@@ -430,6 +451,7 @@ def mana_per_count(card: Card) -> tuple[str, str, str] | None:
     return None
 
 
+@lru_cache(maxsize=None)
 def mana_threshold(card: Card) -> int:
     """Evendo, Uthros: "12+ | {G}, {T}: Add {G} for each creature you control." works only with that many charge counters."""
     return next((int(m[1]) for line in rules_lines(card) if (m := _THRESHOLD.fullmatch(line)) and _PER_COUNT.fullmatch(m[2])), 0)

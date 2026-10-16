@@ -56,6 +56,11 @@ CI (`.github/workflows`): `tests` (required) and its `typecheck` job (pyright: n
 `bot games` (120 four-player bot games between the precon decks, none may raise; seed `g` is game `g`; it runs on every pull request, and
 its job `bot games (all shards)` is the one to require next to `tests`), `coverage audit` (weekly, a measurement that never fails), and `bot strength` (weekly: the default bot against the plain bot on the precon decks, 480 duels in six shards; it fails only if the whole 95% interval is below 50%, i.e. a change made the bot reliably worse; each shard takes about a minute on GitHub's runners, and the first run (2026-10-15) won 310 of 480, 64.6% (60.2%-68.7%); run it by hand with `python tools/compare_bots.py examples/precons/*.txt`, or on GitHub with `gh workflow run "bot strength"`).
 
+A change meant to leave play untouched (a speed pass, a refactor) is checked by replaying seeds: `python tools/replay_check.py record FILE`
+on `main`, then `python tools/replay_check.py check FILE` on the branch hashes every event of 24 four-player games and fails if any game
+differs, and prints the CPU speed ratio. The tests run with `Game.verify_views` on, which fails a change that bypasses the epoch counter
+behind `Game._board_view` (mutate `seat.battlefield`/`graveyard` and `Permanent.card`/`attached_to` the ordinary way).
+
 Replay a failing bot game: `python tools/bot_games.py --start SEED --games 1`. It needs `.cache/oracle_bulk.json`; where the bulk
 host is unreachable, build it from the cached Commander pool:
 

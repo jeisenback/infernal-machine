@@ -11,12 +11,14 @@ other rules text is not implemented yet.
 from __future__ import annotations
 
 import dataclasses
+import functools
 import itertools
+import operator
 import random
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, ClassVar, TypeVar
+from typing import Any, Callable, TypeVar
 
 from .analysis import is_land
 from .cards import Card, Deck, has_keyword, shown_type_line
@@ -228,15 +230,36 @@ COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
 POISON_LIMIT = 10  # CR 704.5c
 
 
+class _Epoch:
+    """A counter that moves whenever anything `Game._board_view` depends on changes: which permanents and graveyard cards there are
+    and where, what card a permanent is, and what it is attached to. The view is reused while the counter stands still. It is shared by
+    every game in the process, which only means a change in one game also makes another rebuild its view."""
+    n = 0
+
+
+def _bumping(method_name: str):
+    method = getattr(list, method_name)
+
+    def changed(self, *args, **kwargs):
+        _Epoch.n += 1
+        return method(self, *args, **kwargs)
+
+    changed.__name__ = method_name
+    return changed
+
+
+class _Tracked(list):
+    """A list that moves the epoch counter on every change: the battlefield and the graveyard of a seat."""
+    __slots__ = ()
+
+
+for _method in ("append", "extend", "insert", "remove", "pop", "clear", "sort", "reverse",
+                "__setitem__", "__delitem__", "__iadd__", "__imul__"):
+    setattr(_Tracked, _method, _bumping(_method))
+
+
 @dataclass(eq=False)
 class Permanent:
-    epoch: ClassVar[int] = 0  # bumped whenever any permanent's card or attachment is set; the board view's cache key includes it
-
-    def __setattr__(self, name: str, value: object) -> None:
-        if name == "card" or name == "attached_to":
-            Permanent.epoch += 1
-        object.__setattr__(self, name, value)
-
     card: Card
     tapped: bool = False
     sick: bool = False  # entered since its controller's last untap step
@@ -415,12 +438,12 @@ class Seat:
     life: int = STARTING_LIFE
     library: list[Card] = field(default_factory=list)
     hand: list[Card] = field(default_factory=list)
-    battlefield: list[Permanent] = field(default_factory=list)
+    _battlefield: list = field(default_factory=_Tracked, init=False, repr=False)
     exile_play: list[tuple[Card, int]] = field(default_factory=list)  # exiled cards its owner may play, and the last turn they can
     borrowed: list[tuple[Card, "Seat"]] = field(default_factory=list)  # cards in this exile that belong to other players (Ragavan), and whose
     undercity_room: str | None = None  # where this player's venture marker is, if they are in the Undercity
     mana_pool: list[frozenset[str]] = field(default_factory=list)  # mana added by rituals, gone at the end of the step
-    graveyard: list[Card] = field(default_factory=list)
+    _graveyard: list = field(default_factory=_Tracked, init=False, repr=False)
     exile: list[Card] = field(default_factory=list)
     command_zone: list[Card] = field(default_factory=list)
     commander_names: set[str] = field(default_factory=set)
@@ -483,18 +506,66 @@ class Seat:
     lost: bool = False
 
     @property
+    def battlefield(self) -> list[Permanent]:
+        return self._battlefield
+
+    @battlefield.setter
+    def battlefield(self, value: list[Permanent]) -> None:
+        self._battlefield = value if type(value) is _Tracked else _Tracked(value)
+        _Epoch.n += 1
+
+    @property
+    def graveyard(self) -> list[Card]:
+        return self._graveyard
+
+    @graveyard.setter
+    def graveyard(self, value: list[Card]) -> None:
+        self._graveyard = value if type(value) is _Tracked else _Tracked(value)
+        _Epoch.n += 1
+
+    @property
     def name(self) -> str:
         return self.player.name
 
 
 
+def _moving(name: str) -> property:
+    """A property for a Permanent attribute whose change moves the epoch counter. The value lives in `_<name>`; a read is a plain
+    attribute fetch (`attrgetter` runs in C)."""
+    private = "_" + name
+
+    def set_(self, value) -> None:
+        self.__dict__[private] = value
+        _Epoch.n += 1
+
+    return property(operator.attrgetter(private), set_)
+
+
+setattr(Permanent, "card", _moving("card"))
+setattr(Permanent, "attached_to", _moving("attached_to"))
+
+
+@functools.lru_cache(maxsize=None)
+def _watches_from_graveyard(card: Card) -> bool:
+    """Whether a card in a graveyard has a watching ability that does something there: only those that return it (a card in a graveyard
+    watches for nothing else, and `Game._observe` skips every other ability of one)."""
+    return any(ability.watch and any(isinstance(effect, (PayToReturnSelf, ReturnThisFromGraveyard)) for effect in ability.effects)
+               for ability in triggered_abilities(card))
+
+
+def _strips_abilities(card: Card) -> bool:
+    """Whether the card (or one of its other faces) is an Aura or Equipment that takes away all the abilities of what it is attached to."""
+    return any(face is not None and any(LOSES_ALL in b.modifier.keywords for b in attached_abilities(face))
+               for face in (card, card.back, card.prepare, card.alternate, card.flip))
+
+
 class _BoardView:
     """What is true of the whole board at once and is asked for many times a step: the static abilities in play, the permanents
-    stripped of their abilities, and the rules-changing statics. See Game._board_view."""
-    __slots__ = ("key", "sources", "stripped", "rules", "keepalive")
+    stripped of their abilities, what is attached to each permanent, who controls each, and the rules-changing statics. See Game._board_view."""
+    __slots__ = ("epoch", "key", "sources", "stripped", "attached", "controller", "rules")
 
-    def __init__(self, key: tuple, sources: list, stripped: set, keepalive: list):
-        self.key, self.sources, self.stripped, self.keepalive = key, sources, stripped, keepalive
+    def __init__(self, epoch: int, key: tuple | None, sources: list, stripped: set, attached: dict, controller: dict):
+        self.epoch, self.key, self.sources, self.stripped, self.attached, self.controller = epoch, key, sources, stripped, attached, controller
         self.rules: list | None = None
 
 
@@ -2442,10 +2513,11 @@ class Game:
         # Eminence abilities (Edgar Markov) also work from the command zone, where a card is no Permanent.
         eminent = [(Permanent(c), s) for s in self.live_seats() for c in s.command_zone]
         # A few cards watch from the graveyard (Vanguard of the Restless), where a card is no Permanent either.
-        buried = [(Permanent(c), s) for s in self.live_seats() for c in s.graveyard]
+        buried = [(Permanent(c), s) for s in self.live_seats() for c in s.graveyard if _watches_from_graveyard(c)]  # (the rest could not trigger)
+        in_command_zone_ids, in_graveyard_ids = {id(p) for p, _ in eminent}, {id(p) for p, _ in buried}
         for watcher, watcher_seat in watchers + eminent + buried + [(d.watcher, d.controller) for d in self.delayed]:
-            in_command_zone = any(watcher is p for p, _ in eminent)
-            in_graveyard = any(watcher is p for p, _ in buried)
+            in_command_zone = id(watcher) in in_command_zone_ids
+            in_graveyard = id(watcher) in in_graveyard_ids
             delayed = [d.ability for d in self.delayed if d.watcher is watcher]
             if not delayed and self.loses_abilities(watcher):
                 continue
@@ -2713,7 +2785,7 @@ class Game:
         return f"{permanent.card.name}{stats}{attached} (seat {seat.index}, #{n})"
 
     def controller_of(self, permanent: Permanent) -> Seat | None:
-        return next((s for s in self.seats if any(p is permanent for p in s.battlefield)), None)
+        return self._board_view().controller.get(id(permanent))
 
     def controller(self, permanent: Permanent) -> Seat:
         """The controller of a permanent the caller knows is on the battlefield (it was just found there, or just checked)."""
@@ -3666,25 +3738,40 @@ class Game:
     def subtypes(self, permanent: Permanent) -> list[str]:
         """Its creature types: the printed ones, plus those an Aura gives it ("is an Angel in addition")."""
         printed = permanent.card.type_line.partition("—")[2].split()
-        added = [buff.subtype for seat in self.seats for a in seat.battlefield if a.attached_to is permanent
-                 for buff in attached_abilities(a.card) if buff.subtype]
+        added = [buff.subtype for a in self._board_view().attached.get(id(permanent), ()) for buff in attached_abilities(a.card) if buff.subtype]
         return printed + added
 
+    verify_views = False  # tests turn this on: every reuse of the board view is checked against the full state (see _identity_key)
+
+    def _identity_key(self) -> tuple:
+        """Which permanents and graveyard cards there are and where, what card each permanent is and what it is attached to."""
+        return tuple((tuple(map(id, bf)), [id(p.card) for p in bf], [id(p.attached_to) for p in bf], tuple(map(id, seat.graveyard)))
+                     for seat in self.seats for bf in (seat.battlefield,))
+
     def _board_view(self) -> _BoardView:
-        """The board-wide facts that `modifiers` and `_static_rules` start from, the same for every permanent asked about and asked
-        for several times a step, so built once and reused until the board changes. The key is which permanents and graveyard cards
-        are where (their `id`s, in order) and `Permanent.epoch`, which moves when a permanent's card or attachment is set. The cached
-        view keeps those objects alive, so an `id` in the key cannot be reused by a different object."""
-        key = (Permanent.epoch, tuple(tuple(map(id, s.battlefield)) for s in self.seats), tuple(tuple(map(id, s.graveyard)) for s in self.seats))
+        """The board-wide facts that `modifiers` and `_static_rules` start from: the same for every permanent asked about, and asked for
+        hundreds of thousands of times a game while the board changes a few hundred times. So it is built once and reused while the
+        epoch counter stands still (see `_Epoch`: it moves when a battlefield or graveyard changes, or a permanent's card or attachment).
+        With `verify_views` on, every reuse is compared with the full state, so a change that did not move the counter fails a test
+        instead of quietly giving a stale answer."""
         view = self._view
-        if view is not None and view.key == key:
+        if view is not None and view.epoch == _Epoch.n:
+            if self.verify_views and view.key != self._identity_key():
+                raise AssertionError("the board view is stale: something it depends on changed without moving the epoch counter")
             return view
-        stripped = self._stripped()
+        # (almost no board has an Aura or Equipment that takes away abilities, Infinite Coursework; then nothing is stripped)
+        stripped = self._stripped() if any(_strips_abilities(p.card) for s in self.seats for p in s.battlefield) else set()
         pairs = [(s, p) for s in self.seats for p in s.battlefield] + [(s, Permanent(c)) for s in self.seats for c in s.graveyard if graveyard_statics(c)]
         sources = [(owner, source, buffs) for owner, source in pairs if id(source) not in stripped and (buffs := static_abilities(source.card))]
-        # (building the graveyard Permanents above moved the epoch; take the key again so the next call finds this view)
-        key = (Permanent.epoch, key[1], key[2])
-        self._view = view = _BoardView(key, sources, stripped, [list(s.battlefield) for s in self.seats] + [list(s.graveyard) for s in self.seats])
+        attached: dict[int, list[Permanent]] = {}  # what is attached to each permanent (by id), in battlefield order
+        controller: dict[int, Seat] = {}  # who has each permanent on their battlefield (by id)
+        for seat in self.seats:
+            for permanent in seat.battlefield:
+                controller.setdefault(id(permanent), seat)
+                if permanent.attached_to is not None:
+                    attached.setdefault(id(permanent.attached_to), []).append(permanent)
+        # (building a graveyard source above moved the counter; the view is stamped with it now, after that)
+        self._view = view = _BoardView(_Epoch.n, self._identity_key() if self.verify_views else None, sources, stripped, attached, controller)
         return view
 
     def modifiers(self, permanent: Permanent) -> list[Modifier]:
@@ -3732,11 +3819,9 @@ class Game:
                 mods.append(self._scaled(buff.modifier, buff.per, permanent, controller, source))
         if not creature:
             return mods
-        for seat in self.seats:  # Equipment and Auras attached to it
-            for attachment in seat.battlefield:
-                if attachment.attached_to is permanent:
-                    mods.extend(self._chosen_protection(self._scaled(buff.modifier, buff.per, permanent, controller), attachment)
-                                for buff in attached_abilities(attachment.card))
+        for attachment in self._board_view().attached.get(id(permanent), ()):  # Equipment and Auras attached to it
+            mods.extend(self._chosen_protection(self._scaled(buff.modifier, buff.per, permanent, controller), attachment)
+                        for buff in attached_abilities(attachment.card))
         return mods
 
     @staticmethod
@@ -3807,8 +3892,7 @@ class Game:
     def loses_abilities(self, permanent: Permanent) -> bool:
         """Whether an Aura or Equipment on it takes away all its abilities (Infinite Coursework). Abilities that other
         effects give it are kept; the order effects were made in is not tracked."""
-        return any(a.attached_to is permanent and any(LOSES_ALL in b.modifier.keywords for b in attached_abilities(a.card))
-                   for s in self.seats for a in s.battlefield)
+        return id(permanent) in self._board_view().stripped
 
     def annihilator(self, permanent: Permanent) -> int:
         """N of the creature's Annihilator N, printed or granted (Eldrazi Conscription); they add up."""
