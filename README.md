@@ -1457,6 +1457,14 @@ stats = goldfish(deck, games=5000, turns=5)
     an opposing commander whose hit would bring the damage it has taken from that commander to 21 or more. In 146 four-player pods
     (`compare_bots.py --pod 4`) it won 25.3% (19.0%-33.0%) against opponents without it, where a fair share is 25%: no measurable
     difference, so these are rule-following choices, not a proven gain.
+  - `threat`: in a pod it attacks an opponent its ready creatures can kill (the lowest life among them), and otherwise the one that looks
+    most dangerous: the most creature power on the board, then nonland permanents and cards in hand, with the lower life breaking a
+    tie. The plain bot attacks the lowest life. In 160 four-player pods (`compare_bots.py --pod 4`) it won 26.9% (20.6%-34.2%) against
+    the same bot without it, where a fair share is 25%: no measurable difference either way.
+  - `destination`: when its commander would be put into a graveyard, exile, hand or library, it goes to the hand if it would be bounced
+    and has any tax on it (cast from the hand it pays none), to the graveyard if it has six or more tax and the deck has a card that
+    brings creatures back from a graveyard, and to the command zone otherwise. It counts the tax from its commander's casts from the
+    command zone. These events are rare, so no pod comparison could show an effect; the unit tests are the evidence.
   `python tools/compare_bots.py DECK DECK ...` plays one version of the bot against another on the same decks and reports the
   win rate with its 95% interval. Against the plain bot on the five Secrets of Strixhaven precons (191 games) all five
   together won 67.5% (60.6%-73.8%); alone, timing won 65.5%, attack 57.6%, land 56.8%, target 55.2% and mana 52.9%.
