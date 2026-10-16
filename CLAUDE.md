@@ -1,7 +1,7 @@
 # Working on Infernal Machine
 
 A Magic: The Gathering Commander engine in Python (`infernal_machine/`, tests in `tests/`, no dependencies, Python 3.11 and up).
-The README describes what the engine does; this file is how to change it.
+The README and the pages in `docs/` describe what the engine does; this file is how to change it.
 
 ## Before you change code
 
@@ -30,7 +30,7 @@ To add a line:
    (`table3`, `script`, `run_stack`, `lands`, `pick`, `BEAR`, `OGRE`), include a case where the effect must not apply, and check the
    new guards by mutation: undo the guard and see a test fail. The shared fixtures are in `tests/helpers.py`: import them from there,
    never from another test file. Name a new test file for the behaviour (`test_ninjutsu.py`), not the issue number.
-6. **Add a bullet to the README** card-effects section.
+6. **Add a bullet to `docs/card-effects.md`** (the "Card effects" section).
 
 Cite the Comprehensive Rules in a comment where a rule is applied (`# CR 502.4`).
 
