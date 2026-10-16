@@ -13,7 +13,7 @@ stats = goldfish(deck, games=5000, turns=5)
 #               land_drop_rate={1: 1.0, 2: 0.998, 3: 0.918, 4: 0.772, 5: 0.596})
 ```
 
-- **`BotPlayer`:** keeps hands with 2-5 lands, and keeps anything after two mulligans.
+- **`BotPlayer`:** keeps hands with 2-5 lands (a two-land hand only for a cheap deck, see `keep`), and keeps anything after two mulligans.
   It chooses the largest X it can afford, sacrifices its weakest creature, and tutors for its most expensive card.
   It pays life for shocklands only while above 10 life. It equips Equipment once (not repeatedly), puts helpful
   Auras on its own creatures, and Pacifism-style ones on opponents'.
@@ -56,6 +56,22 @@ stats = goldfish(deck, games=5000, turns=5)
     and has any tax on it (cast from the hand it pays none), to the graveyard if it has six or more tax and the deck has a card that
     brings creatures back from a graveyard, and to the command zone otherwise. It counts the tax from its commander's casts from the
     command zone. These events are rare, so no pod comparison could show an effect; the unit tests are the evidence.
+  - `keep`: the opening hand is kept by the deck it is for. Three to five lands are kept as before; two lands only when the deck's
+    spells cost 3.0 or less on average and the hand has two spells that cost 2 or less, otherwise it is a mulligan (the plain bot kept
+    every two-lander). Added to the current bot, 960 duels on the precons: 49.2% (46.0%-52.3%), no measurable difference.
+  - `block`: it blocks to kill an attacker it survives (the most valuable one, power plus toughness), takes a trade with a creature worth
+    more than its blocker (a deathtouch or first-strike creature of its own counts as one that kills, or kills and lives), takes the
+    hardest hit an indestructible creature can absorb, and plans a double block: two untapped creatures that together kill an attacker
+    neither could alone, which cannot kill both, block it together (the second joins the plan when it is asked). It chumps the biggest
+    attacker when what is coming would be lethal, not only at 10 life or less. An attacker is judged by power and toughness only, since
+    the bot cannot see an opposing card's text. 960 duels: 50.6% (47.5%-53.8%), no measurable difference.
+  - `hold`: a removal spell for a creature (an instant or sorcery with "target creature" that destroys, exiles, bounces, shrinks or
+    damages) waits while every creature the opponents have has power 2 or less, unless the bot is at 10 life or less or its hand is full.
+    960 duels: 49.5% (46.3%-52.6%), no measurable difference. (Six games of that run timed out while the test suite shared the machine;
+    the pairing they were in, played alone, had none.)
+  Alone, none of the three measurably helps or hurts; all three together against the bot without them won 509 of 960, 53.0%
+  (49.9%-56.2%), which is not a measurable difference either. They are rule-following choices like `commander` and `threat`, and the weekly
+  `bot strength` job keeps watching them with the rest.
   `python tools/compare_bots.py DECK DECK ...` plays one version of the bot against another on the same decks and reports the
   win rate with its 95% interval. Against the plain bot on the five Secrets of Strixhaven precons (191 games) all five
   together won 67.5% (60.6%-73.8%); alone, timing won 65.5%, attack 57.6%, land 56.8%, target 55.2% and mana 52.9%.
