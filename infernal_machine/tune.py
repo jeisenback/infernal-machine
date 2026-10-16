@@ -251,6 +251,8 @@ def format_tuning(report: TuningReport) -> str:
                   + (f"  [{report.swap_notes[new]}]" if new in report.swap_notes else "")
                   + (f"  [the engine can't read: {report.candidate_unplayable[new][:60]}]" if new in report.candidate_unplayable else "")
                   for new, old, effect in report.swaps]
+    if report.skipped:
+        lines += ["", "Not tried: " + ", ".join(f"{name} ({why})" for name, why in report.skipped)]
     return "\n".join(lines)
 
 

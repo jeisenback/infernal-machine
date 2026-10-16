@@ -69,6 +69,12 @@ class TuneTests(unittest.TestCase):
         self.assertEqual([n for n, _, _ in report.swaps], ["Fine Bear"])
         self.assertEqual(dict(report.skipped), {"Blue Bear": "outside the commander's color identity (U)", "Banned Bear": "not legal in Commander",
                                                 "Grizzly Bears": "already in the deck"})
+        text = format_tuning(report)  # the report object is not enough: the text has to say it too
+        self.assertIn("Not tried: Blue Bear (outside the commander's color identity (U)), Banned Bear (not legal in Commander), "
+                      "Grizzly Bears (already in the deck)", text)
+
+    def test_nothing_is_said_about_candidates_when_none_were_skipped(self):
+        self.assertNotIn("Not tried", format_tuning(tune(MIXED, games=30, turns=4, seed=1)))
 
     def test_a_deck_without_a_commander_allows_up_to_four_copies(self):
         three = deck(*[FOREST] * 24, *[BEAR] * 33, *[OGRE] * 3)
