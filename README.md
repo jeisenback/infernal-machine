@@ -40,7 +40,7 @@ better), and every report says when a deck holds cards it cannot play.
 | Page | What is in it |
 |---|---|
 | [Tune a deck](docs/tune-a-deck.md) | A guided tour: check a deck, tune it, play it, compare a change |
-| [Simulation and tuning tools](docs/simulation.md) | Reference for `analyze`, the Bracket check, the mana base, the goldfish, tuning, matchups and comparing builds |
+| [Simulation and tuning tools](docs/simulation.md) | Reference for `analyze`, the Bracket check, the mana base, the goldfish, tuning, card impact, matchups and comparing builds |
 | [Bots](docs/bots.md) | The computer player and its judgments |
 | [Cards and decks](docs/cards-and-decks.md) | Where cards come from, deck rules for Commander and Standard, deck stats, the card caches |
 | [Playing a game](docs/playing-a-game.md) | How a game runs, and what ends one that cannot finish |

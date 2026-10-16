@@ -132,6 +132,32 @@ spells plus damage dealt by the last turn) and reports:
 It cannot see what a card's text does (removal, card draw, counterspells, life gain), so a low score means "does little in a
 goldfish", not "bad card". More games (`--games 2000`) tighten the error bars; 500 games of a 100-card deck takes about 30 seconds.
 
+## Card impact in real games
+
+```
+python -m infernal_machine.impact DECKLIST OPPONENT [OPPONENT ...] [--cards "Card Name"]... [--top 12] [--games 40] [--pod N] [--workers N]
+```
+
+`tune` cannot see what a card's text does, because the goldfish plays alone and reads no text: removal, card draw and counterspells score
+as mana spent or nothing. `impact.measure_impacts(deck, opponents, ...)` measures a card against other decks. The baseline games are
+played once; then for each chosen card the *same* games (same seeds, seats and opponents, as in [comparing builds](#comparing-two-builds))
+are played with every copy of the card replaced by a blank, which takes its slot so the deck keeps its size and the shuffles stay paired.
+The card's impact is the baseline's score minus the blank's (a win is 1, a draw 1/2), per pair, with a 95% interval from the spread of
+those differences.
+
+- **Which cards:** `--cards` names them (repeat it), or by default the `--top` the goldfish scores lowest, since those are where its
+  blindness to text matters most. A commander is not measured: taking it out leaves the deck without its color identity.
+- **Reading it:** most pairs come out identical, because a card is drawn in only a fraction of games and often changes nothing when it
+  is; the *differ* column counts the pairs that did not. *For 5 pts* is about how many pairs it would take to resolve a 5 point impact at
+  the spread seen, and is a dash when fewer than 8 pairs differed, since a spread from so few events is not worth quoting. At a few dozen
+  games per opponent most cards show a dash, and the honest reading is "not enough games to say": plan on hundreds of pairs for a card
+  whose effect is a few points. A result is believable when its `±` is clearly smaller than the impact.
+- **Cost:** each card is another full set of games, so 12 cards at 40 games per opponent against two opponents is about a thousand games,
+  roughly ten minutes on six workers. Run it on the handful of cards you are unsure of, not the whole deck.
+- **Caveats:** testing many cards finds a false winner about one time in twenty (at 95%), so re-run the ones you act on with another
+  `--seed`; the bots play every game, so a card they play badly is under-rated; and cards the engine can't read are marked, since the
+  games cannot see their text.
+
 ## Matchups
 
 ```
