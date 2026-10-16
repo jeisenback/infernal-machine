@@ -25,6 +25,16 @@ it picks the family that unlocks the most weighted cards, assumes it built, and 
 weight between them while neither is built, so a pair that unlocks nothing alone can still be suggested. A card weighs
 `1 / (1 + rank / WEIGHT_KNEE)` (no rank, no weight), so rank 100 counts for far more than rank 4,900. The result is an estimate: a
 family's wordings can still differ from one another, and a card the engine reads is not always a card it plays correctly.
+
+The ranking and the headline are about *decks*, since a deck is what gets simulated (issue #391). A typical deck is modelled by an
+inclusion probability for each ranked card, `min(1, scale * weight(rank) ** DECK_TAIL)`, with the scale chosen so that the probabilities
+add up to the deck's nonbasic slots (`DECK_CARDS` less `DECK_BASICS`, which are always playable). Then the expected share of a deck
+the engine can play is the sum of the probabilities of the playable cards (and the basics) over `DECK_CARDS`, the chance that a whole
+deck is playable is the product of the playable chances, and a family's worth is the probabilities of the cards it unlocks: the
+cards per deck it makes playable. Squaring the weight makes the tail fall off faster than the one-card weight does (a deck holds
+about 28 cards from the top 500, 42 from the top 1000 and 70 from the top 5000, which is a guess at the shape of a real deck, not a
+measurement). The model is an assumption, not data (Scryfall carries a rank, not an inclusion rate), so read the share as a number to
+track week by week, not as a forecast.
 """
 
 from __future__ import annotations
@@ -32,6 +42,7 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import math
 import os
 import re
 import sys
@@ -115,6 +126,9 @@ _FAMILIES = tuple((name, re.compile(pattern, re.I)) for name, pattern in FAMILIE
 _FAMILY_NAMES = frozenset(name for name, _ in FAMILIES)
 _RULE_NAMES = frozenset(name for name, _ in MECHANISMS) | {"Other"}
 WEIGHT_KNEE = 1000  # the rank at which a card counts for half of the most played ones
+DECK_CARDS = 99  # a Commander deck, apart from its commander
+DECK_BASICS = 17  # of which basic lands, assumed (they have no rank and always play)
+DECK_TAIL = 2  # how much faster than a card's weight the chance of it being in a deck falls with rank (a guess; see the module docstring)
 _ABILITY_WORD = re.compile(r"^([A-Z][A-Za-z' !-]{2,24}) \u2014 ")
 
 
@@ -179,9 +193,41 @@ def weight(rank: int | None) -> float:
     return 1 / (1 + rank / WEIGHT_KNEE) if rank else 0.0
 
 
-def next_targets(cards: list[tuple[str, int | None, frozenset[str]]], limit: int = 15) -> list[dict]:
+def inclusion_scale(ranks: list[int]) -> float:
+    """The scale that makes the inclusion probabilities of these cards add up to the deck's nonbasic slots (all of them 1 if the
+    cards are too few to fill the deck)."""
+    slots = DECK_CARDS - DECK_BASICS
+    if sum(1 for _ in ranks) <= slots:
+        return float("inf")
+    low, high = 0.0, 1e7
+    for _ in range(80):
+        mid = (low + high) / 2
+        if sum(min(1.0, mid * weight(r) ** DECK_TAIL) for r in ranks) < slots:
+            low = mid
+        else:
+            high = mid
+    return high
+
+
+def inclusion(rank: int | None, scale: float) -> float:
+    """The chance that a typical deck holds a card of this rank (0 without one)."""
+    return min(1.0, scale * weight(rank) ** DECK_TAIL) if rank else 0.0
+
+
+def deck_coverage(entries: list[tuple[int | None, bool]], scale: float) -> dict:
+    """The typical deck's numbers from (rank, fully playable) for every card: the expected cards it can play, the expected cards it
+    can't, the share of the deck that is playable and the chance that all of it is."""
+    playable = sum(inclusion(r, scale) for r, ok in entries if ok)
+    broken = [inclusion(r, scale) for r, ok in entries if not ok]
+    clean = 0.0 if any(p >= 1 for p in broken) else math.exp(sum(math.log1p(-p) for p in broken))
+    return {"cards": DECK_CARDS, "basics": DECK_BASICS, "playable": DECK_BASICS + playable, "unplayable": sum(broken),
+            "share": (DECK_BASICS + playable) / DECK_CARDS, "clean": clean, "scale": scale if scale != float("inf") else None}
+
+
+def next_targets(cards: list[tuple[str, int | None, frozenset[str]]], limit: int = 15, weigh=weight) -> list[dict]:
     """The families to build, best first. `cards` are (name, rank, families the card still needs). Greedy: take the family whose
-    cards weigh the most (a card needing several shares its weight between those not yet built), assume it built, repeat."""
+    cards weigh the most (a card needing several shares its weight between those not yet built), assume it built, repeat. `weigh`
+    maps a rank to a card's weight: `weight`, or an inclusion probability to count cards per deck."""
     need = {name: families for name, _, families in cards}
     rank = {name: r for name, r, _ in cards}
     by_family: dict[str, list[str]] = collections.defaultdict(list)
@@ -191,7 +237,7 @@ def next_targets(cards: list[tuple[str, int | None, frozenset[str]]], limit: int
     built: set[str] = set()
     picks: list[dict] = []
     while len(picks) < limit:
-        scores = {f: sum(weight(rank[n]) / len(need[n] - built) for n in names)
+        scores = {f: sum(weigh(rank[n]) / len(need[n] - built) for n in names)
                   for f, names in by_family.items() if f not in built}
         if not scores or max(scores.values()) <= 0:
             break
@@ -200,7 +246,7 @@ def next_targets(cards: list[tuple[str, int | None, frozenset[str]]], limit: int
         unlocked = sorted((n for n in by_family[best] if need[n] <= built), key=lambda n: rank[n] or 10 ** 7)
         waiting = collections.Counter(f for n in by_family[best] for f in need[n] - built)
         picks.append({"family": best, "unlocks": len(unlocked), "popular": sum(1 for n in unlocked if rank[n] and rank[n] <= POPULAR),
-                      "weight": round(sum(weight(rank[n]) for n in unlocked), 2), "also_needs": waiting.most_common(1)[0][0] if waiting else "",
+                      "weight": round(sum(weigh(rank[n]) for n in unlocked), 3), "also_needs": waiting.most_common(1)[0][0] if waiting else "",
                       "cards": unlocked[:3]})
     return picks
 
@@ -223,6 +269,7 @@ def analyze(pool: list[dict]) -> dict:
     total = playable = 0
     by_type: dict[str, list[int]] = collections.defaultdict(lambda: [0, 0])
     ranked: list[tuple[int, bool]] = []
+    entries: list[tuple[int | None, bool]] = []  # (rank, fully playable) of every card
     shapes: dict[str, set[str]] = collections.defaultdict(set)
     only_gap: dict[str, set[str]] = collections.defaultdict(set)
     one_gap = 0
@@ -246,6 +293,7 @@ def analyze(pool: list[dict]) -> dict:
         if not lines:
             playable += 1
             by_type[kind][1] += 1
+        entries.append((data.get("edhrec_rank"), not lines))
         if data.get("edhrec_rank"):
             ranked.append((data["edhrec_rank"], not lines))
             best_rank[card.name] = data["edhrec_rank"]
@@ -275,10 +323,17 @@ def analyze(pool: list[dict]) -> dict:
     def by_rank(names: set[str]) -> list[str]:
         return sorted(names, key=lambda n: best_rank.get(n, 10 ** 7))
     popular = {n: (sum(ok for _, ok in ranked[:n]), min(n, len(ranked))) for n in RANK_BUCKETS}
+    scale = inclusion_scale([r for r, _ in ranked])
+    deck = deck_coverage(entries, scale)
+    picks = next_targets(needs, weigh=lambda rank: inclusion(rank, scale))
+    gained = 0.0
+    for pick in picks:  # what the deck's playable share is once this piece and those above it are built
+        gained += pick["weight"]
+        pick["deck_share"] = (deck["playable"] + gained) / DECK_CARDS
     return {"total": total, "playable": playable, "by_type": dict(by_type), "popular": popular, "one_gap": one_gap,
             "shapes": {s: by_rank(names) for s, names in shapes.items()},
             "only_gap": {s: by_rank(names) for s, names in only_gap.items()},
-            "best_rank": best_rank, "crashes": crashes, "blocked": blocked, "next": next_targets(needs),
+            "best_rank": best_rank, "crashes": crashes, "blocked": blocked, "next": picks, "deck": deck,
             "families": {f: {"cards": by_rank({n for names in shapes_.values() for n in names}),
                              "shapes": {s: by_rank(names) for s, names in shapes_.items()}} for f, shapes_ in family_shapes.items()},
             "mechanisms": {m: {"all": everywhere[m], "cards": by_rank(g["cards"]), "only": by_rank(g["only"]),
@@ -294,6 +349,10 @@ def render(result: dict, top: int = 40) -> str:
     out += ["", "| Most played (EDHREC rank) | Fully playable |\n|---|---|"]
     for n, (ok, of) in result["popular"].items():
         out.append(f"| top {n} | {ok} of {of} ({100 * ok / of:.0f}%) |" if of else f"| top {n} | no ranked cards |")
+    deck = result["deck"]
+    out += ["", f"A typical {deck['cards'] + 1}-card deck ({deck['basics']} basic lands, the rest chosen by how played each card is) is "
+                f"{deck['share']:.1%} fully playable: about {deck['unplayable']:.1f} of its cards the engine cannot play, and a "
+                f"{deck['clean']:.1%} chance that every one of them is playable."]
     gaps = len(result["shapes"])
     singles = sum(1 for names in result["shapes"].values() if len(names) == 1)
     out += ["", f"{result['one_gap']} cards have exactly one unsupported line. There are {gaps} distinct unsupported lines, "
@@ -363,13 +422,15 @@ def render_mechanism(result: dict, name: str, top: int = 25) -> str:
 def render_next(result: dict) -> str:
     """The families to build, in order, with what each one unlocks once the ones above it are built."""
     out = [f"## Next targets: the best piece of work first, each assuming those above it are built", "",
-           "| # | Family | Cards unlocked | In top " + str(POPULAR) + " | Weighted | Also needs | Most played |", "|---|---|---|---|---|---|---|"]
+           "| # | Family | Cards unlocked | In top " + str(POPULAR) + " | Per deck | Deck playable after | Also needs | Most played |",
+           "|---|---|---|---|---|---|---|---|"]
     rank = result["best_rank"]
     for i, pick in enumerate(result["next"], 1):
-        out.append(f"| {i} | {pick['family']} | {pick['unlocks']} | {pick['popular']} | {pick['weight']} | {pick['also_needs'] or '-'} "
+        out.append(f"| {i} | {pick['family']} | {pick['unlocks']} | {pick['popular']} | {pick['weight']} | {pick['deck_share']:.1%} | {pick['also_needs'] or '-'} "
                    f"| {_best(pick['cards'], rank, 3) or '-'} |")
     out += ["", f"{result['blocked']} unplayable cards have a line no family covers, so they are never counted as unlocked. "
-                f"A card weighs 1 / (1 + rank / {WEIGHT_KNEE}); \"Weighted\" is the total for the cards a row unlocks.", ""]
+                f"\"Per deck\" is how many cards of a typical deck the row makes playable (the chance a deck holds each card it unlocks, added up; "
+                f"see the top of this file for the model), and \"Deck playable after\" the share of the deck playable once it and the rows above are built.", ""]
     return "\n".join(out)
 
 

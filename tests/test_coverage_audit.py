@@ -132,6 +132,58 @@ class NextTargetTests(unittest.TestCase):
         self.assertEqual(len(audit.next_targets(cards, limit=3)), 3)
 
 
+class DeckModelTests(unittest.TestCase):
+    RANKS = list(range(1, 3001))
+
+    def test_a_deck_holds_its_nonbasic_slots_and_the_most_played_cards_are_likelier(self):
+        scale = audit.inclusion_scale(self.RANKS)
+        slots = audit.DECK_CARDS - audit.DECK_BASICS
+        self.assertAlmostEqual(sum(audit.inclusion(r, scale) for r in self.RANKS), slots, places=3)
+        self.assertGreater(audit.inclusion(10, scale), 3 * audit.inclusion(1000, scale))
+        self.assertEqual(audit.inclusion(None, scale), 0.0)
+        self.assertTrue(all(0 <= audit.inclusion(r, scale) <= 1 for r in self.RANKS))
+
+    def test_too_few_cards_to_fill_a_deck_are_all_certain(self):
+        scale = audit.inclusion_scale([1, 2, 3])
+        self.assertEqual([audit.inclusion(r, scale) for r in (1, 2, 3)], [1.0, 1.0, 1.0])
+        self.assertEqual(audit.inclusion(None, scale), 0.0, "a card with no rank is in no deck, even when the scale is infinite")
+
+    def test_the_share_counts_the_basics_and_the_playable_cards_by_their_chance(self):
+        scale = audit.inclusion_scale(self.RANKS)
+        everything = audit.deck_coverage([(r, True) for r in self.RANKS], scale)
+        self.assertAlmostEqual(everything["share"], 1.0)
+        self.assertAlmostEqual(everything["clean"], 1.0)
+        nothing = audit.deck_coverage([(r, False) for r in self.RANKS], scale)
+        self.assertAlmostEqual(nothing["share"], audit.DECK_BASICS / audit.DECK_CARDS)
+        self.assertAlmostEqual(nothing["unplayable"], audit.DECK_CARDS - audit.DECK_BASICS, places=3)
+        one = audit.deck_coverage([(r, r != 1) for r in self.RANKS], scale)  # only the most played card is broken
+        self.assertAlmostEqual(one["clean"], 1 - audit.inclusion(1, scale))
+        self.assertAlmostEqual(one["unplayable"], audit.inclusion(1, scale))
+
+    def test_a_deck_with_a_certain_broken_card_is_never_clean(self):
+        self.assertEqual(audit.deck_coverage([(1, False)], float("inf"))["clean"], 0.0)
+
+    def test_the_ranking_counts_cards_per_deck_not_the_weight_of_the_rank(self):
+        # Three cards at rank 2000 weigh a little more than one at rank 10 by rank weight (3 * 0.33 against 0.99); by the chance of being
+        # in a deck, the one popular card is worth more than the three from the tail.
+        cards = [("A1", 2000, frozenset({"A"})), ("A2", 2001, frozenset({"A"})), ("A3", 2002, frozenset({"A"})), ("B", 10, frozenset({"B"}))]
+        ranks = [r for _, r, _ in cards] + list(range(100, 3000))
+        scale = audit.inclusion_scale(ranks)
+        plain = [p["family"] for p in audit.next_targets(cards)]
+        decky = [p["family"] for p in audit.next_targets(cards, weigh=lambda r: audit.inclusion(r, scale))]
+        self.assertEqual(plain, ["A", "B"])
+        self.assertEqual(decky, ["B", "A"])
+
+    def test_the_audit_reports_the_deck_and_what_each_pick_does_to_it(self):
+        result = audit.analyze(MECH_POOL)
+        deck = result["deck"]
+        self.assertGreater(deck["share"], audit.DECK_BASICS / audit.DECK_CARDS)
+        self.assertLess(deck["share"], 1.0)
+        shares = [p["deck_share"] for p in result["next"]]
+        self.assertEqual(shares, sorted(shares))
+        self.assertIn(f"{deck['share']:.1%} fully playable", audit.render(result))
+
+
 class NextReportTests(unittest.TestCase):
     def setUp(self):
         cat = "Create a token that's a copy of target creature you control, except it isn't legendary."
@@ -148,8 +200,8 @@ class NextReportTests(unittest.TestCase):
 
     def test_the_report_lists_the_order_and_the_blocked_count(self):
         text = audit.render_next(self.result)
-        self.assertIn("| 1 | Copy with changes (an except clause) | 0 | 0 | 0 | Token copy of a creature or permanent | - |", text)
-        self.assertIn("| 2 | Token copy of a creature or permanent | 2 | 2 | 1.97 | - | Copy Cat #10, Copy Dog #20 |", text)
+        self.assertIn("| 1 | Copy with changes (an except clause) | 0 | 0 | 0 | 17.2% | Token copy of a creature or permanent | - |", text)
+        self.assertIn("| 2 | Token copy of a creature or permanent | 2 | 2 | 2.0 | 19.2% | - | Copy Cat #10, Copy Dog #20 |", text)
         self.assertIn("2 unplayable cards have a line no family covers", text)
 
     def test_the_drill_down_finds_a_family_by_name(self):
