@@ -188,7 +188,8 @@ came out identical. The difference is measured per pair, which is much less nois
 the usual one for a small change: *within noise*, with the number of pairs it would take to tell. Taking Sol Ring out of a deck should
 cost something, and 24 games cannot show it; about 390 pairs could resolve five points. Either play that many (it is minutes with
 `--workers`, not hours) or accept that the change is too small for the engine to see. The goldfish of both builds is printed beside
-it, since that is exact where the games are not.
+it, since that is exact where the games are not. Add `--early-stop` to stop as soon as the answer is clear (or clearly out of reach
+for the games planned) instead of always playing them all; the output says which, and how it decided.
 
 ## 8. Reading all of this honestly
 

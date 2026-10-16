@@ -22,13 +22,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from .cards import Deck
-from .compare import Z, pair_up, score, summarize
+from .compare import MIN_DIFFERING, Z, pair_up, score, summarize
 from .matchup import play_plans, plan_games
 from .report import unsupported_lines
 from .tune import BLANK, tune
-
-
-MIN_DIFFERING = 8  # fewer differing pairs than this and the spread of the differences, and so a pairs-needed estimate, rests on too few events
 
 
 @dataclass

@@ -11,6 +11,12 @@ if either game crashes or times out. The goldfish metrics of the two builds (`si
 The bots play every game, so the difference is how the *bots* do with the two builds; a card they play badly (a combo piece, a
 card that wants careful play) is under-rated in both. Cards the engine can't read are named when they are among the ones that
 changed, since the comparison cannot see what they do.
+
+With `--early-stop` the games are played in up to ten rounds and the comparison stops when it is settled: when the interval of the
+difference leaves out zero ("clear"), or when the pairs it would take to separate a 5 point difference are more than three times
+the pairs planned ("hopeless": more games would not settle it either). Looking after every round and stopping the first time the
+interval excludes zero would call identical builds "clear" far more than one time in twenty, so each look uses an interval widened
+for the number of looks (a Bonferroni bound: the chance that any look is falsely clear is at most 5%).
 """
 
 from __future__ import annotations
@@ -18,6 +24,7 @@ from __future__ import annotations
 import io
 import math
 import sys
+from statistics import NormalDist
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -29,6 +36,10 @@ from .report import unplayable_cards
 from .simulate import SimStats, simulate
 
 Z = 1.96  # for a 95% interval
+MAX_LOOKS = 10  # rounds an early-stopping comparison is played in
+MIN_LOOK_PAIRS = 30  # pairs before "hopeless" can be said: the spread of fewer is a guess
+MIN_DIFFERING = 8  # fewer differing pairs than this and the spread of the differences, and so a pairs-needed estimate, rests on too few events
+HOPELESS_FACTOR = 3  # "hopeless" when separating the target difference takes more than this many times the pairs planned
 
 
 @dataclass
@@ -57,10 +68,20 @@ class Comparison:
     added: dict[str, int] = field(default_factory=dict)
     goldfish: tuple[SimStats, SimStats] | None = None  # (baseline, changed)
     notes: list[str] = field(default_factory=list)
+    z: float = Z  # the interval's width in standard errors (wider than Z when the comparison looked repeatedly)
+    planned: int = 0  # pairs an early-stopping comparison planned to play (0: it was not early-stopping)
+    looks: int = 1  # how many times it could look at the result
+    batch: int = 0  # games per opponent between looks
+    stopped: str | None = None  # "clear" or "hopeless" if it stopped before playing every planned pair
+    target: float = 0.05  # the difference "hopeless" is judged against
+
+    @property
+    def confidence(self) -> str:
+        return "95%" if self.z == Z else f"{(2 * NormalDist().cdf(self.z) - 1) * 100:.1f}%"
 
     @property
     def interval(self) -> tuple[float, float]:
-        return self.difference - Z * self.error, self.difference + Z * self.error
+        return self.difference - self.z * self.error, self.difference + self.z * self.error
 
     @property
     def clear(self) -> bool:
@@ -72,6 +93,25 @@ class Comparison:
         """About how many pairs it takes for a true difference of `size` (in score, 0.05 is five points) to clear zero at this spread.
         None if no pair differed, since then the spread says nothing."""
         return math.ceil((Z * self.spread / size) ** 2) if self.spread > 0 else None
+
+
+def look_z(looks: int) -> float:
+    """The interval width that keeps the chance of a false "clear" over `looks` looks at 5% or less: each look gets 5% / looks."""
+    return Z if looks <= 1 else NormalDist().inv_cdf(1 - 0.05 / (2 * looks))
+
+
+def stop_reason(c: Comparison, planned: int, final: bool) -> str | None:
+    """Whether a comparison can stop now: "clear" (the interval excludes zero) or "hopeless" (more pairs than `HOPELESS_FACTOR` times
+    those planned are needed to separate `c.target`), or None. Neither is said before `MIN_LOOK_PAIRS` pairs, when the spread (and
+    with a few alike pairs, an interval of no width) says too little, and the last look never stops early."""
+    if final or c.pairs < MIN_LOOK_PAIRS:
+        return None
+    if c.clear:
+        return "clear"
+    needed = c.pairs_needed(c.target)
+    if c.changed_better + c.baseline_better >= MIN_DIFFERING and needed and needed > HOPELESS_FACTOR * planned:
+        return "hopeless"
+    return None
 
 
 def score(result: GameResult) -> float:
@@ -112,18 +152,45 @@ def summarize(differences: list[float], lines: list[OpponentLine], dropped: int)
 
 
 def compare_builds(baseline: Deck, changed: Deck, opponents: dict[str, Deck], games: int = 40, pod: int = 2, seed: int = 0,
-                   max_turns: int = 60, time_limit: float = 120.0, workers: int = 1, goldfish_games: int = 0, goldfish_turns: int = 8) -> Comparison:
+                   max_turns: int = 60, time_limit: float = 120.0, workers: int = 1, goldfish_games: int = 0, goldfish_turns: int = 8,
+                   early_stop: bool = False, target: float = 0.05) -> Comparison:
     """Play `games` paired games per opponent (or in all, for a pod) with each build and compare. With `goldfish_games`, also run
-    `simulate` on both."""
+    `simulate` on both. With `early_stop`, play them in rounds and stop when the answer is clear or hopeless (see the module docstring);
+    `target` is the difference in score "hopeless" is judged against."""
     format_of([baseline, changed])  # (a table can't mix decks with commanders and decks without)
     plans = [plan_games(deck, opponents, games, pod, seed, max_turns, time_limit) for deck in (baseline, changed)]
-    results = [play_plans(plan, workers) for plan in plans]
     names = [name for name, _ in plans[0]]
-    comparison = summarize(*pair_up(results[0], results[1], names))
+    if early_stop and games > 1:
+        comparison = _play_in_rounds(plans, names, games, workers, target)
+    else:
+        results = [play_plans(plan, workers) for plan in plans]
+        comparison = summarize(*pair_up(results[0], results[1], names))
     comparison.removed, comparison.added = deck_diff(baseline, changed)
     if goldfish_games:
         comparison.goldfish = (simulate(baseline, goldfish_games, goldfish_turns, seed), simulate(changed, goldfish_games, goldfish_turns, seed))
     comparison.notes = _notes(baseline, changed, comparison)
+    return comparison
+
+
+def _play_in_rounds(plans: list, names: list[str], games: int, workers: int, target: float) -> Comparison:
+    """Play the planned games a round at a time (game `n` is the same wherever it is played, so the pairs do not change) and look after
+    each round; see `stop_reason`."""
+    looks = min(MAX_LOOKS, games)
+    batch = math.ceil(games / looks)
+    looks = math.ceil(games / batch)
+    z, planned = look_z(looks), games * len(names)
+    results: list[list[list[GameResult]]] = [[[] for _ in names] for _ in plans]
+    comparison = summarize([], [], 0)
+    for look in range(1, looks + 1):
+        lo, hi = (look - 1) * batch, min(games, look * batch)
+        for build, plan in zip(results, plans):
+            for played, new in zip(build, play_plans([(name, tasks[lo:hi]) for name, tasks in plan], workers)):
+                played += new
+        comparison = summarize(*pair_up(results[0], results[1], names))
+        comparison.z, comparison.planned, comparison.looks, comparison.batch, comparison.target = z, planned, looks, batch, target
+        comparison.stopped = stop_reason(comparison, planned, look == looks)
+        if comparison.stopped:
+            break
     return comparison
 
 
@@ -151,10 +218,22 @@ def format_comparison(c: Comparison, baseline: str = "baseline", changed: str = 
     changes = ", ".join([f"-{n} {name}" for name, n in c.removed.items()] + [f"+{n} {name}" for name, n in c.added.items()]) or "no card differs"
     low, high = c.interval
     verdict = ("the changed build is better" if c.difference > 0 else "the baseline is better") if c.clear else "within noise: more pairs are needed"
+    if c.stopped == "hopeless":
+        verdict = "within noise, and more pairs would not settle it"
     lines = [f"{c.pairs} paired games. {baseline} against {changed}: {changes}.", "",
              f"Score (a win is 1, a draw 1/2): {baseline} {c.baseline_score:.1%}, {changed} {c.changed_score:.1%}.",
-             f"Difference {c.difference * 100:+.1f} points (95% interval {low * 100:+.1f} to {high * 100:+.1f}): {verdict}.",
+             f"Difference {c.difference * 100:+.1f} points ({c.confidence} interval {low * 100:+.1f} to {high * 100:+.1f}): {verdict}.",
              f"Pairs: {changed} did better in {c.changed_better}, {baseline} did better in {c.baseline_better}, the same in {c.same}."]
+    if c.planned:
+        rule = (f"Stopping rule: {c.looks} looks, one per {c.batch} games per opponent; each look's interval is widened to {c.confidence} so the "
+                f"chance of a false \"clear\" on equal builds stays under 5%.")
+        if c.stopped == "clear":
+            lines.append(f"Stopped early: clearly {'better' if c.difference > 0 else 'worse'} after {c.pairs} of {c.planned} planned pairs. {rule}")
+        elif c.stopped == "hopeless":
+            lines.append(f"Stopped early: within noise after {c.pairs} of {c.planned} planned pairs; about {c.pairs_needed(c.target)} pairs would be "
+                         f"needed to separate a {c.target * 100:g} point difference, more than {HOPELESS_FACTOR} times the plan. {rule}")
+        else:
+            lines.append(f"Played all {c.planned} planned pairs; neither stop applied. {rule}")
     needed = {size: c.pairs_needed(size) for size in (0.05, 0.10)}
     if all(needed.values()):
         lines.append(f"At this spread, about {needed[0.10]} pairs separate a 10 point difference from nothing, and about {needed[0.05]} a 5 point one.")
@@ -202,6 +281,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     parser.add_argument("--goldfish-games", type=int, default=500, help="games for the goldfish side by side (0 to skip)")
     parser.add_argument("--turns", type=int, default=8, help="turns of the goldfish")
+    parser.add_argument("--early-stop", action="store_true", help="play in rounds and stop when the answer is clear or hopeless")
+    parser.add_argument("--target", type=float, default=0.05, help="with --early-stop, the difference in score that decides 'hopeless' (0.05 is five points)")
     parser.add_argument("--bulk", default=".cache/oracle_bulk.json")
     args = parser.parse_args(argv[1:])
     source = BulkSource(args.bulk)
@@ -213,7 +294,7 @@ def main(argv: list[str]) -> int:
     name = lambda path: os.path.splitext(os.path.basename(path))[0]  # noqa: E731
     opponents = {name(p): load(p) for p in args.opponents}
     comparison = compare_builds(load(args.baseline), load(args.changed), opponents, args.games, args.pod, args.seed, args.max_turns,
-                                args.time_limit, args.workers, args.goldfish_games, args.turns)
+                                args.time_limit, args.workers, args.goldfish_games, args.turns, args.early_stop, args.target)
     print(format_comparison(comparison, name(args.baseline), name(args.changed)))
     return 0
 
