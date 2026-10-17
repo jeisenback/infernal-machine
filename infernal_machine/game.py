@@ -2612,6 +2612,8 @@ class Game:
             if here:
                 return any(p.attached_to is permanent and "Aura" in p.card.type_line for s in self.seats for p in s.battlefield)
             return any(permanent.last_auras.values())
+        if qualifier == "legendary":  # a copiable supertype: a creature that died is what it last was
+            return "Legendary" in permanent.card.type_line
         if qualifier == "flying":
             return self.has_keyword(permanent, "flying") if here else has_keyword(permanent.card, "flying")
         return permanent.counters.get(qualifier.removeprefix("counter:"), 0) > 0

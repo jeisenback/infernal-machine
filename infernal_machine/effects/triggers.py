@@ -116,14 +116,14 @@ _WHO = rf"(?:({_SELF}) or another|(another)|an?)"
 _TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
 
 
-_PERMANENT_WATCH = rf"(enchanted creature|nontoken creature|creature token|(?:white|blue|black|red|green) creature|token|creature or artifact|creature|land|artifact|enchantment|permanent|{_TRIBE})"
+_PERMANENT_WATCH = rf"(enchanted creature|legendary creature|nontoken creature|nontoken {_TRIBE}|creature token|(?:white|blue|black|red|green) creature|token|creature or artifact|creature|land|artifact|enchantment|permanent|{_TRIBE})"
 
 
 _WATCHES = {
     "permanent_enters": re.compile(
         rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? enters(?: the battlefield)?"
         rf"( under your control| under an opponent's control)?, (.+)", re.I),
-    "creature_dies": re.compile(rf"When(?:ever)? {_WHO} (enchanted creature|nontoken creature|creature token|token|creature or artifact|creature|{_TRIBE})"
+    "creature_dies": re.compile(rf"When(?:ever)? {_WHO} (enchanted creature|legendary creature|nontoken creature|nontoken {_TRIBE}|creature token|token|creature or artifact|creature|{_TRIBE})"
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
     "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? leaves the battlefield, (.+)", re.I),
     "permanent_taps": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? becomes tapped, (.+)", re.I),
@@ -143,7 +143,7 @@ _WATCHES = {
     "sacrifice": re.compile(r"When(?:ever)? you sacrifice (?:an?|another) (token|artifact|land|Clue|Food|Treasure|enchantment), (.+)", re.I),
     "creature_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
     "expend": re.compile(r"Whenever you expend (\d+), (.+)", re.I),
-    "combat_damage_dealt": re.compile(rf"Whenever (a|one or more) ({_TRIBE}(?: or {_TRIBE})*)(?: creatures?)? you control deals? combat damage "
+    "combat_damage_dealt": re.compile(rf"Whenever (a|one or more) (nontoken creatures?|{_TRIBE}(?: or {_TRIBE})*)(?: creatures?)? you control deals? combat damage "
                                       r"to a player, (.+)", re.I),  # Ingenious Infiltrator, Prosperous Thief
 }
 
@@ -267,7 +267,10 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     if qualifier and (m := _WATCHES["creature_attacks"].fullmatch(line)):  # "a creature you control with power 2 or less attacks"
         return "creature_attacks", Watch("creature", yours=True, qualifier=qualifier), m[1]
     if m := _WATCHES["combat_damage_dealt"].fullmatch(line):
-        return "combat_damage_dealt", Watch(m[2].lower(), yours=True, batch=m[1].lower() == "one or more"), m[3]
+        kind = m[2].lower()
+        if kind.startswith("nontoken"):  # Impostor Syndrome: "Whenever a nontoken creature you control deals combat damage to a player"
+            return "combat_damage_dealt", Watch("creature", yours=True, nontoken=True, batch=m[1].lower() == "one or more"), m[3]
+        return "combat_damage_dealt", Watch(kind, yours=True, batch=m[1].lower() == "one or more"), m[3]
     if m := _WATCHES["expend"].fullmatch(line):
         return "expend", Watch("expend", yours=True, expend=int(m[1])), m[2]
     for event in ("permanent_enters", "creature_dies", "permanent_leaves", "permanent_taps", "permanent_to_graveyard"):
@@ -279,6 +282,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
             theirs = m[4] == " an opponent controls" or under == " under an opponent's control"
             if kind == "enchanted creature":  # Hateful Eidolon: a creature, with an Aura on it
                 kind, qualifier = "creature", qualifier or "enchanted"
+            elif kind == "legendary creature":  # Ratadrabik of Urborg: "Whenever another legendary creature you control dies"
+                kind, qualifier = "creature", qualifier or "legendary"
             watch = Watch(kind.removeprefix("nontoken "), other=bool(another) and not self_or_other,
                           yours=yours, nontoken=kind.startswith("nontoken"), theirs=theirs, qualifier=qualifier)
             return event, watch, m[len(m.groups())]
@@ -559,7 +564,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
             return None, False, False, None
         effects = [OnPlayer(e) if a else e for a, e in zip(aimed, effects)]
     elif about_subject:
-        if not all(uses_source(e) or uses_subject(e) for e in effects):
+        if not all(uses_source(e) or uses_subject(e) or getattr(e, "uses_dead_both", False) for e in effects):
             return None, False, False, None
         effects = [OnSubject(e) if uses_source(e) else e for e in effects]
     return effects, optional, once, condition
@@ -634,7 +639,7 @@ def _trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
         found = []
         for event, watch, rest in watched:
             effects, optional, once, condition = _event_body(
-                rest, event in _SUBJECT_EVENTS,
+                rest, event in _SUBJECT_EVENTS or event == "combat_damage_dealt",  # ("it" is the creature that dealt it; no player is carried)
                 (event == "cast" and watch.caster != "you") or event in _SUBJECT_EVENTS)
             if effects is None:
                 return None
