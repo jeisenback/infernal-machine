@@ -193,7 +193,7 @@ those differences.
 ## Matchups
 
 ```
-python -m infernal_machine.matchup DECKLIST OPPONENT [OPPONENT ...] [--games 40] [--pod 4] [--max-bracket N] [--workers N] [--time-limit 120] [--early-stop]
+python -m infernal_machine.matchup DECKLIST OPPONENT [OPPONENT ...] [--games 40] [--pod 4] [--max-bracket N] [--workers N] [--time-limit 120] [--early-stop] [--best-of 3]
 ```
 
 `matchups(focus, opponents, games, pod, seed, max_turns, time_limit, workers)` in `matchup.py` plays `BotPlayer` games and
@@ -206,6 +206,15 @@ half the CPUs). Standard decks need the Standard game mode (see #354).
 Across all games it also reports how often the focus deck stumbled on lands (two or fewer after its first four turns) or had
 the lands but cast at most one spell, and how it did when that happened. A game that crashes or passes `--time-limit` is
 counted apart and the first error is shown, so engine bugs and runaway boards show up instead of hanging the run.
+
+With `--best-of 3` (`best_of=3`; duels only, not pods) each of the `games` is a **match**, as Standard is played, from `match.py`: up to
+three games between the same two decks, won by the first side to win two. Between games each side sideboards by one rule (it takes out the
+cards of its main deck that it never cast in the game just played, most expensive first, and brings in up to three sideboard cards in
+the colors its main deck plays, cheapest first, one for one so the deck keeps its size), and the loser of a game plays first in the next.
+The report's W-L-D and win rate (with its interval) are matches, and a *games* column gives the games won-lost-drawn inside them; why
+it lost is counted over the games. The rule is a rule, not skill: on the five Standard baseline decks, 160 matches with one side
+sideboarding and the other keeping its deck, the sideboarding side won 50.6% (43.0%-58.3%), so it is not measurably better or worse
+than keeping the deck. Standard decks without a sideboard just play the games.
 
 With `--early-stop` (`early_stop=True`) the games are played in up to ten rounds and an opponent is dropped when the win rate against it is
 clearly above or below the fair share: its Wilson interval, widened for the number of looks (99.5% with ten), leaves out the fair share,

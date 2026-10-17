@@ -1,0 +1,18 @@
+// Standard baseline: mono-red. Built by tools/build_standard_decks.py from the card file; not a deck anyone plays.
+Deck
+24 Mountain
+4 Quaketusk Boar
+4 Fleeting Effigy
+4 Nova Hellkite
+4 Reckless Lackey
+4 Brazen Scourge
+4 Charging Strifeknight
+4 Fear of Being Hunted
+4 Explosive Derailment
+4 Firebending Lesson
+
+Sideboard
+4 Ghitu Lavarunner
+4 Goblin Tomb Raider
+4 Hellspur Brute
+3 Mutant Town Musicians

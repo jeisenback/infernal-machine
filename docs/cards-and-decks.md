@@ -64,8 +64,18 @@ python -m infernal_machine.gauntlet --add deck.txt     # copy a decklist in with
 python -m infernal_machine.gauntlet --check            # the saved floors still match the cards (CI runs this)
 ```
 
-Every saved deck is at Bracket 1 today, so `--max-bracket` cannot yet separate weak tables from strong ones: `--add` an imported
-Bracket 3 deck to give it something to choose between.
+Every saved Commander deck is at Bracket 1 today, so `--max-bracket` cannot yet separate weak tables from strong ones: `--add` an
+imported Bracket 3 deck to give it something to choose between.
+
+**Standard.** Each saved deck has a format, and a deck is played against decks of its own: with no opponents named, a deck with no
+commander gets the saved Standard decks (a Standard deck has no Bracket, so `--max-bracket` never leaves one out). There are five, one
+per color, built by `tools/build_standard_decks.py` from the card file by a fixed recipe: 24 basic lands, 36 spells (four copies of the seven
+best mono-colored creatures and the two cheapest removal spells that destroy or damage a target creature, scored by size for the cost
+and combat keywords) and a fifteen-card sideboard. They are **baselines, not decks anyone plays**, made so a Standard deck has something
+to play against; they are also only as current as the card file's legality data. `gauntlet --check` holds each to the Standard deck rules
+(60 cards, at most 15 in the sideboard, four copies, every card marked Standard-legal), to having no commander, and to every card of the
+main deck and sideboard being one the engine plays completely. `gauntlet --add DECKLIST` saves a deck with no commander as a Standard deck
+(refusing one that breaks those rules), and `--format standard` lists them.
 
 ## Commander deck rules
 

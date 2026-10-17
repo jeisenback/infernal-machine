@@ -43,14 +43,15 @@ class Files:
 class SavedGauntletTests(unittest.TestCase):
     def test_the_saved_decks_exist_and_are_decklists(self):
         entries = gauntlet.load()
-        self.assertGreaterEqual(len(entries), 5)
+        commander = [e for e in entries if e.format == "commander"]
+        self.assertGreaterEqual(len(commander), 5)
         self.assertEqual(len({e.name for e in entries}), len(entries), "names are unique")
-        for entry in entries:
+        for entry in commander:  # (the Standard decks are read in test_standard_gauntlet.py)
             self.assertTrue(os.path.exists(entry.path), entry.path)
             with open(entry.path, encoding="utf-8") as f:
                 decklist = parse_decklist(f.read())
             self.assertEqual(list(decklist.commanders), [entry.commander], entry.name)
-            self.assertGreaterEqual(entry.bracket, 1)
+            self.assertGreaterEqual(entry.bracket or 0, 1)
 
 
 class SelectionTests(unittest.TestCase):
@@ -71,7 +72,7 @@ class SelectionTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()) as err:
             paths = gauntlet.opponent_paths([], 2, self.files.manifest)
         self.assertEqual([os.path.basename(p) for p in paths], ["calm.txt"])
-        self.assertIn("using the saved gauntlet (1 deck at Bracket 2 or lower)", err.getvalue())
+        self.assertIn("using the saved commander gauntlet (1 deck at Bracket 2 or lower)", err.getvalue())
 
     def test_a_limit_nothing_meets_is_an_error(self):
         with self.assertRaises(SystemExit) as caught:

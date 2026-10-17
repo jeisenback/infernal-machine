@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from .cards import Deck
-from .gauntlet import opponent_paths
+from .gauntlet import deck_format, opponent_paths
 from .compare import pair_up, score, stop_reason, summarize
 from .matchup import play_plans, plan_games
 from .report import unsupported_lines
@@ -232,7 +232,8 @@ def main(argv: list[str], source=None) -> int:
             return load_deck(f.read(), source)
 
     try:
-        report = measure_impacts(load(args.decklist), {name(p): load(p) for p in opponent_paths(args.opponents)}, args.cards, top=args.top, games=args.games,
+        focus = load(args.decklist)
+        report = measure_impacts(focus, {name(p): load(p) for p in opponent_paths(args.opponents, format=deck_format(focus))}, args.cards, top=args.top, games=args.games,
                                  pod=args.pod, seed=args.seed, max_turns=args.max_turns, time_limit=args.time_limit, workers=args.workers,
                                  goldfish_games=args.goldfish_games, progress=lambda m: print(m, file=sys.stderr, flush=True),
                                  early_stop=args.early_stop, target=args.target)

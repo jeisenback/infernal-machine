@@ -30,6 +30,41 @@
       "file": "precons/WitherbloomPestilence_SOC.txt",
       "bracket": 1,
       "commander": "Dina, Essence Brewer"
+    },
+    {
+      "name": "standard_white",
+      "file": "gauntlet/standard_white.txt",
+      "bracket": null,
+      "commander": "",
+      "format": "standard"
+    },
+    {
+      "name": "standard_blue",
+      "file": "gauntlet/standard_blue.txt",
+      "bracket": null,
+      "commander": "",
+      "format": "standard"
+    },
+    {
+      "name": "standard_black",
+      "file": "gauntlet/standard_black.txt",
+      "bracket": null,
+      "commander": "",
+      "format": "standard"
+    },
+    {
+      "name": "standard_red",
+      "file": "gauntlet/standard_red.txt",
+      "bracket": null,
+      "commander": "",
+      "format": "standard"
+    },
+    {
+      "name": "standard_green",
+      "file": "gauntlet/standard_green.txt",
+      "bracket": null,
+      "commander": "",
+      "format": "standard"
     }
   ]
 }
