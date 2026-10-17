@@ -197,6 +197,29 @@ cost something, and 24 games cannot show it; about 390 pairs could resolve five 
 it, since that is exact where the games are not. Add `--early-stop` to stop as soon as the answer is clear (or clearly out of reach
 for the games planned) instead of always playing them all; the output says which, and how it decided.
 
+### Keeping a run, and seeing what an edit changed
+
+`analyze` takes minutes, and "did my edit help" used to mean reading two long reports. Keep the numbers of a run, and ask a later one what moved:
+
+```
+python -m infernal_machine.analyze my_deck.txt opp1.txt opp2.txt --save before.json
+# ... change a card or two in my_deck.txt ...
+python -m infernal_machine.analyze my_deck.txt opp1.txt opp2.txt --since before.json --save after.json
+```
+
+The second report starts with a **What changed** section: the cards that changed (`-1 Sol Ring, +1 Mind Stone`), the Bracket and any new Game
+Changers, the colors whose sources or shortfall moved, the goldfish numbers before and after, and the win rate against each opponent
+that both runs played. A rate is marked *outside noise* only when the 95% interval of the difference between the two runs leaves out zero
+(two independent proportions), so a 12-game win rate that fell from 67% to 33% is correctly labelled *within noise*; an average with
+no error bar kept (damage by turn, tuning's baseline) is shown without a verdict. If the settings differ (games, turns, seed, pod) it
+says so, since the numbers then are not directly comparable.
+
+A part is not played again when the saved run has it for the same deck **and** the same settings (the opponents' decks and the games for the
+matchups, the games, turns and seed for the goldfish, the candidates tried for the tuning): its numbers and text are reused, and the report
+says "reused" instead of comparing a part with itself. So a re-run after changing only the opponents takes the time of the matchups alone;
+a changed card changes every part, so then everything is played. `--no-reuse` plays everything and still compares. The saved file is a
+JSON of the deck's cards, the settings and each part's numbers and text; a file saved by another version of the tool is refused.
+
 ## 8. Reading all of this honestly
 
 - **An interval, not a number.** If the interval holds zero (or 50%), nothing was found. Say "within noise", not "slightly better".
