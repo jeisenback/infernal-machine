@@ -34,7 +34,7 @@ Neither site has a public API to fetch from: Moxfield has none and turns bots aw
 terms forbid scripted requests. So the engine makes no request to them; you export the list yourself (Moxfield: the deck's Export, as
 text; Archidekt: Export, as text or CSV) and `tools/import_deck.py` turns it into a decklist. It drops set codes, collector numbers,
 `[Category]` and `^Tag^` annotations and foil marks, adds up repeated cards, finds the commander (a `Commander` section, `*CMDR*`, or
-the `[Commander]` category), keeps a sideboard, leaves a maybeboard out, and says what it dropped. It warns when a 100-card list has no
+the `[Commander]` category, or the one card alone after the sideboard of a 99-card Moxfield export, which it says it assumed), keeps a sideboard, leaves a maybeboard out, and says what it dropped. It warns when a 100-card list has no
 commander. With `--check` it loads the result from the card file, offline, and reports cards it can't find and the deck's Bracket
 floor.
 
