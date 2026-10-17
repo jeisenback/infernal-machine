@@ -24,7 +24,6 @@ from __future__ import annotations
 import io
 import math
 import sys
-from statistics import NormalDist
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -34,13 +33,9 @@ from .formats import format_of
 from .gauntlet import opponent_paths
 from .matchup import GameResult, play_plans, plan_games
 from .report import unplayable_cards
+from .sequential import HOPELESS_FACTOR, MAX_LOOKS, MIN_DIFFERING, MIN_LOOK_PAIRS, Z, confidence, look_z, schedule  # noqa: F401
 from .simulate import SimStats, simulate
 
-Z = 1.96  # for a 95% interval
-MAX_LOOKS = 10  # rounds an early-stopping comparison is played in
-MIN_LOOK_PAIRS = 30  # pairs before "hopeless" can be said: the spread of fewer is a guess
-MIN_DIFFERING = 8  # fewer differing pairs than this and the spread of the differences, and so a pairs-needed estimate, rests on too few events
-HOPELESS_FACTOR = 3  # "hopeless" when separating the target difference takes more than this many times the pairs planned
 
 
 @dataclass
@@ -78,7 +73,7 @@ class Comparison:
 
     @property
     def confidence(self) -> str:
-        return "95%" if self.z == Z else f"{(2 * NormalDist().cdf(self.z) - 1) * 100:.1f}%"
+        return confidence(self.z)
 
     @property
     def interval(self) -> tuple[float, float]:
@@ -94,11 +89,6 @@ class Comparison:
         """About how many pairs it takes for a true difference of `size` (in score, 0.05 is five points) to clear zero at this spread.
         None if no pair differed, since then the spread says nothing."""
         return math.ceil((Z * self.spread / size) ** 2) if self.spread > 0 else None
-
-
-def look_z(looks: int) -> float:
-    """The interval width that keeps the chance of a false "clear" over `looks` looks at 5% or less: each look gets 5% / looks."""
-    return Z if looks <= 1 else NormalDist().inv_cdf(1 - 0.05 / (2 * looks))
 
 
 def stop_reason(c: Comparison, planned: int, final: bool) -> str | None:
@@ -176,9 +166,7 @@ def compare_builds(baseline: Deck, changed: Deck, opponents: dict[str, Deck], ga
 def _play_in_rounds(plans: list, names: list[str], games: int, workers: int, target: float) -> Comparison:
     """Play the planned games a round at a time (game `n` is the same wherever it is played, so the pairs do not change) and look after
     each round; see `stop_reason`."""
-    looks = min(MAX_LOOKS, games)
-    batch = math.ceil(games / looks)
-    looks = math.ceil(games / batch)
+    looks, batch = schedule(games)
     z, planned = look_z(looks), games * len(names)
     results: list[list[list[GameResult]]] = [[[] for _ in names] for _ in plans]
     comparison = summarize([], [], 0)

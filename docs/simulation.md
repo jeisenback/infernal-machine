@@ -160,7 +160,7 @@ goldfish", not "bad card". More games (`--games 2000`) tighten the error bars; 5
 ## Card impact in real games
 
 ```
-python -m infernal_machine.impact DECKLIST OPPONENT [OPPONENT ...] [--cards "Card Name"]... [--top 12] [--games 40] [--pod N] [--workers N]
+python -m infernal_machine.impact DECKLIST OPPONENT [OPPONENT ...] [--cards "Card Name"]... [--top 12] [--games 40] [--pod N] [--workers N] [--early-stop]
 ```
 
 `tune` cannot see what a card's text does, because the goldfish plays alone and reads no text: removal, card draw and counterspells score
@@ -179,6 +179,13 @@ those differences.
   whose effect is a few points. A result is believable when its `±` is clearly smaller than the impact.
 - **Cost:** each card is another full set of games, so 12 cards at 40 games per opponent against two opponents is about a thousand games,
   roughly ten minutes on six workers. Run it on the handful of cards you are unsure of, not the whole deck.
+- **Stopping early** (`--early-stop`, `early_stop=True`): the games are played in up to ten rounds, with the same pairs as the fixed run. After
+  each round a card is dropped when its answer is *clear* (the interval of its impact leaves out zero) or *hopeless* (separating
+  `--target`, five points by default, would take more than three times the games planned), and the games it would have used go to the
+  cards still undecided, which may be played up to three times the games asked for. The total never passes what the fixed run plays. The
+  false-positive guard is `compare`'s: each look's interval is widened (to 99.5% with ten looks), nothing stops before 30 games, and
+  the last look never stops, so a card whose true impact is zero is called clear less than one time in twenty, per card. The report
+  prints the rule, marks the cards settled early, and says how many games were played against the fixed run's.
 - **Caveats:** testing many cards finds a false winner about one time in twenty (at 95%), so re-run the ones you act on with another
   `--seed`; the bots play every game, so a card they play badly is under-rated; and cards the engine can't read are marked, since the
   games cannot see their text.
@@ -186,7 +193,7 @@ those differences.
 ## Matchups
 
 ```
-python -m infernal_machine.matchup DECKLIST OPPONENT [OPPONENT ...] [--games 40] [--pod 4] [--max-bracket N] [--workers N] [--time-limit 120]
+python -m infernal_machine.matchup DECKLIST OPPONENT [OPPONENT ...] [--games 40] [--pod 4] [--max-bracket N] [--workers N] [--time-limit 120] [--early-stop]
 ```
 
 `matchups(focus, opponents, games, pod, seed, max_turns, time_limit, workers)` in `matchup.py` plays `BotPlayer` games and
@@ -199,6 +206,14 @@ half the CPUs). Standard decks need the Standard game mode (see #354).
 Across all games it also reports how often the focus deck stumbled on lands (two or fewer after its first four turns) or had
 the lands but cast at most one spell, and how it did when that happened. A game that crashes or passes `--time-limit` is
 counted apart and the first error is shown, so engine bugs and runaway boards show up instead of hanging the run.
+
+With `--early-stop` (`early_stop=True`) the games are played in up to ten rounds and an opponent is dropped when the win rate against it is
+clearly above or below the fair share: its Wilson interval, widened for the number of looks (99.5% with ten), leaves out the fair share,
+after 30 games at the earliest. The report says so, prints the rule and names the opponents that stopped ("stopped after 30 of 40 planned
+games: clearly better than the fair share"). There is no "hopeless" stop here, since resolving a few points of win rate takes hundreds of
+games whatever was planned: a matchup that stays within noise plays its games. The false-positive guard is the same as `compare`'s (the
+chance that an opponent whose true win rate is the fair share is called clearly better or worse stays under 5%); the looks, the widening and
+the 30-game minimum are in `sequential.py`.
 
 The bots decide everything, so a deck that needs careful play (combos, holding up mana, politics) is under-rated and one the
 bot plays well is over-rated. Compare builds of one deck against the same opponents and seed instead of reading one win rate
