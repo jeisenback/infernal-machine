@@ -12,6 +12,7 @@ not that the card behaves correctly.
     python tools/coverage_audit.py --mechanisms          # also group the gaps by mechanism, ranked by popularity
     python tools/coverage_audit.py --mechanism "Copy"    # the wordings inside one mechanism or family (a substring of its name)
     python tools/coverage_audit.py --next                # the best things to build next, in order
+    python tools/coverage_audit.py --decks DECK [DECK ...]   # what blocks these decks, and what to build to play them (offline)
 
 A mechanism is a keyword or ability word at the start of an unsupported line, or else the first of the `MECHANISMS` patterns that
 matches it; the patterns are a heuristic, so the groups are a guide to what to build next, not exact counts. "All cards" counts every card with a line in the mechanism, playable or not, so a row shows how much of it is covered. A card's "only gap"
@@ -25,6 +26,11 @@ it picks the family that unlocks the most weighted cards, assumes it built, and 
 weight between them while neither is built, so a pair that unlocks nothing alone can still be suggested. A card weighs
 `1 / (1 + rank / WEIGHT_KNEE)` (no rank, no weight), so rank 100 counts for far more than rank 4,900. The result is an estimate: a
 family's wordings can still differ from one another, and a card the engine reads is not always a card it plays correctly.
+
+`--decks` is the same question asked of real decklists instead of a modelled deck: every copy of every card counts, the pool is not
+fetched (it reads the card file, so it works offline), and the ranking is the greedy one over the pieces of work the decks need. A line
+that no `FAMILIES` pattern covers is its own piece of work, named by its wording, so no card is left out as "blocked". It says how many
+cards each deck can play, which cards it can't and why, and what to build to play the most of them.
 
 The ranking and the headline are about *decks*, since a deck is what gets simulated (issue #391). A typical deck is modelled by an
 inclusion probability for each ranked card, `min(1, scale * weight(rank) ** DECK_TAIL)`, with the scale chosen so that the probabilities
@@ -41,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import io
 import json
 import math
 import os
@@ -373,6 +380,84 @@ def render(result: dict, top: int = 40) -> str:
     return "\n".join(out)
 
 
+def analyze_decks(decks: dict[str, Any]) -> dict:
+    """What stops the given decks (name -> `Deck`) from being fully playable, and the order of work that unlocks the most cards.
+    Every copy of a card counts (a piece of work that unlocks a card with two copies unlocks two cards); a line no family covers is a
+    piece of work of its own, named by its wording."""
+    per_deck: dict[str, dict] = {}
+    needs: list[tuple[str, int | None, frozenset[str]]] = []
+    example: dict[str, str] = {}
+    total = playable = 0
+    for deck_name, deck in decks.items():
+        cards = deck.commanders + deck.main
+        copies = collections.Counter(c.name for c in cards)
+        by_name = {c.name: c for c in cards}
+        unplayable: list[tuple[str, int, list[str]]] = []
+        for name in copies:
+            lines = unsupported_lines(by_name[name])
+            if not lines:
+                continue
+            unplayable.append((name, copies[name], lines))
+            items: set[str] = set()
+            for line in lines:
+                found = families_of(line) or frozenset({"Other: " + shape(line)})
+                items |= found
+                for item in found:
+                    example.setdefault(item, line)
+            needs.append((f"{deck_name}\x00{name}", copies[name], frozenset(items)))
+        broken = sum(n for _, n, _ in unplayable)
+        per_deck[deck_name] = {"cards": len(cards), "playable": len(cards) - broken, "unplayable": unplayable}
+        total += len(cards)
+        playable += len(cards) - broken
+    picks = next_targets(needs, limit=max(len(needs), 1) * 4, weigh=float)
+    gained = 0.0
+    for pick in picks:
+        gained += pick["weight"]
+        pick["unlocks"] = round(pick["weight"])  # cards, counting every copy
+        pick["cards"] = [key.split("\x00", 1)[1] for key in pick["cards"]]
+        pick["playable_after"] = (playable + gained) / total if total else 0.0
+        pick["example"] = example.get(pick["family"], "")
+    by_kind: collections.Counter[str] = collections.Counter()
+    for deck in per_deck.values():
+        for _, n, lines in deck["unplayable"]:
+            for kind in {mechanism_of(line) for line in lines}:
+                by_kind[kind] += n
+    return {"decks": per_deck, "next": picks, "total": total, "playable": playable, "by_kind": by_kind.most_common()}
+
+
+def render_decks(result: dict, top: int = 15) -> str:
+    total, playable = result["total"], result["playable"]
+    out = [f"## Coverage for {len(result['decks'])} deck{'s' if len(result['decks']) != 1 else ''}: {playable} of {total} cards fully playable "
+           f"({100 * playable / total:.0f}%)" if total else "## Coverage: no cards", ""]
+    for name, deck in result["decks"].items():
+        out.append(f"- **{name}**: {deck['playable']} of {deck['cards']} cards fully playable ({100 * deck['playable'] / deck['cards']:.0f}%)")
+    out += ["", "### What to build, in order (each assuming those above it are built)", "",
+            "| # | Piece of work | Cards unlocked | Playable after | Some of the cards | The wording |", "|---|---|---|---|---|---|"]
+    shown = [p for p in result["next"] if p["unlocks"]][:top]
+    for i, pick in enumerate(shown, 1):
+        example = pick["example"].replace("|", "/")[:70]
+        family = pick["family"].replace("|", "/")
+        out.append(f"| {i} | {family[:60]} | {pick['unlocks']} | {pick['playable_after']:.0%} | {', '.join(pick['cards'][:3])} | {example} |")
+    rest = sum(1 for p in result["next"] if p["unlocks"]) - len(shown)
+    if rest > 0:
+        out.append(f"\n{rest} more pieces of work each unlock at least one card.")
+    waiting = [p for p in result["next"] if not p["unlocks"]]
+    if waiting and not shown:
+        out.append("No single piece of work makes a card playable: every unplayable card needs two or more.")
+    if result["by_kind"]:
+        out += ["", "### By kind of text (a card counts under each kind it has)", ""]
+        out += [f"- {kind}: {n}" for kind, n in result["by_kind"][:8]]
+    out += ["", "### The cards that can't be played yet", ""]
+    for name, deck in result["decks"].items():
+        if not deck["unplayable"]:
+            continue
+        out += [f"**{name}** ({len(deck['unplayable'])}):", ""]
+        out += [f"- {card}{f' (x{n})' if n > 1 else ''}: {lines[0][:110]}" + (f" (+{len(lines) - 1} more)" if len(lines) > 1 else "")
+                for card, n, lines in deck["unplayable"]]
+        out.append("")
+    return "\n".join(out)
+
+
 def _popular(names: list[str], rank: dict[str, int]) -> int:
     return sum(1 for n in names if rank.get(n, 10 ** 7) <= POPULAR)
 
@@ -442,8 +527,25 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--mechanisms", action="store_true", help="also group the gaps by mechanism")
     parser.add_argument("--mechanism", metavar="NAME", help="only the wordings inside the mechanisms or families whose name contains NAME")
     parser.add_argument("--next", action="store_true", help="also rank the families to build next")
+    parser.add_argument("--decks", nargs="+", metavar="DECK", help="decklists to check instead of the whole pool: what blocks them and what to build")
+    parser.add_argument("--bulk", default=".cache/oracle_bulk.json", help="with --decks, the card file")
     args = parser.parse_args(argv)
-    sys.stdout.reconfigure(encoding="utf-8")
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if args.decks:
+        from infernal_machine.cards import BulkSource, load_deck
+
+        source = BulkSource(args.bulk)
+        decks = {}
+        for path in args.decks:
+            with open(path, encoding="utf-8") as f:
+                decks[os.path.splitext(os.path.basename(path))[0]] = load_deck(f.read(), source)
+        result = analyze_decks(decks)
+        print(render_decks(result, args.top))
+        if args.json:
+            with open(args.json, "w") as f:
+                json.dump(result, f)
+        return 0
     result = analyze(fetch_pool(args.pool))
     if args.mechanism:
         print(render_mechanism(result, args.mechanism, args.top))

@@ -38,6 +38,20 @@ the `[Commander]` category, or the one card alone after the sideboard of a 99-ca
 commander. With `--check` it loads the result from the card file, offline, and reports cards it can't find and the deck's Bracket
 floor.
 
+### What blocks your deck
+
+```
+python tools/coverage_audit.py --decks my_deck.txt [other_deck.txt ...] [--top 15]
+```
+
+The coverage audit ranks engine work by a modelled deck; this asks the same question of your decks. It reads the decklists and the card
+file (offline), counts every copy of every card, and reports how many cards each deck can play, the pieces of engine work in the order that
+unlocks the most of them (each assuming those above it are built, with the share of the decks playable after each), the kinds of text
+the unplayable cards have, and each unplayable card with its first unsupported line. A line that no maintained family covers is its own
+piece of work, named by its wording, so a deck of one-off cards shows a long list that unlocks one card each, which is the honest answer:
+the first deck tried this way (a 100-card Bracket 4 list) had 41 unplayable cards and no single piece of work that unlocked more than two.
+Several decks are ranked together, so work that several of them need comes first.
+
 ### The saved gauntlet
 
 `examples/gauntlet.json` lists a few decks to play against, each with the Commander Bracket floor of its cards and its commander (the
