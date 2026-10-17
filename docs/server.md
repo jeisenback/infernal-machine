@@ -17,7 +17,7 @@ Hosting a table, joining it, and the protocol between them.
 | `--timer SECONDS` | a clock on every decision: when it runs out, a bot answers for the player (default: no limit) |
 | `--password TEXT` | players and spectators must give it to join (see below) |
 | `--cache FILE` | where fetched cards are saved (default `.cache/cards.json`) |
-| `--format commander\|standard` (default `commander`) | the game to play; decks are checked against it |
+| `--format commander\|standard\|brawl\|duel` (default `commander`) | the game to play; decks are checked against it |
 | `--no-check` | accept decks that aren't legal for the format |
 
 Each human sends their decklist when they connect. The server fetches the cards, checks the deck, and either

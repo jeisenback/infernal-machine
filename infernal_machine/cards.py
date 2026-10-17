@@ -35,6 +35,7 @@ class Card:
     produced_mana: tuple[str, ...] = ()
     commander_legal: bool = True
     standard_legal: bool = True
+    duel_legal: bool = True  # not on the Duel Commander banned list (Scryfall's "duel" legality)
     game_changer: bool = False  # on Scryfall's Commander Game Changers list (Commander Brackets)
     scryfall_id: str | None = None
     back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
@@ -79,7 +80,7 @@ class Card:
                            oracle_text=back_face.get("oracle_text", ""),
                            color_identity=tuple(data.get("color_identity", [])),
                            produced_mana=_face_mana(back_face, tuple(data.get("produced_mana", []))),
-                           commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", game_changer=bool(data.get("game_changer")),
+                           commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", game_changer=bool(data.get("game_changer")),
                            scryfall_id=data.get("id"))
         prepare = None
         if data.get("layout") == "prepare" and len(data.get("card_faces", [])) == 2:
@@ -88,7 +89,7 @@ class Card:
                           cmc=_mana_value(spell.get("mana_cost", "")), type_line=spell.get("type_line", ""),
                           oracle_text=spell.get("oracle_text", ""), colors=_cost_colors(spell.get("mana_cost", "")),
                           color_identity=tuple(data.get("color_identity", [])),
-                          commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", game_changer=bool(data.get("game_changer")),
+                          commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", game_changer=bool(data.get("game_changer")),
                           scryfall_id=data.get("id"))
         faces = data.get("card_faces", [])
         alternate = None
@@ -101,7 +102,7 @@ class Card:
                        power=second.get("power"), toughness=second.get("toughness"), loyalty=second.get("loyalty"),
                        color_identity=tuple(data.get("color_identity", [])),
                        produced_mana=_face_mana(second, tuple(data.get("produced_mana", []))),
-                       commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
+                       commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
         if data.get("layout") == "meld":
             other_face = "the melded card"
         elif len(faces) == 2 and (data.get("layout") in ("split", "adventure") or data.get("layout") == "modal_dfc" and back is None):
@@ -113,7 +114,7 @@ class Card:
                 alternate = cls(name=second["name"], mana_cost=second.get("mana_cost", ""), cmc=_mana_value(second.get("mana_cost", "")),
                                 type_line=second.get("type_line", ""), oracle_text=second.get("oracle_text", ""),
                                 colors=tuple(second.get("colors") or _cost_colors(second.get("mana_cost", ""))), color_identity=tuple(data.get("color_identity", [])),
-                                commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
+                                commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
             else:
                 other_face = second["name"]  # not played: a back that is a permanent
         cmc = _mana_value(face.get("mana_cost", "")) if data.get("layout") == "split" and "mana_cost" in face else float(data.get("cmc", 0))
@@ -129,7 +130,7 @@ class Card:
             loyalty=face.get("loyalty"),
             color_identity=tuple(data.get("color_identity", [])),
             produced_mana=produced,
-            commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", game_changer=bool(data.get("game_changer")),
+            commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", game_changer=bool(data.get("game_changer")),
             scryfall_id=data.get("id"),
             back=back,
             prepare=prepare,
@@ -283,7 +284,7 @@ def _match_requested(wanted: list[str], found: dict[str, Card]) -> dict[str, Car
     return result
 
 
-CARD_FORMAT = 4  # bumped whenever Card gains a field, so a card file saved earlier is fetched again instead of read with that field's default
+CARD_FORMAT = 5  # bumped whenever Card gains a field, so a card file saved earlier is fetched again instead of read with that field's default
 
 
 class CachedSource:
@@ -460,6 +461,7 @@ class Deck:
     main: list[Card]
     sideboard: list[Card]
     conjured: dict[str, Card] = field(default_factory=dict)  # the cards its text can conjure, by name
+    format: str = ""  # the format it is played in ("commander", "brawl", "duel", "standard"); empty: the one its shape says (see formats.format_of)
 
 
 CONJURE_NAMED = re.compile(r"[Cc]onjure a card named (.+?) onto the battlefield")

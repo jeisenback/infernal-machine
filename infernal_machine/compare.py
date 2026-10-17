@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
-from .formats import format_of
+from .formats import add_format_argument, format_of, with_format
 from .gauntlet import deck_format, opponent_paths
 from .matchup import GameResult, play_plans, plan_games
 from .report import unplayable_cards
@@ -268,6 +268,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--max-turns", type=int, default=60)
     parser.add_argument("--time-limit", type=float, default=120.0, help="seconds per game")
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    add_format_argument(parser)
     parser.add_argument("--goldfish-games", type=int, default=500, help="games for the goldfish side by side (0 to skip)")
     parser.add_argument("--turns", type=int, default=8, help="turns of the goldfish")
     parser.add_argument("--early-stop", action="store_true", help="play in rounds and stop when the answer is clear or hopeless")
@@ -278,7 +279,7 @@ def main(argv: list[str]) -> int:
 
     def load(path: str) -> Deck:
         with open(path, encoding="utf-8") as f:
-            return load_deck(f.read(), source)
+            return with_format(load_deck(f.read(), source), args.format)
 
     name = lambda path: os.path.splitext(os.path.basename(path))[0]  # noqa: E731
     baseline = load(args.baseline)

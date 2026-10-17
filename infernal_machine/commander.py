@@ -25,9 +25,11 @@ def _partner_keyword(card: Card) -> str | None:
     return None
 
 
-def can_be_commander(card: Card) -> bool:
+def can_be_commander(card: Card, planeswalkers: bool = False) -> bool:
+    """Whether the card can lead a deck: a legendary creature, a card that says so, and (Brawl) a legendary planeswalker."""
     legendary_creature = "Legendary" in card.type_line and "Creature" in card.type_line
-    return legendary_creature or "can be your commander" in card.oracle_text
+    legendary_walker = planeswalkers and "Legendary" in card.type_line and "Planeswalker" in card.type_line
+    return legendary_creature or legendary_walker or "can be your commander" in card.oracle_text
 
 
 def valid_pair(a: Card, b: Card) -> bool:
@@ -59,24 +61,26 @@ def copy_limit(card: Card, default: int = 1) -> int | None:
     return _NUMBERS.get(match.group(2), 1)
 
 
-def deck_problems(deck: Deck) -> list[str]:
-    """Return every Commander rule the deck breaks; an empty list means it's legal."""
+def deck_problems(deck: Deck, size: int = DECK_SIZE, legality: str = "commander", label: str = "Commander", planeswalkers: bool = False) -> list[str]:
+    """Return every rule of a commander format the deck breaks; an empty list means it's legal. The defaults are Commander's (100 cards,
+    legal in Commander); `formats.py` passes Brawl's and Duel Commander's: the size, which legality a card must have (`commander`,
+    `standard` or `duel`), the name for the messages and whether a legendary planeswalker can lead the deck."""
     problems: list[str] = []
     commanders = deck.commanders
     cards = commanders + deck.main
 
-    if len(cards) != DECK_SIZE:
-        problems.append(f"Deck has {len(cards)} cards including commanders; needs exactly {DECK_SIZE}")
+    if len(cards) != size:
+        problems.append(f"Deck has {len(cards)} cards including commanders; needs exactly {size}")
 
     if len(commanders) == 1:
-        if not can_be_commander(commanders[0]):
+        if not can_be_commander(commanders[0], planeswalkers):
             problems.append(f"{commanders[0].name} can't be your commander")
     elif len(commanders) == 2:
         a, b = commanders
         if not valid_pair(a, b):
             problems.append(f"{a.name} and {b.name} can't be commanders together")
         else:
-            problems += [f"{c.name} can't be your commander" for c in commanders if not _pair_member_ok(c)]
+            problems += [f"{c.name} can't be your commander" for c in commanders if not _pair_member_ok(c, planeswalkers)]
     else:
         problems.append(f"Deck has {len(commanders)} commanders; needs 1, or 2 that can pair")
 
@@ -89,12 +93,12 @@ def deck_problems(deck: Deck) -> list[str]:
         outside = set(card.color_identity) - identity
         if outside:
             problems.append(f"{card.name} is outside the commander's color identity ({''.join(sorted(outside))})")
-        if not card.commander_legal:
-            problems.append(f"{card.name} is not legal in Commander")
+        if not getattr(card, f"{legality}_legal", True):
+            problems.append(f"{card.name} is not legal in {label}")
     return problems
 
 
-def _pair_member_ok(card: Card) -> bool:
+def _pair_member_ok(card: Card, planeswalkers: bool = False) -> bool:
     # A Background is only a commander alongside a "Choose a Background" creature,
     # which valid_pair has already confirmed.
-    return can_be_commander(card) or "Background" in card.type_line
+    return can_be_commander(card, planeswalkers) or "Background" in card.type_line

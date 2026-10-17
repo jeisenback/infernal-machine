@@ -27,7 +27,7 @@ HIGH_TAX = 6  # a commander cast from the command zone three times has this much
 RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
                        r"|return enchanted creature card to the battlefield", re.IGNORECASE)
 COMMANDER_FIRST_TAX = 2  # cast the commander before anything else while its tax is at most this; after that it competes for mana
-COMMANDER_DAMAGE = 21
+COMMANDER_DAMAGE = 21  # the commander damage that loses a game, unless the game says otherwise (Duel Commander: 15)
 LAND_SEARCH_PROMPTS = (SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT)  # asked when a spell or land fetches a land
 LOW_CURVE = 3.0  # a deck whose spells cost this much on average or less can keep a two-land hand that has cheap spells
 CHEAP_SPELL = 2  # a spell this cheap (or cheaper) is one a two-land hand can cast
@@ -110,6 +110,7 @@ class BotPlayer:
         self._stack: list[int] = []  # seat of each spell on the stack, bottom first
         self._life: dict[int, int] = {}
         self._state: dict | None = None  # the latest board snapshot
+        self._damage_limit = COMMANDER_DAMAGE
         self._joint: dict[str, list[str]] = {}  # this combat's double blocks: the attacker -> the blockers that were planned for it
         self._joint_turn: int | None = None
 
@@ -123,6 +124,7 @@ class BotPlayer:
             self._hand = [self._card(name) for name in event["cards"]]
             self._mulligans = event["mulligans"]
         elif kind == "seat":
+            self._damage_limit = event.get("damage_limit", self._damage_limit)
             self._life[event["seat"]] = event["life"]
             if event["name"] == self.name:
                 self._seat = event["seat"]
@@ -294,7 +296,7 @@ class BotPlayer:
         for i in range(1, len(options)):
             foe = seats.get(_seat_of(options[i]))
             dealt = sum(d["damage"] for d in (foe or {}).get("commander_damage", []) if d["from_seat"] == self._seat and d["commander"] == name)
-            if foe is not None and dealt + power >= COMMANDER_DAMAGE:
+            if foe is not None and dealt + power >= self._damage_limit:
                 return i
         return None
 
@@ -304,7 +306,7 @@ class BotPlayer:
         dealt = {d["commander"]: d["damage"] for d in (mine or {}).get("commander_damage", [])}
         for i in range(1, len(options)):
             name = next((n for n in dealt if options[i].startswith(n + " ")), None)
-            if name is not None and dealt[name] + _stats(options[i])[0] >= COMMANDER_DAMAGE:
+            if name is not None and dealt[name] + _stats(options[i])[0] >= self._damage_limit:
                 return i
         return None
 
