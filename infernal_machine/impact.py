@@ -22,6 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from .cards import Deck
+from .gauntlet import opponent_paths
 from .compare import MIN_DIFFERING, Z, pair_up, score, summarize
 from .matchup import play_plans, plan_games
 from .report import unsupported_lines
@@ -141,7 +142,7 @@ def main(argv: list[str], source=None) -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("decklist")
-    parser.add_argument("opponents", nargs="+", help="decklists to play against")
+    parser.add_argument("opponents", nargs="*", help="decklists to play against (default: the saved gauntlet, see gauntlet.py)")
     parser.add_argument("--cards", action="append", default=None, metavar="CARD", help="a card to measure (repeat for several); default: the weakest by goldfish")
     parser.add_argument("--top", type=int, default=12, help="how many of the goldfish's lowest scores to measure")
     parser.add_argument("--games", type=int, default=40, help="paired games per opponent (in all, with --pod)")
@@ -161,7 +162,7 @@ def main(argv: list[str], source=None) -> int:
             return load_deck(f.read(), source)
 
     try:
-        report = measure_impacts(load(args.decklist), {name(p): load(p) for p in args.opponents}, args.cards, top=args.top, games=args.games,
+        report = measure_impacts(load(args.decklist), {name(p): load(p) for p in opponent_paths(args.opponents)}, args.cards, top=args.top, games=args.games,
                                  pod=args.pod, seed=args.seed, max_turns=args.max_turns, time_limit=args.time_limit, workers=args.workers,
                                  goldfish_games=args.goldfish_games, progress=lambda m: print(m, file=sys.stderr, flush=True))
     except (CardNotFound, ValueError, OSError) as error:

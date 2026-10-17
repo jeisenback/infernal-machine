@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
 from .formats import format_of
+from .gauntlet import opponent_paths
 from .matchup import GameResult, play_plans, plan_games
 from .report import unplayable_cards
 from .simulate import SimStats, simulate
@@ -272,7 +273,7 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("baseline", help="the decklist being changed")
     parser.add_argument("changed", help="the decklist with the changes")
-    parser.add_argument("opponents", nargs="+", help="decklists to play against")
+    parser.add_argument("opponents", nargs="*", help="decklists to play against (default: the saved gauntlet, see gauntlet.py)")
     parser.add_argument("--games", type=int, default=40, help="paired games per opponent (in all, with --pod)")
     parser.add_argument("--pod", type=int, default=2, help="players per game; above 2 draws the opponents at random")
     parser.add_argument("--seed", type=int, default=0)
@@ -292,7 +293,7 @@ def main(argv: list[str]) -> int:
             return load_deck(f.read(), source)
 
     name = lambda path: os.path.splitext(os.path.basename(path))[0]  # noqa: E731
-    opponents = {name(p): load(p) for p in args.opponents}
+    opponents = {name(p): load(p) for p in opponent_paths(args.opponents)}
     comparison = compare_builds(load(args.baseline), load(args.changed), opponents, args.games, args.pod, args.seed, args.max_turns,
                                 args.time_limit, args.workers, args.goldfish_games, args.turns, args.early_stop, args.target)
     print(format_comparison(comparison, name(args.baseline), name(args.changed)))

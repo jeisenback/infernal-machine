@@ -24,6 +24,35 @@ deck = load_deck(open("deck.txt").read(), source)  # deck.commanders, deck.main,
 - `parse_decklist` reads Arena/MTGO/Moxfield text: `Commander` / `Deck` / `Sideboard`
   headers, `1 Sol Ring (CMM) 400`, and Moxfield's `*CMDR*` and `*F*` tags.
 
+### Decks from Moxfield or Archidekt
+
+```
+python tools/import_deck.py EXPORT.txt -o my_deck.txt [--check]
+```
+
+Neither site has a public API to fetch from: Moxfield has none and turns bots away, and Archidekt's open JSON is unofficial and its
+terms forbid scripted requests. So the engine makes no request to them; you export the list yourself (Moxfield: the deck's Export, as
+text; Archidekt: Export, as text or CSV) and `tools/import_deck.py` turns it into a decklist. It drops set codes, collector numbers,
+`[Category]` and `^Tag^` annotations and foil marks, adds up repeated cards, finds the commander (a `Commander` section, `*CMDR*`, or
+the `[Commander]` category), keeps a sideboard, leaves a maybeboard out, and says what it dropped. It warns when a 100-card list has no
+commander. With `--check` it loads the result from the card file, offline, and reports cards it can't find and the deck's Bracket
+floor.
+
+### The saved gauntlet
+
+`examples/gauntlet.json` lists a few decks to play against, each with the Commander Bracket floor of its cards and its commander (the
+five Secrets of Strixhaven precons are the start, all at Bracket 1). `matchup`, `analyze`, `compare` and `impact` use them when you
+name no opponents, and `--max-bracket N` (on `matchup` and `analyze`) picks among them without loading any:
+
+```
+python -m infernal_machine.gauntlet                    # list them
+python -m infernal_machine.gauntlet --add deck.txt     # copy a decklist in with its Bracket floor and commander
+python -m infernal_machine.gauntlet --check            # the saved floors still match the cards (CI runs this)
+```
+
+Every saved deck is at Bracket 1 today, so `--max-bracket` cannot yet separate weak tables from strong ones: `--add` an imported
+Bracket 3 deck to give it something to choose between.
+
 ## Commander deck rules
 
 ```python

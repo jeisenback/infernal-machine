@@ -30,6 +30,7 @@ from .bot import BotPlayer
 from .brackets import analyze
 from .cards import Deck
 from .formats import format_of
+from .gauntlet import opponent_paths
 from .game import BOARD_LIMIT, Game
 from .report import unplayable_cards, unplayable_note
 
@@ -340,7 +341,7 @@ def main(argv: list[str]) -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("decklist", help="the deck being tested")
-    parser.add_argument("opponents", nargs="+", help="decklists to play against")
+    parser.add_argument("opponents", nargs="*", help="decklists to play against (default: the saved gauntlet, see gauntlet.py)")
     parser.add_argument("--games", type=int, default=40, help="per opponent (or in total with --pod)")
     parser.add_argument("--pod", type=int, default=2, help="players per game; above 2 draws the opponents at random")
     parser.add_argument("--max-bracket", type=int, metavar="N", help="leave out opponents that can only be played at a Bracket above N")
@@ -356,7 +357,7 @@ def main(argv: list[str]) -> int:
         with open(path, encoding="utf-8") as f:
             return load_deck(f.read(), source)
 
-    opponents = {os.path.splitext(os.path.basename(p))[0]: load(p) for p in args.opponents}
+    opponents = {os.path.splitext(os.path.basename(p))[0]: load(p) for p in opponent_paths(args.opponents, args.max_bracket)}
     if args.max_bracket is not None:
         opponents, left_out = within_bracket(opponents, args.max_bracket)
         for name, floor in left_out.items():

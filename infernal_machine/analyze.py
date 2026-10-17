@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
 from .formats import STANDARD, format_of
+from .gauntlet import opponent_paths
 from .manabase import analyze_mana_base, format_mana_base
 from .matchup import format_matchups, matchups
 from .report import IN_A_GAME, unplayable_cards, unplayable_note
@@ -49,15 +50,20 @@ class Analysis:
         return sum(s.seconds for s in self.sections)
 
 
+def _known_parts(skip: Iterable[str]) -> set[str]:
+    left_out = set(skip)
+    unknown = left_out - set(PARTS)
+    if unknown:
+        raise ValueError(f"unknown part(s) to skip: {', '.join(sorted(unknown))} (known: {', '.join(PARTS)})")
+    return left_out
+
+
 def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: str = "deck", games: int = 40, sim_games: int = 500,
                  turns: int = 8, seed: int = 0, pod: int = 2, workers: int = 1, candidates: Iterable = (),
                  skip: Iterable[str] = (), progress: Callable[[str], None] | None = None) -> Analysis:
     """Run the parts of the analysis and collect them. `games` is per opponent for the matchups, `sim_games` for the goldfish and the
     tuning report; `skip` names parts (see PARTS) to leave out."""
-    left_out = set(skip)
-    unknown = left_out - set(PARTS)
-    if unknown:
-        raise ValueError(f"unknown part(s) to skip: {', '.join(sorted(unknown))} (known: {', '.join(PARTS)})")
+    left_out = _known_parts(skip)
     commander = bool(deck.commanders)
     if opponents:
         format_of([deck, *opponents.values()])  # (a table can't mix decks with commanders and decks without)
@@ -124,7 +130,7 @@ def main(argv: list[str], source=None) -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("decklist")
-    parser.add_argument("opponents", nargs="*", help="decklists to play matchups against")
+    parser.add_argument("opponents", nargs="*", help="decklists to play matchups against (default: the saved gauntlet, see gauntlet.py)")
     parser.add_argument("--games", type=int, default=40, help="matchup games per opponent (in all, with --pod)")
     parser.add_argument("--sim-games", type=int, default=500, help="games for the goldfish and the tuning report")
     parser.add_argument("--turns", type=int, default=8, help="turns of the goldfish and the tuning report")
@@ -134,6 +140,7 @@ def main(argv: list[str], source=None) -> int:
     parser.add_argument("--try", dest="candidates", action="append", default=[], metavar="CARD", help="a card to test in the weakest slot")
     parser.add_argument("--skip", default="", help=f"parts to leave out, comma separated: {', '.join(PARTS)}")
     parser.add_argument("--output", metavar="FILE", help="write the report here as well as printing it")
+    parser.add_argument("--max-bracket", type=int, metavar="N", help="with no opponents named, only the saved gauntlet decks playable at Bracket N or lower")
     parser.add_argument("--bulk", default=".cache/oracle_bulk.json")
     args = parser.parse_args(argv)
     source = source or BulkSource(args.bulk)
@@ -145,11 +152,14 @@ def main(argv: list[str], source=None) -> int:
 
     try:
         deck = load(args.decklist)
-        opponents = {name(p): load(p) for p in args.opponents}
+        skipped = [part for part in args.skip.split(",") if part]
+        _known_parts(skipped)  # (before any opponent is chosen or loaded)
+        wanted = args.opponents if args.opponents or "matchups" in skipped else opponent_paths([], args.max_bracket)
+        opponents = {name(p): load(p) for p in wanted}
         candidates = [source.get(card) for card in args.candidates]
         analysis = analyze_deck(deck, opponents, name=name(args.decklist), games=args.games, sim_games=args.sim_games, turns=args.turns,
                                 seed=args.seed, pod=args.pod, workers=args.workers, candidates=candidates,
-                                skip=[part for part in args.skip.split(",") if part], progress=lambda m: print(m, file=sys.stderr, flush=True))
+                                skip=skipped, progress=lambda m: print(m, file=sys.stderr, flush=True))
     except (CardNotFound, ValueError, OSError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 2
