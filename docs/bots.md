@@ -76,6 +76,22 @@ stats = goldfish(deck, games=5000, turns=5)
   win rate with its 95% interval. Against the plain bot on the five Secrets of Strixhaven precons (191 games) all five
   together won 67.5% (60.6%-73.8%); alone, timing won 65.5%, attack 57.6%, land 56.8%, target 55.2% and mana 52.9%.
   A weekly CI job (`bot strength`) repeats this against the plain bot and fails if the whole interval drops below 50%.
+- **The audit (`python -m infernal_machine.botaudit DECKLIST`):** finds the cards the bot sees and does not cast. It plays the deck
+  alone through the engine ([the engine goldfish](simulation.md#the-same-goldfish-through-the-engine)) and records, for every nonland
+  card, the turns it sat in hand, the turns the game offered to cast it, and what the bot cast instead on the turns it was offered and
+  not cast. A card seen in at least 8 games and cast in under half of them is sorted into a group, worst first:
+  - *offered, passed over*: the game offered it on at least a seventh of the turns it sat in hand and the bot let half of those turns
+    end without casting it, usually because it cast something else first. That is the bot's choice, and the list says what it cast.
+  - *never offered*: the game did not list casting it, though the fast model (which ignores card text) casts it: a cost, a colour, a
+    condition the engine reads. That is not the bot's choice but may be the engine's, or the lands'.
+  - *held on purpose*: one of the bot's own rules (a wipe waits until opponents have more creatures, a ritual is not cast on its own,
+    creature removal waits for a creature worth it), named in the row. A goldfish has no opposing board, so these are expected.
+  - *needs a target or graveyard cards the goldfish lacks*, and *rarely castable (the model agrees)* are listed only with `--all`.
+  On the five precons (150 games each) it found no card the bot passes up for a poor reason: the top rows were the bot casting its
+  commander or cheaper spells first (Galazeth Prismari and Mana Geyser cast in about half the games where the model casts them in
+  nearly all), which is the spell-ordering question of #408, and Animate Dead, which needs a creature in a graveyard. Writing its tests
+  found two flaws in the `hold` judgment, both fixed: a spell that returns a creature *card* from a graveyard was taken for removal, and
+  with a full hand or at low life the bot cast removal at its own creature when the opponents had none.
 - **`goldfish`:** plays the deck alone many times with the same mulligan rules and one land a turn.
   It reports how often you mulligan, how many lands the kept hand has, and how often
   you've made every land drop through each turn. The example above is a 38-land deck.

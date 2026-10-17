@@ -23,25 +23,29 @@ be compared, and `--play` puts the deck on the play (the first player skips thei
 from __future__ import annotations
 
 import io
+from collections import Counter
 import random
 import sys
 import time
 import zlib
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .analysis import is_land
 from .bot import BotPlayer
 from .cards import Card, Deck
 from .formats import format_of
 from .combat import ATTACK_PROMPT
-from .game import PASS, PLAY_LAND, STEPS, Game, Seat
+from .bot import _cast_name
+from .game import CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PASS, PLAY_LAND, STEPS, Game, Seat
 from .report import unplayable_cards, unplayable_note
 from .simulate import SimStats, _blocked_on_colors, _taxed, format_simulation, simulate, summarize
 
 IDLE_LIFE = 10 ** 6  # the idle seat's life: it is never the one that ends the game
 TIME_LIMIT = 120.0  # seconds a game may take before it is given up on
 FIRST_MAIN = next(step for step in STEPS if "main" in step)
+CASTS = (CAST, CAST_COMMANDER, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)
+
 
 
 class IdlePlayer(BotPlayer):
@@ -62,10 +66,13 @@ class Pilot(BotPlayer):
     def __init__(self, name: str, deck: Deck):
         super().__init__(name, deck)
         self.before_choice = lambda prompt, options: None
+        self.after_choice = lambda prompt, options, choice: None
 
     def choose(self, prompt: str, options):
         self.before_choice(prompt, options)
-        return super().choose(prompt, options)
+        choice = super().choose(prompt, options)
+        self.after_choice(prompt, options, choice)
+        return choice
 
 
 class _Done(Exception):
@@ -86,6 +93,8 @@ class _Run:
     available_now: int = 0
     available_now_taken: bool = False
     stuck_now: bool = False
+    offered_now: set = field(default_factory=set)  # the spells the game offered to cast this turn
+    cast_now: list = field(default_factory=list)  # the spells cast this turn
 
 
 def _idle_deck(like: Deck) -> Deck:
@@ -109,12 +118,14 @@ def play_engine_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: boo
     idle.life = IDLE_LIFE
     run = _Run()
     result: dict = {"mulligans": 0, "opening_lands": 0, "land_drops": [], "available": [], "spent": [], "stuck": [], "damage": [],
-                    "drawn": [], "permanents": [], "seen": {}, "cast": {}, "casts": {}, "recast": {}}
+                    "drawn": [], "permanents": [], "seen": {}, "cast": {}, "casts": {}, "recast": {},
+                    "held": {}, "offered": {}, "passed": {}, "passed_turns": {}}
     seen_turn, cast_turn, casts, recast = result["seen"], result["cast"], result["casts"], result["recast"]
     commanders = {c.name for c in deck.commanders}
     for card in deck.commanders:
         seen_turn[card.name] = 0
     drawn = [0]
+    held, offered, passed, passed_turns = result["held"], result["offered"], result["passed"], result["passed_turns"]
     deadline = time.monotonic() + time_limit
     forward, take_turn = game.broadcast, game._take_turn
 
@@ -137,6 +148,7 @@ def play_engine_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: boo
                 item = game.stack[-1] if game.stack else None
                 paid = item.mana_spent if item is not None and item.card.name == event["card"] else 0
                 run.spent_now += paid
+                run.cast_now.append(event["card"])
                 cast_turn.setdefault(event["card"], run.turn)
                 casts[event["card"]] = casts.get(event["card"], 0) + 1
                 if casts[event["card"]] == 2 and event["card"] in commanders:
@@ -148,7 +160,8 @@ def play_engine_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: boo
     def before_choice(prompt: str, options) -> None:
         """At the first decision of the first main phase once the land drop is done (or if there is none to make): the mana the deck
         has this turn, as the model counts it."""
-        if game.active == focus and game.step == FIRST_MAIN and PASS in options and not run.available_now_taken                 and (run.landed or not any(str(option).startswith(PLAY_LAND) for option in options)):
+        if game.active == focus and game.step == FIRST_MAIN and PASS in options and not run.available_now_taken \
+                and (run.landed or not any(str(option).startswith(PLAY_LAND) for option in options)):
             run.available_now_taken = True
             sources = game.payer._mana_sources(seat)
             run.available_now = len(sources)
@@ -156,6 +169,18 @@ def play_engine_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: boo
             run.stuck_now = _blocked_on_colors(spells, [source.types for source in sources])
             for card in spells:
                 seen_turn.setdefault(card.name, run.turn)
+                held[card.name] = held.get(card.name, 0) + 1
+
+    def after_choice(prompt: str, options, choice: int) -> None:
+        """On the deck's own turns, every spell the game offers to cast (once a turn each: a spell offered at instant speed is offered in
+        the main phase too)."""
+        if game.active != focus:
+            return
+        for option in options:
+            if str(option).startswith(CASTS):
+                name = _cast_name(str(option))
+                offered.setdefault(name, set()).add(run.turn)
+                run.offered_now.add(name)
 
     def turn_taken(active: Seat) -> None:
         if active is seat:
@@ -163,10 +188,15 @@ def play_engine_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: boo
             run.landed = False
             run.spent_now = 0
             run.available_now_taken = False
+            run.offered_now, run.cast_now = set(), []
         try:
             take_turn(active)
         finally:
             if active is seat:
+                for name in run.offered_now - set(run.cast_now):  # offered this turn and not cast: what it cast instead
+                    passed_turns[name] = passed_turns.get(name, 0) + 1
+                    for other in set(run.cast_now) or {None}:
+                        passed.setdefault(name, Counter())[f"cast {other}" if other else "cast nothing"] += 1
                 run.missed = run.missed or not run.landed
                 result["land_drops"].append(not run.missed)
                 result["available"].append(run.available_now)
@@ -181,6 +211,7 @@ def play_engine_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: boo
     game.broadcast = tap  # type: ignore[method-assign]
     game._take_turn = turn_taken  # type: ignore[method-assign]
     pilot.before_choice = before_choice
+    pilot.after_choice = after_choice
     try:
         game.play(max_turns=10 ** 6)
     except _Done:
@@ -204,15 +235,20 @@ def _run_one(task: tuple) -> dict | None:
         return None
 
 
-def goldfish(deck: Deck, games: int = 100, turns: int = 8, seed: int = 0, on_the_play: bool = False, workers: int = 1,
-             time_limit: float = TIME_LIMIT) -> SimStats:
-    """Play `deck` alone through the engine `games` times for `turns` of its own turns and report like `simulate`."""
+def play_runs(deck: Deck, games: int = 100, turns: int = 8, seed: int = 0, on_the_play: bool = False, workers: int = 1,
+              time_limit: float = TIME_LIMIT) -> list[dict | None]:
+    """The engine games themselves, one record each (None for a game that could not be finished)."""
     tasks = [(deck, n, turns, seed, on_the_play, time_limit) for n in range(games)]
     if workers > 1:
         with ProcessPoolExecutor(max_workers=workers) as pool:
-            runs = list(pool.map(_run_one, tasks, chunksize=1))
-    else:
-        runs = [_run_one(task) for task in tasks]
+            return list(pool.map(_run_one, tasks, chunksize=1))
+    return [_run_one(task) for task in tasks]
+
+
+def goldfish(deck: Deck, games: int = 100, turns: int = 8, seed: int = 0, on_the_play: bool = False, workers: int = 1,
+             time_limit: float = TIME_LIMIT) -> SimStats:
+    """Play `deck` alone through the engine `games` times for `turns` of its own turns and report like `simulate`."""
+    runs = play_runs(deck, games, turns, seed, on_the_play, workers, time_limit)
     finished = [run for run in runs if run is not None]
     stats = summarize(deck, finished, turns)
     stats.dropped = len(runs) - len(finished)

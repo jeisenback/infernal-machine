@@ -12,8 +12,9 @@ DOOM = real("Doom Blade", "{1}{B}", "Instant", "Destroy target nonblack creature
 BOLT = real("Lightning Bolt", "{R}", "Instant", "Lightning Bolt deals 3 damage to any target.")
 CRUSH = real("Crush Pest", "{R}", "Sorcery", "Crush Pest deals 2 damage to target creature.")
 WIPE = real("Day of Doom", "{2}{W}{W}", "Sorcery", "Destroy all creatures.")
+RAISE = real("Raise Lite", "{1}{B}", "Sorcery", "Return target creature card from your graveyard to the battlefield.")
 BEAR = real("Grizzly Bears", "{1}{G}", "Creature — Bear", "", 2, 2)
-DECK = Deck([], [MOUNTAIN, DOOM, BOLT, CRUSH, WIPE, BEAR], [])
+DECK = Deck([], [MOUNTAIN, DOOM, BOLT, CRUSH, WIPE, BEAR, RAISE], [])
 HOLD_OFF = FEATURES - {"hold"}
 
 
@@ -65,9 +66,16 @@ class HoldTests(unittest.TestCase):
         self.assertEqual(main_phase(bot([creature("Pest", 1, 1)], hand=("Doom Blade", "Grizzly Bears")), "Doom Blade", "Grizzly Bears"),
                          f"{CAST}Grizzly Bears")
 
-    def test_with_no_creature_to_remove_it_holds_it_too(self):
-        # (the game offers a creature-removal spell only when there is a target; this is the judgment on its own)
+    def test_with_no_creature_to_remove_it_holds_it_whatever_its_hand_or_life(self):
+        # (it would go at one of its own creatures; the game offers it then)
+        full = ["Doom Blade"] + ["Mountain"] * 6
         self.assertEqual(main_phase(bot([]), "Doom Blade"), PASS)
+        self.assertEqual(main_phase(bot([], hand=full), "Doom Blade"), PASS)
+        self.assertEqual(main_phase(bot([], life=5), "Doom Blade"), PASS)
+
+    def test_a_spell_that_returns_a_creature_card_from_a_graveyard_is_not_removal(self):
+        self.assertEqual(main_phase(bot([creature("Pest", 1, 1)], hand=("Raise Lite",)), "Raise Lite"), f"{CAST}Raise Lite")
+
 
 if __name__ == "__main__":
     unittest.main()
