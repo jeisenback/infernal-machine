@@ -17,6 +17,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
+from . import history
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
 from .formats import STANDARD, format_of
@@ -36,6 +37,8 @@ class Section:
     body: str
     seconds: float = 0.0
     code: bool = True  # a table to keep its alignment: shown in a code block
+    part: str = ""  # which of PARTS it is ("" for the note about unplayable cards)
+    data: dict = field(default_factory=dict)  # the part's numbers, as JSON keeps them (see history.py)
 
 
 @dataclass
@@ -44,6 +47,9 @@ class Analysis:
     kind: str  # "Commander" or "Standard"
     sections: list[Section] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)  # parts left out, and why
+    reused: list[str] = field(default_factory=list)  # parts taken from an earlier run (same deck and settings) instead of played again
+    changes: str = ""  # what moved against that run, when one was given
+    record: dict = field(default_factory=dict)  # this run as `history.snapshot` keeps it
 
     @property
     def seconds(self) -> float:
@@ -60,40 +66,58 @@ def _known_parts(skip: Iterable[str]) -> set[str]:
 
 def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: str = "deck", games: int = 40, sim_games: int = 500,
                  turns: int = 8, seed: int = 0, pod: int = 2, workers: int = 1, candidates: Iterable = (),
-                 skip: Iterable[str] = (), progress: Callable[[str], None] | None = None) -> Analysis:
+                 skip: Iterable[str] = (), progress: Callable[[str], None] | None = None, since: dict | None = None, reuse: bool = True,
+                 since_name: str = "the earlier run") -> Analysis:
     """Run the parts of the analysis and collect them. `games` is per opponent for the matchups, `sim_games` for the goldfish and the
-    tuning report; `skip` names parts (see PARTS) to leave out."""
+    tuning report; `skip` names parts (see PARTS) to leave out. `since` is an earlier run (`history.load`): what moved against it is in
+    `changes`, and a part it has for the same deck and settings is reused unless `reuse` is false."""
     left_out = _known_parts(skip)
+    candidates = list(candidates)
+    settings = {"games": games, "sim_games": sim_games, "turns": turns, "seed": seed, "pod": pod, "candidates": [getattr(c, "name", str(c)) for c in candidates]}
     commander = bool(deck.commanders)
     if opponents:
         format_of([deck, *opponents.values()])  # (a table can't mix decks with commanders and decks without)
     analysis = Analysis(name, "Commander" if commander else STANDARD.name.capitalize())
     say = progress or (lambda message: None)
 
-    def run(part: str, title: str, make: Callable[[], str], code: bool = True) -> None:
+    reused_parts: list[str] = []
+
+    def run(part: str, title: str, make: Callable[[], tuple[str, dict]], code: bool = True) -> None:
         if part in left_out:
             analysis.skipped.append(f"{title} (skipped on request)")
             return
+        saved = history.reusable(since if reuse else None, part, deck, settings, opponents)
+        if saved:
+            say(f"{title} (reused from {since_name})")
+            analysis.sections.append(Section(title, saved["body"], 0.0, saved["code"], part, saved["data"]))
+            analysis.reused.append(title.lower())
+            reused_parts.append(part)
+            return
         say(f"{title}...")
         started = time.monotonic()
-        body = make()
-        analysis.sections.append(Section(title, body, time.monotonic() - started, code))
+        body, data = make()
+        analysis.sections.append(Section(title, body, time.monotonic() - started, code, part, history.jsonable(data)))
 
     unplayable = unplayable_cards(deck)
     if unplayable:
         also = " The matchup win rates below are unreliable for the same reason." if opponents and "matchups" not in left_out else ""
         analysis.sections.append(Section("Cards the engine can't play", unplayable_note(unplayable, "The deck", IN_A_GAME + also), 0.0, code=False))
     if commander:
-        run("bracket", "Commander Bracket", lambda: _sentence(bracket_analyze(deck).summary()), code=False)
+        run("bracket", "Commander Bracket", lambda: _bracket(deck), code=False)
     else:
         analysis.skipped.append("Commander Bracket (a deck with no commander has none)")
     run("manabase", "Mana base", lambda: _mana_base(deck))
-    run("goldfish", "Goldfish", lambda: format_simulation(simulate(deck, sim_games, turns, seed)))
-    run("tuning", "Tuning", lambda: format_tuning(tune(deck, sim_games, turns, seed, list(candidates)), bracket=False, unplayable=False, mana_base=False))
+    run("goldfish", "Goldfish", lambda: _goldfish(deck, sim_games, turns, seed))
+    run("tuning", "Tuning", lambda: _tuning(deck, sim_games, turns, seed, candidates))
     if opponents:
-        run("matchups", "Matchups", lambda: format_matchups(matchups(deck, opponents, games, pod, seed, workers=workers), name, focus_warning=False))
+        run("matchups", "Matchups", lambda: _matchups(deck, opponents, games, pod, seed, workers, name))
     else:
         analysis.skipped.append("Matchups (no opponents given)")
+    analysis.record = history.snapshot(name, deck, settings, {s.part: {"title": s.title, "body": s.body, "code": s.code, "data": s.data}
+                                                              for s in analysis.sections if s.part}, opponents)
+    analysis.record["reused"] = reused_parts
+    if since:
+        analysis.changes = history.compare(since, analysis.record, since_name)
     return analysis
 
 
@@ -102,19 +126,48 @@ def _sentence(text: str) -> str:
     return text[:1].upper() + text[1:] + "."
 
 
-def _mana_base(deck: Deck) -> str:
+def _bracket(deck: Deck) -> tuple[str, dict]:
+    report = bracket_analyze(deck)
+    return _sentence(report.summary()), {"floor": report.floor, "game_changers": sorted(report.game_changers)}
+
+
+def _mana_base(deck: Deck) -> tuple[str, dict]:
     base = analyze_mana_base(deck)
-    return format_mana_base(base) if base else "This deck has no colored mana symbols."
+    if not base:
+        return "This deck has no colored mana symbols.", {}
+    return format_mana_base(base), {"lands": base.lands, "colors": {line.color: {"have": line.have, "needed": line.needed, "short": line.short}
+                                                                    for line in base.colors}}
+
+
+def _goldfish(deck: Deck, games: int, turns: int, seed: int) -> tuple[str, dict]:
+    stats = simulate(deck, games, turns, seed)
+    return format_simulation(stats), {"games": stats.games, "turns": stats.turns, "mulligan_rate": stats.mulligan_rate,
+                                      "opening_lands": stats.average_opening_lands, "mana_efficiency": stats.mana_efficiency, "on_curve": stats.on_curve,
+                                      "land_drops": stats.land_drop_rate, "damage": stats.damage}
+
+
+def _tuning(deck: Deck, games: int, turns: int, seed: int, candidates: list) -> tuple[str, dict]:
+    report = tune(deck, games, turns, seed, candidates)
+    return format_tuning(report, bracket=False, unplayable=False, mana_base=False), {"games": report.games, "baseline": report.baseline}
+
+
+def _matchups(deck: Deck, opponents: dict[str, Deck], games: int, pod: int, seed: int, workers: int, name: str) -> tuple[str, dict]:
+    records = matchups(deck, opponents, games, pod, seed, workers=workers)
+    return format_matchups(records, name, focus_warning=False), {"pod": pod, "opponents": {r.opponent: {"wins": r.wins, "games": r.games, "draws": r.draws} for r in records}}
 
 
 def format_analysis(analysis: Analysis, settings: str = "") -> str:
     lines = [f"# Analysis of {analysis.name}", "", f"{analysis.kind} deck." + (f" {settings}" if settings else "")]
+    if analysis.changes:
+        lines += ["", "## What changed", "", "```", analysis.changes, "```"]
     for section in analysis.sections:
         lines += ["", f"## {section.title}", ""]
         lines += ["```", section.body, "```"] if section.code else [section.body]
     lines += ["", "---", ""]
     if analysis.skipped:
         lines.append("Left out: " + "; ".join(analysis.skipped) + ".")
+    if analysis.reused:
+        lines.append(history.parts_reused(analysis.reused))
     timings = ", ".join(f"{s.title.lower()} {s.seconds:.1f}s" for s in analysis.sections if s.seconds >= 0.05)
     lines.append(f"Took {analysis.seconds:.0f} seconds" + (f" ({timings})" if timings else "") + ".")
     return "\n".join(lines)
@@ -140,6 +193,9 @@ def main(argv: list[str], source=None) -> int:
     parser.add_argument("--try", dest="candidates", action="append", default=[], metavar="CARD", help="a card to test in the weakest slot")
     parser.add_argument("--skip", default="", help=f"parts to leave out, comma separated: {', '.join(PARTS)}")
     parser.add_argument("--output", metavar="FILE", help="write the report here as well as printing it")
+    parser.add_argument("--save", metavar="FILE", help="keep this run's numbers (a JSON) so a later run can say what changed")
+    parser.add_argument("--since", metavar="FILE", help="an earlier run saved with --save: say what moved against it, and reuse its parts that are unchanged")
+    parser.add_argument("--no-reuse", action="store_true", help="with --since, play every part again instead of reusing the unchanged ones")
     parser.add_argument("--max-bracket", type=int, metavar="N", help="with no opponents named, only the saved gauntlet decks playable at Bracket N or lower")
     parser.add_argument("--bulk", default=".cache/oracle_bulk.json")
     args = parser.parse_args(argv)
@@ -157,9 +213,11 @@ def main(argv: list[str], source=None) -> int:
         wanted = args.opponents if args.opponents or "matchups" in skipped else opponent_paths([], args.max_bracket)
         opponents = {name(p): load(p) for p in wanted}
         candidates = [source.get(card) for card in args.candidates]
+        earlier = history.load(args.since) if args.since else None
         analysis = analyze_deck(deck, opponents, name=name(args.decklist), games=args.games, sim_games=args.sim_games, turns=args.turns,
                                 seed=args.seed, pod=args.pod, workers=args.workers, candidates=candidates,
-                                skip=skipped, progress=lambda m: print(m, file=sys.stderr, flush=True))
+                                skip=skipped, progress=lambda m: print(m, file=sys.stderr, flush=True), since=earlier,
+                                reuse=not args.no_reuse, since_name=args.since or "the earlier run")
     except (CardNotFound, ValueError, OSError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 2
@@ -169,6 +227,9 @@ def main(argv: list[str], source=None) -> int:
     if args.output:
         with open(args.output, "w", encoding="utf-8") as f:
             f.write(report + "\n")
+    if args.save:
+        history.save(args.save, analysis.record)
+        print(f"Saved this run's numbers to {args.save}.", file=sys.stderr)
     return 0
 
 
