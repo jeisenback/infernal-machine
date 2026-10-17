@@ -420,6 +420,7 @@ class Decklist:
     commanders: dict[str, int] = field(default_factory=dict)
     main: dict[str, int] = field(default_factory=dict)
     sideboard: dict[str, int] = field(default_factory=dict)
+    companion: dict[str, int] = field(default_factory=dict)  # the companion kept outside the game (a `Companion` section), at most one card
 
 
 def parse_decklist(text: str) -> Decklist:
@@ -427,11 +428,11 @@ def parse_decklist(text: str) -> Decklist:
 
     Accepts lines like "4 Lightning Bolt", "4x Lightning Bolt",
     "4 Lightning Bolt (M11) 146" and "1 Atraxa, Praetors' Voice *CMDR*".
-    "Commander", "Deck" and "Sideboard" headers switch sections; a blank line
+    "Commander", "Deck", "Sideboard" and "Companion" headers switch sections; a blank line
     after main-deck cards starts the sideboard. "//" lines are comments.
     """
     deck = Decklist()
-    sections = {"commander": deck.commanders, "deck": deck.main, "sideboard": deck.sideboard}
+    sections = {"commander": deck.commanders, "deck": deck.main, "sideboard": deck.sideboard, "companion": deck.companion}
     current = deck.main
     for raw in text.splitlines():
         line = raw.strip()
@@ -461,6 +462,7 @@ class Deck:
     main: list[Card]
     sideboard: list[Card]
     conjured: dict[str, Card] = field(default_factory=dict)  # the cards its text can conjure, by name
+    companion: Card | None = None  # kept outside the game; its owner may put it into their hand once, for {3} (see companion.py)
     format: str = ""  # the format it is played in ("commander", "brawl", "duel", "standard"); empty: the one its shape says (see formats.format_of)
 
 
@@ -485,7 +487,10 @@ def _conjured_cards(cards: Iterable[Card], source: CardSource) -> dict[str, Card
 def load_deck(text: str, source: CardSource) -> Deck:
     """Parse a decklist and pull every card from `source`, expanded by count."""
     parsed = parse_decklist(text)
-    cards = source.get_many([*parsed.commanders, *parsed.main, *parsed.sideboard])
-    expand = lambda counts: [cards[name] for name, n in counts.items() for _ in range(n)]
+    cards = source.get_many([*parsed.commanders, *parsed.main, *parsed.sideboard, *parsed.companion])
+    expand = lambda counts: [cards[name] for name, n in counts.items() for _ in range(n)]  # noqa: E731
+    companion = expand(parsed.companion)
+    if len(companion) > 1:
+        raise ValueError("A deck has at most one companion")
     return Deck(expand(parsed.commanders), expand(parsed.main), expand(parsed.sideboard),
-                _conjured_cards(cards.values(), source))
+                _conjured_cards(cards.values(), source), companion=companion[0] if companion else None)

@@ -115,6 +115,28 @@ class TrailingCommanderTests(unittest.TestCase):
         self.assertEqual(deck.side, {"Toshiro Umezawa": 1})
 
 
+class CompanionTests(unittest.TestCase):
+    def test_a_companion_section_is_kept_apart_from_the_deck_and_not_counted(self):
+        deck = importer.parse("Companion\n1 Lurrus of the Dream-Den\n\nCommander\n1 Boss\n\nDeck\n99 Island\n\nSideboard\n1 Snuff Out\n")
+        self.assertEqual(deck.companion, {"Lurrus of the Dream-Den": 1})
+        self.assertEqual((deck.commanders, deck.main, deck.side), ({"Boss": 1}, {"Island": 99}, {"Snuff Out": 1}))
+        self.assertEqual(deck.total, 100)
+        self.assertEqual(importer.warnings(deck), [])
+
+    def test_the_category_marks_a_companion_too(self):
+        deck = importer.parse("1x Lurrus of the Dream-Den (iko) 226 [Companion]\n2x Island (m21) 262 [Land]\n")
+        self.assertEqual((deck.companion, deck.main), ({"Lurrus of the Dream-Den": 1}, {"Island": 2}))
+
+    def test_it_is_written_as_a_companion_section_the_decklist_reads(self):
+        text = importer.render(importer.parse("Companion\n1 Lurrus of the Dream-Den\n\nDeck\n4 Island\n"))
+        self.assertIn("Companion\n1 Lurrus of the Dream-Den", text)
+        self.assertEqual(parse_decklist(text).companion, {"Lurrus of the Dream-Den": 1})
+
+    def test_two_companions_are_warned_about(self):
+        deck = importer.parse("Companion\n1 Lurrus of the Dream-Den\n1 Zirda, the Dawnwaker\n\nDeck\n4 Island\n")
+        self.assertIn("at most one companion; this has 2", " ".join(importer.warnings(deck)))
+
+
 class CsvTests(unittest.TestCase):
     def test_a_csv_with_count_and_name(self):
         deck = importer.parse('Count,Name,Edition,Board\n1,"Atraxa, Praetors\' Voice",c16,commander\n2,Island,m21,mainboard\n1,Counterspell,cmm,maybeboard\n'

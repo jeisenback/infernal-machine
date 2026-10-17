@@ -115,6 +115,21 @@ life and commander-damage limit (the bot is told the limit and aims its commande
 (so the card file was fetched again when it was added). There are no saved Brawl or Duel Commander decks to play against by default:
 name opponents.
 
+### Companions
+
+A deck names a companion in a `Companion` section of its decklist (`Deck.companion`; `tools/import_deck.py` keeps a `Companion` section or
+a `[Companion]` category apart from the deck). `formats.deck_problems` checks it for every format, from `companion.py`: the card has the
+companion ability, the starting deck (the commanders and the main deck) meets the condition on its companion line, and the deck has at
+most one. The ten companions the card file has (Gyruda, Jegantha, Kaheera, Keruga, Lurrus, Lutri, Obosh, Umori, Yorion, Zirda) are checked
+by their wording; a companion with any other condition is reported as one that cannot be checked, not passed. In a commander format the
+companion is outside the 100 (or 60) cards but must be inside the commanders' color identity, not also in the deck, and legal in the
+format (Yorion, which asks for twenty cards more than the minimum, cannot be played with Commander's exact 100); in Standard it is one of
+the sideboard's fifteen and counts for the four copies.
+
+In the game the companion starts outside it. At the times its owner could cast a sorcery (their main phase, nothing on the stack), once per
+game, `Companion: <card>` is offered when {3} can be paid: it pays and the companion goes into the hand, to be cast like any card
+(CR 702.139). The bot takes it when it has nothing else to do with its mana, after casting what it can.
+
 ## Deck stats
 
 ```python
