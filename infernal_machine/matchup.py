@@ -33,6 +33,7 @@ from .formats import format_of
 from .gauntlet import opponent_paths
 from .game import BOARD_LIMIT, Game
 from .report import unplayable_cards, unplayable_note
+from .sequential import MIN_LOOK_PAIRS, confidence, look_z, schedule
 
 EARLY_TURNS = 4  # the first turns of a seat, whose lands and spells say whether it stumbled
 
@@ -176,6 +177,10 @@ class Record:
     opponent_unplayable: tuple[tuple[str, int], ...] = ()  # likewise in the opponent deck(s) this record was played against
     bracket: tuple[int, ...] = ()  # the Commander Bracket floors of the opponent decks it was played against (none for decks without a commander)
     focus_bracket: int | None = None  # the focus deck's
+    z: float = 1.96  # the width of `interval` in standard errors (wider when games were played in rounds and looked at between them)
+    planned: int = 0  # games an early-stopping run planned against this opponent (0: it did not stop early)
+    stopped: str | None = None  # "better" or "worse" than the fair share, if it stopped before playing every planned game
+    looks: int = 1
 
     @property
     def win_rate(self) -> float:
@@ -183,7 +188,7 @@ class Record:
 
     @property
     def interval(self) -> tuple[float, float]:
-        return wilson(self.wins, self.games)
+        return wilson(self.wins, self.games, self.z)
 
 
 def _record(name: str, results: list[GameResult], pod: int) -> Record:
@@ -246,13 +251,59 @@ def play_plans(plans: list[tuple[str, list[tuple]]], workers: int = 1) -> list[l
     return [[_run(task) for task in tasks] for _, tasks in plans]
 
 
+def win_stop(wins: int, games: int, fair_share: float, z: float, final: bool) -> str | None:
+    """"better" or "worse" when a win rate's interval (widened to `z`) leaves out the fair share, once there are `MIN_LOOK_PAIRS` games;
+    None while it is still within noise. The last look never stops early. (A matchup has no "hopeless" stop: resolving a few points of
+    win rate takes hundreds of games whatever was planned, so a run that stays within noise just plays its games.)"""
+    if final or games < MIN_LOOK_PAIRS:
+        return None
+    low, high = wilson(wins, games, z)
+    return "better" if low > fair_share else "worse" if high < fair_share else None
+
+
+def _play_matchups_in_rounds(plans: list[tuple[str, list[tuple]]], games: int, pod: int,
+                             workers: int) -> tuple[list[list[GameResult]], dict[str, str], int, float]:
+    """Play every opponent's games a round at a time and look after each; an opponent whose win rate is clearly away from the fair share
+    stops there. Returns (the results per plan, why each stopped, the looks, the interval width)."""
+    looks, batch = schedule(games)
+    z = look_z(looks)
+    fair = 1 / (pod if pod > 2 else 2)
+    results: list[list[GameResult]] = [[] for _ in plans]
+    active = list(range(len(plans)))
+    stopped: dict[str, str] = {}
+    for look in range(1, looks + 1):
+        lo, hi = (look - 1) * batch, min(games, look * batch)
+        for i, new in zip(active, play_plans([(plans[i][0], plans[i][1][lo:hi]) for i in active], workers)):
+            results[i] += new
+        for i in list(active):
+            done = [r for r in results[i] if r.error is None]
+            reason = win_stop(sum(r.winner == r.focus_seat for r in done), len(done), fair, z, look == looks)
+            if reason:
+                stopped[plans[i][0]] = reason
+                active.remove(i)
+        if not active:
+            break
+    return results, stopped, looks, z
+
+
 def matchups(focus: Deck, opponents: dict[str, Deck], games: int = 40, pod: int = 2, seed: int = 0, max_turns: int = 60,
-             time_limit: float = 120.0, workers: int = 1, focus_bot=BotPlayer, opponent_bot=BotPlayer) -> list[Record]:
+             time_limit: float = 120.0, workers: int = 1, focus_bot=BotPlayer, opponent_bot=BotPlayer, early_stop: bool = False) -> list[Record]:
     """Play `games` games for each opponent (a duel), or `games` pod games in all if `pod` is more than 2.
-    `focus_bot` and `opponent_bot` make the players, to compare two versions of a bot on the same decks."""
+    `focus_bot` and `opponent_bot` make the players, to compare two versions of a bot on the same decks. With `early_stop`, the games are
+    played in rounds and an opponent is dropped once the win rate against it is clearly above or below the fair share (see
+    `sequential.py` for the rule)."""
     plans = plan_games(focus, opponents, games, pod, seed, max_turns, time_limit, focus_bot, opponent_bot)
-    results = play_plans(plans, workers)
+    rounds = early_stop and games > 1
+    stopped: dict[str, str] = {}
+    looks, z = 1, 1.96
+    if rounds:
+        results, stopped, looks, z = _play_matchups_in_rounds(plans, games, pod, workers)
+    else:
+        results = play_plans(plans, workers)
     records = [_record(name, rs, pod if pod > 2 else 2) for (name, _), rs in zip(plans, results)]
+    if rounds:
+        for record in records:
+            record.z, record.looks, record.planned, record.stopped = z, looks, games, stopped.get(record.opponent)
     focus_cards = _unplayable(focus)
     by_opponent = {name: _unplayable(deck) for name, deck in opponents.items()}
     everyone = tuple(sorted({item for cards in by_opponent.values() for item in cards}))  # a pod draws from all of them
@@ -290,7 +341,7 @@ def _pct(wins_games: tuple[int, int]) -> str:
 
 
 def format_matchups(records: list[Record], focus: str = "focus deck", *, focus_warning: bool = True) -> str:
-    lines = [f"{focus} against bots. Win rate with its 95% interval (fair share {records[0].fair_share:.0%}); "
+    lines = [f"{focus} against bots. Win rate with its {confidence(records[0].z)} interval (fair share {records[0].fair_share:.0%}); "
              "win rate when going first / second; why it lost.", ""]
     if records[0].focus_bracket is not None:
         ours = records[0].focus_bracket
@@ -306,6 +357,12 @@ def format_matchups(records: list[Record], focus: str = "focus deck", *, focus_w
         lost = ", ".join(f"{reason} {count}" for reason, count in r.how_lost.most_common()) or "-"
         lines.append(f"{r.opponent[:30]:<30} {f'{r.wins}-{r.losses}-{r.draws}':>9}  {rate:<16} {r.turns:>5}  "
                      f"{_pct(r.on_play):<12} {_pct(r.on_draw):<12} {lost}")
+    if records[0].planned:  # played in rounds
+        lines.append(f"Stopping rule: {records[0].looks} looks; each look's interval is widened to {confidence(records[0].z)} so the chance of a false "
+                     "'clearly better or worse' against an opponent whose true win rate is the fair share stays under 5%. An opponent is dropped "
+                     f"when its interval leaves out the fair share, after {MIN_LOOK_PAIRS} games at the earliest.")
+        lines += [f"{r.opponent}: stopped after {r.games} of {r.planned} planned games: clearly {r.stopped} than the fair share."
+                  for r in records if r.stopped]
     if records[0].focus_unplayable and focus_warning:  # (`analyze` says it once, at the top)
         lines.append(unplayable_note(records[0].focus_unplayable, "The focus deck") + " Its win rates are unreliable.")
     for r in records:
@@ -345,6 +402,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--games", type=int, default=40, help="per opponent (or in total with --pod)")
     parser.add_argument("--pod", type=int, default=2, help="players per game; above 2 draws the opponents at random")
     parser.add_argument("--max-bracket", type=int, metavar="N", help="leave out opponents that can only be played at a Bracket above N")
+    parser.add_argument("--early-stop", action="store_true", help="play in rounds and drop an opponent once its win rate is clearly above or below the fair share")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--max-turns", type=int, default=60)
     parser.add_argument("--time-limit", type=float, default=120.0, help="seconds per game")
@@ -365,7 +423,8 @@ def main(argv: list[str]) -> int:
         if not opponents:
             print("No opponent is left.", file=sys.stderr)
             return 2
-    records = matchups(load(args.decklist), opponents, args.games, args.pod, args.seed, args.max_turns, args.time_limit, args.workers)
+    records = matchups(load(args.decklist), opponents, args.games, args.pod, args.seed, args.max_turns, args.time_limit, args.workers,
+                       early_stop=args.early_stop)
     print(format_matchups(records, os.path.splitext(os.path.basename(args.decklist))[0]))
     return 0
 
