@@ -14,20 +14,21 @@ from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
 from .undercity import HELPS_ITS_TARGET
 from .effects import MOVE_COUNTERS_PROMPT
-from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PLAY_EXILE, PLAY_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS,
+from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PLAY_EXILE, PLAY_GRAVEYARD, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
 HIGH_TAX = 6  # a commander cast from the command zone three times has this much tax; past it, a graveyard with a way out can be the better place
 # A card that brings a card back from a graveyard to the battlefield or the hand: where a commander that dies can be worth leaving.
 RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
                        r"|return enchanted creature card to the battlefield", re.IGNORECASE)
 COMMANDER_FIRST_TAX = 2  # cast the commander before anything else while its tax is at most this; after that it competes for mana
 COMMANDER_DAMAGE = 21
+LAND_SEARCH_PROMPTS = (SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT)  # asked when a spell or land fetches a land
 LOW_CURVE = 3.0  # a deck whose spells cost this much on average or less can keep a two-land hand that has cheap spells
 CHEAP_SPELL = 2  # a spell this cheap (or cheaper) is one a two-land hand can cast
 SMALL_THREAT = 2  # an opposing creature this small (power) is not worth a removal spell while nothing bigger is out
@@ -154,6 +155,8 @@ class BotPlayer:
             return self._attack_target(options)
         if prompt == COMMAND_ZONE_PROMPT:
             return self._commander_zone(options)
+        if prompt in LAND_SEARCH_PROMPTS and (land := self._best_search_land(options, list(range(len(options))))) is not None:
+            return land  # Evolving Wilds, Cultivate, Path to Exile's land: the colour the hand needs
         if prompt.startswith(BLOCK_PROMPT):
             return self._block(prompt, options)
         if prompt.startswith(SHOCK_PROMPT):
@@ -187,6 +190,8 @@ class BotPlayer:
             return len(options) - 1  # the bounceland that just came in is the newest land
         if prompt in (SEARCH_CARD_PROMPT, LOOK_PROMPT, CHOOSE_DISCARD_PROMPT, THRONE_PROMPT):
             taken = [i for i, name in enumerate(options) if name != NONE_TAKEN]  # never declines the optional take
+            if prompt == SEARCH_CARD_PROMPT and (land := self._best_search_land(options, taken)) is not None:
+                return land
             # its best card; one it can't see in its own deck (from an opponent's hand) counts as worth nothing
             return max(taken, key=lambda i: self._cards[options[i]].cmc if options[i] in self._cards else 0)
         if prompt == SACRIFICE_PROMPT or prompt.startswith(SACRIFICE_COST_PROMPT):
@@ -314,28 +319,56 @@ class BotPlayer:
             return True
         return step == "main1" and "{T}" not in cost and "Sacrifice" not in cost
 
-    def _best_land(self, lands: list[int], options: Sequence[str]) -> int:
-        """The land that adds the most colors the hand still needs and the lands in play lack; untapped ones first."""
+    def _land_wants(self) -> tuple[set[str], set[str], int, list[int]]:
+        """What the next land should do: (the colors its lands in play make, the colors the spells in hand need, how much mana is
+        untapped now, the mana values of the spells in hand)."""
         state = self._state or {}
         have: set[str] = set()
+        untapped = 0
         for seat in state.get("seats", []):
             if seat["seat"] == self._seat:
                 for p in seat["battlefield"]:
                     if "Land" in p["type"] and p.get("name") in self._cards:
                         have |= set(self._cards[p["name"]].produced_mana)
+                    if not p.get("tapped") and ("Land" in p["type"] or (p.get("name") in self._cards and self._cards[p["name"]].produced_mana)):
+                        untapped += 1
         needed: set[str] = set()
+        costs: list[int] = []
         for name in state.get("hand", []):
             card = self._cards.get(name)
             if card is not None and not is_land(card):
                 needed |= set(color_pips(card.mana_cost))
+                costs.append(int(card.cmc))
+        return have, needed, untapped, costs
+
+    def _best_land(self, lands: list[int], options: Sequence[str]) -> int:
+        """The land that adds the most colors the hand still needs and the lands in play lack; untapped ones first. With "tempo", a land
+        that enters tapped is played on a turn when no spell in hand needs the mana it would add, and an untapped one when one does."""
+        have, needed, untapped, costs = self._land_wants()
+        wanted_now = "tempo" in self.features and any(untapped < cost <= untapped + 1 for cost in costs)  # a spell this land's mana would let it cast
 
         def score(i: int) -> tuple[int, int, bool]:
             card = self._card(options[i].split(": ", 1)[1])
             colors = set(card.produced_mana) & set("WUBRG")
-            tapped = "enters tapped" in card.oracle_text or "enters the battlefield tapped" in card.oracle_text
-            return len((colors & needed) - have), len(colors & needed), not tapped
+            tapped = _enters_tapped(card)
+            return len((colors & needed) - have), len(colors & needed), (not tapped) if wanted_now or "tempo" not in self.features else tapped
 
         return max(lands, key=score)
+
+    def _best_search_land(self, options: Sequence[str], taken: list[int]) -> int | None:
+        """With "fetch": of the lands a search can find, the one that adds the most colors the hand needs and the lands in play lack
+        (ties: the one that enters untapped, then the first). None when the search is for something that is not a land."""
+        cards = [self._cards.get(options[i]) for i in taken]
+        if "fetch" not in self.features or not cards or not all(c is not None and is_land(c) for c in cards):
+            return None
+        have, needed, _, _ = self._land_wants()
+
+        def score(position: int) -> tuple[int, int, bool]:
+            card = cards[position]
+            colors = (set(card.produced_mana) if card else set()) & set("WUBRG")
+            return len((colors & needed) - have), len(colors & needed), not _enters_tapped(card) if card else True
+
+        return taken[max(range(len(taken)), key=score)]  # (the first of equals: max keeps the first it sees)
 
     def _best_cast(self, casts: list[int], options: Sequence[str]) -> int:
         """Of the spells it can cast, the biggest one in the combination that spends the most of its untapped mana."""
@@ -544,6 +577,10 @@ class _Fighter:
 def _spot(label: str) -> str:
     """Which permanent a label is: its "(seat 1, #3)" (the stats in the label change, the spot does not)."""
     return label[label.rindex("("):] if "(" in label else label
+
+
+def _enters_tapped(card: Card) -> bool:
+    return "enters tapped" in card.oracle_text or "enters the battlefield tapped" in card.oracle_text
 
 
 def _threat(seat: dict) -> float:

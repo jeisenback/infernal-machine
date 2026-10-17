@@ -36,7 +36,7 @@ from .bot import BotPlayer
 from .cards import Card, Deck
 from .formats import format_of
 from .combat import ATTACK_PROMPT
-from .bot import _cast_name
+from .bot import FEATURES, _cast_name
 from .game import CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PASS, PLAY_LAND, STEPS, Game, Seat
 from .report import unplayable_cards, unplayable_note
 from .simulate import SimStats, _blocked_on_colors, _taxed, format_simulation, simulate, summarize
@@ -63,8 +63,8 @@ class IdlePlayer(BotPlayer):
 class Pilot(BotPlayer):
     """The bot playing the deck, telling the recorder before each decision it makes (so the recorder can look at the board)."""
 
-    def __init__(self, name: str, deck: Deck):
-        super().__init__(name, deck)
+    def __init__(self, name: str, deck: Deck, features: frozenset[str] = FEATURES):
+        super().__init__(name, deck, features)
         self.before_choice = lambda prompt, options: None
         self.after_choice = lambda prompt, options, choice: None
 
@@ -103,12 +103,13 @@ def _idle_deck(like: Deck) -> Deck:
     return Deck([], [wastes] * len(like.main), [])
 
 
-def play_engine_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: bool = False, time_limit: float = TIME_LIMIT) -> dict:
+def play_engine_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: bool = False, time_limit: float = TIME_LIMIT,
+                     features: frozenset[str] = FEATURES) -> dict:
     """Game number `n` through the engine: a dict like the model's `simulate._play` returns, plus "drawn" and "permanents"."""
     game_seed = zlib.crc32(f"{seed}-{n}".encode())
     first = random.Random(game_seed).randrange(2)  # the engine picks the first player with its first draw from this generator
     focus = first if on_the_play else 1 - first
-    pilot = Pilot("deck", deck)
+    pilot = Pilot("deck", deck, features)
     makers: list[BotPlayer] = [IdlePlayer("idle", _idle_deck(deck)), IdlePlayer("idle", _idle_deck(deck))]
     makers[focus] = pilot
     decks = [_idle_deck(deck), _idle_deck(deck)]
@@ -228,17 +229,17 @@ def play_engine_game(deck: Deck, n: int, turns: int, seed: int, on_the_play: boo
 
 
 def _run_one(task: tuple) -> dict | None:
-    deck, n, turns, seed, on_the_play, time_limit = task
+    deck, n, turns, seed, on_the_play, time_limit, features = task
     try:
-        return play_engine_game(deck, n, turns, seed, on_the_play, time_limit)
+        return play_engine_game(deck, n, turns, seed, on_the_play, time_limit, features)
     except (_TimedOut, Exception):  # a game the engine could not finish is left out, and counted
         return None
 
 
 def play_runs(deck: Deck, games: int = 100, turns: int = 8, seed: int = 0, on_the_play: bool = False, workers: int = 1,
-              time_limit: float = TIME_LIMIT) -> list[dict | None]:
-    """The engine games themselves, one record each (None for a game that could not be finished)."""
-    tasks = [(deck, n, turns, seed, on_the_play, time_limit) for n in range(games)]
+              time_limit: float = TIME_LIMIT, features: frozenset[str] = FEATURES) -> list[dict | None]:
+    """The engine games themselves, one record each (None for a game that could not be finished). `features` are the bot's judgments."""
+    tasks = [(deck, n, turns, seed, on_the_play, time_limit, features) for n in range(games)]
     if workers > 1:
         with ProcessPoolExecutor(max_workers=workers) as pool:
             return list(pool.map(_run_one, tasks, chunksize=1))
@@ -246,9 +247,9 @@ def play_runs(deck: Deck, games: int = 100, turns: int = 8, seed: int = 0, on_th
 
 
 def goldfish(deck: Deck, games: int = 100, turns: int = 8, seed: int = 0, on_the_play: bool = False, workers: int = 1,
-             time_limit: float = TIME_LIMIT) -> SimStats:
+             time_limit: float = TIME_LIMIT, features: frozenset[str] = FEATURES) -> SimStats:
     """Play `deck` alone through the engine `games` times for `turns` of its own turns and report like `simulate`."""
-    runs = play_runs(deck, games, turns, seed, on_the_play, workers, time_limit)
+    runs = play_runs(deck, games, turns, seed, on_the_play, workers, time_limit, features)
     finished = [run for run in runs if run is not None]
     stats = summarize(deck, finished, turns)
     stats.dropped = len(runs) - len(finished)
@@ -306,11 +307,13 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     parser.add_argument("--model-games", type=int, default=1000, help="games of the fast model to show beside it (0 to skip)")
     parser.add_argument("--time-limit", type=float, default=TIME_LIMIT, help="seconds per game")
+    parser.add_argument("--features", help="the bot's judgments, comma separated (default: all; see bots.md), to see what one of them does")
     parser.add_argument("--bulk", default=".cache/oracle_bulk.json")
     args = parser.parse_args(argv[1:])
     with open(args.decklist, encoding="utf-8") as f:
         deck = load_deck(f.read(), BulkSource(args.bulk))
-    engine = goldfish(deck, args.games, args.turns, args.seed, args.play, args.workers, args.time_limit)
+    engine = goldfish(deck, args.games, args.turns, args.seed, args.play, args.workers, args.time_limit,
+                      frozenset(part for part in args.features.split(",") if part) if args.features is not None else FEATURES)
     print(format_goldfish(engine))
     if args.model_games:
         print("\n" + format_gap(simulate(deck, args.model_games, args.turns, args.seed, args.play), engine))

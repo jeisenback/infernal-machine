@@ -69,6 +69,15 @@ stats = goldfish(deck, games=5000, turns=5)
     damages) waits while every creature the opponents have has power 2 or less, unless the bot is at 10 life or less or its hand is full.
     960 duels: 49.5% (46.3%-52.6%), no measurable difference. (Six games of that run timed out while the test suite shared the machine;
     the pairing they were in, played alone, had none.)
+  - `tempo`: a land that enters tapped is played on a turn when no spell in hand needs the mana it would add, and an untapped land on
+    a turn when one does (a spell that costs one more than the untapped mana the bot has). Colours still come first.
+  - `fetch`: when a spell or land fetches a land (Evolving Wilds, Cultivate, Path to Exile's land), it takes the land that adds a colour
+    the hand needs and the lands in play lack, an untapped one on a tie. The plain bot took the first land listed.
+    Both came from the engine goldfish (`goldfish.py`): on the five precons the bot is on curve 25-31% of the time where the model says
+    42-51%, and the gap is mostly mana, not the order the bot casts in. Of the cards due on a turn, only 52-70% could be cast by it (the
+    engine has 0.5-1.0 less mana than the model on turns 1-4, because the model counts a tapped land as untapped), and an ideal order with
+    the mana the game really had does no better than the bot. Over 100 engine games per deck, `tempo` raised the on-curve rate from 25.6%
+    to 27.4% and `fetch` lowered the colour-stuck rate on turns 2-5 from 15.3% to 14.7%; both together 27.3% and 14.2%.
   Alone, none of the three measurably helps or hurts; all three together against the bot without them won 509 of 960, 53.0%
   (49.9%-56.2%), which is not a measurable difference either. They are rule-following choices like `commander` and `threat`, and the weekly
   `bot strength` job keeps watching them with the rest.
