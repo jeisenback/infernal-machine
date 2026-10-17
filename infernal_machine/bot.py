@@ -471,15 +471,20 @@ class BotPlayer:
         return self._lands() >= LAND_GOAL if is_land(card) else card.cmc > self._lands() + 2
 
     def _holds_removal(self, card: Card | None) -> bool:
-        """With "hold": a spell that removes a creature waits while every creature the opponents have is small (power `SMALL_THREAT`
-        or less), the bot is not under pressure (above `CHUMP_LIFE`) and its hand is not full (a card it would discard is cast)."""
+        """With "hold": a spell that removes a creature waits while the opponents have no creature (it could only be cast at the bot's
+        own), and while every creature they have is small (power `SMALL_THREAT` or less), unless the bot is under pressure (at
+        `CHUMP_LIFE` or less) or its hand is full (a card it would discard is cast)."""
         if "hold" not in self.features or card is None or not _is_creature_removal(card):
             return False
         mine = self._my_seat()
         foes = [s for s in (self._state or {}).get("seats", []) if s["seat"] != self._seat and not s["lost"]]
-        if mine is None or not foes or self._life_of(self._seat) <= self.CHUMP_LIFE or len((self._state or {}).get("hand", [])) >= HAND_SIZE:
+        if mine is None or not foes:
             return False
         powers = [p["power"] for s in foes for p in s["battlefield"] if p["power"] is not None]
+        if not powers:
+            return True  # nothing of theirs to remove: cast now, it would go at one of its own creatures
+        if self._life_of(self._seat) <= self.CHUMP_LIFE or len((self._state or {}).get("hand", [])) >= HAND_SIZE:
+            return False
         return all(power <= SMALL_THREAT for power in powers)
 
     def _unhelpful_wipe(self, card: Card | None) -> bool:
@@ -562,7 +567,7 @@ def _mode_score(text: str) -> int:
 def _is_creature_removal(card: Card) -> bool:
     """An instant or sorcery that destroys, exiles, bounces, shrinks or damages a target creature (not a wipe, and not burn for the face)."""
     text = card.oracle_text.lower()
-    return (("Instant" in card.type_line or "Sorcery" in card.type_line) and re.search(r"target (?:[\w-]+ )*creature", text) is not None
+    return (("Instant" in card.type_line or "Sorcery" in card.type_line) and re.search(r"target (?:[\w-]+ )*creature(?! card)", text) is not None
             and any(word in text for word in ("destroy", "exile", "damage", "return target", "gets -")))
 
 
