@@ -21,19 +21,33 @@ from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCAR
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
 HIGH_TAX = 6  # a commander cast from the command zone three times has this much tax; past it, a graveyard with a way out can be the better place
 # A card that brings a card back from a graveyard to the battlefield or the hand: where a commander that dies can be worth leaving.
 RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
                        r"|return enchanted creature card to the battlefield", re.IGNORECASE)
 COMMANDER_FIRST_TAX = 2  # cast the commander before anything else while its tax is at most this; after that it competes for mana
 COMMANDER_DAMAGE = 21
+LOW_CURVE = 3.0  # a deck whose spells cost this much on average or less can keep a two-land hand that has cheap spells
+CHEAP_SPELL = 2  # a spell this cheap (or cheaper) is one a two-land hand can cast
+SMALL_THREAT = 2  # an opposing creature this small (power) is not worth a removal spell while nothing bigger is out
 LAND_GOAL = 6  # lands (in play and in hand) the bot wants before it stops keeping more
 
 
 def keep_hand(hand: list[Card], mulligans: int = 0) -> bool:
     lands = sum(1 for c in hand if is_land(c))
     return mulligans >= MAX_MULLIGANS or MIN_LANDS <= lands <= MAX_LANDS
+
+
+def keep_hand_for(hand: list[Card], average_cost: float, mulligans: int = 0) -> bool:
+    """`keep_hand` for a deck whose spells cost `average_cost` on average: a hand of two lands is only kept when the deck is cheap
+    enough to play on two (`LOW_CURVE`) and the hand has two spells to cast with them; hands of three to five lands are kept as ever."""
+    if mulligans >= MAX_MULLIGANS:
+        return True
+    lands = sum(1 for c in hand if is_land(c))
+    if lands == MIN_LANDS:
+        return average_cost <= LOW_CURVE and sum(1 for c in hand if not is_land(c) and c.cmc <= CHEAP_SPELL) >= 2
+    return MIN_LANDS < lands <= MAX_LANDS
 
 
 def worst_card(hand: list[Card]) -> int:
@@ -75,7 +89,7 @@ class BotPlayer:
         """`features` turns judgments on: "timing" (tap-and-sacrifice abilities only after casting, never before the
         main phase), "attack" (only attacks that can't be blocked and killed for nothing), "land" (plays the land its
         hand needs), "target" (removal goes on the biggest opposing creature), "mana" (casts what spends the most mana),
-        "commander" (a commander with a high tax is weighed against other spells, and its damage goes where it adds up to 21),
+        "keep" (a hand of two lands is kept only by a cheap deck, and only with two cheap spells), "commander" (a commander with a high tax is weighed against other spells, and its damage goes where it adds up to 21),
         "threat" (in a pod, it finishes an opponent it can kill and otherwise attacks the one with the most on the board, not the one on
         the lowest life), "destination" (a commander that would be bounced goes to the hand to be cast without tax, and one that would
         die with a lot of tax on it goes to the graveyard if the deck can bring it back)."""
@@ -83,6 +97,8 @@ class BotPlayer:
         self._commanders = {c.name for c in deck.commanders}
         self._commander_casts: Counter = Counter()  # times each of its commanders was cast from the command zone: the tax is two mana a time
         self._recursion = any(RECURSION.search(c.oracle_text) for c in deck.main)
+        spells = [c.cmc for c in deck.main if not is_land(c)]
+        self._average_cost = sum(spells) / len(spells) if spells else 0.0  # what the deck's spells cost on average
         self.name = name
         self._cards = {c.name: c for c in deck.commanders + deck.main}
         self._cards.update({c.prepare.name: c.prepare for c in list(self._cards.values()) if c.prepare})  # the spell halves
@@ -93,6 +109,8 @@ class BotPlayer:
         self._stack: list[int] = []  # seat of each spell on the stack, bottom first
         self._life: dict[int, int] = {}
         self._state: dict | None = None  # the latest board snapshot
+        self._joint: dict[str, list[str]] = {}  # this combat's double blocks: the attacker -> the blockers that were planned for it
+        self._joint_turn: int | None = None
 
     def _card(self, name: str) -> Card:
         """The card called `name`. One from another deck (Plargg and Nassari casts opponents' cards) is known by name only."""
@@ -124,7 +142,8 @@ class BotPlayer:
 
     def choose(self, prompt: str, options: Sequence[str]) -> int:
         if prompt == KEEP_PROMPT:
-            return 0 if keep_hand(self._hand, self._mulligans) else 1
+            keep = keep_hand_for(self._hand, self._average_cost, self._mulligans) if "keep" in self.features else keep_hand(self._hand, self._mulligans)
+            return 0 if keep else 1
         if prompt in (BOTTOM_PROMPT, DISCARD_PROMPT, DISCARD_CARD_PROMPT):
             return worst_card([self._card(name) for name in options])
         if prompt.startswith(ATTACK_PROMPT):
@@ -207,7 +226,7 @@ class BotPlayer:
                 return cheap[0]
         casts = [i for i, option in enumerate(options)
                  if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)) and not _is_ritual(self._cards.get(_cast_name(option)))
-                 and not self._unhelpful_wipe(self._cards.get(_cast_name(option)))]
+                 and not self._unhelpful_wipe(self._cards.get(_cast_name(option))) and not self._holds_removal(self._cards.get(_cast_name(option)))]
         if "commander" in self.features:
             casts += [i for i in commanders if i not in casts]  # a commander that has grown expensive competes with the rest
         if casts:
@@ -366,6 +385,67 @@ class BotPlayer:
         return threat < mine["life"]
 
 
+    def _smart_block(self, prompt: str, options: Sequence[str]) -> int | None:
+        """With "block": block to kill an attacker the creature survives, else join a double block planned for it, else trade with a
+        bigger creature, else take the hardest hit it survives, else plan a double block that kills an attacker neither blocker could alone (and the attacker cannot kill both),
+        else chump the biggest attacker when what is coming would be lethal. None when none of these applies: the plain rules go on."""
+        label = prompt.removeprefix(BLOCK_PROMPT)
+        me = _Fighter(label, next((c for n, c in self._cards.items() if label.startswith(n + " ")), None))
+        attackers = [(i, _Fighter(options[i].removeprefix("Block "))) for i in range(1, len(options))]
+        turn = (self._state or {}).get("turn")
+        if turn != self._joint_turn:
+            self._joint, self._joint_turn = {}, turn
+        for i, attacker in attackers:  # a double block planned for this attacker, with this creature as one of the blockers
+            if _spot(label) in [_spot(b) for b in self._joint.get(_spot(attacker.label), [])]:
+                return i
+        safe = [(attacker.value, attacker.power, i) for i, attacker in attackers if me.kills(attacker) and me.survives(attacker)]
+        if safe:
+            return max(safe)[2]
+        trades = [(attacker.value - me.value, attacker.power, i) for i, attacker in attackers if me.kills(attacker) and attacker.value > me.value]
+        if trades:
+            return max(trades)[2]
+        best = self._double_block(me, attackers)
+        if best is not None:
+            return best
+        absorbed = [(attacker.power, i) for i, attacker in attackers if me.survives(attacker)]  # (it kills none of them, or it would be above)
+        if absorbed:
+            return max(absorbed)[1]  # the hardest hitter it takes for nothing
+        if sum(a.power for _, a in attackers) >= self._life_of(self._seat) and not any(me.survives(a) for _, a in attackers):
+            return max(attackers, key=lambda ia: ia[1].power)[0]  # nothing it can do but chump: the biggest first
+        return None
+
+    def _double_block(self, me: _Fighter, attackers: list[tuple[int, _Fighter]]) -> int | None:
+        """The attacker to block together with another of the bot's untapped creatures: one they kill between them and that cannot kill both
+        of them (when it can kill one, it is a bigger creature than that one). Records the plan so the other blocker joins when it is asked."""
+        mine = self._my_seat()
+        if mine is None:
+            return None
+        planned = {_spot(b) for blockers in self._joint.values() for b in blockers}
+        partners = []
+        for index, p in enumerate(mine["battlefield"]):
+            if p["power"] is None or p["tapped"] or f"(seat {self._seat}, #{index + 1})" == _spot(me.label) or f"(seat {self._seat}, #{index + 1})" in planned:
+                continue
+            partners.append(_Fighter(f"{p['name']} {p['power']}/{p['toughness']} (seat {self._seat}, #{index + 1})",
+                                     next((c for n, c in self._cards.items() if n == p["name"]), None)))
+        found: list[tuple[int, int, int, _Fighter]] = []
+        for i, attacker in attackers:
+            for other in partners:
+                together = me.deathtouch or other.deathtouch or me.power + other.power >= attacker.toughness > 0
+                if not together or me.kills(attacker) or other.kills(attacker):
+                    continue  # (one of them could do it alone: the single-block rules had their say)
+                if attacker.power >= me.toughness + other.toughness and not (me.indestructible or other.indestructible):
+                    continue  # it would kill both
+                # (what the attacker can kill is worth less than it: neither blocker kills it alone, so its toughness is above their power
+                # and its power at least their toughness; the fewer it can kill, the better)
+                losses = [x.value for x in (me, other) if attacker.power >= x.toughness and not x.indestructible]
+                found.append((attacker.value, -len(losses), i, other))
+        if not found:
+            return None
+        _, _, i, other = max(found, key=lambda f: f[:3])
+        spot = _spot(dict(attackers)[i].label)
+        self._joint[spot] = [me.label, other.label]
+        return i
+
     def _my_seat(self) -> dict | None:
         return next((s for s in (self._state or {}).get("seats", []) if s["seat"] == self._seat), None)
 
@@ -390,6 +470,18 @@ class BotPlayer:
             return False
         return self._lands() >= LAND_GOAL if is_land(card) else card.cmc > self._lands() + 2
 
+    def _holds_removal(self, card: Card | None) -> bool:
+        """With "hold": a spell that removes a creature waits while every creature the opponents have is small (power `SMALL_THREAT`
+        or less), the bot is not under pressure (above `CHUMP_LIFE`) and its hand is not full (a card it would discard is cast)."""
+        if "hold" not in self.features or card is None or not _is_creature_removal(card):
+            return False
+        mine = self._my_seat()
+        foes = [s for s in (self._state or {}).get("seats", []) if s["seat"] != self._seat and not s["lost"]]
+        if mine is None or not foes or self._life_of(self._seat) <= self.CHUMP_LIFE or len((self._state or {}).get("hand", [])) >= HAND_SIZE:
+            return False
+        powers = [p["power"] for s in foes for p in s["battlefield"] if p["power"] is not None]
+        return all(power <= SMALL_THREAT for power in powers)
+
     def _unhelpful_wipe(self, card: Card | None) -> bool:
         """A wipe that hits everyone's creatures is only worth it when opponents have more of them."""
         return card is not None and _is_wipe(card) and self._creatures(mine=False) <= self._creatures(mine=True)
@@ -411,12 +503,42 @@ class BotPlayer:
         powers = {i: _stats(options[i])[0] for i in range(1, len(options))}
         if "commander" in self.features and (lethal := self._lethal_commander(options)) is not None:
             return lethal
+        if "block" in self.features and (smart := self._smart_block(prompt, options)) is not None:
+            return smart
         survivable = [i for i, p in powers.items() if p < toughness]
         if survivable:
             return max(survivable, key=powers.__getitem__)
         if self._life_of(self._seat) <= self.CHUMP_LIFE:
             return max(powers, key=powers.__getitem__)
         return 0
+
+
+class _Fighter:
+    """A creature in a block decision: its size and the combat keywords the bot knows it has (only its own creatures' text is known)."""
+
+    def __init__(self, label: str, card: Card | None = None):
+        self.label = label
+        self.power, self.toughness = _stats(label)
+        text = card.oracle_text.lower() if card else ""
+        self.deathtouch = "deathtouch" in text
+        self.first_strike = "first strike" in text or "double strike" in text
+        self.indestructible = "indestructible" in text
+
+    @property
+    def value(self) -> int:
+        return self.power + self.toughness
+
+    def kills(self, other: "_Fighter") -> bool:
+        return self.deathtouch and self.power > 0 or self.power >= other.toughness > 0
+
+    def survives(self, other: "_Fighter") -> bool:
+        """Whether it lives through the other one's hit (the other is taken to have no first strike or deathtouch: it isn't known)."""
+        return self.indestructible or other.power < self.toughness or (self.first_strike and self.kills(other))
+
+
+def _spot(label: str) -> str:
+    """Which permanent a label is: its "(seat 1, #3)" (the stats in the label change, the spot does not)."""
+    return label[label.rindex("("):] if "(" in label else label
 
 
 def _threat(seat: dict) -> float:
@@ -435,6 +557,13 @@ def _mode_score(text: str) -> int:
     text = text.lower()
     return (3 * any(w in text for w in _MODE_GOOD) + 2 * any(w in text for w in _MODE_USEFUL)
             - 3 * any(w in text for w in _MODE_BAD))
+
+
+def _is_creature_removal(card: Card) -> bool:
+    """An instant or sorcery that destroys, exiles, bounces, shrinks or damages a target creature (not a wipe, and not burn for the face)."""
+    text = card.oracle_text.lower()
+    return (("Instant" in card.type_line or "Sorcery" in card.type_line) and re.search(r"target (?:[\w-]+ )*creature", text) is not None
+            and any(word in text for word in ("destroy", "exile", "damage", "return target", "gets -")))
 
 
 def _is_wipe(card: Card) -> bool:
