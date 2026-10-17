@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from . import history
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
-from .formats import STANDARD, format_of
+from .formats import add_format_argument, format_of, with_format
 from .gauntlet import deck_format, opponent_paths
 from .manabase import analyze_mana_base, format_mana_base
 from .matchup import format_matchups, matchups
@@ -74,10 +74,9 @@ def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: 
     left_out = _known_parts(skip)
     candidates = list(candidates)
     settings = {"games": games, "sim_games": sim_games, "turns": turns, "seed": seed, "pod": pod, "candidates": [getattr(c, "name", str(c)) for c in candidates]}
-    commander = bool(deck.commanders)
-    if opponents:
-        format_of([deck, *opponents.values()])  # (a table can't mix decks with commanders and decks without)
-    analysis = Analysis(name, "Commander" if commander else STANDARD.name.capitalize())
+    fmt = format_of([deck, *(opponents or {}).values()])  # (a table can't mix formats, or decks with commanders and decks without)
+    commander = fmt.name == "commander"  # the Brackets are Commander's
+    analysis = Analysis(name, fmt.label)
     say = progress or (lambda message: None)
 
     reused_parts: list[str] = []
@@ -105,7 +104,7 @@ def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: 
     if commander:
         run("bracket", "Commander Bracket", lambda: _bracket(deck), code=False)
     else:
-        analysis.skipped.append("Commander Bracket (a deck with no commander has none)")
+        analysis.skipped.append(f"Commander Bracket ({'a deck with no commander has none' if not deck.commanders else 'Brackets are for Commander decks, not ' + fmt.label})")
     run("manabase", "Mana base", lambda: _mana_base(deck))
     run("goldfish", "Goldfish", lambda: _goldfish(deck, sim_games, turns, seed))
     run("tuning", "Tuning", lambda: _tuning(deck, sim_games, turns, seed, candidates))
@@ -196,6 +195,7 @@ def main(argv: list[str], source=None) -> int:
     parser.add_argument("--save", metavar="FILE", help="keep this run's numbers (a JSON) so a later run can say what changed")
     parser.add_argument("--since", metavar="FILE", help="an earlier run saved with --save: say what moved against it, and reuse its parts that are unchanged")
     parser.add_argument("--no-reuse", action="store_true", help="with --since, play every part again instead of reusing the unchanged ones")
+    add_format_argument(parser)
     parser.add_argument("--max-bracket", type=int, metavar="N", help="with no opponents named, only the saved gauntlet decks playable at Bracket N or lower")
     parser.add_argument("--bulk", default=".cache/oracle_bulk.json")
     args = parser.parse_args(argv)
@@ -204,7 +204,7 @@ def main(argv: list[str], source=None) -> int:
 
     def load(path: str) -> Deck:
         with open(path, encoding="utf-8") as f:
-            return load_deck(f.read(), source)
+            return with_format(load_deck(f.read(), source), args.format)
 
     try:
         deck = load(args.decklist)

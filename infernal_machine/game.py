@@ -226,7 +226,6 @@ HIDEAWAY_PROMPT = "Hide away a card for "  # followed by the permanent's name; o
 HIDEAWAY_PLAY_PROMPT = "Play the hidden card for free: "  # followed by its name; options: "Play it", "Don't"
 UNTAP_PROMPT = "Untap during your untap step: "  # followed by the permanent's name; options: "Untap", "Leave tapped"
 TAP_OR_UNTAP_PROMPT = "Tap or untap "  # followed by the creature's name
-COMMANDER_DAMAGE_LIMIT = 21  # CR 903.10a
 POISON_LIMIT = 10  # CR 704.5c
 
 
@@ -593,7 +592,7 @@ class Game:
             Seat(
                 player,
                 i,
-                life=format.life,
+                life=format.starting_life(len(seats)),
                 library=list(deck.main),
                 command_zone=list(deck.commanders),
                 commander_names={c.name for c in deck.commanders},
@@ -665,8 +664,8 @@ class Game:
         self.active = self.starting_seat = self.rng.randrange(len(self.seats))
         for seat in self.seats:
             self.rng.shuffle(seat.library)
-            self.broadcast({"event": "seat", "seat": seat.index, "name": seat.name,
-                             "life": seat.life, "commanders": [c.name for c in seat.command_zone]})
+            self.broadcast({"event": "seat", "seat": seat.index, "name": seat.name, "life": seat.life,
+                            "commanders": [c.name for c in seat.command_zone], **({"damage_limit": self.format.commander_damage} if self.format.commander else {})})
         self.broadcast({"event": "starting_player", "seat": self.active})
         for seat in self._turn_order(self.active):
             self._mulligan(seat)
@@ -5750,7 +5749,7 @@ class Game:
                           else "life" if seat.life <= 0
                           else "empty_library" if seat.drew_from_empty
                           else "poison" if seat.player_counters.get("poison", 0) >= POISON_LIMIT
-                          else "commander_damage" if any(d >= COMMANDER_DAMAGE_LIMIT for d in seat.commander_damage.values())
+                          else "commander_damage" if any(d >= self.format.commander_damage for d in seat.commander_damage.values())
                           else None)
                 if reason:
                     seat.lost = True

@@ -37,8 +37,9 @@ class Entry:
 
 
 def deck_format(deck) -> str:
-    """The gauntlet a deck belongs to: "commander" if it has a commander, else "standard"."""
-    return "commander" if deck.commanders else "standard"
+    """The gauntlet a deck belongs to: the format it names (Brawl and Duel Commander have no saved decks), else "commander" if it has a
+    commander and "standard" if not."""
+    return deck.format or ("commander" if deck.commanders else "standard")
 
 
 def load(manifest: str = MANIFEST) -> list[Entry]:

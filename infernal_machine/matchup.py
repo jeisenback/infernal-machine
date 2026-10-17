@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from .bot import BotPlayer
 from .brackets import analyze
 from .cards import Deck
-from .formats import format_of
+from .formats import add_format_argument, format_of, with_format
 from .gauntlet import deck_format, opponent_paths
 from .game import BOARD_LIMIT, Game
 from .report import unplayable_cards, unplayable_note
@@ -429,6 +429,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("opponents", nargs="*", help="decklists to play against (default: the saved gauntlet, see gauntlet.py)")
     parser.add_argument("--games", type=int, default=40, help="per opponent (or in total with --pod)")
     parser.add_argument("--pod", type=int, default=2, help="players per game; above 2 draws the opponents at random")
+    add_format_argument(parser)
     parser.add_argument("--best-of", type=int, default=1, metavar="N", help="play matches of up to N games with sideboarding (Standard is best of three); duels only")
     parser.add_argument("--max-bracket", type=int, metavar="N", help="leave out opponents that can only be played at a Bracket above N")
     parser.add_argument("--early-stop", action="store_true", help="play in rounds and drop an opponent once its win rate is clearly above or below the fair share")
@@ -442,7 +443,7 @@ def main(argv: list[str]) -> int:
 
     def load(path: str) -> Deck:
         with open(path, encoding="utf-8") as f:
-            return load_deck(f.read(), source)
+            return with_format(load_deck(f.read(), source), args.format)
 
     focus = load(args.decklist)
     opponents = {os.path.splitext(os.path.basename(p))[0]: load(p) for p in opponent_paths(args.opponents, args.max_bracket, format=deck_format(focus))}

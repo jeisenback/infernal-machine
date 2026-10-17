@@ -22,6 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from .cards import Deck
+from .formats import add_format_argument, with_format
 from .gauntlet import deck_format, opponent_paths
 from .compare import pair_up, score, stop_reason, summarize
 from .matchup import play_plans, plan_games
@@ -219,6 +220,7 @@ def main(argv: list[str], source=None) -> int:
     parser.add_argument("--max-turns", type=int, default=60)
     parser.add_argument("--time-limit", type=float, default=120.0, help="seconds per game")
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    add_format_argument(parser)
     parser.add_argument("--goldfish-games", type=int, default=300, help="games for choosing the weakest cards")
     parser.add_argument("--early-stop", action="store_true", help="play in rounds, drop a card once its impact is clear or out of reach, and give the games it leaves to the rest")
     parser.add_argument("--target", type=float, default=0.05, help="with --early-stop, the impact in score that decides 'hopeless' (0.05 is five points)")
@@ -229,7 +231,7 @@ def main(argv: list[str], source=None) -> int:
 
     def load(path: str) -> Deck:
         with open(path, encoding="utf-8") as f:
-            return load_deck(f.read(), source)
+            return with_format(load_deck(f.read(), source), args.format)
 
     try:
         focus = load(args.decklist)

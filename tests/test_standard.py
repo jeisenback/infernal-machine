@@ -94,7 +94,7 @@ class LegalityTests(unittest.TestCase):
 class FormatTests(unittest.TestCase):
     def test_the_formats(self):
         self.assertEqual((COMMANDER.life, STANDARD.life, STANDARD.copy_limit), (40, 20, 4))
-        self.assertEqual(set(FORMATS), {"commander", "standard"})
+        self.assertEqual(set(FORMATS), {"commander", "standard", "brawl", "duel"})
 
     def test_a_table_is_the_format_its_decks_are(self):
         commander = Deck([BOSS], [FOREST] * 99, [])
