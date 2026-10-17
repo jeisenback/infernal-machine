@@ -1,0 +1,18 @@
+// Standard baseline: mono-white. Built by tools/build_standard_decks.py from the card file; not a deck anyone plays.
+Deck
+24 Plains
+4 Exalted Sunborn
+4 Brightblade Stoat
+4 Serra Angel
+4 East Wind Avatar
+4 Claim Jumper
+4 Gaelicat
+4 Healer's Hawk
+4 Elspeth's Smite
+4 Erode
+
+Sideboard
+4 Shrike Force
+4 Angel of Finality
+4 Summoned Dromedary
+3 Action News Crew

@@ -1,0 +1,18 @@
+// Standard baseline: mono-black. Built by tools/build_standard_decks.py from the card file; not a deck anyone plays.
+Deck
+24 Swamp
+4 Vampire Nighthawk
+4 Bloodthirsty Conqueror
+4 Hunted Bonebrute
+4 Monoist Sentry
+4 Sunset Saboteur
+4 Ahriman
+4 Darklight Phoenix
+4 Deadly Precision
+4 Stir Up Trouble
+
+Sideboard
+4 Diregraf Ghoul
+4 Nullpriest of Oblivion
+4 Scream Puff
+3 Crypt Feaster

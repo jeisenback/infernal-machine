@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
 from .formats import format_of
-from .gauntlet import opponent_paths
+from .gauntlet import deck_format, opponent_paths
 from .matchup import GameResult, play_plans, plan_games
 from .report import unplayable_cards
 from .sequential import HOPELESS_FACTOR, MAX_LOOKS, MIN_DIFFERING, MIN_LOOK_PAIRS, Z, confidence, look_z, schedule  # noqa: F401
@@ -281,8 +281,9 @@ def main(argv: list[str]) -> int:
             return load_deck(f.read(), source)
 
     name = lambda path: os.path.splitext(os.path.basename(path))[0]  # noqa: E731
-    opponents = {name(p): load(p) for p in opponent_paths(args.opponents)}
-    comparison = compare_builds(load(args.baseline), load(args.changed), opponents, args.games, args.pod, args.seed, args.max_turns,
+    baseline = load(args.baseline)
+    opponents = {name(p): load(p) for p in opponent_paths(args.opponents, format=deck_format(baseline))}
+    comparison = compare_builds(baseline, load(args.changed), opponents, args.games, args.pod, args.seed, args.max_turns,
                                 args.time_limit, args.workers, args.goldfish_games, args.turns, args.early_stop, args.target)
     print(format_comparison(comparison, name(args.baseline), name(args.changed)))
     return 0

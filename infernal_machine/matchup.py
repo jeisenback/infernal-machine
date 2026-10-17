@@ -30,7 +30,7 @@ from .bot import BotPlayer
 from .brackets import analyze
 from .cards import Deck
 from .formats import format_of
-from .gauntlet import opponent_paths
+from .gauntlet import deck_format, opponent_paths
 from .game import BOARD_LIMIT, Game
 from .report import unplayable_cards, unplayable_note
 from .sequential import MIN_LOOK_PAIRS, confidence, look_z, schedule
@@ -49,6 +49,7 @@ class SeatLog:
     casts: int = 0
     lands_early: int | None = None  # lands played before the seat's turn EARLY_TURNS + 1, if it got that far
     casts_early: int | None = None
+    cast_names: list[str] = field(default_factory=list)  # every spell it cast, by name (what sideboarding looks at)
 
     @property
     def stumbled(self) -> bool:
@@ -71,6 +72,7 @@ class GameResult:
     reasons: dict[int, str] = field(default_factory=dict)  # seat -> why it lost
     logs: dict[int, SeatLog] = field(default_factory=dict)
     error: str | None = None  # "timeout" or the exception
+    games: list = field(default_factory=list)  # for a match (`match.play_match`), the games of it; then everything above is about the match
 
 
 def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60, time_limit: float = 120.0,
@@ -96,6 +98,7 @@ def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60,
             logs[event["seat"]].lands += 1
         elif kind == "cast":
             logs[event["seat"]].casts += 1
+            logs[event["seat"]].cast_names.append(event["card"])
         elif kind == "player_lost":
             result.reasons[event["seat"]] = event["reason"]
         if time.monotonic() > deadline:
@@ -141,7 +144,11 @@ def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60,
 
 
 def _run(task: tuple) -> GameResult:
-    return play_one(*task)
+    """One planned game, or, when the task carries a `best_of` above one after the six arguments of `play_one`, a match."""
+    if len(task) > 6 and task[6] > 1:
+        from .match import play_match  # (match.py builds on this module)
+        return play_match(*task[:6], best_of=task[6])
+    return play_one(*task[:6])
 
 
 def wilson(wins: int, games: int, z: float = 1.96) -> tuple[float, float]:
@@ -177,6 +184,8 @@ class Record:
     opponent_unplayable: tuple[tuple[str, int], ...] = ()  # likewise in the opponent deck(s) this record was played against
     bracket: tuple[int, ...] = ()  # the Commander Bracket floors of the opponent decks it was played against (none for decks without a commander)
     focus_bracket: int | None = None  # the focus deck's
+    best_of: int = 1  # above one, `games`, `wins`... count matches and `game_record` counts the games in them
+    game_record: tuple[int, int, int] = (0, 0, 0)  # (won, lost, drawn) over the games of the matches
     z: float = 1.96  # the width of `interval` in standard errors (wider when games were played in rounds and looked at between them)
     planned: int = 0  # games an early-stopping run planned against this opponent (0: it did not stop early)
     stopped: str | None = None  # "better" or "worse" than the fair share, if it stopped before playing every planned game
@@ -191,9 +200,16 @@ class Record:
         return wilson(self.wins, self.games, self.z)
 
 
-def _record(name: str, results: list[GameResult], pod: int) -> Record:
+def _record(name: str, results: list[GameResult], pod: int, best_of: int = 1) -> Record:
     done = [r for r in results if r.error is None]
-    record = Record(name, len(done), fair_share=1 / pod, errors=len(results) - len(done))
+    record = Record(name, len(done), fair_share=1 / pod, errors=len(results) - len(done), best_of=best_of)
+    if best_of > 1:
+        from .match import game_record  # (match.py builds on this module)
+        won = lost = drawn = 0
+        for r in done:
+            w, l, d = game_record(r)
+            won, lost, drawn = won + w, lost + l, drawn + d
+        record.game_record = (won, lost, drawn)
     record.first_error = next((r.error for r in results if r.error), "") or ""
     lengths = []
     play, draw, stumbled, idle = [0, 0], [0, 0], [0, 0], [0, 0]
@@ -212,20 +228,25 @@ def _record(name: str, results: list[GameResult], pod: int) -> Record:
             if flag:
                 tally[0] += 1
                 tally[1] += won
-        if r.focus_seat in r.reasons:
-            record.how_lost[r.reasons[r.focus_seat]] += 1
-        elif won:
-            record.how_won.update(reason for seat, reason in r.reasons.items() if seat != r.focus_seat and reason != "opponent_won")
+        for g in (r.games or [r]):  # a match's reasons are those of its games
+            if g.error is not None:
+                continue
+            if g.focus_seat in g.reasons:
+                record.how_lost[g.reasons[g.focus_seat]] += 1
+            elif g.winner == g.focus_seat:
+                record.how_won.update(reason for seat, reason in g.reasons.items() if seat != g.focus_seat and reason != "opponent_won")
     record.turns = round(sum(lengths) / len(lengths), 1) if lengths else 0.0
     record.on_play, record.on_draw, record.stumbled, record.idle = tuple(play), tuple(draw), tuple(stumbled), tuple(idle)  # type: ignore[assignment]
     return record
 
 
 def plan_games(focus: Deck, opponents: dict[str, Deck], games: int, pod: int, seed: int, max_turns: int, time_limit: float,
-               focus_bot=BotPlayer, opponent_bot=BotPlayer) -> list[tuple[str, list[tuple]]]:
+               focus_bot=BotPlayer, opponent_bot=BotPlayer, best_of: int = 1) -> list[tuple[str, list[tuple]]]:
     """The games `matchups` plays, as (opponent or pod, tasks) in order. Game `n` against an opponent is the same seed, seat and
     opponents whatever the focus deck is, so two builds planned with one seed play paired games (see compare.py)."""
     plans: list[tuple[str, list[tuple]]] = []
+    if best_of > 1 and pod > 2:
+        raise ValueError("A match is between two decks: best-of-three is for duels, not pods")
     if pod <= 2:
         groups = [(name, [deck]) for name, deck in opponents.items()]
     else:
@@ -238,7 +259,7 @@ def plan_games(focus: Deck, opponents: dict[str, Deck], games: int, pod: int, se
             seat = n % (len(others) + 1)
             decks = others[:seat] + [focus] + others[seat:]
             bots = [opponent_bot] * seat + [focus_bot] + [opponent_bot] * (len(others) - seat)
-            tasks.append((decks, seat, zlib.crc32(f"{seed}-{name}-{n}".encode()), max_turns, time_limit, bots))
+            tasks.append((decks, seat, zlib.crc32(f"{seed}-{name}-{n}".encode()), max_turns, time_limit, bots) + ((best_of,) if best_of > 1 else ()))
         plans.append((name, tasks))
     return plans
 
@@ -287,12 +308,14 @@ def _play_matchups_in_rounds(plans: list[tuple[str, list[tuple]]], games: int, p
 
 
 def matchups(focus: Deck, opponents: dict[str, Deck], games: int = 40, pod: int = 2, seed: int = 0, max_turns: int = 60,
-             time_limit: float = 120.0, workers: int = 1, focus_bot=BotPlayer, opponent_bot=BotPlayer, early_stop: bool = False) -> list[Record]:
+             time_limit: float = 120.0, workers: int = 1, focus_bot=BotPlayer, opponent_bot=BotPlayer, early_stop: bool = False,
+             best_of: int = 1) -> list[Record]:
     """Play `games` games for each opponent (a duel), or `games` pod games in all if `pod` is more than 2.
     `focus_bot` and `opponent_bot` make the players, to compare two versions of a bot on the same decks. With `early_stop`, the games are
     played in rounds and an opponent is dropped once the win rate against it is clearly above or below the fair share (see
-    `sequential.py` for the rule)."""
-    plans = plan_games(focus, opponents, games, pod, seed, max_turns, time_limit, focus_bot, opponent_bot)
+    `sequential.py` for the rule). With `best_of` above one, each of the `games` is a match of up to that many games with sideboarding
+    (`match.py`), and the win rate is the match win rate."""
+    plans = plan_games(focus, opponents, games, pod, seed, max_turns, time_limit, focus_bot, opponent_bot, best_of)
     rounds = early_stop and games > 1
     stopped: dict[str, str] = {}
     looks, z = 1, 1.96
@@ -300,7 +323,7 @@ def matchups(focus: Deck, opponents: dict[str, Deck], games: int = 40, pod: int 
         results, stopped, looks, z = _play_matchups_in_rounds(plans, games, pod, workers)
     else:
         results = play_plans(plans, workers)
-    records = [_record(name, rs, pod if pod > 2 else 2) for (name, _), rs in zip(plans, results)]
+    records = [_record(name, rs, pod if pod > 2 else 2, best_of) for (name, _), rs in zip(plans, results)]
     if rounds:
         for record in records:
             record.z, record.looks, record.planned, record.stopped = z, looks, games, stopped.get(record.opponent)
@@ -350,12 +373,17 @@ def format_matchups(records: list[Record], focus: str = "focus deck", *, focus_w
         stronger = sorted(r.opponent for r in records if any(b > ours for b in r.bracket))
         if stronger:
             lines.insert(2, f"Warning: {', '.join(stronger)} can only be played at a higher Bracket than the focus deck, so those win rates compare unlike decks.")
-    lines.append(f"{'opponent':<30} {'W-L-D':>9}  {'win rate':<16} {'turns':>5}  {'first':<12} {'second':<12} how it lost")
+    matches = records[0].best_of > 1
+    if matches:
+        lines.insert(1, f"Best of {records[0].best_of} with sideboarding: W-L-D and the win rate are matches; the games column is the games in them.")
+    lines.append(f"{'opponent':<30} {'W-L-D':>9}  {'win rate':<16} {'turns':>5}  " + (f"{'games':>9}  " if matches else "")
+                 + f"{'first':<12} {'second':<12} how it lost")
     for r in records:
         low, high = r.interval
         rate = f"{r.win_rate:.0%} ({low:.0%}-{high:.0%})"
         lost = ", ".join(f"{reason} {count}" for reason, count in r.how_lost.most_common()) or "-"
-        lines.append(f"{r.opponent[:30]:<30} {f'{r.wins}-{r.losses}-{r.draws}':>9}  {rate:<16} {r.turns:>5}  "
+        games = f"{'-'.join(map(str, r.game_record)):>9}  " if matches else ""
+        lines.append(f"{r.opponent[:30]:<30} {f'{r.wins}-{r.losses}-{r.draws}':>9}  {rate:<16} {r.turns:>5}  {games}"
                      f"{_pct(r.on_play):<12} {_pct(r.on_draw):<12} {lost}")
     if records[0].planned:  # played in rounds
         lines.append(f"Stopping rule: {records[0].looks} looks; each look's interval is widened to {confidence(records[0].z)} so the chance of a false "
@@ -401,6 +429,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("opponents", nargs="*", help="decklists to play against (default: the saved gauntlet, see gauntlet.py)")
     parser.add_argument("--games", type=int, default=40, help="per opponent (or in total with --pod)")
     parser.add_argument("--pod", type=int, default=2, help="players per game; above 2 draws the opponents at random")
+    parser.add_argument("--best-of", type=int, default=1, metavar="N", help="play matches of up to N games with sideboarding (Standard is best of three); duels only")
     parser.add_argument("--max-bracket", type=int, metavar="N", help="leave out opponents that can only be played at a Bracket above N")
     parser.add_argument("--early-stop", action="store_true", help="play in rounds and drop an opponent once its win rate is clearly above or below the fair share")
     parser.add_argument("--seed", type=int, default=0)
@@ -415,7 +444,8 @@ def main(argv: list[str]) -> int:
         with open(path, encoding="utf-8") as f:
             return load_deck(f.read(), source)
 
-    opponents = {os.path.splitext(os.path.basename(p))[0]: load(p) for p in opponent_paths(args.opponents, args.max_bracket)}
+    focus = load(args.decklist)
+    opponents = {os.path.splitext(os.path.basename(p))[0]: load(p) for p in opponent_paths(args.opponents, args.max_bracket, format=deck_format(focus))}
     if args.max_bracket is not None:
         opponents, left_out = within_bracket(opponents, args.max_bracket)
         for name, floor in left_out.items():
@@ -423,8 +453,8 @@ def main(argv: list[str]) -> int:
         if not opponents:
             print("No opponent is left.", file=sys.stderr)
             return 2
-    records = matchups(load(args.decklist), opponents, args.games, args.pod, args.seed, args.max_turns, args.time_limit, args.workers,
-                       early_stop=args.early_stop)
+    records = matchups(focus, opponents, args.games, args.pod, args.seed, args.max_turns, args.time_limit, args.workers,
+                       early_stop=args.early_stop, best_of=args.best_of)
     print(format_matchups(records, os.path.splitext(os.path.basename(args.decklist))[0]))
     return 0
 

@@ -21,7 +21,7 @@ from . import history
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
 from .formats import STANDARD, format_of
-from .gauntlet import opponent_paths
+from .gauntlet import deck_format, opponent_paths
 from .manabase import analyze_mana_base, format_mana_base
 from .matchup import format_matchups, matchups
 from .report import IN_A_GAME, unplayable_cards, unplayable_note
@@ -210,7 +210,7 @@ def main(argv: list[str], source=None) -> int:
         deck = load(args.decklist)
         skipped = [part for part in args.skip.split(",") if part]
         _known_parts(skipped)  # (before any opponent is chosen or loaded)
-        wanted = args.opponents if args.opponents or "matchups" in skipped else opponent_paths([], args.max_bracket)
+        wanted = args.opponents if args.opponents or "matchups" in skipped else opponent_paths([], args.max_bracket, format=deck_format(deck))
         opponents = {name(p): load(p) for p in wanted}
         candidates = [source.get(card) for card in args.candidates]
         earlier = history.load(args.since) if args.since else None

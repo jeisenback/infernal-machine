@@ -1,0 +1,18 @@
+// Standard baseline: mono-green. Built by tools/build_standard_decks.py from the card file; not a deck anyone plays.
+Deck
+24 Forest
+4 Gigantosaurus
+4 Tajuru Pathwarden
+4 Colossadactyl
+4 Brambleguard Veteran
+4 Regal Imperiosaur
+4 Bejeweled Warg
+4 Wrecking Gecko
+4 Greenbelt Radical
+4 Hazard of the Dunes
+
+Sideboard
+4 Icecave Crasher
+4 Magnigoth Sentry
+4 Primordial Pachyderm
+3 Beast-Kin Ranger
