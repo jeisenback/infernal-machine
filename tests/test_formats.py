@@ -37,7 +37,7 @@ class FormatTests(unittest.TestCase):
         self.assertEqual((STANDARD.life, STANDARD.min_deck, STANDARD.commander), (20, 60, False))
         self.assertEqual((BRAWL.life, BRAWL.min_deck, BRAWL.commander_damage, BRAWL.multiplayer_life), (25, 60, 21, 30))
         self.assertEqual((DUEL_COMMANDER.life, DUEL_COMMANDER.min_deck, DUEL_COMMANDER.commander_damage), (20, 100, 15))
-        self.assertEqual(sorted(FORMATS), ["brawl", "commander", "duel", "standard"])
+        self.assertEqual(sorted(FORMATS), ["brawl", "commander", "duel", "oathbreaker", "standard"])
 
     def test_brawl_has_more_life_with_more_players(self):
         self.assertEqual([BRAWL.starting_life(n) for n in (2, 3, 4)], [25, 30, 30])

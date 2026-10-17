@@ -96,7 +96,7 @@ for problem in deck_problems(deck):
 - Every card fits within the commanders' combined color identity.
 - Banned cards are flagged, using Scryfall's Commander legality.
 
-### Brawl and Duel Commander
+### Brawl, Duel Commander and Oathbreaker
 
 The same checks, with each format's own numbers, through `formats.deck_problems(deck, fmt)`:
 
@@ -105,15 +105,26 @@ The same checks, with each format's own numbers, through `formats.deck_problems(
 | Commander | 100 | 40 | 21 | Commander | legendary creature (or partners) |
 | Brawl | 60 | 25 (30 with more than two players) | 21 | Standard | legendary creature **or planeswalker** |
 | Duel Commander | 100 | 20 | **15** | Duel Commander (its own banned list) | as Commander |
+| Oathbreaker | 60 | 20 | **none** | Oathbreaker (its own banned list) | any planeswalker, plus a signature spell |
 
 A deck says which format it is played in with `Deck.format` (`formats.with_format(deck, "brawl")`, or `--format brawl|duel|commander|standard`
 on `matchup`, `compare`, `impact` and `analyze`). One that does not is Commander if it has a commander and Standard if it does not:
-Brawl is 60 cards and Duel Commander has Commander's 100, so neither can be told from its shape and both are asked for by name. Every deck
+Brawl and Oathbreaker are 60 cards and Duel Commander has Commander's 100, so none of them can be told from its shape and all are asked for
+by name. Every deck
 at a table must be in the same format, and a Brawl or Duel Commander deck must have a commander. The game uses the format's starting
 life and commander-damage limit (the bot is told the limit and aims its commander by it); the Commander Brackets are Commander's, so
 `analyze` leaves that section out for the others. Duel legality comes from Scryfall's `duel` legality, kept on each card as `duel_legal`
 (so the card file was fetched again when it was added). There are no saved Brawl or Duel Commander decks to play against by default:
 name opponents.
+
+**Oathbreaker** (`oathbreaker.py`). A deck is 60 cards: an Oathbreaker (any planeswalker, in `Deck.commanders`), a signature spell
+(an instant or sorcery, in `Deck.signature_spell`; decklist sections `Oathbreaker` and `Signature Spell`) and 58 others, singleton, all in
+the Oathbreaker's color identity, signature spell included, and legal in Oathbreaker (`Card.oathbreaker_legal`, Scryfall's `oathbreaker`
+legality, so `CARD_FORMAT` is 6). In the game both start in the command zone and work like a commander: two more to cast for each earlier
+cast, and back to the command zone instead of the graveyard, exile, hand or library. The signature spell is offered only while its owner
+controls their Oathbreaker (a permanent of that name), at the timing its type gives. There is no commander damage: nothing is recorded and the
+seats are told no limit. The bot casts the Oathbreaker first like a commander, and the signature spell like any other spell, so it holds
+a signature removal spell for a creature worth it.
 
 ### Companions
 
