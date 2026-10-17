@@ -1,10 +1,10 @@
 name: precon report
 on:
   pull_request:
-    paths: ["infernal_machine/**", "examples/precons/**", ".github/workflows/precon-report.yml"]
+    paths: ["infernal_machine/**", "examples/precons/**", "examples/gauntlet.json", "examples/gauntlet/**", ".github/workflows/precon-report.yml"]
   push:
     branches: [main]
-    paths: ["infernal_machine/**", "examples/precons/**", ".github/workflows/precon-report.yml"]
+    paths: ["infernal_machine/**", "examples/precons/**", "examples/gauntlet.json", "examples/gauntlet/**", ".github/workflows/precon-report.yml"]
   schedule:
     - cron: "17 6 * * 1"  # Mondays: Scryfall's Oracle text can change under us
   workflow_dispatch:
@@ -38,3 +38,5 @@ jobs:
             grep -q '^Missing, by kind' report.txt && status=1
           done
           exit $status
+      - name: The saved gauntlet matches its decks (Bracket floors and commanders)
+        run: python -m infernal_machine.gauntlet --check

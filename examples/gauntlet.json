@@ -1,0 +1,35 @@
+{
+  "note": "Decks to play against when none are named. 'bracket' is the lowest Bracket the deck can be played at (python -m infernal_machine.gauntlet --check keeps it honest).",
+  "decks": [
+    {
+      "name": "LoreholdSpirit_SOC",
+      "file": "precons/LoreholdSpirit_SOC.txt",
+      "bracket": 1,
+      "commander": "Quintorius, History Chaser"
+    },
+    {
+      "name": "PrismariArtistry_SOC",
+      "file": "precons/PrismariArtistry_SOC.txt",
+      "bracket": 1,
+      "commander": "Rootha, Mastering the Moment"
+    },
+    {
+      "name": "QuandrixUnlimited_SOC",
+      "file": "precons/QuandrixUnlimited_SOC.txt",
+      "bracket": 1,
+      "commander": "Zimone, Infinite Analyst"
+    },
+    {
+      "name": "SilverquillInfluence_SOC",
+      "file": "precons/SilverquillInfluence_SOC.txt",
+      "bracket": 1,
+      "commander": "Killian, Decisive Mentor"
+    },
+    {
+      "name": "WitherbloomPestilence_SOC",
+      "file": "precons/WitherbloomPestilence_SOC.txt",
+      "bracket": 1,
+      "commander": "Dina, Essence Brewer"
+    }
+  ]
+}

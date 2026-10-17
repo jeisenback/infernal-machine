@@ -7,6 +7,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from infernal_machine.analyze import PARTS, analyze_deck, format_analysis, main
 from infernal_machine.cards import Card, CardNotFound, Deck
@@ -160,10 +161,22 @@ class CommandLineTests(unittest.TestCase):
     def test_a_deck_alone_and_the_output_file(self):
         with tempfile.TemporaryDirectory() as directory:
             target = os.path.join(directory, "report.md")
-            code, out, _, _ = self.run_main({"mine.txt": self.DECK}, "--skip", "tuning", "--output", target)
+            code, out, _, _ = self.run_main({"mine.txt": self.DECK}, "--skip", "tuning,matchups", "--output", target)
             self.assertEqual(code, 0)
             self.assertNotIn("## Tuning", out)
+            self.assertNotIn("## Matchups", out)
             self.assertEqual(Path(target).read_text(encoding="utf-8"), out)  # the same report, plus the newline print adds
+
+    def test_no_opponents_means_the_saved_gauntlet(self):
+        with tempfile.TemporaryDirectory() as directory:
+            theirs = os.path.join(directory, "theirs.txt")
+            Path(theirs).write_text(self.DECK, encoding="utf-8")
+            with mock.patch("infernal_machine.analyze.opponent_paths", return_value=[theirs]) as chosen:
+                code, out, err, _ = self.run_main({"mine.txt": self.DECK}, "--max-bracket", "2")
+        self.assertEqual(code, 0)
+        self.assertEqual(chosen.call_args.args, ([], 2))
+        self.assertIn("## Matchups", out)
+        self.assertIn("theirs", out)
 
     def test_an_unknown_card_is_an_error_not_a_traceback(self):
         code, out, err, _ = self.run_main({"mine.txt": "24 Forest\n36 Nonexistent Card\n"})

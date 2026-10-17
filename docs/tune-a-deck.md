@@ -9,11 +9,17 @@ You need a decklist file: one card per line as `N Card Name`, with the commander
 Scryfall's data the first time (see [the card caches](cards-and-decks.md#the-card-caches)) and kept after that. A deck with no commander
 is treated as a Standard deck and every tool below works on it too (there is just no Bracket step).
 
+A deck on Moxfield or Archidekt becomes a decklist with `python tools/import_deck.py EXPORT.txt -o my_deck.txt` (you export the text
+from the site; the tool makes no request to it, see [decks from Moxfield or Archidekt](cards-and-decks.md#decks-from-moxfield-or-archidekt)).
+
 If you want the whole tour in one command:
 
 ```
 python -m infernal_machine.analyze my_deck.txt opponent1.txt opponent2.txt
 ```
+
+Name no opponents and it plays the [saved gauntlet](cards-and-decks.md#the-saved-gauntlet) (the five precons); `--max-bracket N` keeps
+the gauntlet decks that can be played at Bracket N or lower.
 
 and read it top to bottom. The rest of this page is what each part means.
 
