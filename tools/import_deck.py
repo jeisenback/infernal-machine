@@ -10,7 +10,8 @@ the deck's "Export" and then text; Archidekt: "Export", then text or CSV). Read:
 - lines like `1 Sol Ring`, `1x Sol Ring (C21) 263`, `1x Sol Ring (c21) 263 [Ramp] ^Staples^ *F*`, with set codes, collector
   numbers, `[Category]` and `^Tag^` annotations and foil marks dropped (a duplicate card has its counts added up);
 - the commander: a `Commander` section, a `*CMDR*` mark, or a `[Commander]` category (Archidekt writes `[Commander{top}]`);
-- the sideboard (a `Sideboard` section, `SB:` lines); a Maybeboard, Considering or Tokens section is left out;
+- the sideboard (a `Sideboard` section, `SB:` lines); a Maybeboard, Considering or Tokens section is left out; with nothing marked as
+  the commander, a 99-card list that ends with one card alone after the sideboard (where Moxfield puts it) takes that card for it;
 - a CSV export with `Count` and `Name` columns (and `Board`, `Section` or `Category` if there is one).
 
 It writes `Commander`, `Deck` and `Sideboard` sections, tells you what it dropped, and warns when a 100-card list has no commander.
@@ -44,10 +45,34 @@ class Imported:
         self.main: dict[str, int] = {}
         self.side: dict[str, int] = {}
         self.dropped: list[str] = []  # what was left out, described
+        self.assumed: list[str] = []  # what was guessed, described (the commander at the end of a Moxfield export)
+        self.side_blocks: list[list[tuple[str, int]]] = []  # the cards of the sideboard, a list per paragraph
 
     def add(self, section: str, name: str, count: int) -> None:
         target = {"commander": self.commanders, "main": self.main, "side": self.side}[section]
         target[name] = target.get(name, 0) + count
+        if section == "side":
+            if not self.side_blocks:
+                self.side_blocks.append([])
+            self.side_blocks[-1].append((name, count))
+
+    def break_side(self) -> None:
+        """A blank line inside the sideboard: the next card starts a new paragraph."""
+        if self.side_blocks and self.side_blocks[-1]:
+            self.side_blocks.append([])
+
+    def find_trailing_commander(self) -> None:
+        """Moxfield's text export ends with the commander alone, after a blank line that follows the sideboard. With no commander marked, a
+        99-card main deck and a last paragraph of one card, that card is taken for the commander (and the list says so)."""
+        if self.commanders or sum(self.main.values()) != 99 or len(self.side_blocks) < 2:
+            return
+        last = self.side_blocks[-1]
+        if len(last) != 1 or last[0][1] != 1:
+            return
+        name = last[0][0]
+        del self.side[name]
+        self.commanders[name] = 1
+        self.assumed.append(f"Took {name} for the commander: it is the one card after the sideboard, where Moxfield lists it.")
 
     @property
     def total(self) -> int:
@@ -76,6 +101,8 @@ def parse_text(text: str) -> Imported:
         line = raw.strip()
         if not line:
             seen_blank_after_main = section == "main" and bool(deck.main) and not skipping
+            if section == "side":
+                deck.break_side()
             continue
         if line.startswith("//") or line.startswith("#"):
             continue
@@ -110,6 +137,7 @@ def parse_text(text: str) -> Imported:
         name = _name(rest)
         if name:
             deck.add(where, name, count)
+    deck.find_trailing_commander()
     return deck
 
 
@@ -143,7 +171,7 @@ def render(deck: Imported) -> str:
 
 
 def warnings(deck: Imported) -> list[str]:
-    notes = []
+    notes = list(deck.assumed)
     if not deck.commanders and deck.total in (99, 100):
         notes.append(f"{deck.total} cards and no commander: put yours under a Commander heading or mark it *CMDR* before using this as a Commander deck.")
     if deck.commanders and deck.total not in (99, 100):

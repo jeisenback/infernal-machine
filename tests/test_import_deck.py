@@ -74,6 +74,47 @@ class TextTests(unittest.TestCase):
         self.assertEqual(importer.parse("1 Fire // Ice (mh2) 290\n").main, {"Fire // Ice": 1})
 
 
+def moxfield_export(main=99, side="SIDEBOARD:\n1 Snuff Out\n1 Shadowspear\n", tail="\n1 Toshiro Umezawa\n"):
+    return f"{main - 1} Swamp\n1 Sol Ring\n\n{side}{tail}"
+
+
+class TrailingCommanderTests(unittest.TestCase):
+    def test_the_card_alone_after_the_sideboard_is_the_commander(self):
+        deck = importer.parse(moxfield_export())
+        self.assertEqual(deck.commanders, {"Toshiro Umezawa": 1})
+        self.assertEqual(deck.side, {"Snuff Out": 1, "Shadowspear": 1})
+        self.assertEqual(deck.total, 100)
+        self.assertIn("Took Toshiro Umezawa for the commander", importer.warnings(deck)[0])
+
+    def test_it_is_written_as_a_commander(self):
+        decklist = parse_decklist(importer.render(importer.parse(moxfield_export())))
+        self.assertEqual(decklist.commanders, {"Toshiro Umezawa": 1})
+        self.assertNotIn("Toshiro Umezawa", decklist.sideboard)
+
+    def test_not_when_the_main_deck_is_not_99_cards(self):
+        for main in (98, 100):
+            deck = importer.parse(moxfield_export(main=main))
+            self.assertEqual(deck.commanders, {}, main)
+            self.assertIn("Toshiro Umezawa", deck.side)
+
+    def test_not_when_the_last_paragraph_is_more_than_one_card(self):
+        deck = importer.parse(moxfield_export(tail="\n1 Toshiro Umezawa\n1 Another Card\n"))
+        self.assertEqual(deck.commanders, {})
+
+    def test_not_when_the_card_has_a_count_above_one(self):
+        self.assertEqual(importer.parse(moxfield_export(tail="\n2 Toshiro Umezawa\n")).commanders, {})
+
+    def test_not_when_a_commander_is_already_marked(self):
+        deck = importer.parse("1 Boss *CMDR*\n" + moxfield_export(main=99))
+        self.assertEqual(deck.commanders, {"Boss": 1})
+        self.assertIn("Toshiro Umezawa", deck.side)
+
+    def test_not_when_the_sideboard_is_one_paragraph(self):
+        deck = importer.parse(moxfield_export(side="SIDEBOARD:\n1 Toshiro Umezawa\n", tail=""))
+        self.assertEqual(deck.commanders, {})
+        self.assertEqual(deck.side, {"Toshiro Umezawa": 1})
+
+
 class CsvTests(unittest.TestCase):
     def test_a_csv_with_count_and_name(self):
         deck = importer.parse('Count,Name,Edition,Board\n1,"Atraxa, Praetors\' Voice",c16,commander\n2,Island,m21,mainboard\n1,Counterspell,cmm,maybeboard\n'
