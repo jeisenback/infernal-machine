@@ -1507,6 +1507,109 @@ class CreateTokens:
             game.leave_at_next_end_step(made, "exiled", "exile")
 
 
+_COPY_CARD_TYPES = {"Artifact", "Enchantment", "Creature", "Land"}
+
+
+@dataclass(frozen=True)
+class CopyChanges:
+    """The "except ..." of a copy (CR 707.9): "except it isn't legendary", "except it's 1/1 and it's a Nightmare in addition to
+    its other types", "except it has flying and haste". The copy keeps everything else of the original."""
+    not_legendary: bool = False
+    power_toughness: tuple[str, str] | None = None
+    add_types: tuple[str, ...] = ()  # a card type (Enchantment) or a subtype (Spirit), added to the type line
+    keywords: tuple[str, ...] = ()  # added as ability lines, as Twinflame's haste is
+    add_colors: tuple[str, ...] = ()  # "a 2/2 black Zombie in addition to its other colors and types": W, U, B, R or G
+
+
+def copy_card(card: Card, changes: CopyChanges | None = None) -> Card:
+    """The card of a token that's a copy of `card`, with the changes of its except clause applied."""
+    if not card.type_line.startswith("Token"):
+        card = dataclasses.replace(card, type_line="Token " + card.type_line)
+    if changes is None:
+        return card
+    type_line = card.type_line
+    if changes.not_legendary:
+        type_line = type_line.replace("Legendary ", "", 1)  # CR 707.9b: the copy is the original with this one value changed
+    for word in changes.add_types:
+        head, dash, tail = type_line.partition("—")
+        if word in _COPY_CARD_TYPES:
+            if word not in head:  # "Artifact Creature": a new card type goes before Creature, as printed
+                head = head.replace("Creature", f"{word} Creature") if "Creature" in head else f"{head.strip()} {word}"
+                type_line = f"{head.strip()} {dash} {tail.strip()}" if dash else head.strip()
+        elif word not in tail.split():
+            type_line = f"{head.strip()} {dash} {tail.strip()} {word}" if dash else f"{head.strip()} — {word}"
+    card = dataclasses.replace(card, type_line=type_line)
+    if changes.add_colors:
+        card = dataclasses.replace(card, colors=tuple(sorted(set(card.colors) | set(changes.add_colors))))
+    if changes.power_toughness is not None:
+        card = dataclasses.replace(card, power=changes.power_toughness[0], toughness=changes.power_toughness[1])
+    if changes.keywords:
+        card = dataclasses.replace(card, oracle_text="\n".join([card.oracle_text, *(k.capitalize() for k in changes.keywords)]).strip())
+    return card
+
+
+_COPY_COLORS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+_COPY_KEYWORDS = {"flying", "haste", "vigilance", "lifelink", "deathtouch", "trample", "menace", "reach", "first strike", "double strike",
+                  "indestructible", "hexproof"}
+
+
+def _copy_changes(text: str) -> CopyChanges | None:
+    """Read the clauses after "except"; None if any is something the engine does not apply (so the line stays unsupported)."""
+    fields: dict[str, Any] = {}
+    types: list[str] = []
+    colors: list[str] = []
+    keywords: list[str] = []
+    for clause in re.split(r",? and (?=it|the token)|, (?=it|the token)", text.strip().rstrip(".")):
+        clause = clause.strip()
+        if re.fullmatch(r"(?:it|the token) (?:isn't|is not) legendary|it's not legendary", clause, re.I):
+            fields["not_legendary"] = True
+        elif m := re.fullmatch(r"(?:it's|the token is) (\d+)/(\d+)", clause, re.I):
+            fields["power_toughness"] = (m[1], m[2])
+        elif m := re.fullmatch(r"it's an? ([A-Za-z]+) in addition to its other types", clause, re.I):
+            types.append(m[1].capitalize())
+        elif m := re.fullmatch(r"it's an? (\d+)/(\d+) (white|blue|black|red|green) ([A-Za-z]+) in addition to its other colors and types",
+                               clause, re.I):
+            fields["power_toughness"] = (m[1], m[2])
+            colors.append(_COPY_COLORS[m[3].lower()])
+            types.append(m[4].capitalize())
+        elif m := re.fullmatch(r"(?:it|the token) has ([a-z, ]+)", clause, re.I):
+            words = [w.strip() for w in re.split(r",\s*(?:and\s+)?|\s+and\s+", m[1].lower()) if w.strip()]
+            if not words or any(w not in _COPY_KEYWORDS for w in words):
+                return None
+            keywords.extend(words)
+        else:
+            return None
+    return CopyChanges(
+        not_legendary=fields.get("not_legendary", False), power_toughness=fields.get("power_toughness"),
+        add_types=tuple(types), keywords=tuple(keywords), add_colors=tuple(colors))
+
+
+@dataclass(frozen=True)
+class CopySubjectToken:
+    """Miirym, Impostor Syndrome, Ratadrabik: "Create a token that's a copy of it, except it isn't legendary." The copy is of the
+    permanent that set off the trigger, still there or not (it may have just died); for a trigger of the permanent's own ("When this
+    creature dies, ... a copy of it") that permanent is the source."""
+    changes: CopyChanges | None = None
+    uses_dead_both = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            source, subject = target
+            game.create_tokens(controller, copy_card((subject or source).card, self.changes), 1)
+
+
+@dataclass(frozen=True)
+class CopyHostToken:
+    """Helm of the Host, Endless Evil: "Create a token that's a copy of equipped creature, except the token isn't legendary." The
+    creature this Equipment or Aura is attached to; with nothing attached there is nothing to copy."""
+    changes: CopyChanges | None = None
+    uses_source = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target.attached_to is not None:
+            game.create_tokens(controller, copy_card(target.attached_to.card, self.changes), 1)
+
+
 @dataclass(frozen=True)
 class CopyToken:
     """ "Create a token that's a copy of target creature you control." """
@@ -1515,17 +1618,21 @@ class CopyToken:
     another: bool = False  # "a copy of another target creature you control": not the source itself
     haste: bool = False  # Inspired Skypainter's spell: "That token gains haste until end of turn."
     legendary: bool = False  # Adagia: "..., except it's legendary."
+    changes: CopyChanges | None = None  # Helm of the Host, Irenicus's Vile Duplication: "..., except it isn't legendary."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            card = target.card
-            if not card.type_line.startswith("Token"):
-                card = dataclasses.replace(card, type_line="Token " + card.type_line)
+            card = copy_card(target.card, self.changes)
             if self.legendary and "Legendary" not in card.type_line:
                 card = dataclasses.replace(card, type_line=card.type_line.replace("Token ", "Token Legendary ", 1))
             for token in game.create_tokens(controller, card, game.amount(self.count)):
                 if self.haste:
                     game.modify_until_end_of_turn(token, Modifier(keywords=frozenset({"haste"})))
+
+
+@dataclass(frozen=True)
+class _TokenHasHaste:
+    """ "That token gains haste." with no duration, after a CopyHostToken (see _merge_conditional): it keeps haste."""
 
 
 @dataclass(frozen=True)
@@ -3817,6 +3924,11 @@ def _merge_conditional(effects: list) -> list | None:
             if not (merged and isinstance(merged[-1], ExileFromGraveyard)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], copy_token=True)
+        elif isinstance(effect, _TokenHasHaste):
+            if not (merged and isinstance(merged[-1], CopyHostToken)):
+                return None
+            changes = merged[-1].changes or CopyChanges()
+            merged[-1] = dataclasses.replace(merged[-1], changes=dataclasses.replace(changes, keywords=changes.keywords + ("haste",)))
         elif isinstance(effect, _TokenGainsHaste):
             if not (merged and isinstance(merged[-1], CopyToken)):
                 return None
@@ -5346,6 +5458,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ExileDamagedIfDie()),
     (re.compile(r"exile enchanted creature\.", re.I), lambda m: ExileEnchanted()),
     (re.compile(r"that token gains haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
+    (re.compile(r"that token gains haste\.", re.I), lambda m: _TokenHasHaste()),
     (re.compile(r"create a token that's a copy of it\.", re.I), lambda m: _CopyOfIt()),
     (re.compile(r"mill a card, then exile a card from your graveyard at random\. you may play the exiled card this turn\.", re.I),
      lambda m: MillThenExileRandomPlay()),
@@ -5826,6 +5939,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"target (creature(?: that attacked this turn)?) becomes (prepared|unprepared)\.", re.I),
      lambda m: TargetPrepared(m[1].lower(), m[2].lower() == "prepared")),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
+    (re.compile(rf"create a token that's a copy of (another )?target {_PERMANENT_KIND}, except (.+)\.", re.I),
+     lambda m: CopyToken(m[2].lower(), another=bool(m[1]), changes=c) if (c := _copy_changes(m[3])) else None),
+    (re.compile(r"create a token that's a copy of (?:equipped|enchanted) creature, except (.+)\.", re.I),
+     lambda m: CopyHostToken(c) if (c := _copy_changes(m[1])) else None),
+    (re.compile(r"create a token that's a copy of (?:it|that (?:creature|card)), except (.+)\.", re.I),
+     lambda m: CopySubjectToken(c) if (c := _copy_changes(m[1])) else None),
     (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}, except it's legendary\.", re.I),
      lambda m: CopyToken(m[1].lower(), legendary=True)),
     (re.compile(rf"create a token that's a copy of another target {_PERMANENT_KIND}\.", re.I),
