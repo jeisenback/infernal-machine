@@ -114,6 +114,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | Destroy up to X target artifacts and/or enchantments. Create twice X 1/1 ... tokens with "<an ability we understand>". | Pest Infestation |
 | Choose any number of target creatures you control. For each of them, create a token that's a copy of that creature, except it has haste. Exile those tokens at the beginning of the next end step. | Twinflame |
 | Put N +1/+1 (or -1/-1) counters on target creature / on each creature you control / on it. | |
+| Put N +1/+1 counters on up to one target creature. (a loyalty ability may choose no creature) | Ajani, Caller of the Pride's +1 |
 | This creature enters with N +1/+1 counters on it. | Hydras |
 | Target creature gets +N/+N (and gains keywords) / gains keywords until end of turn. | Giant Growth |
 | Creatures you control (or your opponents control) get +N/+N (and gain keywords) until end of turn. | |
