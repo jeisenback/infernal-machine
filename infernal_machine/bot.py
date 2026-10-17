@@ -96,12 +96,13 @@ class BotPlayer:
         die with a lot of tax on it goes to the graveyard if the deck can bring it back)."""
         self.features = features
         self._commanders = {c.name for c in deck.commanders}
+        self._signature = deck.signature_spell.name if deck.signature_spell else None  # an Oathbreaker's spell: cast like any spell, not first like a commander
         self._commander_casts: Counter = Counter()  # times each of its commanders was cast from the command zone: the tax is two mana a time
         self._recursion = any(RECURSION.search(c.oracle_text) for c in deck.main)
         spells = [c.cmc for c in deck.main if not is_land(c)]
         self._average_cost = sum(spells) / len(spells) if spells else 0.0  # what the deck's spells cost on average
         self.name = name
-        self._cards = {c.name: c for c in deck.commanders + deck.main}
+        self._cards = {c.name: c for c in deck.commanders + deck.main + ([deck.signature_spell] if deck.signature_spell else [])}
         self._cards.update({c.prepare.name: c.prepare for c in list(self._cards.values()) if c.prepare})  # the spell halves
         self._cards.update({c.alternate.name: c.alternate for c in list(self._cards.values()) if c.alternate})  # Adventures and other cast-from-hand halves
         self._hand: list[Card] = []
@@ -223,7 +224,7 @@ class BotPlayer:
         lands = [i for i, option in enumerate(options) if option.startswith((PLAY_LAND, PLAY_EXILE, PLAY_GRAVEYARD))]
         if lands:
             return self._best_land(lands, options) if "land" in self.features else lands[0]
-        commanders = [i for i, option in enumerate(options) if option.startswith(CAST_COMMANDER)]
+        commanders = [i for i, option in enumerate(options) if option.startswith(CAST_COMMANDER) and _cast_name(option) != self._signature]
         if "commander" not in self.features:
             if commanders:
                 return commanders[0]
@@ -232,7 +233,8 @@ class BotPlayer:
             if cheap:
                 return cheap[0]
         casts = [i for i, option in enumerate(options)
-                 if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)) and not _is_ritual(self._cards.get(_cast_name(option)))
+                 if (option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)) or (option.startswith(CAST_COMMANDER) and _cast_name(option) == self._signature))
+                 and not _is_ritual(self._cards.get(_cast_name(option)))
                  and not self._unhelpful_wipe(self._cards.get(_cast_name(option))) and not self._holds_removal(self._cards.get(_cast_name(option)))]
         if "commander" in self.features:
             casts += [i for i in commanders if i not in casts]  # a commander that has grown expensive competes with the rest

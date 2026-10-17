@@ -32,7 +32,8 @@ sys.path.insert(0, os.getcwd())
 
 SKIPPED_SECTIONS = {"maybeboard", "considering", "tokens", "token", "acquire", "wishlist"}
 SECTION_NAMES = {"commander": "commander", "commanders": "commander", "main": "main", "mainboard": "main", "deck": "main",
-                 "sideboard": "side", "side": "side", "sb": "side", "companion": "companion"}
+                 "sideboard": "side", "side": "side", "sb": "side", "companion": "companion",
+                 "oathbreaker": "commander", "signature spell": "signature", "signature": "signature"}
 _ANNOTATIONS = re.compile(r"\s*(\^[^^]*\^|\[[^\]]*\])")  # ^Tag^ and [Category]
 _SET_AND_NUMBER = re.compile(r"\s+\([A-Za-z0-9]{2,6}\)(?:\s+\S+)?\s*$")
 _MARK = re.compile(r"\s*\*[A-Za-z]+\*")  # *F*, *E*, *CMDR*
@@ -46,12 +47,13 @@ class Imported:
         self.main: dict[str, int] = {}
         self.side: dict[str, int] = {}
         self.companion: dict[str, int] = {}
+        self.signature: dict[str, int] = {}
         self.dropped: list[str] = []  # what was left out, described
         self.assumed: list[str] = []  # what was guessed, described (the commander at the end of a Moxfield export)
         self.side_blocks: list[list[tuple[str, int]]] = []  # the cards of the sideboard, a list per paragraph
 
     def add(self, section: str, name: str, count: int) -> None:
-        target = {"commander": self.commanders, "main": self.main, "side": self.side, "companion": self.companion}[section]
+        target = {"commander": self.commanders, "main": self.main, "side": self.side, "companion": self.companion, "signature": self.signature}[section]
         target[name] = target.get(name, 0) + count
         if section == "side":
             if not self.side_blocks:
@@ -78,7 +80,7 @@ class Imported:
 
     @property
     def total(self) -> int:
-        return sum(self.commanders.values()) + sum(self.main.values())
+        return sum(self.commanders.values()) + sum(self.signature.values()) + sum(self.main.values())
 
 
 def _categories(line: str) -> list[str]:
@@ -133,6 +135,8 @@ def parse_text(text: str) -> Imported:
             where = "commander"
         elif "companion" in categories:
             where = "companion"
+        elif "signature spell" in categories or "signature" in categories:
+            where = "signature"
         elif any(c in SKIPPED_SECTIONS for c in categories):
             deck.dropped.append(line)
             continue
@@ -170,7 +174,7 @@ def parse(text: str) -> Imported:
 
 
 def render(deck: Imported) -> str:
-    sections = [("Commander", deck.commanders), ("Companion", deck.companion), ("Deck", deck.main), ("Sideboard", deck.side)]
+    sections = [("Commander", deck.commanders), ("Signature Spell", deck.signature), ("Companion", deck.companion), ("Deck", deck.main), ("Sideboard", deck.side)]
     return "\n\n".join(f"{title}\n" + "\n".join(f"{n} {name}" for name, n in cards.items()) for title, cards in sections if cards) + "\n"
 
 
@@ -180,7 +184,9 @@ def warnings(deck: Imported) -> list[str]:
         notes.append(f"{deck.total} cards and no commander: put yours under a Commander heading or mark it *CMDR* before using this as a Commander deck.")
     if sum(deck.companion.values()) > 1:
         notes.append(f"A deck has at most one companion; this has {sum(deck.companion.values())}.")
-    if deck.commanders and deck.total not in (99, 100):
+    if sum(deck.signature.values()) > 1:
+        notes.append(f"A deck has at most one signature spell; this has {sum(deck.signature.values())}.")
+    if deck.commanders and deck.total not in (59, 60, 99, 100):
         notes.append(f"A Commander deck has 100 cards with its commander; this one has {deck.total}.")
     if deck.dropped:
         shown = "; ".join(deck.dropped[:4]) + (f" and {len(deck.dropped) - 4} more" if len(deck.dropped) > 4 else "")
