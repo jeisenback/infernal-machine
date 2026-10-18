@@ -47,6 +47,7 @@ Run before you push:
 
 ```
 python -m unittest discover -s tests -t .      # CI runs this on Python 3.11 and 3.13
+python tools/run_tests.py                      # the same tests across processes (about 2.5 times faster; a failure is the same failure)
 python tools/coverage_audit.py --top 1         # how many Commander-legal cards are fully playable
 python tools/play_smoke.py                     # every fully playable card casts or plays without an error
 ```
