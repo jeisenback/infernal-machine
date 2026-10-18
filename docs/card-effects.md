@@ -116,6 +116,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | Create a token that's a copy of (target creature / it / that creature / equipped or enchanted creature), except (it isn't legendary / it's N/N / it's a Spirit in addition to its other types / it's a 2/2 black Zombie in addition to its other colors and types / it has flying and haste). *The except clause is a list of changes the engine applies to the copy (`CopyChanges`); any other clause leaves the line unsupported. "It" is the permanent that set off the trigger, still there or not, or the source for its own trigger.* | Helm of the Host, Miirym, Impostor Syndrome, Vaultborn Tyrant, Ratadrabik of Urborg, Irenicus's Vile Duplication |
 | Whenever another nontoken Dragon (or: legendary creature) you control enters (dies) / a nontoken creature you control deals combat damage to a player, ... | Miirym, Ratadrabik of Urborg, Impostor Syndrome |
 | Put N +1/+1 (or -1/-1) counters on target creature / on each creature you control / on it. | |
+| Put N +1/+1 counters on up to one target creature. (a loyalty ability may choose no creature) | Ajani, Caller of the Pride's +1 |
 | This creature enters with N +1/+1 counters on it. | Hydras |
 | Target creature gets +N/+N (and gains keywords) / gains keywords until end of turn. | Giant Growth |
 | Creatures you control (or your opponents control) get +N/+N (and gain keywords) until end of turn. | |

@@ -14,7 +14,7 @@ from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
 from .undercity import HELPS_ITS_TARGET
 from .effects import MOVE_COUNTERS_PROMPT
-from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, CAST_TOP, PLAY_EXILE, PLAY_GRAVEYARD, PLAY_TOP, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
+from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, COMPANION, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, CAST_TOP, PLAY_EXILE, PLAY_GRAVEYARD, PLAY_TOP, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT)
 
@@ -96,12 +96,13 @@ class BotPlayer:
         die with a lot of tax on it goes to the graveyard if the deck can bring it back)."""
         self.features = features
         self._commanders = {c.name for c in deck.commanders}
+        self._signature = deck.signature_spell.name if deck.signature_spell else None  # an Oathbreaker's spell: cast like any spell, not first like a commander
         self._commander_casts: Counter = Counter()  # times each of its commanders was cast from the command zone: the tax is two mana a time
         self._recursion = any(RECURSION.search(c.oracle_text) for c in deck.main)
         spells = [c.cmc for c in deck.main if not is_land(c)]
         self._average_cost = sum(spells) / len(spells) if spells else 0.0  # what the deck's spells cost on average
         self.name = name
-        self._cards = {c.name: c for c in deck.commanders + deck.main}
+        self._cards = {c.name: c for c in deck.commanders + deck.main + ([deck.signature_spell] if deck.signature_spell else [])}
         self._cards.update({c.prepare.name: c.prepare for c in list(self._cards.values()) if c.prepare})  # the spell halves
         self._cards.update({c.alternate.name: c.alternate for c in list(self._cards.values()) if c.alternate})  # Adventures and other cast-from-hand halves
         self._hand: list[Card] = []
@@ -223,7 +224,7 @@ class BotPlayer:
         lands = [i for i, option in enumerate(options) if option.startswith((PLAY_LAND, PLAY_EXILE, PLAY_GRAVEYARD, PLAY_TOP))]
         if lands:
             return self._best_land(lands, options) if "land" in self.features else lands[0]
-        commanders = [i for i, option in enumerate(options) if option.startswith(CAST_COMMANDER)]
+        commanders = [i for i, option in enumerate(options) if option.startswith(CAST_COMMANDER) and _cast_name(option) != self._signature]
         if "commander" not in self.features:
             if commanders:
                 return commanders[0]
@@ -232,7 +233,8 @@ class BotPlayer:
             if cheap:
                 return cheap[0]
         casts = [i for i, option in enumerate(options)
-                 if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED, CAST_TOP)) and not _is_ritual(self._cards.get(_cast_name(option)))
+                 if (option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED, CAST_TOP)) or (option.startswith(CAST_COMMANDER) and _cast_name(option) == self._signature))
+                 and not _is_ritual(self._cards.get(_cast_name(option)))
                  and not self._unhelpful_wipe(self._cards.get(_cast_name(option))) and not self._holds_removal(self._cards.get(_cast_name(option)))]
         if "commander" in self.features:
             casts += [i for i in commanders if i not in casts]  # a commander that has grown expensive competes with the rest
@@ -245,6 +247,9 @@ class BotPlayer:
                 return i
         for i, option in enumerate(options):
             if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)) and self._activation_time(prompt, option):
+                return i
+        for i, option in enumerate(options):
+            if option.startswith(COMPANION):  # nothing else to do with the mana: the companion is a card from outside the game for {3}
                 return i
         return options.index(PASS)
 
