@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import re
 from dataclasses import dataclass, replace
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from ..cards import Card
@@ -6390,8 +6391,9 @@ def _delayed_trigger(sentence: str) -> CreateDelayedTrigger | None:
     return CreateDelayedTrigger(tuple(found), next_turn="your next turn" in sentence.lower()) if found else None
 
 
+@lru_cache(maxsize=None)  # a sentence reads the same wherever it is: "Draw a card." is on thousands of cards (issue #441)
 def _template(sentence: str) -> Any:
-    """The effect of one sentence a template understands as written, or None."""
+    """The effect of one sentence a template understands as written, or None. Effects are frozen, so the one read is shared."""
     for pattern, build in _TEMPLATES:
         match = pattern.fullmatch(sentence)
         effect = build(match) if match else None
