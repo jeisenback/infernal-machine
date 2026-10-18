@@ -779,6 +779,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets
     again (the old ones are still choices); without it the copy keeps them. Abilities can't be copied yet.
+    "..., then return it to its owner's hand." (Narset's Reversal) copies first, then the spell leaves the stack for its
+    owner's hand without resolving. "Whenever you cast a Faerie or Wizard permanent spell, copy it." (Archmage of Echoes):
+    a watch for either of two types and a permanent; the copy of a permanent spell becomes a token.
   - "Create a token that's a copy of target creature" and populate were added earlier.
 - **Control change:** "Gain control of target creature." (permanent), "Gain control of target creature until end of turn.
   Untap that creature. It gains haste until end of turn." (Threaten), and Control Magic ("Enchant creature. You

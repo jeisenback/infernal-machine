@@ -4382,6 +4382,15 @@ class Game:
         if not item.ability and not item.is_copy:  # countering an ability doesn't touch its source; a copy just ends
             self._move_card(item.home, item.physical, "exile" if exile or item.exile_after else "graveyard")
 
+    def return_spell_to_hand(self, item: StackItem) -> None:
+        """Narset's Reversal: the spell leaves the stack for its owner's hand, so it never resolves (a copy just stops existing)."""
+        if item not in self.stack:
+            return
+        self.stack.remove(item)
+        self.broadcast({"event": "returned_spell", "seat": item.controller.index, "card": item.card.name})
+        if not item.ability and not item.is_copy:
+            self._move_card(item.home, item.physical, "hand")
+
     def _check_ward(self, item: StackItem) -> None:
         """Whenever a permanent with ward becomes the target of an opponent's spell or ability, a ward trigger
         goes on the stack above it (CR 702.21a)."""
@@ -5849,6 +5858,8 @@ def _watch_type_matches(kind: str, card: Card) -> bool:
     """Whether `card` is what a watch looks for: "creature", "land", ..., or for casts
     "spell", "creature spell", "noncreature spell", "instant or sorcery spell", "red spell",
     "historic spell", "aura, equipment, or vehicle spell", ..."""
+    if m := re.fullmatch(r"(.+ or .+) permanent spell", kind):  # "a Faerie or Wizard permanent spell": either type, and a permanent
+        return not ("Instant" in card.type_line or "Sorcery" in card.type_line) and any(parse_filter(n).matches(card) for n in m[1].split(" or "))
     if kind == "spell with {x} in its mana cost":
         return "{X}" in card.mana_cost
     if kind == "permanent spell with a mana cost that contains {x}":
