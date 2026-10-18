@@ -21,7 +21,7 @@ from .effects import (AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demo
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest_power, reduced_by_total_power,
                       replicate_cost, restricted_mana, self_cost_reduction, storm_kind, strive_cost, target_kind, triggered_abilities,
                       x_limited_by_players, x_spell_discount)
-from .filters import has_type
+from .filters import has_type, parse_filter
 from .mana import Cost, cost_of, parse_cost
 from .payment import Payment
 
@@ -211,6 +211,8 @@ class Caster:
             others = len(seat.graveyard) - (card in seat.graveyard)
             if graveyard.discard_land and not any(is_land(c) for c in seat.hand):
                 return []
+            if graveyard.requires and not any(parse_filter(graveyard.requires).matches(p.card) for p in seat.battlefield):
+                return []  # Gravecrawler: only while its caster controls a Zombie
             return [None] if others >= graveyard.exile and graveyard.life <= seat.life and self._payment(seat, paying) is not None else []
         return [way for way in [None, *alternative_costs(card)]
                 if not (way and way.warp and not from_hand)  # warp is a way to cast from the hand only

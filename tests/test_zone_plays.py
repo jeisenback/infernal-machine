@@ -15,9 +15,10 @@ class RegistryTests(unittest.TestCase):
             for b in prefixes:
                 self.assertTrue(a == b or not a.startswith(b), f"{a!r} starts with {b!r}: the wrong handler would take it")
 
-    def test_every_zone_has_a_land_and_a_cast_prefix(self):
+    def test_every_zone_has_a_cast_prefix_and_all_but_the_spell_only_ones_a_land_prefix(self):
         self.assertEqual(len(ZONE_PLAYS), len(CAST_PREFIXES))
-        self.assertEqual(len(ZONE_PLAYS), len(LAND_PREFIXES))
+        self.assertEqual(len(LAND_PREFIXES), sum(bool(z.land_prefix) for z in ZONE_PLAYS))
+        self.assertNotIn("", LAND_PREFIXES)  # (an empty prefix would match every action)
 
     def test_the_bot_reads_the_card_name_after_any_cast_prefix(self):
         for prefix in CAST_PREFIXES:

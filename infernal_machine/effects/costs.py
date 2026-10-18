@@ -236,6 +236,9 @@ _AFTERMATH = re.compile(r"Aftermath")  # the second half of a split card: cast o
 _FLASHBACK_LIFE = re.compile(r"Flashback\u2014((?:\{[^}]+\})+), Pay (\d+) life\.")  # Deep Analysis
 
 
+_FROM_GRAVEYARD_SELF = re.compile(r"You may cast this card from your graveyard(?: as long as you control an? ([A-Za-z]+))?\.")  # Gravecrawler
+
+
 _FROM_GRAVEYARD_BY_PAYING = re.compile(r"You may cast this card from your graveyard by paying ((?:\{[^}]+\})+) rather than paying "
                                        r"its mana cost\.")  # Raffine's Guidance
 
@@ -503,6 +506,7 @@ class GraveyardCast:
     exile_after: bool = False  # exile it instead of putting it in the graveyard when it leaves the stack (Flashback)
     discard_land: bool = False  # Retrace: discard a land card in addition to the cost
     life: int = 0  # "Flashback\u2014{1}{U}, Pay 3 life."
+    requires: str = ""  # Gravecrawler: "as long as you control a Zombie": a kind of permanent its caster must control
 
 
 def graveyard_casts(card: Card) -> list[GraveyardCast]:
@@ -514,6 +518,8 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
             found.append(GraveyardCast("Flashback", m[1], exile_after=True, life=int(m[2])))
         elif m := _FROM_GRAVEYARD_BY_PAYING.fullmatch(line):
             found.append(GraveyardCast("From the graveyard", m[1]))
+        elif m := _FROM_GRAVEYARD_SELF.fullmatch(line):
+            found.append(GraveyardCast("From the graveyard", card.mana_cost, requires=(m[1] or "").lower()))
         elif m := _ESCAPE.fullmatch(line):
             found.append(GraveyardCast("Escape", m[1], exile=_number(m[2])))
         elif _RETRACE.fullmatch(line):
@@ -521,6 +527,29 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
         elif _AFTERMATH.fullmatch(line):
             found.append(GraveyardCast("Aftermath", card.mana_cost, exile_after=True))
     return found
+
+
+# Gisa and Geralf, Rivaz, Lurrus, Danitha: one card of a kind a turn from the graveyard, for its mana cost.
+_ONCE_FROM_GRAVEYARD = re.compile(r"Once during each of your turns, you may cast an? (.+?) spell(?: with mana value (\d+) or less)? from your graveyard\.")
+
+
+@dataclass(frozen=True)
+class GraveyardPermit:
+    """"Once during each of your turns, you may cast a Zombie creature spell from your graveyard.": `kind` is a filter, `max_mv`
+    the most mana value it may have (None: any), `text` the rules line (what a turn's use is recorded under)."""
+    kind: str
+    max_mv: int | None
+    text: str
+
+
+@lru_cache(maxsize=None)
+def graveyard_permits(card: Card) -> tuple[GraveyardPermit, ...]:
+    return tuple(GraveyardPermit(m[1].lower(), int(m[2]) if m[2] else None, line) for line in rules_lines(card)
+                 if (m := _ONCE_FROM_GRAVEYARD.fullmatch(line)))
+
+
+def is_graveyard_permit_line(line: str) -> bool:
+    return _ONCE_FROM_GRAVEYARD.fullmatch(line) is not None
 
 
 def is_aftermath(card: Card) -> bool:
@@ -643,7 +672,7 @@ def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
-                                           _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
+                                           _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
 
 

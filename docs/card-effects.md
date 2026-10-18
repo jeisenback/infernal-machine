@@ -282,6 +282,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Food: Add one mana of any color" (Gilded Goose, one Food per Goose) and "{T}, Mill a card: Add {C}" (Millikin, needs a
     library) pay their extra cost when the mana is spent; "Add one mana ... for each charge counter" (Astral Cornucopia,
     Palette) makes one mana per counter (the mana of one tap may be spent as different colors).
+  - Casting from your own graveyard on a permission: "You may cast this card from your graveyard." and "... as long as you
+    control a Zombie." (Gravecrawler): the card's own mana cost, then back to the graveyard if it dies (the `Cast from graveyard:`
+    action, with `GraveyardCast.requires`). "Once during each of your turns, you may cast a Zombie creature spell (a permanent
+    spell with mana value 2 or less, an Aura or Equipment spell) from your graveyard." (Gisa and Geralf, Lurrus, Danitha): the
+    `Cast from graveyard (permission):` action, one use a turn for each permanent that has the line (recorded in its
+    `activated_turn`), not while it has lost its abilities. The ten known "Companion — ..." conditions are understood lines.
   - Playing from the top of the library: "You may play lands (and cast spells) from the top of your library." (Courser of
     Kruphix, Oracle of Mul Daya, Future Sight), with the spells limited to a kind or several ("artifact spells and colorless
     spells" Mystic Forge, "creature spells of the chosen type" Realmwalker, "Goblin spells", "instant and sorcery spells",
