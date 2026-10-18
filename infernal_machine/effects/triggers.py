@@ -148,6 +148,9 @@ _WATCHES = {
 }
 
 
+_TRIBE_ATTACKS = re.compile(rf"Whenever an? ({_TRIBE}) you control attacks, (.+)", re.I)
+
+
 _WATCH_QUALIFIER = re.compile(r" with ((power|toughness) (\d+) or (greater|less)|flying|a \+1/\+1 counter on it|mana value (\d+) or less)"
                               r"(?= (?:enters|dies|leaves the battlefield|becomes tapped|attacks))")
 
@@ -266,6 +269,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         return "sacrifice", Watch(m[1].lower(), yours=True), m[2]
     if qualifier and (m := _WATCHES["creature_attacks"].fullmatch(line)):  # "a creature you control with power 2 or less attacks"
         return "creature_attacks", Watch("creature", yours=True, qualifier=qualifier), m[1]
+    if m := _TRIBE_ATTACKS.fullmatch(line):  # Utvara Hellkite, Atarka: "Whenever a Dragon you control attacks, ..."
+        return "creature_attacks", Watch(m[1].lower(), yours=True), m[2]
     if m := _WATCHES["combat_damage_dealt"].fullmatch(line):
         kind = m[2].lower()
         if kind.startswith("nontoken"):  # Impostor Syndrome: "Whenever a nontoken creature you control deals combat damage to a player"

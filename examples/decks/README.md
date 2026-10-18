@@ -16,5 +16,5 @@ python tools/coverage_audit.py --decks examples/decks/*.txt        # what blocks
 
 The audit reports each deck's playable share and ranks the pieces of work by the cards they unlock across all of them. Re-run it after
 each piece. Playable share (cards the engine fully reads): before #428 work 73 / 300 cards of Atraxa, 64, 66 for Krenko and Ur-Dragon
-(68% together); after this round 79, 71, 68 (73%). To add a list, export one from a deck site and run it through
+(68% together); after the first round 79, 71, 68 (73%); after the second 79, 73, 71 (74%). To add a list, export one from a deck site and run it through
 `tools/import_deck.py`.
