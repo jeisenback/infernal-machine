@@ -15,24 +15,24 @@ def target_kind(effect: Any) -> str | None:
     return getattr(effect, "target", None)
 
 
-def uses_source(effect: Any) -> bool:
-    """Whether an effect acts on its ability's source ("put a +1/+1 counter on it")."""
-    return getattr(effect, "uses_source", False)
+# What an effect acts on, as its `binds` (issue #436): one value, or None for an effect that names its own targets (or none). It was six
+# flags (uses_source, uses_subject, uses_player, uses_dead_*, follows_target) read by the resolver and by the trigger checks separately.
+SOURCE = "source"  # the permanent whose ability this is ("put a +1/+1 counter on it")
+SUBJECT = "subject"  # the permanent that set off a watching trigger ("... put a counter on it"), if it is still there
+DEAD_SUBJECT = "dead_subject"  # ... even if it has left the battlefield ("When enchanted creature dies, return it ...")
+SOURCE_AND_SUBJECT = "source_and_subject"  # both, as a pair (source, subject): "create a token that's a copy of it"
+DEAD_SOURCE = "dead_source"  # the source after it left the battlefield (persist, undying)
+PLAYER = "player"  # the player who set off a watching trigger ("... that player loses 2 life")
+PREVIOUS_TARGET = "previous_target"  # the previous effect's target ("Its controller gains life ...")
+BINDINGS = (SOURCE, SUBJECT, DEAD_SUBJECT, SOURCE_AND_SUBJECT, DEAD_SOURCE, PLAYER, PREVIOUS_TARGET)
+
+# Which bindings need something of the ability's context that a plain trigger body does not have, for the checks in triggers.py.
+CONTEXT_BINDINGS = frozenset({SOURCE, SUBJECT, PLAYER, PREVIOUS_TARGET})
 
 
-def uses_subject(effect: Any) -> bool:
-    """Whether an effect acts on the permanent that set off a watching trigger ("... put a counter on it")."""
-    return getattr(effect, "uses_subject", False)
-
-
-def uses_player(effect: Any) -> bool:
-    """Whether an effect acts on the player who set off a watching trigger ("... that player loses 2 life")."""
-    return getattr(effect, "uses_player", False)
-
-
-def follows_target(effect: Any) -> bool:
-    """Whether an effect acts on the previous effect's target ("Its controller gains life ...")."""
-    return getattr(effect, "follows_target", False)
+def binding(effect: Any) -> str | None:
+    """What an effect acts on besides its own targets: one of BINDINGS, or None."""
+    return getattr(effect, "binds", None)
 
 
 @dataclass(frozen=True)

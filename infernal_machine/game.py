@@ -34,8 +34,9 @@ from .effects import (apply_copy_changes, EVENTS, Quantity, MorphCost, ReturnWit
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
-                      filter_mana_ability, follows_target, mana_spent_trigger, spell_effects, static_abilities, target_kind,
-                      triggered_abilities, uses_player, uses_source, uses_subject)
+                      filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
+                      triggered_abilities, binding)
+from .effects.targets import DEAD_SOURCE, DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT
 from .undercity import ROOMS, START
 from .filters import has_type, parse_filter
 from .mana import Cost, cost_of, parse_cost
@@ -2248,19 +2249,21 @@ class Game:
             if target_kind(effect):
                 candidate, ok = next(checks)
                 target = previous = candidate if ok else None
-            elif follows_target(effect):
+            elif (binds := binding(effect)) is None:
+                pass  # it acts on nothing of the ability's context
+            elif binds == PREVIOUS_TARGET:
                 target = previous
-            elif uses_player(effect):
+            elif binds == PLAYER:
                 target = item.player if item.player and not item.player.lost else None
-            elif uses_subject(effect):
+            elif binds == SUBJECT:
                 target = item.subject if item.subject and self.on_battlefield(item.subject) else None
-            elif getattr(effect, "uses_dead_subject", False):
+            elif binds == DEAD_SUBJECT:
                 target = item.subject  # "When enchanted creature dies, return it ...": the creature has already left
-            elif getattr(effect, "uses_dead_both", False):
+            elif binds == SOURCE_AND_SUBJECT:
                 target = (item.source, item.subject) if item.source else None
-            elif getattr(effect, "uses_dead_source", False):
+            elif binds == DEAD_SOURCE:
                 target = item.source  # persist and undying: the creature has already left the battlefield
-            elif uses_source(effect):
+            elif binds == SOURCE:
                 target = item.source if item.source and self.on_battlefield(item.source) else None
             self.resolving_target = previous
             effect.resolve(self, seat, target)

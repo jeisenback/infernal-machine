@@ -34,11 +34,17 @@ from .common import (  # noqa: F401
 )
 from .targets import (  # noqa: F401
     MassFilter,
-    follows_target,
+    binding,
+    BINDINGS,
+    CONTEXT_BINDINGS,
+    DEAD_SOURCE,
+    DEAD_SUBJECT,
+    PLAYER,
+    PREVIOUS_TARGET,
+    SOURCE,
+    SOURCE_AND_SUBJECT,
+    SUBJECT,
     target_kind,
-    uses_player,
-    uses_source,
-    uses_subject,
 )
 from .outcomes import (  # noqa: F401
     AddMana,
