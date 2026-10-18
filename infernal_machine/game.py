@@ -27,6 +27,8 @@ from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
 from . import casting
+from .zones import (CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, PARAGON, PLAY_EXILE, PLAY_GRAVEYARD,
+                    PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
@@ -64,7 +66,6 @@ PASS = "Pass"
 PLAY_LAND = "Play land: "
 CAST = "Cast: "
 CAST_COMMANDER = "Cast commander: "
-CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
 ENCORE = "Encore: "  # followed by the card's name
 _COLOR_LETTERS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 EVERYTHING = 10**9  # more damage than there will ever be: "prevent all damage"
@@ -79,15 +80,8 @@ FORETELL_COST = "{2}"
 NINJUTSU = "Ninjutsu: "  # followed by the card's name: return an unblocked attacker, and it comes in attacking in its place
 GIFT_PROMPT = "Promise a gift with "  # followed by the card's name; options: no gift, or one opponent to give it to
 NINJUTSU_PROMPT = "Return which unblocked attacker to hand for ninjutsu with "  # followed by the card's name
-CAST_PARAGON = "Cast from graveyard (once a turn): "  # Serra Paragon
-PLAY_PARAGON = "Play land from graveyard: "
-PLAY_GRAVEYARD = "Play land from the graveyard: "  # Crucible of Worlds: any number of lands, within the land drops
-CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 FOREVER = 10**9  # the last turn of a permission that does not run out (a card on an adventure)
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
-PLAY_EXILE = "Play land from exile: "
-PLAY_TOP = "Play land from the top of your library: "  # Courser of Kruphix, Future Sight
-CAST_TOP = "Cast from the top of your library: "  # Future Sight, Mystic Forge, Realmwalker
 IMPRINT_PROMPT = "Exile which card from your hand? "
 AMASS_PROMPT = "Put the counters on which Army? "
 MOX_DIAMOND_PROMPT = "Discard which land to put it onto the battlefield? "
@@ -950,8 +944,7 @@ class Game:
         if sorcery_timing and seat.lands_played < self._land_drops(seat):
             actions += [PLAY_LAND + c.name for c in _unique(seat.hand) if is_land(c)]
             actions += [PLAY_LAND + c.back.name for c in _unique(seat.hand) if c.back]  # a Pathway's other face
-            if self._graveyard_lands(seat):
-                actions += [PLAY_GRAVEYARD + c.name for c in _unique(seat.graveyard) if is_land(c)]
+            actions += GRAVEYARD.land_offers(self, seat)
         for card in _unique(seat.hand):
             if not is_land(card) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card):
                 actions.append(CAST + card.name)
@@ -961,19 +954,8 @@ class Game:
         for card in seat.command_zone:
             if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card, from_command_zone=True):
                 actions.append(CAST_COMMANDER + card.name)
-        for card in _unique(seat.graveyard):
-            for cast in graveyard_casts(card)[:1]:
-                if not is_land(card) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card, graveyard=cast):
-                    actions.append(CAST_GRAVEYARD + card.name)
-            if (other := card.alternate) and is_aftermath(other) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, other)) \
-                    and self._can_cast(seat, other, graveyard=graveyard_casts(other)[0]):
-                actions.append(CAST_GRAVEYARD + other.name)  # the Aftermath half
-        for card in self._paragon_options(seat):
-            if is_land(card):
-                if sorcery_timing and seat.lands_played < self._land_drops(seat):
-                    actions.append(PLAY_PARAGON + card.name)
-            elif (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card):
-                actions.append(CAST_PARAGON + card.name)
+        actions += GRAVEYARD.offers(self, seat, sorcery_timing)
+        actions += PARAGON.offers(self, seat, sorcery_timing)
         for card in _unique(seat.hand):  # Morph: a face-down 2/2 for {3}, as a creature spell
             if (morph := morph_of(card)) and sorcery_timing and not self._cast_barred(seat, card) \
                     and self._payment(seat, FACE_DOWN) is not None:
@@ -1005,18 +987,8 @@ class Game:
                     actions.append(ETERNALIZE + card.name)
                 if (cost := unearth_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
                     actions.append(UNEARTH + card.name)
-        for card in _unique([c for c, until in seat.exile_play if self.turn <= until and c in seat.exile]):
-            if is_land(card):
-                if sorcery_timing and seat.lands_played < self._land_drops(seat):
-                    actions.append(PLAY_EXILE + card.name)
-            elif (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card, from_hand=False):
-                actions.append(CAST_EXILE + card.name)
-        if seat.library and (top := seat.library[0]) and self._plays_from_top(seat, top):
-            if is_land(top):
-                if sorcery_timing and seat.lands_played < self._land_drops(seat):
-                    actions.append(PLAY_TOP + top.name)
-            elif (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, top)) and self._can_cast(seat, top, from_hand=False):
-                actions.append(CAST_TOP + top.name)
+        actions += EXILE.offers(self, seat, sorcery_timing)
+        actions += LIBRARY.offers(self, seat, sorcery_timing)
         for spell in _unique([p.card.prepare for p in seat.battlefield if p.prepared and p.card.prepare]):
             if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, spell)) and self._can_cast(seat, spell):
                 actions.append(CAST_PREPARED + spell.name)
@@ -1502,46 +1474,14 @@ class Game:
 
 
     def _perform(self, seat: Seat, action: str) -> None:
+        if any(zone.perform(self, seat, action) for zone in ZONE_PLAYS):  # a zone other than the hand (zones.py)
+            return
         if action.startswith(PLAY_LAND):
             name = action.removeprefix(PLAY_LAND)
             card = _take_face(seat.hand, name)
             self._enter(seat, Permanent(card, sick=True))  # a land that becomes a creature can't attack the turn it came in
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name})
-        elif action.startswith(PLAY_EXILE):
-            card = _take(seat.exile, action.removeprefix(PLAY_EXILE))
-            self._used_exile_permission(seat, card)
-            self._enter(seat, Permanent(card, sick=True))
-            seat.lands_played += 1
-            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
-        elif action.startswith(PLAY_TOP):
-            card = seat.library.pop(0)
-            self._enter(seat, Permanent(card, sick=True))
-            seat.lands_played += 1
-            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "library"})
-        elif action.startswith(CAST_TOP):
-            self._cast(seat, seat.library[0], seat.library)
-        elif action.startswith(PLAY_GRAVEYARD):
-            card = _take(seat.graveyard, action.removeprefix(PLAY_GRAVEYARD))
-            self._left_graveyard(seat, [card])
-            self._enter(seat, Permanent(card, sick=True))
-            seat.lands_played += 1
-            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "graveyard"})
-        elif action.startswith(PLAY_PARAGON):
-            card = _take(seat.graveyard, action.removeprefix(PLAY_PARAGON))
-            self._used_paragon(seat, card)
-            self._left_graveyard(seat, [card])
-            self._enter(seat, Permanent(card, sick=True))
-            seat.lands_played += 1
-            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "graveyard"})
-        elif action.startswith(CAST_PARAGON):
-            card = next(c for c in seat.graveyard if c.name == action.removeprefix(CAST_PARAGON))
-            self._used_paragon(seat, card)
-            self._cast(seat, card, seat.graveyard)
-        elif action.startswith(CAST_EXILE):
-            card = next(c for c in seat.exile if c.name == action.removeprefix(CAST_EXILE))
-            self._used_exile_permission(seat, card)
-            self._cast(seat, card, seat.exile)
         elif action.startswith(CAST_FACE_DOWN):
             card = next(c for c in seat.hand if c.name == action.removeprefix(CAST_FACE_DOWN))
             kind, cost = _checked(morph_of(card))
@@ -1569,15 +1509,6 @@ class Game:
             card = next(c for c in seat.command_zone if c.name == name)
             self._cast(seat, card, seat.command_zone, from_command_zone=True)
             seat.commander_casts[name] = seat.commander_casts.get(name, 0) + 1
-        elif action.startswith(CAST_GRAVEYARD):
-            name = action.removeprefix(CAST_GRAVEYARD)
-            card = next((c for c in seat.graveyard if c.name == name), None)
-            if card is not None:
-                self._cast(seat, card, seat.graveyard, graveyard=graveyard_casts(card)[0])
-            else:  # the Aftermath half of a card in the graveyard
-                whole = next(c for c in seat.graveyard if c.alternate and c.alternate.name == name)
-                half = _checked(whole.alternate)
-                self._cast(seat, half, seat.graveyard, graveyard=graveyard_casts(half)[0], whole=whole)
         elif action.startswith(SUSPEND):
             card = next(c for c in seat.hand if c.name == action.removeprefix(SUSPEND))
             counters, cost = _checked(suspend_of(card))

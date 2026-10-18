@@ -14,7 +14,8 @@ from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
 from .undercity import HELPS_ITS_TARGET
 from .effects import MOVE_COUNTERS_PROMPT
-from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, CAST_TOP, PLAY_EXILE, PLAY_GRAVEYARD, PLAY_TOP, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
+from .zones import CAST_PREFIXES, LAND_PREFIXES
+from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, CAST_PREPARED, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT)
 
@@ -220,7 +221,7 @@ class BotPlayer:
             return 0  # search, command zone and other yes/no choices: take the first option
         if self._stack and self._stack[-1] == self._seat:
             return options.index(PASS)
-        lands = [i for i, option in enumerate(options) if option.startswith((PLAY_LAND, PLAY_EXILE, PLAY_GRAVEYARD, PLAY_TOP))]
+        lands = [i for i, option in enumerate(options) if option.startswith((PLAY_LAND, *LAND_PREFIXES))]
         if lands:
             return self._best_land(lands, options) if "land" in self.features else lands[0]
         commanders = [i for i, option in enumerate(options) if option.startswith(CAST_COMMANDER)]
@@ -232,7 +233,7 @@ class BotPlayer:
             if cheap:
                 return cheap[0]
         casts = [i for i, option in enumerate(options)
-                 if option.startswith((CAST, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED, CAST_TOP)) and not _is_ritual(self._cards.get(_cast_name(option)))
+                 if option.startswith((CAST, CAST_PREPARED, *CAST_PREFIXES)) and not _is_ritual(self._cards.get(_cast_name(option)))
                  and not self._unhelpful_wipe(self._cards.get(_cast_name(option))) and not self._holds_removal(self._cards.get(_cast_name(option)))]
         if "commander" in self.features:
             casts += [i for i in commanders if i not in casts]  # a commander that has grown expensive competes with the rest
@@ -621,7 +622,9 @@ def _is_wipe(card: Card) -> bool:
 
 def _cast_name(option: str) -> str:
     """The card in a "Cast: ...", "Cast commander: ..." or "Cast from graveyard: ..." action."""
-    return option.removeprefix(CAST).removeprefix(CAST_COMMANDER).removeprefix(CAST_GRAVEYARD).removeprefix(CAST_EXILE).removeprefix(CAST_PREPARED).removeprefix(CAST_TOP)
+    for prefix in (CAST, CAST_COMMANDER, *CAST_PREFIXES, CAST_PREPARED):
+        option = option.removeprefix(prefix)
+    return option
 
 
 def _is_ritual(card: Card | None) -> bool:
