@@ -9,7 +9,8 @@ new zone is one new class and one entry in the list, not edits in four files. `G
 from __future__ import annotations
 
 from .analysis import is_land
-from .effects import graveyard_casts, is_aftermath
+from .effects import graveyard_casts, graveyard_permits, is_aftermath
+from .filters import parse_filter
 
 # The action prefixes (re-exported by game.py, which the bot, the goldfish and the tests import them from).
 CAST_GRAVEYARD = "Cast from graveyard: "  # flashback and escape
@@ -18,6 +19,7 @@ CAST_PARAGON = "Cast from graveyard (once a turn): "  # Serra Paragon
 PLAY_PARAGON = "Play land from graveyard: "
 CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 PLAY_EXILE = "Play land from exile: "
+CAST_PERMIT = "Cast from graveyard (permission): "  # Gisa and Geralf, Lurrus: once each turn, a kind of spell, for its mana cost
 PLAY_TOP = "Play land from the top of your library: "  # Courser of Kruphix, Future Sight
 CAST_TOP = "Cast from the top of your library: "  # Future Sight, Mystic Forge, Realmwalker
 
@@ -117,6 +119,38 @@ class Paragon(ZonePlay):
         return True
 
 
+class Permits(ZonePlay):
+    """"Once during each of your turns, you may cast a Zombie creature spell from your graveyard." from a permanent you control."""
+    land_prefix, cast_prefix = "", CAST_PERMIT  # (no lands: only spells)
+
+    @staticmethod
+    def _grants(game: g.Game, seat: g.Seat, card) -> list:
+        """The unused (permanent, permit) pairs that let `seat` cast `card` from their graveyard now."""
+        found = []
+        for permanent in seat.battlefield:
+            if game.loses_abilities(permanent):
+                continue
+            for permit in graveyard_permits(permanent.card):
+                if permanent.activated_turn.get(permit.text) == game.turn:
+                    continue
+                if parse_filter(permit.kind).matches(card) and (permit.max_mv is None or card.cmc <= permit.max_mv):
+                    found.append((permanent, permit))
+        return found
+
+    def offers(self, game, seat, sorcery_timing):
+        return [CAST_PERMIT + card.name for card in g._unique(seat.graveyard)
+                if self._grants(game, seat, card) and _timely(game, seat, card, sorcery_timing) and game._can_cast(seat, card, from_hand=False)]
+
+    def perform(self, game, seat, action):
+        if not action.startswith(CAST_PERMIT):
+            return False
+        card = next(c for c in seat.graveyard if c.name == action.removeprefix(CAST_PERMIT))
+        permanent, permit = self._grants(game, seat, card)[0]
+        permanent.activated_turn[permit.text] = game.turn  # (once each turn, however it ends up)
+        game._cast(seat, card, seat.graveyard)
+        return True
+
+
 class Exile(ZonePlay):
     """A card exiled with "you may play it this turn" (or until the end of the next turn)."""
     land_prefix, cast_prefix = PLAY_EXILE, CAST_EXILE
@@ -173,9 +207,9 @@ class Library(ZonePlay):
         return True
 
 
-GRAVEYARD, PARAGON, EXILE, LIBRARY = Graveyard(), Paragon(), Exile(), Library()
-ZONE_PLAYS: tuple[ZonePlay, ...] = (GRAVEYARD, PARAGON, EXILE, LIBRARY)
-LAND_PREFIXES = tuple(z.land_prefix for z in ZONE_PLAYS)
+GRAVEYARD, PARAGON, PERMITS, EXILE, LIBRARY = Graveyard(), Paragon(), Permits(), Exile(), Library()
+ZONE_PLAYS: tuple[ZonePlay, ...] = (GRAVEYARD, PARAGON, PERMITS, EXILE, LIBRARY)
+LAND_PREFIXES = tuple(z.land_prefix for z in ZONE_PLAYS if z.land_prefix)
 CAST_PREFIXES = tuple(z.cast_prefix for z in ZONE_PLAYS)
 
 

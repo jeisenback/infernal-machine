@@ -27,7 +27,7 @@ from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
 from . import casting
-from .zones import (CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, PARAGON, PLAY_EXILE, PLAY_GRAVEYARD,
+from .zones import (CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
@@ -965,6 +965,7 @@ class Game:
                 actions.append(CAST_COMMANDER + card.name)
         actions += GRAVEYARD.offers(self, seat, sorcery_timing)
         actions += PARAGON.offers(self, seat, sorcery_timing)
+        actions += PERMITS.offers(self, seat, sorcery_timing)
         for card in _unique(seat.hand):  # Morph: a face-down 2/2 for {3}, as a creature spell
             if (morph := morph_of(card)) and sorcery_timing and not self._cast_barred(seat, card) \
                     and self._payment(seat, FACE_DOWN) is not None:
