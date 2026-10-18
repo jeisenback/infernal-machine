@@ -2670,6 +2670,16 @@ class AddManaPerCardInHand:
 
 
 @dataclass(frozen=True)
+class AddManaForEach:
+    """Battle Hymn, Brightstone Ritual: "Add {R} for each creature you control." / "... for each Goblin on the battlefield." """
+    symbol: str
+    amount: Amount
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.add_mana(controller, tuple(frozenset(self.symbol) for _ in range(game.evaluate(self.amount, controller))))
+
+
+@dataclass(frozen=True)
 class AddManaPerTappedLand:
     """Mana Geyser: "Add {R} for each tapped land your opponents control." """
     symbol: str
@@ -3099,6 +3109,7 @@ _AMOUNTS = [
     (re.compile(r"(?:the number of )?(?:(creature|land|artifact|enchantment|instant|sorcery|planeswalker) )?cards? in your graveyard",
                 re.I), lambda m: Amount("graveyard", (m[1] or "card").lower())),
     (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
+    (re.compile(r"(?:the number of )?((?-i:[A-Z][a-z]+)) on the battlefield", re.I), lambda m: Amount("on_battlefield", _singular(m[1]))),  # a creature type
     (re.compile(r"(?:the number of )?creatures? that died under your control this turn", re.I), lambda m: Amount("creatures_died")),
     (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
     (re.compile(r"the amount of life you lost this turn", re.I), lambda m: Amount("life_lost")),
@@ -3262,6 +3273,31 @@ class EachSacrifices:
         for seat in game.turn_order_from_active():
             if self.who == "player" or (self.who == "you") == (seat is controller):
                 game.sacrifice(seat, self.kind, None if self.count is None else game.amount(self.count), self.greatest)
+
+
+@dataclass(frozen=True)
+class GivePoison:
+    """Prologue to Phyresis: "Each opponent gets a poison counter." / Ichor Rats: "each player gets a poison counter." (CR 122.1f)"""
+    who: str  # "opponent" or "player"
+    count: int = 1
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            if self.who == "player" or seat is not controller:
+                game.give_poison(seat, self.count)
+
+
+@dataclass(frozen=True)
+class PoisonShrinksOpponentsCreatures:
+    """Phyresis Outbreak: "Then each creature your opponents control gets -1/-1 until end of turn for each poison counter its
+    controller has." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.opponents(controller):
+            poison = seat.player_counters.get("poison", 0)
+            if poison:
+                for permanent in [p for p in seat.battlefield if "Creature" in p.card.type_line]:
+                    game.modify_until_end_of_turn(permanent, Modifier(power=-poison, toughness=-poison))
 
 
 @dataclass(frozen=True)
@@ -5831,9 +5867,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RemoveCountersFromSource(_number(m[1]), m[2].lower())),
     (re.compile(rf"(?:{_SELF}) deals damage to target (player|opponent) equal to (.+)\.", re.I),
      lambda m: [DefineX(a), Damage("X", m[1].lower())] if (a := _amount(m[2])) else None),
+    (re.compile(rf"(?:{_SELF}) deals damage to (any target|target player or planeswalker) equal to (?:the number of |)(.+)\.", re.I),  # Massive Raid, Goblin War Strike
+     lambda m: [DefineX(a), Damage("X", "any" if m[1].lower() == "any target" else m[1].lower().removeprefix("target "))]
+     if (a := _amount("the number of " + m[2] if not m[2].startswith("the number of") else m[2])) else None),
     (re.compile(rf"(?:{_SELF}) deals (\d+) damage to the player or planeswalker (?:that creature|it) is attacking\.", re.I),
      lambda m: DamageWhatItAttacks(int(m[1]))),
     (re.compile(r"add \{([WUBRGC])\} for each card in target opponent's hand\.", re.I), lambda m: AddManaPerCardInHand(m[1].upper())),
+    (re.compile(r"add \{([WUBRGC])\} for each (creature you control|(?-i:[A-Z][a-z]+) on the battlefield|(?-i:[A-Z][a-z]+) you control)\.", re.I),
+     lambda m: AddManaForEach(m[1].upper(), a) if (a := _amount("the number of " + m[2] if " on the battlefield" in m[2] and not m[2].startswith("the") else m[2])) else None),
     (re.compile(r"until end of turn, you don't lose this mana as steps and phases end\.", re.I), lambda m: KeepManaThisTurn()),
     (re.compile(r"exile (?:CARDNAME|this spell) with (a|two|three|four|five|\d+) time counters? on it\.", re.I),
      lambda m: ExileWithTimeCounters(_number(m[1]))),
@@ -6104,6 +6145,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"exile all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(ExileAll, m)),
     (re.compile(rf"{_SELF} deals {_N} damage to each (creature you don't control|creature your opponents control|creature and planeswalker your opponents control"
                 rf"|creature|opponent|player)(?: {_RESTRICTION})?(?: and each (opponent|player))?\.", re.I), _damage_each),
+    (re.compile(r"(?:each (opponent|player) gets|each (opponent|player) gets) (a|one|two|three) poison counters?\.", re.I),
+     lambda m: GivePoison((m[1] or m[2]).lower(), _number(m[3]))),
+    (re.compile(r"then each creature your opponents control gets -1/-1 until end of turn for each poison counter its controller has\.", re.I),
+     lambda m: PoisonShrinksOpponentsCreatures()),
+    (re.compile(rf"each (opponent|player) sacrifices (a|an) {_SACRIFICE_KIND} of their choice and gets a poison counter\.", re.I),  # Vraska's Fall
+     lambda m: [EachSacrifices(m[1].lower(), m[3].lower(), 1), GivePoison(m[1].lower())]),
     (re.compile(rf"each (opponent|player) sacrifices (a|an|one|two|three) {_SACRIFICE_KIND}"
                 r"( with the greatest power among creatures they control)?\.", re.I),
      lambda m: EachSacrifices(m[1].lower(), m[3].lower(), _count(m[2]), bool(m[4])) if m[4] is None or m[3].lower() == "creature" else None),
@@ -6721,6 +6768,8 @@ class Condition:
 
 
 def _singular(word: str) -> str:
+    if word.endswith("ves") and word.lower().removesuffix("ves") in ("el", "wol", "dwar", "werewol"):  # Elves, Wolves, Dwarves, Werewolves
+        return word.removesuffix("ves") + "f"
     return word if word.endswith("ss") or word.lower() == "plains" else word.removesuffix("s")
 
 

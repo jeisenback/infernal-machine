@@ -282,6 +282,16 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Food: Add one mana of any color" (Gilded Goose, one Food per Goose) and "{T}, Mill a card: Add {C}" (Millikin, needs a
     library) pay their extra cost when the mana is spent; "Add one mana ... for each charge counter" (Astral Cornucopia,
     Palette) makes one mana per counter (the mana of one tap may be spent as different colors).
+  - Creature types and counts (found by auditing real decks, #428): "Goblin spells you cast cost {1} less to cast." and "Red creature
+    spells ..." (a creature type or a color and a type is a filter; Goblin Warchief, Dragonspeaker Shaman, Hazoret's Monument);
+    "As an additional cost to cast this spell, sacrifice a Goblin." (Goblin Grenade); "X deals damage to any target (or target
+    player or planeswalker) equal to the number of creatures (Goblins) you control" (Massive Raid, Goblin War Strike); "Add {R} for
+    each creature you control / each Goblin on the battlefield." (Battle Hymn, Brightstone Ritual); "the number of Goblins on the
+    battlefield" is an amount (Elves, Wolves, Dwarves and Werewolves read as Elf, Wolf, Dwarf and Werewolf).
+  - Poison counters from spells (Atraxa's deck): "Each opponent (each player) gets a poison counter." (Prologue to Phyresis, Ichor Rats),
+    "... sacrifices a creature or planeswalker of their choice and gets a poison counter." (Vraska's Fall), and "Then each creature
+    your opponents control gets -1/-1 until end of turn for each poison counter its controller has." (Phyresis Outbreak). Infect,
+    toxic and losing at ten counters were already there.
   - Casting from your own graveyard on a permission: "You may cast this card from your graveyard." and "... as long as you
     control a Zombie." (Gravecrawler): the card's own mana cost, then back to the graveyard if it dies (the `Cast from graveyard:`
     action, with `GraveyardCast.requires`). "Once during each of your turns, you may cast a Zombie creature spell (a permanent
