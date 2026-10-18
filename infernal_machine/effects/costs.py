@@ -544,6 +544,45 @@ def is_graveyard_permission_line(line: str) -> bool:
     return _PARAGON.fullmatch(line) is not None
 
 
+# Future Sight, Courser of Kruphix, Mystic Forge, Realmwalker, The Reality Chip: lands and spells played from the top of the library.
+_TOP_PERMIT = re.compile(r"(?:As long as (?:CARDNAME|[^,]+?) is attached to a creature, )?[Yy]ou may (.+?) from the top of your library\.")
+_TOP_BODY = re.compile(r"(?:play (snow )?lands)?(?: and )?(?:cast (.+))?")
+_TOP_INFO = ("Play with the top card of your library revealed.", "You may look at the top card of your library any time.")
+
+
+@dataclass(frozen=True)
+class TopOfLibrary:
+    """What a permanent lets its controller play from the top of their library."""
+    lands: str = ""  # "any" (play lands) or "snow", or "" for no lands
+    spells: tuple[str, ...] = ()  # the kinds of spell that may be cast (any one of them); ("",) is any spell
+    attached: bool = False  # "As long as this Equipment is attached to a creature"
+
+
+@lru_cache(maxsize=None)
+def _top_of_library_of_line(line: str) -> TopOfLibrary | None:
+    if not (m := _TOP_PERMIT.fullmatch(line)) or not (body := _TOP_BODY.fullmatch(m[1])):
+        return None
+    lands = ("snow" if body[1] else "any") if m[1].startswith("play") else ""
+    spells: tuple[str, ...] = ()
+    if body[2] is not None:
+        text = re.sub(r" spells?\b", "", body[2]).strip() if not body[2].startswith("spells with") else body[2].replace("spells ", "", 1)
+        text = text.replace("spells", "").strip()
+        spells = tuple(t.strip() for t in re.split(r",\s*(?:and\s+)?|\s+and\s+", text)) if text else ("",)
+    if not lands and not spells:
+        return None
+    return TopOfLibrary(lands, spells, "is attached to a creature" in line)
+
+
+@lru_cache(maxsize=None)
+def top_of_library(card: Card) -> TopOfLibrary | None:
+    """What the card lets its controller play from the top of their library, if anything."""
+    return next((rule for line in rules_lines(card) if (rule := _top_of_library_of_line(line))), None)
+
+
+def is_library_top_line(line: str) -> bool:
+    return line in _TOP_INFO or _top_of_library_of_line(line) is not None
+
+
 def additional_costs(card: Card) -> list[AdditionalCost]:
     costs = []
     for line in rules_lines(card):

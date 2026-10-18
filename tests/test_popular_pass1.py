@@ -446,8 +446,9 @@ class LookAtTheTopTests(unittest.TestCase):
         self.assertIs(a.library[0], top)
 
     def test_a_card_with_another_line_is_still_not_playable(self):
-        card = real("Future", "{2}{U}", "Enchantment", "You may look at the top card of your library any time.\nYou may cast spells from the top of your library.")
-        self.assertEqual(unsupported_lines(card), ["You may cast spells from the top of your library."])
+        line = "Once each turn, you may cast an instant or sorcery spell from the top of your library."  # Johann: a limit the engine does not apply
+        card = real("Future", "{2}{U}", "Enchantment", "You may look at the top card of your library any time.\n" + line)
+        self.assertEqual(unsupported_lines(card), [line])
 
 
 if __name__ == "__main__":

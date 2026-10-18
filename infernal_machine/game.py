@@ -29,7 +29,7 @@ from .combat import Attack, Combat
 from . import casting
 from .effects import (apply_copy_changes, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -86,6 +86,8 @@ CAST_EXILE = "Cast from exile: "  # a card exiled "you may play it this turn"
 FOREVER = 10**9  # the last turn of a permission that does not run out (a card on an adventure)
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 PLAY_EXILE = "Play land from exile: "
+PLAY_TOP = "Play land from the top of your library: "  # Courser of Kruphix, Future Sight
+CAST_TOP = "Cast from the top of your library: "  # Future Sight, Mystic Forge, Realmwalker
 IMPRINT_PROMPT = "Exile which card from your hand? "
 AMASS_PROMPT = "Put the counters on which Army? "
 MOX_DIAMOND_PROMPT = "Discard which land to put it onto the battlefield? "
@@ -1009,6 +1011,12 @@ class Game:
                     actions.append(PLAY_EXILE + card.name)
             elif (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card, from_hand=False):
                 actions.append(CAST_EXILE + card.name)
+        if seat.library and (top := seat.library[0]) and self._plays_from_top(seat, top):
+            if is_land(top):
+                if sorcery_timing and seat.lands_played < self._land_drops(seat):
+                    actions.append(PLAY_TOP + top.name)
+            elif (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, top)) and self._can_cast(seat, top, from_hand=False):
+                actions.append(CAST_TOP + top.name)
         for spell in _unique([p.card.prepare for p in seat.battlefield if p.prepared and p.card.prepare]):
             if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, spell)) and self._can_cast(seat, spell):
                 actions.append(CAST_PREPARED + spell.name)
@@ -1313,6 +1321,35 @@ class Game:
                                                  and "Creature" in item.card.type_line)
                    for owner, _, key in self._static_rules())
 
+    def _plays_from_top(self, seat: Seat, card: Card) -> bool:
+        """Whether a permanent of `seat`'s lets them play `card`, the top card of their library, as a land or cast it."""
+        for permanent in seat.battlefield:
+            rule = top_of_library(permanent.card)
+            if rule is None or (rule.attached and permanent.attached_to is None) or self.loses_abilities(permanent):
+                continue
+            if is_land(card):
+                if rule.lands and (rule.lands == "any" or "Snow" in card.type_line):
+                    return True
+            elif any(self._top_spell_matches(term, card, permanent) for term in rule.spells):
+                return True
+        return False
+
+    @staticmethod
+    def _top_spell_matches(term: str, card: Card, permanent: Permanent) -> bool:
+        """One kind of spell a "from the top of your library" permission names: "", "artifact", "colorless", "Goblin", "creature of
+        the chosen type", "with flash or flying", "with mana value 4 or greater"."""
+        if not term:
+            return True
+        if term == "colorless":
+            return not card.colors
+        if term == "creature of the chosen type":  # Realmwalker
+            return "Creature" in card.type_line and permanent.chosen_type is not None and permanent.chosen_type in card.type_line.partition("—")[2].split()
+        if m := re.fullmatch(r"with mana value (\d+) or (greater|less)", term):
+            return card.cmc >= int(m[1]) if m[2] == "greater" else card.cmc <= int(m[1])
+        if m := re.fullmatch(r"with ([a-z]+) or ([a-z]+)", term):
+            return has_keyword(card, m[1]) or has_keyword(card, m[2])
+        return parse_filter(term).matches(card)
+
     def _can_cast(self, seat: Seat, card: Card, from_command_zone: bool = False,
                   graveyard: GraveyardCast | None = None, from_hand: bool = True) -> bool:
         if self._cast_barred(seat, card):
@@ -1477,6 +1514,13 @@ class Game:
             self._enter(seat, Permanent(card, sick=True))
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
+        elif action.startswith(PLAY_TOP):
+            card = seat.library.pop(0)
+            self._enter(seat, Permanent(card, sick=True))
+            seat.lands_played += 1
+            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "library"})
+        elif action.startswith(CAST_TOP):
+            self._cast(seat, seat.library[0], seat.library)
         elif action.startswith(PLAY_GRAVEYARD):
             card = _take(seat.graveyard, action.removeprefix(PLAY_GRAVEYARD))
             self._left_graveyard(seat, [card])
