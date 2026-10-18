@@ -40,7 +40,7 @@ from .common import (
     protection_tokens,
     rules_lines,
 )
-from .outcomes import Amount, Condition, EntersTapped, _CLASS_LEVEL_LINE, _ENCHANT, _amount, _condition
+from .outcomes import Amount, Condition, CopyChanges, EntersTapped, _copy_changes, _CLASS_LEVEL_LINE, _ENCHANT, _amount, _condition
 from .activated import ActivatedAbility, _ACTIVATED, _cost_fields, _parse_activated
 from .triggers import _ABILITY_WORD
 from .mana import _ADD_ANY, _ADD_EITHER, _ADD_SYMBOLS, _mana_from_line, is_mana_ability
@@ -50,9 +50,6 @@ _ENTERS_WITH = re.compile(rf"{_SELF} enters (?:tapped )?with (twice X|{_N}) {_CO
 
 
 _ESCAPES_WITH = re.compile(rf"{_SELF} escapes with {_N_FIXED} {_COUNTER} on it\.", re.I)  # Woe Strider
-
-
-_CLONE_EXTRA = re.compile(r".*, except it enters with X additional \+1/\+1 counters on it\.")  # Altered Ego
 
 
 _IF_KICKED = re.compile(rf"if {_SELF} was kicked, ", re.I)
@@ -893,9 +890,40 @@ def is_replacement_line(line: str) -> bool:
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None or _damage_modifier(line) is not None)
 
 
-_CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)? as a copy of "
-                    r"(?:any (creature|artifact|enchantment|land|artifact or creature) on the battlefield|a (creature) you control)"
-                    r"(, except it enters with X additional \+1/\+1 counters on it|, except it's an artifact in addition to its other types)?\.")
+_CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)?( tapped)?(?: the battlefield)? as a copy of (.+?)(?:, except (.+))?\.")
+
+
+_CLONE_KIND = r"(?:nonland permanent|permanent|[A-Za-z]+(?: or [A-Za-z]+)?)"
+
+
+_CLONE_SOURCE = re.compile(rf"any ({_CLONE_KIND}) on the battlefield|(an?|another) ({_CLONE_KIND}) (you control|an opponent controls)"
+                           r"(?: with power (\d+) or greater)?")
+
+
+@dataclass(frozen=True)
+class CloneRule:
+    """"You may have this creature enter as a copy of any creature on the battlefield, except ...": what it may copy and how the
+    copy differs (Clone, Phantasmal Image, Spark Double, Vesuva ...)."""
+    kind: str  # the filter of what it may copy: "creature", "nonland permanent", "artifact or enchantment"
+    yours: bool = False  # "you control"
+    opponents: bool = False  # "an opponent controls"
+    min_power: int = 0  # "with power 4 or greater"
+    tapped: bool = False  # "enter tapped as a copy of any land": tapped when it is a copy
+    changes: CopyChanges = CopyChanges()
+
+
+@lru_cache(maxsize=None)
+def _clone_rule_of_line(line: str) -> CloneRule | None:
+    if not (m := _CLONE.fullmatch(line + "." if line.endswith('."') else line)):  # (a quoted ability ends the line: ... sacrifice it.")
+        return None
+    source = _CLONE_SOURCE.fullmatch(m[2])
+    changes = _copy_changes(m[3]) if m[3] else CopyChanges()
+    if source is None or changes is None:
+        return None
+    if source[1]:
+        return CloneRule(source[1].lower(), tapped=bool(m[1]), changes=changes)
+    return CloneRule(source[3].lower(), yours=source[4] == "you control", opponents=source[4] != "you control",
+                     min_power=int(source[5] or 0), tapped=bool(m[1]), changes=changes)
 
 
 # Cursed Mirror: a copy only until end of turn, with a keyword added.
@@ -910,28 +938,19 @@ def temporary_clone_keyword(card: Card) -> str | None:
 
 
 @lru_cache(maxsize=None)
-def clone_extra_counters(card: Card) -> bool:
-    """Altered Ego: a copy "except it enters with X additional +1/+1 counters on it"."""
-    return any((m := _CLONE.fullmatch(line)) and m[3] and "counters" in m[3] for line in rules_lines(card))
+def clone_rule(card: Card) -> CloneRule | None:
+    """What the card may enter as a copy of, if it has such a line."""
+    return next((rule for line in rules_lines(card) if (rule := _clone_rule_of_line(line))), None)
 
 
-@lru_cache(maxsize=None)
-def clone_is_artifact(card: Card) -> bool:
-    """Phyrexian Metamorph: a copy "except it's an artifact in addition to its other types"."""
-    return any((m := _CLONE.fullmatch(line)) and m[3] and "artifact" in m[3] for line in rules_lines(card))
-
-
-@lru_cache(maxsize=None)
 def clone_kind(card: Card) -> tuple[str, bool] | None:
     """For Clone: what the card may enter as a copy of ("creature") and whether it must be one you control."""
-    for line in rules_lines(card):
-        if m := _CLONE.fullmatch(line):
-            return (m[1] or m[2]), m[2] is not None
-    return None
+    rule = clone_rule(card)
+    return (rule.kind, rule.yours) if rule else None
 
 
 def is_clone_line(line: str) -> bool:
-    return _CLONE.fullmatch(line) is not None or _TEMP_CLONE.fullmatch(line) is not None
+    return _clone_rule_of_line(line) is not None or _TEMP_CLONE.fullmatch(line) is not None
 
 
 def is_enchant_line(line: str) -> bool:

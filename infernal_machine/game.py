@@ -27,9 +27,9 @@ from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
 from . import casting
-from .effects import (EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
+from .effects import (apply_copy_changes, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, clone_kind, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_extra_counters, chooses_creature_type, clone_is_artifact, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, follows_target, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -5272,22 +5272,19 @@ class Game:
                 permanent.transformed_from, permanent.card = permanent.card, _checked(permanent.card.flip)
         if is_class(permanent.card):  # a Class enters at level 1: it reads as the abilities of that level
             permanent.real_card, permanent.card, permanent.level = permanent.card, class_view(permanent.card, 1), 1
-        extra_when_copy = False
+        extra_when_copy = ""
         if keyword := temporary_clone_keyword(permanent.card):  # Cursed Mirror
             self._become_temporary_copy(seat, permanent, keyword)
-        elif clone := clone_kind(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
-            extra_when_copy = clone_extra_counters(permanent.card)
-            artifact_too = clone_is_artifact(permanent.card)
-            self._become_copy(seat, permanent, *clone)
-            if artifact_too and permanent.real_card is not None and "Artifact" not in permanent.card.type_line:  # Phyrexian Metamorph
-                permanent.card = dataclasses.replace(permanent.card, type_line="Artifact " + permanent.card.type_line)
+        elif clone := clone_rule(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
+            extra_when_copy = clone.changes.extra_counters
+            self._become_copy(seat, permanent, clone)
         counters = {counter: (x if count == "X" else 2 * x if count == "2X" else int(count))
                     for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped, any(
                         o.damage_taken_turn == self.turn for o in self.opponents(seat))).items()}
         if permanent.extra_counters:  # Opal Palace: mana spent on the commander
             counters["+1/+1"] = counters.get("+1/+1", 0) + permanent.extra_counters
-        if extra_when_copy and permanent.real_card is not None:  # Altered Ego: X additional counters on the copy
-            counters["+1/+1"] = counters.get("+1/+1", 0) + x
+        if extra_when_copy and permanent.real_card is not None and "Creature" in permanent.card.type_line:
+            counters["+1/+1"] = counters.get("+1/+1", 0) + (x if extra_when_copy == "X" else 1)  # Altered Ego, Spark Double
         if "Creature" in permanent.card.type_line:  # Metallic Mimic: other creatures of the type it named come with a counter
             kinds = permanent.card.type_line.partition("\u2014")[2].split()
             counters["+1/+1"] = counters.get("+1/+1", 0) + sum(
@@ -5379,11 +5376,14 @@ class Game:
         if pick < len(options):
             self.become_copy_until_end_of_turn(permanent, options[pick], keyword, seat)
 
-    def _become_copy(self, seat: Seat, permanent: Permanent, kind: str, yours: bool) -> None:
+    def _become_copy(self, seat: Seat, permanent: Permanent, rule: CloneRule) -> None:
         """Clone: choose a permanent on the battlefield and enter as a copy of it. A copy gets the other card's
-        printed characteristics (not its counters, damage or changes); a token's copy isn't a token."""
-        options = [p for s in self.live_seats() if not yours or s is seat for p in s.battlefield
-                   if _permanent_matches(kind, p.card)]
+        printed characteristics (not its counters, damage or changes), and what the card's except clause changes (CR 707.9);
+        a token's copy isn't a token."""
+        options = [p for s in self.live_seats() if (not rule.yours or s is seat) and (not rule.opponents or s is not seat)
+                   for p in s.battlefield
+                   if _permanent_matches(rule.kind, p.card)
+                   and (not rule.min_power or (p.card.power or "").lstrip("-").isdigit() and int(p.card.power or 0) >= rule.min_power)]
         if not options:
             return
         pick = seat.player.choose(CLONE_PROMPT + permanent.card.name, [self.label(p) for p in options] + [NOT_A_COPY])
@@ -5391,7 +5391,11 @@ class Game:
             return
         copied = options[pick].card
         permanent.real_card = permanent.card
-        permanent.card = dataclasses.replace(copied, type_line=copied.type_line.removeprefix("Token "))
+        permanent.card = apply_copy_changes(dataclasses.replace(copied, type_line=copied.type_line.removeprefix("Token ")), rule.changes)
+        if "Planeswalker" in permanent.card.type_line:  # Spark Double: the copy starts at the planeswalker's loyalty
+            permanent.loyalty = (_starting_loyalty(permanent.card) or 0) + rule.changes.extra_loyalty
+        if rule.tapped:
+            permanent.tapped = True
         self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.real_card.name,
                         "as": permanent.card.name})
 

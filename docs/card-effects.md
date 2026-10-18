@@ -767,7 +767,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "a creature you control", and artifacts, enchantments or lands). It is decided as it enters, with a "Don't copy
     anything" choice, so the copy's enters abilities trigger. A copy has the other card's printed characteristics,
     not its counters or damage; a copy of a token isn't a token. It goes to the graveyard as the Clone card.
-    Bots copy the biggest creature. "Except ..." variants (Phyrexian Metamorph, Phantasmal Image) aren't supported.
+    Bots copy the biggest creature. What it may copy is a kind ("any creature", "any nonland permanent", "any artifact or
+    enchantment", "a creature you control", "a creature an opponent controls", "a creature you control with power 4 or
+    greater", "enter tapped as a copy of any land": tapped when it is a copy). The "except ..." clause is a list of changes
+    (`CopyChanges`, shared with token copies): it isn't legendary, N/N, a type or a color in addition to its other types,
+    keywords, a quoted ability (only one the engine understands), "an additional +1/+1 counter if it's a creature",
+    "an additional loyalty counter if it's a planeswalker", X additional counters. Any other clause (a new name, "loses all
+    other card types", "doesn't copy its color", conditional abilities) leaves the line unsupported. Phantasmal Image,
+    Spark Double, Vesuva, Glasspool Mimic, Malleable Impostor, Phyrexian Metamorph, Altered Ego.
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets
