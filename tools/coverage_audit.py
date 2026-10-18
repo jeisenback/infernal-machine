@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import functools
 import io
 import json
 import math
@@ -177,6 +178,11 @@ def shape(line: str) -> str:
 def mechanism_of(line: str, keywords: list[str] | tuple[str, ...] = ()) -> str:
     """The mechanism an unsupported line belongs to: the card's own keyword it starts with, an ability word ("Delirium \u2014 ..."),
     or the first of `MECHANISMS` that matches; "Other" when nothing does."""
+    return _mechanism_of(line, tuple(keywords))
+
+
+@functools.lru_cache(maxsize=None)  # the same wording is on many cards: 22,000 distinct lines for 170,000 uses (issue #441)
+def _mechanism_of(line: str, keywords: tuple[str, ...]) -> str:
     lowered = line.lower()
     for keyword in sorted(keywords, key=len, reverse=True):
         if lowered.startswith(keyword.lower()) and not lowered[len(keyword):len(keyword) + 1].isalpha():  # "Enchant player", not "Enchanted creature ..."
@@ -189,7 +195,12 @@ def mechanism_of(line: str, keywords: list[str] | tuple[str, ...] = ()) -> str:
 def families_of(line: str, keywords: list[str] | tuple[str, ...] = ()) -> frozenset[str]:
     """The pieces of work an unsupported line needs: its keyword or ability word, else every one of `FAMILIES` that matches;
     empty when no family covers it."""
-    name = mechanism_of(line, keywords)
+    return _families_of(line, tuple(keywords))
+
+
+@functools.lru_cache(maxsize=None)
+def _families_of(line: str, keywords: tuple[str, ...]) -> frozenset[str]:
+    name = _mechanism_of(line, keywords)
     if name not in _RULE_NAMES:
         return frozenset({name})
     return frozenset(family for family, pattern in _FAMILIES if pattern.search(line))
@@ -200,6 +211,30 @@ def weight(rank: int | None) -> float:
     return 1 / (1 + rank / WEIGHT_KNEE) if rank else 0.0
 
 
+def _read_cards(pool: list[dict]) -> list[tuple[str | None, list[str]]]:
+    """(the error if the report cannot read the card, what it cannot play) for each Scryfall card of the chunk."""
+    found: list[tuple[str | None, list[str]]] = []
+    for data in pool:
+        try:
+            found.append((None, unsupported_lines(Card.from_scryfall(data))))
+        except Exception as error:  # a card the report cannot even read is a bug to list
+            found.append((type(error).__name__, []))
+    return found
+
+
+def read_pool(pool: list[dict], workers: int = 0) -> list[tuple[str | None, list[str]]]:
+    """`_read_cards` over the pool, in chunks across processes when it is big enough to be worth them (`workers` 0: one for each
+    processor, 1: none). The parse is the slow part of the audit (issue #441)."""
+    workers = workers or min(os.cpu_count() or 1, 8)
+    if workers == 1 or len(pool) < 2000:
+        return _read_cards(pool)
+    from concurrent.futures import ProcessPoolExecutor
+
+    size = -(-len(pool) // (workers * 4))
+    with ProcessPoolExecutor(workers) as executor:
+        return [item for chunk in executor.map(_read_cards, [pool[i:i + size] for i in range(0, len(pool), size)]) for item in chunk]
+
+
 def inclusion_scale(ranks: list[int]) -> float:
     """The scale that makes the inclusion probabilities of these cards add up to the deck's nonbasic slots (all of them 1 if the
     cards are too few to fill the deck)."""
@@ -207,9 +242,10 @@ def inclusion_scale(ranks: list[int]) -> float:
     if sum(1 for _ in ranks) <= slots:
         return float("inf")
     low, high = 0.0, 1e7
+    weights = [weight(r) ** DECK_TAIL for r in ranks]  # (once, not at every one of the 80 steps)
     for _ in range(80):
         mid = (low + high) / 2
-        if sum(min(1.0, mid * weight(r) ** DECK_TAIL) for r in ranks) < slots:
+        if sum(min(1.0, mid * w) for w in weights) < slots:
             low = mid
         else:
             high = mid
@@ -271,7 +307,7 @@ def kind_of(card: Card) -> str:
     return next((word for word in TYPES if word in card.type_line), "Other")
 
 
-def analyze(pool: list[dict]) -> dict:
+def analyze(pool: list[dict], workers: int = 0) -> dict:
     """The audit's numbers for a list of Scryfall card objects."""
     total = playable = 0
     by_type: dict[str, list[int]] = collections.defaultdict(lambda: [0, 0])
@@ -287,13 +323,11 @@ def analyze(pool: list[dict]) -> dict:
     blocked = 0  # unplayable cards with a line no family covers
     family_shapes: dict[str, dict[str, set[str]]] = collections.defaultdict(lambda: collections.defaultdict(set))
     groups: dict[str, dict[str, Any]] = collections.defaultdict(lambda: {"cards": set(), "only": set(), "shapes": collections.defaultdict(set)})
-    for data in pool:
-        try:
-            card = Card.from_scryfall(data)
-            lines = unsupported_lines(card)
-        except Exception as error:  # a card the report cannot even read is a bug to list
-            crashes.append(f"{data.get('name')}: {type(error).__name__}")
+    for data, (error, lines) in zip(pool, read_pool(pool, workers)):
+        if error:
+            crashes.append(f"{data.get('name')}: {error}")
             continue
+        card = Card.from_scryfall(data)
         total += 1
         kind = kind_of(card)
         by_type[kind][0] += 1
@@ -529,6 +563,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--next", action="store_true", help="also rank the families to build next")
     parser.add_argument("--decks", nargs="+", metavar="DECK", help="decklists to check instead of the whole pool: what blocks them and what to build")
     parser.add_argument("--bulk", default=".cache/oracle_bulk.json", help="with --decks, the card file")
+    parser.add_argument("--workers", type=int, default=0, help="processes that read the cards (0: one for each processor, 1: none)")
     args = parser.parse_args(argv)
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -546,7 +581,7 @@ def main(argv: list[str]) -> int:
             with open(args.json, "w") as f:
                 json.dump(result, f)
         return 0
-    result = analyze(fetch_pool(args.pool))
+    result = analyze(fetch_pool(args.pool), args.workers)
     if args.mechanism:
         print(render_mechanism(result, args.mechanism, args.top))
     else:
