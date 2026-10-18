@@ -37,14 +37,15 @@ from .cards import Card, Deck
 from .formats import format_of
 from .combat import ATTACK_PROMPT
 from .bot import FEATURES, _cast_name
-from .game import CAST, CAST_COMMANDER, CAST_EXILE, CAST_GRAVEYARD, CAST_PREPARED, PASS, PLAY_LAND, STEPS, Game, Seat
+from .game import CAST, CAST_COMMANDER, CAST_PREPARED, PASS, PLAY_LAND, STEPS, Game, Seat
+from .zones import CAST_PREFIXES
 from .report import unplayable_cards, unplayable_note
 from .simulate import SimStats, _blocked_on_colors, _taxed, format_simulation, simulate, summarize
 
 IDLE_LIFE = 10 ** 6  # the idle seat's life: it is never the one that ends the game
 TIME_LIMIT = 120.0  # seconds a game may take before it is given up on
 FIRST_MAIN = next(step for step in STEPS if "main" in step)
-CASTS = (CAST, CAST_COMMANDER, CAST_GRAVEYARD, CAST_EXILE, CAST_PREPARED)
+CASTS = (CAST, CAST_COMMANDER, *CAST_PREFIXES, CAST_PREPARED)
 
 
 
