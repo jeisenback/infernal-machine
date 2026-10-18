@@ -4185,11 +4185,25 @@ class CopyTriggeringSpell:
 class CopyTriggeringAbility:
     """Unbound Flourishing: "... activate an ability, if that ability's activation cost contains {X}, copy that ability. You may
     choose new targets for the copy." The ability that set the trigger off is `carried`."""
+    new_targets: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         ability = game.resolving_item.carried if game.resolving_item is not None else None
         if ability is not None:
-            game.copy_ability(ability, controller)
+            game.copy_ability(ability, controller, self.new_targets)
+
+
+@dataclass(frozen=True)
+class CopyTriggeredAbility:
+    """Strionic Resonator: "Copy target triggered ability you control. You may choose new targets for the copy." (Mister Fantastic:
+    "... twice. ... for the copies.")"""
+    target: str = "triggered ability you control"
+    new_targets: bool = False
+    times: int = 1
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.copy_ability(target, controller, self.new_targets, self.times)
 
 
 @dataclass(frozen=True)
@@ -5848,7 +5862,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: CopySpell(m[1].lower(), return_to_hand=True)),
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
-    (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility(True)),
+    (re.compile(r"copy target triggered ability you control( twice)?\.", re.I), lambda m: CopyTriggeredAbility(times=2 if m[1] else 1)),
     (re.compile(r"any number of other target creatures you control phase out\.", re.I), lambda m: PhaseOut()),
     (re.compile(r"create a white Aura enchantment token named Contract attached to target creature an opponent controls\. The token has "
                 r"enchant creature and \"Whenever enchanted creature attacks, it gets \+2/\+0 until end of turn if it's attacking one of "
@@ -5890,7 +5905,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutExiledWithIntoGraveyard(TREASURE, made[1]) if (made := _token("a " + m[1])) else None),
     (re.compile(r"put a number of \+1/\+1 counters on it equal to the damage dealt\.", re.I),
      lambda m: PutCountersOnSource("X", "+1/+1")),  # X is the damage the trigger saw
-    (re.compile(r"you may choose new targets for the copy\.", re.I), lambda m: NewTargets()),
+    (re.compile(r"you may choose new targets for the cop(?:y|ies)\.", re.I), lambda m: NewTargets()),
     (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
      lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
     (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
@@ -6612,7 +6627,7 @@ def _merge_copy(effects: list) -> list | None:
     merged: list = []
     for effect in effects:
         if isinstance(effect, NewTargets):
-            if not merged or not isinstance(merged[-1], (CopySpell, CopyTriggeringSpell)):
+            if not merged or not isinstance(merged[-1], (CopySpell, CopyTriggeringSpell, CopyTriggeredAbility)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], new_targets=True)
         else:

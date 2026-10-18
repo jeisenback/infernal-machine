@@ -1824,6 +1824,7 @@ class Game:
                         "tapped": [p.card.name for p in tapped]})
         if ability.mana_cost and cost_of(ability.mana_cost).x:  # Unbound Flourishing
             self.happened("activate_x", seat, spell=item)
+        self.happened("activated", seat, *(("artifact",) if "Artifact" in permanent.card.type_line else ()), subject=permanent, spell=item)
         self._check_ward(item)
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
@@ -2286,10 +2287,12 @@ class Game:
         event that needs a fact ("first", "second", "extra") waits for the caller to report it in `facts`. `subject` is
         the permanent it happened to, `spell` the spell (or card) involved, `x` the number it carried."""
         for event in heard_on(occurrence):
-            if event.needs and event.needs not in facts:
+            if event.needs and event.needs not in facts and event.needs != "host":
                 continue
             if event.to == "you":
                 for permanent in list(seat.battlefield):
+                    if event.needs == "host" and (subject is None or permanent.attached_to is not subject):
+                        continue  # "an ability of equipped creature": heard by the Equipment attached to it
                     self.trigger(event.name, permanent, seat, subject, x=x, spell=spell)
                 hearers = [seat]
             else:
@@ -2670,6 +2673,9 @@ class Game:
             return [(f"{'Ability' if i.ability else 'Spell'}: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
                     if (not lone or self._lone_target(i) is not None)
                     and wanted(i, i.targets[_checked(self._lone_target(i))] if lone else None, me)]
+        if kind == "triggered ability you control":  # Strionic Resonator
+            return [(f"Ability: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
+                    if isinstance(i.ability, TriggeredAbility) and i.controller is caster]
         if kind == "creature card in a graveyard":  # Animate Dead is cast on one
             kind = "graveyard:creature:any"
         if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|any>"
@@ -5408,14 +5414,19 @@ class Game:
         self.broadcast({"event": "copied_permanent", "seat": seat.index, "card": permanent.real_card.name,
                         "as": permanent.card.name})
 
-    def copy_ability(self, item: StackItem, controller: Seat) -> None:
-        """Put a copy of an activated ability on the stack under `controller`'s control; it resolves first, with the same
-        targets and X (new targets are not chosen)."""
+    def copy_ability(self, item: StackItem, controller: Seat, new_targets: bool = False, times: int = 1) -> None:
+        """Put `times` copies of an ability on the stack under `controller`'s control; they resolve first, with the same
+        targets and X, or (`new_targets`) targets `controller` chooses again (CR 707.10c)."""
         if item not in self.stack:
             return
-        self.stack.append(StackItem(item.card, controller, item.effects, list(item.targets), item.ability, item.source, x=item.x,
-                                    sacrificed_power=item.sacrificed_power, tapped_power=item.tapped_power))
-        self.broadcast({"event": "copied_ability", "seat": controller.index, "card": item.card.name})
+        for _ in range(times):
+            targets = list(item.targets)
+            if new_targets and (chosen := self._choose_targets(controller, item.effects, item.card.name, item.source,
+                                                               source_qualities(item.card))):
+                targets = chosen[0]
+            self.stack.append(StackItem(item.card, controller, item.effects, targets, item.ability, item.source, x=item.x,
+                                        sacrificed_power=item.sacrificed_power, tapped_power=item.tapped_power))
+            self.broadcast({"event": "copied_ability", "seat": controller.index, "card": item.card.name})
 
     def copy_spell_for_each_other_creature(self, item: StackItem, caster: Seat, source: Permanent) -> None:
         """Mirrorwing Dragon: `caster` copies the spell once for each other creature they control that it could target; each

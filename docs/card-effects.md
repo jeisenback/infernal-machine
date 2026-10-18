@@ -778,10 +778,16 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets
-    again (the old ones are still choices); without it the copy keeps them. Abilities can't be copied yet.
+    again (the old ones are still choices); without it the copy keeps them.
     "..., then return it to its owner's hand." (Narset's Reversal) copies first, then the spell leaves the stack for its
     owner's hand without resolving. "Whenever you cast a Faerie or Wizard permanent spell, copy it." (Archmage of Echoes):
     a watch for either of two types and a permanent; the copy of a permanent spell becomes a token.
+  - Abilities: "Whenever you activate an ability, if it isn't a mana ability, you may pay {2}. If you do, copy that ability.
+    You may choose new targets for the copy." (Rings of Brighthearth; also "of an artifact" for Kurkesh, and Illusionist's and
+    Battlemage's Bracers for the equipped creature's). The game raises "activated" for every activated ability that uses the
+    stack (loyalty abilities included; mana abilities are paid with, not activated). "{2}, {T}: Copy target triggered ability
+    you control. You may choose new targets for the copy." (Strionic Resonator; "twice ... the copies" for Mister Fantastic)
+    targets a triggered ability of yours on the stack. A copy of an ability keeps its X and (unless new targets are chosen) its targets.
   - "Create a token that's a copy of target creature" and populate were added earlier.
 - **Control change:** "Gain control of target creature." (permanent), "Gain control of target creature until end of turn.
   Untap that creature. It gains haste until end of turn." (Threaten), and Control Magic ("Enchant creature. You

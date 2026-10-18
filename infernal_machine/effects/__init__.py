@@ -80,6 +80,7 @@ from .outcomes import (  # noqa: F401
     CopyToken,
     CopyTokenAttacking,
     CopyTokensOfTargets,
+    CopyTriggeredAbility,
     Counter,
     CreateTokens,
     DEMONSTRATE_PROMPT,

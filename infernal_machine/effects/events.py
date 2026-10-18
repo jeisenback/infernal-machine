@@ -121,6 +121,12 @@ declare("enchanted_attack", re.compile(r"Whenever one or more creatures that are
 declare("creatures_attack", re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I))
 declare("opponent_attacks", re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I), about_player=True)
 declare("activate_x", re.compile(r"Whenever you activate an ability with \{X\} in its activation cost, (.+)", re.I), to="you")
+# Rings of Brighthearth and kin: any activated ability that isn't a mana ability, which the game raises as "activated" (the ability is `spell`)
+declare("activate_any", re.compile(r"Whenever you activate an ability, if it isn't a mana ability, (.+)", re.I), to="you", happens="activated")
+declare("activate_artifact", re.compile(r"Whenever you activate an ability of an artifact, if it isn't a mana ability, (.+)", re.I),
+        to="you", happens="activated", needs="artifact")
+declare("activate_host", re.compile(r"Whenever an ability of equipped creature is activated, if it isn't a mana ability, (.+)", re.I),
+        to="you", happens="activated", needs="host")  # only the Equipment attached to the creature hears it
 declare("other_attacks_two", re.compile(r"Whenever another player attacks with two or more creatures, (.+)", re.I), about_player=True)
 declare("attacks_opponent", re.compile(r"Whenever a player attacks one of your opponents, (.+)", re.I), about_player=True)  # x: the seat attacked
 declare("cycle", re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I), to="you", happens="cycled")
