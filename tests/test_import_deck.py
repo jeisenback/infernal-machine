@@ -115,6 +115,53 @@ class TrailingCommanderTests(unittest.TestCase):
         self.assertEqual(deck.side, {"Toshiro Umezawa": 1})
 
 
+class CompanionTests(unittest.TestCase):
+    def test_a_companion_section_is_kept_apart_from_the_deck_and_not_counted(self):
+        deck = importer.parse("Companion\n1 Lurrus of the Dream-Den\n\nCommander\n1 Boss\n\nDeck\n99 Island\n\nSideboard\n1 Snuff Out\n")
+        self.assertEqual(deck.companion, {"Lurrus of the Dream-Den": 1})
+        self.assertEqual((deck.commanders, deck.main, deck.side), ({"Boss": 1}, {"Island": 99}, {"Snuff Out": 1}))
+        self.assertEqual(deck.total, 100)
+        self.assertEqual(importer.warnings(deck), [])
+
+    def test_the_category_marks_a_companion_too(self):
+        deck = importer.parse("1x Lurrus of the Dream-Den (iko) 226 [Companion]\n2x Island (m21) 262 [Land]\n")
+        self.assertEqual((deck.companion, deck.main), ({"Lurrus of the Dream-Den": 1}, {"Island": 2}))
+
+    def test_it_is_written_as_a_companion_section_the_decklist_reads(self):
+        text = importer.render(importer.parse("Companion\n1 Lurrus of the Dream-Den\n\nDeck\n4 Island\n"))
+        self.assertIn("Companion\n1 Lurrus of the Dream-Den", text)
+        self.assertEqual(parse_decklist(text).companion, {"Lurrus of the Dream-Den": 1})
+
+    def test_two_companions_are_warned_about(self):
+        deck = importer.parse("Companion\n1 Lurrus of the Dream-Den\n1 Zirda, the Dawnwaker\n\nDeck\n4 Island\n")
+        self.assertIn("at most one companion; this has 2", " ".join(importer.warnings(deck)))
+
+
+class SignatureSpellTests(unittest.TestCase):
+    TEXT = "Oathbreaker\n1 Oath Walker\n\nSignature Spell\n1 Sig Spell\n\nDeck\n58 Island\n"
+
+    def test_the_oathbreaker_and_its_signature_spell_are_kept_apart(self):
+        deck = importer.parse(self.TEXT)
+        self.assertEqual((deck.commanders, deck.signature, deck.main), ({"Oath Walker": 1}, {"Sig Spell": 1}, {"Island": 58}))
+        self.assertEqual(deck.total, 60, "the signature spell is one of the sixty")
+        self.assertEqual(importer.warnings(deck), [])
+
+    def test_the_category_marks_a_signature_spell_too(self):
+        deck = importer.parse("1x Sig Spell (xxx) 1 [Signature Spell]\n2x Island (m21) 262 [Land]\n")
+        self.assertEqual((deck.signature, deck.main), ({"Sig Spell": 1}, {"Island": 2}))
+
+    def test_it_is_written_as_a_signature_spell_section_the_decklist_reads(self):
+        text = importer.render(importer.parse(self.TEXT))
+        self.assertIn("Signature Spell\n1 Sig Spell", text)
+        parsed = parse_decklist(text)
+        self.assertEqual((parsed.commanders, parsed.signature), ({"Oath Walker": 1}, {"Sig Spell": 1}))
+
+    def test_two_signature_spells_are_warned_about_and_sixty_is_not_a_wrong_size(self):
+        deck = importer.parse("Oathbreaker\n1 Oath Walker\n\nSignature Spell\n1 Sig Spell\n1 Sig Kill\n\nDeck\n57 Island\n")
+        self.assertIn("at most one signature spell; this has 2", " ".join(importer.warnings(deck)))
+        self.assertFalse(any("has 60" in w for w in importer.warnings(importer.parse(self.TEXT))))
+
+
 class CsvTests(unittest.TestCase):
     def test_a_csv_with_count_and_name(self):
         deck = importer.parse('Count,Name,Edition,Board\n1,"Atraxa, Praetors\' Voice",c16,commander\n2,Island,m21,mainboard\n1,Counterspell,cmm,maybeboard\n'

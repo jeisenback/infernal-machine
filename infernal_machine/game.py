@@ -73,10 +73,12 @@ SHUFFLED = "library_shuffled"  # where a card goes when it is shuffled into its 
 ETERNALIZE = "Eternalize: "  # followed by the card's name
 UNEARTH = "Unearth: "  # followed by the card's name
 SUSPEND = "Suspend: "  # followed by the card's name
+COMPANION = "Companion: "  # followed by the companion's name: pay {3} and put it into the hand from outside the game
 FORETELL = "Foretell: "  # followed by the card's name: pay {2} and exile it face down from the hand
 CAST_DISTURB = "Cast with disturb: "  # followed by the card's name: its back face, from the graveyard
 CAST_FORETOLD = "Cast foretold: "  # followed by the card's name: cast from exile for its foretell cost, on a later turn
 FORETELL_COST = "{2}"
+COMPANION_COST = "{3}"
 NINJUTSU = "Ninjutsu: "  # followed by the card's name: return an unblocked attacker, and it comes in attacking in its place
 GIFT_PROMPT = "Promise a gift with "  # followed by the card's name; options: no gift, or one opponent to give it to
 NINJUTSU_PROMPT = "Return which unblocked attacker to hand for ninjutsu with "  # followed by the card's name
@@ -462,6 +464,9 @@ class Seat:
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
     suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
     foretold: list = field(default_factory=list)  # (turn, card) for each foretold card in exile (it can be cast from the next turn on)
+    signature: str | None = None  # an Oathbreaker's signature spell, which starts in the command zone and is cast only while its owner controls the Oathbreaker
+    companion: Card | None = None  # kept outside the game: for {3}, once, at sorcery timing, it goes into the hand (CR 702.139)
+    companion_used: bool = False
     player_counters: dict[str, int] = field(default_factory=dict)  # counters on the player: poison, energy, ...
     died_turn: int | None = None  # the turn `died` counts for
     died: int = 0  # creatures that died under this player's control that turn
@@ -590,10 +595,12 @@ class Game:
                 i,
                 life=format.starting_life(len(seats)),
                 library=list(deck.main),
-                command_zone=list(deck.commanders),
-                commander_names={c.name for c in deck.commanders},
+                command_zone=list(deck.commanders) + ([deck.signature_spell] if deck.signature_spell else []),
+                commander_names={c.name for c in deck.commanders} | ({deck.signature_spell.name} if deck.signature_spell else set()),
+                signature=deck.signature_spell.name if deck.signature_spell else None,
                 color_identity=frozenset(color for c in deck.commanders for color in c.color_identity),
                 conjurable=dict(deck.conjured),
+                companion=deck.companion,
             )
             for i, (player, deck) in enumerate(seats)
         ]
@@ -661,7 +668,7 @@ class Game:
         for seat in self.seats:
             self.rng.shuffle(seat.library)
             self.broadcast({"event": "seat", "seat": seat.index, "name": seat.name, "life": seat.life,
-                            "commanders": [c.name for c in seat.command_zone], **({"damage_limit": self.format.commander_damage} if self.format.commander else {})})
+                            "commanders": [c.name for c in seat.command_zone], **({"damage_limit": self.format.commander_damage} if self.format.commander and self.format.commander_damage is not None else {})})
         self.broadcast({"event": "starting_player", "seat": self.active})
         for seat in self._turn_order(self.active):
             self._mulligan(seat)
@@ -952,6 +959,8 @@ class Game:
                     and self._can_cast(seat, other):
                 actions.append(CAST + other.name)  # the Adventure, or the other half of a split card
         for card in seat.command_zone:
+            if card.name == seat.signature and not self._controls_oathbreaker(seat):
+                continue  # the signature spell can be cast only if its owner controls their Oathbreaker
             if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card)) and self._can_cast(seat, card, from_command_zone=True):
                 actions.append(CAST_COMMANDER + card.name)
         actions += GRAVEYARD.offers(self, seat, sorcery_timing)
@@ -993,6 +1002,8 @@ class Game:
             if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, spell)) and self._can_cast(seat, spell):
                 actions.append(CAST_PREPARED + spell.name)
         actions += [TURN_UP + self.label(p) for p in self._turn_up_options(seat)]  # manifested creature cards
+        if sorcery_timing and seat.companion is not None and not seat.companion_used and self._pay_cost(seat, cost_of(COMPANION_COST)) is not None:
+            actions.append(COMPANION + seat.companion.name)
         for card in _unique(seat.hand):
             if (found := cycling(card)) and self._can_cycle(seat, found[1], found[3]):
                 actions.append(CYCLE + card.name)
@@ -1215,6 +1226,10 @@ class Game:
         commanders = [c for zone in (seat.command_zone, seat.graveyard, seat.exile, seat.library, seat.hand) for c in zone
                       if c.name in seat.commander_names] + [p.card for p in seat.battlefield if p.card.name in seat.commander_names]
         return any(types & set(c.type_line.partition("—")[2].split()) for c in commanders)
+
+    def _controls_oathbreaker(self, seat: Seat) -> bool:
+        """Whether the seat has its Oathbreaker (a commander other than the signature spell) on the battlefield."""
+        return any(p.card.name in seat.commander_names and p.card.name != seat.signature for p in seat.battlefield)
 
     def commander_tax(self, seat: Seat, card: Card) -> int:
         return COMMANDER_TAX * seat.commander_casts.get(card.name, 0)
@@ -1489,6 +1504,8 @@ class Game:
         elif action.startswith(TURN_UP):
             permanent = next(p for p in self._turn_up_options(seat) if self.label(p) == action.removeprefix(TURN_UP))
             self.turn_face_up(seat, permanent)
+        elif action.startswith(COMPANION):
+            self._take_companion(seat)
         elif action.startswith(CYCLE):
             self._cycle(seat, _take(seat.hand, action.removeprefix(CYCLE)))
         elif action.startswith(FORETELL):
@@ -1651,6 +1668,15 @@ class Game:
         self.happened("cycled", seat)
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
+
+    def _take_companion(self, seat: Seat) -> None:
+        """Companion (CR 702.139a): a special action, once per game, at sorcery timing. {3} is paid and the companion goes from outside the
+        game into the hand."""
+        card = _checked(seat.companion)
+        self._spend_mana(seat, _checked(self._pay_cost(seat, cost_of(COMPANION_COST))))
+        seat.companion_used = True
+        seat.hand.append(card)
+        self.broadcast({"event": "companion", "seat": seat.index, "card": card.name})
 
     def _foretell(self, seat: Seat, name: str) -> None:
         """Foretell: a special action. {2} is paid and the card goes from the hand to exile face down; from the next turn it can be cast
@@ -1878,6 +1904,7 @@ class Game:
                 "hand": len(s.hand), "library": len(s.library),
                 "graveyard": [c.name for c in s.graveyard], "exile": [c.name for c in s.exile],
                 "command_zone": [{"name": c.name, "tax": self.commander_tax(s, c)} for c in s.command_zone],
+                "companion": s.companion.name if s.companion is not None and not s.companion_used else None,
                 "commander_damage": [{"from_seat": seat, "commander": name, "damage": dmg}
                                      for (seat, name), dmg in s.commander_damage.items()],
                 "battlefield": [self._permanent_view(p, viewer if viewer is s else None) for p in s.battlefield],
@@ -2988,7 +3015,7 @@ class Game:
                     self.trigger("ally_combat_damage", permanent, controller, subject=source, x=amount)  # x: "draw that many cards"
                     if _is_token(source.card):
                         self.trigger("token_combat_damage", permanent, controller, subject=source, x=amount)
-            if combat and controller and source is not None and source.card.name in controller.commander_names:
+            if combat and controller and source is not None and source.card.name in controller.commander_names and self.format.commander_damage is not None:
                 key = (controller.index, source.card.name)
                 target.commander_damage[key] = target.commander_damage.get(key, 0) + amount
                 self.broadcast({"event": "commander_damage", "seat": target.index, "from_seat": controller.index,
@@ -5750,7 +5777,7 @@ class Game:
                           else "life" if seat.life <= 0
                           else "empty_library" if seat.drew_from_empty
                           else "poison" if seat.player_counters.get("poison", 0) >= POISON_LIMIT
-                          else "commander_damage" if any(d >= self.format.commander_damage for d in seat.commander_damage.values())
+                          else "commander_damage" if self.format.commander_damage is not None and any(d >= self.format.commander_damage for d in seat.commander_damage.values())
                           else None)
                 if reason:
                     seat.lost = True

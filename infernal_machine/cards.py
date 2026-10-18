@@ -36,6 +36,7 @@ class Card:
     commander_legal: bool = True
     standard_legal: bool = True
     duel_legal: bool = True  # not on the Duel Commander banned list (Scryfall's "duel" legality)
+    oathbreaker_legal: bool = True  # legal in Oathbreaker (Scryfall's "oathbreaker" legality)
     game_changer: bool = False  # on Scryfall's Commander Game Changers list (Commander Brackets)
     scryfall_id: str | None = None
     back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
@@ -80,7 +81,7 @@ class Card:
                            oracle_text=back_face.get("oracle_text", ""),
                            color_identity=tuple(data.get("color_identity", [])),
                            produced_mana=_face_mana(back_face, tuple(data.get("produced_mana", []))),
-                           commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", game_changer=bool(data.get("game_changer")),
+                           commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", oathbreaker_legal=data.get("legalities", {}).get("oathbreaker") == "legal", game_changer=bool(data.get("game_changer")),
                            scryfall_id=data.get("id"))
         prepare = None
         if data.get("layout") == "prepare" and len(data.get("card_faces", [])) == 2:
@@ -89,7 +90,7 @@ class Card:
                           cmc=_mana_value(spell.get("mana_cost", "")), type_line=spell.get("type_line", ""),
                           oracle_text=spell.get("oracle_text", ""), colors=_cost_colors(spell.get("mana_cost", "")),
                           color_identity=tuple(data.get("color_identity", [])),
-                          commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", game_changer=bool(data.get("game_changer")),
+                          commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", oathbreaker_legal=data.get("legalities", {}).get("oathbreaker") == "legal", game_changer=bool(data.get("game_changer")),
                           scryfall_id=data.get("id"))
         faces = data.get("card_faces", [])
         alternate = None
@@ -102,7 +103,7 @@ class Card:
                        power=second.get("power"), toughness=second.get("toughness"), loyalty=second.get("loyalty"),
                        color_identity=tuple(data.get("color_identity", [])),
                        produced_mana=_face_mana(second, tuple(data.get("produced_mana", []))),
-                       commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
+                       commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", oathbreaker_legal=data.get("legalities", {}).get("oathbreaker") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
         if data.get("layout") == "meld":
             other_face = "the melded card"
         elif len(faces) == 2 and (data.get("layout") in ("split", "adventure") or data.get("layout") == "modal_dfc" and back is None):
@@ -114,7 +115,7 @@ class Card:
                 alternate = cls(name=second["name"], mana_cost=second.get("mana_cost", ""), cmc=_mana_value(second.get("mana_cost", "")),
                                 type_line=second.get("type_line", ""), oracle_text=second.get("oracle_text", ""),
                                 colors=tuple(second.get("colors") or _cost_colors(second.get("mana_cost", ""))), color_identity=tuple(data.get("color_identity", [])),
-                                commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
+                                commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", oathbreaker_legal=data.get("legalities", {}).get("oathbreaker") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
             else:
                 other_face = second["name"]  # not played: a back that is a permanent
         cmc = _mana_value(face.get("mana_cost", "")) if data.get("layout") == "split" and "mana_cost" in face else float(data.get("cmc", 0))
@@ -130,7 +131,7 @@ class Card:
             loyalty=face.get("loyalty"),
             color_identity=tuple(data.get("color_identity", [])),
             produced_mana=produced,
-            commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", game_changer=bool(data.get("game_changer")),
+            commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", oathbreaker_legal=data.get("legalities", {}).get("oathbreaker") == "legal", game_changer=bool(data.get("game_changer")),
             scryfall_id=data.get("id"),
             back=back,
             prepare=prepare,
@@ -284,7 +285,7 @@ def _match_requested(wanted: list[str], found: dict[str, Card]) -> dict[str, Car
     return result
 
 
-CARD_FORMAT = 5  # bumped whenever Card gains a field, so a card file saved earlier is fetched again instead of read with that field's default
+CARD_FORMAT = 6  # bumped whenever Card gains a field, so a card file saved earlier is fetched again instead of read with that field's default
 
 
 class CachedSource:
@@ -420,6 +421,8 @@ class Decklist:
     commanders: dict[str, int] = field(default_factory=dict)
     main: dict[str, int] = field(default_factory=dict)
     sideboard: dict[str, int] = field(default_factory=dict)
+    companion: dict[str, int] = field(default_factory=dict)  # the companion kept outside the game (a `Companion` section), at most one card
+    signature: dict[str, int] = field(default_factory=dict)  # an Oathbreaker deck's signature spell (a `Signature Spell` section)
 
 
 def parse_decklist(text: str) -> Decklist:
@@ -427,11 +430,12 @@ def parse_decklist(text: str) -> Decklist:
 
     Accepts lines like "4 Lightning Bolt", "4x Lightning Bolt",
     "4 Lightning Bolt (M11) 146" and "1 Atraxa, Praetors' Voice *CMDR*".
-    "Commander", "Deck" and "Sideboard" headers switch sections; a blank line
+    "Commander", "Deck", "Sideboard" and "Companion" headers switch sections; a blank line
     after main-deck cards starts the sideboard. "//" lines are comments.
     """
     deck = Decklist()
-    sections = {"commander": deck.commanders, "deck": deck.main, "sideboard": deck.sideboard}
+    sections = {"commander": deck.commanders, "oathbreaker": deck.commanders, "deck": deck.main, "sideboard": deck.sideboard, "companion": deck.companion,
+                "signature spell": deck.signature, "signature": deck.signature}
     current = deck.main
     for raw in text.splitlines():
         line = raw.strip()
@@ -461,6 +465,8 @@ class Deck:
     main: list[Card]
     sideboard: list[Card]
     conjured: dict[str, Card] = field(default_factory=dict)  # the cards its text can conjure, by name
+    signature_spell: Card | None = None  # an Oathbreaker deck's instant or sorcery, which starts in the command zone with the Oathbreaker
+    companion: Card | None = None  # kept outside the game; its owner may put it into their hand once, for {3} (see companion.py)
     format: str = ""  # the format it is played in ("commander", "brawl", "duel", "standard"); empty: the one its shape says (see formats.format_of)
 
 
@@ -485,7 +491,14 @@ def _conjured_cards(cards: Iterable[Card], source: CardSource) -> dict[str, Card
 def load_deck(text: str, source: CardSource) -> Deck:
     """Parse a decklist and pull every card from `source`, expanded by count."""
     parsed = parse_decklist(text)
-    cards = source.get_many([*parsed.commanders, *parsed.main, *parsed.sideboard])
-    expand = lambda counts: [cards[name] for name, n in counts.items() for _ in range(n)]
+    cards = source.get_many([*parsed.commanders, *parsed.main, *parsed.sideboard, *parsed.companion, *parsed.signature])
+    expand = lambda counts: [cards[name] for name, n in counts.items() for _ in range(n)]  # noqa: E731
+    companion = expand(parsed.companion)
+    if len(companion) > 1:
+        raise ValueError("A deck has at most one companion")
+    signature = expand(parsed.signature)
+    if len(signature) > 1:
+        raise ValueError("A deck has at most one signature spell")
     return Deck(expand(parsed.commanders), expand(parsed.main), expand(parsed.sideboard),
-                _conjured_cards(cards.values(), source))
+                _conjured_cards(cards.values(), source), companion=companion[0] if companion else None,
+                signature_spell=signature[0] if signature else None)
