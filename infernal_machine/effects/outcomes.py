@@ -4148,10 +4148,13 @@ class CopySpell:
     """ "Copy target instant or sorcery spell. You may choose new targets for the copy." """
     target: str  # "instant or sorcery spell", optionally "... you control"
     new_targets: bool = False
+    return_to_hand: bool = False  # Narset's Reversal: "..., then return it to its owner's hand."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.copy_spell(target, controller, self.new_targets)
+            if self.return_to_hand:
+                game.return_spell_to_hand(target)
 
 
 @dataclass(frozen=True)
@@ -5841,6 +5844,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"without paying its mana cost\.", re.I), lambda m: ShuffleRevealCast()),
     (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
      lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
+    (re.compile(r"copy target (instant or sorcery spell), then return it to its owner's hand\.", re.I),
+     lambda m: CopySpell(m[1].lower(), return_to_hand=True)),
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),

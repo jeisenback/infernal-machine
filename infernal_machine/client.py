@@ -155,6 +155,8 @@ class Narrator:
             return f"{card} can't be cast: there is nothing it could target."
         if kind == "countered":
             return f"{card}'s ability is countered." if ability else f"{card} is countered."
+        if kind == "returned_spell":
+            return f"{card} returns to its owner's hand."
         if kind == "damage_prevented":
             return f"Damage to {card} is prevented (protection)."
         if kind == "timed_out":

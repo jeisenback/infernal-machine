@@ -134,7 +134,7 @@ _WATCHES = {
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
                        r"|permanent spell with a mana cost that contains \{X\}|instant or sorcery spell with \{X\} in its mana cost"
-                       r"|(?-i:[A-Z][a-z]+) spell)"  # a creature type: "another Vampire spell"
+                       r"|(?-i:[A-Z][a-z]+)(?: or (?-i:[A-Z][a-z]+))?(?: permanent)? spell)"  # a creature type: "another Vampire spell", "a Faerie or Wizard permanent spell"
                        r"(?: with mana value (\d+) or greater)?"
                        r"( from your hand| from your graveyard| from their graveyard| from anywhere other than your hand"
                        r"| that isn't from your starting deck)?"
