@@ -139,7 +139,7 @@ class BotPlayer:
                 self._commander_casts[event["card"]] += 1
         elif kind in ("resolve", "fizzle") and self._stack:
             self._stack.pop()
-        elif kind == "countered" and event["seat"] in self._stack:
+        elif kind in ("countered", "returned_spell") and event["seat"] in self._stack:
             self._stack.reverse()
             self._stack.remove(event["seat"])
             self._stack.reverse()

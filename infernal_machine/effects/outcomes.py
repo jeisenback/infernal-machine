@@ -1519,38 +1519,57 @@ class CopyChanges:
     add_types: tuple[str, ...] = ()  # a card type (Enchantment) or a subtype (Spirit), added to the type line
     keywords: tuple[str, ...] = ()  # added as ability lines, as Twinflame's haste is
     add_colors: tuple[str, ...] = ()  # "a 2/2 black Zombie in addition to its other colors and types": W, U, B, R or G
+    abilities: tuple[str, ...] = ()  # quoted abilities it has: Phantasmal Image's "When this creature becomes the target ..."
+    extra_counters: str = ""  # a clone's "it enters with an additional +1/+1 counter on it" ("1") or "X additional" ("X"); only for a creature
+    extra_loyalty: int = 0  # Spark Double: "an additional loyalty counter on it if it's a planeswalker"
 
 
-def copy_card(card: Card, changes: CopyChanges | None = None) -> Card:
-    """The card of a token that's a copy of `card`, with the changes of its except clause applied."""
-    if not card.type_line.startswith("Token"):
-        card = dataclasses.replace(card, type_line="Token " + card.type_line)
+def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
+    """`card` with the changes of an except clause applied."""
     if changes is None:
         return card
     type_line = card.type_line
     if changes.not_legendary:
         type_line = type_line.replace("Legendary ", "", 1)  # CR 707.9b: the copy is the original with this one value changed
     for word in changes.add_types:
-        head, dash, tail = type_line.partition("—")
+        head, dash, tail = type_line.partition("\u2014")
         if word in _COPY_CARD_TYPES:
             if word not in head:  # "Artifact Creature": a new card type goes before Creature, as printed
                 head = head.replace("Creature", f"{word} Creature") if "Creature" in head else f"{head.strip()} {word}"
                 type_line = f"{head.strip()} {dash} {tail.strip()}" if dash else head.strip()
         elif word not in tail.split():
-            type_line = f"{head.strip()} {dash} {tail.strip()} {word}" if dash else f"{head.strip()} — {word}"
+            type_line = f"{head.strip()} {dash} {tail.strip()} {word}" if dash else f"{head.strip()} \u2014 {word}"
     card = dataclasses.replace(card, type_line=type_line)
     if changes.add_colors:
         card = dataclasses.replace(card, colors=tuple(sorted(set(card.colors) | set(changes.add_colors))))
     if changes.power_toughness is not None:
         card = dataclasses.replace(card, power=changes.power_toughness[0], toughness=changes.power_toughness[1])
-    if changes.keywords:
-        card = dataclasses.replace(card, oracle_text="\n".join([card.oracle_text, *(k.capitalize() for k in changes.keywords)]).strip())
+    extra = [k.capitalize() for k in changes.keywords] + [f'{a}' for a in changes.abilities]
+    if extra:
+        card = dataclasses.replace(card, oracle_text="\n".join([card.oracle_text, *extra]).strip())
     return card
+
+
+def copy_card(card: Card, changes: CopyChanges | None = None) -> Card:
+    """The card of a token that's a copy of `card`, with the changes of its except clause applied."""
+    if not card.type_line.startswith("Token"):
+        card = dataclasses.replace(card, type_line="Token " + card.type_line)
+    return apply_copy_changes(card, changes)
 
 
 _COPY_COLORS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 _COPY_KEYWORDS = {"flying", "haste", "vigilance", "lifelink", "deathtouch", "trample", "menace", "reach", "first strike", "double strike",
-                  "indestructible", "hexproof"}
+                  "indestructible", "hexproof", "myriad"}
+
+
+def _understood_ability(text: str) -> bool:
+    """Whether the engine understands `text` as the rules text of a creature, so a copy given it does what it says."""
+    from ..report import unsupported_lines
+    return not unsupported_lines(Card(name="Copy", type_line="Creature", oracle_text=text, power="1", toughness="1"))
+
+
+_COPY_QUOTE = re.compile(r'"([^"]+)"')
+_COPY_SPLIT = re.compile(r",\s*(?:and\s+)?|\s+and\s+")
 
 
 def _copy_changes(text: str) -> CopyChanges | None:
@@ -1559,29 +1578,49 @@ def _copy_changes(text: str) -> CopyChanges | None:
     types: list[str] = []
     colors: list[str] = []
     keywords: list[str] = []
-    for clause in re.split(r",? and (?=it|the token)|, (?=it|the token)", text.strip().rstrip(".")):
+    abilities: list[str] = []
+    quoted: list[str] = []
+    text = _COPY_QUOTE.sub(lambda m: quoted.append(m[1]) or f"\x00{len(quoted) - 1}\x00", text.strip().rstrip("."))
+    text = text.replace("colors and types", "colors_and_types").replace("it enters with X additional", "it enters with X_additional")
+    after_keywords = False
+    for clause in _COPY_SPLIT.split(text):
         clause = clause.strip()
-        if re.fullmatch(r"(?:it|the token) (?:isn't|is not) legendary|it's not legendary", clause, re.I):
+        was_keywords, after_keywords = after_keywords, False
+        if re.fullmatch(r"(?:it|the token)? ?(?:isn't|is not|'s not) legendary|it's not legendary", clause, re.I):
             fields["not_legendary"] = True
-        elif m := re.fullmatch(r"(?:it's|the token is) (\d+)/(\d+)", clause, re.I):
+        elif m := re.fullmatch(r"(?:it's |the token is |is )?(\d+)/(\d+)", clause, re.I):
             fields["power_toughness"] = (m[1], m[2])
-        elif m := re.fullmatch(r"it's an? ([A-Za-z]+) in addition to its other types", clause, re.I):
-            types.append(m[1].capitalize())
-        elif m := re.fullmatch(r"it's an? (\d+)/(\d+) (white|blue|black|red|green) ([A-Za-z]+) in addition to its other colors and types",
+        elif m := re.fullmatch(r"(?:it's |is )?an? (\d+)/(\d+) (white|blue|black|red|green) ([A-Za-z ]+) in addition to its other colors_and_types",
                                clause, re.I):
             fields["power_toughness"] = (m[1], m[2])
             colors.append(_COPY_COLORS[m[3].lower()])
-            types.append(m[4].capitalize())
-        elif m := re.fullmatch(r"(?:it|the token) has ([a-z, ]+)", clause, re.I):
-            words = [w.strip() for w in re.split(r",\s*(?:and\s+)?|\s+and\s+", m[1].lower()) if w.strip()]
-            if not words or any(w not in _COPY_KEYWORDS for w in words):
+            types.extend(w.capitalize() for w in m[4].split())
+        elif m := re.fullmatch(r"(?:it's |is )?an? ([A-Za-z ]+?) in addition to its other (?:creature )?types", clause, re.I):
+            types.extend(w.capitalize() for w in m[1].split())
+        elif m := re.fullmatch(r"(?:it |the token )?has \x00(\d+)\x00", clause, re.I):
+            if not _understood_ability(quoted[int(m[1])]):
                 return None
-            keywords.extend(words)
+            abilities.append(quoted[int(m[1])])
+        elif m := re.fullmatch(r"(?:it |the token )?has ([a-z ]+)", clause, re.I):
+            if m[1].lower() not in _COPY_KEYWORDS and not _understood_ability(m[1].capitalize()):
+                return None
+            keywords.append(m[1].lower())
+            after_keywords = True
+        elif was_keywords and (clause.lower() in _COPY_KEYWORDS or _understood_ability(clause.capitalize())):  # "it has flying and haste"
+            keywords.append(clause.lower())
+            after_keywords = True
+        elif re.fullmatch(r"it enters with an additional \+1/\+1 counter on it if it's a creature", clause, re.I):
+            fields["extra_counters"] = "1"
+        elif re.fullmatch(r"it enters with X_additional \+1/\+1 counters on it", clause, re.I):
+            fields["extra_counters"] = "X"
+        elif re.fullmatch(r"it enters with an additional loyalty counter on it if it's a planeswalker", clause, re.I):
+            fields["extra_loyalty"] = 1
         else:
             return None
     return CopyChanges(
         not_legendary=fields.get("not_legendary", False), power_toughness=fields.get("power_toughness"),
-        add_types=tuple(types), keywords=tuple(keywords), add_colors=tuple(colors))
+        add_types=tuple(types), keywords=tuple(keywords), add_colors=tuple(colors), abilities=tuple(abilities),
+        extra_counters=fields.get("extra_counters", ""), extra_loyalty=fields.get("extra_loyalty", 0))
 
 
 @dataclass(frozen=True)
@@ -4109,10 +4148,13 @@ class CopySpell:
     """ "Copy target instant or sorcery spell. You may choose new targets for the copy." """
     target: str  # "instant or sorcery spell", optionally "... you control"
     new_targets: bool = False
+    return_to_hand: bool = False  # Narset's Reversal: "..., then return it to its owner's hand."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.copy_spell(target, controller, self.new_targets)
+            if self.return_to_hand:
+                game.return_spell_to_hand(target)
 
 
 @dataclass(frozen=True)
@@ -4143,11 +4185,25 @@ class CopyTriggeringSpell:
 class CopyTriggeringAbility:
     """Unbound Flourishing: "... activate an ability, if that ability's activation cost contains {X}, copy that ability. You may
     choose new targets for the copy." The ability that set the trigger off is `carried`."""
+    new_targets: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         ability = game.resolving_item.carried if game.resolving_item is not None else None
         if ability is not None:
-            game.copy_ability(ability, controller)
+            game.copy_ability(ability, controller, self.new_targets)
+
+
+@dataclass(frozen=True)
+class CopyTriggeredAbility:
+    """Strionic Resonator: "Copy target triggered ability you control. You may choose new targets for the copy." (Mister Fantastic:
+    "... twice. ... for the copies.")"""
+    target: str = "triggered ability you control"
+    new_targets: bool = False
+    times: int = 1
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.copy_ability(target, controller, self.new_targets, self.times)
 
 
 @dataclass(frozen=True)
@@ -5459,6 +5515,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile enchanted creature\.", re.I), lambda m: ExileEnchanted()),
     (re.compile(r"that token gains haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
     (re.compile(r"that token gains haste\.", re.I), lambda m: _TokenHasHaste()),
+    (re.compile(r"sacrifice (?:it|this creature)\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."
     (re.compile(r"create a token that's a copy of it\.", re.I), lambda m: _CopyOfIt()),
     (re.compile(r"mill a card, then exile a card from your graveyard at random\. you may play the exiled card this turn\.", re.I),
      lambda m: MillThenExileRandomPlay()),
@@ -5801,9 +5858,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"without paying its mana cost\.", re.I), lambda m: ShuffleRevealCast()),
     (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
      lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
+    (re.compile(r"copy target (instant or sorcery spell), then return it to its owner's hand\.", re.I),
+     lambda m: CopySpell(m[1].lower(), return_to_hand=True)),
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
-    (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility()),
+    (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility(True)),
+    (re.compile(r"copy target triggered ability you control( twice)?\.", re.I), lambda m: CopyTriggeredAbility(times=2 if m[1] else 1)),
     (re.compile(r"any number of other target creatures you control phase out\.", re.I), lambda m: PhaseOut()),
     (re.compile(r"create a white Aura enchantment token named Contract attached to target creature an opponent controls\. The token has "
                 r"enchant creature and \"Whenever enchanted creature attacks, it gets \+2/\+0 until end of turn if it's attacking one of "
@@ -5845,7 +5905,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutExiledWithIntoGraveyard(TREASURE, made[1]) if (made := _token("a " + m[1])) else None),
     (re.compile(r"put a number of \+1/\+1 counters on it equal to the damage dealt\.", re.I),
      lambda m: PutCountersOnSource("X", "+1/+1")),  # X is the damage the trigger saw
-    (re.compile(r"you may choose new targets for the copy\.", re.I), lambda m: NewTargets()),
+    (re.compile(r"you may choose new targets for the cop(?:y|ies)\.", re.I), lambda m: NewTargets()),
     (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
      lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
     (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
@@ -6569,7 +6629,7 @@ def _merge_copy(effects: list) -> list | None:
     merged: list = []
     for effect in effects:
         if isinstance(effect, NewTargets):
-            if not merged or not isinstance(merged[-1], (CopySpell, CopyTriggeringSpell)):
+            if not merged or not isinstance(merged[-1], (CopySpell, CopyTriggeringSpell, CopyTriggeredAbility)):
                 return None
             merged[-1] = dataclasses.replace(merged[-1], new_targets=True)
         else:

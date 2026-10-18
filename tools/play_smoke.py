@@ -103,7 +103,9 @@ def play_transformed(card: Card) -> bool:
     game, mine = table(card)
     game._enter(mine, Permanent(card, sick=False))
     run_stack(game)
-    permanent = next(p for p in mine.battlefield if p.card is card)
+    permanent = next(p for p in mine.battlefield if card in (p.card, p.real_card))
+    if permanent.card is not card:
+        return False  # it entered as a copy of something else (a clone): there is no back face to turn over
     game.transform(permanent, by_day_night=True)
     run_stack(game)
     game._check_state()
