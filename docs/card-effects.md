@@ -282,6 +282,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Food: Add one mana of any color" (Gilded Goose, one Food per Goose) and "{T}, Mill a card: Add {C}" (Millikin, needs a
     library) pay their extra cost when the mana is spent; "Add one mana ... for each charge counter" (Astral Cornucopia,
     Palette) makes one mana per counter (the mana of one tap may be spent as different colors).
+  - Playing from the top of the library: "You may play lands (and cast spells) from the top of your library." (Courser of
+    Kruphix, Oracle of Mul Daya, Future Sight), with the spells limited to a kind or several ("artifact spells and colorless
+    spells" Mystic Forge, "creature spells of the chosen type" Realmwalker, "Goblin spells", "instant and sorcery spells",
+    "spells with flash or flying", "spells with mana value 4 or greater", "snow lands and snow spells") and, for an Equipment,
+    only "as long as it is attached to a creature" (The Reality Chip). The game offers `Play land from the top of your library:`
+    and `Cast from the top of your library:` for the top card when the permission allows it (a land uses the land drop; a
+    spell is cast at its usual timing for its mana cost). "Play with the top card revealed" and "You may look at the top card"
+    are accepted and change nothing: the engine does not hide a library. Wordings with a condition or a cost
+    ("if you control", "by sacrificing", "once each turn") are not understood.
   - Exile and graveyard effects: Serra Paragon (once each turn, play a land or cast a permanent spell of mana value 3 or
     less from your graveyard; that permanent is exiled, and you gain 2 life, if it goes to the graveyard). Surge to
     Victory (exile an instant or sorcery from your graveyard, creatures get +X/+0, and each creature that connects this
