@@ -42,6 +42,7 @@ from .common import (
     cant_be_countered,
     Quantity,
 )
+from .follow import Follow, Follows, set_fields
 from .targets import (
     MassFilter,
     _CARDS_PLURAL,
@@ -3954,38 +3955,15 @@ def _is_known_ability(text: str) -> bool:
 
 
 def _merge_conditional(effects: list) -> list | None:
-    """The sentences that qualify the effect before them: a bigger draw, an untap, a token for an exiled creature card."""
+    """The sentences that qualify the effect before them: a bigger draw, an untap, a token for an exiled creature card (the table above),
+    and the two that are not just a change to the effect before them."""
     merged: list = []
     for effect in effects:
-        if isinstance(effect, _InsteadDraw):
-            if not (merged and isinstance(merged[-1], Draw)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], more=effect.count, more_if=effect.condition)
-        elif isinstance(effect, _InsteadMana):
-            if not (merged and isinstance(merged[-1], AddMana)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], more=effect.units, more_if=effect.condition)
-        elif isinstance(effect, _ExileTokenAtEnd):
-            if not (merged and isinstance(merged[-1], CreateTokens)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], exile_at_end=True)
-        elif isinstance(effect, _InsteadTokens):
-            if not (merged and isinstance(merged[-1], CreateTokens)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], more=effect.count, more_if=effect.condition)
-        elif isinstance(effect, _UntapThoseLands):
-            if not (merged and isinstance(merged[-1], RevealLands)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], untap_if=effect.condition)
-        elif isinstance(effect, _UntapThatLand):
-            if not (merged and isinstance(merged[-1], FetchBasicLand)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], untap_if=effect.condition)
-        elif isinstance(effect, _ManaForEachDestroyed):
-            if not (merged and isinstance(merged[-1], DestroyAll)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], mana_each=effect.options)
-        elif isinstance(effect, Fight) and effect.follows:  # "It fights ...": the creature just pumped (or given counters), or the source
+        if (done := _CONDITIONAL.step(merged, effect)) is False:
+            return None
+        if done:
+            continue
+        if isinstance(effect, Fight) and effect.follows:  # "It fights ...": the creature just pumped (or given counters), or the source
             if not merged:
                 if effect.then:
                     return None
@@ -3993,62 +3971,11 @@ def _merge_conditional(effects: list) -> list | None:
             elif not isinstance(merged[-1], (Pump, PumpX, DoubleStats, PutCounters)):
                 return None
             merged.append(effect)
-        elif isinstance(effect, _PutFromAmongThem):
-            if not (merged and isinstance(merged[-1], Mill)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], put=effect.kind)
         elif isinstance(effect, _ItGains):
             if merged and isinstance(merged[-1], PutCounters) and not merged[-1].grant:
                 merged[-1] = dataclasses.replace(merged[-1], grant=effect.keywords)
             else:
                 merged.append(PumpSource(Modifier(keywords=effect.keywords)))
-        elif isinstance(effect, _ThatAlsoGains):
-            if not (merged and isinstance(merged[-1], Pump)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], modifier=dataclasses.replace(
-                merged[-1].modifier, keywords=merged[-1].modifier.keywords | effect.keywords))
-        elif isinstance(effect, _TheyGain):
-            if not (merged and isinstance(merged[-1], (PutCountersOnEach, PutCountersOnEachUpToX))):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], grant=effect.keywords)
-        elif isinstance(effect, _RecallAttachment):
-            if not (merged and isinstance(merged[-1], CreateTokens) and merged[-1].count == 1):
-                return None
-            merged[-1] = CreateTokenWithGraveyardAttachment(merged[-1].token)
-        elif isinstance(effect, _AttachItToToken):
-            if not (merged and isinstance(merged[-1], CreateTokens) and merged[-1].count == 1):
-                return None
-            merged[-1] = CreateTokenAttachSubject(merged[-1].token)
-        elif isinstance(effect, _PopulatedTokenRider):
-            if not (merged and isinstance(merged[-1], Populate)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], haste=merged[-1].haste or effect.haste,
-                                             sacrifice_at_end=merged[-1].sacrifice_at_end or effect.sacrifice)
-        elif isinstance(effect, _ItHas):
-            if not (merged and isinstance(merged[-1], CreateTokens) and not merged[-1].token.oracle_text):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], token=dataclasses.replace(merged[-1].token, oracle_text=effect.ability))
-        elif isinstance(effect, _CopyOfIt):
-            if not (merged and isinstance(merged[-1], ExileFromGraveyard)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], copy_token=True)
-        elif isinstance(effect, _TokenHasHaste):
-            if not (merged and isinstance(merged[-1], CopyHostToken)):
-                return None
-            changes = merged[-1].changes or CopyChanges()
-            merged[-1] = dataclasses.replace(merged[-1], changes=dataclasses.replace(changes, keywords=changes.keywords + ("haste",)))
-        elif isinstance(effect, _TokenGainsHaste):
-            if not (merged and isinstance(merged[-1], CopyToken)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], haste=True)
-        elif isinstance(effect, _IfYouDo):
-            if not (merged and isinstance(merged[-1], ExileOwnGraveyard)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], then=effect.effect)
-        elif isinstance(effect, _IfExiledThen):
-            if not (merged and isinstance(merged[-1], ExileFromGraveyard)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], if_type=effect.card_type, then=effect.effect)
         else:
             merged.append(effect)
     return merged
@@ -6484,46 +6411,6 @@ def _template(sentence: str) -> Any:
     return _delayed_trigger(sentence)
 
 
-def _merge_mana_drain(effects: list) -> list | None:
-    """Mana Drain's second sentence belongs to the Counter before it, and Chaos Warp's to its ChaosWarp; alone they
-    aren't understood."""
-    merged: list = []
-    for effect in effects:
-        if isinstance(effect, _ChaosPut):
-            if not (merged and isinstance(merged[-1], ChaosWarp)):
-                return None
-        elif isinstance(effect, _DelayedMana):
-            if not (merged and isinstance(merged[-1], Counter)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], delayed_mana=True)
-        else:
-            merged.append(effect)
-    return merged
-
-
-def _merge_exile(effects: list) -> list | None:
-    """Counter + "exile it instead" is one Counter(exile); Exile + "return it at the beginning of the next end step" is
-    one Flicker; ExileTop + "you may play it" is one ExileTop(play). A leftover second half isn't understood."""
-    merged: list = []
-    for effect in effects:
-        before = merged[-1] if merged else None
-        if isinstance(effect, ExileInstead):
-            if not isinstance(before, Counter):
-                return None
-            merged[-1] = dataclasses.replace(before, exile=True)
-        elif isinstance(effect, ReturnLater):
-            if not isinstance(before, Exile):
-                return None
-            merged[-1] = Flicker(before.target, "end_step", effect.to, effect.under_owner, before.another)
-        elif isinstance(effect, PlayExiled):
-            if not isinstance(before, ExileTop) or before.play:
-                return None
-            merged[-1] = dataclasses.replace(before, play=effect.until)
-        else:
-            merged.append(effect)
-    return merged
-
-
 def _merge_hand_discard(effects: list) -> list | None:
     """"Target opponent reveals their hand. You choose a nonland card from it. That player discards that card." becomes
     one TargetChooseDiscard; any one of the three sentences alone isn't understood."""
@@ -6543,19 +6430,6 @@ def _merge_hand_discard(effects: list) -> list | None:
             return None
         merged.append(effect)
         i += 1
-    return merged
-
-
-def _merge_put_back(effects: list) -> list | None:
-    """"... put them back in any order. You may shuffle." is one effect; "You may shuffle." alone isn't understood."""
-    merged: list = []
-    for effect in effects:
-        if isinstance(effect, _MayShuffle):
-            if not (merged and isinstance(merged[-1], PutBackTop)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], shuffle=True)
-        else:
-            merged.append(effect)
     return merged
 
 
@@ -6590,19 +6464,6 @@ def _merge_loot(effects: list) -> list | None:
             return None
         merged.append(effects[i])
         i += 1
-    return merged
-
-
-def _merge_drain(effects: list) -> list | None:
-    """"Each opponent loses X life. You gain life equal to the life lost this way." is one effect."""
-    merged: list = []
-    for effect in effects:
-        if isinstance(effect, _GainLifeLost):
-            if not (merged and isinstance(merged[-1], OpponentsLoseLife)):
-                return None
-            merged[-1] = Drain(merged[-1].amount)
-        else:
-            merged.append(effect)
     return merged
 
 
@@ -6676,11 +6537,11 @@ def _parse(sentences: list[str]) -> list | None:
             return None  # "instead" has to change the effect just before it
         if isinstance(effect, KickedReplaces) and not i:
             return None
-    merged = _merge_no_regen(effects)
+    merged: list | None = _merge_no_regen(effects)
     for merge in (_merge_three_way, _merge_copy, _merge_control, _merge_impulse, _merge_votes, _merge_hand_discard, _merge_animate, _merge_mana_drain, _merge_exile, _merge_put_back, _merge_loot, _merge_conditional, _merge_drain, _merge_wipe_gift, _merge_reveal_top, _merge_token_counters, _merge_new_target, _merge_stun_self, _merge_stun, _merge_attacking_tokens, _merge_prevention, _merge_token_copies, _merge_target_copies):  # each returns None for a line it rejects
-        merged = merge(merged)
         if merged is None:
             return None
+        merged = merge(merged)
     return merged
 
 
@@ -6707,58 +6568,12 @@ def _merge_impulse(effects: list) -> list | None:
     return merged
 
 
-def _merge_copy(effects: list) -> list | None:
-    """"Copy target instant or sorcery spell. You may choose new targets for the copy." is one effect. The second
-    sentence on its own has no copy to refer to, so the line isn't understood."""
-    merged: list = []
-    for effect in effects:
-        if isinstance(effect, NewTargets):
-            if not merged or not isinstance(merged[-1], (CopySpell, CopyTriggeringSpell, CopyTriggeredAbility)):
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], new_targets=True)
-        else:
-            merged.append(effect)
-    return merged
-
-
-def _merge_control(effects: list) -> list | None:
-    """Threaten: "Gain control of target creature until end of turn. Untap that creature. It gains haste until end
-    of turn." is one effect. A lone "Untap that creature." has nothing to refer to, so the line isn't understood."""
-    merged: list = []
-    for effect in effects:
-        after_control = bool(merged) and isinstance(merged[-1], GainControl)
-        if isinstance(effect, UntapThat):
-            if not after_control:
-                return None
-            merged[-1] = dataclasses.replace(merged[-1], untap=True)
-        elif (isinstance(effect, PumpSource) and effect.modifier.keywords == frozenset({"haste"})
-              and effect.modifier.power == effect.modifier.toughness == 0 and after_control and merged[-1].untap):
-            merged[-1] = dataclasses.replace(merged[-1], haste=True)
-        else:
-            merged.append(effect)
-    return merged
-
-
 def _merge_stun_self(effects: list) -> list:
     """"Whenever this creature attacks, put a stun counter on it.": with no earlier effect to follow, "it" is the creature itself."""
     merged: list = []
     for effect in effects:
         aimed = any(target_kind(e) or binding(e) in (SUBJECT, PLAYER) for e in merged)
         merged.append(PutStunOnSource(effect.count) if isinstance(effect, PutStunCounters) and not aimed else effect)
-    return merged
-
-
-def _merge_new_target(effects: list) -> list | None:
-    """"Change the target of target spell that targets only a player. The new target must be a player." is one effect; a lone
-    "The new target must be ..." has nothing to refer to, so the line isn't understood."""
-    merged: list = []
-    for effect in effects:
-        if not isinstance(effect, NewTargetMustBe):
-            merged.append(effect)
-        elif merged and isinstance(merged[-1], ChangeTarget) and not merged[-1].to:
-            merged[-1] = dataclasses.replace(merged[-1], to=effect.kind)
-        else:
-            return None
     return merged
 
 
@@ -6777,17 +6592,6 @@ def _merge_stun(effects: list) -> list | None:
             return None
         for tap in taps:
             merged += [tap, PutStunCounters(effect.count)]
-    return merged
-
-
-def _merge_no_regen(effects: list) -> list:
-    """"Destroy all creatures. They can't be regenerated." becomes one destroy effect that skips regeneration."""
-    merged: list = []
-    for effect in effects:
-        if isinstance(effect, CannotRegenerate) and merged and isinstance(merged[-1], (Destroy, DestroyAll)):
-            merged[-1] = dataclasses.replace(merged[-1], no_regen=True)
-        else:
-            merged.append(effect)
     return merged
 
 
@@ -6968,3 +6772,79 @@ class ReturnThisFromGraveyard:
 
 
 _SPELL_COLORS = re.compile(r"the number of colors that spell is", re.I)  # Mana Cannons
+
+
+# --- the sentences that only qualify the effect before them (follow.py) ---------------------------------------------------------------
+# (here, after every class they name, since each is built as the module loads; `_parse` runs them in the order it lists them)
+
+# "Copy target instant or sorcery spell. You may choose new targets for the copy." is one effect. The second sentence on its own has no
+# copy to refer to, so the line isn't understood.
+_merge_copy = Follows(Follow(NewTargets, (CopySpell, CopyTriggeringSpell, CopyTriggeredAbility), set_fields(new_targets=lambda m: True)))
+
+
+# Mana Drain's second sentence belongs to the Counter before it, and Chaos Warp's to its ChaosWarp; alone they aren't understood.
+_merge_mana_drain = Follows(Follow(_ChaosPut, ChaosWarp), Follow(_DelayedMana, Counter, set_fields(delayed_mana=lambda m: True)))
+
+
+# "... put them back in any order. You may shuffle." is one effect; "You may shuffle." alone isn't understood.
+_merge_put_back = Follows(Follow(_MayShuffle, PutBackTop, set_fields(shuffle=lambda m: True)))
+
+
+# "Each opponent loses X life. You gain life equal to the life lost this way." is one effect.
+_merge_drain = Follows(Follow(_GainLifeLost, OpponentsLoseLife, lambda previous, marker: Drain(previous.amount)))
+
+
+# "Change the target of target spell that targets only a player. The new target must be a player." is one effect; a lone "The new target
+# must be ..." has nothing to refer to, so the line isn't understood.
+_merge_new_target = Follows(Follow(NewTargetMustBe, ChangeTarget, set_fields(to=lambda m: m.kind), fits=lambda previous, marker: not previous.to))
+
+
+# "Destroy all creatures. They can't be regenerated." becomes one destroy effect that skips regeneration.
+_merge_no_regen = Follows(Follow(CannotRegenerate, (Destroy, DestroyAll), set_fields(no_regen=lambda m: True), strict=False))
+
+
+# Threaten: "Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn." is one effect. A
+# lone "Untap that creature." has nothing to refer to, so the line isn't understood; the haste sentence is an effect of its own anywhere else.
+_merge_control = Follows(
+    Follow(UntapThat, GainControl, set_fields(untap=lambda m: True)),
+    Follow(PumpSource, GainControl, set_fields(haste=lambda m: True), strict=False,
+           fits=lambda previous, marker: previous.untap and marker.modifier.keywords == frozenset({"haste"})
+           and marker.modifier.power == marker.modifier.toughness == 0))
+
+
+# Counter + "exile it instead" is one Counter(exile); Exile + "return it at the beginning of the next end step" is one Flicker; ExileTop +
+# "you may play it" is one ExileTop(play). A leftover second half isn't understood.
+_merge_exile = Follows(
+    Follow(ExileInstead, Counter, set_fields(exile=lambda m: True)),
+    Follow(ReturnLater, Exile, lambda previous, marker: Flicker(previous.target, "end_step", marker.to, marker.under_owner, previous.another)),
+    Follow(PlayExiled, ExileTop, set_fields(play=lambda m: m.until), fits=lambda previous, marker: not previous.play))
+
+
+_CONDITIONAL = Follows(
+    Follow(_InsteadDraw, Draw, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition)),
+    Follow(_InsteadMana, AddMana, set_fields(more=lambda m: m.units, more_if=lambda m: m.condition)),
+    Follow(_ExileTokenAtEnd, CreateTokens, set_fields(exile_at_end=lambda m: True)),
+    Follow(_InsteadTokens, CreateTokens, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition)),
+    Follow(_UntapThoseLands, RevealLands, set_fields(untap_if=lambda m: m.condition)),
+    Follow(_UntapThatLand, FetchBasicLand, set_fields(untap_if=lambda m: m.condition)),
+    Follow(_ManaForEachDestroyed, DestroyAll, set_fields(mana_each=lambda m: m.options)),
+    Follow(_PutFromAmongThem, Mill, set_fields(put=lambda m: m.kind)),
+    Follow(_ThatAlsoGains, Pump, lambda previous, marker: dataclasses.replace(
+        previous, modifier=dataclasses.replace(previous.modifier, keywords=previous.modifier.keywords | marker.keywords))),
+    Follow(_TheyGain, (PutCountersOnEach, PutCountersOnEachUpToX), set_fields(grant=lambda m: m.keywords)),
+    Follow(_RecallAttachment, CreateTokens, lambda previous, marker: CreateTokenWithGraveyardAttachment(previous.token),
+           fits=lambda previous, marker: previous.count == 1),
+    Follow(_AttachItToToken, CreateTokens, lambda previous, marker: CreateTokenAttachSubject(previous.token),
+           fits=lambda previous, marker: previous.count == 1),
+    Follow(_PopulatedTokenRider, Populate, lambda previous, marker: dataclasses.replace(
+        previous, haste=previous.haste or marker.haste, sacrifice_at_end=previous.sacrifice_at_end or marker.sacrifice)),
+    Follow(_ItHas, CreateTokens, lambda previous, marker: dataclasses.replace(
+        previous, token=dataclasses.replace(previous.token, oracle_text=marker.ability)),
+           fits=lambda previous, marker: not previous.token.oracle_text),
+    Follow(_CopyOfIt, ExileFromGraveyard, set_fields(copy_token=lambda m: True)),
+    Follow(_TokenHasHaste, CopyHostToken, lambda previous, marker: dataclasses.replace(
+        previous, changes=dataclasses.replace(previous.changes or CopyChanges(), keywords=(previous.changes or CopyChanges()).keywords + ("haste",)))),
+    Follow(_TokenGainsHaste, CopyToken, set_fields(haste=lambda m: True)),
+    Follow(_IfYouDo, ExileOwnGraveyard, set_fields(then=lambda m: m.effect)),
+    Follow(_IfExiledThen, ExileFromGraveyard, set_fields(if_type=lambda m: m.card_type, then=lambda m: m.effect)),
+)
