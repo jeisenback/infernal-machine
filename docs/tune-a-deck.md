@@ -197,6 +197,17 @@ cost something, and 24 games cannot show it; about 390 pairs could resolve five 
 it, since that is exact where the games are not. Add `--early-stop` to stop as soon as the answer is clear (or clearly out of reach
 for the games planned) instead of always playing them all; the output says which, and how it decided.
 
+### The report as a web page
+
+`--html report.html` writes one self-contained page (no scripts or styles loaded from anywhere, so it can be mailed or opened offline;
+it follows the reader's light or dark setting and fits a phone): the numbers that matter as tiles at the top (format, Bracket, lands,
+mulligans, turns on curve, matchup games won), the mana base as bars against what each color needs, the goldfish's damage by turn as a
+chart, **each card's value with its error as a whisker** (a table that sorts when you click a header, with only the clearly nonzero
+values coloured), the land-count and swap tables, and each matchup as a win rate with its 95% interval and a verdict ("ahead",
+"behind", "too close to say"). The cards the engine can't play are a note above everything. A part whose numbers were not kept (a run
+saved before this option existed, then reused with `--since`) shows its text instead. The page is made by `htmlreport.py` from the
+same `Analysis` the markdown comes from.
+
 ### Keeping a run, and seeing what an edit changed
 
 `analyze` takes minutes, and "did my edit help" used to mean reading two long reports. Keep the numbers of a run, and ask a later one what moved:
