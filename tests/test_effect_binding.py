@@ -19,7 +19,9 @@ ROOT = Path(__file__).parent.parent / "infernal_machine"
 
 
 def effect_classes():
-    return [c for _, c in inspect.getmembers(outcomes, inspect.isclass) if c.__module__ == outcomes.__name__ and hasattr(c, "resolve")]
+    """Every effect class, wherever it is defined (the families package, and outcomes.py for what stayed)."""
+    return [c for _, c in inspect.getmembers(outcomes, inspect.isclass)
+            if c.__module__.startswith(("infernal_machine.effects.families", outcomes.__name__)) and hasattr(c, "resolve")]
 
 
 class EveryEffectTests(unittest.TestCase):
