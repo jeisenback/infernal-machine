@@ -12,7 +12,7 @@ from ..characteristics import Modifier
 
 from .common import _SELF, _rules_text, _split_sentences, rules_lines
 from .events import EVENTS
-from .targets import follows_target, target_kind, uses_player, uses_source, uses_subject
+from .targets import CONTEXT_BINDINGS, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind
 from .outcomes import (
     _condition,
     _CONTRACT_BODY,
@@ -148,6 +148,9 @@ _WATCHES = {
 }
 
 
+_TRIBE_ATTACKS = re.compile(rf"Whenever an? ({_TRIBE}) you control attacks, (.+)", re.I)
+
+
 _WATCH_QUALIFIER = re.compile(r" with ((power|toughness) (\d+) or (greater|less)|flying|a \+1/\+1 counter on it|mana value (\d+) or less)"
                               r"(?= (?:enters|dies|leaves the battlefield|becomes tapped|attacks))")
 
@@ -266,6 +269,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         return "sacrifice", Watch(m[1].lower(), yours=True), m[2]
     if qualifier and (m := _WATCHES["creature_attacks"].fullmatch(line)):  # "a creature you control with power 2 or less attacks"
         return "creature_attacks", Watch("creature", yours=True, qualifier=qualifier), m[1]
+    if m := _TRIBE_ATTACKS.fullmatch(line):  # Utvara Hellkite, Atarka: "Whenever a Dragon you control attacks, ..."
+        return "creature_attacks", Watch(m[1].lower(), yours=True), m[2]
     if m := _WATCHES["combat_damage_dealt"].fullmatch(line):
         kind = m[2].lower()
         if kind.startswith("nontoken"):  # Impostor Syndrome: "Whenever a nontoken creature you control deals combat damage to a player"
@@ -440,7 +445,7 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
         return [MayPayLoot(m[1])], False, False, None
     if m := _MAY_PAY_THEN.fullmatch(rest):
         inner = _parse(_split_sentences(m[2][:1].upper() + m[2][1:]))
-        if inner and len(inner) == 1 and not follows_target(inner[0]):
+        if inner and len(inner) == 1 and binding(inner[0]) != PREVIOUS_TARGET:
             return [MayPay(m[1], inner[0])], False, False, None
         return None, False, False, None
     condition = None
@@ -527,13 +532,12 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     rest = _THAT_CREATURE.sub("it", rest)
     if player_ok and (m := re.fullmatch(r"(.+?) unless that player pays \{X\}, where X is this creature's power\.", rest, re.I)):  # Esper Sentinel
         effects, optional, once, condition = _trigger_body(m[1] + ".")
-        if effects is None or any(target_kind(e) or uses_source(e) or uses_subject(e) or uses_player(e) or follows_target(e) for e in effects):
+        if effects is None or any(target_kind(e) or binding(e) in CONTEXT_BINDINGS for e in effects):
             return None, False, False, None
         return [UnlessPays(tuple(effects), "", cost_power=True)], optional, once, condition
     if player_ok and (m := _UNLESS_PAYS.fullmatch(rest)):
         effects, optional, once, condition = _trigger_body(m[1] + ".")
-        if effects is None or any(target_kind(e) or uses_source(e) or uses_subject(e) or uses_player(e)
-                                  or follows_target(e) for e in effects):
+        if effects is None or any(target_kind(e) or binding(e) in CONTEXT_BINDINGS for e in effects):
             return None, False, False, None
         return [UnlessPays(tuple(effects), m[2])], optional, once, condition
     if player_ok:
@@ -550,7 +554,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     if effects is None:
         return None, False, False, None
     if about_subject and any(isinstance(e, CreateTokens) and e.counters for e in effects) \
-            and not any(uses_source(e) or follows_target(e) for e in effects):
+            and not any(binding(e) in (SOURCE, PREVIOUS_TARGET) for e in effects):
         about_subject = False  # the "it" was the new token of "Create a ... token. Put X counters on it." (Deekah)
     if about_subject and not subject_ok and not copies_spell:
         return None, False, False, None
@@ -559,14 +563,14 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     if about_player:
         aimed = [getattr(e, "target", None) in ("player", "opponent", "any") for e in effects]
         # An effect not about "that player" (Knights of the Black Rose: "... and you gain 2 life") may share the line.
-        if not any(aimed) or any(not a and (target_kind(e) or uses_player(e) or uses_subject(e))
+        if not any(aimed) or any(not a and (target_kind(e) or binding(e) in (PLAYER, SUBJECT))
                                  for a, e in zip(aimed, effects)):
             return None, False, False, None
         effects = [OnPlayer(e) if a else e for a, e in zip(aimed, effects)]
     elif about_subject:
-        if not all(uses_source(e) or uses_subject(e) or getattr(e, "uses_dead_both", False) for e in effects):
+        if not all(binding(e) in (SOURCE, SUBJECT, SOURCE_AND_SUBJECT) for e in effects):
             return None, False, False, None
-        effects = [OnSubject(e) if uses_source(e) else e for e in effects]
+        effects = [OnSubject(e) if binding(e) == SOURCE else e for e in effects]
     return effects, optional, once, condition
 
 

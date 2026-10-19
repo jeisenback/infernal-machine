@@ -154,7 +154,7 @@ class ChosenColorTests(unittest.TestCase):
 
     def test_a_creature_can_protect_itself(self):
         [ability] = activated_abilities(SELF_SHIELD)
-        self.assertEqual(ability.effects, (GrantProtection(uses_source=True),))
+        self.assertEqual(ability.effects, (GrantProtection(on_source=True),))
 
 
 class WardCostTests(unittest.TestCase):

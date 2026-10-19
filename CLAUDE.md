@@ -19,9 +19,11 @@ A card is "fully playable" only if every line of its text is understood: `infern
 To add a line:
 
 1. **Parse it.** A sentence of effect text is a template in `effects/outcomes.py` (`_TEMPLATES`: a regex and a builder for an effect
-   dataclass, with `resolve(game, controller, target)`). A sentence that only qualifies the one before it ("... draw two cards instead.", "That token gains haste.") is read as a private marker
-   effect and folded into the effect before it by one `Follow` row in a table at the end of `outcomes.py` (`effects/follow.py`), not by a new
-   `_merge_*` branch. Triggers are in `effects/triggers.py`, static abilities in
+   dataclass, with `resolve(game, controller, target)`). An effect that acts on something of its ability's context (the source, the permanent that set a trigger off, the player, the previous
+   target) says which with one class attribute, `binds = SOURCE` (`effects/targets.py`: `SOURCE`, `SUBJECT`, `DEAD_SUBJECT`,
+   `SOURCE_AND_SUBJECT`, `DEAD_SOURCE`, `PLAYER`, `PREVIOUS_TARGET`); the resolver and the trigger checks both read it. A sentence that only qualifies the one before it
+   ("... draw two cards instead.", "That token gains haste.") is read as a private marker effect and folded into the effect before it by one `Follow` row in a
+   table at the end of `outcomes.py` (`effects/follow.py`), not by a new `_merge_*` branch. Triggers are in `effects/triggers.py`, static abilities in
    `effects/statics.py`, activated abilities in `effects/activated.py`, costs in `effects/costs.py`, mana abilities in `effects/mana.py`.
 2. **Declare the event** in `effects/events.py` (`declare(name, pattern, ...)`) if it is a new trigger. `Game.trigger` and
    `Game.happened` accept only declared events; `tests/test_events.py` enforces it.

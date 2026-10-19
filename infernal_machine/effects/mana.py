@@ -235,7 +235,7 @@ def _mana_match(line: str) -> re.Match | None:
     return None
 
 
-_CONDITION_WORD = re.compile(r"(?:Metalcraft|Threshold|Hellbent|Delirium|Revolt|Ferocious) \u2014 ")  # the ability word of the "Activate only if" that follows
+_CONDITION_WORD = re.compile(r"(?:Metalcraft|Threshold|Hellbent|Delirium|Revolt|Ferocious|Corrupted) \u2014 ")  # the ability word of the "Activate only if" that follows
 
 
 @lru_cache(maxsize=None)

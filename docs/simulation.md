@@ -6,11 +6,12 @@ Reference for the tools that analyze a deck. For a guided tour, start with [Tune
 
 ```
 python -m infernal_machine.analyze DECKLIST [OPPONENT ...] [--games 40] [--sim-games 500] [--turns 8] [--seed 0] [--pod 2]
-                                   [--workers N] [--try "Card Name"]... [--skip tuning,matchups] [--output FILE]
+                                   [--workers N] [--try "Card Name"]... [--skip tuning,matchups] [--output FILE] [--html FILE]
 ```
 
 One command for everything below: it runs the Bracket check, the mana base, the goldfish, the tuning report and, when opponents are
-given, the matchups, and prints one markdown report (`--output` also writes it to a file). Each part is the tool of its own section
+given, the matchups, and prints one markdown report (`--output` also writes it to a file, and `--html` the same numbers as one
+HTML page: see [tune-a-deck](tune-a-deck.md)). Each part is the tool of its own section
 with the options shared across them given once: `--games` is matchup games per opponent, `--sim-games` the games for the goldfish and
 the tuning report. The cards the engine can't play come first, since they qualify everything under them, and each fact is said once (the
 tuning report's own Bracket, mana base and unreadable-card lines, and the matchup report's sentence about the focus deck, are left out

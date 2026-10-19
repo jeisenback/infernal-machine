@@ -2,7 +2,7 @@
 
 import unittest
 
-from infernal_machine.effects import LureThisTurn, MustBlockThisTurn, PutStunOnSource, triggered_abilities
+from infernal_machine.effects import PREVIOUS_TARGET, LureThisTurn, MustBlockThisTurn, PutStunOnSource, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.test_combat import BEAR, BIRD, OGRE, fight, names
@@ -129,7 +129,7 @@ class StunItselfTests(unittest.TestCase):
         from infernal_machine.effects import PutStunCounters
         card = real("Freezer", "{2}{U}", "Creature — Wizard", "When this creature enters, tap target creature an opponent controls and put a stun counter on it.", "2", "2")
         self.assertEqual([type(e).__name__ for e in triggered_abilities(card)[0].effects], ["Tap", "PutStunCounters"])
-        self.assertIs(PutStunCounters.follows_target, True)
+        self.assertEqual(PutStunCounters.binds, PREVIOUS_TARGET)
 
 
 if __name__ == "__main__":

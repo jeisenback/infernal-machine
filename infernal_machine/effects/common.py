@@ -143,7 +143,9 @@ def _rules_lines(card: Card) -> tuple[str, ...]:
 
 
 _WHOLE_LINE = re.compile(
-    r"Choose two target creature cards in your graveyard\. Sacrifice a creature\. If you do, return the chosen cards to the battlefield tapped\."  # Victimize
+    r"[Rr]eveal the top (?:two|three|four|five|six|seven|eight|\d+) cards of your library\. Put all [A-Za-z]+(?: creature)? cards revealed "
+    r"this way into your hand and the rest on the bottom of your library in any order\."  # Goblin Ringleader
+    r"|Choose two target creature cards in your graveyard\. Sacrifice a creature\. If you do, return the chosen cards to the battlefield tapped\."  # Victimize
     r"|Search your library for up to X basic land cards, where X is the greatest power among creatures you control\. Put those cards "
     r"onto the battlefield tapped, then shuffle\."  # Traverse the Outlands
     r"|Exile the top four cards of your library in a face-down pile, then exile the top four cards of your library in a face-up pile\. An opponent chooses one of those piles\. Put that pile into your graveyard\. Look at the cards in the other pile\. You may cast a spell from among them without paying its mana cost\. Put the rest into your hand\."

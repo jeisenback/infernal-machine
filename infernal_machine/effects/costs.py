@@ -123,7 +123,7 @@ _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N_FIXED} 
 
 
 _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
-                         rf"creature|permanent|green creature)|(discard a card)|pay {_N} life|sacrifice (X) (creatures|artifacts|lands|permanents))\.")
+                         rf"creature|permanent|green creature|(?-i:[A-Z][a-z]+))|(discard a card)|pay {_N} life|sacrifice (X) (creatures|artifacts|lands|permanents))\.")
 
 
 _ADDITIONAL_PART = (r"(?:sacrifice an? (artifact or creature|creature or planeswalker|creature or enchantment|creature or land|creature|artifact|land"
@@ -303,7 +303,8 @@ _ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four
 _TWO_COLOR_REDUCTION = re.compile(rf"Each spell you cast that's ({_COLOR_NAMES}) or ({_COLOR_NAMES}) costs \{{(\d+)\}} less to cast\.", re.I)
 
 
-_REDUCTION = re.compile(rf"(?:({_COLOR_NAMES}|creature|artifact|enchantment|noncreature|instant and sorcery|Aura and Equipment|Aura) )?spells "
+_REDUCTION = re.compile(rf"(?:((?:(?:{_COLOR_NAMES}) )?creature|{_COLOR_NAMES}|artifact|enchantment|noncreature|instant and sorcery|Aura and Equipment|Aura"
+                        r"|(?-i:[A-Z][a-z]+)) )?spells "
                         r"you cast( that target a creature)? cost \{(\d+)\} less to cast\.", re.I)
 
 
@@ -651,7 +652,7 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
             found.append((f"{_COLOR_LETTER[m[1].lower()]}|{_COLOR_LETTER[m[2].lower()]}", int(m[3])))  # one reduction, however many colors
         elif m := _REDUCTION.fullmatch(line):
             kind = (m[1] or "spell").lower()
-            found.append(("targets a creature" if m[2] else _COLOR_LETTER.get(kind, kind), int(m[3])))
+            found.append(("targets a creature" if m[2] else _COLOR_LETTER.get(kind, kind), int(m[3])))  # ("red creature", "goblin": a filter)
     return found
 
 

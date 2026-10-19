@@ -147,7 +147,13 @@ def _goldfish(deck: Deck, games: int, turns: int, seed: int) -> tuple[str, dict]
 
 def _tuning(deck: Deck, games: int, turns: int, seed: int, candidates: list) -> tuple[str, dict]:
     report = tune(deck, games, turns, seed, candidates)
-    return format_tuning(report, bracket=False, unplayable=False, mana_base=False), {"games": report.games, "baseline": report.baseline}
+    data = {"games": report.games, "turns": report.turns, "baseline": report.baseline,  # (what the HTML report draws; see htmlreport.py)
+            "cards": [{"name": c.name, "copies": c.copies, "delta": c.value.delta, "error": c.value.error, "seen": c.seen_rate,
+                       "cast_when_seen": c.cast_when_seen, "note": c.note} for c in report.cards],
+            "lands": {k: {"delta": e.delta, "error": e.error} for k, e in report.lands.items()},
+            "swaps": [{"card": new, "replaces": old, "delta": e.delta, "error": e.error, "note": report.swap_notes.get(new, "")}
+                      for new, old, e in report.swaps]}
+    return format_tuning(report, bracket=False, unplayable=False, mana_base=False), data
 
 
 def _matchups(deck: Deck, opponents: dict[str, Deck], games: int, pod: int, seed: int, workers: int, name: str) -> tuple[str, dict]:
@@ -192,6 +198,7 @@ def main(argv: list[str], source=None) -> int:
     parser.add_argument("--try", dest="candidates", action="append", default=[], metavar="CARD", help="a card to test in the weakest slot")
     parser.add_argument("--skip", default="", help=f"parts to leave out, comma separated: {', '.join(PARTS)}")
     parser.add_argument("--output", metavar="FILE", help="write the report here as well as printing it")
+    parser.add_argument("--html", metavar="FILE", help="also write the report as one HTML page: bars, charts and sortable tables, no network")
     parser.add_argument("--save", metavar="FILE", help="keep this run's numbers (a JSON) so a later run can say what changed")
     parser.add_argument("--since", metavar="FILE", help="an earlier run saved with --save: say what moved against it, and reuse its parts that are unchanged")
     parser.add_argument("--no-reuse", action="store_true", help="with --since, play every part again instead of reusing the unchanged ones")
@@ -227,6 +234,12 @@ def main(argv: list[str], source=None) -> int:
     if args.output:
         with open(args.output, "w", encoding="utf-8") as f:
             f.write(report + "\n")
+    if args.html:
+        from .htmlreport import render_html
+
+        with open(args.html, "w", encoding="utf-8") as f:
+            f.write(render_html(analysis, settings))
+        print(f"Wrote the HTML report to {args.html}.", file=sys.stderr)
     if args.save:
         history.save(args.save, analysis.record)
         print(f"Saved this run's numbers to {args.save}.", file=sys.stderr)

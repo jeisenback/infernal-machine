@@ -282,6 +282,23 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Food: Add one mana of any color" (Gilded Goose, one Food per Goose) and "{T}, Mill a card: Add {C}" (Millikin, needs a
     library) pay their extra cost when the mana is spent; "Add one mana ... for each charge counter" (Astral Cornucopia,
     Palette) makes one mana per counter (the mana of one tap may be spent as different colors).
+  - Creature types and counts (found by auditing real decks, #428): "Goblin spells you cast cost {1} less to cast." and "Red creature
+    spells ..." (a creature type or a color and a type is a filter; Goblin Warchief, Dragonspeaker Shaman, Hazoret's Monument);
+    "As an additional cost to cast this spell, sacrifice a Goblin." (Goblin Grenade); "X deals damage to any target (or target
+    player or planeswalker) equal to the number of creatures (Goblins) you control" (Massive Raid, Goblin War Strike); "Add {R} for
+    each creature you control / each Goblin on the battlefield." (Battle Hymn, Brightstone Ritual); "the number of Goblins on the
+    battlefield" is an amount (Elves, Wolves, Dwarves and Werewolves read as Elf, Wolf, Dwarf and Werewolf).
+  - Round two of the deck audit: a lord that affects every player's creatures of a type, "Other Goblins get +1/+1 and have
+    mountainwalk." (Goblin King; the form with "you control" was there); "Whenever a Dragon you control attacks, ..." (Utvara
+    Hellkite, Atarka; one attacking creature of the type, not "one or more"); a library search by creature type ("a Dragon creature
+    card", "an Elf card"); "Reveal the top four cards of your library. Put all Goblin cards revealed this way into your hand and
+    the rest on the bottom of your library in any order." (Goblin Ringleader); and Corrupted: "an opponent has three or more poison
+    counters" as a condition, on a mana ability too (Glistening Sphere's activation). Not done: "Other Merfolk" (a type that is its
+    own plural), defending-player effects (Silumgar), "one or more Goblins attack" (General Kreat), Blood Moon.
+  - Poison counters from spells (Atraxa's deck): "Each opponent (each player) gets a poison counter." (Prologue to Phyresis, Ichor Rats),
+    "... sacrifices a creature or planeswalker of their choice and gets a poison counter." (Vraska's Fall), and "Then each creature
+    your opponents control gets -1/-1 until end of turn for each poison counter its controller has." (Phyresis Outbreak). Infect,
+    toxic and losing at ten counters were already there.
   - Casting from your own graveyard on a permission: "You may cast this card from your graveyard." and "... as long as you
     control a Zombie." (Gravecrawler): the card's own mana cost, then back to the graveyard if it dies (the `Cast from graveyard:`
     action, with `GraveyardCast.requires`). "Once during each of your turns, you may cast a Zombie creature spell (a permanent
