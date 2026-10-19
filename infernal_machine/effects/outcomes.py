@@ -2670,6 +2670,29 @@ class AddManaPerCardInHand:
 
 
 @dataclass(frozen=True)
+class RevealTopPutAll:
+    """Goblin Ringleader: "Reveal the top four cards of your library. Put all Goblin cards revealed this way into your hand and the
+    rest on the bottom of your library in any order." (the order of the rest is the order they were revealed in)"""
+    count: int
+    kind: str  # "goblin", "creature", ...
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        revealed = [controller.library.pop(0) for _ in range(min(self.count, len(controller.library)))]
+        game.broadcast({"event": "revealed_top", "seat": controller.index, "cards": [c.name for c in revealed]})
+        for card in revealed:
+            if _card_matches_kind(self.kind, card):
+                controller.hand.append(card)
+            else:
+                controller.library.append(card)
+
+
+def _card_matches_kind(kind: str, card: Card) -> bool:
+    from ..filters import parse_filter
+
+    return parse_filter(kind).matches(card)
+
+
+@dataclass(frozen=True)
 class AddManaForEach:
     """Battle Hymn, Brightstone Ritual: "Add {R} for each creature you control." / "... for each Goblin on the battlefield." """
     symbol: str
@@ -5873,6 +5896,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?:{_SELF}) deals (\d+) damage to the player or planeswalker (?:that creature|it) is attacking\.", re.I),
      lambda m: DamageWhatItAttacks(int(m[1]))),
     (re.compile(r"add \{([WUBRGC])\} for each card in target opponent's hand\.", re.I), lambda m: AddManaPerCardInHand(m[1].upper())),
+    (re.compile(rf"reveal the top {_N} cards of your library\. Put all ([A-Za-z]+(?: creature)?) cards revealed this way into your hand and the rest on "
+                r"the bottom of your library in any order\.", re.I),
+     lambda m: RevealTopPutAll(_number(m[1]), m[2].lower())),
     (re.compile(r"add \{([WUBRGC])\} for each (creature you control|(?-i:[A-Z][a-z]+) on the battlefield|(?-i:[A-Z][a-z]+) you control)\.", re.I),
      lambda m: AddManaForEach(m[1].upper(), a) if (a := _amount("the number of " + m[2] if " on the battlefield" in m[2] and not m[2].startswith("the") else m[2])) else None),
     (re.compile(r"until end of turn, you don't lose this mana as steps and phases end\.", re.I), lambda m: KeepManaThisTurn()),
@@ -6781,6 +6807,8 @@ _CONDITIONS = [
     (re.compile(r"a library has (twenty|\d+) or fewer cards in it"),
      lambda m: Condition("any_library_at_most", 20 if m[1] == "twenty" else int(m[1]))),
     (re.compile(r"an opponent was dealt (\d+) or more damage this turn"), lambda m: Condition("opponent_damage_at_least", int(m[1]))),
+    (re.compile(r"an opponent has (one|two|three|four|five|six|seven|eight|nine|\d+) or more poison counters?"),  # Corrupted
+     lambda m: Condition("opponent_poison_at_least", _number(m[1]))),
     (re.compile(rf"you attacked with {_N_FIXED} or more creatures this turn"), lambda m: Condition("attacked_with_at_least", _number(m[1]))),
     (re.compile(r"a card left your graveyard this turn"), lambda m: Condition("graveyard_left")),
     (re.compile(r"a land entered the battlefield under your control this turn"), lambda m: Condition("land_entered")),

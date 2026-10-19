@@ -2396,6 +2396,8 @@ class Game:
             return any(len(s.library) <= condition.count for s in self.live_seats())
         if kind == "opponent_damage_at_least":  # Spinerock Knoll: one opponent was dealt that much this turn
             return any(o.damage_taken_turn == self.turn and o.damage_taken >= condition.count for o in self.opponents(seat))
+        if kind == "opponent_poison_at_least":  # Corrupted (an ability word: the rule is just the count)
+            return any(o.player_counters.get("poison", 0) >= condition.count for o in self.opponents(seat))
         if kind == "attacked_with_at_least":  # Windbrisk Heights: that many creatures in one combat this turn
             return seat.attackers_turn == self.turn and seat.most_attackers >= condition.count
         if kind == "source_counters_at_least":  # a Planet's "12+ |" abilities: that many counters of the kind on it

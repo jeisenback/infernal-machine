@@ -460,7 +460,7 @@ def is_chosen_type_itself(card: Card) -> bool:
 
 _AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creatures of the chosen type|Creatures your opponents control"
              r"|(?:Other )?permanents you control|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* )?[Cc]reatures you control"
-             r"|(?:Other |Attacking )?[A-Z][\w'-]*s(?: and [A-Z][\w'-]*s)? you control|(?:White|Blue|Black|Red|Green) creatures")
+             r"|(?:Other |Attacking )?[A-Z][\w'-]*s(?: and [A-Z][\w'-]*s)? you control|Other [A-Z][\w'-]*s|(?:White|Blue|Black|Red|Green) creatures")
 
 
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
@@ -477,6 +477,7 @@ _AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:y
                   r"|(?P<opps>Creatures your opponents control)|(?P<perms>(?P<other_perms>Other )?permanents you control)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*) )?[Cc]reatures you control"
                   r"|(?P<other2>Other )?(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s(?: and (?P<tribe2>[A-Z][\w'-]*)s)? you control"
+                  r"|(?P<other3>Other )(?P<tribe3>[A-Z][\w'-]*)s"  # Goblin King, Lord of Atlantis: every player's, not only its controller's
                   r"|(?P<global>White|Blue|Black|Red|Green) creatures")
 
 
@@ -540,14 +541,14 @@ def _conditional(line: str) -> tuple[str, str] | None:
 
 def _other(who: re.Match) -> bool:
     """Whether the creatures a static ability affects exclude its source: "Other creatures ..."."""
-    return who["other"] is not None or (who["other_chosen"] or "").startswith("O") or who["other_perms"] is not None or who["other2"] is not None
+    return who["other"] is not None or (who["other_chosen"] or "").startswith("O") or who["other_perms"] is not None or who["other2"] is not None or who["other3"] is not None
 
 
 def _who_subtype(who: re.Match) -> str | None:
     """The creature type a static ability affects: "Elf" in "Other Elf creatures", or "Wolf|Werewolf" for "Wolves and Werewolves" (any of them)."""
     if who["sub"]:
         return who["sub"]
-    kinds = [t[:-2] + "f" if t.endswith("ve") else t for t in (who["tribe"], who["tribe2"]) if t]  # Wolves -> Wolf
+    kinds = [t[:-2] + "f" if t.endswith("ve") else t for t in (who["tribe"], who["tribe2"], who["tribe3"]) if t]  # Wolves -> Wolf
     return "|".join(kinds) or None
 
 
@@ -570,7 +571,7 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     "chosen" if who["chosen"] and not chosen_color else _who_subtype(who), line,
                                     condition=condition,
                                     color="chosen" if chosen_color else colors.get((who["color"] or who["global"] or "").lower()),
-                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]) or (bool(who["chosen"]) and "you control" not in m[1]),
+                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"]) or bool(who["other3"]) or (bool(who["chosen"]) and "you control" not in m[1]),
                                     token=bool(who["tokens"]),
                                     with_counters=bool(who["counters"]), plus_counter=bool(who["plus"]),
                                     permanents=bool(who["perms"]), opponents=bool(who["opps"])))

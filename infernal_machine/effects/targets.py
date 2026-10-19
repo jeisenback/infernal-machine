@@ -81,7 +81,7 @@ _CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|noncreature, n
 
 
 _SEARCH_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|land|artifact|enchantment|planeswalker"
-                rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
+                rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|{_SUBTYPE_CARDS}|(?-i:[A-Z][a-z]+)(?: creature)?) )?card{_MANA_VALUE})")
 
 
 _CARDS_PLURAL = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|artifact|enchantment|land|permanent"
