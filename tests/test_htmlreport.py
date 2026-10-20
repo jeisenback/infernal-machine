@@ -12,7 +12,7 @@ from pathlib import Path
 from infernal_machine.analyze import Analysis, Section, analyze_deck, main
 from infernal_machine.htmlreport import render_html
 from infernal_machine.matchup import wilson
-from tests.test_analyze import BEAR, BOSS, FOREST, FakeSource, commander_deck
+from tests.helpers import ANALYZE_BEAR as BEAR, ANALYZE_BOSS as BOSS, ANALYZE_FOREST as FOREST, FakeSource, commander_deck
 
 CARDS = [{"name": "Strong <b>Card</b>", "copies": 1, "delta": 1.25, "error": 0.2, "seen": 0.4, "cast_when_seen": 0.9, "note": ""},
          {"name": "Weak Card", "copies": 2, "delta": -0.5, "error": 0.1, "seen": 0.3, "cast_when_seen": 0.25, "note": "rarely cast when drawn"},

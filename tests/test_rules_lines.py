@@ -3,7 +3,7 @@
 import unittest
 
 from infernal_machine.effects.common import _rules_lines, rules_lines
-from tests.test_rules_text_81 import real
+from tests.helpers import real
 
 CARD = real("Two Lines", "{1}", "Creature — Bear", "Flying\nWhen this creature enters, draw a card.", "1", "1")
 

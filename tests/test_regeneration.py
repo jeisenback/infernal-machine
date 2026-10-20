@@ -6,8 +6,7 @@ from infernal_machine.effects import (CannotRegenerate, Destroy, DestroyAll, Reg
                                       activated_abilities, spell_effects)
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import lands, pick, table
+from tests.helpers import BEAR, creature, lands, OGRE, pick, table
 
 SWAMP = Card(name="Swamp", type_line="Basic Land — Swamp", produced_mana=("B",))
 SKELETON = creature("Skeleton", 1, 1, "{B}: Regenerate CARDNAME.")

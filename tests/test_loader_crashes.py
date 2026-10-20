@@ -7,9 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects.common import _count
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import lands
-from tests.test_rules_text_81 import Table, real
-from tests.test_triggers_80 import FOREST
+from tests.helpers import FOREST, lands, real, Table
 
 RAISE = real("Raise the Past", "{2}{W}{W}", "Sorcery",
              "Return all creature cards with mana value 2 or less from your graveyard to the battlefield.", colors=("W",))

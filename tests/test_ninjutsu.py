@@ -5,12 +5,7 @@ import unittest
 from infernal_machine.effects import ninjutsu_of
 from infernal_machine.game import NINJUTSU, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, attack_all
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import attack_all, BEAR, lands, OGRE, real, run_stack, script, table3
 
 NINJA = real("Ninja of the Deep Hours", "{3}{U}", "Creature — Human Ninja", "Ninjutsu {1}{U} ({1}{U}, Return an unblocked attacker you control "
              "to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nWhenever this creature deals combat damage to a "

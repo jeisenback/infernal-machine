@@ -10,9 +10,7 @@ from infernal_machine.effects import EVENTS, heard_on, triggered_abilities
 from infernal_machine.effects import events as registry
 from infernal_machine.effects.events import fact
 from infernal_machine.game import Permanent
-from tests.test_combat import BEAR
-from tests.test_mass_effects import table3
-from tests.test_trigger_subjects import settle
+from tests.helpers import BEAR, settle, table3
 
 PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "infernal_machine"
 

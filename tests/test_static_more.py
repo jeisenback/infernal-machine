@@ -6,8 +6,7 @@ from infernal_machine.effects import attached_abilities, static_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_mass_effects import table3
+from tests.helpers import BEAR, table3
 
 
 def creature(name, text="", types="Creature — Bear", colors=(), power="2", toughness="2"):

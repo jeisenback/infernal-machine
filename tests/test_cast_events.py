@@ -4,10 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import triggered_abilities
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, attack_all
-from tests.test_effects import lands, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import SPIRIT, run_stack, take_turn_attacking
+from tests.helpers import attack_all, BEAR, BOLT, lands, run_stack, SPIRIT, table, table3, take_turn_attacking
 
 
 def watcher(text, name="Watcher"):
@@ -20,7 +17,6 @@ BIG_ANY = watcher("Whenever you cast an instant or sorcery spell with mana value
 PLAIN_CAST = watcher("Whenever you cast an instant or sorcery spell, draw a card.")
 GROUP = watcher("Whenever one or more creatures you control deal combat damage to a player, draw a card.")
 GROUP_TOKENS = watcher("Whenever one or more creature tokens you control deal combat damage to a player, draw a card.")
-BOLT = Card(name="Bolt", mana_cost="{R}", cmc=1.0, type_line="Instant", oracle_text="Draw a card.")
 WRATH = Card(name="Big Wave", mana_cost="{3}{U}{U}", cmc=5.0, type_line="Sorcery", oracle_text="Draw a card.")
 
 

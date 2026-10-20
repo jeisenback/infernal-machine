@@ -7,8 +7,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import KICKER_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, OGRE, Table, creature, lands, real, run_stack, script
-from tests.test_delayed_triggers import end_turn
+from tests.helpers import BEAR, creature, end_turn, lands, OGRE, real, run_stack, script, Table
 
 HUNTER = real("Hunter's Insight", "{2}{G}", "Instant", "Choose target creature you control. Whenever that creature deals combat damage to a "
               "player or planeswalker this turn, draw that many cards.", colors=("G",))

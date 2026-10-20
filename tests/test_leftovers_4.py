@@ -7,14 +7,7 @@ import unittest
 from infernal_machine.effects import Condition, ReturnTransformed, activated_abilities, triggered_abilities
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_activated import activation
-from tests.test_combat import BEAR, OGRE, attack_all
-from tests.test_gift import table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_transform import begin
-from tests.test_x_targets import script
+from tests.helpers import activation, attack_all, BEAR, begin, gift_table as table, OGRE, real, run_stack, script, table3
 
 SURVIVALISTS = real("Backwoods Survivalists", "{3}{G}", "Creature — Human Warrior", "Delirium — This creature gets +1/+1 and has trample as long "
                     "as there are four or more card types among cards in your graveyard.", "4", "3")

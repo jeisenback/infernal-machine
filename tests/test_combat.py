@@ -3,15 +3,11 @@ import unittest
 from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
 from infernal_machine.game import Game, Permanent
-from tests.helpers import BEAR, OGRE, creature  # noqa: F401  (they live in tests/helpers.py; other tests still import them from here)
-from tests.test_effects import FOREST, table
-from tests.test_game import ScriptedPlayer
+from tests.helpers import attack_all, BEAR, BIRD, combat_names as names, creature, fight, FOREST, OGRE, ScriptedPlayer, table, WURM
 
 
-BIRD = creature("Bird", 1, 1, "Flying")
 SPIDER = creature("Spider", 1, 3, "Reach")
 GOBLIN = creature("Goblin", 2, 1, "Menace")
-WURM = creature("Wurm", 6, 6, "Trample")
 KNIGHT = creature("Knight", 2, 2, "First strike")
 DOUBLE = creature("Double", 2, 2, "Double strike")
 SNAKE = creature("Snake", 1, 1, "Deathtouch")
@@ -19,32 +15,6 @@ PRIEST = creature("Priest", 2, 2, "Lifelink")
 CAT = creature("Cat", 2, 2, "Vigilance")
 HASTY = creature("Hasty", 2, 2, "Haste")
 WALL = creature("Wall", 0, 4, "Defender")
-
-
-def attack_all(prompt, options):
-    """Attack the first opponent with everything; block the first attacker offered."""
-    if len(options) > 1 and options[0] in ("Don't attack", "Don't block"):
-        return 1
-    return options.index("Pass") if "Pass" in options else 0
-
-
-def fight(attackers, blockers=(), attacker_policy=attack_all, blocker_policy=attack_all):
-    game, _, _ = table(attacker_policy, blocker_policy)
-    a, b = game.seats
-    a.battlefield = [Permanent(c) for c in attackers]
-    b.battlefield = [Permanent(c) for c in blockers]
-    game.combat.declare_attackers(a)
-    game.combat.declare_blockers()
-    if game.combat.has_first_strike():
-        game.combat.deal_damage(first_strike_step=True)
-        game._check_state()
-    game.combat.deal_damage(first_strike_step=False)
-    game._check_state()
-    return game, a, b
-
-
-def names(seat):
-    return sorted(p.card.name for p in seat.battlefield)
 
 
 class AttackTests(unittest.TestCase):

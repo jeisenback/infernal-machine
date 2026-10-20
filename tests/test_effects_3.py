@@ -6,10 +6,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import triggered_abilities
 from infernal_machine.game import CAST, Permanent
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, pick, run_stack, table3
 
 TOKEN = Card(name="Goblin", type_line="Token Creature — Goblin", power="1", toughness="1", colors=("R",))
 

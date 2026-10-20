@@ -5,9 +5,7 @@ import unittest
 from infernal_machine.effects import PREVIOUS_TARGET, LureThisTurn, MustBlockThisTurn, PutStunOnSource, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, BIRD, OGRE, fight, names
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
+from tests.helpers import BEAR, BIRD, combat_names as names, fight, OGRE, real, run_stack
 
 NEMESIS = real("Nemesis Mask", "{3}", "Artifact — Equipment", "All creatures able to block equipped creature do so.\nEquip {3}")
 LURE_AURA = real("Lure Aura", "{1}{G}{G}", "Enchantment — Aura", "Enchant creature\nAll creatures able to block enchanted creature do so.")
@@ -27,7 +25,7 @@ def attack_with_everything(prompt, options):
 
 def fight_never_blocking(attackers, blockers, before=lambda game, a, b: None):
     """Combat in which the defender would never choose to block; `before` sets up the forced blocks."""
-    from tests.test_effects import table
+    from tests.helpers import table
     game, _, _ = table(attack_with_everything, never_block)
     a, b = game.seats
     a.battlefield = [Permanent(c) if not isinstance(c, Permanent) else c for c in attackers]

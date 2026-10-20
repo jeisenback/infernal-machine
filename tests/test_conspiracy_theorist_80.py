@@ -7,10 +7,7 @@ The line is the card's own Oracle text from Scryfall. It triggers once for a who
 import unittest
 
 from infernal_machine.game import Permanent
-from tests.test_effects import pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_triggers_80 import FOREST, RELIC, SHRINE, card, names, supported
+from tests.helpers import card, FOREST, names, pick, RELIC, run_stack, SHRINE, table3, triggers_80_supported as supported
 
 THEORIST = card("Whenever you discard one or more nonland cards, you may exile one of them from your graveyard. If you do, you "
                 "may cast it this turn.", "Theorist")

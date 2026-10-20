@@ -4,8 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import DestroyAll, EachSacrifices, GiveBack, SacrificeAll, spell_effects
 from infernal_machine.game import SACRIFICE_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import FOREST
-from tests.test_mass_effects import table3
+from tests.helpers import FOREST, table3
 
 
 def sorcery(text):

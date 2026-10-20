@@ -7,13 +7,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import activate, fire
-from tests.test_x_targets import script
-from tests.test_triggers_80 import FOREST, PLAINS, RELIC, SHRINE, card
+from tests.helpers import activate, BEAR, card, fire, FOREST, lands, OGRE, pick, PLAINS, RELIC, run_stack, script, SHRINE, table3
 
 HARNESS = Card(name="Fractal Harness", mana_cost="{X}{2}{G}", type_line="Artifact — Equipment",
                oracle_text="When this Equipment enters, create a 0/0 green and blue Fractal creature token. Put X +1/+1 counters on "

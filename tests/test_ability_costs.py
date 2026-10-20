@@ -5,25 +5,24 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import activated_abilities, ward_fields
 from infernal_machine.game import ACTIVATE, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, creature
-from tests.test_effects import lands, pick, table
+from tests.helpers import (
+    ABILITY_COSTS_MOUNTAIN as MOUNTAIN,
+    ability_costs_settle as settle,
+    activations,
+    BEAR,
+    creature,
+    lands,
+    LOOTER,
+    pick,
+    SPARE,
+    table,
+)
 
 ALTAR = Card(name="Altar", mana_cost="{1}", type_line="Artifact", oracle_text="Sacrifice a creature: Draw a card.")
 OTHER = creature("Cultist", 2, 2, "Sacrifice another creature: You gain 2 life.")
 SELFISH = creature("Fodder", 1, 1, "Sacrifice a creature: You gain 2 life.")
-LOOTER = Card(name="Looter", mana_cost="{1}", type_line="Artifact", oracle_text="{1}, Discard a card: Draw a card.")
 GRAVE = Card(name="Grave", mana_cost="{1}", type_line="Artifact",
              oracle_text="{1}, Exile a card from your graveyard: You gain 1 life.")
-MOUNTAIN = Card(name="Mountain", type_line="Basic Land", produced_mana=("R",))
-SPARE = Card(name="Spare", mana_cost="{1}", type_line="Sorcery", oracle_text="Draw a card.")
-
-
-def activations(game, seat, text):
-    return [a for a in game.legal_actions(seat) if a.startswith(ACTIVATE) and text in a]
-
-
-def settle(game):
-    game._priority_round(game.seats[0])
 
 
 class ParseTests(unittest.TestCase):

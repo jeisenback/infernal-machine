@@ -7,7 +7,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, KICKER_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, OGRE, Table, creature, lands, real, run_stack, script
+from tests.helpers import BEAR, creature, end_turn, lands, OGRE, real, run_stack, script, Table
 
 GLIMPSE = real("Glimpse of Nature", "{G}", "Sorcery", "Whenever you cast a creature spell this turn, draw a card.", colors=("G",))
 FRENZY = real("Death Frenzy", "{3}{B}{G}", "Sorcery", "All creatures get -2/-2 until end of turn. Whenever a creature dies this turn, "
@@ -35,11 +35,6 @@ def cast(table, card, seat=None):
     table.game._perform(seat, CAST + card.name)
     run_stack(table.game)
     table.game._check_state()
-
-
-def end_turn(game, seat):
-    game.step = "cleanup"
-    game._turn_based_actions(seat)
 
 
 class GlimpseTests(unittest.TestCase):

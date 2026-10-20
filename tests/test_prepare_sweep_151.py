@@ -7,12 +7,23 @@ import unittest
 from infernal_machine.cards import Card, _mana_value
 from infernal_machine.game import CAST, CAST_PREPARED, GraveyardTarget, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, attack_all
-from tests.test_effects import lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import SPIRIT, run_stack, take_turn_attacking
-from tests.test_triggers_80 import BIG, FOREST, RELIC, SHRINE
-from tests.test_x_targets import script
+from tests.helpers import (
+    attack_all,
+    BEAR,
+    BIG,
+    FOREST,
+    lands,
+    OGRE,
+    pick,
+    RELIC,
+    run_stack,
+    script,
+    SHRINE,
+    SPIRIT,
+    table,
+    table3,
+    take_turn_attacking,
+)
 
 
 def prep(name, cost, type_line, power, toughness, text, half_name, half_cost, half_type, half_text):

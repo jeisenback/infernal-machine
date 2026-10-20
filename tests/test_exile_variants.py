@@ -6,10 +6,7 @@ from infernal_machine.effects import Counter, ExileTop, Flicker, spell_effects, 
 from infernal_machine.game import CAST, CAST_EXILE, PASS, PLAY_EXILE, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import FOREST, lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, FOREST, lands, OGRE, pick, run_stack, table3
 
 
 def spell(name, text, kind="Instant", cost="{U}"):

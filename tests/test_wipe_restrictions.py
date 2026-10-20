@@ -5,8 +5,7 @@ from infernal_machine.characteristics import Modifier
 from infernal_machine.effects import DamageEach, DestroyAll, EachSacrifices, ExileAll, MassFilter, TargetSacrifices, spell_effects
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, WURM, creature
-from tests.test_effects import SOL_RING, lands, pick, table
+from tests.helpers import BEAR, creature, lands, OGRE, pick, SOL_RING, table, WURM
 
 BIRD = creature("Bird", 1, 1, "Flying")
 DRAGON = creature("Dragon", 4, 4, "Flying")

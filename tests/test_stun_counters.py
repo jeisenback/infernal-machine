@@ -6,12 +6,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import UntapAll, spell_effects
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import BEAR, lands, OGRE, real, run_stack, script, table3
 
 FREEZE = real("Freeze", "{1}{U}", "Sorcery", "Tap target creature. Put three stun counters on it.")
 JAM = real("Jam", "{1}{U}", "Instant", "Tap target creature an opponent controls and put a stun counter on it.")

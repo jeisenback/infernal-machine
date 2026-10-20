@@ -13,9 +13,7 @@ from infernal_machine.game import Game, Permanent
 from infernal_machine.server import AutoPilotPlayer, main as server_main, run_table
 from infernal_machine.tcp import Disconnected, TcpPlayer, listen
 from infernal_machine.cards import load_deck
-from tests.test_effects import BEAR, lands, table
-from tests.test_game import ScriptedPlayer
-from tests.test_triggers import MARTYR
+from tests.helpers import EFFECTS_BEAR as BEAR, FakeServer, lands, MARTYR, ScriptedPlayer, table
 
 EXAMPLES = "examples"
 
@@ -171,26 +169,6 @@ class DisplayTests(unittest.TestCase):
         self.assertEqual(n.narrate({"event": "trigger", "seat": 1, "card": "Kaelen", "ability": "Whenever Kaelen attacks, each opponent loses 1 life.", "targets": []}),
                          "Kaelen triggers for Bob: Whenever Kaelen attacks, each opponent loses 1 life.")
         self.assertEqual(n.narrate({"event": "brand_new", "x": 1}), '{"event":"brand_new","x":1}')
-
-
-class FakeServer:
-    """The other end of a client's socket, for scripted exchanges."""
-
-    def __init__(self):
-        self.client_sock, self.sock = socket.socketpair()
-        self.client_sock.settimeout(10)
-        self.sock.settimeout(10)
-        self.reader = self.sock.makefile("r", encoding="utf-8")
-
-    def send(self, message):
-        self.sock.sendall((json.dumps(message) + "\n").encode())
-
-    def receive(self):
-        return json.loads(self.reader.readline())
-
-    def close(self):
-        self.reader.close()
-        self.sock.close()
 
 
 class ClientTests(unittest.TestCase):

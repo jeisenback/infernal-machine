@@ -7,9 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import CANT_BE_BLOCKED, CANT_BLOCK, overloaded_effects
 from infernal_machine.game import ACTIVATE, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import attack_all
-from tests.test_effects import lands, pick, table
-from tests.test_more_triggers import run_stack
+from tests.helpers import attack_all, lands, pick, run_stack, table
 
 
 def creature(name, text="", power=2, toughness=2, colors=()):

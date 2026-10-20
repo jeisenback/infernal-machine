@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
 
 import play_smoke  # noqa: E402
 
-from tests.test_rules_text_81 import real  # noqa: E402
+from tests.helpers import real
 
 
 def data(name, cost, type_line, text, power=None, toughness=None):

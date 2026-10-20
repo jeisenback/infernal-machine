@@ -5,7 +5,7 @@ import unittest
 from infernal_machine.client import Narrator, render_board
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, creature, fight
+from tests.helpers import BEAR, OGRE, creature, fight
 
 PLAGUE = creature("Plague Myr", 3, 3, "Infect")
 STING = creature("Sting", 2, 2, "Wither")

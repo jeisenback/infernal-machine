@@ -6,17 +6,9 @@ import unittest
 from infernal_machine.cards import Card, Deck
 from infernal_machine.compare import compare_builds, deck_diff, format_comparison, pair_up, score, summarize
 from infernal_machine.matchup import GameResult, plan_games
+from tests.helpers import COMPARE_BEAR as BEAR, BOSS, DUD, COMPARE_FOREST as FOREST, ODD, standard
 
-FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
-BEAR = Card(name="Grizzly Bears", mana_cost="{1}{G}", cmc=2, type_line="Creature — Bear", power="2", toughness="2")
-DUD = Card(name="Dud", mana_cost="{U}{U}{U}{U}", cmc=4, type_line="Creature — Wizard", power="1", toughness="1")  # never castable with Forests
-ODD = Card(name="Odd Spell", mana_cost="{1}{G}", cmc=2, type_line="Sorcery", oracle_text="Exchange the frobnicator of each player with the quuxes.")
-BOSS = Card(name="Boss", mana_cost="{3}{G}", cmc=4, type_line="Legendary Creature — Elf", power="3", toughness="3", color_identity=("G",))
 CHANGER = Card(name="Changer", mana_cost="{1}{G}", cmc=2, type_line="Creature — Elf", power="1", toughness="1", color_identity=("G",), game_changer=True)
-
-
-def standard(spell, extra=()):
-    return Deck([], [FOREST] * 24 + list(extra) + [spell] * (36 - len(extra)), [])
 
 
 def result(winner, seat=0, error=None):

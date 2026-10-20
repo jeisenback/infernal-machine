@@ -5,11 +5,18 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, CAST, MADNESS_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_ability_costs import LOOTER, MOUNTAIN, settle
-from tests.test_effects import lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_triggers_80 import BIG, FOREST
+from tests.helpers import (
+    ABILITY_COSTS_MOUNTAIN as MOUNTAIN,
+    ability_costs_settle as settle,
+    BIG,
+    FOREST,
+    lands,
+    LOOTER,
+    pick,
+    run_stack,
+    table,
+    table3,
+)
 
 REMINDER = ("(If you discard this card, discard it into exile. When you do, cast it for its madness cost or put it into your "
             "graveyard.)")

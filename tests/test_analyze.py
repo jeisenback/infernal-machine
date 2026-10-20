@@ -11,17 +11,11 @@ from unittest import mock
 
 from infernal_machine.analyze import PARTS, analyze_deck, format_analysis, main
 from infernal_machine.cards import Card, CardNotFound, Deck
+from tests.helpers import ANALYZE_BEAR as BEAR, ANALYZE_BOSS as BOSS, ANALYZE_FOREST as FOREST, FakeSource, commander_deck
 
-FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
-BEAR = Card(name="Grizzly Bears", mana_cost="{1}{G}", cmc=2, type_line="Creature — Bear", power="2", toughness="2", color_identity=("G",))
-BOSS = Card(name="Boss", mana_cost="{3}{G}", cmc=4, type_line="Legendary Creature — Elf", power="3", toughness="3", color_identity=("G",))
 ODD = Card(name="Odd Spell", mana_cost="{1}{G}", cmc=2, type_line="Sorcery", oracle_text="Exchange the frobnicator of each player with the quuxes.",
            color_identity=("G",))
 FAST = dict(games=2, sim_games=30, turns=4, seed=1)  # small, so the whole run is quick
-
-
-def commander_deck(*extras):
-    return Deck([BOSS], [*extras, *[FOREST] * 38, *[BEAR] * (61 - len(extras))], [])
 
 
 def standard_deck(*extras):
@@ -120,19 +114,6 @@ class FormatTests(unittest.TestCase):
     def test_what_was_left_out_is_said(self):
         report = format_analysis(analyze_deck(standard_deck(), skip=["goldfish"], **FAST))
         self.assertIn("Left out: Commander Bracket (a deck with no commander has none); Goldfish (skipped on request); Matchups (no opponents given).", report)
-
-
-class FakeSource:
-    def __init__(self, *cards):
-        self.cards = {c.name: c for c in cards}
-
-    def get(self, name):
-        if name not in self.cards:
-            raise CardNotFound(name)
-        return self.cards[name]
-
-    def get_many(self, names):
-        return {n: self.get(n) for n in dict.fromkeys(names)}
 
 
 class CommandLineTests(unittest.TestCase):

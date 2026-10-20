@@ -6,12 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import activate, fire
-from tests.test_triggers_80 import FOREST, RELIC
+from tests.helpers import activate, BEAR, fire, FOREST, lands, pick, RELIC, run_stack, table3
 
 CHIROGRAPHY = Card(name="Intermediate Chirography", mana_cost="{1}{B}", cmc=2.0, type_line="Enchantment — Class",
                    oracle_text="(Gain the next level as a sorcery to add its ability.)\nWhen this Class enters, create a 2/1 white and "

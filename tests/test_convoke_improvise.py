@@ -6,9 +6,7 @@ from infernal_machine.cards import Card
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.mana import parse_cost
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import lands
-from tests.test_rules_text_81 import Table, real
-from tests.test_triggers_80 import FOREST, PLAINS
+from tests.helpers import FOREST, lands, PLAINS, real, Table
 
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))
 

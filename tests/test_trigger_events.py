@@ -4,8 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import triggered_abilities
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, creature, fight
-from tests.test_effects import DIVINATION, FOREST, lands, pick, table
+from tests.helpers import BEAR, creature, DIVINATION, fight, FOREST, lands, pick, table
 
 
 def watcher(name, text, kind="Enchantment"):

@@ -6,10 +6,7 @@ from infernal_machine.effects import (CANT_BLOCK, DoubleCounters, EachCreatesTok
                                       triggered_abilities)
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, creature, lands, OGRE, pick, run_stack, table3
 
 
 def spell(name, text, kind="Instant", cost="{U}"):

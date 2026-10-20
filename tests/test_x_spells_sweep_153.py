@@ -5,10 +5,7 @@ import unittest
 
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands
-from tests.test_rules_text_81 import Table, battlefield_names, real
-from tests.test_triggers_80 import BIG, FOREST, PLAINS, RELIC, SHRINE
+from tests.helpers import BARGAIN, battlefield_names, BEAR, BIG, FOREST, lands, OGRE, PLAINS, priority_cast, real, RELIC, SHRINE, Table
 
 
 def end_turn(game, seat):
@@ -252,19 +249,6 @@ class TyvarsStandTests(unittest.TestCase):
         bear, ogre = Permanent(BEAR), Permanent(OGRE)
         t = Table(STAND, "2", "Bear", mine=[bear, ogre]).cast()
         self.assertEqual((t.game.power(ogre), t.game.has_keyword(ogre, "indestructible")), (3, False))
-
-
-BARGAIN = real("Immoral Bargain", "{1}{B}{G}", "Sorcery",
-               "As an additional cost to cast this spell, sacrifice X creatures.\nDestroy X target nonland permanents.")
-
-
-def priority_cast(table):
-    """Immoral Bargain's X is asked for as the spell is cast from priority, so go in through the priority round."""
-    table.game._priority_round(table.a)
-    from tests.test_more_triggers import run_stack
-    run_stack(table.game)
-    table.game._check_state()
-    return table
 
 
 class ImmoralBargainTests(unittest.TestCase):

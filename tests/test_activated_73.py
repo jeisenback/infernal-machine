@@ -10,10 +10,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import activated_abilities, spell_effects
 from infernal_machine.game import ACTIVATE, ACTIVATE_GRAVEYARD, CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import lands, pick, table
-from tests.test_more_triggers import run_stack
-from tests.test_x_targets import script
+from tests.helpers import BEAR, creature, lands, OGRE, pick, run_stack, script, table
 
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))

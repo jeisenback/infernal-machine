@@ -2,8 +2,7 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.game import PLAY_LAND, Permanent
-from tests.test_effects import table
-from tests.test_lands import spell
+from tests.helpers import spell, table
 
 PATHWAY = {
     "name": "Riverglade Pathway // Lavaglen Pathway", "layout": "modal_dfc", "cmc": 0.0, "id": "abc",

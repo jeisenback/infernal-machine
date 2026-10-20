@@ -7,10 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
 from infernal_machine.effects import activated_abilities, spell_effects
 from infernal_machine.game import CAST, CAST_PREPARED, MODE_PROMPT, OPENING_PROMPT, Permanent
-from tests.test_combat import BEAR
-from tests.test_effects import lands, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, run_stack, table, table3
 from tests.real import REAL
 
 WHITE_BEAR = replace(BEAR, name="White Bear", colors=("W",))
@@ -226,7 +223,7 @@ class BioshiftTests(unittest.TestCase):
 
 class CodieTests(unittest.TestCase):
     def test_a_prepared_spell_is_copied_and_an_ordinary_one_is_not(self):
-        from tests.test_prepared import ADEPT
+        from tests.helpers import ADEPT
         game, _ = table3()
         a = game.seats[0]
         a.library = [BEAR] * 9

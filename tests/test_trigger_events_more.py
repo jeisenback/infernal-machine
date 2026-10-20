@@ -10,8 +10,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import Draw, Watch, triggered_abilities
 from infernal_machine.game import CAST, CAST_GRAVEYARD, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import FOREST, lands, pick, table
+from tests.helpers import BEAR, creature, FOREST, lands, OGRE, pick, table
 
 ISLAND = Card(name="Island", type_line="Basic Land", produced_mana=("U",))
 

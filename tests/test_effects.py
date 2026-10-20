@@ -4,26 +4,31 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import (Counter, Damage, Destroy, Draw, FetchBasicLand, GainLife,
                                       OpponentsLoseLife, mana_ability, spell_effects)
 from infernal_machine.game import CAST, CAST_COMMANDER, COMMAND_ZONE_PROMPT, PASS, Permanent
-from tests.helpers import FOREST, RAINBOW, TABLE_COMMANDER, lands, pick, table  # noqa: F401  (they live in tests/helpers.py; other tests still import them from here)
+from tests.helpers import (
+    COUNTERSPELL,
+    DARKSTEEL,
+    DIVINATION,
+    EFFECTS_BEAR as BEAR,
+    EFFECTS_BOLT as BOLT,
+    EFFECTS_COMMANDER as COMMANDER,
+    FOREST,
+    lands,
+    MURDER,
+    pick,
+    RAINBOW,
+    SOL_RING,
+    table,
+    TABLE_COMMANDER,
+    TROLL,
+)
 from tests.real import REAL
 
-BOLT = Card(name="Lightning Bolt", mana_cost="{R}", type_line="Instant",
-            oracle_text="Lightning Bolt deals 3 damage to any target.")
-DIVINATION = Card(name="Divination", mana_cost="{2}{U}", type_line="Sorcery", oracle_text="Draw two cards.")
-COUNTERSPELL = Card(name="Counterspell", mana_cost="{U}{U}", type_line="Instant", oracle_text="Counter target spell.")
-MURDER = Card(name="Murder", mana_cost="{1}{B}{B}", type_line="Instant", oracle_text="Destroy target creature.")
 RAMPANT = REAL["Rampant Growth"]
 WEIRD = Card(name="Weird Spell", mana_cost="{U}", type_line="Instant", oracle_text="Exchange control of two target creatures.")
-SOL_RING = Card(name="Sol Ring", mana_cost="{1}", type_line="Artifact", oracle_text="{T}: Add {C}{C}.")
 ELVES = Card(name="Llanowar Elves", mana_cost="{G}", type_line="Creature — Elf Druid",
              oracle_text="{T}: Add {G}.", power="1", toughness="1")
-BEAR = Card(name="Grizzly Bears", mana_cost="{1}{G}", type_line="Creature — Bear", power="2", toughness="2")
 OGRE = Card(name="Gray Ogre", mana_cost="{2}{R}", type_line="Creature — Ogre", power="2", toughness="2")
-DARKSTEEL = Card(name="Darksteel Myr", mana_cost="{3}", type_line="Artifact Creature — Myr",
-                 oracle_text="Indestructible", power="0", toughness="1")
-TROLL = Card(name="Troll", mana_cost="{G}", type_line="Creature — Troll", oracle_text="Hexproof", toughness="2")
 WALKER = Card(name="Walker", mana_cost="{3}", type_line="Legendary Planeswalker — Test", loyalty="3")
-COMMANDER = TABLE_COMMANDER
 
 
 class ParseTests(unittest.TestCase):

@@ -6,9 +6,7 @@ from infernal_machine.effects import (Discard, DiscardHandsDrawGreatest, EachDra
 from infernal_machine.game import CAST, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_effects import BOLT, FOREST, lands, pick
-from tests.test_combat import BEAR
-from tests.test_mass_effects import table3
+from tests.helpers import BEAR, EFFECTS_BOLT as BOLT, FOREST, lands, pick, table3
 
 
 def sorcery(name, text):

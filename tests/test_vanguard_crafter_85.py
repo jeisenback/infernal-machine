@@ -11,8 +11,7 @@ from infernal_machine.effects import mana_restriction
 from infernal_machine.game import CAST, CAST_COMMANDER, Permanent
 from infernal_machine.mana import parse_cost
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import creature
-from tests.test_effects import FOREST, table
+from tests.helpers import creature, FOREST, table
 
 VANGUARD = creature("Vanguard", 2, 2, "Each creature you control with a +1/+1 counter on it has vigilance.")
 CRAFTER = creature("Crafter", 1, 1, "{T}: Add {C}. This mana can't be spent to cast spells from your hand.")

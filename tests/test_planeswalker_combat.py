@@ -4,8 +4,7 @@ from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
 from infernal_machine.combat import ASSIGN_PROMPT, ATTACK_PROMPT, NO_ATTACK
 from infernal_machine.game import Permanent
-from tests.test_combat import BEAR, OGRE, WURM, creature
-from tests.test_effects import FOREST, table
+from tests.helpers import BEAR, creature, FOREST, OGRE, table, WURM
 
 WALKER = Card(name="Walker", mana_cost="{3}", type_line="Legendary Planeswalker — Test", loyalty="4")
 DRAGON = creature("Dragon", 4, 4)

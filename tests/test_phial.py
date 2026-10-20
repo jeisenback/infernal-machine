@@ -6,8 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import real, table3
-from tests.test_draw_doubling import ARCHIVE
+from tests.helpers import ARCHIVE, real, table3
 
 PHIAL = real("Phial of Galadriel", "{3}", "Legendary Artifact", "If you would draw a card while you have no cards in hand, draw two cards "
              "instead.\nIf you would gain life while you have 5 or less life, you gain twice that much life instead.\n{T}: Add one mana of any "

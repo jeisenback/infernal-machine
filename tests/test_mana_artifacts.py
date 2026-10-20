@@ -6,13 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import RAINBOW, FOREST as EFFECTS_FOREST, lands, pick
-from tests.test_lands import spell
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_triggers_80 import FOREST
-from tests.test_x_targets import script
+from tests.helpers import FOREST, FOREST as EFFECTS_FOREST, lands, pick, RAINBOW, real, run_stack, script, spell, table3
 
 LANTERN = real("Chromatic Lantern", "{3}", "Artifact",
                "Lands you control have \"{T}: Add one mana of any color.\"\n{T}: Add one mana of any color.")

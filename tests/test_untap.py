@@ -4,11 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import Untap, UntapAll, UntapSource, spell_effects
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import FOREST, lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_trigger_subjects import attack_first_opponent
+from tests.helpers import attack_first_opponent, BEAR, FOREST, lands, pick, run_stack, table, table3
 
 
 def spell(text, kind="Instant"):

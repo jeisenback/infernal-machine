@@ -8,28 +8,28 @@ from infernal_machine.effects import GrantProtection, Pump, attached_abilities, 
 from infernal_machine.game import ACTIVATE, CAST, WARD_PROMPT, Game, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import attack_all
-from tests.test_effects import lands, pick, table
+from tests.helpers import (
+    attack_all,
+    GREEN_BEAR,
+    lands,
+    pick,
+    PLAIN,
+    PROTECTION_WARD_BOLT as BOLT,
+    protection_ward_creature as creature,
+    RED_OGRE,
+    table,
+    table2,
+)
 
 RED, BLUE, GREEN = frozenset("R"), frozenset("U"), frozenset("G")
 
 
-def creature(name, power, toughness, colors, text=""):
-    return Card(name=name, mana_cost="{1}", type_line="Creature — Test", power=str(power), toughness=str(toughness),
-                colors=tuple(colors), oracle_text=text)
-
-
-BOLT = Card(name="Lightning Bolt", mana_cost="{R}", type_line="Instant", colors=("R",),
-            oracle_text="Lightning Bolt deals 3 damage to any target.")
 DOOM = REAL["Fell"]
 PYROCLASM = Card(name="Pyroclasm", mana_cost="{1}{R}", type_line="Sorcery", colors=("R",),
                  oracle_text="Pyroclasm deals 2 damage to each creature.")
 KNIGHT = creature("Knight", 3, 3, "W", "Protection from red")
 PALADIN = creature("Paladin", 2, 2, "W", "Flying, protection from red and from blue")
-RED_OGRE = creature("Red Ogre", 3, 3, "R")
 RED_GOBLIN = creature("Red Goblin", 1, 1, "R")
-GREEN_BEAR = creature("Green Bear", 2, 2, "G")
-PLAIN = creature("Plain Bear", 2, 2, "G")
 WARDED = creature("Warded Bear", 2, 2, "G", "Ward {2}")
 SWORD = REAL["Sword of Fire and Ice"]
 RED_AURA = Card(name="Red Aura", mana_cost="{R}", type_line="Enchantment — Aura", colors=("R",),
@@ -37,10 +37,6 @@ RED_AURA = Card(name="Red Aura", mana_cost="{R}", type_line="Enchantment — Aur
 RED_EQUIPMENT = Card(name="Red Blade", mana_cost="{1}", type_line="Artifact — Equipment", colors=("R",),
                      oracle_text="Equipped creature gets +1/+1.\nEquip {1}")
 SORCERER = REAL["Prodigal Sorcerer"]
-def table2(*policies):
-    """table() with the players in a list, like table3()."""
-    game, a, b = table(*policies)
-    return game, [a, b]
 
 
 def names(seat):

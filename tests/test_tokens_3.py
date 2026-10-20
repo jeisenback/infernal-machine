@@ -13,10 +13,7 @@ from infernal_machine.effects import (Amount, AttackingTokens, CopyToken, Damage
                                       spell_effects, static_abilities, triggered_abilities)
 from infernal_machine.game import ACTIVATE_HAND, CAST, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, pick, run_stack, table3
 
 BIG_SCORE = Card(name="Big Score", mana_cost="{3}{R}", type_line="Instant", colors=("R",), cmc=4,
                  oracle_text="As an additional cost to cast this spell, discard a card.\n"

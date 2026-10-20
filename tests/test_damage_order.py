@@ -5,8 +5,7 @@ shield of 2 against 3 damage is 4; the shield first is 2."""
 import unittest
 
 from infernal_machine.game import DAMAGE_ORDER_PROMPT, Permanent
-from tests.helpers import BEAR, OGRE, pick, real, table3
-from tests.test_damage_modifiers import FURNACE, TOMIK
+from tests.helpers import BEAR, FURNACE, OGRE, pick, real, table3, TOMIK
 
 
 def setup(*cards, policies=()):

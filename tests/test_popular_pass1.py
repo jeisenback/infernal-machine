@@ -7,13 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import rules_statics
 from infernal_machine.game import ACTIVATE, CAST, PASS, PLAY_GRAVEYARD, PLAY_LAND, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_lands import spell
-from tests.test_effects import BEAR, RAINBOW, SOL_RING, lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_x_targets import script
-from tests.test_rules_text_81 import real
-from tests.test_triggers_80 import FOREST, PLAINS
+from tests.helpers import EFFECTS_BEAR as BEAR, FOREST, lands, pick, PLAINS, RAINBOW, real, run_stack, script, SOL_RING, spell, table, table3
 
 EXPLORATION = real("Exploration", "{G}", "Enchantment", "You may play an additional land on each of your turns.")
 CRUCIBLE = real("Crucible of Worlds", "{3}", "Artifact", "You may play lands from your graveyard.")

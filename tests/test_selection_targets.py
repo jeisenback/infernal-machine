@@ -4,9 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import Destroy, Exile, ReturnFromGraveyard, ReturnToHand, SearchLibrary, spell_effects
 from infernal_machine.game import CAST, NO_TARGET, SEARCH_CARD_PROMPT, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
+from tests.helpers import BEAR, lands, OGRE, pick, table3
 
 ELF = Card(name="Elf", mana_cost="{G}", type_line="Creature — Elf Druid", power="1", toughness="1")
 GOBLIN = Card(name="Goblin", mana_cost="{R}", type_line="Creature — Goblin", power="1", toughness="1")

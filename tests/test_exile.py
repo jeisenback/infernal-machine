@@ -3,21 +3,15 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.effects import Destroy, Exile, ExileGraveyard, spell_effects
 from infernal_machine.game import CAST, COMMAND_ZONE_PROMPT, Permanent
-from tests.helpers import TABLE3_COMMANDER
+from tests.helpers import COMMANDER, EFFECTS_BEAR as BEAR, EXILE_OGRE as OGRE, FOREST, lands, MARTYR, pick, SWORDS, table, TABLE3_COMMANDER
 from tests.real import REAL
-from tests.test_effects import BEAR, FOREST, lands, pick, table
-from tests.test_triggers import MARTYR
 
-SWORDS = Card(name="Swords to Plowshares", mana_cost="{W}", type_line="Instant",
-              oracle_text="Exile target creature. Its controller gains life equal to its power.")
 PATH = Card(name="Path to Exile", mana_cost="{W}", type_line="Instant",
             oracle_text="Exile target creature. Its controller may search their library for a basic land card, "
                         "put that card onto the battlefield tapped, then shuffle.")
 CRYPT = REAL["Tormod's Crypt"]
 BANISHER = Card(name="Banisher", mana_cost="{2}{W}", type_line="Creature — Human", power="2", toughness="2",
                 oracle_text="When this creature enters, exile target nonland permanent an opponent controls.")
-OGRE = Card(name="Ogre", mana_cost="{3}", type_line="Creature — Ogre", power="3", toughness="3")
-COMMANDER = TABLE3_COMMANDER
 
 
 class ParseTests(unittest.TestCase):

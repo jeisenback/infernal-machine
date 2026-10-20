@@ -7,10 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import CLUE, FOOD, TREASURE
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, real
-from tests.test_triggers_80 import BIG
+from tests.helpers import BIG, real, run_stack, Table, table3
 
 
 def static(name, text, type_line="Artifact"):

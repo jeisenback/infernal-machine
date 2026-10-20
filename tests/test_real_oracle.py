@@ -16,9 +16,7 @@ from infernal_machine.effects import (Animate, Condition, Draw, LoseLife, LoseLi
 from infernal_machine.game import HAND_SIZE, Permanent
 from infernal_machine.report import unsupported_lines
 from infernal_machine.undercity import ROOMS, START
-from tests.test_combat import BEAR
-from tests.test_effects import pick
-from tests.test_mass_effects import table3
+from tests.helpers import BEAR, pick, table3
 
 from tests.real import DATA, REAL  # noqa: F401  (REAL is imported from here by other tests)
 

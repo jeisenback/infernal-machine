@@ -7,12 +7,7 @@ import unittest
 from infernal_machine.effects import RevealTopToHandDrain, activated_abilities, triggered_abilities
 from infernal_machine.game import ACTIVATE, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, attack_all
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import attack_all, BEAR, lands, OGRE, real, run_stack, script, table3
 
 DISCARDER = real("Okiba-Gang Shinobi", "{3}{B}{B}", "Creature — Rat Ninja", "Ninjutsu {3}{B}\nWhenever this creature deals combat damage to a "
                  "player, that player discards two cards.", "3", "2")

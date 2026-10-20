@@ -5,9 +5,7 @@ from infernal_machine.effects import Condition, filter_mana_ability, is_mana_abi
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_effects import FOREST
-from tests.test_lands import spell
-from tests.test_mass_effects import table3
+from tests.helpers import FOREST, spell, table3
 
 TEMPLE = Card(name="Temple of the False God", type_line="Land", produced_mana=("C",),
               oracle_text="{T}: Add {C}{C}. Activate only if you control five or more lands.")

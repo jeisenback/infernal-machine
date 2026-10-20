@@ -4,16 +4,12 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import Damage, Draw, triggered_abilities
 from infernal_machine.game import CAST, Permanent
 from tests.real import REAL
-from tests.test_combat import attack_all, creature
-from tests.test_effects import BOLT, COUNTERSPELL, lands, pick, table
+from tests.helpers import attack_all, COUNTERSPELL, creature, EFFECTS_BOLT as BOLT, lands, MARTYR, MULLDRIFTER, pick, table
 
-MULLDRIFTER = REAL["Mulldrifter"]
 MAYBE = Card(name="Maybe Elf", mana_cost="{G}", type_line="Creature — Elf", power="1", toughness="1",
              oracle_text="When this creature enters, you may draw a card.")
 PINGER = Card(name="Flametongue", mana_cost="{R}", type_line="Creature — Kavu", power="4", toughness="2",
               oracle_text="When this creature enters, it deals 4 damage to target creature.")
-MARTYR = Card(name="Martyr", mana_cost="{W}", type_line="Creature — Human", power="1", toughness="1",
-              oracle_text="When Martyr dies, you gain 3 life.")
 RAIDER = creature("Raider", 2, 2, "Whenever this creature attacks, each opponent loses 1 life.")
 NINJA = creature("Ninja", 1, 1, "Whenever this creature deals combat damage to a player, draw a card.")
 FARMER = Card(name="Farmer", mana_cost="{1}", type_line="Artifact",

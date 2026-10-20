@@ -5,12 +5,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import BEAR, lands, OGRE, real, run_stack, script, table3
 
 PLAINS = Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",))
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))
@@ -222,20 +217,20 @@ class DeflectingSwatTests(unittest.TestCase):
         self.assertEqual(unsupported_lines(SWAT), [])
 
     def test_the_new_target_is_chosen(self):
-        from tests.test_change_target import BOLT, stack_fight
+        from tests.helpers import CHANGE_TARGET_BOLT as BOLT, stack_fight
         game, a, b, c, _ = stack_fight(BOLT, "Player: B", SWAT, answers=("Spell", "Player: C"))
         self.assertEqual((b.life, c.life), (40, 37))
         self.assertEqual([e["to"] for e in a.player.events if e.get("event") == "target_changed"], ["Player: C (seat 2)"])
 
     def test_the_target_may_stay(self):
-        from tests.test_change_target import BOLT, stack_fight
+        from tests.helpers import CHANGE_TARGET_BOLT as BOLT, stack_fight
         game, a, b, c, responder = stack_fight(BOLT, "Player: B", SWAT, answers=("Spell",))
         self.assertEqual((b.life, c.life), (37, 40))
         self.assertEqual([e for e in a.player.events if e.get("event") == "target_changed"], [])
         self.assertTrue(responder.asked[-1][0].startswith("Player: B"))  # the current target is the first choice
 
     def test_a_spell_with_no_target_can_be_aimed_at_but_nothing_happens(self):
-        from tests.test_change_target import stack_fight
+        from tests.helpers import stack_fight
         draw = real("Divination", "{2}{U}", "Sorcery", "Draw two cards.")
         game, a, b, c, _ = stack_fight(draw, "", SWAT, answers=("Spell",))
         self.assertEqual(([x.name for x in b.graveyard], len(a.hand)), (["Deflecting Swat"], 2))  # it was cast, and Divination still drew
@@ -291,7 +286,7 @@ MANGLER = real("Dusk Mangler", "{B}", "Sorcery", "As an additional cost to cast 
 
 def bolt_then(response, *, b_lands, b_life, answers):
     """A casts Lightning Bolt at B; B (with `b_lands` lands and `b_life` life) answers with `response`."""
-    from tests.test_change_target import BOLT, Responder
+    from tests.helpers import CHANGE_TARGET_BOLT as BOLT, Responder
     responder = Responder(*answers)
     game, _ = table3(script("Player: B"), responder)
     a, b, c = game.seats
@@ -477,7 +472,7 @@ class PumpAndBounceTests(unittest.TestCase):
         self.assertEqual(([x.name for x in b.hand], names(b)), (["Bear"], ["Forest"]))
 
     def test_it_returns_a_spell_and_not_one_of_your_own(self):
-        from tests.test_change_target import BOLT
+        from tests.helpers import CHANGE_TARGET_BOLT as BOLT
         game, _ = table3(script("Player: A"), script("Spell"))
         a, b, c = game.seats
         a.hand, a.battlefield = [BOLT], lands(2)

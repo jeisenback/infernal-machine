@@ -6,10 +6,7 @@ from infernal_machine.effects import (CANT_BE_BLOCKED, Condition, FOOD, PutCount
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, run_stack, table3
 
 PASSAGE = Card(name="Rogue's Passage", type_line="Land",
                oracle_text="{T}: Add {C}.\n{4}, {T}: Target creature can't be blocked this turn.")

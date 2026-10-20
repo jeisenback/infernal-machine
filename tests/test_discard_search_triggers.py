@@ -4,8 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import OnPlayer, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_mass_effects import table3
-from tests.test_trigger_subjects import MOUNTAIN, settle, watcher
+from tests.helpers import MOUNTAIN, settle, table3, watcher
 
 MEGRIM = "Whenever an opponent discards a card, Megrim deals 2 damage to that player."
 SPY = "Whenever an opponent searches their library, they lose 3 life."

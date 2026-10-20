@@ -5,11 +5,7 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, Permanent
-from tests.test_combat import BEAR
-from tests.test_mass_effects import table3
-from tests.test_rules_text_81 import real
-from tests.test_x_spells_sweep_153 import BARGAIN, RELIC, SHRINE, Table, battlefield_names, priority_cast
-from tests.test_x_targets import script
+from tests.helpers import BARGAIN, battlefield_names, BEAR, priority_cast, real, RELIC, script, SHRINE, Table, table3
 
 PLAINS = Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",))
 TREASURE = Card(name="Treasure", type_line="Token Artifact — Treasure", oracle_text="{T}, Sacrifice this artifact: Add one mana of any color.")

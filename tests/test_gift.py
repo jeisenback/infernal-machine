@@ -5,12 +5,7 @@ import unittest
 from infernal_machine.effects import gift_of
 from infernal_machine.game import CAST, GIFT_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import BEAR, gift_table as table, lands, OGRE, real, run_stack, script, table3
 
 HUNGER = real("Nocturnal Hunger", "{2}{B}", "Instant", "Gift a Food (You may promise an opponent a gift as you cast this spell. If you do, they create a "
               "Food token before its other effects. It's an artifact with \"{2}, {T}, Sacrifice this token: You gain 3 life.\")\nDestroy target "
@@ -35,18 +30,6 @@ TRINKET = real("Trinket", "{1}", "Artifact", "")
 SHRINE = real("Shrine", "{1}", "Enchantment", "")
 FOREST = real("Forest", "", "Basic Land — Forest", "")
 GIVE = "Give it to"
-
-
-def table(*hand, mana=4, policy=None):
-    game, _ = table3(policy or script("Give"))
-    a = game.seats[0]
-    a.hand, a.graveyard = list(hand), []
-    a.battlefield = lands(mana)
-    a.library = [BEAR] * 5
-    for seat in game.seats[1:]:
-        seat.library = [OGRE] * 5
-    game.turn, game.step = 2, "main1"
-    return game, a, game.seats[1], game.seats[2]
 
 
 def names(seat):

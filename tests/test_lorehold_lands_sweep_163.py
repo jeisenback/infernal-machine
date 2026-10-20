@@ -7,12 +7,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, CAST, CYCLE, PLAY_LAND, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, real
-from tests.test_triggers_80 import FOREST, PLAINS
+from tests.helpers import BEAR, FOREST, lands, pick, PLAINS, real, run_stack, Table, table3
 
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
 WASTES = Card(name="Wastes", type_line="Basic Land", produced_mana=("C",))
