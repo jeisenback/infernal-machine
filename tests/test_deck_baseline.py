@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from infernal_machine import coverage
 from infernal_machine.cards import BulkSource, Card, Deck
 from tests.helpers import real
 
@@ -30,57 +31,57 @@ def deck(*cards):
 
 
 def analyzed(**decks):
-    return audit.analyze_decks(decks)
+    return coverage.analyze_decks(decks)
 
 
 class BaselineTests(unittest.TestCase):
     def test_the_baseline_names_the_cards_that_cannot_be_played_sorted(self):
         result = analyzed(mine=deck((FOREST, 20), (MOON_B, 1), (MOON_A, 2), (BEAR, 1)))
-        self.assertEqual(audit.baseline_of(result), {"decks": {"mine": {"cards": 24, "unplayable": ["Moon Cat", "Moon Elk"]}}})
+        self.assertEqual(coverage.baseline_of(result), {"decks": {"mine": {"cards": 24, "unplayable": ["Moon Cat", "Moon Elk"]}}})
 
     def test_a_deck_with_nothing_wrong_has_an_empty_list(self):
-        self.assertEqual(audit.baseline_of(analyzed(mine=deck((FOREST, 5))))["decks"]["mine"]["unplayable"], [])
+        self.assertEqual(coverage.baseline_of(analyzed(mine=deck((FOREST, 5))))["decks"]["mine"]["unplayable"], [])
 
     def test_the_same_decks_against_their_own_baseline_change_nothing(self):
         result = analyzed(mine=deck((FOREST, 20), (MOON_A, 1)))
-        comparison = audit.compare_baseline(audit.baseline_of(result), result)
+        comparison = coverage.compare_baseline(coverage.baseline_of(result), result)
         self.assertEqual(comparison, {"regressed": {}, "fixed": {}, "new_decks": [], "missing_decks": []})
 
     def test_a_card_that_played_and_no_longer_does_is_named(self):
-        before = audit.baseline_of(analyzed(mine=deck((FOREST, 20), (MOON_A, 1))))
+        before = coverage.baseline_of(analyzed(mine=deck((FOREST, 20), (MOON_A, 1))))
         after = analyzed(mine=deck((FOREST, 20), (MOON_A, 1), (MOON_B, 1)))  # Moon Elk was not in the baseline's list: it played then
-        comparison = audit.compare_baseline(before, after)
+        comparison = coverage.compare_baseline(before, after)
         self.assertEqual(comparison["regressed"], {"mine": ["Moon Elk"]})
         self.assertEqual(comparison["fixed"], {})
 
     def test_a_card_that_now_plays_is_a_reminder_and_not_a_regression(self):
-        before = audit.baseline_of(analyzed(mine=deck((FOREST, 20), (MOON_A, 1))))
+        before = coverage.baseline_of(analyzed(mine=deck((FOREST, 20), (MOON_A, 1))))
         after = analyzed(mine=deck((FOREST, 20), (BEAR, 1)))
-        comparison = audit.compare_baseline(before, after)
+        comparison = coverage.compare_baseline(before, after)
         self.assertEqual((comparison["regressed"], comparison["fixed"]), ({}, {"mine": ["Moon Cat"]}))
 
     def test_one_card_fixed_and_another_broken_in_the_same_week_still_regresses(self):
-        before = audit.baseline_of(analyzed(mine=deck((FOREST, 20), (MOON_A, 1))))
+        before = coverage.baseline_of(analyzed(mine=deck((FOREST, 20), (MOON_A, 1))))
         after = analyzed(mine=deck((FOREST, 20), (MOON_B, 1)))  # a different card is the unplayable one now
-        comparison = audit.compare_baseline(before, after)
+        comparison = coverage.compare_baseline(before, after)
         self.assertEqual(comparison["regressed"], {"mine": ["Moon Elk"]}, "counts alone (1 and 1) would have hidden it")
         self.assertEqual(comparison["fixed"], {"mine": ["Moon Cat"]})
 
     def test_a_deck_the_baseline_has_not_seen_is_recorded_and_does_not_fail(self):
-        before = audit.baseline_of(analyzed(old=deck((FOREST, 5))))
+        before = coverage.baseline_of(analyzed(old=deck((FOREST, 5))))
         after = analyzed(old=deck((FOREST, 5)), brand_new=deck((FOREST, 5), (MOON_A, 1)))
-        comparison = audit.compare_baseline(before, after)
+        comparison = coverage.compare_baseline(before, after)
         self.assertEqual((comparison["new_decks"], comparison["regressed"]), (["brand_new"], {}))
 
     def test_a_baseline_deck_that_was_not_checked_is_reported(self):
-        before = audit.baseline_of(analyzed(a=deck((FOREST, 5)), b=deck((FOREST, 5))))
-        comparison = audit.compare_baseline(before, analyzed(a=deck((FOREST, 5))))
+        before = coverage.baseline_of(analyzed(a=deck((FOREST, 5)), b=deck((FOREST, 5))))
+        comparison = coverage.compare_baseline(before, analyzed(a=deck((FOREST, 5))))
         self.assertEqual(comparison["missing_decks"], ["b"])
 
     def test_the_report_names_what_regressed_and_what_now_plays(self):
-        before = audit.baseline_of(analyzed(mine=deck((FOREST, 20), (MOON_A, 1))))
+        before = coverage.baseline_of(analyzed(mine=deck((FOREST, 20), (MOON_A, 1))))
         after = analyzed(mine=deck((FOREST, 20), (MOON_B, 1)))
-        text = audit.render_baseline(audit.compare_baseline(before, after), after)
+        text = audit.render_baseline(coverage.compare_baseline(before, after), after)
         self.assertIn("Regressed", text)
         self.assertIn("mine: Moon Elk", text)
         self.assertIn("Now playable", text)
