@@ -42,7 +42,7 @@ from .filters import has_type, parse_filter
 from .mana import Cost, cost_of, parse_cost
 from .payment import ManaPayer, ManaSource, Payment
 from .player import Player
-from .prompts import PromptKind
+from .prompts import PRIORITY_PROMPT, PromptKind
 
 _T = TypeVar("_T")
 
@@ -918,7 +918,7 @@ class Game:
             else:
                 actions = self.legal_actions(holder)
                 self.send_state(holder)
-                choice = actions[holder.player.choose(f"Priority: {self.step}", actions)]
+                choice = actions[holder.player.choose(PRIORITY_PROMPT(self.step), actions)]
                 if choice == PASS:
                     passes += 1
                     holder = self.seats[self._next_live_seat(holder.index)]

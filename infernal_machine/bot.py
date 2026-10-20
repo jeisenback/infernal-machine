@@ -11,6 +11,7 @@ from typing import Sequence
 from .analysis import color_pips, is_land
 from .cards import Card, Deck
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
+from .prompts import PRIORITY_PROMPT, is_one_of, subject_of
 from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
 from .undercity import HELPS_ITS_TARGET
 from .effects import MOVE_COUNTERS_PROMPT
@@ -146,10 +147,10 @@ class BotPlayer:
             self._stack.reverse()
 
     def choose(self, prompt: str, options: Sequence[str]) -> int:
-        if prompt == KEEP_PROMPT:
+        if KEEP_PROMPT.matches(prompt):
             keep = keep_hand_for(self._hand, self._average_cost, self._mulligans) if "keep" in self.features else keep_hand(self._hand, self._mulligans)
             return 0 if keep else 1
-        if prompt in (BOTTOM_PROMPT, DISCARD_PROMPT, DISCARD_CARD_PROMPT):
+        if is_one_of(prompt, BOTTOM_PROMPT, DISCARD_PROMPT, DISCARD_CARD_PROMPT):
             return worst_card([self._card(name) for name in options])
         if ATTACK_PROMPT.matches(prompt):
             if _stats(prompt)[0] <= 0 or ("attack" in self.features and not self._worth_attacking(prompt)):
@@ -157,9 +158,9 @@ class BotPlayer:
             if "commander" in self.features and (lethal := self._commander_target(prompt, options)) is not None:
                 return lethal
             return self._attack_target(options)
-        if prompt == COMMAND_ZONE_PROMPT:
+        if COMMAND_ZONE_PROMPT.matches(prompt):
             return self._commander_zone(options)
-        if prompt in LAND_SEARCH_PROMPTS and (land := self._best_search_land(options, list(range(len(options))))) is not None:
+        if is_one_of(prompt, *LAND_SEARCH_PROMPTS) and (land := self._best_search_land(options, list(range(len(options))))) is not None:
             return land  # Evolving Wilds, Cultivate, Path to Exile's land: the colour the hand needs
         if BLOCK_PROMPT.matches(prompt):
             return self._block(prompt, options)
@@ -176,7 +177,7 @@ class BotPlayer:
             return len(options) - 1
         if LIFE_X_PROMPT.matches(prompt):  # paying life for X: some, not everything
             return min(len(options) - 1, 3)
-        if prompt.startswith((X_PROMPT, MULTIKICKER_PROMPT)):
+        if is_one_of(prompt, X_PROMPT, MULTIKICKER_PROMPT):
             return len(options) - 1  # as big as it can afford
         if CLONE_PROMPT.matches(prompt):  # copy the biggest creature, or nothing if there is none
             sizes = [sum(_stats(option)) for option in options[:-1]]
@@ -185,23 +186,23 @@ class BotPlayer:
             return next((i for i, o in enumerate(options) if _seat_of(o) != self._seat), 0)  # vote against an opponent's
         if MOVE_COUNTERS_PROMPT.matches(prompt):  # moves them all
             return len(options) - 1
-        if prompt == PROLIFERATE_PROMPT:  # add counters to its own permanents, and never to an opponent's
+        if PROLIFERATE_PROMPT.matches(prompt):  # add counters to its own permanents, and never to an opponent's
             mine = [i for i, option in enumerate(options[:-1]) if _seat_of(option) == self._seat]
             return mine[0] if mine else len(options) - 1
         if ASSIGN_PROMPT.matches(prompt):  # kill the blockers with the least toughness first
             return min(range(len(options)), key=lambda i: _stats(options[i])[1])
-        if prompt == RETURN_LAND_PROMPT:
+        if RETURN_LAND_PROMPT.matches(prompt):
             return len(options) - 1  # the bounceland that just came in is the newest land
-        if prompt in (SEARCH_CARD_PROMPT, LOOK_PROMPT, CHOOSE_DISCARD_PROMPT, THRONE_PROMPT):
+        if is_one_of(prompt, SEARCH_CARD_PROMPT, LOOK_PROMPT, CHOOSE_DISCARD_PROMPT, THRONE_PROMPT):
             taken = [i for i, name in enumerate(options) if name != NONE_TAKEN]  # never declines the optional take
-            if prompt == SEARCH_CARD_PROMPT and (land := self._best_search_land(options, taken)) is not None:
+            if SEARCH_CARD_PROMPT.matches(prompt) and (land := self._best_search_land(options, taken)) is not None:
                 return land
             # its best card; one it can't see in its own deck (from an opponent's hand) counts as worth nothing
             return max(taken, key=lambda i: self._cards[options[i]].cmc if options[i] in self._cards else 0)
-        if prompt == SACRIFICE_PROMPT or SACRIFICE_COST_PROMPT.matches(prompt):
+        if is_one_of(prompt, SACRIFICE_PROMPT, SACRIFICE_COST_PROMPT):
             return min(range(len(options)), key=lambda i: sum(_stats(options[i])))  # its weakest creature
-        if prompt.startswith((SCRY_PROMPT, SURVEIL_PROMPT)):
-            card = self._cards.get(prompt.split(": ", 1)[1])
+        if is_one_of(prompt, SCRY_PROMPT, SURVEIL_PROMPT):
+            card = self._cards.get(subject_of(prompt, SCRY_PROMPT if SCRY_PROMPT.matches(prompt) else SURVEIL_PROMPT))
             return 0 if card is None or self._wants_on_top(card) else 1  # 1: to the bottom, or the graveyard
         if MODE_PROMPT.matches(prompt):
             modes = [option for option in options if option != DONE_MODES]
@@ -211,9 +212,9 @@ class BotPlayer:
         if TARGET_PROMPT.matches(prompt):
             mine = [i for i, option in enumerate(options) if _seat_of(option) == self._seat]
             theirs = [i for i, option in enumerate(options) if _seat_of(option) != self._seat]
-            if self._is_buff_aura(prompt.removeprefix(TARGET_PROMPT)) and mine:
+            if self._is_buff_aura(subject_of(prompt, TARGET_PROMPT)) and mine:
                 return mine[0]
-            if "target" in self.features and theirs and self._is_removal(prompt.removeprefix(TARGET_PROMPT)):
+            if "target" in self.features and theirs and self._is_removal(subject_of(prompt, TARGET_PROMPT)):
                 sized = [i for i in theirs if sum(_stats(options[i])) > 0]
                 if sized:
                     return max(sized, key=lambda i: sum(_stats(options[i])))
@@ -293,7 +294,7 @@ class BotPlayer:
 
     def _commander_target(self, prompt: str, options: Sequence[str]) -> int | None:
         """For one of its own commanders attacking: the opponent it has hurt enough that this attack makes 21."""
-        label = prompt.removeprefix(ATTACK_PROMPT)
+        label = subject_of(prompt, ATTACK_PROMPT)
         name = next((n for n in self._commanders if label.startswith(n + " ")), None)
         if name is None:
             return None
@@ -321,7 +322,7 @@ class BotPlayer:
         its source (a land it needs for spells, a creature that should attack) only in the second main phase."""
         if "timing" not in self.features:
             return True
-        step = prompt.removeprefix("Priority: ")
+        step = subject_of(prompt, PRIORITY_PROMPT)
         cost = option.split("): ", 1)[1].split(":", 1)[0]
         if step == "main2":
             return True
@@ -407,7 +408,7 @@ class BotPlayer:
         """Attack when it is lethal, when it can't be blocked, or when nothing could block and kill this creature and
         survive; stay home when the opponents' board could be lethal next turn."""
         power, toughness = _stats(prompt)
-        label = prompt.removeprefix(ATTACK_PROMPT)
+        label = subject_of(prompt, ATTACK_PROMPT)
         card = next((c for n, c in self._cards.items() if label.startswith(n + " ")), None)
         text = card.oracle_text.lower() if card else ""
         mine = self._my_seat()
@@ -430,7 +431,7 @@ class BotPlayer:
         """With "block": block to kill an attacker the creature survives, else join a double block planned for it, else trade with a
         bigger creature, else take the hardest hit it survives, else plan a double block that kills an attacker neither blocker could alone (and the attacker cannot kill both),
         else chump the biggest attacker when what is coming would be lethal. None when none of these applies: the plain rules go on."""
-        label = prompt.removeprefix(BLOCK_PROMPT)
+        label = subject_of(prompt, BLOCK_PROMPT)
         me = _Fighter(label, next((c for n, c in self._cards.items() if label.startswith(n + " ")), None))
         attackers = [(i, _Fighter(options[i].removeprefix("Block "))) for i in range(1, len(options))]
         turn = (self._state or {}).get("turn")

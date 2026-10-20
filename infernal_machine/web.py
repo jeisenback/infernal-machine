@@ -74,7 +74,7 @@ class WebClient(Client):
         clock goes first): then None, and the events the server sent meanwhile are read."""
         with self._changed:
             self._prompt_id += 1
-            self.prompt = {"id": self._prompt_id, "prompt": prompt, "options": list(options), "seconds": seconds}
+            self.prompt = {"id": self._prompt_id, "prompt": str(prompt), "options": list(options), "seconds": seconds, "kind": getattr(getattr(prompt, "kind", None), "name", None)}
             self._answer = None
             self._bump()
             self._changed.wait_for(lambda: self._answer is not None, seconds + CLOCK_GRACE if seconds else None)

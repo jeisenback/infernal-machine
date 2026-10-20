@@ -33,7 +33,7 @@ To add a line:
 3. **Export it** from `effects/__init__.py` (explicit lists) if it is a new public name.
 4. **Do the work in `Game`** (`game.py`; combat is `combat.py`, paying for things with mana is `payment.py`, casting a spell is `casting.py`, and playing or casting from a zone other than the hand is a `ZonePlay` in `zones.py`: add one class and list it in `ZONE_PLAYS`, and the legal actions, the dispatch, the bot and the goldfish all see it).
    *Asking the player:* a question to a player is a typed prompt (`prompts.py`): a `PromptKind("clone", "Choose what to copy for ")` constant, asked as `choose(CLONE_PROMPT(name), options)`
-   and recognised with `CLONE_PROMPT.matches(prompt)`, which compares the kind's name, not the wording. A `Prompt` is still a `str`, so the wire format is unchanged.
+   and recognised with `CLONE_PROMPT.matches(prompt)`, which compares the kind's name, not the wording. A `Prompt` is still a `str`; the server sends its `kind` and `subject` beside the text. Never take a prompt apart by its words (`startswith`, `==`, `removeprefix`): use `KIND.matches`, `is_one_of`, `subject_of` (`tests/test_prompts.py` fails on it).
 5. **Test it from the card's real Oracle text**, never from invented wording: `tests/real.py` (`REAL`, built from
    `tests/real_oracle_texts.json`) or `real(name, cost, type_line, text, power, toughness)`. Play the card through the game
    (`table3`, `script`, `run_stack`, `lands`, `pick`, `BEAR`, `OGRE`), include a case where the effect must not apply, and check the

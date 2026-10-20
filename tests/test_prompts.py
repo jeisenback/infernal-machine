@@ -8,7 +8,7 @@ from pathlib import Path
 
 from infernal_machine import game as game_module
 from infernal_machine.game import CAST, CLONE_PROMPT, NOT_A_COPY, PASS, TARGET_PROMPT, Permanent
-from infernal_machine.prompts import Prompt, PromptKind
+from infernal_machine.prompts import PRIORITY_PROMPT, Prompt, PromptKind, is_one_of, subject_of, wire_fields
 from tests.helpers import BEAR, OGRE, lands, real, run_stack, table
 
 ROOT = Path(__file__).parent.parent / "infernal_machine"
@@ -101,6 +101,38 @@ class GameTests(unittest.TestCase):
         prompt = reworded("Clone")
         self.assertTrue(CLONE_PROMPT.matches(prompt))  # (the kind is the same: its name is "clone")
         self.assertEqual((reworded.name, CLONE_PROMPT.name), ("clone", "clone"))
+
+
+class WireTests(unittest.TestCase):
+    def test_a_typed_prompt_sends_its_kind_name_and_subject(self):
+        self.assertEqual(wire_fields(KIND("Clone")), {"kind": "test_kind", "subject": "Clone"})
+        self.assertEqual(wire_fields("Mulligan?"), {})
+        self.assertEqual(wire_fields(Prompt("untyped")), {})
+
+    def test_a_prompt_from_the_wire_matches_by_kind_whatever_its_words(self):
+        prompt = Prompt.from_wire("Pick a thing for Clone", "test_kind", "Clone")
+        self.assertTrue(KIND.matches(prompt))
+        self.assertFalse(OTHER.matches(prompt))
+        self.assertEqual(subject_of(prompt, KIND), "Clone")
+        self.assertEqual(Prompt.from_wire("Choose a thing for Clone").kind, None)  # an older server: by the start of the text
+        self.assertTrue(KIND.matches(Prompt.from_wire("Choose a thing for Clone")))
+
+    def test_is_one_of_and_subject_of(self):
+        self.assertTrue(is_one_of(KIND("x"), OTHER, KIND))
+        self.assertFalse(is_one_of(KIND("x"), OTHER))
+        self.assertEqual(subject_of(KIND("Bolt"), KIND), "Bolt")
+        self.assertEqual(subject_of("Choose a thing for Bolt", KIND), "Bolt")  # a plain string: what follows the start
+        self.assertEqual(subject_of(PRIORITY_PROMPT("main1"), PRIORITY_PROMPT), "main1")
+
+
+class NoStringMatchingTests(unittest.TestCase):
+    def test_the_engine_does_not_take_a_prompt_apart_by_its_words(self):
+        pattern = re.compile(r"prompt\s*(==|!=|in)\s*[A-Z(]|prompt\.(startswith|removeprefix)\(")
+        for path in ROOT.rglob("*.py"):
+            if path.name == "prompts.py":
+                continue
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                self.assertIsNone(pattern.search(line), f"{path.name}:{number}: {line.strip()} (use KIND.matches / subject_of)")
 
 
 class EveryPromptTests(unittest.TestCase):
