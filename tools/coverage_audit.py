@@ -459,6 +459,49 @@ def analyze_decks(decks: dict[str, Any]) -> dict:
     return {"decks": per_deck, "next": picks, "total": total, "playable": playable, "by_kind": by_kind.most_common()}
 
 
+def baseline_of(result: dict) -> dict:
+    """What `--write-baseline` keeps of an `analyze_decks` result: for each deck, its size and the names of the cards the engine can't play.
+    Names, not counts, so a card that stops working is named even when another one starts working the same week."""
+    return {"decks": {name: {"cards": deck["cards"], "unplayable": sorted(card for card, _, _ in deck["unplayable"])}
+                      for name, deck in sorted(result["decks"].items())}}
+
+
+def compare_baseline(baseline: dict, result: dict) -> dict:
+    """The tracked decks against their baseline (#475). `regressed`: cards that played in the baseline and no longer do, the one thing
+    that fails the weekly job (a parser change, or a card whose Oracle text changed); `fixed`: cards that now play, a reminder to
+    refresh the baseline; `new_decks`: decks the baseline has not seen, recorded and not failed; `missing_decks`: decks the baseline
+    has that were not checked, which fails (a deck file that went missing must not read as 'nothing got worse')."""
+    kept = baseline.get("decks", {})
+    now = {name: {card for card, _, _ in deck["unplayable"]} for name, deck in result["decks"].items()}
+    regressed: dict[str, list[str]] = {}
+    fixed: dict[str, list[str]] = {}
+    for name, unplayable in now.items():
+        if name not in kept:
+            continue
+        before = set(kept[name]["unplayable"])
+        if unplayable - before:
+            regressed[name] = sorted(unplayable - before)
+        if before - unplayable:
+            fixed[name] = sorted(before - unplayable)
+    return {"regressed": regressed, "fixed": fixed, "new_decks": sorted(set(now) - set(kept)), "missing_decks": sorted(set(kept) - set(now))}
+
+
+def render_baseline(comparison: dict, result: dict) -> str:
+    """The comparison as a few lines for a job summary."""
+    out = ["### Tracked decks against their baseline", ""]
+    for name, deck in result["decks"].items():
+        out.append(f"- **{name}**: {deck['playable']} of {deck['cards']} cards fully playable ({100 * deck['playable'] / deck['cards']:.0f}%)"
+                   if deck["cards"] else f"- **{name}**: no cards")
+    for title, key in (("Regressed (played before, no longer does)", "regressed"), ("Now playable (refresh the baseline)", "fixed")):
+        if comparison[key]:
+            out += ["", f"**{title}:**"] + [f"- {deck}: {', '.join(cards)}" for deck, cards in comparison[key].items()]
+    if comparison["new_decks"]:
+        out += ["", f"**New decks (not in the baseline yet):** {', '.join(comparison['new_decks'])}"]
+    if comparison["missing_decks"]:
+        out += ["", f"**In the baseline but not checked:** {', '.join(comparison['missing_decks'])}"]
+    return "\n".join(out)
+
+
 def render_decks(result: dict, top: int = 15) -> str:
     total, playable = result["total"], result["playable"]
     out = [f"## Coverage for {len(result['decks'])} deck{'s' if len(result['decks']) != 1 else ''}: {playable} of {total} cards fully playable "
@@ -563,8 +606,12 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--next", action="store_true", help="also rank the families to build next")
     parser.add_argument("--decks", nargs="+", metavar="DECK", help="decklists to check instead of the whole pool: what blocks them and what to build")
     parser.add_argument("--bulk", default=".cache/oracle_bulk.json", help="with --decks, the card file")
+    parser.add_argument("--baseline", metavar="FILE", help="with --decks, compare with this baseline: exit 1 if a card that played no longer does, or a baseline deck was not checked")
+    parser.add_argument("--write-baseline", metavar="FILE", help="with --decks, write the decks' baseline (the names of the cards that can't be played)")
     parser.add_argument("--workers", type=int, default=0, help="processes that read the cards (0: one for each processor, 1: none)")
     args = parser.parse_args(argv)
+    if (args.baseline or args.write_baseline) and not args.decks:
+        parser.error("--baseline and --write-baseline need --decks")
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     if args.decks:
@@ -573,13 +620,26 @@ def main(argv: list[str]) -> int:
         source = BulkSource(args.bulk)
         decks = {}
         for path in args.decks:
-            with open(path, encoding="utf-8") as f:
-                decks[os.path.splitext(os.path.basename(path))[0]] = load_deck(f.read(), source)
+            try:
+                with open(path, encoding="utf-8") as f:
+                    decks[os.path.splitext(os.path.basename(path))[0]] = load_deck(f.read(), source)
+            except (OSError, ValueError, KeyError) as error:  # a deck that can't be read must never look like a deck with nothing wrong
+                print(f"cannot read the deck {path}: {error}", file=sys.stderr)
+                return 2
         result = analyze_decks(decks)
         print(render_decks(result, args.top))
         if args.json:
             with open(args.json, "w") as f:
                 json.dump(result, f)
+        if args.write_baseline:
+            with open(args.write_baseline, "w", encoding="utf-8", newline="\n") as f:
+                json.dump(baseline_of(result), f, indent=1, sort_keys=True)
+                f.write("\n")
+        if args.baseline:
+            with open(args.baseline, encoding="utf-8") as f:
+                comparison = compare_baseline(json.load(f), result)
+            print("\n" + render_baseline(comparison, result))
+            return 1 if comparison["regressed"] or comparison["missing_decks"] else 0
         return 0
     result = analyze(fetch_pool(args.pool), args.workers)
     if args.mechanism:
