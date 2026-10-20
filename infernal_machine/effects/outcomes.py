@@ -2527,6 +2527,8 @@ _CONDITIONS = [
     (re.compile(r"creatures you control have total power (\d+) or greater"), lambda m: Condition("creature_power_at_least", int(m[1]))),
     (re.compile(r"you control a creature with power (\d+) or greater"), lambda m: Condition("creature_with_power", int(m[1]))),
     (re.compile(r"you created a token this turn"), lambda m: Condition("created_token")),
+    (re.compile(r"you attacked this turn"), lambda m: Condition("attacked_this_turn")),  # Raid
+    (re.compile(r"you control your commander"), lambda m: Condition("control_commander")),  # Lieutenant
     (re.compile(r"a library has (twenty|\d+) or fewer cards in it"),
      lambda m: Condition("any_library_at_most", 20 if m[1] == "twenty" else int(m[1]))),
     (re.compile(r"an opponent was dealt (\d+) or more damage this turn"), lambda m: Condition("opponent_damage_at_least", int(m[1]))),

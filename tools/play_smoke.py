@@ -26,7 +26,15 @@ from infernal_machine.game import ACTIVATE, CAST, CAST_DISTURB, CAST_EXILE, CAST
 from infernal_machine.report import unsupported_lines  # noqa: E402
 from tests.test_effects import BEAR, COMMANDER, FOREST, OGRE, RAINBOW  # noqa: E402
 from tests.test_game import ScriptedPlayer  # noqa: E402
-from tests.test_more_triggers import run_stack  # noqa: E402
+
+def run_stack(game: Game) -> None:
+    """Resolve everything on the stack, with the state-based actions between resolutions that a real priority round has (CR 704.3): a creature
+    that is dealt lethal damage dies before its Enrage trigger can be set off again."""
+    while game.pending or game.stack:
+        game._put_triggers_on_stack()
+        while game.stack:
+            game._resolve(game.stack.pop())
+            game._check_state()
 
 TIMEOUT_SECONDS = 5
 

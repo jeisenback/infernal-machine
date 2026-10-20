@@ -2381,6 +2381,10 @@ class Game:
             return not any(s.hand for s in self.live_seats())
         if kind == "creature_with_power":  # Garruk's Uprising: a creature you control with power N or greater
             return any(self.power(p) >= condition.count for p in seat.battlefield if "Creature" in p.card.type_line)
+        if kind == "attacked_this_turn":  # Raid: you declared an attack this turn (CR 508.1)
+            return seat.attackers_turn == self.turn and seat.most_attackers > 0
+        if kind == "control_commander":  # Lieutenant: one of your commanders is on the battlefield under your control
+            return any(p.card.name in seat.commander_names for p in seat.battlefield)
         if kind == "created_token":  # Idol of Oblivion
             return seat.token_turn == self.turn
         if kind == "creature_power_at_least":  # Mosswort Bridge: creatures you control have total power N or greater
@@ -3030,6 +3034,8 @@ class Game:
                 target.loyalty -= amount
             self.broadcast({"event": "damage", "card": target.card.name, "amount": amount,
                             "source": source.card.name if source else None})
+            if amount > 0 and "Creature" in target.card.type_line:  # Enrage (CR 120.2): any damage dealt to it, however much
+                self.trigger("damaged", target, _checked(self.controller_of(target)), subject=source)
         if source is not None and amount > 0:  # "Whenever that creature deals combat damage to a player this turn, ..."
             victim = "player" if isinstance(target, Seat) else "creature" if "Creature" in target.card.type_line else "planeswalker"
             self._remembered(source, {"damage"} | ({f"combat_{victim}"} if combat else set()), amount, target if isinstance(target, Seat) else None)
@@ -5283,7 +5289,8 @@ class Game:
             self._become_copy(seat, permanent, clone)
         counters = {counter: (x if count == "X" else 2 * x if count == "2X" else int(count))
                     for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped, any(
-                        o.damage_taken_turn == self.turn for o in self.opponents(seat))).items()}
+                        o.damage_taken_turn == self.turn for o in self.opponents(seat)),
+                        seat.attackers_turn == self.turn and seat.most_attackers > 0).items()}  # Raid
         if permanent.extra_counters:  # Opal Palace: mana spent on the commander
             counters["+1/+1"] = counters.get("+1/+1", 0) + permanent.extra_counters
         if extra_when_copy and permanent.real_card is not None and "Creature" in permanent.card.type_line:

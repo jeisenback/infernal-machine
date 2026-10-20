@@ -56,16 +56,19 @@ _IF_KICKED = re.compile(rf"if {_SELF} was kicked, ", re.I)
 
 
 _IF_BLOODTHIRSTY = re.compile(r"if an opponent was dealt damage this turn, ", re.I)  # Bloodthirst
+_IF_ATTACKED = re.compile(r" if you attacked this turn\.$", re.I)  # Raid: "This creature enters with a +1/+1 counter on it if you attacked this turn."
 
 
 _ENTERS_PER_KICK = re.compile(rf"{_SELF} enters with an? {_COUNTER} on it for each time it was kicked\.", re.I)
 
 
-def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, bloodthirsty: bool = False) -> dict[str, int | str]:
+def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, bloodthirsty: bool = False,
+                         raided: bool = False) -> dict[str, int | str]:
     """Counters from "This creature enters with N (or X) +1/+1 counters on it.", plus, when `kicked` (the number
     of times), "If this creature was kicked, it enters with N +1/+1 counters on it." and multikicker's
     "... enters with a +1/+1 counter on it for each time it was kicked."; and, when `bloodthirsty`, "If an opponent
-    was dealt damage this turn, this creature enters with N +1/+1 counters on it." """
+    was dealt damage this turn, this creature enters with N +1/+1 counters on it."; and, when `raided` (the controller attacked
+    this turn), "This creature enters with N +1/+1 counters on it if you attacked this turn." """
     counters: dict[str, int | str] = {}
 
     def add(name: str, number: int) -> None:
@@ -78,6 +81,10 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, blo
             if not bloodthirsty:
                 continue
             line = line[b.end():]
+        if r := _IF_ATTACKED.search(line):
+            if not raided:
+                continue
+            line = _ABILITY_WORD.sub("", line[:r.start()] + ".")  # "Raid — ": the word only labels the condition
         if kicked and (k := _IF_KICKED.match(line)):
             line = line[k.end():]
         if m := _ENTERS_WITH.fullmatch(line):
@@ -99,6 +106,8 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, blo
 def is_enters_with_counters(line: str) -> bool:
     if k := _IF_KICKED.match(line) or _IF_BLOODTHIRSTY.match(line):
         line = line[k.end():]
+    if r := _IF_ATTACKED.search(line):
+        line = _ABILITY_WORD.sub("", line[:r.start()] + ".")
     return (_ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None
             or _ESCAPES_WITH.fullmatch(line) is not None)
 

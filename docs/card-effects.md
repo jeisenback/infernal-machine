@@ -1232,6 +1232,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     graveyard"); ward costs still pay one card.
   - "Scry N, then reveal the top card of your library. If it's a land card, put it onto the battlefield
     (tapped). Otherwise, draw a card." (Thrasios, Triton Hero) is understood as a whole or not at all.
+  - **Ability words that are a condition (#427):** Raid reads "if you attacked this turn" (the condition `attacked_this_turn`: you declared an attack
+    with at least one creature this turn, CR 508.1) in a trigger's "if" clause (Storm Fleet Spy, Mardu Skullhunter) and in "This creature enters with a
+    +1/+1 counter on it if you attacked this turn" (War-Name Aspirant, applied as it enters). Lieutenant reads "if you control your commander"
+    (`control_commander`: a commander of yours is on the battlefield, not in the command zone; Loyal Subordinate, Loyal Apprentice). Enrage is a trigger
+    on the new event `damaged`, "Whenever this creature is dealt damage" (Imperial Ceratops): it fires for any damage above 0, even a lethal blow.
 
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
