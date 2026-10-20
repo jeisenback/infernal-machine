@@ -27,8 +27,7 @@ class CopyChosenPermanent:
         if not options:
             return
         chosen = options[controller.player.choose(CHOOSE_COPY_PROMPT, [game.label(p) for p in options])]
-        card = chosen.card if chosen.card.type_line.startswith("Token") else dataclasses.replace(chosen.card, type_line="Token " + chosen.card.type_line)
-        game.create_tokens(controller, card, 1)
+        game.create_tokens(controller, copy_of(chosen.card, as_token=True), 1)
 
 
 _COPY_CARD_TYPES = {"Artifact", "Enchantment", "Creature", "Land"}
@@ -74,10 +73,15 @@ def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
     return card
 
 
-def copy_card(card: Card, changes: CopyChanges | None = None) -> Card:
-    """The card of a token that's a copy of `card`, with the changes of its except clause applied."""
-    if not card.type_line.startswith("Token"):
+def copy_of(card: Card, changes: CopyChanges | None = None, *, as_token: bool = False) -> Card:
+    """The card that a copy of `card` is (CR 707.2): its copiable values with the changes of an "except" clause (CR 707.9). Every
+    copy goes through here, so an except clause means the same thing everywhere. `as_token`: the copy is a token ("create a token
+    that's a copy of ...", a copy of a permanent spell, CR 707.10f); otherwise it is not one, even if what it copies is (a clone
+    entering as a copy of a token, a creature that becomes a copy of one)."""
+    if as_token and not card.type_line.startswith("Token"):
         card = dataclasses.replace(card, type_line="Token " + card.type_line)
+    elif not as_token:
+        card = dataclasses.replace(card, type_line=card.type_line.removeprefix("Token "))
     return apply_copy_changes(card, changes)
 
 
@@ -92,7 +96,7 @@ class CopySubjectToken:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             source, subject = target
-            game.create_tokens(controller, copy_card((subject or source).card, self.changes), 1)
+            game.create_tokens(controller, copy_of((subject or source).card, self.changes, as_token=True), 1)
 
 
 @dataclass(frozen=True)
@@ -104,7 +108,7 @@ class CopyHostToken:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.attached_to is not None:
-            game.create_tokens(controller, copy_card(target.attached_to.card, self.changes), 1)
+            game.create_tokens(controller, copy_of(target.attached_to.card, self.changes, as_token=True), 1)
 
 
 @dataclass(frozen=True)
@@ -119,7 +123,7 @@ class CopyToken:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            card = copy_card(target.card, self.changes)
+            card = copy_of(target.card, self.changes, as_token=True)
             if self.legendary and "Legendary" not in card.type_line:
                 card = dataclasses.replace(card, type_line=card.type_line.replace("Token ", "Token Legendary ", 1))
             for token in game.create_tokens(controller, card, game.amount(self.count)):
@@ -326,11 +330,7 @@ class CopySelfToken:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            card = target.card if target.card.type_line.startswith("Token") else \
-                dataclasses.replace(target.card, type_line="Token " + target.card.type_line)
-            if self.one_by_one:
-                card = dataclasses.replace(card, power="1", toughness="1")
-            game.create_tokens(controller, card, 1)
+            game.create_tokens(controller, copy_of(target.card, CopyChanges(power_toughness=("1", "1")) if self.one_by_one else None, as_token=True), 1)
 
 
 @dataclass(frozen=True)

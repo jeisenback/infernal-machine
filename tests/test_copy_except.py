@@ -2,7 +2,7 @@ import dataclasses
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.effects.outcomes import CopyChanges, copy_card
+from infernal_machine.effects.outcomes import CopyChanges, copy_of
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.helpers import BEAR, PASS, lands, pick, real, run_stack, table
@@ -50,22 +50,22 @@ class ParseTests(unittest.TestCase):
 
 class CopyCardTests(unittest.TestCase):
     def test_changes_apply_to_a_copy_and_leave_the_rest(self):
-        copy = copy_card(HERO, CopyChanges(not_legendary=True, add_types=("Spirit", "Artifact"), power_toughness=("1", "1"), keywords=("flying",)))
+        copy = copy_of(HERO, CopyChanges(not_legendary=True, add_types=("Spirit", "Artifact"), power_toughness=("1", "1"), keywords=("flying",)), as_token=True)
         self.assertEqual(copy.type_line, "Token Artifact Creature — Human Knight Spirit")
         self.assertEqual((copy.power, copy.toughness, copy.oracle_text), ("1", "1", "Vigilance\nFlying"))
-        self.assertEqual(copy_card(HERO).type_line, "Token Legendary Creature — Human Knight")  # no except clause: all of it kept
+        self.assertEqual(copy_of(HERO, as_token=True).type_line, "Token Legendary Creature — Human Knight")  # no except clause: all of it kept
 
     def test_a_type_the_original_already_has_is_not_added_twice(self):
         relic = dataclasses.replace(BEAR, type_line="Artifact Creature — Golem")
-        self.assertEqual(copy_card(relic, CopyChanges(add_types=("Artifact", "Golem"))).type_line, "Token Artifact Creature — Golem")
+        self.assertEqual(copy_of(relic, CopyChanges(add_types=("Artifact", "Golem")), as_token=True).type_line, "Token Artifact Creature — Golem")
 
     def test_colors_are_added_to_the_originals(self):
-        copy = copy_card(HERO, CopyChanges(add_colors=("B",)))
+        copy = copy_of(HERO, CopyChanges(add_colors=("B",)), as_token=True)
         self.assertEqual(copy.colors, ("B",))
-        self.assertEqual(copy_card(RATADRABIK, CopyChanges(add_colors=("B",))).colors, ("B", "W"))
+        self.assertEqual(copy_of(RATADRABIK, CopyChanges(add_colors=("B",)), as_token=True).colors, ("B", "W"))
 
     def test_the_original_is_not_touched(self):
-        copy_card(HERO, CopyChanges(not_legendary=True))
+        copy_of(HERO, CopyChanges(not_legendary=True), as_token=True)
         self.assertIn("Legendary", HERO.type_line)
 
 

@@ -282,6 +282,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Food: Add one mana of any color" (Gilded Goose, one Food per Goose) and "{T}, Mill a card: Add {C}" (Millikin, needs a
     library) pay their extra cost when the mana is spent; "Add one mana ... for each charge counter" (Astral Cornucopia,
     Palette) makes one mana per counter (the mana of one tap may be spent as different colors).
+  - Every copy is made by `copy_of(card, changes, as_token=...)` (`effects/families/copying.py`): a token copy ("create a token that's a
+    copy of ...", a copy of a permanent spell, Myriad, Encore's attackers, Twinflame, Rionya), a clone entering as a copy, a creature
+    that becomes a copy until end of turn (Muddle), Hofri Ghostforge's Spirit copy. The "except ..." (`CopyChanges`) means the same
+    thing in all of them, and a copy of a token is a token only if it is made as one. Nothing else builds a "Token ..." type line from
+    a card (a test looks).
   - Creature types and counts (found by auditing real decks, #428): "Goblin spells you cast cost {1} less to cast." and "Red creature
     spells ..." (a creature type or a color and a type is a filter; Goblin Warchief, Dragonspeaker Shaman, Hazoret's Monument);
     "As an additional cost to cast this spell, sacrifice a Goblin." (Goblin Grenade); "X deals damage to any target (or target

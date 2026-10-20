@@ -29,7 +29,7 @@ from .combat import Attack, Combat
 from . import casting
 from .zones import (CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
-from .effects import (apply_copy_changes, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
+from .effects import (copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
@@ -1950,7 +1950,7 @@ class Game:
         if _is_permanent(card):
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
             if item.is_copy:  # a copy of a permanent spell becomes a token (CR 707.10f)
-                card = dataclasses.replace(card, type_line="Token " + card.type_line.removeprefix("Token "))
+                card = copy_of(card, as_token=True)
             if item.face_down is not None:  # cast with morph: it enters face down, the real card kept for turning up
                 kind, cost = item.face_down
                 entering = Permanent(card, sick=True, cast=not item.is_copy, real_card=item.whole, manifested=True, owner=item.home,
@@ -2064,7 +2064,7 @@ class Game:
                 self._move_card(seat, item.physical, "exile" if item.exile_after else "graveyard")
             return
         if item.is_copy:  # a copy of an Aura spell becomes a token Aura
-            card = dataclasses.replace(card, type_line="Token " + card.type_line.removeprefix("Token "))
+            card = copy_of(card, as_token=True)
         if (reanimation := reanimation_aura(card)) is not None:  # Animate Dead: the creature comes back, the Aura on it
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "to": "battlefield"})
             self.return_from_graveyard(target, seat, "battlefield", tapped=reanimation[0])
@@ -3508,8 +3508,7 @@ class Game:
     def copy_attacking(self, seat: Seat, source: Permanent) -> None:
         """A token that's a copy of `source`, tapped and attacking whom it attacks."""
         attack = next((a for a in self.combat.attacks if a.attacker is source), None)
-        card = source.card if _is_token(source.card) else dataclasses.replace(source.card, type_line="Token " + source.card.type_line)
-        for made in self.create_tokens(seat, card, 1):
+        for made in self.create_tokens(seat, copy_of(source.card, as_token=True), 1):
             made.tapped = True
             if attack is not None:
                 self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
@@ -3542,10 +3541,8 @@ class Game:
         if owner is None or not self.exile_from_graveyard(GraveyardTarget(dead.card, owner)):
             return
         card = dead.card
-        text = (card.oracle_text + "\nWhen this token leaves the battlefield, return the exiled card to its owner's graveyard.").strip()
-        head, dash, tail = card.type_line.partition("\u2014")
-        spirit = dataclasses.replace(card, type_line=f"Token {head.strip()} {dash} {tail.strip()} Spirit" if dash else f"Token {head.strip()}",
-                                     oracle_text=text)
+        spirit = copy_of(card, CopyChanges(add_types=("Spirit",), abilities=(
+            "When this token leaves the battlefield, return the exiled card to its owner's graveyard.",)), as_token=True)
         for made in self.create_tokens(seat, spirit, 1):
             made.exiled_with.append((owner, card))
 
@@ -4033,7 +4030,7 @@ class Game:
         self.broadcast({"event": "encore", "seat": seat.index, "card": card.name})
         self._move_card(seat, card, "exile")
         self._left_graveyard(seat, [card])
-        self.attacking_tokens(seat, dataclasses.replace(card, type_line="Token " + card.type_line), 1, True, "sacrificed")
+        self.attacking_tokens(seat, copy_of(card, as_token=True), 1, True, "sacrificed")
 
     def _eternalize(self, seat: Seat, card: Card) -> None:
         """Eternalize: pay its cost and exile it from the graveyard; create a token copy that is a 4/4 black Zombie with no mana
@@ -4094,8 +4091,7 @@ class Game:
         Counters and damage stay where they are."""
         permanent.original = permanent.original or permanent.card
         card = copied.card
-        text = (card.oracle_text + f"\n{keyword}").strip()
-        permanent.card = dataclasses.replace(card, type_line=card.type_line.removeprefix("Token "), oracle_text=text)
+        permanent.card = copy_of(card, CopyChanges(abilities=(keyword,)))
         self.broadcast({"event": "copied_permanent", "seat": (seat or self.controller(permanent)).index,
                         "card": permanent.original.name, "as": card.name})
 
@@ -4209,10 +4205,7 @@ class Game:
         """Twinflame: a token that's a copy of each of `sources`, except it has haste, exiled as the next end step begins."""
         cards = []
         for source in sources:
-            card = source.card if _is_token(source.card) else dataclasses.replace(source.card, type_line="Token " + source.card.type_line)
-            if haste:
-                card = dataclasses.replace(card, oracle_text=(card.oracle_text + "\nHaste").strip())
-            cards.append(card)
+            cards.append(copy_of(source.card, CopyChanges(keywords=("haste",)) if haste else None, as_token=True))
         made = self.create_token_batch(seat, cards)
         if made and exile_at_end:
             fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
@@ -4225,17 +4218,14 @@ class Game:
     def copies_of_creature(self, seat: Seat, original: Permanent, count: int, not_legendary: bool, exile: bool = False) -> None:
         """Orthion, Tempestra, Rionya: `count` tokens that are copies of `original` with haste (not legendary for Tempestra),
         sacrificed (or exiled, for Rionya) as the next end step begins."""
-        card = original.card if _is_token(original.card) else dataclasses.replace(original.card, type_line="Token " + original.card.type_line)
-        card = dataclasses.replace(card, oracle_text=(card.oracle_text + "\nHaste").strip())
-        if not_legendary:
-            card = dataclasses.replace(card, type_line=card.type_line.replace("Legendary ", ""))
+        card = copy_of(original.card, CopyChanges(keywords=("haste",), not_legendary=not_legendary), as_token=True)
         made = self.create_token_batch(seat, [card] * count)
         if made:
             self.leave_at_next_end_step(made, "exiled" if exile else "sacrificed", "exile" if exile else "graveyard")
 
     def goaded_copies_for_opponents(self, seat: Seat, original: Permanent) -> None:
         """Life of the Party: each opponent gets a token copy, goaded by `seat` for the rest of the game."""
-        card = original.card if _is_token(original.card) else dataclasses.replace(original.card, type_line="Token " + original.card.type_line)
+        card = copy_of(original.card, as_token=True)
         for opponent in self.opponents(seat):
             for made in self.create_token_batch(opponent, [card]):
                 made.goad_forever = seat
@@ -5414,7 +5404,7 @@ class Game:
             return
         copied = options[pick].card
         permanent.real_card = permanent.card
-        permanent.card = apply_copy_changes(dataclasses.replace(copied, type_line=copied.type_line.removeprefix("Token ")), rule.changes)
+        permanent.card = copy_of(copied, rule.changes)
         if "Planeswalker" in permanent.card.type_line:  # Spark Double: the copy starts at the planeswalker's loyalty
             permanent.loyalty = (_starting_loyalty(permanent.card) or 0) + rule.changes.extra_loyalty
         if rule.tapped:
