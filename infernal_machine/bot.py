@@ -151,7 +151,7 @@ class BotPlayer:
             return 0 if keep else 1
         if prompt in (BOTTOM_PROMPT, DISCARD_PROMPT, DISCARD_CARD_PROMPT):
             return worst_card([self._card(name) for name in options])
-        if prompt.startswith(ATTACK_PROMPT):
+        if ATTACK_PROMPT.matches(prompt):
             if _stats(prompt)[0] <= 0 or ("attack" in self.features and not self._worth_attacking(prompt)):
                 return 0
             if "commander" in self.features and (lethal := self._commander_target(prompt, options)) is not None:
@@ -161,34 +161,34 @@ class BotPlayer:
             return self._commander_zone(options)
         if prompt in LAND_SEARCH_PROMPTS and (land := self._best_search_land(options, list(range(len(options))))) is not None:
             return land  # Evolving Wilds, Cultivate, Path to Exile's land: the colour the hand needs
-        if prompt.startswith(BLOCK_PROMPT):
+        if BLOCK_PROMPT.matches(prompt):
             return self._block(prompt, options)
-        if prompt.startswith(SHOCK_PROMPT):
+        if SHOCK_PROMPT.matches(prompt):
             return 0 if self._life_of(self._seat) > 10 else 1  # pay life only while healthy
-        if prompt.startswith(DANCE_PROMPT):  # Dance with Calamity: keep exiling while the total is well under the limit
+        if DANCE_PROMPT.matches(prompt):  # Dance with Calamity: keep exiling while the total is well under the limit
             return 0 if _prompt_number(prompt, "(") < 4 and _prompt_number(prompt, "total mana value ") < 9 else 1
-        if prompt.startswith(DEVOUR_PROMPT):  # the bot keeps its creatures
+        if DEVOUR_PROMPT.matches(prompt):  # the bot keeps its creatures
             return len(options) - 1
-        if prompt.startswith(EXPLOIT_PROMPT):  # only a creature that is hardly worth keeping
+        if EXPLOIT_PROMPT.matches(prompt):  # only a creature that is hardly worth keeping
             weakest = min(range(len(options) - 1), key=lambda i: sum(_stats(options[i])))
             return weakest if sum(_stats(options[weakest])) <= 2 else len(options) - 1
-        if prompt.startswith(REPLICATE_PROMPT):
+        if REPLICATE_PROMPT.matches(prompt):
             return len(options) - 1
-        if prompt.startswith(LIFE_X_PROMPT):  # paying life for X: some, not everything
+        if LIFE_X_PROMPT.matches(prompt):  # paying life for X: some, not everything
             return min(len(options) - 1, 3)
         if prompt.startswith((X_PROMPT, MULTIKICKER_PROMPT)):
             return len(options) - 1  # as big as it can afford
-        if prompt.startswith(CLONE_PROMPT):  # copy the biggest creature, or nothing if there is none
+        if CLONE_PROMPT.matches(prompt):  # copy the biggest creature, or nothing if there is none
             sizes = [sum(_stats(option)) for option in options[:-1]]
             return sizes.index(max(sizes)) if sizes and max(sizes) > 0 else len(options) - 1
-        if prompt.startswith(VOTE_PROMPT) and all(_seat_of(o) is not None for o in options):
+        if VOTE_PROMPT.matches(prompt) and all(_seat_of(o) is not None for o in options):
             return next((i for i, o in enumerate(options) if _seat_of(o) != self._seat), 0)  # vote against an opponent's
-        if prompt.startswith(MOVE_COUNTERS_PROMPT):  # moves them all
+        if MOVE_COUNTERS_PROMPT.matches(prompt):  # moves them all
             return len(options) - 1
         if prompt == PROLIFERATE_PROMPT:  # add counters to its own permanents, and never to an opponent's
             mine = [i for i, option in enumerate(options[:-1]) if _seat_of(option) == self._seat]
             return mine[0] if mine else len(options) - 1
-        if prompt.startswith(ASSIGN_PROMPT):  # kill the blockers with the least toughness first
+        if ASSIGN_PROMPT.matches(prompt):  # kill the blockers with the least toughness first
             return min(range(len(options)), key=lambda i: _stats(options[i])[1])
         if prompt == RETURN_LAND_PROMPT:
             return len(options) - 1  # the bounceland that just came in is the newest land
@@ -198,17 +198,17 @@ class BotPlayer:
                 return land
             # its best card; one it can't see in its own deck (from an opponent's hand) counts as worth nothing
             return max(taken, key=lambda i: self._cards[options[i]].cmc if options[i] in self._cards else 0)
-        if prompt == SACRIFICE_PROMPT or prompt.startswith(SACRIFICE_COST_PROMPT):
+        if prompt == SACRIFICE_PROMPT or SACRIFICE_COST_PROMPT.matches(prompt):
             return min(range(len(options)), key=lambda i: sum(_stats(options[i])))  # its weakest creature
         if prompt.startswith((SCRY_PROMPT, SURVEIL_PROMPT)):
             card = self._cards.get(prompt.split(": ", 1)[1])
             return 0 if card is None or self._wants_on_top(card) else 1  # 1: to the bottom, or the graveyard
-        if prompt.startswith(MODE_PROMPT):
+        if MODE_PROMPT.matches(prompt):
             modes = [option for option in options if option != DONE_MODES]
             scores = [_mode_score(mode) for mode in modes]
             best = max(range(len(modes)), key=scores.__getitem__)
             return options.index(DONE_MODES) if DONE_MODES in options and scores[best] <= 0 else best
-        if prompt.startswith(TARGET_PROMPT):
+        if TARGET_PROMPT.matches(prompt):
             mine = [i for i, option in enumerate(options) if _seat_of(option) == self._seat]
             theirs = [i for i, option in enumerate(options) if _seat_of(option) != self._seat]
             if self._is_buff_aura(prompt.removeprefix(TARGET_PROMPT)) and mine:

@@ -38,7 +38,7 @@ def lands(n, name="Mountain"):
 
 
 def attack_choice(b, creature="Grizzly Bears 2/2 (seat 0, #5)"):
-    return b.choose(ATTACK_PROMPT + creature, ["Don't attack", "Attack Player: Foe (seat 1)"])
+    return b.choose(ATTACK_PROMPT(creature), ["Don't attack", "Attack Player: Foe (seat 1)"])
 
 
 class TimingTests(unittest.TestCase):
@@ -102,11 +102,11 @@ class LandTests(unittest.TestCase):
 class TargetTests(unittest.TestCase):
     def test_removal_goes_on_the_biggest_opposing_creature(self):
         options = ["Wall 0/4 (seat 1, #3)", "Ogre 5/5 (seat 1, #4)", "Bears 2/2 (seat 0, #5)"]
-        self.assertEqual(bot(lands(1)).choose(TARGET_PROMPT + BOLT.name, options), 1)
+        self.assertEqual(bot(lands(1)).choose(TARGET_PROMPT(BOLT.name), options), 1)
 
     def test_other_targets_keep_the_first_choice(self):
         options = ["Wall 0/4 (seat 1, #3)", "Ogre 5/5 (seat 1, #4)"]
-        self.assertEqual(bot(lands(1)).choose(TARGET_PROMPT + BEAR.name, options), 0)
+        self.assertEqual(bot(lands(1)).choose(TARGET_PROMPT(BEAR.name), options), 0)
 
 
 class ManaTests(unittest.TestCase):

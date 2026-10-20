@@ -50,7 +50,7 @@ class LeylineOfTheVoidTests(unittest.TestCase):
             self.assertEqual((len(seat.battlefield), len(seat.hand)), (7, 0))
 
     def test_the_player_may_keep_it_in_hand(self):
-        game = self.setup_game(lambda prompt, options: 1 if prompt.startswith(OPENING_PROMPT) else 0)
+        game = self.setup_game(lambda prompt, options: 1 if OPENING_PROMPT.matches(prompt) else 0)
         for seat in game.seats:
             self.assertEqual((len(seat.battlefield), len(seat.hand)), (0, 7))
 
@@ -84,7 +84,7 @@ class BlinkmothNexusTests(unittest.TestCase):
 class CharmingPrinceTests(unittest.TestCase):
     def test_the_third_mode_blinks_a_creature_you_own_until_the_end_step(self):
         game, _ = table3(lambda prompt, options: next((i for i, o in enumerate(options) if o.startswith("Exile another")), 0)
-                         if prompt.startswith(MODE_PROMPT) else 0)
+                         if MODE_PROMPT.matches(prompt) else 0)
         a = game.seats[0]
         bear = Permanent(BEAR)
         a.battlefield = [bear]

@@ -9,12 +9,13 @@ from typing import Any, TYPE_CHECKING
 from ...cards import Card
 from ...characteristics import Modifier
 from ..targets import (DEAD_SUBJECT, PLAYER, SOURCE, SOURCE_AND_SUBJECT)
+from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
 
 
-CHOOSE_COPY_PROMPT = "Choose a permanent to copy"  # options: the permanents (Season of Weaving)
+CHOOSE_COPY_PROMPT = PromptKind("choose_copy", "Choose a permanent to copy")  # options: the permanents (Season of Weaving)
 
 
 @dataclass(frozen=True)
@@ -217,11 +218,11 @@ class ExileThenCastCopy:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is None or not game.exile_from_graveyard(target):
             return
-        if controller.player.choose(CAST_COPY_PROMPT + target.card.name, ["Yes", "No"]) == 0:
+        if controller.player.choose(CAST_COPY_PROMPT(target.card.name), ["Yes", "No"]) == 0:
             game.cast_copy_free(controller, target.card)
 
 
-CAST_COPY_PROMPT = "Cast a copy without paying its mana cost: "  # followed by the card's name; Yes or No
+CAST_COPY_PROMPT = PromptKind("cast_copy", "Cast a copy without paying its mana cost: ")  # followed by the card's name; Yes or No
 
 
 @dataclass(frozen=True)
@@ -231,11 +232,11 @@ class MayCopyThisSpellFromGraveyard:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         item = game.resolving_item
-        if item is not None and item.from_graveyard and controller.player.choose(COPY_THIS_PROMPT + item.card.name, ["Yes", "No"]) == 0:
+        if item is not None and item.from_graveyard and controller.player.choose(COPY_THIS_PROMPT(item.card.name), ["Yes", "No"]) == 0:
             game.copy_spell(item, controller, new_targets=True)
 
 
-COPY_THIS_PROMPT = "Copy this spell: "  # followed by its name; Yes or No
+COPY_THIS_PROMPT = PromptKind("copy_this", "Copy this spell: ")  # followed by its name; Yes or No
 
 
 @dataclass(frozen=True)

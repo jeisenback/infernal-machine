@@ -185,7 +185,7 @@ class GambleTests(unittest.TestCase):
         asked = []
 
         def policy(prompt, options):
-            if prompt.startswith(DISCARD_CARD_PROMPT):
+            if DISCARD_CARD_PROMPT.matches(prompt):
                 asked.append(options)
             return first("Big")(prompt, options)
 

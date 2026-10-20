@@ -23,7 +23,7 @@ def tapped(seat):
 
 
 def modes_asked(table):
-    return [options for prompt, options in table.a.player.prompts if prompt.startswith(MODE_PROMPT)]
+    return [options for prompt, options in table.a.player.prompts if MODE_PROMPT.matches(prompt)]
 
 
 class SpreeTests(unittest.TestCase):

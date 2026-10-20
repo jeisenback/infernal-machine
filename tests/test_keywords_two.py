@@ -48,7 +48,7 @@ class DevourTests(unittest.TestCase):
         eaten = [0]
 
         def policy(prompt, options):
-            if prompt.startswith(DEVOUR_PROMPT):
+            if DEVOUR_PROMPT.matches(prompt):
                 if eaten[0] < sacrifices:
                     eaten[0] += 1
                     return 0
@@ -104,7 +104,7 @@ class ReplicateTests(unittest.TestCase):
         seen = []
 
         def policy(prompt, options):
-            if prompt.startswith(REPLICATE_PROMPT):
+            if REPLICATE_PROMPT.matches(prompt):
                 seen.append(options)
             return 0
 

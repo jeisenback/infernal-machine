@@ -225,9 +225,9 @@ class NexusMentalityTests(unittest.TestCase):
 class ZimonesHypothesisTests(unittest.TestCase):
     def cast(self, counter_on, parity):
         def policy(prompt, options):
-            if prompt.startswith(HYPOTHESIS_COUNTER_PROMPT):
+            if HYPOTHESIS_COUNTER_PROMPT.matches(prompt):
                 return counter_on
-            if prompt.startswith(PARITY_PROMPT):
+            if PARITY_PROMPT.matches(prompt):
                 return parity
             return 0
         game, _ = table3(policy)
@@ -289,7 +289,7 @@ class SilkguardTests(unittest.TestCase):
 
     def test_counters_on_up_to_x_creatures_and_hexproof_for_the_modified(self):
         def policy(prompt, options):
-            if prompt.startswith(X_PROMPT):
+            if X_PROMPT.matches(prompt):
                 return 2
             return pick(CAST)(prompt, options)
         game, _ = table3(policy)
@@ -303,7 +303,7 @@ class SilkguardTests(unittest.TestCase):
         self.assertEqual([game.has_keyword(p, "hexproof") for p in (one, two, three, aura)], [True, True, True, True])
 
     def test_x_zero_targets_nothing(self):
-        game, _ = table3(lambda prompt, options: 0 if prompt.startswith(X_PROMPT) else pick(CAST)(prompt, options))
+        game, _ = table3(lambda prompt, options: 0 if X_PROMPT.matches(prompt) else pick(CAST)(prompt, options))
         a = game.seats[0]
         bear = Permanent(BEAR)
         a.hand, a.battlefield = [REAL["Silkguard"]], [bear, *lands(2)]
@@ -387,7 +387,7 @@ class ShadrixTests(unittest.TestCase):
         self.assertEqual((b.life, len(b.hand), a.life), (39, 1, 40))  # a different player drew and lost life
 
     def test_the_controller_may_decline(self):
-        game, _ = table3(lambda prompt, options: 1 if prompt.startswith(OPTIONAL_PROMPT) else 0)
+        game, _ = table3(lambda prompt, options: 1 if OPTIONAL_PROMPT.matches(prompt) else 0)
         a, b, c = game.seats
         a.battlefield = [Permanent(self.SHADRIX)]
         game.trigger("combat", a.battlefield[0], a)

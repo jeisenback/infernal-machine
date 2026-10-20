@@ -109,7 +109,7 @@ class GiftTests(unittest.TestCase):
 
     def test_the_gift_goes_to_the_opponent_chosen(self):
         for pick, expected in ((1, (["Food"], [])), (2, ([], ["Food"]))):
-            game, a, b, c = table(HUNGER, policy=lambda prompt, options, pick=pick: pick if prompt.startswith(GIFT_PROMPT) else 0)
+            game, a, b, c = table(HUNGER, policy=lambda prompt, options, pick=pick: pick if GIFT_PROMPT.matches(prompt) else 0)
             b.battlefield, c.battlefield = [Permanent(OGRE)], [Permanent(OGRE)]
             game.stack = []
             game._perform(a, CAST + HUNGER.name)

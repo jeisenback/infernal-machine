@@ -7,6 +7,7 @@ from typing import Any, TYPE_CHECKING
 
 from ..targets import MassFilter, SOURCE
 from .exile_and_return import GiveBack
+from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
@@ -43,7 +44,7 @@ class _MaySacrifice:
     kind: str
 
 
-CHOOSE_TYPE_PROMPT = "Choose a type"  # options: the types that can be chosen (Season of Gathering)
+CHOOSE_TYPE_PROMPT = PromptKind("choose_a_type", "Choose a type")  # options: the types that can be chosen (Season of Gathering)
 
 
 @dataclass(frozen=True)

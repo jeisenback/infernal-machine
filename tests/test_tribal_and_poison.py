@@ -34,7 +34,7 @@ GREEN_BEAR = dataclasses.replace(BEAR, name="Green Bear", colors=("G",), mana_co
 def policy(card_name):
     """Cast `card_name`; aim every target at the opponent (seat 1); pass otherwise."""
     def choose(prompt, options):
-        if prompt.startswith(TARGET_PROMPT):
+        if TARGET_PROMPT.matches(prompt):
             return next((i for i, o in enumerate(options) if "seat 1" in o), 0)
         return next((i for i, o in enumerate(options) if o.startswith(CAST + card_name)), options.index(PASS) if PASS in options else 0)
     return choose

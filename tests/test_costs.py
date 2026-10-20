@@ -86,7 +86,7 @@ def kick(*costs, then=()):
     fallback = pick(*then)
 
     def policy(prompt, options):
-        if prompt.startswith(KICKER_PROMPT):
+        if KICKER_PROMPT.matches(prompt):
             return 0 if any(prompt.endswith(f"({c})") for c in costs) else 1
         return fallback(prompt, options)
     return policy

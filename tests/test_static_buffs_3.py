@@ -62,7 +62,7 @@ class AngelicDestinyTests(unittest.TestCase):
 class FallenIdealTests(unittest.TestCase):
     def test_flying_a_sacrifice_ability_and_it_returns_to_hand(self):
         def policy(prompt, options):  # sacrifice the last creature listed, the spare Bear
-            return len(options) - 1 if prompt.startswith(SACRIFICE_COST_PROMPT) else pick("Activate")(prompt, options)
+            return len(options) - 1 if SACRIFICE_COST_PROMPT.matches(prompt) else pick("Activate")(prompt, options)
         game, _ = table3(policy)
         a = game.seats[0]
         bear, fodder = Permanent(BEAR), Permanent(BEAR)
@@ -93,7 +93,7 @@ class PatchworkBannerTests(unittest.TestCase):
         self.assertEqual((game.power(a.battlefield[0]), game.power(a.battlefield[1])), (3, 2))
 
     def test_the_player_chooses(self):
-        game, players = table3(lambda prompt, options: options.index("Bear") if prompt.startswith(CHOOSE_TYPE_PROMPT) else 0)
+        game, players = table3(lambda prompt, options: options.index("Bear") if CHOOSE_TYPE_PROMPT.matches(prompt) else 0)
         a = game.seats[0]
         wolf = Card(name="Wolf", type_line="Creature " + chr(0x2014) + " Wolf", power="2", toughness="2")
         bear = Card(name="Bear", type_line="Creature " + chr(0x2014) + " Bear", power="2", toughness="2")

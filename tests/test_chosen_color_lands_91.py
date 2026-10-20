@@ -61,7 +61,7 @@ def enter(card, answer, mine=()):
     seen = []
 
     def policy(prompt, options):
-        if prompt.startswith(CHOOSE_COLOR_PROMPT):
+        if CHOOSE_COLOR_PROMPT.matches(prompt):
             seen.append(options)
         return pick(answer)(prompt, options)
 

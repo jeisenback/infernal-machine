@@ -42,6 +42,7 @@ from .filters import has_type, parse_filter
 from .mana import Cost, cost_of, parse_cost
 from .payment import ManaPayer, ManaSource, Payment
 from .player import Player
+from .prompts import PromptKind
 
 _T = TypeVar("_T")
 
@@ -81,57 +82,57 @@ CAST_FORETOLD = "Cast foretold: "  # followed by the card's name: cast from exil
 FORETELL_COST = "{2}"
 COMPANION_COST = "{3}"
 NINJUTSU = "Ninjutsu: "  # followed by the card's name: return an unblocked attacker, and it comes in attacking in its place
-GIFT_PROMPT = "Promise a gift with "  # followed by the card's name; options: no gift, or one opponent to give it to
-NINJUTSU_PROMPT = "Return which unblocked attacker to hand for ninjutsu with "  # followed by the card's name
+GIFT_PROMPT = PromptKind("gift", "Promise a gift with ")  # followed by the card's name; options: no gift, or one opponent to give it to
+NINJUTSU_PROMPT = PromptKind("ninjutsu", "Return which unblocked attacker to hand for ninjutsu with ")  # followed by the card's name
 FOREVER = 10**9  # the last turn of a permission that does not run out (a card on an adventure)
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
-IMPRINT_PROMPT = "Exile which card from your hand? "
-AMASS_PROMPT = "Put the counters on which Army? "
-MOX_DIAMOND_PROMPT = "Discard which land to put it onto the battlefield? "
-MANA_COLOR_PROMPT = "Which color of mana? "
-REVEAL_CHOSEN_PROMPT = "Reveal it and put it into your hand? "
+IMPRINT_PROMPT = PromptKind("imprint", "Exile which card from your hand? ")
+AMASS_PROMPT = PromptKind("amass", "Put the counters on which Army? ")
+MOX_DIAMOND_PROMPT = PromptKind("mox_diamond", "Discard which land to put it onto the battlefield? ")
+MANA_COLOR_PROMPT = PromptKind("mana_color", "Which color of mana? ")
+REVEAL_CHOSEN_PROMPT = PromptKind("reveal_chosen", "Reveal it and put it into your hand? ")
 CYCLE = "Cycle: "
 ACTIVATE_HAND = "Activate from hand: "  # followed by the card's name: "{U/R}{U/R}, Discard this card: ..." (Magma Opus)
 ACTIVATE_GRAVEYARD = "Activate from graveyard: "  # followed by the card's name: "{B}{G}: Return this card from your graveyard to the battlefield tapped."
-REVEAL_PROMPT = "Reveal a card from your hand for "  # followed by the land's name
-SHOCK_PROMPT = "Pay life so it enters untapped? "  # followed by the land's name
+REVEAL_PROMPT = PromptKind("reveal", "Reveal a card from your hand for ")  # followed by the land's name
+SHOCK_PROMPT = PromptKind("shock", "Pay life so it enters untapped? ")  # followed by the land's name
 ACTIVATE = "Activate: "  # followed by "<permanent label>: <ability text>"
 UNLOCK = "Unlock: "  # followed by "<door name> of <Room label>": pay a locked door's mana cost (a sorcery-speed special action)
 COMMANDER_TAX = 2  # CR 903.8
 PERMANENT_TYPES = ("Artifact", "Battle", "Creature", "Enchantment", "Land", "Planeswalker")
-KEEP_PROMPT = "Keep this hand?"
-OPENING_PROMPT = "Begin the game with this on the battlefield: "  # followed by the card's name
-BOTTOM_PROMPT = "Put a card on the bottom of your library"
-DISCARD_PROMPT = "Discard down to hand size"
-DISCARD_CARD_PROMPT = "Choose a card to discard"  # options are card names
-CHOOSE_DISCARD_PROMPT = "Choose a card from their hand to discard"  # options are card names
-TARGET_PROMPT = "Choose a target for "  # followed by the spell's name
-SEARCH_PROMPT = "Choose a basic land to put onto the battlefield"
-SEARCH_OPTIONAL_PROMPT = "Search your library for a basic land?"
-COMMAND_ZONE_PROMPT = "Move your commander to the command zone?"  # options: "Command zone", then the zone it's going to
-OPTIONAL_PROMPT = "Use this ability of "  # followed by the source's name
-X_PROMPT = "Choose X for "  # followed by the spell's name; options are "0", "1", ...
-SPLIT_HAND_PROMPT = "Put which card into your hand? "
-SPLIT_BOTTOM_PROMPT = "Put which card on the bottom of your library? "
-MANIFEST_DREAD_PROMPT = "Manifest which card? "  # the other goes to the graveyard
-DANCE_PROMPT = "Exile the top card of your library? "  # followed by "(N exiled, total mana value M)"; Yes or No
-DANCE_CAST_PROMPT = "Cast for free: "  # followed by the card's name; Yes or No
+KEEP_PROMPT = PromptKind("keep", "Keep this hand?")
+OPENING_PROMPT = PromptKind("opening", "Begin the game with this on the battlefield: ")  # followed by the card's name
+BOTTOM_PROMPT = PromptKind("bottom", "Put a card on the bottom of your library")
+DISCARD_PROMPT = PromptKind("discard", "Discard down to hand size")
+DISCARD_CARD_PROMPT = PromptKind("discard_card", "Choose a card to discard")  # options are card names
+CHOOSE_DISCARD_PROMPT = PromptKind("choose_discard", "Choose a card from their hand to discard")  # options are card names
+TARGET_PROMPT = PromptKind("target", "Choose a target for ")  # followed by the spell's name
+SEARCH_PROMPT = PromptKind("search", "Choose a basic land to put onto the battlefield")
+SEARCH_OPTIONAL_PROMPT = PromptKind("search_optional", "Search your library for a basic land?")
+COMMAND_ZONE_PROMPT = PromptKind("command_zone", "Move your commander to the command zone?")  # options: "Command zone", then the zone it's going to
+OPTIONAL_PROMPT = PromptKind("optional", "Use this ability of ")  # followed by the source's name
+X_PROMPT = PromptKind("x", "Choose X for ")  # followed by the spell's name; options are "0", "1", ...
+SPLIT_HAND_PROMPT = PromptKind("split_hand", "Put which card into your hand? ")
+SPLIT_BOTTOM_PROMPT = PromptKind("split_bottom", "Put which card on the bottom of your library? ")
+MANIFEST_DREAD_PROMPT = PromptKind("manifest_dread", "Manifest which card? ")  # the other goes to the graveyard
+DANCE_PROMPT = PromptKind("dance", "Exile the top card of your library? ")  # followed by "(N exiled, total mana value M)"; Yes or No
+DANCE_CAST_PROMPT = PromptKind("dance_cast", "Cast for free: ")  # followed by the card's name; Yes or No
 TURN_UP = "Turn face up: "  # followed by the manifested creature's label
 CAST_FACE_DOWN = "Cast face down: "  # Morph, Megamorph and Disguise: followed by the card's name
 FACE_DOWN = Card(name="Face-down creature", mana_cost="{3}", cmc=3.0, type_line="Creature", power="2", toughness="2")
 FACE_DOWN_DISGUISED = dataclasses.replace(FACE_DOWN, oracle_text="Ward {2}")  # Disguise: a face-down creature with ward {2}
-PUT_FROM_HAND_PROMPT = "Put a card from your hand onto the battlefield: "
-RETURN_CHOSEN_PROMPT = "Return which card from your graveyard? "
+PUT_FROM_HAND_PROMPT = PromptKind("put_from_hand", "Put a card from your hand onto the battlefield: ")
+RETURN_CHOSEN_PROMPT = PromptKind("return_chosen", "Return which card from your graveyard? ")
 DECLINE = "Don't"
-CHOOSE_COLOR_PROMPT = "Choose a color for "  # followed by the card's name; white, blue, black, red, green
-KAROO_PROMPT = "Return a land or sacrifice "  # followed by the card's name; the last option is SACRIFICE_IT
+CHOOSE_COLOR_PROMPT = PromptKind("choose_color", "Choose a color for ")  # followed by the card's name; white, blue, black, red, green
+KAROO_PROMPT = PromptKind("karoo", "Return a land or sacrifice ")  # followed by the card's name; the last option is SACRIFICE_IT
 SACRIFICE_IT = "Sacrifice it"
-CHOOSE_TYPE_PROMPT = "Choose a creature type for "  # followed by the card's name; options are the types, most common first
+CHOOSE_TYPE_PROMPT = PromptKind("choose_type", "Choose a creature type for ")  # followed by the card's name; options are the types, most common first
 _PRIMES = frozenset({2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97})
-CLONE_PROMPT = "Choose what to copy for "  # followed by the card's name; the last option is NOT_A_COPY
+CLONE_PROMPT = PromptKind("clone", "Choose what to copy for ")  # followed by the card's name; the last option is NOT_A_COPY
 NOT_A_COPY = "Don't copy anything"
-CREW_PROMPT = "Choose a creature to tap to crew "  # followed by the Vehicle's name
-PROLIFERATE_PROMPT = "Proliferate: choose a permanent"
+CREW_PROMPT = PromptKind("crew", "Choose a creature to tap to crew ")  # followed by the Vehicle's name
+PROLIFERATE_PROMPT = PromptKind("proliferate", "Proliferate: choose a permanent")
 DONE = "Done"
 STACK_TARGET_KINDS = {  # what "Change the target of target ..." can be aimed at: (which spells or abilities, given their lone target
     # and the permanent whose ability this is; whether they need a lone target)
@@ -147,84 +148,84 @@ STACK_TARGET_KINDS = {  # what "Change the target of target ..." can be aimed at
     "spell or ability that targets only this creature": (lambda item, target, me: target is me, True),
     "spell or ability": (lambda item, target, me: True, False),  # Deflecting Swat, Spellskite
 }
-MORPH_RETURN_PROMPT = "Return which permanent to turn face up "  # followed by the creature's name
-CHANGE_WHICH_PROMPT = "Change which target of "  # followed by the spell's name
+MORPH_RETURN_PROMPT = PromptKind("morph_return", "Return which permanent to turn face up ")  # followed by the creature's name
+CHANGE_WHICH_PROMPT = PromptKind("change_which", "Change which target of ")  # followed by the spell's name
 NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
-SACRIFICE_PROMPT = "Choose a creature to sacrifice"
-EXPLOIT_PROMPT = "Exploit: choose a creature to sacrifice for "  # followed by the exploiting creature's name
+SACRIFICE_PROMPT = PromptKind("sacrifice", "Choose a creature to sacrifice")
+EXPLOIT_PROMPT = PromptKind("exploit", "Exploit: choose a creature to sacrifice for ")  # followed by the exploiting creature's name
 NO_EXPLOIT = "Don't sacrifice a creature"
-SACRIFICE_COST_PROMPT = "Choose what to sacrifice for "  # followed by the spell's name
-DISCARD_COST_PROMPT = "Choose a card to discard for "  # followed by the ability's source
-EXILE_COST_PROMPT = "Choose a card to exile from your graveyard for "  # followed by the ability's source
-COST_PROMPT = "Choose how to cast "  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
-ENTWINE_PROMPT = "Pay the entwine cost for "  # followed by the spell's name; options: YES_NO
-MADNESS_PROMPT = "Cast it for its madness cost: "  # followed by the card's name; options: YES_NO
-BUYBACK_PROMPT = "Pay the buyback cost for "  # followed by the spell's name; options: YES_NO
-SYLVAN_PROMPT = "Draw two additional cards with Sylvan Library? "  # options: Yes, No
-DREDGE_PROMPT = "Dredge instead of drawing a card? "  # options: Draw a card, then one per card that can be dredged
-SYLVAN_CHOOSE_PROMPT = "Choose a card you drew this turn: "  # asked twice, for the two cards
-SYLVAN_PAY_PROMPT = "Pay life for it or put it on top of your library: "  # followed by the card's name
-REBOUND_PROMPT = "Cast it again with rebound: "  # followed by the card's name; options: YES_NO
-KICKER_PROMPT = "Pay the kicker cost for "  # followed by the spell's name; options: YES_NO
-MULTIKICKER_PROMPT = "Choose how many times to kick "  # followed by the spell's name; options are "0", "1", ...
-PITCH_PROMPT = "Choose a card to exile from your hand"
-ESCAPE_PROMPT = "Choose a card to exile from your graveyard"
-VOTE_PROMPT = "Vote: "  # followed by the source's name; options are the choices, or permanent labels
-VENTURE_PROMPT = "Venture into the Undercity: choose the next room"  # options are room names
-THRONE_PROMPT = "Throne of the Dead Three: choose a creature"  # options are card names
-UNLESS_PROMPT = "Pay to stop "  # followed by the triggering card's name; options: "Pay {1}", "Don't pay"
-PROTECTION_PROMPT = "Choose a color for protection: "  # followed by the source's name; options are the five colors
-WARD_PROMPT = "Pay the ward cost to keep "  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
+SACRIFICE_COST_PROMPT = PromptKind("sacrifice_cost", "Choose what to sacrifice for ")  # followed by the spell's name
+DISCARD_COST_PROMPT = PromptKind("discard_cost", "Choose a card to discard for ")  # followed by the ability's source
+EXILE_COST_PROMPT = PromptKind("exile_cost", "Choose a card to exile from your graveyard for ")  # followed by the ability's source
+COST_PROMPT = PromptKind("cost", "Choose how to cast ")  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
+ENTWINE_PROMPT = PromptKind("entwine", "Pay the entwine cost for ")  # followed by the spell's name; options: YES_NO
+MADNESS_PROMPT = PromptKind("madness", "Cast it for its madness cost: ")  # followed by the card's name; options: YES_NO
+BUYBACK_PROMPT = PromptKind("buyback", "Pay the buyback cost for ")  # followed by the spell's name; options: YES_NO
+SYLVAN_PROMPT = PromptKind("sylvan", "Draw two additional cards with Sylvan Library? ")  # options: Yes, No
+DREDGE_PROMPT = PromptKind("dredge", "Dredge instead of drawing a card? ")  # options: Draw a card, then one per card that can be dredged
+SYLVAN_CHOOSE_PROMPT = PromptKind("sylvan_choose", "Choose a card you drew this turn: ")  # asked twice, for the two cards
+SYLVAN_PAY_PROMPT = PromptKind("sylvan_pay", "Pay life for it or put it on top of your library: ")  # followed by the card's name
+REBOUND_PROMPT = PromptKind("rebound", "Cast it again with rebound: ")  # followed by the card's name; options: YES_NO
+KICKER_PROMPT = PromptKind("kicker", "Pay the kicker cost for ")  # followed by the spell's name; options: YES_NO
+MULTIKICKER_PROMPT = PromptKind("multikicker", "Choose how many times to kick ")  # followed by the spell's name; options are "0", "1", ...
+PITCH_PROMPT = PromptKind("pitch", "Choose a card to exile from your hand")
+ESCAPE_PROMPT = PromptKind("escape", "Choose a card to exile from your graveyard")
+VOTE_PROMPT = PromptKind("vote", "Vote: ")  # followed by the source's name; options are the choices, or permanent labels
+VENTURE_PROMPT = PromptKind("venture", "Venture into the Undercity: choose the next room")  # options are room names
+THRONE_PROMPT = PromptKind("throne", "Throne of the Dead Three: choose a creature")  # options are card names
+UNLESS_PROMPT = PromptKind("unless", "Pay to stop ")  # followed by the triggering card's name; options: "Pay {1}", "Don't pay"
+PROTECTION_PROMPT = PromptKind("protection", "Choose a color for protection: ")  # followed by the source's name; options are the five colors
+WARD_PROMPT = PromptKind("ward", "Pay the ward cost to keep ")  # followed by the spell's or source's name; options: "Pay {2}", "Don't pay"
 COLOR_NAMES = {"W": "white", "U": "blue", "B": "black", "R": "red", "G": "green"}
 COLOR_LETTERS = {name: letter for letter, name in COLOR_NAMES.items()}
-DAMAGE_ORDER_PROMPT = "Choose the order the damage is changed in: "  # followed by who is dealt it; options are the orders, least damage first
-MODE_PROMPT = "Choose a mode for "  # followed by the spell's name; options are the modes, then DONE_MODES once enough are chosen
+DAMAGE_ORDER_PROMPT = PromptKind("damage_order", "Choose the order the damage is changed in: ")  # followed by who is dealt it; options are the orders, least damage first
+MODE_PROMPT = PromptKind("mode", "Choose a mode for ")  # followed by the spell's name; options are the modes, then DONE_MODES once enough are chosen
 DONE_MODES = "Done choosing modes"
-SEARCH_CARD_PROMPT = "Choose a card to search for"  # options are card names
-SEARCH_LAND_PROMPT = "Choose a land to put onto the battlefield"
-SEARCH_LAND_HAND_PROMPT = "Choose a land to put into your hand"
-SCRY_PROMPT = "Scry: "  # followed by the card's name; options are KEEP_ON_TOP and PUT_ON_BOTTOM
-SURVEIL_PROMPT = "Surveil: "  # options are KEEP_ON_TOP and PUT_IN_GRAVEYARD
-ORDER_TOP_PROMPT = "Put on top next"  # options are card names; asked while two or more cards stay on top
-PUT_ATTACHMENT_PROMPT = "Put an Aura or Equipment onto the battlefield"  # options are card names, then NONE_TAKEN
-EQUIP_PROMPT = "Attach it to which creature? "  # followed by the Equipment's name; the last option leaves it unattached
-CAST_FREE_PROMPT = "Cast an Aura spell from among the exiled cards without paying its mana cost"  # then NONE_TAKEN
-PUT_PERMANENT_PROMPT = "Put a nonland permanent card onto the battlefield"  # then NONE_TAKEN to stop
-SET_ASIDE_PROMPT = "Choose a nonland card exiled this way; it can't be cast"
-CAST_FREE_EXILED_PROMPT = "Cast a spell from among the other exiled cards without paying its mana cost"  # then NONE_TAKEN
-CHOOSE_EXILED_WITH_PROMPT = "Choose a card exiled with this permanent"
-SACRIFICE_COPIES_PROMPT = "Sacrifice how many creatures to copy "  # followed by the spell's name; options are "0", "1", ...
-LOOK_PROMPT = "Take a card from the top of your library"  # options are card names, then NONE_TAKEN if optional
+SEARCH_CARD_PROMPT = PromptKind("search_card", "Choose a card to search for")  # options are card names
+SEARCH_LAND_PROMPT = PromptKind("search_land", "Choose a land to put onto the battlefield")
+SEARCH_LAND_HAND_PROMPT = PromptKind("search_land_hand", "Choose a land to put into your hand")
+SCRY_PROMPT = PromptKind("scry", "Scry: ")  # followed by the card's name; options are KEEP_ON_TOP and PUT_ON_BOTTOM
+SURVEIL_PROMPT = PromptKind("surveil", "Surveil: ")  # options are KEEP_ON_TOP and PUT_IN_GRAVEYARD
+ORDER_TOP_PROMPT = PromptKind("order_top", "Put on top next")  # options are card names; asked while two or more cards stay on top
+PUT_ATTACHMENT_PROMPT = PromptKind("put_attachment", "Put an Aura or Equipment onto the battlefield")  # options are card names, then NONE_TAKEN
+EQUIP_PROMPT = PromptKind("equip", "Attach it to which creature? ")  # followed by the Equipment's name; the last option leaves it unattached
+CAST_FREE_PROMPT = PromptKind("cast_free", "Cast an Aura spell from among the exiled cards without paying its mana cost")  # then NONE_TAKEN
+PUT_PERMANENT_PROMPT = PromptKind("put_permanent", "Put a nonland permanent card onto the battlefield")  # then NONE_TAKEN to stop
+SET_ASIDE_PROMPT = PromptKind("set_aside", "Choose a nonland card exiled this way; it can't be cast")
+CAST_FREE_EXILED_PROMPT = PromptKind("cast_free_exiled", "Cast a spell from among the other exiled cards without paying its mana cost")  # then NONE_TAKEN
+CHOOSE_EXILED_WITH_PROMPT = PromptKind("choose_exiled_with", "Choose a card exiled with this permanent")
+SACRIFICE_COPIES_PROMPT = PromptKind("sacrifice_copies", "Sacrifice how many creatures to copy ")  # followed by the spell's name; options are "0", "1", ...
+LOOK_PROMPT = PromptKind("look", "Take a card from the top of your library")  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
-PUT_CREATURE_PROMPT = "Put a creature card from your hand onto the battlefield"  # options are card names, then NONE_TAKEN
-RETURN_CARD_PROMPT = "Return which card from your graveyard: "  # followed by the kind of card; options are card names
+PUT_CREATURE_PROMPT = PromptKind("put_creature", "Put a creature card from your hand onto the battlefield")  # options are card names, then NONE_TAKEN
+RETURN_CARD_PROMPT = PromptKind("return_card", "Return which card from your graveyard: ")  # followed by the kind of card; options are card names
 KEEP_ON_TOP, PUT_ON_BOTTOM, PUT_IN_GRAVEYARD = "Keep on top", "Put on the bottom", "Put into your graveyard"
 MAX_TARGETS = 30  # a bound on "any number of target ..."
 MAX_X = 30  # stop looking for a bigger affordable X here
 YES_NO = ["Yes", "No"]
-LIFE_X_PROMPT = "Pay how much life (X) for "  # followed by the spell's name; options are the numbers
-REMOVE_COUNTER_PROMPT = "Remove a counter to draw a card? "  # followed by the permanent's name
-ATTACH_PROMPT = "Attach it to the new token? "  # followed by the Aura's name
-MAY_PAY_PROMPT = "Pay the cost for "  # followed by the source's name; options are "Pay <cost>" and "Don't pay"
-DRAW_UP_TO_PROMPT = "How many cards do you draw? "
-SACRIFICE_DRAW_PROMPT = "Sacrifice a permanent to draw cards? "
-LOOT_PROMPT = "Discard a card to draw a card? "
-PUT_ATTACKING_PROMPT = "Put which creature card onto the battlefield attacking? "
-SHUFFLE_PROMPT = "Shuffle your library? "
-DEVOUR_PROMPT = "Devour: sacrifice which creature to "  # followed by the creature's name; the last option is DEVOUR_DONE
+LIFE_X_PROMPT = PromptKind("life_x", "Pay how much life (X) for ")  # followed by the spell's name; options are the numbers
+REMOVE_COUNTER_PROMPT = PromptKind("remove_counter", "Remove a counter to draw a card? ")  # followed by the permanent's name
+ATTACH_PROMPT = PromptKind("attach", "Attach it to the new token? ")  # followed by the Aura's name
+MAY_PAY_PROMPT = PromptKind("may_pay", "Pay the cost for ")  # followed by the source's name; options are "Pay <cost>" and "Don't pay"
+DRAW_UP_TO_PROMPT = PromptKind("draw_up_to", "How many cards do you draw? ")
+SACRIFICE_DRAW_PROMPT = PromptKind("sacrifice_draw", "Sacrifice a permanent to draw cards? ")
+LOOT_PROMPT = PromptKind("loot", "Discard a card to draw a card? ")
+PUT_ATTACKING_PROMPT = PromptKind("put_attacking", "Put which creature card onto the battlefield attacking? ")
+SHUFFLE_PROMPT = PromptKind("shuffle", "Shuffle your library? ")
+DEVOUR_PROMPT = PromptKind("devour", "Devour: sacrifice which creature to ")  # followed by the creature's name; the last option is DEVOUR_DONE
 DEVOUR_DONE = "Done"
-REPLICATE_PROMPT = "Choose how many times to replicate "  # followed by the spell's name; options are "0", "1", ...
-PILE_PROMPT = "Put which pile into the graveyard? "  # an opponent chooses; the options are the piles
-PILE_CAST_PROMPT = "Cast a spell from the pile for free? "  # the options are the cards, then "None"
-CASCADE_PROMPT = "Cast for free (cascade): "  # followed by the card's name; Yes or No
-DELVE_PROMPT = "Exile which card from your graveyard to pay for "  # followed by the spell's name
-UPKEEP_PROMPT = "Pay the cumulative upkeep of "  # followed by the permanent's name; Yes or No (No sacrifices it)
-PUT_BACK_PROMPT = "Put which card from your hand on top of your library? "
-WHEEL_PROMPT = "Discard your hand and draw a new hand? "
-HIDEAWAY_PROMPT = "Hide away a card for "  # followed by the permanent's name; options: the top cards
-HIDEAWAY_PLAY_PROMPT = "Play the hidden card for free: "  # followed by its name; options: "Play it", "Don't"
-UNTAP_PROMPT = "Untap during your untap step: "  # followed by the permanent's name; options: "Untap", "Leave tapped"
-TAP_OR_UNTAP_PROMPT = "Tap or untap "  # followed by the creature's name
+REPLICATE_PROMPT = PromptKind("replicate", "Choose how many times to replicate ")  # followed by the spell's name; options are "0", "1", ...
+PILE_PROMPT = PromptKind("pile", "Put which pile into the graveyard? ")  # an opponent chooses; the options are the piles
+PILE_CAST_PROMPT = PromptKind("pile_cast", "Cast a spell from the pile for free? ")  # the options are the cards, then "None"
+CASCADE_PROMPT = PromptKind("cascade", "Cast for free (cascade): ")  # followed by the card's name; Yes or No
+DELVE_PROMPT = PromptKind("delve", "Exile which card from your graveyard to pay for ")  # followed by the spell's name
+UPKEEP_PROMPT = PromptKind("upkeep", "Pay the cumulative upkeep of ")  # followed by the permanent's name; Yes or No (No sacrifices it)
+PUT_BACK_PROMPT = PromptKind("put_back", "Put which card from your hand on top of your library? ")
+WHEEL_PROMPT = PromptKind("wheel", "Discard your hand and draw a new hand? ")
+HIDEAWAY_PROMPT = PromptKind("hideaway", "Hide away a card for ")  # followed by the permanent's name; options: the top cards
+HIDEAWAY_PLAY_PROMPT = PromptKind("hideaway_play", "Play the hidden card for free: ")  # followed by its name; options: "Play it", "Don't"
+UNTAP_PROMPT = PromptKind("untap", "Untap during your untap step: ")  # followed by the permanent's name; options: "Untap", "Leave tapped"
+TAP_OR_UNTAP_PROMPT = PromptKind("tap_or_untap", "Tap or untap ")  # followed by the creature's name
 POISON_LIMIT = 10  # CR 704.5c
 
 
@@ -315,8 +316,6 @@ class Permanent:
     exile_if_dies: int | None = None  # the turn it was marked: exiled instead of dying that turn (Lava Coil)
     unearthed: bool = False  # brought back with unearth: exiled instead of going anywhere else, and at the next end step
     paragon_life: tuple["Seat", int] | None = None  # played with Serra Paragon: (who gains life, how much) when it goes to the graveyard
-
-
 
 
 
@@ -529,7 +528,6 @@ class Seat:
         return self.player.name
 
 
-
 def _moving(name: str) -> property:
     """A property for a Permanent attribute whose change moves the epoch counter. The value lives in `_<name>`; a read is a plain
     attribute fetch (`attrgetter` runs in C)."""
@@ -675,7 +673,7 @@ class Game:
             self._mulligan(seat)
         for seat in self._turn_order(self.active):  # CR 103.6: Leyline-style cards may start on the battlefield
             for card in [c for c in seat.hand if begins_on_battlefield(c)]:
-                if seat.player.choose(f"{OPENING_PROMPT}{card.name}?", ["Yes", "No"]) == 0:
+                if seat.player.choose(OPENING_PROMPT(f"{card.name}?"), ["Yes", "No"]) == 0:
                     seat.hand.remove(card)
                     self._enter(seat, Permanent(card))
 
@@ -767,7 +765,7 @@ class Game:
                         and not self.loses_abilities(permanent):  # Infinite Coursework; Basalt Monolith
                     pass
                 elif permanent.tapped and may_skip_untap(permanent.card) and \
-                        seat.player.choose(UNTAP_PROMPT + permanent.card.name, ["Untap", "Leave tapped"]) != 0:
+                        seat.player.choose(UNTAP_PROMPT(permanent.card.name), ["Untap", "Leave tapped"]) != 0:
                     pass  # Hollow Trees: left tapped to collect a storage counter at upkeep
                 else:
                     self.untap(permanent)
@@ -941,7 +939,7 @@ class Game:
         due = [card for card, turn in seat.rebounding if turn < self.turn]
         seat.rebounding = [(card, turn) for card, turn in seat.rebounding if turn >= self.turn]
         for card in due:
-            if card in seat.exile and seat.player.choose(REBOUND_PROMPT + card.name, ["Yes", "No"]) == 0:
+            if card in seat.exile and seat.player.choose(REBOUND_PROMPT(card.name), ["Yes", "No"]) == 0:
                 self._cast(seat, card, seat.exile, free=True)
 
     def legal_actions(self, seat: Seat) -> list[str]:
@@ -1167,13 +1165,13 @@ class Game:
             crewed = 0
             while crewed < ability.crew:
                 options = self._crew_candidates(seat, source)
-                member = options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])]
+                member = options[seat.player.choose(CREW_PROMPT(name), [self.label(p) for p in options])]
                 self.tap(member)
                 crewed += self.power(member)
         self.cost_tapped_power = 0
         for _ in range(ability.tap_creatures):  # like crewing, but a fixed number of creatures
             options = self._crew_candidates(seat, source, ability.tap_legendary, ability.tap_type)
-            member = options[seat.player.choose(CREW_PROMPT + name, [self.label(p) for p in options])]
+            member = options[seat.player.choose(CREW_PROMPT(name), [self.label(p) for p in options])]
             self.cost_tapped_power += self.power(member)
             self.tap(member)
         if ability.discard_hand:  # Lion's Eye Diamond
@@ -1182,13 +1180,13 @@ class Game:
                 self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
                 self._discard_into_zone(seat, card)
         for _ in range(ability.discard):
-            card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT + name, [c.name for c in seat.hand])]
+            card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT(name), [c.name for c in seat.hand])]
             seat.hand.remove(card)
             self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
             self._discard_into_zone(seat, card)
         for _ in range(ability.exile_graveyard):
             options = self._exile_cost_choices(seat, ability)
-            card = options[seat.player.choose(EXILE_COST_PROMPT + name, [c.name for c in options])]
+            card = options[seat.player.choose(EXILE_COST_PROMPT(name), [c.name for c in options])]
             seat.graveyard.remove(card)
             self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": "exile"})
             self._move_card(seat, card, "exile")
@@ -1199,7 +1197,7 @@ class Game:
         chosen = []
         for _ in range(ability.sacrifice_count if ability.sacrifice_other else 0):
             options = [p for p in self._sacrifice_choices(seat, source, ability) if p not in chosen]
-            chosen.append(options[seat.player.choose(SACRIFICE_COST_PROMPT + name, [self.label(p) for p in options])])
+            chosen.append(options[seat.player.choose(SACRIFICE_COST_PROMPT(name), [self.label(p) for p in options])])
         self.cost_sacrificed_power = sum(self.power(p) for p in chosen)
         if chosen:
             self._leave_together([(p, "sacrificed") for p in chosen])
@@ -1408,7 +1406,7 @@ class Game:
                 continue
             seat.suspended.remove(entry)
             card = entry[0]
-            if card in seat.exile and seat.player.choose(CASCADE_PROMPT + card.name, YES_NO) == 0:
+            if card in seat.exile and seat.player.choose(CASCADE_PROMPT(card.name), YES_NO) == 0:
                 self._cast(seat, card, seat.exile, free=True)
             elif card in seat.exile:
                 seat.exile.remove(card)  # not cast: it stays exiled for good
@@ -1419,8 +1417,6 @@ class Game:
             if seat.keep_pool_turn == self.turn and self.step != "cleanup":  # "you don't lose this mana ... until end of turn"
                 continue
             seat.mana_pool.clear()
-
-
 
 
 
@@ -1464,7 +1460,6 @@ class Game:
 
 
 
-
     def _sacrifice_for_copies(self, seat: Seat, card: Card) -> int:
         """Plumb the Forbidden: "you may sacrifice one or more creatures. When you do, copy this spell for each creature sacrificed";
         returns how many were."""
@@ -1473,12 +1468,8 @@ class Game:
         creatures = sum("Creature" in p.card.type_line for p in seat.battlefield)
         if not creatures:
             return 0
-        wanted = seat.player.choose(SACRIFICE_COPIES_PROMPT + card.name, [str(n) for n in range(creatures + 1)])
+        wanted = seat.player.choose(SACRIFICE_COPIES_PROMPT(card.name), [str(n) for n in range(creatures + 1)])
         return len([gone for _ in range(wanted) for gone in self.sacrifice(seat, "creature")])
-
-
-
-
 
 
 
@@ -1716,7 +1707,7 @@ class Game:
         card = next(c for c in self._ninjutsu_cards(seat) if c.name == name)
         cost, _ = _checked(ninjutsu_of(card))
         attacks = self._unblocked_attackers(seat)
-        pick = seat.player.choose(NINJUTSU_PROMPT + card.name, [self.label(a.attacker) for a in attacks]) if len(attacks) > 1 else 0
+        pick = seat.player.choose(NINJUTSU_PROMPT(card.name), [self.label(a.attacker) for a in attacks]) if len(attacks) > 1 else 0
         attack = attacks[pick]
         self._spend_mana(seat, _checked(self._payment(seat, dataclasses.replace(card, mana_cost=cost))))
         self.return_to_hand(attack.attacker)
@@ -1804,7 +1795,7 @@ class Game:
             most = 0
             while most < MAX_X and self._ability_payment(seat, permanent, ability, most + 1) is not None:
                 most += 1
-            x = seat.player.choose(X_PROMPT + permanent.card.name, [str(n) for n in range(most + 1)])
+            x = seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in range(most + 1)])
         tapped = _checked(self._ability_payment(seat, permanent, ability, x))
         self._spend_mana(seat, tapped)
         if ability.tap:
@@ -1869,8 +1860,6 @@ class Game:
             return True
         finally:
             self.targeting_source = saved
-
-
 
 
 
@@ -2030,7 +2019,7 @@ class Game:
         """Mox Diamond: "you may discard a land card instead"; without doing so it goes to its owner's graveyard."""
         lands_in_hand = [c for c in seat.hand if is_land(c)]
         if lands_in_hand:
-            choice = seat.player.choose(MOX_DIAMOND_PROMPT + card.name, [c.name for c in lands_in_hand] + ["Don't discard"])
+            choice = seat.player.choose(MOX_DIAMOND_PROMPT(card.name), [c.name for c in lands_in_hand] + ["Don't discard"])
             if choice < len(lands_in_hand):
                 land = lands_in_hand[choice]
                 seat.hand.remove(land)
@@ -2105,7 +2094,7 @@ class Game:
 
     def may_attach(self, seat: Seat, attachment: Permanent, creature: Permanent) -> None:
         """ "You may attach it to the token.": asked, then the Aura moves."""
-        if seat.player.choose(ATTACH_PROMPT + attachment.card.name, YES_NO) == 0:
+        if seat.player.choose(ATTACH_PROMPT(attachment.card.name), YES_NO) == 0:
             self.attach(attachment, creature)
 
     def untap_all(self, seat: Seat, kind: str) -> None:
@@ -2121,7 +2110,7 @@ class Game:
 
     def _resolve_ability(self, item: StackItem) -> None:
         seat, ability = item.controller, _checked(item.ability)
-        if getattr(ability, "optional", False) and seat.player.choose(OPTIONAL_PROMPT + item.card.name, YES_NO) != 0:
+        if getattr(ability, "optional", False) and seat.player.choose(OPTIONAL_PROMPT(item.card.name), YES_NO) != 0:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": _shown(ability.text, item.card), "declined": True})
             return
@@ -2773,14 +2762,14 @@ class Game:
         else:  # "Change a target of target spell or ability": one of its targets that can be changed
             movable = [i for i, t in enumerate(item.targets) if t is not None and not isinstance(t, list) and new_options(i)]
             indexes = movable[:1] if len(movable) < 2 else [movable[chooser.player.choose(
-                CHANGE_WHICH_PROMPT + item.card.name, [self._target_label(item.targets[i]) for i in movable])]]
+                CHANGE_WHICH_PROMPT(item.card.name), [self._target_label(item.targets[i]) for i in movable])]]
         for index in indexes:
             if index is None:
                 return
             current = item.targets[index]
             options = new_options(index)
             if options:
-                label, new = options[chooser.player.choose(TARGET_PROMPT + item.card.name, [o[0] for o in options])]
+                label, new = options[chooser.player.choose(TARGET_PROMPT(item.card.name), [o[0] for o in options])]
                 item.targets[index] = new
                 if new is not current:
                     self.broadcast({"event": "target_changed", "seat": chooser.index, "card": item.card.name, "to": label})
@@ -2919,7 +2908,7 @@ class Game:
             chosen.append(pick)
         for card in chosen:
             options = ["Put it on top of your library"] + ([f"Pay {life} life"] if seat.life > life else [])
-            if seat.player.choose(SYLVAN_PAY_PROMPT + card.name, options) == 0:
+            if seat.player.choose(SYLVAN_PAY_PROMPT(card.name), options) == 0:
                 seat.hand.remove(card)
                 seat.library.insert(0, card)
             else:
@@ -3119,7 +3108,7 @@ class Game:
             who = target if isinstance(target, Seat) else self.controller_of(target)
             label = f"player {target.index}" if isinstance(target, Seat) else self.label(target)
             options = [f"{n} damage ({' then '.join(outcomes[n][0])})" for n in ordered]
-            pick = (who or self.seats[0]).player.choose(DAMAGE_ORDER_PROMPT + label, options)
+            pick = (who or self.seats[0]).player.choose(DAMAGE_ORDER_PROMPT(label), options)
         dealt = ordered[pick]
         self._use_shields(target, outcomes[dealt][1])
         return dealt, outcomes[dealt][1]
@@ -3463,11 +3452,11 @@ class Game:
             return
         for _ in range(cost.count if cost.sacrifice else 0):
             options = self._morph_permanents(seat, permanent, cost.sacrifice)
-            self._leave_together([(options[seat.player.choose(SACRIFICE_COST_PROMPT + _checked(permanent.real_card).name,
+            self._leave_together([(options[seat.player.choose(SACRIFICE_COST_PROMPT(_checked(permanent.real_card).name),
                                                                [self.label(p) for p in options])], "sacrificed")])
         for _ in range(cost.count if cost.bounce else 0):
             options = self._morph_permanents(seat, permanent, cost.bounce)
-            self.return_to_hand(options[seat.player.choose(MORPH_RETURN_PROMPT + _checked(permanent.real_card).name, [self.label(p) for p in options])])
+            self.return_to_hand(options[seat.player.choose(MORPH_RETURN_PROMPT(_checked(permanent.real_card).name), [self.label(p) for p in options])])
         if cost.discard:
             options = [c for c in seat.hand if _card_matches(cost.discard, c)]
             discarded = options[seat.player.choose(DISCARD_PROMPT, [c.name for c in options])]
@@ -3496,14 +3485,14 @@ class Game:
         exiled: list[Card] = []
         while seat.library:
             total = int(sum(c.cmc for c in exiled))
-            if seat.player.choose(f"{DANCE_PROMPT}({len(exiled)} exiled, total mana value {total})", YES_NO) != 0:
+            if seat.player.choose(DANCE_PROMPT(f"({len(exiled)} exiled, total mana value {total})"), YES_NO) != 0:
                 break
             card = seat.library.pop(0)
             exiled.append(card)
             self._move_card(seat, card, "exile")
         if exiled and sum(c.cmc for c in exiled) <= limit:
             for card in [c for c in exiled if not is_land(c)]:
-                if card in seat.exile and seat.player.choose(DANCE_CAST_PROMPT + card.name, YES_NO) == 0:
+                if card in seat.exile and seat.player.choose(DANCE_CAST_PROMPT(card.name), YES_NO) == 0:
                     self._cast(seat, card, seat.exile, free=True)
 
     def copy_attacking(self, seat: Seat, source: Permanent) -> None:
@@ -3716,7 +3705,7 @@ class Game:
         options = [p for p in seat.battlefield if "Creature" in p.card.type_line]
         if not options:
             return
-        pick = seat.player.choose(EXPLOIT_PROMPT + source.card.name, [self.label(p) for p in options] + [NO_EXPLOIT])
+        pick = seat.player.choose(EXPLOIT_PROMPT(source.card.name), [self.label(p) for p in options] + [NO_EXPLOIT])
         if pick == len(options):
             return
         self._leave_together([(options[pick], "sacrificed")])
@@ -4074,7 +4063,7 @@ class Game:
         tokens = [p for p in seat.battlefield if _is_token(p.card)]
         if not tokens:
             return
-        pick = seat.player.choose(CLONE_PROMPT + "tokens", [self.label(p) for p in tokens] + [NOT_A_COPY])
+        pick = seat.player.choose(CLONE_PROMPT("tokens"), [self.label(p) for p in tokens] + [NOT_A_COPY])
         if pick == len(tokens):
             return
         chosen = tokens[pick]
@@ -4099,7 +4088,7 @@ class Game:
     def may_become_copy(self, seat: Seat, permanent: Permanent, cards: list[Card]) -> None:
         """`permanent` may become a copy of one of `cards` until end of turn (like a crewed Vehicle, its card comes back at
         cleanup). Counters and damage stay where they are."""
-        pick = seat.player.choose(CLONE_PROMPT + permanent.card.name, [c.name for c in cards] + [NOT_A_COPY])
+        pick = seat.player.choose(CLONE_PROMPT(permanent.card.name), [c.name for c in cards] + [NOT_A_COPY])
         if pick == len(cards):
             return
         permanent.original = permanent.original or permanent.card
@@ -4255,7 +4244,7 @@ class Game:
         self._enter(seat, entering)
         cost = cost_of(card.mana_cost).reduced(reduction) if card.mana_cost else Cost()
         paid = self._pay_cost(seat, cost) if cost.generic or cost.colored else []
-        if paid is not None and (not paid or seat.player.choose(UNLESS_PROMPT + card.name, ["Pay the reduced cost", "Sacrifice it"]) == 0):
+        if paid is not None and (not paid or seat.player.choose(UNLESS_PROMPT(card.name), ["Pay the reduced cost", "Sacrifice it"]) == 0):
             self._spend_mana(seat, paid)
         else:
             self._leave_battlefield(entering, "sacrificed")
@@ -4267,7 +4256,7 @@ class Game:
             options = [c for c in _unique(seat.graveyard) if _card_matches(kind, c)]
             if not options:
                 continue
-            card = options[seat.player.choose(RETURN_CARD_PROMPT + kind, [c.name for c in options])]
+            card = options[seat.player.choose(RETURN_CARD_PROMPT(kind), [c.name for c in options])]
             self.return_from_graveyard(GraveyardTarget(card, seat), seat, to, tapped)
 
     def exile_noting(self, target: Permanent, source: Permanent | None) -> None:
@@ -4441,7 +4430,7 @@ class Game:
         """"... gains protection from the color of your choice until end of turn." """
         source = self.resolving_item.card.name if self.resolving_item else permanent.card.name
         names = list(COLOR_NAMES.values())
-        name = names[chooser.player.choose(PROTECTION_PROMPT + source, names)]
+        name = names[chooser.player.choose(PROTECTION_PROMPT(source), names)]
         self.modify_until_end_of_turn(permanent, Modifier(0, 0, frozenset({f"protection from {name}"})))
 
     def resolve_ward(self, cost_text: str) -> None:
@@ -4452,7 +4441,7 @@ class Game:
             return
         payer = item.controller
         shown = f"Pay {cost_text}" if cost_text.startswith("{") else cost_text
-        if self.can_pay_ward(payer, cost_text) and payer.player.choose(WARD_PROMPT + item.card.name,
+        if self.can_pay_ward(payer, cost_text) and payer.player.choose(WARD_PROMPT(item.card.name),
                                                                        [shown, "Don't pay"]) == 0:
             self.pay_ward(payer, cost_text)
             self.broadcast({"event": "ward_paid", "seat": payer.index, "card": ward.card.name, "cost": cost_text})
@@ -4587,7 +4576,7 @@ class Game:
         top = seat.library[0]
         if source.chosen_type not in top.type_line.partition("\u2014")[2].split() or (creature and "Creature" not in top.type_line):
             return
-        if seat.player.choose(REVEAL_CHOSEN_PROMPT + top.name, YES_NO) == 0:
+        if seat.player.choose(REVEAL_CHOSEN_PROMPT(top.name), YES_NO) == 0:
             seat.library.pop(0)
             seat.hand.append(top)
             self.broadcast({"event": "revealed", "seat": seat.index, "card": top.name})
@@ -4614,7 +4603,7 @@ class Game:
         del seat.library[:len(top)]
         kept, bottom = [], []
         for card in top:
-            choice = seat.player.choose(SCRY_PROMPT + card.name, [KEEP_ON_TOP, PUT_ON_BOTTOM])
+            choice = seat.player.choose(SCRY_PROMPT(card.name), [KEEP_ON_TOP, PUT_ON_BOTTOM])
             (kept if choice == 0 else bottom).append(card)
         seat.library = self._ordered(seat, kept) + seat.library + bottom
         self.broadcast({"event": "scry", "seat": seat.index, "count": len(top)}, skip=seat)
@@ -4636,7 +4625,7 @@ class Game:
             options = [p for p in seat.battlefield if "Creature" in p.card.type_line and p is not permanent]
             if not options:
                 break
-            pick = seat.player.choose(DEVOUR_PROMPT + permanent.card.name, [self.label(p) for p in options] + [DEVOUR_DONE])
+            pick = seat.player.choose(DEVOUR_PROMPT(permanent.card.name), [self.label(p) for p in options] + [DEVOUR_DONE])
             if pick == len(options):
                 break
             self._leave_together([(options[pick], "sacrificed")])
@@ -4672,7 +4661,7 @@ class Game:
                         **({"card": found.name} if found else {})})
         if found is not None:
             seat.exile.append(found)
-            if seat.player.choose(CASCADE_PROMPT + found.name, YES_NO) == 0:
+            if seat.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
                 self._cast(seat, found, seat.exile, free=True)
             if found in seat.exile:  # not cast: it goes to the bottom too
                 seat.exile.remove(found)
@@ -4729,7 +4718,7 @@ class Game:
             if permanent.echo_pending and (echo := echo_cost(permanent.card)):  # Echo: pay once, or sacrifice it
                 permanent.echo_pending = False
                 paid = self._pay_cost(seat, cost_of(echo))
-                if paid is not None and seat.player.choose(UPKEEP_PROMPT + permanent.card.name, YES_NO) == 0:
+                if paid is not None and seat.player.choose(UPKEEP_PROMPT(permanent.card.name), YES_NO) == 0:
                     self._spend_mana(seat, paid)
                 else:
                     self._leave_battlefield(permanent, "sacrificed")
@@ -4740,7 +4729,7 @@ class Game:
             permanent.counters["age"] = permanent.counters.get("age", 0) + 1
             cost = parse_cost(base * permanent.counters["age"])
             tapped = self._pay_cost(seat, cost) if cost is not None else None
-            if tapped is not None and seat.player.choose(UPKEEP_PROMPT + permanent.card.name, YES_NO) == 0:
+            if tapped is not None and seat.player.choose(UPKEEP_PROMPT(permanent.card.name), YES_NO) == 0:
                 self._spend_mana(seat, tapped)
                 self.broadcast({"event": "upkeep_paid", "seat": seat.index, "card": permanent.card.name,
                                 "age": permanent.counters["age"]})
@@ -4809,7 +4798,7 @@ class Game:
         self._enter(seat, equipment)
         creatures = [p for p in seat.battlefield if "Creature" in p.card.type_line and p is not equipment]
         if creatures:
-            pick = seat.player.choose(EQUIP_PROMPT + card.name, [self.label(p) for p in creatures] + [DECLINE])
+            pick = seat.player.choose(EQUIP_PROMPT(card.name), [self.label(p) for p in creatures] + [DECLINE])
             if pick < len(creatures):
                 self.attach(equipment, creatures[pick])
 
@@ -4951,7 +4940,7 @@ class Game:
         self.broadcast({"event": "revealed", "seat": seat.index, "card": aura.name if aura else None,
                         "count": len(revealed) + (aura is not None)})
         if aura is not None:
-            if self._can_put_attachment(seat, aura) and seat.player.choose(PUT_ATTACHMENT_PROMPT + f": {aura.name}?", YES_NO) == 0:
+            if self._can_put_attachment(seat, aura) and seat.player.choose(PUT_ATTACHMENT_PROMPT(f": {aura.name}?"), YES_NO) == 0:
                 self.put_attachment_onto_battlefield(seat, aura)
             else:
                 seat.hand.append(aura)
@@ -5005,7 +4994,7 @@ class Game:
                                and _card_matches("permanent", c) and ("Aura" not in c.type_line or self._can_put_attachment(seat, c))])
             if not options:
                 break
-            choice = seat.player.choose(PUT_PERMANENT_PROMPT + f" (mana value {left} or less left)", [c.name for c in options] + [NONE_TAKEN])
+            choice = seat.player.choose(PUT_PERMANENT_PROMPT(f" (mana value {left} or less left)"), [c.name for c in options] + [NONE_TAKEN])
             if choice >= len(options):
                 break
             card = options[choice]
@@ -5068,7 +5057,7 @@ class Game:
     def pays_unless(self, payer: Seat, cost_text: str, source: Card) -> bool:
         """"... unless that player pays {1}": whether `payer` can and chooses to pay the cost (and pays it)."""
         payment = self._pay_cost(payer, cost_of(cost_text))
-        if payment is None or payer.player.choose(UNLESS_PROMPT + source.name, [f"Pay {cost_text}", "Don't pay"]) != 0:
+        if payment is None or payer.player.choose(UNLESS_PROMPT(source.name), [f"Pay {cost_text}", "Don't pay"]) != 0:
             return False
         self._spend_mana(payer, payment)
         self.broadcast({"event": "paid_unless", "seat": payer.index, "card": source.name, "cost": cost_text})
@@ -5078,7 +5067,7 @@ class Game:
         """ "You may pay {2}. If you do, ...": whether `payer` can and chooses to pay the cost (and pays it)."""
         payment = self._pay_cost(payer, cost_of(cost_text))
         name = source.name if source is not None else ""
-        if payment is None or payer.player.choose(MAY_PAY_PROMPT + name, [f"Pay {cost_text}", "Don't pay"]) != 0:
+        if payment is None or payer.player.choose(MAY_PAY_PROMPT(name), [f"Pay {cost_text}", "Don't pay"]) != 0:
             return False
         self._spend_mana(payer, payment)
         self.broadcast({"event": "paid_unless", "seat": payer.index, "card": name, "cost": cost_text})
@@ -5131,7 +5120,7 @@ class Game:
             if seat.lost:
                 continue
             for _ in range(1 + sum(extra_votes(p.card) for p in seat.battlefield)):  # "you may vote an additional time"
-                choice = seat.player.choose(VOTE_PROMPT + source, options)
+                choice = seat.player.choose(VOTE_PROMPT(source), options)
                 counts[choice] += 1
                 self.broadcast({"event": "vote", "seat": seat.index, "choice": options[choice]})
         return counts
@@ -5157,7 +5146,7 @@ class Game:
         del seat.library[:len(top)]
         kept, binned = [], []
         for card in top:
-            choice = seat.player.choose(SURVEIL_PROMPT + card.name, [KEEP_ON_TOP, PUT_IN_GRAVEYARD])
+            choice = seat.player.choose(SURVEIL_PROMPT(card.name), [KEEP_ON_TOP, PUT_IN_GRAVEYARD])
             (kept if choice == 0 else binned).append(card)
         seat.library = self._ordered(seat, kept) + seat.library
         self.broadcast({"event": "surveil", "seat": seat.index, "count": len(top), "graveyard": [c.name for c in binned]})
@@ -5199,7 +5188,7 @@ class Game:
 
     def may_remove_counter_draw(self, seat: Seat, source: Permanent, counter: str, draw: int) -> None:
         """ "You may remove a +1/+1 counter from it. If you do, draw a card." """
-        if source.counters.get(counter, 0) and seat.player.choose(REMOVE_COUNTER_PROMPT + source.card.name, YES_NO) == 0:
+        if source.counters.get(counter, 0) and seat.player.choose(REMOVE_COUNTER_PROMPT(source.card.name), YES_NO) == 0:
             self.remove_counters(source, counter, 1)
             self.draw(seat, draw)
 
@@ -5211,7 +5200,7 @@ class Game:
                 self.draw(seat, count)
 
     def tap_or_untap(self, seat: Seat, target: Permanent) -> None:
-        pick = seat.player.choose(TAP_OR_UNTAP_PROMPT + target.card.name, ["Tap", "Untap", "Neither"])
+        pick = seat.player.choose(TAP_OR_UNTAP_PROMPT(target.card.name), ["Tap", "Untap", "Neither"])
         if pick < 2:
             target.tapped = pick == 0
 
@@ -5241,7 +5230,7 @@ class Game:
         seat.exile.append(card)
         self.broadcast({"event": "madness", "seat": seat.index, "card": card.name})
         way = AlternativeCost(f"Madness {cost}", mana_cost=cost)
-        if self._payment(seat, card, alternative=way) is not None and seat.player.choose(MADNESS_PROMPT + card.name, YES_NO) == 0:
+        if self._payment(seat, card, alternative=way) is not None and seat.player.choose(MADNESS_PROMPT(card.name), YES_NO) == 0:
             self._cast(seat, card, seat.exile, madness=way)
         if any(c is card for c in seat.exile):  # not cast (declined, or no legal target): into the graveyard
             seat.exile.remove(card)
@@ -5328,7 +5317,7 @@ class Game:
         if chooses_color(permanent.card):
             names = {"White": "W", "Blue": "U", "Black": "B", "Red": "R", "Green": "G"}
             names = {name: letter for name, letter in names.items() if letter != color_choice_excludes(permanent.card)}
-            permanent.chosen_color = names[list(names)[seat.player.choose(CHOOSE_COLOR_PROMPT + permanent.card.name, list(names))]]
+            permanent.chosen_color = names[list(names)[seat.player.choose(CHOOSE_COLOR_PROMPT(permanent.card.name), list(names))]]
         if enters_prepared(permanent.card):
             permanent.prepared = True
         if echo_cost(permanent.card):
@@ -5367,7 +5356,7 @@ class Game:
                 for kind in owned.type_line.partition("—")[2].split():
                     counts[kind] = counts.get(kind, 0) + 1
         options = sorted(counts, key=lambda kind: (-counts[kind], kind)) or ["Human"]
-        return options[seat.player.choose(CHOOSE_TYPE_PROMPT + card.name, options)]
+        return options[seat.player.choose(CHOOSE_TYPE_PROMPT(card.name), options)]
 
     def prepare(self, permanent: Permanent) -> None:
         """A creature with a prepare spell becomes prepared (nothing happens if it already is)."""
@@ -5386,7 +5375,7 @@ class Game:
         options = [p for s in self.live_seats() for p in s.battlefield if "Creature" in p.card.type_line]
         if not options:
             return
-        pick = seat.player.choose(CLONE_PROMPT + permanent.card.name, [self.label(p) for p in options] + [NOT_A_COPY])
+        pick = seat.player.choose(CLONE_PROMPT(permanent.card.name), [self.label(p) for p in options] + [NOT_A_COPY])
         if pick < len(options):
             self.become_copy_until_end_of_turn(permanent, options[pick], keyword, seat)
 
@@ -5400,7 +5389,7 @@ class Game:
                    and (not rule.min_power or (p.card.power or "").lstrip("-").isdigit() and int(p.card.power or 0) >= rule.min_power)]
         if not options:
             return
-        pick = seat.player.choose(CLONE_PROMPT + permanent.card.name, [self.label(p) for p in options] + [NOT_A_COPY])
+        pick = seat.player.choose(CLONE_PROMPT(permanent.card.name), [self.label(p) for p in options] + [NOT_A_COPY])
         if pick == len(options):
             return
         copied = options[pick].card
@@ -5490,12 +5479,12 @@ class Game:
             return seat.index == self.starting_seat
         if rule.kind == "reveal":  # a Snarl: show a matching card from your hand or enter tapped
             matching = [c for c in seat.hand if any(t in c.type_line for t in rule.types)]
-            if matching and seat.player.choose(REVEAL_PROMPT + card.name, [f"Reveal {matching[0].name}", "Enter tapped"]) == 0:
+            if matching and seat.player.choose(REVEAL_PROMPT(card.name), [f"Reveal {matching[0].name}", "Enter tapped"]) == 0:
                 self.broadcast({"event": "revealed", "seat": seat.index, "card": matching[0].name})
                 return False
             return True
         # Shock land: you may pay life. (You can only pay life you have to spare.)
-        if seat.life > rule.life and seat.player.choose(SHOCK_PROMPT + card.name,
+        if seat.life > rule.life and seat.player.choose(SHOCK_PROMPT(card.name),
                                                         [f"Pay {rule.life} life", "Enter tapped"]) == 0:
             self.change_life(seat, -rule.life)
             return False
@@ -5507,7 +5496,7 @@ class Game:
         top = seat.library[:count]
         if not top:
             return
-        pick = seat.player.choose(HIDEAWAY_PROMPT + source.card.name, [c.name for c in top]) if len(top) > 1 else 0
+        pick = seat.player.choose(HIDEAWAY_PROMPT(source.card.name), [c.name for c in top]) if len(top) > 1 else 0
         chosen = top[pick]
         rest = [c for i, c in enumerate(top) if i != pick]
         del seat.library[:len(top)]
@@ -5526,7 +5515,7 @@ class Game:
         is_a_land = is_land(card)
         if is_a_land and seat.lands_played >= self._land_drops(seat):
             return  # it stays hidden away until a land can be played
-        if seat.player.choose(HIDEAWAY_PLAY_PROMPT + card.name, ["Play it", "Don't"]) != 0:
+        if seat.player.choose(HIDEAWAY_PLAY_PROMPT(card.name), ["Play it", "Don't"]) != 0:
             return
         source.exiled_with.remove(found)
         if is_a_land:
@@ -5543,7 +5532,7 @@ class Game:
             return
         options = [p for p in seat.battlefield if p is not source and not p.tapped and has_type(p.card, land_type)]
         if options:
-            pick = seat.player.choose(KAROO_PROMPT + source.card.name,
+            pick = seat.player.choose(KAROO_PROMPT(source.card.name),
                                       [f"Return {self.label(p)}" for p in options] + [SACRIFICE_IT])
             if pick < len(options):
                 self.return_to_hand(options[pick])
@@ -5860,7 +5849,6 @@ class Game:
                 seat.player.notify(event)
         for spectator in self.spectators:
             spectator.notify(event)
-
 
 
 

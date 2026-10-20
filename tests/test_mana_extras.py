@@ -116,7 +116,7 @@ class XAbilityTests(unittest.TestCase):
         used = []
 
         def policy(prompt, options):
-            if prompt.startswith(X_PROMPT):
+            if X_PROMPT.matches(prompt):
                 return x
             if not used:
                 for i, option in enumerate(options):
@@ -153,7 +153,7 @@ class XAbilityTests(unittest.TestCase):
         seen = []
 
         def policy(prompt, options):
-            if prompt.startswith(X_PROMPT):
+            if X_PROMPT.matches(prompt):
                 seen.append(options)
                 return 0
             for i, option in enumerate(options):

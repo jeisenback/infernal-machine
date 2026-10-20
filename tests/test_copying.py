@@ -53,7 +53,7 @@ class CloneTests(unittest.TestCase):
 
     def test_it_can_copy_nothing_and_then_dies_as_a_0_0(self):
         game, a, _, _ = self.cast(CLONE, theirs=[OGRE], policy=lambda prompt, options: (
-            len(options) - 1 if prompt.startswith(CLONE_PROMPT) else
+            len(options) - 1 if CLONE_PROMPT.matches(prompt) else
             next(i for i, o in enumerate(options) if o.startswith(CAST)) if any(o.startswith(CAST) for o in options)
             else options.index("Pass")))
         self.assertEqual(names(a), [])
@@ -91,7 +91,7 @@ class CloneTests(unittest.TestCase):
 
     def test_only_creatures_you_control_when_it_says_so(self):
         game, _, _, player = self.cast(MIRROR, mine=[BEAR], theirs=[OGRE])
-        offered = next(options for prompt, options in player.prompts if prompt.startswith(CLONE_PROMPT))
+        offered = next(options for prompt, options in player.prompts if CLONE_PROMPT.matches(prompt))
         self.assertEqual(len(offered), 2)  # the Bear, and "don't copy"
         self.assertEqual(sorted(p.card.name for p in game.seats[0].battlefield if "Creature" in p.card.type_line),
                          ["Bear", "Bear"])

@@ -39,7 +39,7 @@ RABBIT = Card(name="Rabbit", type_line="Token Creature — Rabbit", power="1", t
 def bargain(yes, give="Trophy", target="Giant"):
     """Policy: answer the bargain question, sacrifice `give`, aim at `target`, pass otherwise."""
     def policy(prompt, options):
-        if prompt.startswith(KICKER_PROMPT):
+        if KICKER_PROMPT.matches(prompt):
             return 0 if yes else 1
         wanted = give if "sacrifice" in prompt else target
         for i, option in enumerate(options):
@@ -76,7 +76,7 @@ class BargainTests(unittest.TestCase):
     def test_a_creature_is_not_a_bargain(self):
         t = Table(GRAPPLE, policy=bargain(True, give="Bear"), n=4, mine=[Permanent(BEAR)], theirs=[Permanent(GIANT)])
         t.cast()
-        asked = [prompt for prompt, _ in t.a.player.prompts if prompt.startswith(KICKER_PROMPT)]
+        asked = [prompt for prompt, _ in t.a.player.prompts if KICKER_PROMPT.matches(prompt)]
         self.assertEqual(asked, [])  # nothing to sacrifice: it is not even offered
         self.assertIn("Bear", names(t.a))
 

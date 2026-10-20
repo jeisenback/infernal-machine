@@ -131,7 +131,7 @@ class EntersTappedTests(unittest.TestCase):
         game.seats[0].life = 2
         self.assertTrue(enter(game, game.seats[0], SHOCK).tapped)
         self.assertEqual(game.seats[0].life, 2)
-        self.assertFalse(any(prompt.startswith(SHOCK_PROMPT) for prompt, _ in a.prompts))
+        self.assertFalse(any(SHOCK_PROMPT.matches(prompt) for prompt, _ in a.prompts))
 
     def test_bot_pays_life_only_while_healthy(self):
         bot = BotPlayer("A", Deck([FOREST], [SHOCK], []))

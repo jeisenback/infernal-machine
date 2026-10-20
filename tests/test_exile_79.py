@@ -74,9 +74,9 @@ class ExpressiveIterationTests(unittest.TestCase):
 
         def policy(prompt, options):
             seen.append((prompt, list(options)))
-            if prompt.startswith(SPLIT_HAND_PROMPT):
+            if SPLIT_HAND_PROMPT.matches(prompt):
                 return options.index("Gamma")
-            if prompt.startswith(SPLIT_BOTTOM_PROMPT):
+            if SPLIT_BOTTOM_PROMPT.matches(prompt):
                 return options.index("Alpha")
             return pick(CAST)(prompt, options)
 
@@ -176,7 +176,7 @@ class DanceWithCalamityTests(unittest.TestCase):
         asked = []
 
         def policy(prompt, options):
-            if prompt.startswith(DANCE_PROMPT):
+            if DANCE_PROMPT.matches(prompt):
                 asked.append(prompt)
                 return 0 if len(asked) <= exile_count else 1
             if prompt.startswith("Cast "):  # for free

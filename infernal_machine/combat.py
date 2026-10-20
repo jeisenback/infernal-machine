@@ -16,15 +16,16 @@ from .characteristics import Modifier, source_qualities
 from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, Annihilate, TriggeredAbility, attack_tax_per_counter, attack_taxes,
                       combat_restrictions)
 from .mana import Cost, cost_of
+from .prompts import PromptKind
 
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
 
-MYRIAD_PROMPT = "Myriad: create a token copy of "  # followed by the creature and the opponent; Yes or No
-ATTACK_PROMPT = "Attack with "  # followed by the creature's label
-BLOCK_PROMPT = "Block with "
-MUST_BLOCK_PROMPT = "Choose a creature that blocks "  # followed by the attacker that must be blocked if able
-ASSIGN_PROMPT = "Damage first to a blocker of "  # followed by the attacker's label
+MYRIAD_PROMPT = PromptKind("myriad", "Myriad: create a token copy of ")  # followed by the creature and the opponent; Yes or No
+ATTACK_PROMPT = PromptKind("attack", "Attack with ")  # followed by the creature's label
+BLOCK_PROMPT = PromptKind("block", "Block with ")
+MUST_BLOCK_PROMPT = PromptKind("must_block", "Choose a creature that blocks ")  # followed by the attacker that must be blocked if able
+ASSIGN_PROMPT = PromptKind("assign", "Damage first to a blocker of ")  # followed by the attacker's label
 NO_ATTACK = "Don't attack"
 NO_BLOCK = "Don't block"
 
@@ -71,10 +72,10 @@ class Combat:
             elif goader := self.game.goader_of(permanent):  # must attack, and not the goader if there's anyone else
                 targets = [o for o in opponents if o is not goader] or opponents
                 defender = targets[0] if len(targets) == 1 else targets[seat.player.choose(
-                    ATTACK_PROMPT + self.game.label(permanent), [f"Attack Player: {o.name} (seat {o.index})" for o in targets])]
+                    ATTACK_PROMPT(self.game.label(permanent)), [f"Attack Player: {o.name} (seat {o.index})" for o in targets])]
             else:
                 forced = self._has(permanent, MUST_ATTACK)  # "attacks each combat if able": no way to stay home
-                choice = seat.player.choose(ATTACK_PROMPT + self.game.label(permanent), options[forced:]) + forced
+                choice = seat.player.choose(ATTACK_PROMPT(self.game.label(permanent)), options[forced:]) + forced
                 if choice == 0:
                     continue
                 if choice <= len(opponents):
@@ -150,7 +151,7 @@ class Combat:
         """Myriad: for each opponent other than the defending player, you may create a token copy of the creature that's tapped
         and attacking that player; the tokens are exiled at end of combat."""
         for opponent in self.game.opponents(seat):
-            if opponent is defender or seat.player.choose(MYRIAD_PROMPT + self.game.label(permanent) + f" attacking {opponent.name}?", ["Yes", "No"]) != 0:
+            if opponent is defender or seat.player.choose(MYRIAD_PROMPT(self.game.label(permanent) + f" attacking {opponent.name}?"), ["Yes", "No"]) != 0:
                 continue
             for made in self.game.create_tokens(seat, copy_of(permanent.card, as_token=True), 1):
                 made.tapped = True
@@ -218,7 +219,7 @@ class Combat:
                             and self._can_block(p, attack.attacker) and not any(p in a.blockers for a in self.attacks)]
                     if able:
                         pick = able[0] if len(able) == 1 else able[seat.player.choose(
-                            MUST_BLOCK_PROMPT + self.game.label(attack.attacker), [self.game.label(p) for p in able])]
+                            MUST_BLOCK_PROMPT(self.game.label(attack.attacker)), [self.game.label(p) for p in able])]
                         self._block(seat, pick, attack)
             for permanent in list(seat.battlefield):
                 if permanent.tapped or "Creature" not in permanent.card.type_line or any(permanent in a.blockers for a in self.attacks):
@@ -237,7 +238,7 @@ class Combat:
                         self._block(seat, permanent, wanted[0])
                         continue
                 options = [NO_BLOCK] + [f"Block {self.game.label(a.attacker)}" for a in blockable]
-                choice = seat.player.choose(BLOCK_PROMPT + self.game.label(permanent), options)
+                choice = seat.player.choose(BLOCK_PROMPT(self.game.label(permanent)), options)
                 if choice:
                     self._block(seat, permanent, blockable[choice - 1])
         for attack in self.attacks:
@@ -349,7 +350,7 @@ class Combat:
         """With several blockers the attacker's controller picks which gets lethal damage first, then next, ..."""
         remaining, ordered = list(blockers), []
         while len(remaining) > 1:
-            pick = controller.player.choose(ASSIGN_PROMPT + self.game.label(attacker),
+            pick = controller.player.choose(ASSIGN_PROMPT(self.game.label(attacker)),
                                             [self.game.label(b) for b in remaining])
             ordered.append(remaining.pop(pick))
         return ordered + remaining

@@ -120,7 +120,7 @@ class ChosenColorTests(unittest.TestCase):
     def test_the_controller_picks_the_color(self):
         picks = iter([3])  # red
         base = pick(CAST)
-        game, players = table2(lambda prompt, options: next(picks) if prompt.startswith(PROTECTION_PROMPT) else base(prompt, options))
+        game, players = table2(lambda prompt, options: next(picks) if PROTECTION_PROMPT.matches(prompt) else base(prompt, options))
         a = game.seats[0]
         bear = Permanent(BEAR)
         a.hand, a.battlefield = [GODS_WILLING], lands(1) + [bear]
@@ -131,7 +131,7 @@ class ChosenColorTests(unittest.TestCase):
         self.assertFalse(game.protected_from(bear, source_qualities(GREEN_BEAR)))
 
     def test_it_ends_with_the_turn(self):
-        game, _ = table2(lambda prompt, options: 3 if prompt.startswith(PROTECTION_PROMPT) else 0)
+        game, _ = table2(lambda prompt, options: 3 if PROTECTION_PROMPT.matches(prompt) else 0)
         bear = Permanent(BEAR)
         game.seats[0].battlefield = [bear]
         game.resolving_item = None
@@ -142,7 +142,7 @@ class ChosenColorTests(unittest.TestCase):
 
     def test_mother_of_runes_protects_a_creature_you_control(self):
         base = lambda prompt, options: (next((i for i, o in enumerate(options) if o.startswith(ACTIVATE)), options.index(PASS))
-                                        if prompt.startswith("Priority") else 3 if prompt.startswith(PROTECTION_PROMPT) else 0)
+                                        if prompt.startswith("Priority") else 3 if PROTECTION_PROMPT.matches(prompt) else 0)
         game, _ = table2(base)
         a = game.seats[0]
         mother, bear = Permanent(MOTHER), Permanent(BEAR)

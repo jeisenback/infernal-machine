@@ -37,7 +37,7 @@ def modes(*picks):
     base = pick(CAST)
 
     def policy(prompt, options):
-        if prompt.startswith(MODE_PROMPT):
+        if MODE_PROMPT.matches(prompt):
             want = next(wanted, 0)
             return options.index(want) if isinstance(want, str) else want
         return base(prompt, options)
@@ -85,7 +85,7 @@ class CommandTests(unittest.TestCase):
 
 class EntwineTests(unittest.TestCase):
     def cast(self, mana, answer):
-        policy = lambda prompt, options: (answer if prompt.startswith(ENTWINE_PROMPT) else modes(0)(prompt, options))
+        policy = lambda prompt, options: (answer if ENTWINE_PROMPT.matches(prompt) else modes(0)(prompt, options))
         game, players = table3(policy)
         a = game.seats[0]
         a.hand, a.battlefield, a.library = [SWEEP], lands(mana), [BEAR] * 3
@@ -164,7 +164,7 @@ def pick_relic(options):
 
 class ModalAbilityTests(unittest.TestCase):
     def activate(self, card, *picks, opponents=(), also=()):
-        game, players = table3(lambda prompt, options: (modes(*picks)(prompt, options) if prompt.startswith(MODE_PROMPT)
+        game, players = table3(lambda prompt, options: (modes(*picks)(prompt, options) if MODE_PROMPT.matches(prompt)
                                                        else pick_relic(options) if prompt.startswith("Choose what to sacrifice")
                                                        else next((i for i, o in enumerate(options) if o.startswith(ACTIVATE)),
                                                                  options.index(PASS) if PASS in options else 0)))

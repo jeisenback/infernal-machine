@@ -22,8 +22,8 @@ def targets(*indexes, move=0):
     """Cast the first spell, answering each target prompt with the next index and "move how many" with `move`."""
     wanted = iter(indexes)
     base = pick(CAST)
-    return lambda prompt, options: (next(wanted, 0) if prompt.startswith(TARGET_PROMPT)
-                                    else move if prompt.startswith(MOVE_COUNTERS_PROMPT) else base(prompt, options))
+    return lambda prompt, options: (next(wanted, 0) if TARGET_PROMPT.matches(prompt)
+                                    else move if MOVE_COUNTERS_PROMPT.matches(prompt) else base(prompt, options))
 
 
 class ScaledPumpTests(unittest.TestCase):

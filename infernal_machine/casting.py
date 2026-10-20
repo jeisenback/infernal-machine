@@ -49,7 +49,7 @@ class Caster:
         alternative = ways[0]
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
-            alternative = ways[seat.player.choose(g.COST_PROMPT + card.name, options)]
+            alternative = ways[seat.player.choose(g.COST_PROMPT(card.name), options)]
         if alternative and alternative.bestow:  # an Aura spell that must target a creature
             effects = [AttachAura("creature")]
         if alternative and alternative.overload:  # every "target" is "each": no targets
@@ -87,9 +87,9 @@ class Caster:
             choices = self._x_values_with_targets(seat, effects, source_qualities(card), most)
             if not choices:  # nothing could be targeted for any X that can be paid
                 return
-            x = choices[seat.player.choose(g.X_PROMPT + card.name, [str(n) for n in choices])]
+            x = choices[seat.player.choose(g.X_PROMPT(card.name), [str(n) for n in choices])]
         elif any(c.life_x for c in additional_costs(card)):  # "pay X life": any amount that leaves you alive
-            x = seat.player.choose(g.LIFE_X_PROMPT + card.name, [str(n) for n in range(max(seat.life, 1))])
+            x = seat.player.choose(g.LIFE_X_PROMPT(card.name), [str(n) for n in range(max(seat.life, 1))])
         self.game.targeting_x = x
         strive = strive_cost(card)
         if strive:  # as many targets as the mana will pay for: each one beyond the first costs more
@@ -120,7 +120,7 @@ class Caster:
                          and self.game._restricted_mana_ok(p, limited, paying) for p in tapped)
         spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
         for _ in range(delve):
-            exiled = seat.graveyard[seat.player.choose(g.DELVE_PROMPT + card.name, [c.name for c in seat.graveyard])]
+            exiled = seat.graveyard[seat.player.choose(g.DELVE_PROMPT(card.name), [c.name for c in seat.graveyard])]
             seat.graveyard.remove(exiled)
             self.game.broadcast({"event": "left_graveyard", "seat": seat.index, "card": exiled.name, "to": "exile"})
             self.game._move_card(seat, exiled, "exile")
@@ -308,7 +308,7 @@ class Caster:
         """The option of each "this or that" additional cost that `seat` pays: asked when more than one way can be paid."""
         ways = self._payable_options(seat, card, alternative, kicked, bought_back, afford)
         if len(ways) > 1:
-            return ways[seat.player.choose(g.COST_PROMPT + card.name, [", ".join(g._extra_text(o) for o in way) for way in ways])]
+            return ways[seat.player.choose(g.COST_PROMPT(card.name), [", ".join(g._extra_text(o) for o in way) for way in ways])]
         return ways[0] if ways else ()
 
     def _extras_payable(self, seat: g.Seat, card: Card, alternative: AlternativeCost | None, extras: list) -> bool:
@@ -365,7 +365,7 @@ class Caster:
                 self.game._discard_into_zone(seat, discarded)
             for _ in range(x if extra.sacrifice_x else 1 if extra.sacrifice else 0):
                 options = [p for p in seat.battlefield if g._permanent_matches(extra.sacrifice, p.card)]
-                choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT + card.name, [self.game.label(p) for p in options])]
+                choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT(card.name), [self.game.label(p) for p in options])]
                 self.game._leave_together([(choice, "sacrificed")])
         life = (sum(c.life for c in extras) + (alternative.life if alternative else 0)
                 + (x if any(c.life_x for c in additional_costs(card)) else 0))
@@ -396,16 +396,16 @@ class Caster:
             most = 0
             while most < g.MAX_X and possible(costs * (most + 1), most + 1):
                 most += 1
-            times = seat.player.choose(g.MULTIKICKER_PROMPT + card.name, [str(n) for n in range(most + 1)]) if most else 0
+            times = seat.player.choose(g.MULTIKICKER_PROMPT(card.name), [str(n) for n in range(most + 1)]) if most else 0
             return times, costs * times
         if len(costs) == 2:
             chosen: tuple[str, ...] = ()
             for cost in costs:
                 if (possible(chosen + (cost,), len(chosen) + 1)
-                        and seat.player.choose(f"{g.KICKER_PROMPT}{card.name} ({cost})", g.YES_NO) == 0):
+                        and seat.player.choose(g.KICKER_PROMPT(f"{card.name} ({cost})"), g.YES_NO) == 0):
                     chosen += (cost,)
             return len(chosen), chosen
-        if possible(costs, 1) and seat.player.choose(g.KICKER_PROMPT + card.name, g.YES_NO) == 0:
+        if possible(costs, 1) and seat.player.choose(g.KICKER_PROMPT(card.name), g.YES_NO) == 0:
             return 1, costs
         return 0, ()
 
@@ -418,7 +418,7 @@ class Caster:
         return (self._can_pay_extras(seat, card, alternative, bought_back=True)
                 and self._payment(seat, card, from_command_zone, alternative=alternative, kickers=kickers,
                                   extra=extra + (mana or "")) is not None
-                and seat.player.choose(g.BUYBACK_PROMPT + card.name, g.YES_NO) == 0)
+                and seat.player.choose(g.BUYBACK_PROMPT(card.name), g.YES_NO) == 0)
 
     def _choose_gift(self, seat: g.Seat, card: Card, effects: list | None) -> g.Seat | None:
         """Gift: the caster may promise an opponent the gift as the spell is cast (only if what a promised gift adds can be done).
@@ -428,7 +428,7 @@ class Caster:
         opponents = [o for o in self.game.opponents(seat) if not o.lost]
         if not opponents or not self.game._targets_exist(seat, kicked_effects(effects, 1) or [], source_qualities(card)):
             return None
-        pick = seat.player.choose(g.GIFT_PROMPT + card.name, ["Don't promise a gift"] + [f"Give it to {o.name} (seat {o.index})" for o in opponents])
+        pick = seat.player.choose(g.GIFT_PROMPT(card.name), ["Don't promise a gift"] + [f"Give it to {o.name} (seat {o.index})" for o in opponents])
         return opponents[pick - 1] if pick else None
 
     def _choose_modes(self, seat: g.Seat, card: Card, modal: Modal, from_command_zone: bool = False,
@@ -440,14 +440,14 @@ class Caster:
         available = [i for i, effects in enumerate(modal.modes) if self.game._targets_exist(seat, effects, colors, source)]
         if len(available) < (min(modal.min, 1) if modal.repeat else modal.min):
             return [], ""
-        if modal.optional and seat.player.choose(g.OPTIONAL_PROMPT + card.name, g.YES_NO) != 0:
+        if modal.optional and seat.player.choose(g.OPTIONAL_PROMPT(card.name), g.YES_NO) != 0:
             return [], ""  # "you may choose two": declined
         entwine, escalate = (entwine_cost(card), escalate_cost(card)) if casting else (None, None)
         if modal.commander_both and any(p.card.name in (p.owner or seat).commander_names for p in seat.battlefield):
             modal = dataclasses.replace(modal, max=len(modal.modes))  # "if you control a commander ... you may choose both"
         if (entwine and len(available) == len(modal.modes) > 1
                 and self._payment(seat, card, from_command_zone, extra=entwine) is not None
-                and seat.player.choose(g.ENTWINE_PROMPT + card.name, g.YES_NO) == 0):
+                and seat.player.choose(g.ENTWINE_PROMPT(card.name), g.YES_NO) == 0):
             return [effect for modes in modal.modes for effect in modes], entwine
         chosen: list[int] = []
         if modal.mode_costs:  # Spree: one or more modes, each adding its cost, as many as the caster can pay for (CR 702.172)
@@ -458,7 +458,7 @@ class Caster:
                 if not affordable:
                     break
                 options = [g._shown(modal.texts[i], card) for i in affordable] + ([g.DONE_MODES] if chosen else [])
-                pick = seat.player.choose(g.MODE_PROMPT + card.name, options)
+                pick = seat.player.choose(g.MODE_PROMPT(card.name), options)
                 if pick == len(affordable):
                     break
                 chosen.append(affordable[pick])
@@ -467,7 +467,7 @@ class Caster:
         if modal.costs:  # a Season: spend up to `max` pawprints, each mode as often as it fits
             left = modal.max
             while usable := [i for i in available if modal.costs[i] <= left]:
-                pick = seat.player.choose(g.MODE_PROMPT + card.name, [g._shown(modal.texts[i], card) for i in usable] + [g.DONE_MODES])
+                pick = seat.player.choose(g.MODE_PROMPT(card.name), [g._shown(modal.texts[i], card) for i in usable] + [g.DONE_MODES])
                 if pick == len(usable):
                     break
                 chosen.append(usable[pick])
@@ -481,7 +481,7 @@ class Caster:
             options = [g._shown(modal.texts[i], card) for i in remaining]
             if len(chosen) >= modal.min:
                 options.append(g.DONE_MODES)
-            pick = seat.player.choose(g.MODE_PROMPT + card.name, options)
+            pick = seat.player.choose(g.MODE_PROMPT(card.name), options)
             if pick == len(remaining):
                 break
             chosen.append(remaining[pick])
@@ -513,7 +513,7 @@ class Caster:
                 for owner in self.game.turn_order_from_active():
                     pool = [o for o in self.game.target_options(kind, seat, colors) if self.game.controller_of(o[1]) is owner]
                     if pool:
-                        pick = seat.player.choose(g.TARGET_PROMPT + source_name, [o[0] for o in pool] + [g.NO_TARGET])
+                        pick = seat.player.choose(g.TARGET_PROMPT(source_name), [o[0] for o in pool] + [g.NO_TARGET])
                         if pick < len(pool):
                             picked.append(pool[pick][1])
                 targets.append(picked)
@@ -532,7 +532,7 @@ class Caster:
                             and not (getattr(effect, "another", False) and self.game.option_is_source(o[1], source))]  # "other target creatures"
                     if not pool:
                         break
-                    pick = seat.player.choose(g.TARGET_PROMPT + source_name,
+                    pick = seat.player.choose(g.TARGET_PROMPT(source_name),
                                               [o[1][0] for o in pool] + ([] if exact else [g.NO_TARGET]))
                     if pick == len(pool):
                         break
@@ -552,7 +552,7 @@ class Caster:
                 options.append((-1, (g.NO_TARGET, None)))
             if not options:
                 return None
-            index, (label, target) = options[seat.player.choose(g.TARGET_PROMPT + source_name, [o[1][0] for o in options])]
+            index, (label, target) = options[seat.player.choose(g.TARGET_PROMPT(source_name), [o[1][0] for o in options])]
             if index >= 0:
                 taken.add(index)
             targets.append(target)
@@ -623,4 +623,4 @@ class Caster:
         while (most < g.MAX_X and self._payment(seat, card, from_command_zone, alternative=alternative, kickers=kickers,
                                               extra=extra + cost * (most + 1)) is not None):
             most += 1
-        return seat.player.choose(g.REPLICATE_PROMPT + card.name, [str(n) for n in range(most + 1)]) if most else 0
+        return seat.player.choose(g.REPLICATE_PROMPT(card.name), [str(n) for n in range(most + 1)]) if most else 0

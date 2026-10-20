@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
+from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
 
 
-DEMONSTRATE_PROMPT = "Copy it with demonstrate? "  # followed by the spell's name; options are YES_NO
+DEMONSTRATE_PROMPT = PromptKind("demonstrate", "Copy it with demonstrate? ")  # followed by the spell's name; options are YES_NO
 
 
-DEMONSTRATE_OPPONENT_PROMPT = "Choose an opponent to also copy "  # followed by the spell's name
+DEMONSTRATE_OPPONENT_PROMPT = PromptKind("demonstrate_opponent", "Choose an opponent to also copy ")  # followed by the spell's name
 
 
 @dataclass(frozen=True)
@@ -22,12 +23,12 @@ class Demonstrate:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         spell = game.resolving_item.carried if game.resolving_item is not None else None
-        if spell is None or controller.player.choose(DEMONSTRATE_PROMPT + spell.card.name, ["Yes", "No"]) != 0:
+        if spell is None or controller.player.choose(DEMONSTRATE_PROMPT(spell.card.name), ["Yes", "No"]) != 0:
             return
         game.copy_spell(spell, controller, new_targets=True)
         opponents = game.opponents(controller)
         if opponents:
-            pick = controller.player.choose(DEMONSTRATE_OPPONENT_PROMPT + spell.card.name,
+            pick = controller.player.choose(DEMONSTRATE_OPPONENT_PROMPT(spell.card.name),
                                             [f"Player: {o.name} (seat {o.index})" for o in opponents])
             game.copy_spell(spell, opponents[pick], new_targets=True)
 

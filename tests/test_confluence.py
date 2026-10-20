@@ -24,7 +24,7 @@ def watching(policy):
     asked = []
 
     def wrapped(prompt, options):
-        if prompt.startswith(MODE_PROMPT):
+        if MODE_PROMPT.matches(prompt):
             asked.append(list(options))
         return policy(prompt, options)
     return wrapped, asked

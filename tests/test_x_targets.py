@@ -64,7 +64,7 @@ class CurseOfTheSwineTests(unittest.TestCase):
         seen = []
 
         def policy(prompt, options):
-            if prompt.startswith(X_PROMPT):
+            if X_PROMPT.matches(prompt):
                 seen.append(list(options))
                 return len(options) - 1
             return pick(CAST)(prompt, options)
@@ -152,7 +152,7 @@ class TwinflameTests(unittest.TestCase):
         offered = []
 
         def policy(prompt, options):
-            if prompt.startswith(TARGET_PROMPT):
+            if TARGET_PROMPT.matches(prompt):
                 offered.append(len(options))
                 return 0
             return pick(CAST)(prompt, options)
