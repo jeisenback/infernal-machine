@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .characteristics import Modifier, source_qualities
-from .effects import (CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, Annihilate, TriggeredAbility, attack_tax_per_counter, attack_taxes,
+from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, Annihilate, TriggeredAbility, attack_tax_per_counter, attack_taxes,
                       combat_restrictions)
 from .mana import Cost, cost_of
 
@@ -152,9 +152,7 @@ class Combat:
         for opponent in self.game.opponents(seat):
             if opponent is defender or seat.player.choose(MYRIAD_PROMPT + self.game.label(permanent) + f" attacking {opponent.name}?", ["Yes", "No"]) != 0:
                 continue
-            card = permanent.card if permanent.card.type_line.startswith("Token") else dataclasses.replace(
-                permanent.card, type_line="Token " + permanent.card.type_line)
-            for made in self.game.create_tokens(seat, card, 1):
+            for made in self.game.create_tokens(seat, copy_of(permanent.card, as_token=True), 1):
                 made.tapped = True
                 self.attacks.append(Attack(made, seat, opponent))
                 self.exile_at_end.append(made)

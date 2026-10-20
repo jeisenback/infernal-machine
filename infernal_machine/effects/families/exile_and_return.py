@@ -9,6 +9,7 @@ from typing import Any, TYPE_CHECKING
 from ...cards import Card
 from ..common import Quantity
 from ..targets import (DEAD_SOURCE, DEAD_SUBJECT, MassFilter, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, binding)
+from .copying import copy_of
 from .base import Condition
 
 if TYPE_CHECKING:
@@ -428,9 +429,7 @@ class ExileFromGraveyard:
         if self.then and self.if_type.capitalize() in target.card.type_line:
             self.then.resolve(game, controller, None)
         if self.copy_token:
-            card = target.card
-            game.create_tokens(controller, card if card.type_line.startswith("Token") else
-                               dataclasses.replace(card, type_line="Token " + card.type_line), 1)
+            game.create_tokens(controller, copy_of(target.card, as_token=True), 1)
 
 
 @dataclass(frozen=True)

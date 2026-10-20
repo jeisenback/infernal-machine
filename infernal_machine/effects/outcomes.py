@@ -139,7 +139,7 @@ from .families.copying import (  # noqa: F401
     _CopyOfIt,
     _OthersBecomeCopies,
     apply_copy_changes,
-    copy_card,
+    copy_of,
 )
 from .families.counters import (  # noqa: F401
     Amass,
