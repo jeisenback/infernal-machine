@@ -293,6 +293,7 @@ class Permanent:
     attacked_turn: int | None = None  # the last turn it attacked
     lured_turn: int = 0  # the turn all creatures able to block it have to ("All creatures able to block target creature this turn do so.")
     must_block_turn: int = 0  # the turn it has to block if able ("Target creature blocks this turn if able.")
+    defender_ok_turn: int = 0  # the turn it can attack as though it didn't have defender (Skyclave Squid)
     must_block_what: "Permanent | None" = None  # ... that creature in particular ("blocks this creature this turn if able")
     vow_of: "Seat | None" = None  # Promise of Loyalty: while it has a vow counter it can't attack this player
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
