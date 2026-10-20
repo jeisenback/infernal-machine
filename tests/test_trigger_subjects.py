@@ -4,23 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import OnPlayer, OnSubject, triggered_abilities
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, fight
-from tests.test_effects import lands, pick, table
-from tests.test_mass_effects import table3
-
-MOUNTAIN = Card(name="Mountain", type_line="Basic Land", produced_mana=("R",))
-
-
-def watcher(name, text, kind="Enchantment"):
-    return Card(name=name, mana_cost="{1}", type_line=kind, oracle_text=text)
-
-
-def settle(game, seat=None):
-    game._priority_round(seat or game.seats[0])
-
-
-def attack_first_opponent(prompt, options):
-    return 1 if options[0] == "Don't attack" else 0
+from tests.helpers import attack_first_opponent, BEAR, fight, lands, MOUNTAIN, pick, settle, table, table3, watcher
 
 
 class ItAboutAttackersTests(unittest.TestCase):

@@ -4,10 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import ReturnAllToHand, ReturnFromGraveyard, SearchForLands, SearchLibrary, spell_effects
 from infernal_machine.game import CAST, SEARCH_CARD_PROMPT, SEARCH_LAND_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import FOREST, lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, FOREST, lands, OGRE, pick, run_stack, table3
 
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
 SHRINE = Card(name="Shrine", type_line="Legendary Land")

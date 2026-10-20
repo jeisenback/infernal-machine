@@ -11,12 +11,7 @@ from infernal_machine.effects import (CopyTokensOfTargets, CreateTokens, Destroy
                                       strive_cost, triggered_abilities)
 from infernal_machine.game import CAST, TARGET_PROMPT, X_PROMPT, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
-from tests.helpers import script  # noqa: F401  (it lives in tests/helpers.py; other tests still import it from here)
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick
-from tests.test_game import ScriptedPlayer
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, OGRE, pick, run_stack, script, ScriptedPlayer, table3
 
 CURSE_OF_THE_SWINE = Card(name="Curse of the Swine", mana_cost="{X}{U}{U}", type_line="Sorcery", colors=("U",), cmc=2,
                           oracle_text="Exile X target creatures. For each creature exiled this way, its controller "

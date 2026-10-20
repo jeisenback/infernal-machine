@@ -6,8 +6,7 @@ from infernal_machine.effects import (Draw, EachSacrifices, GainLife, LoseLife, 
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, creature
-from tests.test_effects import lands, pick, table
+from tests.helpers import BEAR, creature, lands, pick, table
 
 BLOOD_ARTIST = creature("Blood Artist", 0, 1, "Whenever this creature or another creature dies, target player loses 1 "
                                               "life and you gain 1 life.")

@@ -8,11 +8,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import ReturnTransformed, day_night_face
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import BEAR, begin, real, run_stack, script, table3
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 
@@ -57,12 +53,6 @@ def table(*cards):
 
 def permanent(seat, card):
     return next(p for p in seat.battlefield if p.card is card or p.transformed_from is card)
-
-
-def begin(game, step, seat=None):
-    game.step = step
-    game._turn_based_actions(seat or game.seats[game.active])
-    run_stack(game)
 
 
 def cast_cheap(seat, turn, times=1):

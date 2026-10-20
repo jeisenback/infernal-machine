@@ -10,9 +10,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import (DanceWithCalamity, Exile, ThreeWaySplit, TargetControllerManifests, spell_effects)
 from infernal_machine.game import (CAST, DANCE_PROMPT, SPLIT_BOTTOM_PROMPT, SPLIT_HAND_PROMPT, TURN_UP, Permanent)
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick, table
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, OGRE, pick, run_stack, table
 
 VANISHING_VERSE = Card(name="Vanishing Verse", mana_cost="{W}{B}", type_line="Instant", colors=("W", "B"), cmc=2,
                        oracle_text="Exile target monocolored permanent.")

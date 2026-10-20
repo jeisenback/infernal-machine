@@ -9,8 +9,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import Condition, static_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import creature
-from tests.test_effects import table
+from tests.helpers import creature, table
 
 SPELL = Card(name="Spell", type_line="Instant", oracle_text="Draw a card.")
 LAND = Card(name="Forest", type_line="Basic Land — Forest")

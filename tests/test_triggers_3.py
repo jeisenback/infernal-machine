@@ -6,9 +6,7 @@ from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
 from infernal_machine.game import Permanent, StackItem
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, run_stack, table3
 
 
 def creature(name="Creature", power=2, toughness=2, colors=()):

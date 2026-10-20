@@ -6,9 +6,7 @@ from infernal_machine.effects import GrantProtection, activated_abilities, print
 from infernal_machine.game import ACTIVATE, CAST, PASS, PROTECTION_PROMPT, WARD_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, creature
-from tests.test_effects import lands, pick
-from tests.test_protection_ward import BOLT, GREEN_BEAR, PLAIN, RED_OGRE, table2
+from tests.helpers import BEAR, creature, GREEN_BEAR, lands, pick, PLAIN, PROTECTION_WARD_BOLT as BOLT, RED_OGRE, table2
 
 IMMORTAL = creature("Immortal", 2, 2, "Protection from everything")
 BUILDER = creature("Armor Plated", 2, 2, "Protection from creatures")

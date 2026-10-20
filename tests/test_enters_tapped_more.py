@@ -11,10 +11,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import (EntersTapped, enters_tapped_rule, enters_with_counters, triggered_abilities)
 from infernal_machine.game import CHOOSE_COLOR_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, pick, run_stack, table3
 
 
 def land(name, text, kind="Land"):

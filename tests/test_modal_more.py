@@ -6,10 +6,7 @@ from infernal_machine.effects import (Modal, TapAll, activated_abilities, entwin
 from infernal_machine.game import ACTIVATE, CAST, DONE_MODES, ENTWINE_PROMPT, MODE_PROMPT, PASS, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, pick, run_stack, table3
 
 CRYPTIC = Card(name="Cryptic Command", mana_cost="{1}{U}{U}{U}", type_line="Instant",
                oracle_text="Choose two —\n• Counter target spell.\n• Return target permanent to its owner's hand.\n"

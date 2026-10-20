@@ -8,11 +8,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import creature
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import fire
-from tests.test_x_targets import script
+from tests.helpers import creature, fire, run_stack, script, table3
 
 APPARITION = creature("Apparition", 2, 2,
                       "When this creature enters, exile up to one target nonland, nontoken permanent you don't control with "

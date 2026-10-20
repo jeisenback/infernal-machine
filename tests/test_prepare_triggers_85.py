@@ -9,11 +9,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.combat import Combat
 from infernal_machine.game import Permanent
-from tests.test_combat import BEAR
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import fire, prepper, supported
-from tests.test_x_targets import script
+from tests.helpers import BEAR, fire, prepper, run_stack, script, supported, table3
 
 BEHEMOTH = Card(name="Behemoth", type_line="Creature — Beast", power="6", toughness="6")
 

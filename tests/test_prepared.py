@@ -4,16 +4,9 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import BecomePrepared, enters_prepared, triggered_abilities
 from infernal_machine.game import CAST_PREPARED, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import ADEPT, BEAR, lands, run_stack, STUDY, table3
 
-STUDY = Card(name="Quick Study", mana_cost="{1}{U}", type_line="Instant", oracle_text="Draw two cards.", cmc=2.0)
 RITE = Card(name="Rite of Mending", mana_cost="{2}{W}", type_line="Sorcery", oracle_text="You gain 3 life.", cmc=3.0)
-ADEPT = Card(name="Study Adept // Quick Study", mana_cost="{1}{U}", type_line="Creature — Wizard",
-             oracle_text="This creature enters prepared. (While it's prepared, you may cast a copy of its spell. "
-                         "Doing so unprepares it.)", prepare=STUDY)
 RALLIER = Card(name="Rallier // Rite of Mending", mana_cost="{2}{W}", type_line="Creature — Fox",
                oracle_text="Vigilance\nWhenever you attack with two or more creatures, this creature becomes prepared. "
                            "(While it's prepared, you may cast a copy of its spell. Doing so unprepares it.)",

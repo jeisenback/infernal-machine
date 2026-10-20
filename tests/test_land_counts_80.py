@@ -6,11 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import fire
-from tests.test_triggers_80 import FOREST, PLAINS, card, supported
+from tests.helpers import card, fire, FOREST, lands, pick, PLAINS, run_stack, table3, triggers_80_supported as supported
 
 JUMPER = card("Vigilance\nWhen this creature enters, if an opponent controls more lands than you, you may search your library "
               "for a Plains card and put it onto the battlefield tapped. Then if an opponent controls more lands than you, "

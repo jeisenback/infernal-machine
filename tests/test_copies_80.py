@@ -6,11 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_triggers_80 import card
+from tests.helpers import activate, BEAR, card, lands, OGRE, pick, run_stack, table3
 
 RIONYA = Card(name="Rionya, Fire Dancer", mana_cost="{2}{R}{R}", type_line="Legendary Creature — Human Wizard", power="3", toughness="4",
               oracle_text="At the beginning of combat on your turn, create X tokens that are copies of another target creature you "
@@ -278,8 +274,6 @@ class CursedMirrorTests(unittest.TestCase):
 
 
 from infernal_machine.game import CAST  # noqa: E402
-from tests.test_effects import lands  # noqa: E402
-from tests.test_prepare_85 import activate  # noqa: E402
 
 DRAKE = Card(name="Thunderclap Drake", mana_cost="{3}{U}", type_line="Creature — Drake", power="3", toughness="2",
              oracle_text="Flying\nInstant and sorcery spells you cast cost {1} less to cast.\n{2}{U}, Sacrifice this creature: When you "

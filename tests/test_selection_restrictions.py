@@ -6,7 +6,7 @@ from infernal_machine.effects import (Destroy, LoseLifeEqualToManaValue, ReturnF
 from infernal_machine.effects.targets import _card_kind
 from infernal_machine.game import CAST, NO_TARGET, SEARCH_CARD_PROMPT, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import lands, pick, table
+from tests.helpers import lands, pick, table
 
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land", produced_mana=("R",))
 

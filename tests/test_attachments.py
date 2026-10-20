@@ -6,9 +6,7 @@ from infernal_machine.effects import attached_abilities, aura_kind, equip_abilit
 from infernal_machine.game import ACTIVATE, CAST, PASS, TARGET_PROMPT, Game, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, attack_all
-from tests.test_effects import FOREST, lands, pick, table
-from tests.test_exile import OGRE
+from tests.helpers import attack_all, BEAR, EXILE_OGRE as OGRE, FOREST, lands, pick, table
 
 BOOTS = Card(name="Swiftfoot Boots", mana_cost="{2}", type_line="Artifact — Equipment",
              oracle_text="Equipped creature has hexproof and haste.\nEquip {1}")

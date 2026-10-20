@@ -7,8 +7,7 @@ from infernal_machine.game import Game
 from infernal_machine.goldfish import (IDLE_LIFE, IdlePlayer, Pilot, format_gap, format_goldfish, goldfish, play_engine_game,
                                        unreadable_warning, _idle_deck)
 from infernal_machine.simulate import play_games, simulate, summarize
-from tests.helpers import real
-from tests.test_compare import BEAR, BOSS, FOREST, ODD
+from tests.helpers import BOSS, COMPARE_BEAR as BEAR, COMPARE_FOREST as FOREST, ODD, real
 
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
 LAVA_AXE = real("Lava Axe", "{4}{R}", "Sorcery", "Lava Axe deals 5 damage to target player or planeswalker.")

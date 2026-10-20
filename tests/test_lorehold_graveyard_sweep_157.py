@@ -6,13 +6,25 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, CAST, CAST_EXILE, CAST_GRAVEYARD, PLAY_EXILE, GraveyardTarget, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, attack_all
-from tests.test_effects import lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, battlefield_names, real
-from tests.test_triggers_80 import BIG, FOREST, PLAINS, RELIC, SHRINE
-from tests.test_x_targets import script
+from tests.helpers import (
+    attack_all,
+    battlefield_names,
+    BEAR,
+    BIG,
+    FOREST,
+    lands,
+    OGRE,
+    pick,
+    PLAINS,
+    real,
+    RELIC,
+    run_stack,
+    script,
+    SHRINE,
+    table,
+    Table,
+    table3,
+)
 
 CHEAP = real("Cheap Creature", "{2}", "Creature — Test", "", "1", "1")      # mana value 2
 FOUR = real("Four Creature", "{4}", "Creature — Test", "", "4", "4")        # mana value 4

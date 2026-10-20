@@ -5,12 +5,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, CAST_GRAVEYARD, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_other_faces import LIBRARY, scryfall
-from tests.test_x_targets import script
+from tests.helpers import BEAR, lands, LIBRARY, run_stack, script, scryfall, table3
 
 CUT = {"name": "Cut", "type_line": "Sorcery", "mana_cost": "{1}{R}", "oracle_text": "Cut deals 4 damage to target creature."}
 SIP = {"name": "Sip", "type_line": "Sorcery", "mana_cost": "{2}{U}",

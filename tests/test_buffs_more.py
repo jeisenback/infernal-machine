@@ -6,9 +6,7 @@ from infernal_machine.effects import (MOVE_COUNTERS_PROMPT, Animate, MoveCounter
 from infernal_machine.game import ACTIVATE, CAST, PASS, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
+from tests.helpers import BEAR, lands, OGRE, pick, table3
 
 SHIFT = REAL["Bioshift"]
 SHIFT_ALL = Card(name="Shift All", mana_cost="{U}", type_line="Instant",

@@ -5,10 +5,8 @@ import unittest
 
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, OGRE, Table, pick, real, table3
+from tests.helpers import BEAR, FURNACE, OGRE, pick, real, Table, table3, TOMIK
 
-FURNACE = real("Furnace of Rath", "{1}{R}{R}{R}", "Enchantment", "If a source would deal damage to a permanent or player, it deals double "
-               "that damage to that permanent or player instead.")
 MARAUDERS = real("Angrath's Marauders", "{5}{R}{R}", "Creature — Human Pirate", "If a source you control would deal damage to a "
                  "permanent or player, it deals double that damage to that permanent or player instead.", "4", "4")
 CITY = real("City on Fire", "{5}{R}{R}{R}", "Enchantment", "Convoke (Your creatures can help cast this spell. Each creature you tap while casting "
@@ -20,9 +18,6 @@ SOLPHIM = real("Solphim, Mayhem Dominus", "{2}{R}{R}", "Legendary Creature — P
                "noncombat damage to an opponent or a permanent an opponent controls, it deals double that damage to that player or permanent "
                "instead.\n{1}{R/P}{R/P}, Discard two cards: Put an indestructible counter on Solphim. ({R/P} can be paid with either {R} or 2 life.)",
                "5", "4")
-TOMIK = real("Tomik, Izzet Sparkmage", "{1}{R}", "Legendary Creature — Human Wizard", "Prowess (Whenever you cast a noncreature spell, "
-             "this creature gets +1/+1 until end of turn.)\nIf a source you control would deal noncombat damage to an opponent or a permanent "
-             "an opponent controls, it deals that much damage plus 1 instead.", "1", "2")
 DUO = real("Fiendish Duo", "{4}{R}{R}", "Creature — Devil", "First strike (This creature deals combat damage before creatures without first "
            "strike.)\nIf a source would deal damage to an opponent, it deals double that damage to that player instead.", "5", "5")
 TUSKODON = real("Charging Tuskodon", "{3}{R}{R}", "Creature — Dinosaur", "Trample\nIf this creature would deal combat damage to a player, "

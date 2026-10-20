@@ -4,9 +4,7 @@ import unittest
 
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, real
-from tests.test_triggers_80 import BIG, FOREST, PLAINS
+from tests.helpers import BIG, FOREST, PLAINS, real, run_stack, Table
 from infernal_machine.cards import Card
 
 SWAMP = Card(name="Swamp", type_line="Basic Land \u2014 Swamp", produced_mana=("B",))

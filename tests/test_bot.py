@@ -57,7 +57,7 @@ class BotPlayerTests(unittest.TestCase):
 
 
     def test_bots_use_spell_effects(self):
-        from tests.test_effects import BEAR, BOLT, COUNTERSPELL, DIVINATION, MURDER, RAINBOW
+        from tests.helpers import EFFECTS_BEAR as BEAR, EFFECTS_BOLT as BOLT, COUNTERSPELL, DIVINATION, MURDER, RAINBOW
         commander = Card(name="Omnath", mana_cost="{2}{G}", type_line="Legendary Creature — Elemental", toughness="3")
         mixed = Deck([commander], [RAINBOW] * 38 + [BOLT] * 20 + [DIVINATION, COUNTERSPELL, MURDER] * 7 + [BEAR] * 20, [])
         bots = [BotPlayer(f"P{i}", mixed) for i in range(3)]

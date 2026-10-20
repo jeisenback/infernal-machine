@@ -6,13 +6,25 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, BIRD, OGRE, attack_all
-from tests.test_effects import lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, battlefield_names, real
-from tests.test_triggers_80 import FOREST, PLAINS, RELIC, SHRINE
-from tests.test_x_targets import script
+from tests.helpers import (
+    attack_all,
+    battlefield_names,
+    BEAR,
+    BIRD,
+    FOREST,
+    lands,
+    OGRE,
+    pick,
+    PLAINS,
+    real,
+    RELIC,
+    run_stack,
+    script,
+    SHRINE,
+    table,
+    Table,
+    table3,
+)
 
 SPIRIT = Card(name="Spirit", type_line="Token Creature — Spirit", power="1", toughness="1")
 BOLT = real("Bolt", "{1}{R}", "Instant", "Bolt deals 3 damage to target creature.", colors=("R",))

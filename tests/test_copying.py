@@ -6,8 +6,7 @@ from infernal_machine.effects import CopySpell, clone_kind, spell_effects
 from infernal_machine.game import CAST, CLONE_PROMPT, NOT_A_COPY, StackItem, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import BOLT, DIVINATION, FOREST, lands, pick, table
+from tests.helpers import BEAR, creature, DIVINATION, EFFECTS_BOLT as BOLT, FOREST, lands, OGRE, pick, table
 
 CLONE = REAL["Clone"]
 MIRROR = Card(name="Mirror", mana_cost="{2}{U}", type_line="Creature — Shapeshifter", power="0", toughness="0",

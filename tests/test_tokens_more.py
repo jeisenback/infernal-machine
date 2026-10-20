@@ -4,8 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import CreateTokens, HEARTWOOD, ReturnToHand, Surveil, mana_ability, spell_effects
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import creature
-from tests.test_mass_effects import table3
+from tests.helpers import creature, table3
 
 
 def spell(name, text):

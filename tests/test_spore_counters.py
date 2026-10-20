@@ -6,8 +6,7 @@ import unittest
 from infernal_machine.effects import activated_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import pick, real, run_stack, table3
-from tests.test_activated import activation
+from tests.helpers import activation, pick, real, run_stack, table3
 
 THALLID = real("Thallid", "{G}", "Creature — Fungus", "At the beginning of your upkeep, put a spore counter on this creature.\n"
                "Remove three spore counters from this creature: Create a 1/1 green Saproling creature token.", "1", "1")

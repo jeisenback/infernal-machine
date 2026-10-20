@@ -6,8 +6,7 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
-from tests.test_combat import BEAR
-from tests.test_effects import FOREST, lands, table
+from tests.helpers import BEAR, FOREST, lands, table
 
 PRISON = Card(name="Prison", mana_cost="{2}{W}", type_line="Enchantment",
               oracle_text="Creatures can't attack you unless their controller pays {1} for each creature they control that's "

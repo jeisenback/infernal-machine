@@ -7,12 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import mana_bonus, mana_condition, mana_lines
 from infernal_machine.game import ACTIVATE, ACTIVATE_HAND, CAST, PLAY_LAND, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import BEAR, lands, OGRE, real, run_stack, script, table3
 
 VERGE = real("Blazemire Verge", "", "Land", "{T}: Add {B}.\n{T}: Add {R}. Activate only if you control a Swamp or a Mountain.")
 SPIRE = real("Spire of Industry", "", "Land", "{T}: Add {C}.\n{T}, Pay 1 life: Add one mana of any color. Activate only if you control an artifact.")

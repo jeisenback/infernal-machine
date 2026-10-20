@@ -6,12 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, CAST_GRAVEYARD, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, attack_all
-from tests.test_effects import lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, battlefield_names, real
-from tests.test_triggers_80 import FOREST, PLAINS, RELIC, SHRINE
+from tests.helpers import attack_all, battlefield_names, BEAR, FOREST, lands, OGRE, pick, PLAINS, real, RELIC, run_stack, SHRINE, table, Table, table3
 
 RED_BOLT = real("Red Bolt", "{R}", "Instant", "Red Bolt deals 3 damage to target creature.", colors=("R",))
 BLUE_BOLT = real("Blue Bolt", "{U}", "Instant", "Blue Bolt deals 1 damage to target creature.", colors=("U",))

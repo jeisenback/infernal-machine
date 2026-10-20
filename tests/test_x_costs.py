@@ -5,8 +5,7 @@ from infernal_machine.effects import (AdditionalCost, DestroyAll, MassFilter, Pu
                                       additional_costs, spell_effects)
 from infernal_machine.game import ACTIVATE, CAST, LIFE_X_PROMPT, Permanent, X_PROMPT
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
+from tests.helpers import lands, table3
 from tests.real import REAL
 
 DELUGE = REAL["Toxic Deluge"]

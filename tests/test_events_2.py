@@ -9,10 +9,7 @@ from infernal_machine.effects import untaps_in_other_untap_steps
 from infernal_machine.game import CAST, CYCLE, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, pick, run_stack, table3
 
 CYCLER = REAL["Generous Ent"]  # forestcycling {1}
 ONE_DRAW = Card(name="Study", mana_cost="{1}", cmc=1.0, type_line="Instant", oracle_text="Draw a card.")

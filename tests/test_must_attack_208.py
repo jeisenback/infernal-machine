@@ -3,7 +3,7 @@
 import unittest
 
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, creature, fight
+from tests.helpers import BEAR, creature, fight
 
 CRUSHER = creature("Crusher", 8, 8, "Annihilator 1\nThis creature attacks each combat if able.")
 NAMED = creature("Juggernaut", 5, 3, "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls.")

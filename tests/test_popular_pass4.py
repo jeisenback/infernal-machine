@@ -7,12 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import aura_kind, dredge_of, enters_with_counters
 from infernal_machine.game import ACTIVATE, ACTIVATE_HAND, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import BEAR, lands, OGRE, real, run_stack, script, table3
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))
@@ -176,7 +171,7 @@ class BloodthirstTests(unittest.TestCase):
 
 def attack(attackers, blockers=(), policy=None):
     """Combat in which seat A attacks with everything and B never blocks; the triggers resolve afterwards."""
-    from tests.test_combat import attack_all
+    from tests.helpers import attack_all
     game, _ = table3(attack_all)
     a, b = game.seats[:2]
     a.battlefield = [c if isinstance(c, Permanent) else Permanent(c, sick=False) for c in attackers]

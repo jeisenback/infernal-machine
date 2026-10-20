@@ -7,8 +7,7 @@ from infernal_machine.effects import (Fight, FightFirst, Proliferate, ReturnWith
 from infernal_machine.game import CAST, DONE, PROLIFERATE_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import FOREST, lands, pick, table
+from tests.helpers import BEAR, creature, FOREST, lands, OGRE, pick, table
 
 FIGHT = REAL["Prey Upon"]
 BITE = Card(name="Bite", mana_cost="{1}{G}", type_line="Sorcery",

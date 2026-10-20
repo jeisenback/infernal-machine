@@ -7,11 +7,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import FOREST, lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import fire
+from tests.helpers import BEAR, fire, FOREST, lands, OGRE, pick, run_stack, table, table3
 
 PLAINS = Card(name="Plains", type_line="Basic Land — Plains", produced_mana=("W",))
 TOWER = Card(name="Command Tower", type_line="Land", produced_mana=("W", "U", "B", "R", "G"))

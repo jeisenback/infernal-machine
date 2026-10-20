@@ -7,10 +7,7 @@ from infernal_machine.effects import attached_abilities
 from infernal_machine.game import CHOOSE_TYPE_PROMPT, SACRIFICE_COST_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, pick, run_stack, table3
 
 RELIC = Card(name="Relic", type_line="Artifact")
 

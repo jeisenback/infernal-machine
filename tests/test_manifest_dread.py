@@ -5,12 +5,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, TURN_UP, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import BEAR, lands, OGRE, real, run_stack, script, table3
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 SPELL = real("Manifest Dread", "{1}{G}", "Sorcery", "Manifest dread.")

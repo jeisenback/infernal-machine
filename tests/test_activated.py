@@ -4,7 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import Damage, Draw, activated_abilities
 from infernal_machine.game import ACTIVATE, Permanent
 from tests.real import REAL
-from tests.test_effects import COUNTERSPELL, FOREST, lands, pick, table
+from tests.helpers import activation, COUNTERSPELL, FOREST, lands, pick, table
 
 MIND_STONE = Card(name="Mind Stone", mana_cost="{2}", type_line="Artifact",
                   oracle_text="{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.")
@@ -16,10 +16,6 @@ SHRINE = Card(name="Shrine", mana_cost="{1}", type_line="Artifact",
 ONCE = Card(name="Once", mana_cost="{1}", type_line="Artifact",
             oracle_text="{1}: You gain 1 life. Activate only once each turn.")
 BEAR = Card(name="Bear", mana_cost="{1}", type_line="Creature — Bear", power="2", toughness="2")
-
-
-def activation(game, seat, starts):
-    return [a for a in game.legal_actions(seat) if a.startswith(ACTIVATE) and starts in a]
 
 
 class ParseTests(unittest.TestCase):

@@ -5,7 +5,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import GraveyardCast, graveyard_casts
 from infernal_machine.game import CAST, CAST_GRAVEYARD, ESCAPE_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import lands, pick, table
+from tests.helpers import lands, pick, table
 
 SWAMP = Card(name="Swamp", type_line="Basic Land — Swamp", produced_mana=("B",))
 FLASH = Card(name="Spell", mana_cost="{1}", type_line="Sorcery", oracle_text="You gain 3 life.\nFlashback {3}")

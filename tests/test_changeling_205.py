@@ -7,10 +7,7 @@ from infernal_machine.cards import Card, shown_type_line
 from infernal_machine.creature_types import CREATURE_TYPES
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import attack_all
-from tests.test_effects import table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import attack_all, run_stack, table, table3
 
 REMINDER = "(This card is every creature type.)"
 MAULER = Card(name="Taurean Mauler", mana_cost="{2}{R}", cmc=3, type_line="Creature — Shapeshifter", power="4", toughness="4",

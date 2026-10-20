@@ -4,10 +4,7 @@ and/or your graveyard. The line is the card's own Oracle text from Scryfall."""
 import unittest
 
 from infernal_machine.game import GraveyardTarget, Permanent
-from tests.test_effects import pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_triggers_80 import BEAR, FOREST, RELIC, card, supported
+from tests.helpers import BEAR, card, FOREST, pick, RELIC, run_stack, table3, triggers_80_supported as supported
 
 LAELIA = card("Whenever one or more cards are put into exile from your library and/or your graveyard, put a +1/+1 counter on "
               "Laelia.", "Laelia")

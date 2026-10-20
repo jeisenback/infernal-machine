@@ -7,10 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import TokensBecomeCopies, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import OGRE
-from tests.test_effects import pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import OGRE, pick, run_stack, table3
 
 BRUDICLAD = Card(name="Brudiclad, Telchor Engineer", mana_cost="{4}{U}{R}", type_line="Legendary Artifact Creature — Phyrexian Artificer",
                  power="3", toughness="3",

@@ -4,8 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import RevealTop, activated_abilities
 from infernal_machine.game import ACTIVATE, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_ability_costs import MOUNTAIN, SPARE, activations, settle
-from tests.test_effects import lands, pick, table
+from tests.helpers import ABILITY_COSTS_MOUNTAIN as MOUNTAIN, ability_costs_settle as settle, activations, lands, pick, SPARE, table
 
 TEXT = ("{4}: Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield "
         "tapped. Otherwise, draw a card.")

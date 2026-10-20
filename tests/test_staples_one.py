@@ -5,10 +5,7 @@ from infernal_machine.effects import (DrawThenPutBack, Draw, PutBackTop, activat
                                       self_cost_reduction, spell_effects)
 from infernal_machine.game import PUT_BACK_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import FOREST, lands, pick
-from tests.test_lands import SWAMP, spell
-from tests.test_mass_effects import table3
+from tests.helpers import BEAR, FOREST, lands, pick, spell, SWAMP, table3
 from tests.real import REAL
 
 TOP = REAL["Sensei's Divining Top"]

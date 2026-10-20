@@ -6,9 +6,7 @@ from infernal_machine.effects import (Damage, Destroy, Draw, Drain, EachMayWheel
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_effects import pick
-from tests.test_mass_effects import table3
+from tests.helpers import BEAR, pick, table3
 
 
 def spell(name, text, kind="Sorcery"):

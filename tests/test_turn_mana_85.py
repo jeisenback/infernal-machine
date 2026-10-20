@@ -9,9 +9,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import spell_effects
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import FOREST, RAINBOW
-from tests.test_mass_effects import table3
-from tests.test_x_targets import script
+from tests.helpers import FOREST, RAINBOW, script, table3
 
 MOLTEN_TIDE = Card(name="Molten Tide", mana_cost="{R}", cmc=1.0, type_line="Instant", colors=("R",),
                    oracle_text="Until end of turn, whenever you tap a Mountain for mana, add an additional {R}.")

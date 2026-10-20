@@ -5,9 +5,7 @@ from infernal_machine.effects import ReturnAuraToBattlefield, ReturnDeadToBattle
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, run_stack, table3
 
 ANGELIC_DESTINY = Card(name="Angelic Destiny", mana_cost="{2}{W}{W}", type_line="Enchantment — Aura",
                        oracle_text="Enchant creature\nEnchanted creature gets +4/+4, has flying and first strike, and is "

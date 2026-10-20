@@ -5,11 +5,7 @@ from infernal_machine.effects import activated_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_effects import lands, table
-from tests.test_trigger_subjects import attack_first_opponent
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import attack_first_opponent, BEAR, lands, run_stack, table, table3
 
 HOUND = Card(name="Lizard Hound", mana_cost="{2}", type_line="Artifact Creature — Equipment Dog", power="2", toughness="2",
              oracle_text="Equipped creature gets +1/+1.\nReconfigure {2}")

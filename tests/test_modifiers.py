@@ -5,8 +5,7 @@ from infernal_machine.characteristics import Modifier
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, attack_all
-from tests.test_effects import BOLT, MURDER, lands, pick, table
+from tests.helpers import ANTHEM, attack_all, BEAR, EFFECTS_BOLT as BOLT, ELF, HASTE, lands, LORD, MURDER, pick, table
 
 GROWTH = Card(name="Giant Growth", mana_cost="{G}", type_line="Instant", oracle_text="Target creature gets +3/+3 until end of turn.")
 WINGS = Card(name="Wings", mana_cost="{U}", type_line="Instant",
@@ -17,10 +16,6 @@ OVERRUN = Card(name="Overrun", mana_cost="{G}", type_line="Sorcery",
                oracle_text="Creatures you control get +3/+3 and gain trample until end of turn.")
 PROTECT = REAL["Loran's Escape"]
 DRAGON = REAL["Shivan Dragon"]
-ANTHEM = Card(name="Glorious Anthem", mana_cost="{W}", type_line="Enchantment", oracle_text="Creatures you control get +1/+1.")
-LORD = REAL["Elvish Archdruid"]
-ELF = Card(name="Elf", mana_cost="{G}", type_line="Creature — Elf Warrior", power="1", toughness="1")
-HASTE = Card(name="Fervor", mana_cost="{R}", type_line="Enchantment", oracle_text="Creatures you control have haste.")
 
 
 class ModifierTests(unittest.TestCase):
@@ -131,7 +126,7 @@ class ModifierTests(unittest.TestCase):
         self.assertEqual(game.seats[1].battlefield, [])  # the 2/2 elf with 1 damage dies once it's a 1/1
 
     def test_swords_uses_power_including_modifiers(self):
-        from tests.test_exile import SWORDS
+        from tests.helpers import SWORDS
         game, _, _ = table(pick(CAST, "Bear"))
         game.seats[0].hand = [SWORDS]
         game.seats[0].battlefield = lands(1)

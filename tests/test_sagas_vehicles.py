@@ -5,8 +5,7 @@ from infernal_machine.effects import BecomeCreature, activated_abilities, saga_c
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick, table
+from tests.helpers import BEAR, lands, OGRE, pick, table
 
 CART = Card(name="Cart", mana_cost="{2}", type_line="Artifact — Vehicle", power="3", toughness="2",
             oracle_text="Crew 2")

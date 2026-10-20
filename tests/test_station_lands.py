@@ -7,12 +7,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, CAST, CREW_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, real
-from tests.test_triggers_80 import FOREST, PLAINS, RELIC, SHRINE
+from tests.helpers import BEAR, creature, FOREST, lands, OGRE, pick, PLAINS, real, RELIC, run_stack, SHRINE, Table, table3
 
 STATION = ("Station (Tap another creature you control: Put charge counters equal to its power on this Planet. "
            "Station only as a sorcery.)")

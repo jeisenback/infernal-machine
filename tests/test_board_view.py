@@ -4,8 +4,7 @@ import dataclasses
 import unittest
 
 from infernal_machine.game import Permanent
-from tests.test_effects import table
-from tests.test_modifiers import ANTHEM, BEAR, ELF, HASTE, LORD
+from tests.helpers import ANTHEM, BEAR, ELF, HASTE, LORD, table
 
 
 class BoardViewTests(unittest.TestCase):
