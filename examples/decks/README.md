@@ -43,6 +43,10 @@ check, naming the card. A card that now plays is only a reminder to refresh the 
 whose deck was not checked fails (a deck file that went missing must not read as "nothing got worse"). Every coverage pull request reports the
 decks' playable share next to the pool's, and refreshes the baseline in the same commit as the cards it unlocks.
 
+The `tracked decks` workflow (`.github/workflows/tracked-decks.yml`) runs that check on every pull request that touches `infernal_machine/` or these
+decks, and every Monday. A regression, a baseline deck that was not checked, or a deck file that cannot be read fails it. The Monday run also
+keeps one comment up to date on the roadmap epic (#453) with each deck's share and the five pieces of work that unlock the most cards.
+
 The audit reports each deck's playable share and ranks the pieces of work by the cards they unlock across all of them. Re-run it after
 each piece. Playable share (cards the engine fully reads): before #428 work 73 / 300 cards of Atraxa, 64, 66 for Krenko and Ur-Dragon
 (68% together); after the first round 79, 71, 68 (73%); after the second 79, 73, 71 (74%). To add a list, export one from a deck site and run it through

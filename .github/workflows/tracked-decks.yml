@@ -1,0 +1,69 @@
+name: tracked decks
+# The decks in examples/decks against examples/decks/baseline.json (#475, #476): a card that played and no longer does fails this job,
+# on a pull request that touches the engine and every Monday (when Scryfall's Oracle text may have changed under a card). The Monday run
+# also keeps one comment up to date on the roadmap epic, #453. Never fails because something got better: that only asks for a refresh.
+on:
+  pull_request:
+    paths: ["infernal_machine/**", "examples/decks/**", "tools/coverage_audit.py", ".github/workflows/tracked-decks.yml"]
+  schedule:
+    - cron: "52 6 * * 1"  # Mondays, after the precon report, the bot games and the coverage audit
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tracked-decks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  decks:
+    name: tracked decks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write  # only for the one comment on the roadmap epic, which a pull request never posts
+    env:
+      EPIC: "453"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Get this week's cache key
+        id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/oracle_bulk.json
+          key: oracle-bulk-${{ steps.week.outputs.week }}
+      - name: The tracked decks against their baseline
+        id: decks
+        continue-on-error: true  # so the table is still posted when a deck got worse; the last step fails the job
+        shell: bash  # with pipefail, so the audit's exit status survives the pipe to tee
+        run: python tools/coverage_audit.py --decks examples/decks/*.txt --baseline examples/decks/baseline.json --top 5 | tee decks.md
+      - name: Show it in the job summary
+        if: always() && hashFiles('decks.md') != ''
+        run: cat decks.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep one comment on the roadmap epic up to date
+        if: always() && github.event_name != 'pull_request' && hashFiles('decks.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          {
+            echo "<!-- tracked-decks -->"
+            echo "## Tracked decks, $(date -u +%F)"
+            echo
+            head -c 60000 decks.md
+          } > comment.md
+          id=$(gh api "repos/$GH_REPO/issues/$EPIC/comments" --paginate -q '.[] | select(.body | contains("<!-- tracked-decks -->")) | .id' | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GH_REPO/issues/comments/$id" -F body=@comment.md
+          else
+            gh issue comment "$EPIC" --body-file comment.md
+          fi
+      - name: Fail if a tracked deck got worse (or could not be read)
+        if: always() && steps.decks.outcome == 'failure'
+        run: |
+          echo "A card that played in examples/decks/baseline.json no longer does, a baseline deck was not checked, or a deck file could not be read." >&2
+          exit 1
