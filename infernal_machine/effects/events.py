@@ -15,8 +15,29 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any, Callable
 
 from .common import _SELF
+
+
+# Which hearers an occurrence concerns, beyond who they are: (the permanent hearing it, the subject the occurrence is about, the facts the
+# occurrence reported) -> whether it triggers. It replaced a string `needs` that `Game.happened` had a branch for (issue #439).
+Accepts = Callable[[Any, Any, tuple[str, ...]], bool]
+
+
+def fact(name: str) -> Accepts:
+    """The occurrence reported `name` ("first": the first time this turn, "second", "extra")."""
+    return lambda hearer, subject, facts: name in facts
+
+
+def about_artifact(hearer: Any, subject: Any, facts: tuple[str, ...]) -> bool:
+    """The subject is an artifact ("Whenever you activate an ability of an artifact")."""
+    return subject is not None and "Artifact" in subject.card.type_line
+
+
+def on_the_subject(hearer: Any, subject: Any, facts: tuple[str, ...]) -> bool:
+    """The hearer is attached to the subject: only the Equipment (or Aura) on a creature hears what happens to it."""
+    return subject is not None and hearer.attached_to is subject
 
 
 @dataclass(frozen=True)
@@ -25,7 +46,7 @@ class Event:
     text: re.Pattern  # the rules text; group 1 is what follows the comma
     to: str = "direct"  # "you": the player it happened to; "opponents": each of their opponents; "direct": the game triggers it itself
     happens: tuple[str, ...] = ()  # the occurrences that set it off (the event's own name when not given)
-    needs: str = ""  # a fact the occurrence must report: "first" (the first time this turn), "second", "extra"
+    accepts: Accepts | None = None  # which hearers it concerns, beyond who they are (see Accepts); None: all
     about_creature: bool = False  # it is about some other creature: there "it" and "that creature" mean that creature
     about_player: bool = False  # it is about what another player did: there "that player" and "they" mean that player
     host_gone: bool = False  # the enchanted or equipped creature is gone by the time it resolves
@@ -36,11 +57,11 @@ EVENTS: dict[str, Event] = {}
 _HEARD: dict[str, list[Event]] = {}
 
 
-def declare(name: str, text: re.Pattern, to: str = "direct", happens: str | tuple[str, ...] = (), needs: str = "",
+def declare(name: str, text: re.Pattern, to: str = "direct", happens: str | tuple[str, ...] = (), accepts: Accepts | None = None,
             about_creature: bool = False, about_player: bool = False, host_gone: bool = False,
             maybe_player: bool = False) -> Event:
     occurrences = (happens,) if isinstance(happens, str) else tuple(happens)
-    event = Event(name, text, to, occurrences or (name,), needs, about_creature, about_player, host_gone, maybe_player)
+    event = Event(name, text, to, occurrences or (name,), accepts, about_creature, about_player, host_gone, maybe_player)
     EVENTS[name] = event
     if to != "direct":
         for occurrence in event.happens:
@@ -77,7 +98,7 @@ declare("opponent_draw", re.compile(r"Whenever an opponent draws a card, (.+)", 
         to="opponents", happens="drew", about_player=True)
 # Orcish Bowmasters: every draw but the one in their draw step
 declare("opponent_extra_draw", re.compile(r"Whenever an opponent draws a card except the first one they draw in each of their draw steps, (.+)", re.I),
-        to="opponents", happens="drew", needs="extra", about_player=True)
+        to="opponents", happens="drew", accepts=fact("extra"), about_player=True)
 declare("opponent_gain_life", re.compile(r"Whenever an opponent gains life, (.+)", re.I),
         to="opponents", happens="life_gained", about_player=True)
 declare("opponent_lose_life", re.compile(r"Whenever an opponent loses life, (.+)", re.I),
@@ -96,7 +117,7 @@ declare("opponent_search", re.compile(r"Whenever an opponent searches their libr
         to="opponents", happens="searched", about_player=True)
 declare("opponent_sacrifice_creature", re.compile(r"Whenever an opponent sacrifices a creature, (.+)", re.I))
 declare("second_draw", re.compile(r"Whenever you draw your second card each turn, (.+)", re.I),
-        to="you", happens="drew", needs="second")
+        to="you", happens="drew", accepts=fact("second"))
 declare("combat_damage_to_player", re.compile(rf"When(?:ever)? {_SELF} deals combat damage to a player, (.+)", re.I), maybe_player=True)
 declare("upkeep", re.compile(r"At the beginning of your upkeep, (.+)", re.I))
 declare("end_step", re.compile(r"At the beginning of your end step, (.+)", re.I))
@@ -124,9 +145,9 @@ declare("activate_x", re.compile(r"Whenever you activate an ability with \{X\} i
 # Rings of Brighthearth and kin: any activated ability that isn't a mana ability, which the game raises as "activated" (the ability is `spell`)
 declare("activate_any", re.compile(r"Whenever you activate an ability, if it isn't a mana ability, (.+)", re.I), to="you", happens="activated")
 declare("activate_artifact", re.compile(r"Whenever you activate an ability of an artifact, if it isn't a mana ability, (.+)", re.I),
-        to="you", happens="activated", needs="artifact")
+        to="you", happens="activated", accepts=about_artifact)
 declare("activate_host", re.compile(r"Whenever an ability of equipped creature is activated, if it isn't a mana ability, (.+)", re.I),
-        to="you", happens="activated", needs="host")  # only the Equipment attached to the creature hears it
+        to="you", happens="activated", accepts=on_the_subject)  # only the Equipment attached to the creature hears it
 declare("other_attacks_two", re.compile(r"Whenever another player attacks with two or more creatures, (.+)", re.I), about_player=True)
 declare("attacks_opponent", re.compile(r"Whenever a player attacks one of your opponents, (.+)", re.I), about_player=True)  # x: the seat attacked
 declare("cycle", re.compile(r"Whenever you cycle (?:a|another) card, (.+)", re.I), to="you", happens="cycled")
@@ -151,7 +172,7 @@ declare("host_combat_damage_opponent", re.compile(r"Whenever (?:enchanted|equipp
         about_creature=True, about_player=True)  # Sleeper's Robe
 declare("put_into_graveyard", re.compile(rf"When {_SELF} is put into a graveyard from the battlefield, (.+)", re.I))
 declare("first_life_loss", re.compile(r"Whenever you lose life for the first time each turn, (.+)", re.I),
-        to="you", happens="life_lost", needs="first")
+        to="you", happens="life_lost", accepts=fact("first"))
 declare("creatures_combat_damage", re.compile(r"Whenever one or more creatures you control deal combat damage to a player, (.+)",
                                           re.I))
 declare("zero_power_combat_damage", re.compile(r"Whenever one or more creatures you control with base power 0 deal combat damage "
@@ -159,9 +180,9 @@ declare("zero_power_combat_damage", re.compile(r"Whenever one or more creatures 
 declare("tokens_combat_damage", re.compile(r"Whenever one or more creature tokens you control deal combat damage to a player, "
                                        r"(.+)", re.I))
 declare("first_life_gain", re.compile(r"Whenever you gain life for the first time each turn, (.+)", re.I),
-        to="you", happens="life_gained", needs="first")
+        to="you", happens="life_gained", accepts=fact("first"))
 declare("opponent_second_draw", re.compile(r"Whenever an opponent draws their second card each turn, (.+)", re.I),
-        to="opponents", happens="drew", needs="second", about_player=True)
+        to="opponents", happens="drew", accepts=fact("second"), about_player=True)
 declare("turned_face_up", re.compile(rf"(?:When(?:ever)?|As) {_SELF} is turned face up, (.+)", re.I))  # Morph: see Game.turn_face_up
 declare("unlock_door", re.compile(r"When you unlock this door, (.+)", re.I))  # a Room's door: see Game.unlock_door
 declare("first_main", re.compile(r"At the beginning of your first main phase, (.+)", re.I))

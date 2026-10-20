@@ -28,7 +28,8 @@ To add a line:
    table at the end of `outcomes.py` (`effects/follow.py`), not by a new `_merge_*` branch. Triggers are in `effects/triggers.py`, static abilities in
    `effects/statics.py`, activated abilities in `effects/activated.py`, costs in `effects/costs.py`, mana abilities in `effects/mana.py`.
 2. **Declare the event** in `effects/events.py` (`declare(name, pattern, ...)`) if it is a new trigger. `Game.trigger` and
-   `Game.happened` accept only declared events; `tests/test_events.py` enforces it.
+   `Game.happened` accept only declared events; `tests/test_events.py` enforces it. An event that concerns only some hearers or occasions says which with `accepts=` (a callable
+   `(hearer, subject, facts) -> bool`, e.g. `fact("second")`, `about_artifact`, `on_the_subject`), not with a new branch in `happened`.
 3. **Export it** from `effects/__init__.py` (explicit lists) if it is a new public name.
 4. **Do the work in `Game`** (`game.py`; combat is `combat.py`, paying for things with mana is `payment.py`, casting a spell is `casting.py`, and playing or casting from a zone other than the hand is a `ZonePlay` in `zones.py`: add one class and list it in `ZONE_PLAYS`, and the legal actions, the dispatch, the bot and the goldfish all see it).
 5. **Test it from the card's real Oracle text**, never from invented wording: `tests/real.py` (`REAL`, built from

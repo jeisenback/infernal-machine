@@ -1827,7 +1827,7 @@ class Game:
                         "tapped": [p.card.name for p in tapped]})
         if ability.mana_cost and cost_of(ability.mana_cost).x:  # Unbound Flourishing
             self.happened("activate_x", seat, spell=item)
-        self.happened("activated", seat, *(("artifact",) if "Artifact" in permanent.card.type_line else ()), subject=permanent, spell=item)
+        self.happened("activated", seat, subject=permanent, spell=item)
         self._check_ward(item)
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
@@ -2290,24 +2290,25 @@ class Game:
                  spell: "StackItem | Card | tuple | None" = None, x: int = 0) -> None:
         """`occurrence` happened to `seat` (it drew, discarded, gained life ...): every event declared for it
         (effects/events.py) triggers for whoever hears it, the player's own permanents or those of each opponent. An
-        event that needs a fact ("first", "second", "extra") waits for the caller to report it in `facts`. `subject` is
-        the permanent it happened to, `spell` the spell (or card) involved, `x` the number it carried."""
+        event that is about only some hearers or occasions (`Event.accepts`: the first time this turn, an artifact's ability, the Equipment
+        on the creature) is asked about each hearer, with the `facts` the caller reported. `subject` is the permanent it happened to,
+        `spell` the spell (or card) involved, `x` the number it carried."""
         for event in heard_on(occurrence):
-            if event.needs and event.needs not in facts and event.needs != "host":
-                continue
+            accepts = event.accepts or (lambda hearer, about, reported: True)
             if event.to == "you":
                 for permanent in list(seat.battlefield):
-                    if event.needs == "host" and (subject is None or permanent.attached_to is not subject):
-                        continue  # "an ability of equipped creature": heard by the Equipment attached to it
-                    self.trigger(event.name, permanent, seat, subject, x=x, spell=spell)
+                    if accepts(permanent, subject, facts):
+                        self.trigger(event.name, permanent, seat, subject, x=x, spell=spell)
                 hearers = [seat]
             else:
                 for opponent in self.opponents(seat):
                     for permanent in list(opponent.battlefield):
-                        self.trigger(event.name, permanent, opponent, subject, seat, x=x, spell=spell)
+                        if accepts(permanent, subject, facts):
+                            self.trigger(event.name, permanent, opponent, subject, seat, x=x, spell=spell)
                 hearers = self.opponents(seat)
             for delayed in list(self.delayed):  # "Until end of turn, whenever you gain life, ..." (CR 603.7)
-                if delayed.ability.event == event.name and delayed.ability.watch is None and delayed.controller in hearers:
+                if (delayed.ability.event == event.name and delayed.ability.watch is None and delayed.controller in hearers
+                        and accepts(delayed.watcher, subject, facts)):
                     self._queue(delayed.ability, delayed.watcher, delayed.controller, x, subject,
                                 None if event.to == "you" else seat, spell)
 

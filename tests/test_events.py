@@ -8,6 +8,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.effects import EVENTS, heard_on, triggered_abilities
 from infernal_machine.effects import events as registry
+from infernal_machine.effects.events import fact
 from infernal_machine.game import Permanent
 from tests.test_combat import BEAR
 from tests.test_mass_effects import table3
@@ -103,7 +104,7 @@ class RegistryTests(unittest.TestCase):
 
 class DeclaringTests(unittest.TestCase):
     def test_a_new_event_for_an_occurrence_the_game_already_announces(self):
-        event, forget = declared("draw_a_pair", r"Whenever you draw a pair of cards, (.+)", to="you", happens="drew", needs="second")
+        event, forget = declared("draw_a_pair", r"Whenever you draw a pair of cards, (.+)", to="you", happens="drew", accepts=fact("second"))
         self.addCleanup(forget)
         card = watcher("Pair Watcher", "Whenever you draw a pair of cards, you gain 3 life.")
         self.assertEqual(triggered_abilities(card)[0].event, "draw_a_pair")
@@ -118,7 +119,7 @@ class DeclaringTests(unittest.TestCase):
         self.assertEqual(a.life, 43)
 
     def test_an_event_for_opponents_hears_the_other_players(self):
-        event, forget = declared("rival_draws_pair", r"Whenever an opponent draws a pair, (.+)", to="opponents", happens="drew", needs="second")
+        event, forget = declared("rival_draws_pair", r"Whenever an opponent draws a pair, (.+)", to="opponents", happens="drew", accepts=fact("second"))
         self.addCleanup(forget)
         card = watcher("Rival Watcher", "Whenever an opponent draws a pair, you gain 2 life.")
         game, _ = table3()
