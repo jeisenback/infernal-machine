@@ -8,6 +8,7 @@ from io import StringIO
 
 from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import CachedSource, Card, CardNotFound, Deck, ScryfallSource
+from infernal_machine.prompts import PRIORITY_PROMPT
 from infernal_machine.client import Client, Narrator, render_board
 from infernal_machine.game import Game, Permanent
 from infernal_machine.server import AutoPilotPlayer, main as server_main, run_table
@@ -188,6 +189,18 @@ class ClientTests(unittest.TestCase):
         server.close()
         thread.join(10)
         return hello, replies, shown
+
+    def test_the_client_hears_a_question_by_its_kind_when_the_server_sends_one(self):
+        asked, sent = [], []
+        client = Client(FakeServer().client_sock, "Alice", "Commander\n1 X", ask=lambda hint: "1", show=lambda line: None)
+        client.decide = lambda prompt, options, seconds=None: asked.append(prompt) or 0
+        client._send = sent.append
+        client._choose({"type": "choose", "id": 1, "prompt": "Your move at main1", "options": ["Pass", "x"], "kind": "priority", "subject": "main1"})
+        client._choose({"type": "choose", "id": 2, "prompt": "Priority: main1", "options": ["Pass", "x"]})  # an older server: no kind
+        self.assertEqual([p.kind.name if p.kind is not None else None for p in asked], ["priority", None])
+        self.assertEqual(asked[0].subject, "main1")
+        self.assertTrue(all(PRIORITY_PROMPT.matches(p) for p in asked))
+        self.assertEqual([m["choice"] for m in sent], [0, 0])
 
     def test_hello_carries_the_deck(self):
         hello, _, _ = self.run_client([], [])

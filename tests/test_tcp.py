@@ -4,6 +4,7 @@ import threading
 import time
 import unittest
 
+from infernal_machine.game import CLONE_PROMPT
 from infernal_machine.tcp import Disconnected, TimedOut, accept_players, listen
 
 
@@ -103,6 +104,21 @@ class TcpTests(unittest.TestCase):
         self.assertEqual(answer["i"], 1)
         player.notify({"event": "ping"})
         self.assertEqual(client.recv(), {"type": "event", "event": "ping"})  # the late answer drew no error
+
+    def test_a_typed_prompt_goes_out_with_its_kind_and_subject_and_a_plain_one_without(self):
+        thread, result = self.accept(1)
+        client = self.connect("Alice")
+        thread.join(5)
+        client.recv()  # welcome
+        player = result["players"][0]
+        for question, expected in ((CLONE_PROMPT("Clone"), {"kind": "clone", "subject": "Clone"}), ("Mulligan?", {})):
+            chooser = threading.Thread(target=lambda: player.choose(question, ["Yes", "No"]))
+            chooser.start()
+            message = client.recv()
+            self.assertEqual({k: v for k, v in message.items() if k in ("kind", "subject")}, expected)
+            self.assertEqual(message["prompt"], str(question))
+            client.send({"type": "response", "id": message["id"], "choice": 0})
+            chooser.join(5)
 
     def test_a_timed_choice_tells_the_client_the_limit_and_gives_up_when_it_passes(self):
         thread, result = self.accept(1)
