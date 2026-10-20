@@ -202,6 +202,7 @@ from .outcomes import (  # noqa: F401
     PutStunOnSource,
     LureThisTurn,
     MustBlockThisTurn,
+    AttackDespiteDefender,
     TargetControllerManifests,
     TargetCreatesTokens,
     TargetDiscard,

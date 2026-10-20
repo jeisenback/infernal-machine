@@ -1240,6 +1240,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
+- **Landfall wordings (#427):** "you may have <it> deal / lose / become / gain / get ..." in a trigger is read as the optional effect itself ("you may have
+  this creature deal 1 damage to target player or planeswalker", Cosi's Ravager; "you may have target land you control become a 3/3 Elemental creature with
+  haste until end of turn. It's still a land.", Embodiment of Fury). "This creature can attack this turn as though it didn't have defender" (Skyclave Squid,
+  Krotiq Nestguard, any trigger or activated ability) sets `Permanent.defender_ok_turn`, which `Combat._can_attack` checks; the "it" in that sentence and in
+  "It's still a land." is the creature itself, not the permanent that set the trigger off.
 
 ## What the engine can't play yet
 

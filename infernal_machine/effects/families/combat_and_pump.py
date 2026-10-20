@@ -423,6 +423,16 @@ class LureThisTurn:
 
 
 @dataclass(frozen=True)
+class AttackDespiteDefender:
+    """ "This creature can attack this turn as though it didn't have defender." (Skyclave Squid, Krotiq Nestguard): the ability's source."""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.defender_ok_turn = game.turn  # CR 702.3b: it attacks as though it had no defender, this turn only
+
+
+@dataclass(frozen=True)
 class MustBlockThisTurn:
     """ "Target creature blocks this turn if able." / "... blocks this creature this turn if able." (Torchling: that creature in
     particular, the source of the ability)"""
