@@ -24,11 +24,12 @@ from .formats import add_format_argument, format_of, with_format
 from .gauntlet import deck_format, opponent_paths
 from .manabase import analyze_mana_base, format_mana_base
 from .matchup import format_matchups, matchups
-from .report import IN_A_GAME, unplayable_cards, unplayable_note
+from .coverage import FIXES_SHOWN, playability, verdict
+from .report import IN_A_GAME, unplayable_note
 from .simulate import format_simulation, simulate
 from .tune import format_tuning, tune
 
-PARTS = ("bracket", "manabase", "goldfish", "tuning", "matchups")  # the names `skip` takes
+PARTS = ("playability", "bracket", "manabase", "goldfish", "tuning", "matchups")  # the names `skip` takes
 
 
 @dataclass
@@ -97,10 +98,14 @@ def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: 
         body, data = make()
         analysis.sections.append(Section(title, body, time.monotonic() - started, code, part, history.jsonable(data)))
 
-    unplayable = unplayable_cards(deck)
-    if unplayable:
+    # Never reused from an earlier run: what the engine can play changes with the engine, not with the deck or the settings.
+    if "playability" in left_out:
+        analysis.skipped.append("Playability (skipped on request)")
+    else:
+        started = time.monotonic()
         also = " The matchup win rates below are unreliable for the same reason." if opponents and "matchups" not in left_out else ""
-        analysis.sections.append(Section("Cards the engine can't play", unplayable_note(unplayable, "The deck", IN_A_GAME + also), 0.0, code=False))
+        body, data = _playability(deck, name, also)
+        analysis.sections.append(Section("Playability", body, time.monotonic() - started, False, "playability", history.jsonable(data)))
     if commander:
         run("bracket", "Commander Bracket", lambda: _bracket(deck), code=False)
     else:
@@ -118,6 +123,34 @@ def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: 
     if since:
         analysis.changes = history.compare(since, analysis.record, since_name)
     return analysis
+
+
+def _short(line: str, limit: int = 160) -> str:
+    """A rules-text line for one row of the printed report: long ones are cut (the saved numbers and the HTML keep the whole line)."""
+    return line if len(line) <= limit else line[:limit - 3].rstrip() + "..."
+
+
+def _playability(deck: Deck, name: str, also: str = "") -> tuple[str, dict]:
+    """The verdict on the deck (issue #477): whether the engine plays every card, which it can't and the lines to build to unlock them."""
+    data = playability(deck, name)
+    cards, playable = data["cards"], data["playable"]
+    if not cards:
+        return "The deck has no cards.", data
+    share = f"{playable} of {cards} cards fully playable ({playable / cards:.0%})"
+    if playable == cards:
+        return f"{verdict(0)}: {share}. Every card is one the engine understands.", data
+    blocked = [(c["name"], c["copies"], c["line"]) for c in data["unplayable"]]
+    lines = [f"{verdict(cards - playable)}: {share}.", "", unplayable_note(blocked, "The deck", IN_A_GAME + also)]
+    fixes = data["fixes"]
+    if fixes:
+        lines += ["", "Fix these lines to unlock this deck:"]
+        for i, fix in enumerate(fixes[:FIXES_SHOWN], 1):
+            more = fix["unlocks"] - len(fix["cards"])
+            who = ", ".join(fix["cards"]) + (f" and {more} more" if more > 0 else "")
+            lines.append(f"{i}. {_short(fix['line'])} (unlocks {fix['unlocks']}: {who}) -> {fix['playable_after']:.0%} playable")
+        if len(fixes) > FIXES_SHOWN:
+            lines.append(f"... and {len(fixes) - FIXES_SHOWN} more pieces of work that each unlock at least one card.")
+    return "\n".join(lines), data
 
 
 def _sentence(text: str) -> str:

@@ -10,9 +10,11 @@ of JS are inline, so the file can be mailed or opened offline. It follows the re
 
 from __future__ import annotations
 
+import re
 from html import escape
 from typing import TYPE_CHECKING, Any
 
+from .coverage import FIXES_SHOWN, verdict
 from .matchup import wilson
 
 if TYPE_CHECKING:
@@ -33,7 +35,7 @@ th{color:var(--muted);font-weight:600;font-size:.85rem}th[data-sort]{cursor:poin
 .bar{position:absolute;top:0;bottom:0;left:0;background:var(--bar);border-radius:7px}.whisker{position:absolute;top:6px;height:2px;background:var(--fg);opacity:.9}
 .tick{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--fg);opacity:.35}
 .good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;font-size:.82rem}
-.note{border-left:4px solid var(--warn);padding:8px 12px;background:var(--bg);margin:0 0 12px}.foot{color:var(--muted);font-size:.85rem;margin-top:24px}
+.verdict h2{font-size:1.6rem;margin:0}.verdict .sub{margin:2px 0 12px}.verdict h3{font-size:1rem;margin:18px 0 6px}.pbar{height:10px;border-radius:5px;background:color-mix(in srgb,var(--line) 55%,transparent);overflow:hidden}.pbar i{display:block;height:100%;background:var(--bar)}.pbar.full i{background:var(--good)}ol.fixes{padding-left:1.4rem;margin:0}ol.fixes li{padding:6px 0;border-bottom:1px solid var(--line)}code{display:block;overflow-x:auto;font:.82rem/1.4 ui-monospace,Menlo,Consolas,monospace}.chips{margin:4px 0 2px}.chips span{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:0 6px;margin:0 4px 4px 0;font-size:.85rem}.gain{color:var(--muted);font-size:.85rem}.verdict summary{cursor:pointer;min-height:44px;display:flex;align-items:center}.note{border-left:4px solid var(--warn);padding:8px 12px;background:var(--bg);margin:0 0 12px}.foot{color:var(--muted);font-size:.85rem;margin-top:24px}
 svg text{fill:var(--muted);font-size:11px}svg .b{fill:var(--bar)}@media (max-width:600px){td,th{padding:4px 5px}.barbox{min-width:80px}}
 """
 
@@ -184,6 +186,54 @@ def _bracket(section: "Section") -> str:
     return f"<p>{escape(section.body)}</p>"
 
 
+def _fix_rows(fixes: list[dict]) -> str:
+    rows = []
+    for fix in fixes:
+        more = fix["unlocks"] - len(fix["cards"])
+        chips = "".join(f"<span>{escape(name)}</span>" for name in fix["cards"]) + (f"<span>+{more} more</span>" if more > 0 else "")
+        rows.append(f'<li><code>{escape(fix["line"])}</code><div class="chips">{chips}</div>'
+                    f'<span class="gain">+{fix["unlocks"]} card{"s" if fix["unlocks"] != 1 else ""}, {_pct(fix["playable_after"])} playable after</span></li>')
+    return "".join(rows)
+
+
+def _blocked_item(card: dict) -> str:
+    copies = f' (x{card["copies"]})' if card["copies"] > 1 else ""
+    more = f' <span class="gain">+{card["more"]} more line{"s" if card["more"] != 1 else ""}</span>' if card.get("more") else ""
+    return f'<li><b>{escape(card["name"])}</b>{copies}: <code>{escape(card["line"])}</code>{more}</li>'
+
+
+def _verdict(section: "Section") -> str:
+    """The deck's verdict, first on the page (issue #477): what the engine can play, and the lines to build to play the rest."""
+    data = section.data
+    if "cards" not in data:  # a run saved before the verdict was kept: its text
+        return f"<section><h2>{escape(section.title)}</h2><p>{escape(section.body)}</p></section>"
+    cards, playable = data["cards"], data["playable"]
+    if not cards:
+        return '<section class="verdict"><h2>No cards</h2><p class="sub">The deck has no cards to check.</p></section>'
+    blocked = cards - playable
+    share = playable / cards
+    headline = re.sub(r"\d+", lambda m: f'<span class="bad">{m[0]}</span>', escape(verdict(blocked)), count=1)
+    label = f"{share:.0%} of cards fully playable"
+    heading_class = "" if blocked else ' class="good"'
+    out = [f'<section class="verdict"><h2{heading_class}>{headline}</h2>',
+           f'<p class="sub">{playable} of {cards} cards fully playable</p>',
+           f'<div class="pbar{"" if blocked else " full"}" role="img" aria-label="{escape(label)}"><i style="width:{share * 100:.1f}%"></i></div>']
+    if not blocked:
+        out.append("<p>Every card is one the engine understands.</p>")
+    fixes = data.get("fixes", [])
+    if fixes:
+        out.append("<h3>Fix these lines to unlock this deck</h3>")
+        out.append(f'<ol class="fixes">{_fix_rows(fixes[:FIXES_SHOWN])}</ol>')
+        if len(fixes) > FIXES_SHOWN:
+            out.append(f'<details><summary>Show {len(fixes) - FIXES_SHOWN} more</summary>'
+                       f'<ol class="fixes" start="{FIXES_SHOWN + 1}">{_fix_rows(fixes[FIXES_SHOWN:])}</ol></details>')
+    if data.get("unplayable"):
+        items = "".join(_blocked_item(c) for c in data["unplayable"])
+        out.append(f"<details><summary>All {len(data['unplayable'])} blocked cards</summary><ul>{items}</ul></details>")
+    out.append("</section>")
+    return "".join(out)
+
+
 _RENDER = {"manabase": _mana_base, "goldfish": _goldfish, "tuning": _tuning, "matchups": _matchups, "bracket": _bracket}
 
 
@@ -211,13 +261,13 @@ def render_html(analysis: "Analysis", settings: str = "") -> str:
     """The analysis as an HTML document."""
     parts = []
     for section in analysis.sections:
-        if not section.part:  # the note about cards the engine can't play: it qualifies everything below
-            parts.append(f'<div class="note"><b>{escape(section.title)}.</b> {escape(section.body)}</div>')
+        if section.part == "playability":  # first: it qualifies everything below
+            parts.append(_verdict(section))
     parts.append(_tiles(analysis))
     if analysis.changes:
         parts.append(f"<section><h2>What changed</h2><pre>{escape(analysis.changes)}</pre></section>")
     for section in analysis.sections:
-        if section.part:
+        if section.part and section.part != "playability":
             render: Any = _RENDER.get(section.part, _fallback)
             parts.append(f"<section><h2>{escape(section.title)}</h2>{render(section)}</section>")
     foot = []

@@ -221,7 +221,7 @@ class AnalyzeTests(unittest.TestCase):
 
     def test_a_run_records_its_parts_and_their_numbers(self):
         first = self.analyze()
-        self.assertEqual(sorted(first.record["parts"]), ["bracket", "goldfish", "manabase", "matchups", "tuning"])
+        self.assertEqual(sorted(first.record["parts"]), ["bracket", "goldfish", "manabase", "matchups", "playability", "tuning"])
         self.assertEqual(first.record["parts"]["bracket"]["data"]["floor"], 1)
         self.assertEqual(first.record["parts"]["goldfish"]["data"]["games"], 40)
         self.assertEqual(first.record["parts"]["matchups"]["data"]["opponents"]["them"]["games"], 4)

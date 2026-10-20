@@ -13,10 +13,10 @@ One command for everything below: it runs the Bracket check, the mana base, the 
 given, the matchups, and prints one markdown report (`--output` also writes it to a file, and `--html` the same numbers as one
 HTML page: see [tune-a-deck](tune-a-deck.md)). Each part is the tool of its own section
 with the options shared across them given once: `--games` is matchup games per opponent, `--sim-games` the games for the goldfish and
-the tuning report. The cards the engine can't play come first, since they qualify everything under them, and each fact is said once (the
+the tuning report. The **Playability** part comes first, since it qualifies everything under it: a verdict ("Plays fully", "Plays except N cards" up to ten, "N cards can't be played yet" above), the cards the engine can't fully play, and the lines to build to unlock the most of them, ranked for this deck (the HTML report draws it as a block at the top with the five best fixes and the rest behind a disclosure). It is worked out again on every run, never reused from `--since`, since it changes with the engine, not with the deck; "What changed" says how many cards started or stopped playing, and each fact is said once (the
 tuning report's own Bracket, mana base and unreadable-card lines, and the matchup report's sentence about the focus deck, are left out
 because the report already has them). A Standard deck has no Bracket part; without opponents there is no matchup part; `--skip` leaves
-out parts (`bracket`, `manabase`, `goldfish`, `tuning`, `matchups`). The end of the report lists what was left out and how long each part
+out parts (`playability`, `bracket`, `manabase`, `goldfish`, `tuning`, `matchups`). The end of the report lists what was left out and how long each part
 took; progress goes to stderr, so a long run shows it is alive. The matchup games are the slow part (roughly a few seconds a game); the
 goldfish and tuning take a minute or so at the defaults.
 
