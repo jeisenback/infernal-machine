@@ -11,6 +11,7 @@ from ..common import Quantity
 from ..targets import (DEAD_SOURCE, DEAD_SUBJECT, MassFilter, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, binding)
 from .copying import copy_of
 from .base import Condition
+from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
@@ -199,7 +200,7 @@ class MayCastFromHandFree:
             game.cast_free(controller, spells[pick])
 
 
-FREE_CAST_PROMPT = "Cast which spell without paying its mana cost? "
+FREE_CAST_PROMPT = PromptKind("free_cast", "Cast which spell without paying its mana cost? ")
 
 
 DECLINE = "Don't cast"
@@ -455,7 +456,7 @@ class ExileOwnGraveyard:
             self.then.resolve(game, controller, target)
 
 
-RETURN_LAND_PROMPT = "Return which land to your hand? "
+RETURN_LAND_PROMPT = PromptKind("return_land", "Return which land to your hand? ")
 
 
 @dataclass(frozen=True)

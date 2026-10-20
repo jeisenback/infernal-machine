@@ -11,6 +11,7 @@ from ...characteristics import Modifier
 from ..common import Quantity
 from ..targets import (DEAD_SOURCE, PLAYER, PREVIOUS_TARGET, SOURCE, SUBJECT)
 from .base import Condition
+from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
@@ -159,7 +160,7 @@ class CreateOneOfTokens:
         game.create_tokens(controller, token, 1)
 
 
-TOKEN_CHOICE_PROMPT = "Create which token? "
+TOKEN_CHOICE_PROMPT = PromptKind("token_choice", "Create which token? ")
 
 
 @dataclass(frozen=True)
@@ -172,7 +173,7 @@ class Connive:
             game.connive(controller, target)
 
 
-POPULATE_PROMPT = "Populate: copy which token? "
+POPULATE_PROMPT = PromptKind("populate", "Populate: copy which token? ")
 
 
 @dataclass(frozen=True)

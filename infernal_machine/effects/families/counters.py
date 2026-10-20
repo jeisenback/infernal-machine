@@ -8,6 +8,7 @@ from typing import Any, Literal, TYPE_CHECKING
 from ...characteristics import Modifier
 from ..common import Quantity
 from ..targets import PREVIOUS_TARGET, SOURCE
+from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
@@ -58,7 +59,7 @@ class RemoveAllCountersDraw:
             game.draw(controller, removed)
 
 
-PUT_COUNTERS_PROMPT = "Put counters on which creature you control for "  # followed by the source's name
+PUT_COUNTERS_PROMPT = PromptKind("put_counters", "Put counters on which creature you control for ")  # followed by the source's name
 
 
 @dataclass(frozen=True)
@@ -72,11 +73,11 @@ class PutCountersOnChosenCreature:
         if not creatures:
             return
         source = game.resolving_item.card.name if game.resolving_item is not None else "the ability"
-        pick = controller.player.choose(PUT_COUNTERS_PROMPT + source, [game.label(p) for p in creatures]) if len(creatures) > 1 else 0
+        pick = controller.player.choose(PUT_COUNTERS_PROMPT(source), [game.label(p) for p in creatures]) if len(creatures) > 1 else 0
         game.put_counters(creatures[pick], self.counter, game.amount(self.count))
 
 
-DISTRIBUTE_PROMPT = "Put a counter on which creature for "  # followed by the source's name
+DISTRIBUTE_PROMPT = PromptKind("distribute", "Put a counter on which creature for ")  # followed by the source's name
 
 
 @dataclass(frozen=True)
@@ -96,7 +97,7 @@ class DistributeCounters:
             options = [p for p in options if not (self.another and p is game.resolving_source)]
             if not options:
                 return
-            pick = controller.player.choose(DISTRIBUTE_PROMPT + source, [game.label(p) for p in options]) if len(options) > 1 else 0
+            pick = controller.player.choose(DISTRIBUTE_PROMPT(source), [game.label(p) for p in options]) if len(options) > 1 else 0
             game.put_counters(options[pick], self.counter, 1)
 
 
@@ -142,13 +143,13 @@ class MoveCountersFrom:
             game.resolving_item.carried = target
 
 
-MOVE_COUNTERS_PROMPT = "Move how many "  # followed by the counter's name; options are "0", "1", ...
+MOVE_COUNTERS_PROMPT = PromptKind("move_counters", "Move how many ")  # followed by the counter's name; options are "0", "1", ...
 
 
-SHIFT_COUNTERS_PROMPT = "Shift how many counters off "  # then the creature's name; options are "0", "1", ... (a bot keeps them)
+SHIFT_COUNTERS_PROMPT = PromptKind("shift_counters", "Shift how many counters off ")  # then the creature's name; options are "0", "1", ... (a bot keeps them)
 
 
-SHIFT_ONTO_PROMPT = "Shift them onto which creature? "  # followed by the source's name
+SHIFT_ONTO_PROMPT = PromptKind("shift_onto", "Shift them onto which creature? ")  # followed by the source's name
 
 
 @dataclass(frozen=True)
@@ -165,10 +166,10 @@ class MoveCountersToOthers:
             others = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line and p is not target]
             if not others:
                 return
-            number = controller.player.choose(SHIFT_COUNTERS_PROMPT + target.card.name, [str(n) for n in range(have + 1)])
+            number = controller.player.choose(SHIFT_COUNTERS_PROMPT(target.card.name), [str(n) for n in range(have + 1)])
             if number == 0:
                 return
-            pick = controller.player.choose(SHIFT_ONTO_PROMPT + target.card.name, [game.label(p) for p in others])
+            pick = controller.player.choose(SHIFT_ONTO_PROMPT(target.card.name), [game.label(p) for p in others])
             game.move_counters(target, others[pick], self.counter, number)
 
 
@@ -188,7 +189,7 @@ class MoveCountersOnto:
             count = self.count
             if count == "any":
                 have = first.counters.get(self.counter, 0)
-                count = controller.player.choose(f"{MOVE_COUNTERS_PROMPT}{self.counter} counters",
+                count = controller.player.choose(MOVE_COUNTERS_PROMPT(f"{self.counter} counters"),
                                                  [str(n) for n in range(have + 1)])
             game.move_counters(first, target, self.counter, count)
 
@@ -299,7 +300,7 @@ class VowCounters:
             game._leave_together([(p, "sacrificed") for p in creatures if p is not keep])
 
 
-VOW_PROMPT = "Choose the creature that gets the vow counter"
+VOW_PROMPT = PromptKind("vow", "Choose the creature that gets the vow counter")
 
 
 @dataclass(frozen=True)

@@ -9,6 +9,7 @@ from ...characteristics import Modifier
 from ..common import cant_be_countered
 from ..targets import (PLAYER, PREVIOUS_TARGET, SOURCE, SUBJECT, binding, target_kind)
 from .base import Amount, Condition
+from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
@@ -57,12 +58,12 @@ class ChangeTarget:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is None or (self.unless and game.pays_unless(target.controller, self.unless, target.card)):
             return
-        if self.optional and controller.player.choose(CHANGE_TARGET_PROMPT + target.card.name, ["Yes", "No"]) != 0:
+        if self.optional and controller.player.choose(CHANGE_TARGET_PROMPT(target.card.name), ["Yes", "No"]) != 0:
             return
         game.change_target(controller, target, self.every, self.to, self.lone)
 
 
-CHANGE_TARGET_PROMPT = "Change the target of "  # followed by the spell's name; Yes or No
+CHANGE_TARGET_PROMPT = PromptKind("change_target", "Change the target of ")  # followed by the spell's name; Yes or No
 
 
 @dataclass(frozen=True)
@@ -110,10 +111,10 @@ class Modal:
     mode_costs: tuple[str, ...] = ()  # Spree: the mana each mode adds to the cost of the spell (CR 702.172)
 
 
-PARITY_PROMPT = "Choose odd or even for "  # followed by the spell's name; options: "Odd", "Even"
+PARITY_PROMPT = PromptKind("parity", "Choose odd or even for ")  # followed by the spell's name; options: "Odd", "Even"
 
 
-HYPOTHESIS_COUNTER_PROMPT = "Put a +1/+1 counter on a creature for "  # followed by the spell's name
+HYPOTHESIS_COUNTER_PROMPT = PromptKind("hypothesis_counter", "Put a +1/+1 counter on a creature for ")  # followed by the spell's name
 
 
 @dataclass(frozen=True)
@@ -126,10 +127,10 @@ class ZimonesHypothesis:
         creatures = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line]
         if creatures:
             options = [game.label(p) for p in creatures] + ["No counter"]
-            pick = controller.player.choose(HYPOTHESIS_COUNTER_PROMPT + name, options)
+            pick = controller.player.choose(HYPOTHESIS_COUNTER_PROMPT(name), options)
             if pick < len(creatures):
                 game.put_counters(creatures[pick], "+1/+1", 1)
-        parity = controller.player.choose(PARITY_PROMPT + name, ["Odd", "Even"])
+        parity = controller.player.choose(PARITY_PROMPT(name), ["Odd", "Even"])
         chosen = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line
                   and game.power(p) % 2 == (1 if parity == 0 else 0)]
         game.return_all_to_hand(chosen)
@@ -316,7 +317,7 @@ class ChooseTarget:
         pass
 
 
-COMMANDER_HAND_PROMPT = "Put which commander into your hand? "
+COMMANDER_HAND_PROMPT = PromptKind("commander_hand", "Put which commander into your hand? ")
 
 
 @dataclass(frozen=True)

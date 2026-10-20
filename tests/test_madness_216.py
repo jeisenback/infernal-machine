@@ -33,7 +33,7 @@ class Asked:
         self.answer, self.prompts = answer, []
 
     def __call__(self, prompt, options):
-        if prompt.startswith(MADNESS_PROMPT):
+        if MADNESS_PROMPT.matches(prompt):
             self.prompts.append(prompt)
             return options.index(self.answer)
         return 0
@@ -122,7 +122,7 @@ class MadnessTests(unittest.TestCase):
 
     def test_discarding_as_a_cost_works_too(self):
         asked = Asked("Yes")
-        game, _, _ = table(lambda prompt, options: asked(prompt, options) if prompt.startswith(MADNESS_PROMPT) else pick(ACTIVATE)(prompt, options))
+        game, _, _ = table(lambda prompt, options: asked(prompt, options) if MADNESS_PROMPT.matches(prompt) else pick(ACTIVATE)(prompt, options))
         a = game.seats[0]
         a.battlefield = [Permanent(LOOTER)] + [Permanent(MOUNTAIN)] + [Permanent(ISLAND)] + [Permanent(ISLAND)]
         a.hand = [SEARCH]

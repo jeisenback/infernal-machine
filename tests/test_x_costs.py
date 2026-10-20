@@ -87,7 +87,7 @@ class DelugeTests(unittest.TestCase):
         seen = []
 
         def policy(prompt, options):
-            if prompt.startswith(LIFE_X_PROMPT):
+            if LIFE_X_PROMPT.matches(prompt):
                 seen.append(options)
             return 0
 

@@ -54,7 +54,7 @@ class IdlePlayer(BotPlayer):
     discard to hand size, the bot answers.)"""
 
     def choose(self, prompt: str, options):
-        if prompt.startswith(ATTACK_PROMPT):
+        if ATTACK_PROMPT.matches(prompt):
             return 0
         if PASS in options:
             return list(options).index(PASS)

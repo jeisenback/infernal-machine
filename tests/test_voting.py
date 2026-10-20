@@ -24,12 +24,12 @@ OGRE = creature("Ogre", 3, 3)
 def votes(*words):
     """Policy: seats vote in turn (one word each, by option text); anything else takes the first option."""
     remaining = iter(words)
-    return lambda prompt, options: options.index(next(remaining)) if prompt.startswith(VOTE_PROMPT) else 0
+    return lambda prompt, options: options.index(next(remaining)) if VOTE_PROMPT.matches(prompt) else 0
 
 
 def seat_votes(*choices):
     """Each seat answers vote prompts from its own list of option numbers."""
-    return [lambda prompt, options, c=iter(c): next(c) if prompt.startswith(VOTE_PROMPT) else 0 for c in choices]
+    return [lambda prompt, options, c=iter(c): next(c) if VOTE_PROMPT.matches(prompt) else 0 for c in choices]
 
 
 class ParseTests(unittest.TestCase):

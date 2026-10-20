@@ -27,7 +27,7 @@ LIBRARY = [Card(name=f"Card {i}", type_line="Land") for i in range(12)]
 
 
 def modes_asked(table):
-    return [options for prompt, options in table.a.player.prompts if prompt.startswith(MODE_PROMPT)]
+    return [options for prompt, options in table.a.player.prompts if MODE_PROMPT.matches(prompt)]
 
 
 class PawprintTests(unittest.TestCase):

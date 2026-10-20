@@ -88,12 +88,12 @@ def board(lands_in_play=0, hand=(), mine=0, theirs=0):
 
 class JudgmentTests(unittest.TestCase):
     def test_scry_keeps_lands_until_it_has_enough(self):
-        self.assertEqual(board(2).choose(SCRY_PROMPT + LAND.name, [KEEP_ON_TOP, PUT_ON_BOTTOM]), 0)
-        self.assertEqual(board(5, hand=[LAND.name]).choose(SCRY_PROMPT + LAND.name, [KEEP_ON_TOP, PUT_ON_BOTTOM]), 1)
+        self.assertEqual(board(2).choose(SCRY_PROMPT(LAND.name), [KEEP_ON_TOP, PUT_ON_BOTTOM]), 0)
+        self.assertEqual(board(5, hand=[LAND.name]).choose(SCRY_PROMPT(LAND.name), [KEEP_ON_TOP, PUT_ON_BOTTOM]), 1)
 
     def test_scry_and_surveil_keep_spells_it_can_cast_soon(self):
-        self.assertEqual(board(3).choose(SCRY_PROMPT + CHEAP.name, [KEEP_ON_TOP, PUT_ON_BOTTOM]), 0)
-        self.assertEqual(board(3).choose(SURVEIL_PROMPT + PRICEY.name, [KEEP_ON_TOP, PUT_IN_GRAVEYARD]), 1)
+        self.assertEqual(board(3).choose(SCRY_PROMPT(CHEAP.name), [KEEP_ON_TOP, PUT_ON_BOTTOM]), 0)
+        self.assertEqual(board(3).choose(SURVEIL_PROMPT(PRICEY.name), [KEEP_ON_TOP, PUT_IN_GRAVEYARD]), 1)
 
     def test_modes_prefer_removal_and_skip_costly_extras(self):
         modes = ["You gain 2 life.", "Destroy target artifact.", "Draw a card."]

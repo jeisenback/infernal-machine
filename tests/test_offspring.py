@@ -51,7 +51,7 @@ class OffspringTests(unittest.TestCase):
 
     def test_not_offered_when_the_extra_cost_cannot_be_paid(self):
         t = Table(RAMPAGER, policy=YES, n=5).cast()
-        self.assertFalse(any(prompt.startswith(KICKER_PROMPT) for prompt, _ in t.game.seats[0].player.prompts))
+        self.assertFalse(any(KICKER_PROMPT.matches(prompt) for prompt, _ in t.game.seats[0].player.prompts))
         self.assertEqual(len(creatures(t.a)), 1)
 
     def test_the_cost_is_added_to_the_mana_cost(self):

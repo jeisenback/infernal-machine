@@ -31,7 +31,7 @@ FOREST_COPYABLE = real("Test Cave", "", "Land", "{T}: Add {G}.")
 def choosing(wanted):
     """Policy: cast the card, copy the permanent whose label starts with `wanted` (or nothing, for None), else pass."""
     def policy(prompt, options):
-        if prompt.startswith(CLONE_PROMPT):
+        if CLONE_PROMPT.matches(prompt):
             if wanted is None:
                 return options.index(NOT_A_COPY)
             return next(i for i, option in enumerate(options) if option.startswith(wanted))

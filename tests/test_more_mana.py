@@ -18,7 +18,7 @@ RAINBOW = Card(name="City of Brass", type_line="Land", produced_mana=tuple("WUBR
 
 def x_policy(x, *then):
     base = pick(*then)
-    return lambda prompt, options: min(x, len(options) - 1) if prompt.startswith(X_PROMPT) else base(prompt, options)
+    return lambda prompt, options: min(x, len(options) - 1) if X_PROMPT.matches(prompt) else base(prompt, options)
 
 
 class SignetTests(unittest.TestCase):
@@ -64,7 +64,7 @@ class XTests(unittest.TestCase):
         game.seats[0].battlefield = lands(4, RAINBOW)
         game._priority_round(game.seats[0])
         self.assertEqual(game.seats[1].life, 37)
-        x_prompt = next(options for prompt, options in a.prompts if prompt.startswith(X_PROMPT))
+        x_prompt = next(options for prompt, options in a.prompts if X_PROMPT.matches(prompt))
         self.assertEqual(x_prompt, ["0", "1", "2", "3"])  # four lands: {R} plus up to 3
 
     def test_x_counts_signet_mana(self):

@@ -25,7 +25,7 @@ def sorcery(text):
 
 
 def last_option(prompt, options):
-    return len(options) - 1 if prompt.startswith(TARGET_PROMPT) else (
+    return len(options) - 1 if TARGET_PROMPT.matches(prompt) else (
         next(i for i, o in enumerate(options) if o.startswith(CAST)) if any(o.startswith(CAST) for o in options)
         else options.index("Pass"))
 
@@ -94,7 +94,7 @@ class TutorAndRecursionTests(unittest.TestCase):
     def test_recursion_only_offers_cards_with_that_mana_value(self):
         game, a, b, player = self.cast("Return target creature card with mana value 2 or less from your graveyard to your "
                                        "hand.", graveyards=([DRAGON, BEAR], [creature("Elf", 1)]))
-        offered = [options for prompt, options in player.prompts if prompt.startswith(TARGET_PROMPT)]
+        offered = [options for prompt, options in player.prompts if TARGET_PROMPT.matches(prompt)]
         self.assertEqual(offered, [["Bear (seat 0 graveyard)"]])  # not the Dragon, not the opponent's Elf
         self.assertEqual([c.name for c in a.hand], ["Bear"])
         self.assertEqual([c.name for c in a.graveyard], ["Dragon", "Spell"])  # the spell itself ends up there too

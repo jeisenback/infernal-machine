@@ -23,7 +23,7 @@ OKOYE = real("Okoye, Mighty and Adored", "{2}{G}{W}", "Legendary Creature — Hu
              "turn, it gains double strike and trample until end of turn.", "3", "3", colors=("G", "W"))
 CHEAP = real("Cheap Spell", "{1}", "Sorcery", "You gain 1 life.")
 LIBRARY = [Card(name=f"Card {i}", type_line="Land") for i in range(12)]
-KICK = lambda kicked: lambda prompt, options: (0 if kicked else 1) if prompt.startswith(KICKER_PROMPT) else (
+KICK = lambda kicked: lambda prompt, options: (0 if kicked else 1) if KICKER_PROMPT.matches(prompt) else (
     options.index("Pass") if "Pass" in options else 0)
 
 

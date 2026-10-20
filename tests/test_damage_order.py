@@ -18,7 +18,7 @@ def setup(*cards, policies=()):
 
 
 def asked(player):
-    return [(prompt, options) for prompt, options in player.prompts if prompt.startswith(DAMAGE_ORDER_PROMPT)]
+    return [(prompt, options) for prompt, options in player.prompts if DAMAGE_ORDER_PROMPT.matches(prompt)]
 
 
 class DamageOrderTests(unittest.TestCase):

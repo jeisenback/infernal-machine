@@ -32,7 +32,7 @@ def bot(mine, life=20, features=FEATURES):
 
 def block(b, blocker, *attackers):
     options = [NO_BLOCK] + [f"Block {a} (seat 1, #{i + 9})" for i, a in enumerate(attackers)]
-    return b.choose(BLOCK_PROMPT + blocker, options)
+    return b.choose(BLOCK_PROMPT(blocker), options)
 
 
 class SingleBlockTests(unittest.TestCase):

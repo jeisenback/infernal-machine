@@ -10,6 +10,7 @@ from ...characteristics import Modifier
 from ..common import Quantity
 from ..targets import PLAYER, PREVIOUS_TARGET, SOURCE
 from .base import Condition
+from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
@@ -208,7 +209,7 @@ class TargetControllerMayFetchBasicLand:
                                   subtypes=BASIC_LAND_TYPES if self.typed else None)
 
 
-EXILE_DISCARDED_PROMPT = "Exile which discarded card from your graveyard?"
+EXILE_DISCARDED_PROMPT = PromptKind("exile_discarded", "Exile which discarded card from your graveyard?")
 
 
 @dataclass(frozen=True)

@@ -21,7 +21,7 @@ WHITE_COMMANDER = Card(name="Zada", mana_cost="{W}", cmc=1, type_line="Legendary
 
 
 def scries(player):
-    return [prompt for prompt, _ in player.prompts if prompt.startswith(SCRY_PROMPT)]
+    return [prompt for prompt, _ in player.prompts if SCRY_PROMPT.matches(prompt)]
 
 
 class ParseTests(unittest.TestCase):

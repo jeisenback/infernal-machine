@@ -11,6 +11,7 @@ from ...characteristics import Modifier
 from ..common import Quantity
 from ..targets import PREVIOUS_TARGET, SOURCE, SUBJECT
 from .base import Condition
+from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
@@ -514,7 +515,7 @@ class Untap:
             game.untap(target)
 
 
-UNTAP_LANDS_PROMPT = "Untap which land? "
+UNTAP_LANDS_PROMPT = PromptKind("untap_lands", "Untap which land? ")
 
 
 DONE = "Done"

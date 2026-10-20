@@ -51,7 +51,7 @@ class ParseTests(unittest.TestCase):
 class LibraryTests(unittest.TestCase):
     def test_brainstorm_puts_two_cards_back_in_the_order_chosen(self):
         def policy(prompt, options):  # put back the first two cards in the hand, then order them last one first
-            return 0 if prompt.startswith(PUT_BACK_PROMPT) else len(options) - 1
+            return 0 if PUT_BACK_PROMPT.matches(prompt) else len(options) - 1
 
         game, _ = table3(policy)
         a = game.seats[0]

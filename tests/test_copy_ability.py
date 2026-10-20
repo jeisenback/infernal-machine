@@ -30,9 +30,9 @@ MANA_ROCK = real("Sol Ring", "{1}", "Artifact", "{T}: Add {C}{C}.")
 def policy(activate, pay=True):
     """Activate the card named `activate`; target the opponent; pay (or not) when asked; otherwise pass."""
     def choose(prompt, options):
-        if prompt.startswith(MAY_PAY_PROMPT):
+        if MAY_PAY_PROMPT.matches(prompt):
             return 0 if pay else 1
-        if prompt.startswith(TARGET_PROMPT) or "target" in prompt.lower():
+        if TARGET_PROMPT.matches(prompt) or "target" in prompt.lower():
             return next((i for i, o in enumerate(options) if "seat 1" in o), 0)
         return next((i for i, o in enumerate(options) if o.startswith(ACTIVATE + activate)), options.index(PASS) if PASS in options else 0)
     return choose
@@ -117,7 +117,7 @@ class TriggeredAbilityCopyTests(unittest.TestCase):
             if prompt.startswith(TARGET_PROMPT + "Flametongue"):
                 asked.append(prompt)
                 return next(i for i, o in enumerate(options) if o.startswith("First" if len(asked) == 1 else "Last"))
-            if prompt.startswith(TARGET_PROMPT):  # the Resonator's own target: the trigger
+            if TARGET_PROMPT.matches(prompt):  # the Resonator's own target: the trigger
                 return 0
             return next((i for i, o in enumerate(options) if o.startswith(ACTIVATE + "Strionic")), options.index(PASS) if PASS in options else 0)
 

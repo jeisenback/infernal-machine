@@ -124,7 +124,7 @@ class OtherTriggersTests(unittest.TestCase):
 
 def kick(kicked):
     """Policy: answer the kicker question, pass otherwise."""
-    return lambda prompt, options: (0 if kicked else 1) if prompt.startswith(KICKER_PROMPT) else options.index("Pass") if "Pass" in options else 0
+    return lambda prompt, options: (0 if kicked else 1) if KICKER_PROMPT.matches(prompt) else options.index("Pass") if "Pass" in options else 0
 
 
 class DiesThisTurnTests(unittest.TestCase):

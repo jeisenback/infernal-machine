@@ -219,7 +219,7 @@ class AugustaTests(unittest.TestCase):
         wanted = choices[0] if choices else "Augusta"
 
         def policy(prompt, options):  # the first option for everything, but the creature that gets the counters
-            return next((i for i, option in enumerate(options) if option.startswith(wanted)), 0) if prompt.startswith(TARGET_PROMPT) else 0
+            return next((i for i, option in enumerate(options) if option.startswith(wanted)), 0) if TARGET_PROMPT.matches(prompt) else 0
         game, _ = table3(policy, pick("Forest", "Golem"), pick("Forest", "Golem"))
         a, b, c = game.seats
         self.augusta, self.bear = Permanent(AUGUSTA), Permanent(BEAR)

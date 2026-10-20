@@ -12,5 +12,7 @@ class Player(Protocol):
         """Tell the player something happened (card drawn, spell cast, ...)."""
 
     def choose(self, prompt: str, options: Sequence[str]) -> int:
-        """Ask the player to pick one of `options`; returns its index."""
+        """Ask the player to pick one of `options`; returns its index. The prompt is a `prompts.Prompt` when it comes from the game: the
+        text, and what kind of question it is (`prompt.kind`, `KIND.matches(prompt)`) and about (`prompt.subject`); a plain string
+        (over the wire, or a test's own) works as the text."""
         ...

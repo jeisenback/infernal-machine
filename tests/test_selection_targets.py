@@ -21,7 +21,7 @@ def picks(*indexes):
     """Cast the first spell; answer each target prompt with the next index (then the first)."""
     wanted = iter(indexes)
     base = pick(CAST)
-    return lambda prompt, options: next(wanted, 0) if prompt.startswith(TARGET_PROMPT) else base(prompt, options)
+    return lambda prompt, options: next(wanted, 0) if TARGET_PROMPT.matches(prompt) else base(prompt, options)
 
 
 def prompts(players, start):

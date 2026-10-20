@@ -30,7 +30,7 @@ def cast_policy(*mode_picks):
     base = pick(CAST)
 
     def policy(prompt, options):
-        if prompt.startswith(MODE_PROMPT):
+        if MODE_PROMPT.matches(prompt):
             want = next(picks, 0)
             return options.index(want) if isinstance(want, str) else want
         return base(prompt, options)
@@ -224,7 +224,7 @@ class ModalTests(unittest.TestCase):
         seat.hand = [CHOOSE_ONE]
         seat.battlefield = lands(2)
         draw_mode, cast = cast_policy("Target player draws a card."), pick(CAST, "Player: B")
-        seat.player.policy = lambda prompt, options: (draw_mode(prompt, options) if prompt.startswith(MODE_PROMPT)
+        seat.player.policy = lambda prompt, options: (draw_mode(prompt, options) if MODE_PROMPT.matches(prompt)
                                                       else cast(prompt, options))
         game._priority_round(seat)
         self.assertEqual(len(game.seats[1].hand), 1)

@@ -51,7 +51,7 @@ class AttackingAPlaneswalkerTests(unittest.TestCase):
         a.battlefield = [Permanent(OGRE)]
         b.battlefield = [Permanent(WALKER, loyalty=4)]
         game.combat.declare_attackers(a)
-        offered = next(options for prompt, options in player.prompts if prompt.startswith(ATTACK_PROMPT))
+        offered = next(options for prompt, options in player.prompts if ATTACK_PROMPT.matches(prompt))
         self.assertEqual(len(offered), 3)
         self.assertEqual((offered[0], offered[2].startswith("Attack Planeswalker: Walker")), (NO_ATTACK, True))
 
@@ -116,7 +116,7 @@ class DamageOrderTests(unittest.TestCase):
     def fight(self, first):
         """A 4/4 attacker blocked by a Bear (2/2) and an Ogre (3/3); `first` is who the attacker's controller names."""
         def attacker(prompt, options):
-            if prompt.startswith(ASSIGN_PROMPT):
+            if ASSIGN_PROMPT.matches(prompt):
                 return next(i for i, option in enumerate(options) if option.startswith(first))
             return attack_player(prompt, options)
         game, _, _ = table(attacker, block_everything)

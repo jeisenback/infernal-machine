@@ -59,7 +59,7 @@ class DemonstrateTests(unittest.TestCase):
         self.assertEqual((bears(a), bears(b)), (3, 2))  # the spell and the caster's copy; the opponent's copy
 
     def test_the_caster_may_decline(self):
-        game, _ = table3(lambda prompt, options: 1 if prompt.startswith(DEMONSTRATE_PROMPT) else pick(CAST)(prompt, options))
+        game, _ = table3(lambda prompt, options: 1 if DEMONSTRATE_PROMPT.matches(prompt) else pick(CAST)(prompt, options))
         a, b, _c = game.seats
         a.hand, a.battlefield = [REAL["Replication Technique"]], [Permanent(BEAR), *lands(5)]
         b.battlefield = [Permanent(BEAR)]
@@ -68,7 +68,7 @@ class DemonstrateTests(unittest.TestCase):
         self.assertEqual((len(a.battlefield) - 5, len(b.battlefield)), (2, 1))
 
     def test_creative_technique_casts_the_first_nonland_card_free(self):
-        game, _ = table3(lambda prompt, options: 1 if prompt.startswith(DEMONSTRATE_PROMPT) else pick(CAST)(prompt, options))
+        game, _ = table3(lambda prompt, options: 1 if DEMONSTRATE_PROMPT.matches(prompt) else pick(CAST)(prompt, options))
         a = game.seats[0]
         bolt = Card(name="Study", mana_cost="{5}{G}", type_line="Instant", oracle_text="Draw a card.")
         a.hand, a.battlefield = [REAL["Creative Technique"]], lands(5)
@@ -158,7 +158,7 @@ class BestowTests(unittest.TestCase):
 
     def cast_bestowed(self, bear):
         def policy(prompt, options):
-            if prompt.startswith(COST_PROMPT):
+            if COST_PROMPT.matches(prompt):
                 return next(i for i, o in enumerate(options) if o.startswith("Bestow"))
             return pick(CAST)(prompt, options)
         game, _ = table3(policy)
