@@ -14,6 +14,21 @@ list, not any one player's. They are **not** in the gauntlet and are not meant a
 python tools/coverage_audit.py --decks examples/decks/*.txt        # what blocks them, and what to build first
 ```
 
+## Modelled decks (`*_modelled.txt`)
+
+Ten more commanders are tracked as *modelled* decks, not real lists: `modelled.json` names each commander (or partner pair) and a few core
+cards, and `tools/model_deck.py` fills the rest of the 100 cards from the card pool (Commander-legal, the commander's colors, most played
+first by Scryfall's EDHREC rank, 36 lands). Nobody exported them, so they are a model of a typical deck, like the audit's own.
+
+```
+python tools/model_deck.py examples/decks/modelled.json        # rewrites the *_modelled.txt files from .cache/commander_pool.json
+```
+
+Read the numbers with that in mind: the modelled decks are 93-99% playable and the three real EDHREC averages 71-80%, because ranking by
+popularity picks the cards the engine already plays (the top 500 cards are 92% playable). They guard against regressions in the baseline; the
+real lists are the ones to aim new work at. Replace a modelled deck with a real export (`tools/import_deck.py`) whenever you have one.
+Banned cards named as core (Mana Crypt, Dockside Extortionist) are left out and reported.
+
 ## The baseline (#475)
 
 `baseline.json` keeps, for each deck here, the names of the cards the engine cannot play yet. It is how the tracked decks stay honest:

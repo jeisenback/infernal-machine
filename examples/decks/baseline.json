@@ -1,5 +1,13 @@
 {
  "decks": {
+  "ashling_modelled": {
+   "cards": 100,
+   "unplayable": [
+    "Ashling, the Limitless",
+    "Bane of Progress",
+    "Grave Sifter"
+   ]
+  },
   "atraxa_edhrec_average": {
    "cards": 100,
    "unplayable": [
@@ -23,6 +31,47 @@
     "Voidwing Hybrid",
     "Vorinclex, Monstrous Raider",
     "Vraska, Betrayal's Sting"
+   ]
+  },
+  "edgar_markov_modelled": {
+   "cards": 100,
+   "unplayable": [
+    "Cruel Celebrant",
+    "Drana, Liberator of Malakir",
+    "Preeminent Captain",
+    "Vona's Hunger"
+   ]
+  },
+  "giada_modelled": {
+   "cards": 100,
+   "unplayable": [
+    "Akroma's Will",
+    "Archangel of Tithes",
+    "Baneslayer Angel",
+    "Giada, Font of Hope",
+    "Serra Ascendant",
+    "Shadowspear",
+    "The Ozolith"
+   ]
+  },
+  "jace_multiverse_architect_modelled": {
+   "cards": 100,
+   "unplayable": [
+    "Jace, Multiverse Architect"
+   ]
+  },
+  "kinnan_modelled": {
+   "cards": 100,
+   "unplayable": [
+    "Finale of Devastation",
+    "Kinnan, Bonder Prodigy",
+    "Nezahal, Primal Tide"
+   ]
+  },
+  "korvold_modelled": {
+   "cards": 100,
+   "unplayable": [
+    "Korvold, Fae-Cursed King"
    ]
   },
   "krenko_edhrec_average": {
@@ -54,6 +103,32 @@
     "Thousand-Year Elixir",
     "Three Tree City",
     "Warren Instigator"
+   ]
+  },
+  "pantlaza_modelled": {
+   "cards": 100,
+   "unplayable": [
+    "Etali, Primal Conqueror // Etali, Primal Sickness",
+    "Gishath, Sun's Avatar",
+    "Pantlaza, Sun-Favored"
+   ]
+  },
+  "sisay_modelled": {
+   "cards": 100,
+   "unplayable": [
+    "Emry, Lurker of the Loch",
+    "Jodah, the Unifier",
+    "Kinnan, Bonder Prodigy",
+    "Riftsweeper",
+    "Sisay, Weatherlight Captain",
+    "Training Grounds"
+   ]
+  },
+  "tymna_thrasios_modelled": {
+   "cards": 100,
+   "unplayable": [
+    "Drannith Magistrate",
+    "Tymna the Weaver"
    ]
   },
   "ur_dragon_edhrec_average": {
@@ -88,6 +163,13 @@
     "The World Tree",
     "Tiamat",
     "Ureni of the Unwritten"
+   ]
+  },
+  "yshtola_modelled": {
+   "cards": 100,
+   "unplayable": [
+    "Snuff Out",
+    "Y'shtola, Night's Blessed"
    ]
   }
  }
