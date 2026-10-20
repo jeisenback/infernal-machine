@@ -19,7 +19,9 @@ A card is "fully playable" only if every line of its text is understood: `infern
 To add a line:
 
 1. **Parse it.** A sentence of effect text is a template in `effects/outcomes.py` (`_TEMPLATES`: a regex and a builder for an effect
-   dataclass, with `resolve(game, controller, target)`). An effect that acts on something of its ability's context (the source, the permanent that set a trigger off, the player, the previous
+   dataclass, with `resolve(game, controller, target)`). The effect dataclasses themselves are in `effects/families/` (`copying`, `tokens`,
+   `counters`, `mana`, `life_and_damage`, `library_and_hand`, `exile_and_return`, `destroy_and_sacrifice`, `combat_and_pump`, `votes`,
+   `turns_and_control`, `spells_and_misc`): put a new one with its kind and import it into `outcomes.py` by name. An effect that acts on something of its ability's context (the source, the permanent that set a trigger off, the player, the previous
    target) says which with one class attribute, `binds = SOURCE` (`effects/targets.py`: `SOURCE`, `SUBJECT`, `DEAD_SUBJECT`,
    `SOURCE_AND_SUBJECT`, `DEAD_SOURCE`, `PLAYER`, `PREVIOUS_TARGET`); the resolver and the trigger checks both read it. A sentence that only qualifies the one before it
    ("... draw two cards instead.", "That token gains haste.") is read as a private marker effect and folded into the effect before it by one `Follow` row in a

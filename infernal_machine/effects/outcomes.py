@@ -42,6 +42,449 @@ from .common import (
     cant_be_countered,
     Quantity,
 )
+from .families.base import (  # noqa: F401
+    Amount,
+    Condition,
+)
+from .families.combat_and_pump import (  # noqa: F401
+    Animate,
+    Attach,
+    AttachAura,
+    AttachThisToSubject,
+    Backup,
+    BecomeCreature,
+    BecomePrepared,
+    BecomeRenowned,
+    DONE,
+    DoubleStats,
+    EntersTapped,
+    Exploit,
+    Fight,
+    FightFirst,
+    FightSourceFirst,
+    GainsAbility,
+    Goad,
+    GoadAll,
+    GrantFlash,
+    GrantProtection,
+    LivingWeapon,
+    LureThisTurn,
+    MustBlockThisTurn,
+    NinjutsuEnter,
+    OthersBecomeAsBigAsSource,
+    PlayerProtection,
+    PrepareEach,
+    Pump,
+    PumpEach,
+    PumpEachX,
+    PumpNamed,
+    PumpOtherAttackers,
+    PumpSource,
+    PumpSourceX,
+    PumpX,
+    SetBaseEachX,
+    StillALand,
+    Tap,
+    TapAll,
+    TapAndGoad,
+    TapEnchanted,
+    TapOrUntap,
+    TapThat,
+    TargetPrepared,
+    Transform,
+    UNTAP_LANDS_PROMPT,
+    Unattach,
+    Untap,
+    UntapAll,
+    UntapCreatures,
+    UntapLands,
+    UntapSource,
+    UntapThat,
+    _RecallAttachment,
+    _UntapThatLand,
+    _UntapThoseLands,
+)
+from .families.copying import (  # noqa: F401
+    BecomeCopyUntilEndOfTurn,
+    CAST_COPY_PROMPT,
+    CHOOSE_COPY_PROMPT,
+    COPY_THIS_PROMPT,
+    CastExiledCopy,
+    CopiesOfAnotherCreature,
+    CopyChanges,
+    CopyChosenPermanent,
+    CopyEnteredTokensAttacking,
+    CopyHostToken,
+    CopyNextSpell,
+    CopySelfToken,
+    CopySpell,
+    CopySpellForEachOtherCreature,
+    CopySpellTimes,
+    CopySubjectToken,
+    CopyToken,
+    CopyTokenAttacking,
+    CopyTokensOfTargets,
+    CopyTriggeredAbility,
+    CopyTriggeringAbility,
+    CopyTriggeringSpell,
+    EachOpponentGetsGoadedCopy,
+    ExileDeadMakeSpiritCopy,
+    ExileThenCastCopy,
+    MayCopyLeftCard,
+    MayCopyThisSpellFromGraveyard,
+    TokenOrSelfCopy,
+    TokensBecomeCopies,
+    _COPY_CARD_TYPES,
+    _CopyEachWithHaste,
+    _CopyOfIt,
+    _OthersBecomeCopies,
+    apply_copy_changes,
+    copy_card,
+)
+from .families.counters import (  # noqa: F401
+    Amass,
+    DISTRIBUTE_PROMPT,
+    DistributeCounters,
+    DoubleCounters,
+    DoubleCountersOnSource,
+    DoubleCountersOnTarget,
+    DoubleCountersOnTargets,
+    EachExilesGraveyardCardCounters,
+    ExileWithTimeCounters,
+    Hideaway,
+    LevelUp,
+    MOVE_COUNTERS_PROMPT,
+    MoveCountersFrom,
+    MoveCountersOnto,
+    MoveCountersToOthers,
+    OpponentsLoseCounters,
+    PUT_COUNTERS_PROMPT,
+    Proliferate,
+    PutCounterOnHost,
+    PutCounterPerPlayer,
+    PutCounters,
+    PutCountersOnChosenCreature,
+    PutCountersOnEach,
+    PutCountersOnEachUpToX,
+    PutCountersOnEntered,
+    PutCountersOnSource,
+    PutStunCounters,
+    PutStunOnEach,
+    PutStunOnSource,
+    RemoveAllCountersDraw,
+    RemoveCounters,
+    RemoveCountersFromSource,
+    SHIFT_COUNTERS_PROMPT,
+    SHIFT_ONTO_PROMPT,
+    TargetPutsCountersOnEach,
+    VOW_PROMPT,
+    VowCounters,
+    _PutCountersAndAttach,
+)
+from .families.destroy_and_sacrifice import (  # noqa: F401
+    CHOOSE_TYPE_PROMPT,
+    CannotRegenerate,
+    Destroy,
+    DestroyAll,
+    DestroyAllOfChosenType,
+    DestroyUpToX,
+    DestroyX,
+    EachSacrifices,
+    MaySacrificeThen,
+    Regenerate,
+    RegenerateEach,
+    RegenerateSource,
+    SacrificeAll,
+    SacrificeCreature,
+    SacrificeSelf,
+    SacrificeUnlessPay,
+    TargetSacrifices,
+    TragicArrogance,
+    _MaySacrifice,
+    _SacrificeThemLater,
+)
+from .families.exile_and_return import (  # noqa: F401
+    CastExiledWithFree,
+    DECLINE,
+    EachSacrificesThenReturn,
+    Exile,
+    ExileAll,
+    ExileAllGraveyards,
+    ExileEnchanted,
+    ExileFromGraveyard,
+    ExileGraveyard,
+    ExileInstead,
+    ExileOwnGraveyard,
+    ExileTargetIfDies,
+    ExileThisSpell,
+    ExileTop,
+    ExileTopCastAura,
+    ExileTopOfEachCastFree,
+    ExileTopOfThatPlayerMayCast,
+    ExileUntilLeaves,
+    ExileUntilNonlandCast,
+    ExileX,
+    FREE_CAST_PROMPT,
+    Flicker,
+    GiveBack,
+    MayCastFromHandFree,
+    PayToReturnSelf,
+    PhaseOut,
+    PhaseOutAll,
+    PlayExiled,
+    PlayExiledCard,
+    PutExiledWithIntoGraveyard,
+    RETURN_LAND_PROMPT,
+    ReturnAllFromGraveyard,
+    ReturnAllToHand,
+    ReturnAuraToBattlefield,
+    ReturnChosen,
+    ReturnDeadAtNextUpkeep,
+    ReturnDeadToBattlefield,
+    ReturnExiledToGraveyard,
+    ReturnFromGraveyard,
+    ReturnLater,
+    ReturnOwnLand,
+    ReturnSelfAsEnchantment,
+    ReturnSelfToBattlefield,
+    ReturnSelfToHand,
+    ReturnSpellToHand,
+    ReturnThisFromGraveyard,
+    ReturnToHand,
+    ReturnTransformed,
+    ReturnWhenItDiesThisTurn,
+    ReturnWithCounter,
+    SacrificeToReturnChosen,
+    SacrificeUnlessReturnLand,
+    _ExileThemLater,
+    _IfExiledThen,
+    _PlayTheExiledCard,
+)
+from .families.library_and_hand import (  # noqa: F401
+    BASIC_LAND_TYPES,
+    Cascade,
+    DanceWithCalamity,
+    DelayedDraw,
+    Discard,
+    DiscardChosen,
+    DiscardHandsDrawGreatest,
+    Draw,
+    DrawThenPutBack,
+    EXILE_DISCARDED_PROMPT,
+    EachDraw,
+    EachDrawsThenDiscards,
+    EachMayWheel,
+    EachSacrificesOrDiscards,
+    ExileControllerDraws,
+    ExileDiscarded,
+    FetchBasicLand,
+    ImprintFromHand,
+    Impulse,
+    LookAtHand,
+    LookAtTop,
+    LookPutAttachment,
+    LookPutPermanents,
+    LookTakeRestBottom,
+    LookTopTakeChosen,
+    MayDiscardThenDraw,
+    MayRemoveCounterThenDraw,
+    MaySacrificeThenDraw,
+    Mill,
+    MillThenExileRandomPlay,
+    MillThenReturn,
+    PilesOfFour,
+    PutAttackingFromHand,
+    PutBackTop,
+    PutCreatureFromHand,
+    PutFromHand,
+    PutSourceOnLibraryTop,
+    RestOnBottom,
+    RevealHand,
+    RevealLands,
+    RevealTop,
+    RevealTopPutAll,
+    RevealTopStep,
+    RevealUntilAura,
+    Scry,
+    SearchForLands,
+    SearchLandWhileBehind,
+    SearchLibrary,
+    SearchMany,
+    ShuffleIntoLibrary,
+    ShuffleRevealCast,
+    ShuffleThisSpell,
+    SurgeToVictory,
+    Surveil,
+    TakeFromTop,
+    TargetChooseDiscard,
+    TargetControllerMayFetchBasicLand,
+    TargetDiscard,
+    TargetDraw,
+    TargetDrawDiscard,
+    TargetDrawLose,
+    TargetDrawXPlusCasts,
+    TargetMill,
+    TargetMillThenReturn,
+    ThreeWaySplit,
+    YouAndTargetDraw,
+    _IfYouDoDraw,
+    _InsteadDraw,
+    _MayDiscard,
+    _MayShuffle,
+    _PutFromAmongThem,
+    _SplitTop,
+    _card_matches_kind,
+)
+from .families.life_and_damage import (  # noqa: F401
+    Annihilate,
+    Damage,
+    DamageEach,
+    DamageTargetsController,
+    DamageToYou,
+    DamageWhatItAttacks,
+    Drain,
+    DrawHalfLibraryLoseHalfLife,
+    EachCreatureDamagesItsController,
+    EachDamagesItself,
+    EachPlayerLosesLife,
+    ExileDamagedIfDie,
+    GainLife,
+    GainLifeItLost,
+    GivePoison,
+    LifeLocked,
+    LoseAllButOneLife,
+    LoseLife,
+    OpponentsLoseLife,
+    PlayerLosesLife,
+    PoisonShrinksOpponentsCreatures,
+    PowerDamageToEachOther,
+    PreventAllCombatDamage,
+    PreventCombatDamageToYou,
+    PreventNext,
+    RevealTopToHandDrain,
+    RevealTopTradeLife,
+    TargetControllerGainsLife,
+    TargetControllerGainsLifeEqualToPower,
+    TargetGainLife,
+    TargetLoseHalfLife,
+    TargetLoseLife,
+    WhenThatDealsCombatDamage,
+    _GainLifeLost,
+)
+from .families.mana import (  # noqa: F401
+    AddDevotionMana,
+    AddMana,
+    AddManaForEach,
+    AddManaPerCardInHand,
+    AddManaPerTappedLand,
+    ExtraMountainMana,
+    KeepManaThisTurn,
+    LoseLifeEqualToManaValue,
+    PayLifeForMana,
+    PlayersLoseSacrificeAddManaDraw,
+    _DelayedMana,
+    _InsteadMana,
+    _ManaForEachDestroyed,
+)
+from .families.spells_and_misc import (  # noqa: F401
+    CHANGE_TARGET_PROMPT,
+    COMMANDER_HAND_PROMPT,
+    ChangeTarget,
+    ChaosWarp,
+    ChooseFromHand,
+    ChooseTarget,
+    CommanderToHand,
+    Conditional,
+    Counter,
+    CreateDelayedTrigger,
+    DefineX,
+    DoubleXOfTriggeringSpell,
+    HYPOTHESIS_COUNTER_PROMPT,
+    IfKicked,
+    IfNotKicked,
+    KickedInstead,
+    KickedReplaces,
+    MayPay,
+    MayPayLoot,
+    Modal,
+    ModifiedGainHexproof,
+    NewTargetMustBe,
+    NewTargets,
+    OnPlayer,
+    OnSubject,
+    OnSubjectController,
+    PARITY_PROMPT,
+    UnlessPays,
+    WardCounter,
+    ZimonesHypothesis,
+    _ChaosPut,
+    _ChooseAnyNumber,
+    _GiftMatch,
+    _IfYouDo,
+    _ItGains,
+    _ItHas,
+    _KickedInsteadTail,
+    _MayRemoveCounter,
+    _ThatAlsoGains,
+    _TheyGain,
+    _TheyGainHaste,
+)
+from .families.tokens import (  # noqa: F401
+    AttackerCreatesAttackingToken,
+    AttackingTokens,
+    CONTRACT_TEXT,
+    Conjure,
+    Connive,
+    ContractAttack,
+    CreateContract,
+    CreateOneOfTokens,
+    CreateTokenAttachSource,
+    CreateTokenAttachSubject,
+    CreateTokenWithGraveyardAttachment,
+    CreateTokens,
+    EachCreatesTokens,
+    ExiledOwnerGetsToken,
+    ManifestDread,
+    POPULATE_PROMPT,
+    Populate,
+    TOKEN_CHOICE_PROMPT,
+    TargetControllerCreatesTokens,
+    TargetControllerManifests,
+    TargetCreatesTokens,
+    TokensJoinAttack,
+    _AttachItToToken,
+    _ChooseToken,
+    _ExileThoseTokens,
+    _ExileTokenAtEnd,
+    _InsteadTokens,
+    _PopulatedTokenRider,
+    _TokenGainsHaste,
+    _TokenHasHaste,
+    _TokenPerPrevented,
+)
+from .families.turns_and_control import (  # noqa: F401
+    BecomeMonarch,
+    DEMONSTRATE_OPPONENT_PROMPT,
+    DEMONSTRATE_PROMPT,
+    Demonstrate,
+    ExtraCombat,
+    ExtraLandDrop,
+    ExtraTurn,
+    GainControl,
+    OpponentsCantCast,
+    SylvanLibrary,
+    TakeInitiative,
+    TargetExtraTurn,
+)
+from .families.votes import (  # noqa: F401
+    ExileMostVoted,
+    PastOrPresentVote,
+    ThroneOfTheDeadThree,
+    Vote,
+    VoteOutcome,
+    VoteStart,
+    VoteToExile,
+)
 from .follow import Follow, Follows, set_fields
 from .targets import (
     MassFilter,
@@ -64,573 +507,6 @@ from .targets import (
     binding,
     target_kind,
 )
-
-
-@dataclass(frozen=True)
-class Draw:
-    count: Quantity
-    more: int = 0  # Zimone: "If you control eight or more lands, draw two cards instead."
-    more_if: "Condition | None" = None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        count = self.more if self.more_if and game.condition_holds(self.more_if, controller, game.resolving_source) else self.count
-        game.draw(controller, game.amount(count))
-
-
-@dataclass(frozen=True)
-class GainLife:
-    amount: Quantity
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.change_life(controller, game.amount(self.amount))
-
-
-@dataclass(frozen=True)
-class ExileTargetIfDies:
-    """ "If that creature would die this turn, exile it instead." (Lava Coil, Bleed Dry): the target the spell just dealt with."""
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and hasattr(target, "exile_if_dies") and "Creature" in target.card.type_line:
-            target.exile_if_dies = game.turn
-
-
-@dataclass(frozen=True)
-class ExileDamagedIfDie:
-    """ "If a creature dealt damage this way would die this turn, exile it instead." (Anger of the Gods): every creature the spell
-    has dealt damage to."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for creature in game.resolving_damaged:
-            creature.exile_if_dies = game.turn
-
-
-@dataclass(frozen=True)
-class PlayerLosesLife:
-    """Afflict N: "defending player loses N life", the player the trigger is about."""
-    amount: int
-    binds = PLAYER
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.change_life(target, -self.amount)
-
-
-@dataclass(frozen=True)
-class OpponentsLoseLife:
-    amount: Quantity
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.opponents(controller):
-            game.change_life(seat, -game.amount(self.amount))
-
-
-@dataclass(frozen=True)
-class Damage:
-    amount: Quantity
-    target: str
-    optional_target: bool = False  # one point of "4 damage divided as you choose among any number of targets"
-    distinct: bool = False  # "... to each of up to two targets": the second can't be the first again
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.damage(target, game.amount(self.amount))
-
-
-@dataclass(frozen=True)
-class DamageToYou:
-    """Mana Vault: "... it deals 1 damage to you." (the ability's controller, from its source)"""
-    amount: Quantity
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.damage(controller, game.amount(self.amount))
-
-
-@dataclass(frozen=True)
-class Destroy:
-    target: str
-    another: bool = False  # "destroy another target ...": not the source itself
-    no_regen: bool = False  # "It can't be regenerated."
-    optional_target: bool = False  # "destroy up to two target ...": each target may be left out
-    distinct: bool = False  # ... and may not repeat an earlier target of the same effect
-    if_color: str = ""  # Pyroblast: "Destroy target permanent if it's blue." (checked as it resolves)
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and (not self.if_color or self.if_color in target.card.colors):
-            game.destroy(target, self.no_regen)
-
-
-@dataclass(frozen=True)
-class WardCounter:
-    """The ward trigger of a permanent an opponent targeted: their spell or ability is countered
-    unless they pay `cost`."""
-    cost: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.resolve_ward(self.cost)
-
-
-@dataclass(frozen=True)
-class Counter:
-    target: str = "spell"
-    exile: bool = False  # "exile it instead of putting it into its owner's graveyard"
-    delayed_mana: bool = False  # Mana Drain: at your next main phase, add {C} equal to that spell's mana value
-    unless: str = ""  # "unless its controller pays {2}": the cost
-    if_color: str = ""  # Pyroblast: "Counter target spell if it's blue." (checked as it resolves)
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if self.if_color and target is not None and self.if_color not in target.card.colors:
-            return
-        if target is not None and not cant_be_countered(target.card) and not game.uncounterable(target):
-            if self.unless and game.pays_unless(target.controller, self.unless, target.card):
-                return
-            if self.delayed_mana:
-                controller.delayed_mana += int(target.card.cmc) + target.x
-            game.counter(target, self.exile)
-
-
-@dataclass(frozen=True)
-class ChangeTarget:
-    """Deflection: "Change the target of target spell with a single target." (Divert: "... unless that spell's controller pays {2}.")
-    You choose the new target, which must be another legal one for that spell or ability."""
-    target: str = "spell with a single target"
-    unless: str = ""
-    every: bool = False  # Deflecting Swat: "You may choose new targets for target spell or ability." (each may stay)
-    to: str = ""  # "The new target must be a player." / "... a creature."; "to this creature": the source of the ability
-    optional: bool = False  # Hydroelectric Specimen: "you may change the target ..."
-    lone: bool = True  # False: "Change a target of target spell or ability to this creature." (Spellskite) -- one of several
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None or (self.unless and game.pays_unless(target.controller, self.unless, target.card)):
-            return
-        if self.optional and controller.player.choose(CHANGE_TARGET_PROMPT + target.card.name, ["Yes", "No"]) != 0:
-            return
-        game.change_target(controller, target, self.every, self.to, self.lone)
-
-
-CHANGE_TARGET_PROMPT = "Change the target of "  # followed by the spell's name; Yes or No
-
-
-@dataclass(frozen=True)
-class NewTargetMustBe:
-    """ "The new target must be a player." after a change of target: _merge_new_target folds it into that effect."""
-    kind: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        pass
-
-
-@dataclass(frozen=True)
-class DelayedDraw:
-    """Arcane Denial: "Its controller may draw up to two cards at the beginning of the next turn's upkeep. / You draw a card at the
-    beginning of the next turn's upkeep." Its controller is the controller of the spell just countered."""
-    count: int
-    others: bool  # the countered spell's controller rather than you
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        who = (target.controller if target is not None else None) if self.others else controller
-        if who is not None:
-            game.draw_at_next_upkeep(who, self.count, up_to=self.others)
-
-
-@dataclass(frozen=True)
-class _DelayedMana:
-    """Mana Drain's second sentence (see _merge_exile)."""
-
-
-@dataclass(frozen=True)
-class ChaosWarp:
-    """ "The owner of target permanent shuffles it into their library, then reveals the top card of their library. If it's
-    a permanent card, they put it onto the battlefield." """
-    target: str = "permanent"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.chaos_warp(target)
-
-
-@dataclass(frozen=True)
-class _ChaosPut:
-    """Chaos Warp's second sentence (see _merge_mana_drain)."""
-
-
-@dataclass(frozen=True)
-class PutSourceOnLibraryTop:
-    """Sensei's Divining Top: "... then put this artifact on top of its owner's library." """
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.put_on_library_top(target)
-
-
-@dataclass(frozen=True)
-class ExileInstead:
-    """ "If that spell is countered this way, exile it instead of putting it into its owner's graveyard." Only ever the
-    end of a Counter (see _merge_exile)."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone 'exile it instead' is never built")
-
-
-@dataclass(frozen=True)
-class Flicker:
-    """Exile a permanent and bring it back: right away ("now") or as the next end step begins ("end_step"), to the
-    battlefield or its owner's hand. `under_owner`: "under its owner's control" (otherwise under yours)."""
-    target: str
-    when: str = "now"
-    to: str = "battlefield"
-    under_owner: bool = True
-    another: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.flicker(target, controller, self.when, self.to, self.under_owner)
-
-
-@dataclass(frozen=True)
-class ReturnLater:
-    """ "Return it to the battlefield under its owner's control at the beginning of the next end step." Only ever the
-    end of an Exile (see _merge_exile)."""
-    to: str
-    under_owner: bool
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone delayed return is never built")
-
-
-@dataclass(frozen=True)
-class ExileTop:
-    """ "Exile the top two cards of your library. Until the end of your next turn, you may play those cards." (`play` is
-    None, "this turn" or "next turn")"""
-    count: int | str
-    play: str | None = None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_top(controller, game.amount(self.count), self.play)
-
-
-@dataclass(frozen=True)
-class PlayExiled:
-    """ "You may play it this turn." Only ever the end of an ExileTop (see _merge_exile)."""
-    until: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone permission to play exiled cards is never built")
-
-
-@dataclass(frozen=True)
-class Exile:
-    target: str
-    another: bool = False  # "exile another target ...": not the source itself
-    optional_target: bool = False
-    distinct: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.exile_noting(target, game.resolving_source)
-
-
-@dataclass(frozen=True)
-class ExileControllerDraws:
-    """Season of the Burrow: "Exile target nonland permanent. Its controller draws a card." (its controller as it was exiled)"""
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            owner = game.controller_of(target)
-            game.exile_noting(target, game.resolving_source)
-            if owner is not None:
-                game.draw(owner, 1)
-
-
-@dataclass(frozen=True)
-class ExiledOwnerGetsToken:
-    """Skyclave Apparition: "the exiled card's owner creates an X/X ... token, where X is the mana value of the exiled
-    card." The target is the source, which has already left the battlefield."""
-    token: Card
-    binds = DEAD_SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None:
-            return
-        for owner, card in target.exiled_with:
-            size = str(int(card.cmc))
-            game.create_tokens(owner, dataclasses.replace(self.token, power=size, toughness=size), 1)
-
-
-@dataclass(frozen=True)
-class GrantFlash:
-    """Alchemist's Refuge: "You may cast spells this turn as though they had flash." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        controller.flash_turn = game.turn
-
-
-@dataclass(frozen=True)
-class ExileEnchanted:
-    """Redemption Arc: "Exile enchanted creature." (the Aura's own ability, so no target)"""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.attached_to is not None:
-            game.exile(target.attached_to)
-
-
-@dataclass(frozen=True)
-class ExileUntilLeaves:
-    """Oblivion Ring, Banishing Light, Fiend Hunter: the target comes back when the source leaves the battlefield."""
-    target: str
-    another: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.exile_until_leaves(target, game.resolving_source)
-
-
-@dataclass(frozen=True)
-class TargetDraw:
-    count: int | str
-    target: str = "player"  # "player" or "opponent"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.draw(target, game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class TargetDrawLose:
-    """ "Target player draws N cards and loses N life." """
-    draws: int | str
-    loses: int | str
-    target: str = "player"
-    distinct: bool = False  # "each mode must target a different player"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.draw(target, game.amount(self.draws))
-            game.change_life(target, -game.amount(self.loses))
-
-
-@dataclass(frozen=True)
-class YouAndTargetDraw:
-    """ "You and target opponent each draw three cards." """
-    count: int | str
-    target: str = "opponent"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.draw(controller, game.amount(self.count))
-        if target is not None:
-            game.draw(target, game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class RevealTopTradeLife:
-    """Keen Duelist: you and target opponent each reveal the top card, lose life equal to the other's card's mana value, and
-    put your own revealed card into your hand."""
-    target: str = "opponent"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None:
-            return
-        pair = (controller, target)
-        revealed = [(seat, seat.library.pop(0) if seat.library else None) for seat in pair]
-        for seat, card in revealed:
-            if card is not None:
-                game.broadcast({"event": "revealed", "seat": seat.index, "card": card.name})
-        for (seat, _), (_, other) in zip(revealed, reversed(revealed)):
-            if other is not None:
-                game.change_life(seat, -int(other.cmc))
-        for seat, card in revealed:
-            if card is not None:
-                seat.hand.append(card)
-
-
-@dataclass(frozen=True)
-class EachPlayerLosesLife:
-    amount: int | str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.turn_order_from_active():
-            game.change_life(seat, -game.amount(self.amount))
-
-
-@dataclass(frozen=True)
-class Drain:
-    """ "Each opponent loses X life. You gain life equal to the life lost this way." """
-    amount: int | str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        lost = 0
-        for seat in game.opponents(controller):
-            game.change_life(seat, -game.amount(self.amount))
-            lost += game.amount(self.amount)
-        game.change_life(controller, lost)
-
-
-@dataclass(frozen=True)
-class MayDiscardThenDraw:
-    """ "You may discard a card. If you do, draw a card." (Quintorius: "... draw two cards, then mill a card.")"""
-    draw: int = 1
-    mill: int = 0
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.may_loot(controller, self.draw, self.mill)
-
-
-@dataclass(frozen=True)
-class EachMayWheel:
-    """ "Each player may discard their hand and draw seven cards." """
-    count: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.may_wheel(self.count)
-
-
-@dataclass(frozen=True)
-class TapOrUntap:
-    """ "You may tap or untap target creature." """
-    target: str = "creature"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.tap_or_untap(controller, target)
-
-
-@dataclass(frozen=True)
-class _MayDiscard:
-    """Half of "You may discard a card. If you do, draw a card." (see _merge_loot)."""
-
-
-@dataclass(frozen=True)
-class MaySacrificeThenDraw:
-    """Witherbloom Charm: "You may sacrifice a permanent. If you do, draw two cards." """
-    kind: str
-    draw: int = 1
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.may_sacrifice_draw(controller, self.kind, self.draw)
-
-
-@dataclass(frozen=True)
-class MaySacrificeThen:
-    """Springbloom Druid: "You may sacrifice a land. If you do, search your library for up to two basic land cards, ..." """
-    kind: str
-    then: Any
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.may_sacrifice(controller, self.kind):
-            self.then.resolve(game, controller, target)
-
-
-@dataclass(frozen=True)
-class MayRemoveCounterThenDraw:
-    """Ingenious Prodigy: "You may remove a +1/+1 counter from it. If you do, draw a card." """
-    counter: str
-    draw: int = 1
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.may_remove_counter_draw(controller, target, self.counter, self.draw)
-
-
-@dataclass(frozen=True)
-class _MayRemoveCounter:
-    counter: str
-
-
-@dataclass(frozen=True)
-class _MaySacrifice:
-    """Half of "You may sacrifice a permanent. If you do, draw two cards." (see _merge_loot)."""
-    kind: str
-
-
-@dataclass(frozen=True)
-class _IfYouDoDraw:
-    """The other half."""
-    draw: int = 1
-    mill: int = 0
-
-
-@dataclass(frozen=True)
-class _GainLifeLost:
-    """ "You gain life equal to the life lost this way." (see _merge_drain) """
-
-
-@dataclass(frozen=True)
-class TargetDrawDiscard:
-    """Prismari Command: "Target player draws two cards, then discards two cards." """
-    draws: int
-    discards: int
-    target: str = "player"
-    distinct: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.draw(target, self.draws)
-            game.discard(target, self.discards)
-
-
-@dataclass(frozen=True)
-class TargetMillThenReturn:
-    """Witherbloom Command: "Target player mills three cards, then you return a land card from your graveyard to your hand." """
-    count: int
-    kind: str
-    target: str = "player"
-    distinct: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.mill(target, self.count)
-        game.return_chosen(controller, self.kind, "hand")
-
-
-@dataclass(frozen=True)
-class TargetDrawXPlusCasts:
-    """Commander's Insight: "Target player draws X cards plus an additional card for each time they've cast a commander from the
-    command zone this game." """
-    target: str = "player"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.draw(target, game.amount("X") + sum(target.commander_casts.values()))
-
-
-@dataclass(frozen=True)
-class TargetGainLife:
-    amount: int | str
-    target: str = "player"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.change_life(target, game.amount(self.amount))
-
-
-@dataclass(frozen=True)
-class TargetLoseLife:
-    amount: int | str
-    target: str = "player"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.change_life(target, -game.amount(self.amount))
-
-
-@dataclass(frozen=True)
-class Modal:
-    """ "Choose one — • ... • ..." The caster picks between `min` and `max` of the modes when casting (Game
-    flattens the chosen ones into the spell's effects); `texts` are the modes as printed."""
-    min: int
-    max: int
-    modes: tuple[tuple, ...]  # the effects of each mode
-    texts: tuple[str, ...]
-    commander_both: bool = False  # "If you control a commander as you cast this spell, you may choose both instead."
-    optional: bool = False  # "you may choose two": the controller may choose none
-    repeat: bool = False  # "You may choose the same mode more than once." (a Confluence): `max` picks, each mode any number of times
-    costs: tuple[int, ...] = ()  # pawprint modes (a Season): what each mode costs of the `max` pawprints to spend
-    mode_costs: tuple[str, ...] = ()  # Spree: the mana each mode adds to the cost of the spell (CR 702.172)
 
 
 _MODAL_COUNTS = {"one": (1, 1), "up to one": (0, 1), "two": (2, 2), "three": (3, 3), "one or both": (1, 2), "one or more": (1, 0)}
@@ -736,844 +612,10 @@ def _parse_modal_inline(text: str) -> list | None:
     return _parse_modal(m[1].lower(), ["\u2022 " + part for part in m[2].removeprefix("\u2022 ").split(" \u2022 ")])
 
 
-@dataclass(frozen=True)
-class ExileGraveyard:
-    target: str = "player"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.exile_graveyard(target)
-
-
-@dataclass(frozen=True)
-class TargetControllerGainsLifeEqualToPower:
-    """Swords to Plowshares: "Its controller gains life equal to its power." """
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.last_controller is not None:
-            game.change_life(target.last_controller, max(0, target.last_power))
-
-
-BASIC_LAND_TYPES = ("Plains", "Island", "Swamp", "Mountain", "Forest")
-
-
-@dataclass(frozen=True)
-class TargetControllerMayFetchBasicLand:
-    """Path to Exile: "Its controller may search their library for a basic land card, put it onto the battlefield tapped, ..."
-    (Assassin's Trophy puts it onto the battlefield untapped)"""
-    tapped: bool = True
-    typed: bool = False  # Boseiju: "a land card with a basic land type" (a dual land counts)
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.last_controller is not None:
-            game.fetch_basic_land(target.last_controller, optional=True, tapped=self.tapped,
-                                  subtypes=BASIC_LAND_TYPES if self.typed else None)
-
-
-@dataclass(frozen=True)
-class PutCounters:
-    count: Quantity
-    counter: str  # "+1/+1" or "-1/-1"
-    target: str
-    another: bool = False  # "on another target creature you control": not the source itself
-    optional_target: bool = False  # "on each of up to two target creatures": each target may be left out
-    distinct: bool = False  # ... and may not repeat an earlier target of the same effect
-    grant: frozenset[str] = frozenset()  # Pack a Punch: "It gains trample until end of turn." (it is the creature that got them)
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.put_counters(target, self.counter, game.amount(self.count))
-            if self.grant:
-                game.modify_until_end_of_turn(target, Modifier(keywords=self.grant))
-            if game.resolving_item is not None and game.resolving_item.carried is None:
-                game.resolving_item.carried = target  # "Then it fights ...": the creature that got the counters
-
-
-@dataclass(frozen=True)
-class RemoveCounters:
-    """ "Remove a +1/+1 counter from target creature." / "Remove all counters from target permanent." (count None: all;
-    counter None: of every kind)"""
-    count: int | str | None
-    counter: str | None
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.remove_counters(target, self.counter, None if self.count is None else game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class RemoveAllCountersDraw:
-    """Nexus Mentality: "Remove all counters from target nonland permanent you control. Draw a card for each counter removed
-    this way." """
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            removed = sum(target.counters.values())
-            game.remove_counters(target, None, None)
-            game.draw(controller, removed)
-
-
-EXILE_DISCARDED_PROMPT = "Exile which discarded card from your graveyard?"
-
-
-PARITY_PROMPT = "Choose odd or even for "  # followed by the spell's name; options: "Odd", "Even"
-
-
-HYPOTHESIS_COUNTER_PROMPT = "Put a +1/+1 counter on a creature for "  # followed by the spell's name
-
-
-@dataclass(frozen=True)
-class ZimonesHypothesis:
-    """Zimone's Hypothesis: "You may put a +1/+1 counter on a creature. Then choose odd or even. Return each creature with
-    power of the chosen quality to its owner's hand." (Zero is even.)"""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        name = game.resolving_item.card.name if game.resolving_item is not None else "Zimone's Hypothesis"
-        creatures = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line]
-        if creatures:
-            options = [game.label(p) for p in creatures] + ["No counter"]
-            pick = controller.player.choose(HYPOTHESIS_COUNTER_PROMPT + name, options)
-            if pick < len(creatures):
-                game.put_counters(creatures[pick], "+1/+1", 1)
-        parity = controller.player.choose(PARITY_PROMPT + name, ["Odd", "Even"])
-        chosen = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line
-                  and game.power(p) % 2 == (1 if parity == 0 else 0)]
-        game.return_all_to_hand(chosen)
-
-
-PUT_COUNTERS_PROMPT = "Put counters on which creature you control for "  # followed by the source's name
-
-
-@dataclass(frozen=True)
-class PutCountersOnChosenCreature:
-    """Breena: "you put two +1/+1 counters on a creature you control." Nothing is targeted; you choose as it resolves."""
-    count: Quantity
-    counter: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        creatures = [p for p in controller.battlefield if "Creature" in p.card.type_line]
-        if not creatures:
-            return
-        source = game.resolving_item.card.name if game.resolving_item is not None else "the ability"
-        pick = controller.player.choose(PUT_COUNTERS_PROMPT + source, [game.label(p) for p in creatures]) if len(creatures) > 1 else 0
-        game.put_counters(creatures[pick], self.counter, game.amount(self.count))
-
-
-DISTRIBUTE_PROMPT = "Put a counter on which creature for "  # followed by the source's name
-
-
-@dataclass(frozen=True)
-class DistributeCounters:
-    """ "Distribute three +1/+1 counters among one, two, or three target creatures you control." The counters are given out one at
-    a time as the effect resolves, to any creature of the kind (so any split among any number of them is possible). Nothing is
-    targeted, but a creature that couldn't be targeted (hexproof, protection from the source) is left out all the same."""
-    count: int | str
-    counter: str
-    kind: str  # "creature" or "creature you control"
-    another: bool = False  # "other target creatures": not the source itself
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        source = game.resolving_item.card.name if game.resolving_item is not None else "the ability"
-        for _ in range(game.amount(self.count)):
-            options = [p for _, p in game.target_options(self.kind, controller, game.resolving_colors)]
-            options = [p for p in options if not (self.another and p is game.resolving_source)]
-            if not options:
-                return
-            pick = controller.player.choose(DISTRIBUTE_PROMPT + source, [game.label(p) for p in options]) if len(options) > 1 else 0
-            game.put_counters(options[pick], self.counter, 1)
-
-
-@dataclass(frozen=True)
-class PutCountersOnEachUpToX:
-    """Silkguard: "Put a +1/+1 counter on each of up to X target creatures you control." The targets are one list."""
-    counter: str
-    target: str = "creature you control"
-    grant: frozenset[str] = frozenset()  # "Those creatures gain flying until end of turn."
-    up_to_x = True
-    multi_target = True  # its one target slot holds a list
-    optional_target = True  # it needs no target to be cast
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in target or []:
-            game.put_counters(permanent, self.counter, 1)
-            if self.grant:
-                game.modify_until_end_of_turn(permanent, Modifier(keywords=self.grant))
-
-
-@dataclass(frozen=True)
-class PutCounterPerPlayer:
-    """Nils: "For each player, put a +1/+1 counter on up to one target creature that player controls." The targets are one
-    list, a creature (or none) for each player in turn order."""
-    counter: str
-    target: str = "creature"
-    per_player = True
-    multi_target = True
-    optional_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in target or []:
-            game.put_counters(permanent, self.counter, 1)
-
-
-@dataclass(frozen=True)
-class ModifiedGainHexproof:
-    """Silkguard: "Auras, Equipment, and modified creatures you control gain hexproof until end of turn." (Counters,
-    Equipment and your Auras on a creature are modifications.)"""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        hexproof = Modifier(keywords=frozenset({"hexproof"}))
-        for permanent in list(controller.battlefield):
-            attached = any(a.attached_to is permanent for a in controller.battlefield)
-            is_attachment = any(t in permanent.card.type_line for t in ("Aura", "Equipment"))
-            if is_attachment or ("Creature" in permanent.card.type_line and (any(permanent.counters.values()) or attached)):
-                game.modify_until_end_of_turn(permanent, hexproof)
-
-
-@dataclass(frozen=True)
-class MoveCountersFrom:
-    """The first target of "Move a +1/+1 counter from target creature onto another target creature." """
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is not None:
-            game.resolving_item.carried = target
-
-
-MOVE_COUNTERS_PROMPT = "Move how many "  # followed by the counter's name; options are "0", "1", ...
-
-
-SHIFT_COUNTERS_PROMPT = "Shift how many counters off "  # then the creature's name; options are "0", "1", ... (a bot keeps them)
-
-
-SHIFT_ONTO_PROMPT = "Shift them onto which creature? "  # followed by the source's name
-
-
-@dataclass(frozen=True)
-class MoveCountersToOthers:
-    """Forgotten Ancient: "you may move any number of +1/+1 counters from this creature onto other creatures." (nothing is
-    targeted: you choose how many, and where, as it resolves)"""
-    counter: str
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None:
-            return
-        while (have := target.counters.get(self.counter, 0)) > 0:
-            others = [p for s in game.live_seats() for p in s.battlefield if "Creature" in p.card.type_line and p is not target]
-            if not others:
-                return
-            number = controller.player.choose(SHIFT_COUNTERS_PROMPT + target.card.name, [str(n) for n in range(have + 1)])
-            if number == 0:
-                return
-            pick = controller.player.choose(SHIFT_ONTO_PROMPT + target.card.name, [game.label(p) for p in others])
-            game.move_counters(target, others[pick], self.counter, number)
-
-
-@dataclass(frozen=True)
-class MoveCountersOnto:
-    """The second target: the counters (up to `count`, or all if None) move from the first target to this one."""
-    count: int | Literal["any"] | None  # a number, None for all of them, or "any" for a number the controller chooses
-    counter: str | None  # None: every kind
-    target: str
-    another: bool = True
-    same_controller: bool = False  # "... with the same controller": the second creature is under the first one's controller
-    distinct: bool = True  # "another target": not the creature the counters come from
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        first = game.resolving_item.carried if game.resolving_item is not None else None
-        if first is not None and target is not None and first is not target:
-            count = self.count
-            if count == "any":
-                have = first.counters.get(self.counter, 0)
-                count = controller.player.choose(f"{MOVE_COUNTERS_PROMPT}{self.counter} counters",
-                                                 [str(n) for n in range(have + 1)])
-            game.move_counters(first, target, self.counter, count)
-
-
-@dataclass(frozen=True)
-class RemoveCountersFromSource:
-    """ "Remove two hour counters from this enchantment." (Midnight Oil)"""
-    count: int
-    counter: str
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.remove_counters(target, self.counter, self.count)
-
-
-@dataclass(frozen=True)
-class DamageWhatItAttacks:
-    """Raid Bombardment: "... deals 1 damage to the player or planeswalker that creature is attacking." The creature that
-    attacked is the subject."""
-    amount: int
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        attack = next((a for a in game.combat.attacks if a.attacker is target), None) if target is not None else None
-        if attack is not None:
-            game.damage(attack.walker if attack.walker is not None else attack.defender, self.amount)
-
-
-@dataclass(frozen=True)
-class DoubleCountersOnSource:
-    """ "Double the number of +1/+1 counters on this creature." """
-    counter: str
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.counters.get(self.counter):
-            game.put_counters(target, self.counter, target.counters[self.counter])
-
-
-@dataclass(frozen=True)
-class DoubleCounters:
-    """ "Double the number of +1/+1 counters on each creature you control." """
-    counter: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in list(controller.battlefield):
-            if "Creature" in permanent.card.type_line and permanent.counters.get(self.counter):
-                game.put_counters(permanent, self.counter, permanent.counters[self.counter])
-
-
-@dataclass(frozen=True)
-class Animate:
-    """ "Until end of turn, this land becomes a 3/3 green Ape creature with trample. It's still a land." (the source:
-    on_source) or "Target land you control becomes ..." (target)."""
-    power: int
-    toughness: int
-    colors: tuple[str, ...]
-    subtypes: str
-    artifact: bool
-    keywords: frozenset[str]
-    target: str | None = None
-    on_source: bool = False  # it is about the ability's source, not a chosen target
-    on_your_turn: frozenset[str] = frozenset()  # keywords it has only during its controller's turn (Restless Spire)
-
-    @property
-    def binds(self) -> str | None:
-        return SOURCE if self.on_source else None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.animate(target, self.power, self.toughness, self.colors, self.subtypes, self.artifact, self.keywords,
-                         self.on_your_turn)
-
-
-@dataclass(frozen=True)
-class StillALand:
-    """ "It's still a land." Only ever the end of an Animate (see _merge_animate)."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone 'still a land' is never built")
-
-
-@dataclass(frozen=True)
-class OnSubject:
-    """A watching trigger's effect on "it": the permanent that set it off, not the ability's source."""
-    inner: Any
-    binds = SUBJECT
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        self.inner.resolve(game, controller, target)
-
-
-@dataclass(frozen=True)
-class OnSubjectController:
-    """A watching trigger's effect on "its controller": the controller of the permanent that set it off (Parasitic Impetus)."""
-    inner: Any
-    binds = SUBJECT
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        owner = game.controller_of(target) if target is not None else None
-        if owner is not None:
-            self.inner.resolve(game, controller, owner)
-
-
-@dataclass(frozen=True)
-class OnPlayer:
-    """A trigger's effect on "that player" / "they": the player whose action set it off."""
-    inner: Any
-    binds = PLAYER
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        self.inner.resolve(game, controller, target)
-
-
-@dataclass(frozen=True)
-class PutCountersOnEach:
-    """ "Put a +1/+1 counter on each creature you control." (or each Vampire you control: `kind`) """
-    count: Quantity
-    counter: str
-    kind: str = ""  # a creature type, "" for every creature
-    grant: frozenset[str] = frozenset()  # Ursine Guide's spell: "They gain trample until end of turn."
-    or_vehicle: bool = False  # Ao: "each permanent you control that's a creature or Vehicle"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in list(controller.battlefield):
-            if ("Creature" in permanent.card.type_line or self.or_vehicle and "Vehicle" in permanent.card.type_line) \
-                    and self.kind in permanent.card.type_line:
-                game.put_counters(permanent, self.counter, game.amount(self.count))
-                if self.grant:
-                    game.modify_until_end_of_turn(permanent, Modifier(keywords=self.grant))
-
-
-@dataclass(frozen=True)
-class PutCountersOnEntered:
-    """Oran-Rief: "Put a +1/+1 counter on each green creature that entered this turn." (any player's)"""
-    counter: str
-    color: str = ""  # "G"; "" for any creature
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.live_seats():
-            for permanent in list(seat.battlefield):
-                if permanent.entered_turn == game.turn and "Creature" in permanent.card.type_line \
-                        and (not self.color or self.color in permanent.card.colors):
-                    game.put_counters(permanent, self.counter, 1)
-
-
-@dataclass(frozen=True)
-class PutCountersOnSource:
-    """ "Whenever this creature attacks, put a +1/+1 counter on it." """
-    count: Quantity
-    counter: str
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.put_counters(target, self.counter, game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class Hideaway:
-    """Hideaway N: "When this enters, look at the top N cards of your library, exile one face down, then put the rest on
-    the bottom in a random order." """
-    count: int
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.hideaway(controller, target, self.count)
-
-
-@dataclass(frozen=True)
-class Exploit:
-    """Exploit: "When this creature enters, you may sacrifice a creature." (it may be itself, CR 702.110); if you do, the creature
-    exploited a creature, which the abilities written "When this creature exploits a creature, ..." wait for."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.exploit(target, controller)
-
-
-@dataclass(frozen=True)
-class PlayExiledCard:
-    """A Hideaway land's "You may play the exiled card without paying its mana cost if <condition>." The condition is
-    checked as the ability resolves."""
-    condition: "Condition"
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and game.condition_holds(self.condition, controller, target):
-            game.play_hideaway(controller, target)
-
-
-@dataclass(frozen=True)
-class Pump:
-    """ "Target creature gets +3/+3 (and gains trample) until end of turn." """
-    modifier: Modifier
-    target: str
-    optional_target: bool = False  # "One or two target creatures each get ...": the second may be left out
-    distinct: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.modify_until_end_of_turn(target, self.modifier)
-            if game.resolving_item is not None and game.resolving_item.carried is None:
-                game.resolving_item.carried = target  # "It fights ...": the creature just pumped
-
-
-@dataclass(frozen=True)
-class GrantProtection:
-    """ "Target creature you control gains protection from the color of your choice until end of turn." (Mother of Runes,
-    Gods Willing); the controller picks the color as it resolves. With no target it is the source itself."""
-    target: str | None = None
-    on_source: bool = False  # it is about the ability's source, not a chosen target
-
-    @property
-    def binds(self) -> str | None:
-        return SOURCE if self.on_source else None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.grant_protection_of_choice(target, controller)
-
-
-CHOOSE_TYPE_PROMPT = "Choose a type"  # options: the types that can be chosen (Season of Gathering)
-
-
-CHOOSE_COPY_PROMPT = "Choose a permanent to copy"  # options: the permanents (Season of Weaving)
-
-
-@dataclass(frozen=True)
-class DestroyAllOfChosenType:
-    """Season of Gathering: "Choose artifact or enchantment. Destroy all permanents of the chosen type." """
-    kinds: tuple[str, ...]  # what can be chosen
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        kind = self.kinds[controller.player.choose(CHOOSE_TYPE_PROMPT, [k.capitalize() for k in self.kinds])]
-        game.destroy_all(game.mass_targets(kind, controller), False, None, controller)
-
-
-@dataclass(frozen=True)
-class CopyChosenPermanent:
-    """Season of Weaving: "Choose an artifact or creature you control. Create a token that's a copy of it." (chosen on resolution)"""
-    kind: str  # "artifact or creature you control"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        options = game.mass_targets(self.kind, controller)
-        if not options:
-            return
-        chosen = options[controller.player.choose(CHOOSE_COPY_PROMPT, [game.label(p) for p in options])]
-        card = chosen.card if chosen.card.type_line.startswith("Token") else dataclasses.replace(chosen.card, type_line="Token " + chosen.card.type_line)
-        game.create_tokens(controller, card, 1)
-
-
-@dataclass(frozen=True)
-class DoubleStats:
-    """ "Double target creature's power and toughness until end of turn." / "Double the power of each creature you control until end of
-    turn." / "Double this creature's power until end of turn." / "double target creature's power X times": it gets +P/+T equal to its
-    power and toughness as this resolves (again for each time), and several creatures are doubled together."""
-    power: bool
-    toughness: bool
-    target: str | None = None  # "creature", "creature you control"
-    each: bool = False  # each creature you control
-    subtype: str = ""  # "each Dragon you control" (Thrakkus the Butcher)
-    times: Quantity = 1  # "X times" (Exponential Growth)
-    on_source: bool = False  # it is about the ability's source, not a chosen target
-
-    @property
-    def binds(self) -> str | None:
-        return SOURCE if self.on_source else None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        creatures = ([p for p in controller.battlefield if "Creature" in p.card.type_line
-                      and (not self.subtype or self.subtype in p.card.type_line.partition("\u2014")[2].split())]
-                     if self.each else [target] if target is not None else [])
-        for _ in range(game.amount(self.times)):
-            doubled = [(p, game.power(p) if self.power else 0, (game.toughness(p) or 0) if self.toughness else 0) for p in creatures]
-            for permanent, power, toughness in doubled:
-                game.modify_until_end_of_turn(permanent, Modifier(power, toughness))
-        if target is not None and not self.each and game.resolving_item is not None and game.resolving_item.carried is None:
-            game.resolving_item.carried = target  # "Then it fights ...": the creature just doubled
-
-
-@dataclass(frozen=True)
-class CreateDelayedTrigger:
-    """ "Until end of turn, whenever you cast a spell, ..." / "Whenever you cast a creature spell this turn, draw a card.": the
-    triggered ability it names (read by effects/triggers.py) is set up as this resolves and lasts through the turn, or through
-    the controller's next turn (CR 603.7). With `when` it is about the creature targeted just before ("Whenever that creature deals
-    combat damage to a player this turn, ..."): it sets off when that creature does one of those things (Game._remembered)."""
-    abilities: tuple
-    next_turn: bool = False
-    when: frozenset = frozenset()
-
-    @property
-    def binds(self) -> str | None:
-        return PREVIOUS_TARGET if self.when else None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is None or (self.when and target is None):
-            return
-        for ability in self.abilities:
-            game.add_delayed(ability, game.resolving_item, controller, self.next_turn, target if self.when else None, self.when)
-
-
-@dataclass(frozen=True)
-class PumpSource:
-    """ "This creature gets +1/+0 until end of turn." """
-    modifier: Modifier
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.modify_until_end_of_turn(target, self.modifier)
-
-
-@dataclass(frozen=True)
-class PumpSourceX:
-    """ "This creature gets +X/+0 until end of turn." (X from "where X is ..."): multiples of X, like PumpX."""
-    power: int
-    toughness: int
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            x = game.amount("X")
-            game.modify_until_end_of_turn(target, Modifier(self.power * x, self.toughness * x))
-
-
-@dataclass(frozen=True)
-class VowCounters:
-    """Promise of Loyalty: "Each player puts a vow counter on a creature they control and sacrifices the rest. Each of
-    those creatures can't attack you or planeswalkers you control for as long as it has a vow counter on it." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.turn_order_from_active():
-            creatures = [p for p in seat.battlefield if "Creature" in p.card.type_line]
-            if not creatures:
-                continue
-            keep = creatures[seat.player.choose(VOW_PROMPT, [game.label(p) for p in creatures])]
-            keep.counters["vow"] = keep.counters.get("vow", 0) + 1
-            keep.vow_of = controller
-            game._leave_together([(p, "sacrificed") for p in creatures if p is not keep])
-
-
-VOW_PROMPT = "Choose the creature that gets the vow counter"
-
-
-@dataclass(frozen=True)
-class Annihilate:
-    """Annihilator N: "Whenever this creature attacks, defending player sacrifices N permanents." The defending player
-    is the player the trigger was about."""
-    count: int
-    binds = PLAYER
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.sacrifice(target, "permanent", self.count)
-
-
-@dataclass(frozen=True)
-class PumpEach:
-    """ "Creatures you control get +3/+3 and gain trample until end of turn." Affects only the
-    creatures there when it resolves (CR 611.2c). `opponents`: "Creatures your opponents control get -1/-1"."""
-    modifier: Modifier
-    opponents: bool = False
-    everyone: bool = False  # "All creatures get -2/-2 until end of turn."
-    subtype: str = ""  # "Spirits you control gain double strike and vigilance until end of turn." ("non-Human": all but those)
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        seats = game.live_seats() if self.everyone else game.opponents(controller) if self.opponents else [controller]
-        for seat in seats:
-            for permanent in list(seat.battlefield):
-                kinds = permanent.card.type_line.partition("\u2014")[2].split()
-                if "Creature" in permanent.card.type_line and (
-                        not self.subtype or (self.subtype.removeprefix("non-") in kinds) != self.subtype.startswith("non-")):
-                    game.modify_until_end_of_turn(permanent, self.modifier)
-
-
-@dataclass(frozen=True)
-class EachDamagesItself:
-    """Wave of Reckoning: "Each creature deals damage to itself equal to its power." (all at the same time)"""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        creatures = [(p, game.power(p)) for seat in game.live_seats() for p in seat.battlefield if "Creature" in p.card.type_line]
-        for permanent, power in creatures:
-            game.damage(permanent, max(power, 0), source=permanent)
-
-
-@dataclass(frozen=True)
-class EachCreatureDamagesItsController:
-    """Rakdos Charm: "Each creature deals 1 damage to its controller." (all at the same time)"""
-    amount: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        creatures = [(p, seat) for seat in game.live_seats() for p in seat.battlefield if "Creature" in p.card.type_line]
-        for permanent, owner in creatures:
-            game.damage(owner, self.amount, source=permanent)
-
-
-@dataclass(frozen=True)
-class SetBaseEachX:
-    """Biomass Mutation: "Creatures you control have base power and toughness X/X until end of turn." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        x = game.amount("X")
-        for permanent in list(controller.battlefield):
-            if "Creature" in permanent.card.type_line:
-                game.modify_until_end_of_turn(permanent, Modifier(set_pt=(x, x)))
-
-
-@dataclass(frozen=True)
-class PumpNamed:
-    """Leitmotif Composer: "Creatures named CARDNAME can't be blocked this turn." Every creature with the source's name,
-    whoever controls it."""
-    modifier: Modifier
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        for seat in game.live_seats():
-            for permanent in list(seat.battlefield):
-                if item and permanent.card.name == item.card.name and "Creature" in permanent.card.type_line:
-                    game.modify_until_end_of_turn(permanent, self.modifier)
-
-
-@dataclass(frozen=True)
-class PumpOtherAttackers:
-    """Martial Impetus: "Each other creature that's attacking one of your opponents gets +1/+1 until end of turn." The
-    creature that set the trigger off is the one left out."""
-    modifier: Modifier
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        for attack in list(game.combat.attacks):
-            if attack.attacker is not (item.subject if item else None) and attack.defender is not controller:
-                game.modify_until_end_of_turn(attack.attacker, self.modifier)
-
-
-@dataclass(frozen=True)
-class PumpEachX:
-    """ "All creatures get -X/-X until end of turn." (Toxic Deluge) / "Creatures you control get +X/+X ...": `power` and
-    `toughness` are multiples of X."""
-    power: int
-    toughness: int
-    opponents: bool = False
-    everyone: bool = False
-    keywords: frozenset[str] = frozenset()  # Moonshaker Cavalry: "gain flying and get +X/+X"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        x = game.amount("X")
-        seats = game.live_seats() if self.everyone else game.opponents(controller) if self.opponents else [controller]
-        for seat in seats:
-            for permanent in list(seat.battlefield):
-                if "Creature" in permanent.card.type_line:
-                    game.modify_until_end_of_turn(permanent, Modifier(self.power * x, self.toughness * x, self.keywords))
-
-
-@dataclass(frozen=True)
-class PumpX:
-    """ "Target creature gets +X/+X until end of turn." (X from "for each ..." or "where X is ..."): `power` and
-    `toughness` are the multiples of X (1, 0 or -1)."""
-    power: int
-    toughness: int
-    target: str
-    keywords: frozenset[str] = frozenset()  # Tyvar's Stand: "... and gains hexproof and indestructible"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            x = game.amount("X")
-            game.modify_until_end_of_turn(target, Modifier(self.power * x, self.toughness * x, self.keywords))
-            if game.resolving_item is not None and game.resolving_item.carried is None:
-                game.resolving_item.carried = target  # "Then it fights ...": the creature just pumped
-
-
-@dataclass(frozen=True)
-class Attach:
-    """Equip: attach the Equipment that made this ability to the target creature."""
-    target: str = "creature you control"
-    another: bool = False  # Reconfigure: not the Equipment creature itself
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and game.resolving_source is not None:
-            game.attach(game.resolving_source, target)
-
-
-@dataclass(frozen=True)
-class Unattach:
-    """Reconfigure's second ability: unattach this Equipment, which makes it a creature again."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.detach(target)
-
-
-@dataclass(frozen=True)
-class AttachAura:
-    """The targeting of an Aura spell. The game attaches the Aura as it enters (Game._resolve)."""
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        pass
-
-
 _ENCHANT_HEAD = (r"(?:(?:non-?[a-z]+|basic|tapped) )?(?:land|creature|artifact|enchantment|planeswalker|permanent|equipment"
                  r"|wall|vehicle|forest|plains|island|swamp|mountain)")
 _ENCHANT = re.compile(rf"Enchant (creature card in a graveyard|{_ENCHANT_HEAD}(?:,? (?:or )?{_ENCHANT_HEAD})*"
                       r"(?: an opponent controls| you control| you don't control)?)", re.I)
-
-
-@dataclass(frozen=True)
-class CreateTokens:
-    count: Quantity
-    token: Card
-    counters: tuple[int | str, str] | None = None  # "Create a 0/0 ... token. Put X +1/+1 counters on it."
-    tapped: bool = False  # "Create a number of tapped Treasure tokens ..." (Goldvein Hydra)
-    more: Quantity = 0  # Prismari Pianist: "If that spell's mana value is 5 or greater, create three of those tokens instead."
-    more_if: "Condition | None" = None
-    exile_at_end: bool = False  # Manaform Hellkite: "Exile that token at the beginning of the next end step."
-    haste: bool = False  # Sokenzan: "They gain haste until end of turn."
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        count = self.more if self.more_if and game.condition_holds(self.more_if, controller, game.resolving_source) else self.count
-        token = self.token
-        if "X" in (token.power, token.toughness):  # "an X/X ... token": its size is fixed as it's created
-            token = dataclasses.replace(token, power=str(game.amount(token.power or 0)),
-                                        toughness=str(game.amount(token.toughness or 0)))
-        counters = (game.amount(self.counters[0]), self.counters[1]) if self.counters else None
-        made = game.create_tokens(controller, token, game.amount(count), counters, tapped=self.tapped)
-        if self.haste:
-            for permanent in made:
-                game.modify_until_end_of_turn(permanent, Modifier(keywords=frozenset({"haste"})))
-        if self.exile_at_end and made:
-            game.leave_at_next_end_step(made, "exiled", "exile")
-
-
-_COPY_CARD_TYPES = {"Artifact", "Enchantment", "Creature", "Land"}
-
-
-@dataclass(frozen=True)
-class CopyChanges:
-    """The "except ..." of a copy (CR 707.9): "except it isn't legendary", "except it's 1/1 and it's a Nightmare in addition to
-    its other types", "except it has flying and haste". The copy keeps everything else of the original."""
-    not_legendary: bool = False
-    power_toughness: tuple[str, str] | None = None
-    add_types: tuple[str, ...] = ()  # a card type (Enchantment) or a subtype (Spirit), added to the type line
-    keywords: tuple[str, ...] = ()  # added as ability lines, as Twinflame's haste is
-    add_colors: tuple[str, ...] = ()  # "a 2/2 black Zombie in addition to its other colors and types": W, U, B, R or G
-    abilities: tuple[str, ...] = ()  # quoted abilities it has: Phantasmal Image's "When this creature becomes the target ..."
-    extra_counters: str = ""  # a clone's "it enters with an additional +1/+1 counter on it" ("1") or "X additional" ("X"); only for a creature
-    extra_loyalty: int = 0  # Spark Double: "an additional loyalty counter on it if it's a planeswalker"
-
-
-def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
-    """`card` with the changes of an except clause applied."""
-    if changes is None:
-        return card
-    type_line = card.type_line
-    if changes.not_legendary:
-        type_line = type_line.replace("Legendary ", "", 1)  # CR 707.9b: the copy is the original with this one value changed
-    for word in changes.add_types:
-        head, dash, tail = type_line.partition("\u2014")
-        if word in _COPY_CARD_TYPES:
-            if word not in head:  # "Artifact Creature": a new card type goes before Creature, as printed
-                head = head.replace("Creature", f"{word} Creature") if "Creature" in head else f"{head.strip()} {word}"
-                type_line = f"{head.strip()} {dash} {tail.strip()}" if dash else head.strip()
-        elif word not in tail.split():
-            type_line = f"{head.strip()} {dash} {tail.strip()} {word}" if dash else f"{head.strip()} \u2014 {word}"
-    card = dataclasses.replace(card, type_line=type_line)
-    if changes.add_colors:
-        card = dataclasses.replace(card, colors=tuple(sorted(set(card.colors) | set(changes.add_colors))))
-    if changes.power_toughness is not None:
-        card = dataclasses.replace(card, power=changes.power_toughness[0], toughness=changes.power_toughness[1])
-    extra = [k.capitalize() for k in changes.keywords] + [f'{a}' for a in changes.abilities]
-    if extra:
-        card = dataclasses.replace(card, oracle_text="\n".join([card.oracle_text, *extra]).strip())
-    return card
-
-
-def copy_card(card: Card, changes: CopyChanges | None = None) -> Card:
-    """The card of a token that's a copy of `card`, with the changes of its except clause applied."""
-    if not card.type_line.startswith("Token"):
-        card = dataclasses.replace(card, type_line="Token " + card.type_line)
-    return apply_copy_changes(card, changes)
 
 
 _COPY_COLORS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
@@ -1642,105 +684,6 @@ def _copy_changes(text: str) -> CopyChanges | None:
         extra_counters=fields.get("extra_counters", ""), extra_loyalty=fields.get("extra_loyalty", 0))
 
 
-@dataclass(frozen=True)
-class CopySubjectToken:
-    """Miirym, Impostor Syndrome, Ratadrabik: "Create a token that's a copy of it, except it isn't legendary." The copy is of the
-    permanent that set off the trigger, still there or not (it may have just died); for a trigger of the permanent's own ("When this
-    creature dies, ... a copy of it") that permanent is the source."""
-    changes: CopyChanges | None = None
-    binds = SOURCE_AND_SUBJECT
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            source, subject = target
-            game.create_tokens(controller, copy_card((subject or source).card, self.changes), 1)
-
-
-@dataclass(frozen=True)
-class CopyHostToken:
-    """Helm of the Host, Endless Evil: "Create a token that's a copy of equipped creature, except the token isn't legendary." The
-    creature this Equipment or Aura is attached to; with nothing attached there is nothing to copy."""
-    changes: CopyChanges | None = None
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.attached_to is not None:
-            game.create_tokens(controller, copy_card(target.attached_to.card, self.changes), 1)
-
-
-@dataclass(frozen=True)
-class CopyToken:
-    """ "Create a token that's a copy of target creature you control." """
-    target: str
-    count: int = 1  # Rite of Replication: "If this spell was kicked, create five of those tokens instead."
-    another: bool = False  # "a copy of another target creature you control": not the source itself
-    haste: bool = False  # Inspired Skypainter's spell: "That token gains haste until end of turn."
-    legendary: bool = False  # Adagia: "..., except it's legendary."
-    changes: CopyChanges | None = None  # Helm of the Host, Irenicus's Vile Duplication: "..., except it isn't legendary."
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            card = copy_card(target.card, self.changes)
-            if self.legendary and "Legendary" not in card.type_line:
-                card = dataclasses.replace(card, type_line=card.type_line.replace("Token ", "Token Legendary ", 1))
-            for token in game.create_tokens(controller, card, game.amount(self.count)):
-                if self.haste:
-                    game.modify_until_end_of_turn(token, Modifier(keywords=frozenset({"haste"})))
-
-
-@dataclass(frozen=True)
-class _TokenHasHaste:
-    """ "That token gains haste." with no duration, after a CopyHostToken (see _merge_conditional): it keeps haste."""
-
-
-@dataclass(frozen=True)
-class _TokenGainsHaste:
-    """ "That token gains haste until end of turn." after a CopyToken (see _merge_conditional)."""
-
-
-@dataclass(frozen=True)
-class AttackingTokens:
-    """Furygale Flocking: "For each opponent, create two 3/3 blue and red Elemental creature tokens with flying that attack
-    that opponent this turn if able. They gain haste until end of turn. Exile them at the beginning of the next end step."
-    The second and third sentences are folded in by _merge_attacking_tokens."""
-    count: Quantity  # for each opponent
-    token: Card
-    haste: bool = False
-    exile_at_end: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.attacking_tokens(controller, self.token, game.amount(self.count), self.haste,
-                              "exiled" if self.exile_at_end else None)
-
-
-@dataclass(frozen=True)
-class TokensJoinAttack:
-    """Mobilize: "Create two tapped and attacking 1/1 red Warrior creature tokens. Sacrifice them at the beginning of the
-    next end step." The second sentence is folded in by _merge_attacking_tokens."""
-    count: Quantity
-    token: Card
-    sacrifice_at_end: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_source is not None:
-            game.tokens_join_attack(controller, game.resolving_source, self.token, game.amount(self.count), self.sacrifice_at_end)
-
-
-@dataclass(frozen=True)
-class _SacrificeThemLater:
-    """ "Sacrifice them at the beginning of the next end step.": only ever after TokensJoinAttack."""
-
-
-@dataclass(frozen=True)
-class _TheyGainHaste:
-    """ "They gain haste until end of turn.": only ever after AttackingTokens."""
-
-
-@dataclass(frozen=True)
-class _ExileThemLater:
-    """ "Exile them at the beginning of the next end step.": only ever after AttackingTokens."""
-
-
 def _merge_attacking_tokens(effects: list) -> list | None:
     merged: list = []
     for effect in effects:
@@ -1765,50 +708,7 @@ def _attacking_tokens(m: re.Match) -> AttackingTokens | None:
     return AttackingTokens(*parsed) if parsed else None
 
 
-@dataclass(frozen=True)
-class PreventCombatDamageToYou:
-    """Inkshield: "Prevent all combat damage that would be dealt to you this turn. For each 1 damage prevented this way,
-    create a 2/1 white and black Inkling creature token with flying." The second sentence is folded in by
-    _merge_prevention; the game creates the tokens as the damage is prevented."""
-    token: Card | None = None  # one for each point of damage prevented
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.prevent_combat_damage(controller, self.token)
-
-
 ALL_DAMAGE = 10 ** 9  # "prevent all damage": a shield too big to use up
-
-
-@dataclass(frozen=True)
-class PreventAllCombatDamage:
-    """Fog: "Prevent all combat damage that would be dealt this turn." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.fog_turn = game.turn
-
-
-@dataclass(frozen=True)
-class PreventNext:
-    """ "Prevent the next 2 damage that would be dealt to any target (target creature, you, this creature) this turn."
-    With no `target` and not `on_source`, it is the controller that is shielded."""
-    amount: int
-    target: str = ""
-    on_source: bool = False  # it is about the ability's source, not a chosen target
-
-    @property
-    def binds(self) -> str | None:
-        return SOURCE if self.on_source else None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        shielded = target if (self.target or self.on_source) else controller
-        if shielded is not None:
-            game.shield(shielded, self.amount)
-
-
-@dataclass(frozen=True)
-class _TokenPerPrevented:
-    """ "For each 1 damage prevented this way, create ...": only ever after PreventCombatDamageToYou."""
-    token: Card
 
 
 def _prevent_next(amount: int, whom: str) -> PreventNext:
@@ -1837,27 +737,6 @@ def _token_per_prevented(m: re.Match) -> _TokenPerPrevented | None:
     return _TokenPerPrevented(parsed[1]) if parsed and parsed[0] == 1 else None
 
 
-@dataclass(frozen=True)
-class TokensBecomeCopies:
-    """Brudiclad: "Then you may choose a token you control. If you do, each other token you control becomes a copy of
-    that token." (two sentences, folded together by _merge_token_copies). The older wording ended "until end of turn"."""
-    until_end_of_turn: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.tokens_become_copies(controller, self.until_end_of_turn)
-
-
-@dataclass(frozen=True)
-class _ChooseToken:
-    """ "Then you may choose a token you control.": only ever before _OthersBecomeCopies."""
-
-
-@dataclass(frozen=True)
-class _OthersBecomeCopies:
-    """ "If you do, each other token you control becomes a copy of that token (until end of turn)." """
-    until_end_of_turn: bool = False
-
-
 def _merge_token_copies(effects: list) -> list | None:
     merged: list = []
     i = 0
@@ -1873,39 +752,6 @@ def _merge_token_copies(effects: list) -> list | None:
         merged.append(effects[i])
         i += 1
     return merged
-
-
-@dataclass(frozen=True)
-class LookTakeRestBottom:
-    """Dig Through Time: "Look at the top seven cards of your library. Put two of them into your hand and the rest on the bottom
-    of your library in any order." (one template across two sentences)"""
-    count: int
-    take: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.look_take(controller, self.count, self.take)
-
-
-@dataclass(frozen=True)
-class ThreeWaySplit:
-    """Expressive Iteration: "Look at the top three cards of your library. Put one of them into your hand, put one of them
-    on the bottom of your library, and exile one of them. You may play the exiled card this turn." (three sentences, folded
-    together by _merge_three_way)"""
-    count: Quantity
-    play: bool
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.three_way_split(controller, game.amount(self.count), self.play)
-
-
-@dataclass(frozen=True)
-class _SplitTop:
-    """ "Put one of them into your hand, put one of them on the bottom of your library, and exile one of them." """
-
-
-@dataclass(frozen=True)
-class _PlayTheExiledCard:
-    """ "You may play the exiled card this turn." """
 
 
 def _merge_three_way(effects: list) -> list | None:
@@ -1925,547 +771,7 @@ def _merge_three_way(effects: list) -> list | None:
     return merged
 
 
-@dataclass(frozen=True)
-class TargetControllerManifests:
-    """Reality Shift: "Exile target creature. Its controller manifests the top card of their library." """
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.last_controller is not None:
-            game.manifest(target.last_controller)
-
-
-@dataclass(frozen=True)
-class ManifestDread:
-    """ "Manifest dread." (twice: `times`), then perhaps "put N +1/+1 counters on that creature" or "attach this Equipment to
-    that creature" (the last one manifested)."""
-    times: int = 1
-    counters: int = 0
-    attach: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        made = None
-        for _ in range(self.times):
-            made = game.manifest_dread(controller)
-        if made is None:
-            return
-        if self.counters:
-            game.put_counters(made, "+1/+1", self.counters)
-        if self.attach and game.resolving_source is not None:
-            game.attach(game.resolving_source, made)
-
-
-@dataclass(frozen=True)
-class DanceWithCalamity:
-    """ "Shuffle your library. As many times as you choose, you may exile the top card of your library. If the total mana
-    value of the cards exiled this way is 13 or less, you may cast any number of spells from among those cards without
-    paying their mana costs." """
-    limit: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.dance_with_calamity(controller, self.limit)
-
-
-@dataclass(frozen=True)
-class AttackerCreatesAttackingToken:
-    """Combat Calligrapher: "that attacking player creates a tapped 2/1 ... Inkling creature token with flying that's attacking
-    that opponent." The target is the player who attacked; the opponent is the seat the trigger carries in x."""
-    token: Card
-    binds = PLAYER
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        if target is not None and item is not None and game.combat is not None:
-            game.token_attacking(target, self.token, game.seats[item.x])
-
-
-@dataclass(frozen=True)
-class CopySpellForEachOtherCreature:
-    """Mirrorwing Dragon: "that player copies that spell for each other creature they control that the spell could target. Each
-    copy targets a different one of those creatures." The target is the caster; the spell rides along with the trigger."""
-    binds = PLAYER
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        if target is not None and item is not None and item.source is not None and hasattr(item.carried, "targets"):
-            game.copy_spell_for_each_other_creature(item.carried, target, item.source)
-
-
-@dataclass(frozen=True)
-class ExileDeadMakeSpiritCopy:
-    """Hofri Ghostforge: "Exile it. If you do, create a token that's a copy of that creature, except it's a Spirit in addition to
-    its other types and it has "When this token leaves the battlefield, return the exiled card to its owner's graveyard."" """
-    binds = DEAD_SUBJECT
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.exile_dead_make_spirit_copy(controller, target)
-
-
-@dataclass(frozen=True)
-class ReturnExiledToGraveyard:
-    """Hofri Ghostforge's token: "When this token leaves the battlefield, return the exiled card to its owner's graveyard." """
-    binds = DEAD_SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.return_exiled_with_to_graveyard(target)
-
-
-@dataclass(frozen=True)
-class BecomeCopyUntilEndOfTurn:
-    """Muddle, the Ever-Changing: "... becomes a copy of up to one target nonlegendary creature you control until end of turn,
-    except it has myriad." The source takes on the target's card (and `keyword`) until cleanup."""
-    keyword: str
-    target: str = "nonlegendary creature you control"
-    optional_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        source = game.resolving_source
-        if target is not None and source is not None and game.on_battlefield(source):
-            game.become_copy_until_end_of_turn(source, target, self.keyword)
-
-
-@dataclass(frozen=True)
-class CopyEnteredTokensAttacking:
-    """Redoubled Stormsinger: "For each creature token you control that entered this turn, create a tapped and attacking token
-    that's a copy of that token. At the beginning of the next end step, sacrifice those tokens." The copies attack whom the
-    attacking source attacks."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.copy_entered_tokens_attacking(controller, target)
-
-
-@dataclass(frozen=True)
-class CopyTokenAttacking:
-    """ "Create a token that's a copy of it, tapped and attacking." (it: the attacking source). The token attacks the
-    same player or planeswalker; it was never declared as an attacker, so attack triggers do not see it."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.copy_attacking(controller, target)
-
-
-@dataclass(frozen=True)
-class TargetLoseHalfLife:
-    """ "Target player loses half their life, rounded up (down)." """
-    target: str  # "player" or "opponent"
-    round_up: bool
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.life > 0:
-            game.change_life(target, -((target.life + 1) // 2 if self.round_up else target.life // 2))
-
-
-@dataclass(frozen=True)
-class DoubleCountersOnTarget:
-    """ "Double the number of +1/+1 counters on target creature." """
-    counter: str
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.counters.get(self.counter):
-            game.put_counters(target, self.counter, target.counters[self.counter])
-
-
-@dataclass(frozen=True)
-class PutExiledWithIntoGraveyard:
-    """Currency Converter: "Put a card exiled with this artifact into its owner's graveyard. If it's a land card, create a Treasure
-    token. If it's a nonland card, create a 2/2 black Rogue creature token." """
-    land_token: Card
-    nonland_token: Card
-    binds = SOURCE
-    needs_exiled_with = True  # it can only be activated while a card is exiled with it
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None:
-            return
-        card = game.put_exiled_with_into_graveyard(controller, target)
-        if card is not None:
-            game.create_tokens(controller, self.land_token if "Land" in card.type_line else self.nonland_token, 1)
-
-
 _CLASS_LEVEL_LINE = re.compile(r"((?:\{[^}]+\})+): Level (\d)")
-
-
-@dataclass(frozen=True)
-class LevelUp:
-    """Class: "{1}{B}: Level 2": the Class gains the next level (only at sorcery speed, and only the level after its own)."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.class_level_up(target)
-
-
-@dataclass(frozen=True)
-class CastExiledWithFree:
-    """Quintorius: "Choose target card exiled with Quintorius. You may cast that card this turn without paying its mana cost. If
-    that spell would be put into a graveyard, put it on the bottom of its owner's library instead." (chosen as it resolves)"""
-    bottom_after: bool = True
-    binds = SOURCE
-    needs_exiled_with = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.cast_exiled_with_free(controller, target, self.bottom_after)
-
-
-@dataclass(frozen=True)
-class EachExilesGraveyardCardCounters:
-    """Augusta, Order Returned: "each player exiles a card from their graveyard. When one or more nonland cards are exiled this way,
-    put that many +1/+1 counters on target attacking creature." (the target is chosen with the trigger)"""
-    target: str = "attacking creature"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        count = game.each_player_exiles_graveyard_card(controller)
-        if count and target is not None and game.on_battlefield(target):
-            game.put_counters(target, "+1/+1", count)
-
-
-@dataclass(frozen=True)
-class ExileThenCastCopy:
-    """Renegade Bull: "Exile up to one target instant or sorcery card from your graveyard and copy it. You may cast the copy without
-    paying its mana cost." """
-    target: str = "graveyard:instant or sorcery:yours"
-    optional_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None or not game.exile_from_graveyard(target):
-            return
-        if controller.player.choose(CAST_COPY_PROMPT + target.card.name, ["Yes", "No"]) == 0:
-            game.cast_copy_free(controller, target.card)
-
-
-@dataclass(frozen=True)
-class MayCastFromHandFree:
-    """Rishkar's Expertise: "You may cast a spell with mana value 5 or less from your hand without paying its mana cost." """
-    max_value: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        spells = [c for c in controller.hand if "Land" not in c.type_line and c.cmc <= self.max_value]
-        if not spells:
-            return
-        pick = controller.player.choose(FREE_CAST_PROMPT, [c.name for c in spells] + [DECLINE])
-        if pick < len(spells):
-            game.cast_free(controller, spells[pick])
-
-
-FREE_CAST_PROMPT = "Cast which spell without paying its mana cost? "
-DECLINE = "Don't cast"
-CAST_COPY_PROMPT = "Cast a copy without paying its mana cost: "  # followed by the card's name; Yes or No
-
-
-@dataclass(frozen=True)
-class MayCopyThisSpellFromGraveyard:
-    """Sevinne's Reclamation: "If this spell was cast from a graveyard, you may copy this spell and may choose a new target for the
-    copy." The copy is not cast, so it does not copy itself."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        if item is not None and item.from_graveyard and controller.player.choose(COPY_THIS_PROMPT + item.card.name, ["Yes", "No"]) == 0:
-            game.copy_spell(item, controller, new_targets=True)
-
-
-COPY_THIS_PROMPT = "Copy this spell: "  # followed by its name; Yes or No
-
-
-@dataclass(frozen=True)
-class DoubleCountersOnTargets:
-    """Kinetic Ooze: "If X is 10 or more, double the number of +1/+1 counters on any number of other target creatures." Targets
-    are chosen whatever X is; nothing is doubled below `min_x`."""
-    counter: str
-    target: str
-    min_x: int
-    another = True
-    any_number = True
-    multi_target = True
-    optional_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.x_value < self.min_x:
-            return
-        for creature in target or []:
-            if game.on_battlefield(creature) and creature.counters.get(self.counter):
-                game.put_counters(creature, self.counter, creature.counters[self.counter])
-
-
-@dataclass(frozen=True)
-class ReturnSelfToBattlefield:
-    """ "When this creature dies, return it to the battlefield (tapped)." It comes back as a new object under its
-    owner's control; a token is gone for good."""
-    tapped: bool = False
-    binds = DEAD_SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.return_dead_to_battlefield(target, controller, under_owner=True, tapped=self.tapped)
-
-
-@dataclass(frozen=True)
-class ReturnTransformed:
-    """Exile this Saga, then return it to the battlefield transformed under your control; or, when this creature dies, return it
-    to the battlefield (tapped) transformed under its owner's control."""
-    dies: bool = False
-    tapped: bool = False
-    end_step: bool = False  # ... at the beginning of the next end step (Loyal Cathar)
-
-    @property
-    def binds(self) -> str | None:
-        return DEAD_SOURCE if self.dies else SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None:
-            return
-        if self.dies and self.end_step:
-            fire_turn = game.turn + 1 if game.step in ("end", "cleanup") else game.turn
-            game.at_end_step.append((fire_turn, lambda: game.return_dead_to_battlefield(
-                target, controller, under_owner=True, tapped=self.tapped, transformed=True)))
-        elif self.dies:
-            game.return_dead_to_battlefield(target, controller, under_owner=True, tapped=self.tapped, transformed=True)
-        else:
-            game.flicker(target, controller, "now", "battlefield", under_owner=False, transformed=True)
-
-
-@dataclass(frozen=True)
-class ReturnSelfAsEnchantment:
-    """The Enduring cycle: "When this creature dies, if it was a creature, return it to the battlefield under its owner's control.
-    It's an enchantment." (not a creature any more, so it can't die this way again)"""
-    binds = DEAD_SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.return_dead_to_battlefield(target, controller, under_owner=True, enchantment=True)
-
-
-@dataclass(frozen=True)
-class AddDevotionMana:
-    """Nyx Lotus: "Choose a color. Add an amount of mana of that color equal to your devotion to that color." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.add_devotion_mana(controller)
-
-
-@dataclass(frozen=True)
-class ImprintFromHand:
-    """Chrome Mox: "Imprint \u2014 When this artifact enters, you may exile a nonartifact, nonland card from your hand." The card
-    stays with the Mox, whose mana is any of its colors."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.imprint_from_hand(controller, target)
-
-
-@dataclass(frozen=True)
-class LookTopTakeChosen:
-    """Herald's Horn, Gathering Stone: "Look at the top card of your library. If it's a creature card of the chosen type, you may
-    reveal it and put it into your hand." (the type the source chose as it entered)"""
-    creature: bool
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.look_top_take_chosen(controller, game.resolving_source, self.creature)
-
-
-@dataclass(frozen=True)
-class CreateOneOfTokens:
-    """Tireless Provisioner: "Create a Food token or a Treasure token." (you choose)"""
-    options: tuple[Card, ...]
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        token = self.options[controller.player.choose(TOKEN_CHOICE_PROMPT, [t.name for t in self.options])]
-        game.create_tokens(controller, token, 1)
-
-
-TOKEN_CHOICE_PROMPT = "Create which token? "
-
-
-@dataclass(frozen=True)
-class TokenOrSelfCopy:
-    """Scute Swarm: "Create a 1/1 green Insect creature token. If you control six or more lands, create a token that's a copy of this
-    creature instead." """
-    token: Card
-    lands: int
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and sum("Land" in p.card.type_line for p in controller.battlefield) >= self.lands:
-            game.copy_tokens(controller, [target], False, False)
-        else:
-            game.create_tokens(controller, self.token, 1)
-
-
-@dataclass(frozen=True)
-class Amass:
-    """Orcish Bowmasters: "Amass Orcs 1." Put that many +1/+1 counters on an Army you control; without one, create a 0/0 black
-    Army creature token first. The Army is also an Orc."""
-    count: int
-    kind: str = ""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.amass(controller, self.count, self.kind)
-
-
-@dataclass(frozen=True)
-class EachSacrificesOrDiscards:
-    """Plaguecrafter: "Each player sacrifices a creature or planeswalker of their choice. Each player who can't discards a card." """
-    kind: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.turn_order_from_active():
-            if not game.sacrifice(seat, self.kind):
-                game.discard(seat, 1)
-
-
-@dataclass(frozen=True)
-class ExileTopOfThatPlayerMayCast:
-    """Ragavan: "... exile the top card of that player's library. Until end of turn, you may cast that card." (the player dealt damage)"""
-    binds = PLAYER
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.exile_top_of_other(controller, target)
-
-
-@dataclass(frozen=True)
-class ExileTopOfEachCastFree:
-    """Etali, Primal Storm: "exile the top card of each player's library, then you may cast any number of spells from among those
-    cards without paying their mana costs." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_top_of_each_cast_free(controller)
-
-
-@dataclass(frozen=True)
-class Connive:
-    """Ledger Shredder: "this creature connives": draw a card, then discard a card; a nonland card puts a +1/+1 counter on it."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.connive(controller, target)
-
-
-@dataclass(frozen=True)
-class PutFromHand:
-    """ "You may put a creature card from your hand onto the battlefield." """
-    kind: str
-    tapped: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.put_from_hand(controller, self.kind, self.tapped)
-
-
-@dataclass(frozen=True)
-class SearchLandWhileBehind:
-    """Claim Jumper: "... search your library for a Plains card and put it onto the battlefield tapped. Then if an opponent
-    controls more lands than you, repeat this process once." (The "you may" of the trigger covers both searches.)"""
-    subtype: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for _ in range(2):
-            game.search_for_lands(controller, 1, (self.subtype,), 1, True, False)
-            if not game.condition_holds(Condition("opponent_more_lands"), controller):
-                break
-
-
-@dataclass(frozen=True)
-class ReturnChosen:
-    """ "Return a creature card from your graveyard to your hand.": you choose, it is not targeted."""
-    kind: str
-    to: str  # "hand"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.return_chosen(controller, self.kind, self.to)
-
-
-POPULATE_PROMPT = "Populate: copy which token? "
-
-
-@dataclass(frozen=True)
-class Populate:
-    """ "Populate": create a copy of a creature token you control (you choose which). """
-    haste: bool = False  # Determined Iteration: "The token created this way gains haste."
-    sacrifice_at_end: bool = False  # ... "Sacrifice it at the beginning of the next end step."
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        kinds = []
-        for permanent in controller.battlefield:
-            if permanent.card.type_line.startswith("Token") and "Creature" in permanent.card.type_line \
-                    and permanent.card not in kinds:
-                kinds.append(permanent.card)
-        if kinds:
-            pick = 0 if len(kinds) == 1 else controller.player.choose(
-                POPULATE_PROMPT, [f"{c.name} {c.power}/{c.toughness}" for c in kinds])
-            made = game.create_tokens(controller, kinds[pick], 1)
-            for token in made:
-                if self.haste:
-                    game.modify_until_end_of_turn(token, Modifier(keywords=frozenset({"haste"})))
-            if self.sacrifice_at_end:
-                game.leave_at_next_end_step(made, "sacrificed", "graveyard")
-
-
-@dataclass(frozen=True)
-class _PopulatedTokenRider:
-    """ "The token created this way gains haste." / "Sacrifice it at the beginning of the next end step." after Populate."""
-    haste: bool = False
-    sacrifice: bool = False
-
-
-@dataclass(frozen=True)
-class EachCreatesTokens:
-    """ "Each opponent creates a 1/1 white Spirit creature token with flying." / "Each player creates a Treasure token." """
-    count: Quantity
-    token: Card
-    who: str  # "each opponent" or "each player"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.turn_order_from_active():
-            if self.who == "each player" or seat is not controller:
-                game.create_tokens(seat, self.token, game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class TargetPutsCountersOnEach:
-    """Shadrix Silverquill: "Target player puts a +1/+1 counter on each creature they control." """
-    counter: str
-    target: str = "player"
-    distinct: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            for permanent in list(target.battlefield):
-                if "Creature" in permanent.card.type_line:
-                    game.put_counters(permanent, self.counter, 1)
-
-
-@dataclass(frozen=True)
-class TargetCreatesTokens:
-    """ "Target opponent creates a Treasure token." """
-    count: Quantity
-    token: Card
-    target: str  # "player" or "opponent"
-    distinct: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.create_tokens(target, self.token, game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class TargetControllerCreatesTokens:
-    """Beast Within: "Its controller creates a 3/3 green Beast creature token." """
-    count: Quantity
-    token: Card
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        owner = getattr(target, "last_controller", None) or getattr(target, "controller", None)  # a permanent, or a countered spell
-        if target is not None and owner is not None:
-            game.create_tokens(owner, self.token, game.amount(self.count))
 
 
 TREASURE = Card(name="Treasure", type_line="Token Artifact — Treasure",
@@ -2676,361 +982,6 @@ def _create(m: re.Match, follows: bool) -> Any:
     return CreateTokens(*parsed, tapped=True) if tapped else CreateTokens(*parsed)
 
 
-@dataclass(frozen=True)
-class AddManaPerCardInHand:
-    """Rousing Refrain: "Add {R} for each card in target opponent's hand." """
-    symbol: str
-    target: str = "opponent"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.add_mana(controller, tuple(frozenset(self.symbol) for _ in target.hand))
-
-
-@dataclass(frozen=True)
-class RevealTopPutAll:
-    """Goblin Ringleader: "Reveal the top four cards of your library. Put all Goblin cards revealed this way into your hand and the
-    rest on the bottom of your library in any order." (the order of the rest is the order they were revealed in)"""
-    count: int
-    kind: str  # "goblin", "creature", ...
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        revealed = [controller.library.pop(0) for _ in range(min(self.count, len(controller.library)))]
-        game.broadcast({"event": "revealed_top", "seat": controller.index, "cards": [c.name for c in revealed]})
-        for card in revealed:
-            if _card_matches_kind(self.kind, card):
-                controller.hand.append(card)
-            else:
-                controller.library.append(card)
-
-
-def _card_matches_kind(kind: str, card: Card) -> bool:
-    from ..filters import parse_filter
-
-    return parse_filter(kind).matches(card)
-
-
-@dataclass(frozen=True)
-class AddManaForEach:
-    """Battle Hymn, Brightstone Ritual: "Add {R} for each creature you control." / "... for each Goblin on the battlefield." """
-    symbol: str
-    amount: Amount
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.add_mana(controller, tuple(frozenset(self.symbol) for _ in range(game.evaluate(self.amount, controller))))
-
-
-@dataclass(frozen=True)
-class AddManaPerTappedLand:
-    """Mana Geyser: "Add {R} for each tapped land your opponents control." """
-    symbol: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        count = sum(1 for seat in game.opponents(controller) for p in seat.battlefield if p.tapped and "Land" in p.card.type_line)
-        game.add_mana(controller, tuple(frozenset(self.symbol) for _ in range(count)))
-
-
-@dataclass(frozen=True)
-class KeepManaThisTurn:
-    """ "Until end of turn, you don't lose this mana as steps and phases end." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        controller.keep_pool_turn = game.turn
-
-
-@dataclass(frozen=True)
-class ExileWithTimeCounters:
-    """Rousing Refrain: "Exile Rousing Refrain with three time counters on it." The spell is suspended instead of going
-    to the graveyard once it has resolved."""
-    count: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is not None:
-            game.resolving_item.suspend_after = self.count
-
-
-@dataclass(frozen=True)
-class PutCounterOnHost:
-    """Seismic Tutelage: "When this Aura enters, put a +1/+1 counter on enchanted creature." """
-    count: int
-    counter: str
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.attached_to is not None:
-            game.put_counters(target.attached_to, self.counter, self.count)
-
-
-@dataclass(frozen=True)
-class OthersBecomeAsBigAsSource:
-    """Tanazir Quandrix: "... the base power and toughness of other creatures you control become equal to Tanazir
-    Quandrix's power and toughness until end of turn." """
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None:
-            return
-        size = (game.power(target), game.toughness(target) or 0)
-        for permanent in controller.battlefield:
-            if permanent is not target and "Creature" in permanent.card.type_line:
-                game.modify_until_end_of_turn(permanent, Modifier(set_pt=size))
-
-
-@dataclass(frozen=True)
-class DrawHalfLibraryLoseHalfLife:
-    """Peer into the Abyss: "Target player draws cards equal to half the number of cards in their library and loses half
-    their life. Round up each time." """
-    target: str = "player"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.draw(target, (len(target.library) + 1) // 2)
-            TargetLoseHalfLife("player", True).resolve(game, controller, target)
-
-
-@dataclass(frozen=True)
-class LoseAllButOneLife:
-    """Soulgorger Orgg: "You lose all but 1 life." The source remembers how much."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        lost = max(0, controller.life - 1)
-        if target is not None:
-            target.stored = lost
-        game.change_life(controller, -lost)
-
-
-@dataclass(frozen=True)
-class GainLifeItLost:
-    """Soulgorger Orgg: "you gain life equal to the life you lost when it entered." """
-    binds = DEAD_SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target.stored:
-            game.change_life(controller, target.stored)
-
-
-@dataclass(frozen=True)
-class ReturnDeadAtNextUpkeep:
-    """Phytotitan: "When this creature dies, return it to the battlefield tapped under its owner's control at the beginning of
-    their next upkeep." The card is in the graveyard when this resolves."""
-    binds = DEAD_SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.return_at_next_upkeep(target)
-
-
-@dataclass(frozen=True)
-class PutCreatureFromHand:
-    """Flash: "You may put a creature card from your hand onto the battlefield. If you do, sacrifice it unless you pay its
-    mana cost reduced by {2}." """
-    reduction: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.put_creature_from_hand(controller, self.reduction)
-
-
-@dataclass(frozen=True)
-class MillThenReturn:
-    """ "Mill four cards, then return a creature card (and a land card) from your graveyard to your hand / the battlefield
-    (tapped)." The player picks each card among those in the graveyard, including what was just milled."""
-    count: Quantity
-    kinds: tuple[str, ...]
-    to: str  # "hand" or "battlefield"
-    tapped: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.mill_then_return(controller, game.amount(self.count), self.kinds, self.to, self.tapped)
-
-
-@dataclass(frozen=True)
-class EachOpponentGetsGoadedCopy:
-    """Life of the Party: "each opponent creates a token that's a copy of it. The tokens are goaded for the rest of the
-    game." """
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.goaded_copies_for_opponents(controller, target)
-
-
-@dataclass(frozen=True)
-class CopiesOfAnotherCreature:
-    """Orthion, Tempestra: "Create a token that's a copy of another target creature you control. It gains haste.
-    Sacrifice it at the beginning of the next end step." (`count` tokens; `not_legendary` for Tempestra)"""
-    count: int | str = 1
-    not_legendary: bool = False
-    target: str = "creature you control"
-    exile: bool = False  # Rionya: "Exile them at the beginning of the next end step." instead of sacrificing them
-    another = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.copies_of_creature(controller, target, game.amount(self.count), self.not_legendary, self.exile)
-
-
-@dataclass(frozen=True)
-class PilesOfFour:
-    """Abstract Performance: exile the top four cards face down and the next four face up; an opponent chooses one pile to
-    put into your graveyard; you may cast a spell from the other for free and put the rest into your hand."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.choose_piles(controller)
-
-
-@dataclass(frozen=True)
-class PastOrPresentVote:
-    """Fateful Tempest: each player votes for past or present. You mill a card for each past vote, then it deals damage to each
-    opponent equal to the total mana value of the cards milled; you exile the top card for each present vote and may play
-    those cards until the end of your next turn."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        past, present = game.vote(controller, ["past", "present"])
-        milled = sum(int(card.cmc) for card in game.mill(controller, past))
-        if milled:
-            for opponent in game.opponents(controller):
-                game.damage(opponent, milled)
-        if present:
-            game.exile_top(controller, present, "next turn")
-
-
-@dataclass(frozen=True)
-class SurgeToVictory:
-    """ "Exile target instant or sorcery card from your graveyard. Creatures you control get +X/+0 until end of turn, where X
-    is that card's mana value. Whenever a creature you control deals combat damage to a player this turn, copy the exiled
-    card. You may cast the copy without paying its mana cost." """
-    target: str = "graveyard:instant or sorcery:yours"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None or not game.exile_from_graveyard(target):
-            return
-        card = target.card
-        for permanent in controller.battlefield:
-            if "Creature" in permanent.card.type_line:
-                game.modify_until_end_of_turn(permanent, Modifier(int(card.cmc), 0))
-        controller.surge = (game.turn, card)
-
-
-@dataclass(frozen=True)
-class CastExiledCopy:
-    """The delayed trigger of Surge to Victory: cast a copy of the exiled card without paying its mana cost."""
-    card: Card
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.cast_copy_free(controller, self.card)
-
-
-@dataclass(frozen=True)
-class OpponentsLoseCounters:
-    """Final Act: "Each opponent loses all counters." (the counters on players: poison, energy, experience, ...)"""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for opponent in game.opponents(controller):
-            opponent.player_counters.clear()
-
-
-@dataclass(frozen=True)
-class DestroyAll:
-    """ "Destroy all creatures." Indestructible permanents survive; they all die together."""
-    kind: str  # "creature", "artifact or enchantment", "creature you don't control", ...
-    restriction: MassFilter | None = None  # "... with flying"
-    no_regen: bool = False  # "They can't be regenerated."
-    gives: "GiveBack | None" = None  # "For each creature destroyed this way, its controller creates a 1/1 token"
-    mana_each: frozenset[str] = frozenset()  # Culling Ritual: "Add {B} or {G} for each permanent destroyed this way."
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        destroyed = game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen, self.gives, controller)
-        if self.mana_each:
-            game.add_mana(controller, tuple(self.mana_each for _ in destroyed))
-
-
-@dataclass(frozen=True)
-class _ManaForEachDestroyed:
-    """ "Add {B} or {G} for each permanent destroyed this way." (see _merge_conditional)"""
-    options: frozenset[str]
-
-
-@dataclass(frozen=True)
-class ExileAll:
-    kind: str
-    restriction: MassFilter | None = None
-    gives: "GiveBack | None" = None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_all(game.mass_targets(self.kind, controller, self.restriction), self.gives, controller)
-
-
-@dataclass(frozen=True)
-class ExileX:
-    """Curse of the Swine: "Exile X target creatures. For each creature exiled this way, its controller creates a 2/2
-    Boar." Exactly X targets, in one list; X can't be more than there are legal targets."""
-    target: str
-    gives: "GiveBack | None" = None
-    up_to_x = True
-    exact_x = True
-    multi_target = True  # its one target slot holds a list
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_all(list(target or []), self.gives, controller)
-
-
-@dataclass(frozen=True)
-class DestroyX:
-    """Immoral Bargain: "Destroy X target nonland permanents." Exactly X targets, in one list."""
-    target: str
-    up_to_x = True
-    exact_x = True
-    multi_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.destroy_all(list(target or []))
-
-
-@dataclass(frozen=True)
-class DestroyUpToX:
-    """Pest Infestation: "Destroy up to X target artifacts and/or enchantments." Up to X targets, in one list."""
-    target: str
-    up_to_x = True
-    multi_target = True
-    optional_target = True  # it needs no target to be cast
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.destroy_all(list(target or []))
-
-
-@dataclass(frozen=True)
-class CopyTokensOfTargets:
-    """Twinflame: "Choose any number of target creatures you control. For each of them, create a token that's a copy of that
-    creature, except it has haste. Exile those tokens at the beginning of the next end step." The three sentences are
-    folded together by _merge_target_copies. Each target beyond the first costs the strive cost more (see strive_cost)."""
-    target: str
-    haste: bool = False
-    exile_at_end: bool = False
-    any_number = True
-    multi_target = True
-    optional_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.copy_tokens(controller, list(target or []), self.haste, self.exile_at_end)
-
-
-@dataclass(frozen=True)
-class _ChooseAnyNumber:
-    """ "Choose any number of target creatures you control.": only ever before _CopyEachWithHaste."""
-    target: str
-
-
-@dataclass(frozen=True)
-class _CopyEachWithHaste:
-    """ "For each of them, create a token that's a copy of that creature, except it has haste." """
-
-
-@dataclass(frozen=True)
-class _ExileThoseTokens:
-    """ "Exile those tokens at the beginning of the next end step." """
-
-
 def _merge_target_copies(effects: list) -> list | None:
     merged: list = []
     i = 0
@@ -3048,91 +999,6 @@ def _merge_target_copies(effects: list) -> list | None:
         merged.append(effect)
         i += 1
     return merged
-
-
-@dataclass(frozen=True)
-class GiveBack:
-    """ "For each creature destroyed this way, its controller creates a 1/1 white Spirit creature token." Only ever the
-    end of a DestroyAll or ExileAll (see _merge_wipe_gift). Ceaseless Conflict pays only the caster, for their own
-    nontoken creatures; Oversimplify gives each player one token with a counter per point of power they lost."""
-    count: Quantity
-    token: Card
-    who: str = "controller"  # "controller": each one's controller gets tokens for it; "you": the caster; "each player"
-    nontoken: bool = False  # "for each nontoken creature you controlled that was destroyed this way"
-    power_counters: bool = False  # "... puts a number of +1/+1 counters on it equal to the total power of the creatures"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone give-back is never built")
-
-
-@dataclass(frozen=True)
-class CannotRegenerate:
-    """ "They can't be regenerated." After a destroy effect it is folded into that effect (see _merge_no_regen);
-    anywhere else there is nothing for it to stop."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        pass
-
-
-@dataclass(frozen=True)
-class Regenerate:
-    """ "Regenerate target creature." Gives it a shield: the next time it would be destroyed this turn, it is
-    tapped, loses its damage and leaves combat instead."""
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.regenerate(target)
-
-
-@dataclass(frozen=True)
-class RegenerateSource:
-    """ "{B}: Regenerate CARDNAME." """
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.regenerate(target)
-
-
-@dataclass(frozen=True)
-class RegenerateEach:
-    """ "Regenerate each creature you control." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in list(controller.battlefield):
-            if "Creature" in permanent.card.type_line:
-                game.regenerate(permanent)
-
-
-@dataclass(frozen=True)
-class DamageEach:
-    """ "This spell deals 2 damage to each creature (and each player)." Nothing is targeted."""
-    amount: int | str
-    creatures: str | None  # None, "all", or "opponents" (only creatures you don't control)
-    players: str | None  # None, "opponents" or "all"
-    restriction: MassFilter | None = None  # "each creature with flying"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        amount = game.amount(self.amount)
-        if self.creatures:
-            kind = "creature" if self.creatures == "all" else "creature you don't control"
-            for permanent in game.mass_targets(kind, controller, self.restriction):
-                game.damage(permanent, amount)
-            if self.creatures == "opponents and planeswalkers":  # Volcanic Torrent
-                for permanent in game.mass_targets("planeswalker you don't control", controller, None):
-                    game.damage(permanent, amount)
-        if self.players:
-            for seat in (game.live_seats() if self.players == "all" else game.opponents(controller)):
-                game.damage(seat, amount)
-
-
-@dataclass(frozen=True)
-class Amount:
-    """A number that depends on the game, worked out when the effect resolves: "its power",
-    "the number of Auras you control", "the amount of life you gained this turn", ..."""
-    kind: str  # see Game.evaluate
-    what: str = ""  # a type ("Aura"), a counter ("+1/+1") or a spell kind ("instant or sorcery spell")
 
 
 _AMOUNTS = [
@@ -3181,280 +1047,7 @@ def _amount(text: str) -> Amount | None:
     return None
 
 
-@dataclass(frozen=True)
-class DefineX:
-    """Sets X for the effects after it ("..., where X is the number of Auras you control.")."""
-    amount: Amount
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.x_value = game.evaluate(self.amount, controller)
-
-
-@dataclass(frozen=True)
-class CopySpellTimes:
-    """Replicate, Storm and Gravestorm: "When you cast this spell, copy it" `count` times. The spell the ability came from
-    is `carried`; the copies may have new targets."""
-    count: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        original = game.resolving_item.carried if game.resolving_item else None
-        for _ in range(self.count):
-            if original is not None:
-                game.copy_spell(original, controller, new_targets=True)
-
-
-@dataclass(frozen=True)
-class LivingWeapon:
-    """Living weapon: "When this Equipment enters, create a 0/0 black Phyrexian Germ creature token, then attach this to it." """
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.living_weapon(target)
-
-
-DEMONSTRATE_PROMPT = "Copy it with demonstrate? "  # followed by the spell's name; options are YES_NO
-
-
-DEMONSTRATE_OPPONENT_PROMPT = "Choose an opponent to also copy "  # followed by the spell's name
-
-
-@dataclass(frozen=True)
-class Backup:
-    """Backup N: "When this creature enters, put N +1/+1 counters on target creature. If that's another creature, it
-    gains the following abilities until end of turn." `granted` is the rest of the card's rules text."""
-    count: int
-    granted: str
-    target: str = "creature"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.put_counters(target, "+1/+1", self.count)
-            if target is not game.resolving_source:
-                game.grant_abilities(target, self.granted)
-
-
-@dataclass(frozen=True)
-class Demonstrate:
-    """Demonstrate: "When you cast this spell, you may copy it. If you do, choose an opponent to also copy it." The
-    spell cast is `carried`; each copy's controller chooses new targets."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        spell = game.resolving_item.carried if game.resolving_item is not None else None
-        if spell is None or controller.player.choose(DEMONSTRATE_PROMPT + spell.card.name, ["Yes", "No"]) != 0:
-            return
-        game.copy_spell(spell, controller, new_targets=True)
-        opponents = game.opponents(controller)
-        if opponents:
-            pick = controller.player.choose(DEMONSTRATE_OPPONENT_PROMPT + spell.card.name,
-                                            [f"Player: {o.name} (seat {o.index})" for o in opponents])
-            game.copy_spell(spell, opponents[pick], new_targets=True)
-
-
-@dataclass(frozen=True)
-class ShuffleRevealCast:
-    """Creative Technique: "Shuffle your library, then reveal cards from the top of it until you reveal a nonland card.
-    Exile that card and put the rest on the bottom of your library in a random order. You may cast the exiled card
-    without paying its mana cost." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.rng.shuffle(controller.library)
-        game.cascade(controller, None)
-
-
-@dataclass(frozen=True)
-class Cascade:
-    """Cascade: exile cards from the top of your library until you exile a nonland card that costs less than `value`;
-    you may cast it without paying its mana cost."""
-    value: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.cascade(controller, self.value)
-
-
-@dataclass(frozen=True)
-class PutAttackingFromHand:
-    """Kaalia of the Vast: "put an Angel, Demon, or Dragon creature card from your hand onto the battlefield tapped and
-    attacking that opponent." The opponent is the player the trigger was about."""
-    types: tuple[str, ...]
-    binds = PLAYER
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.put_attacking_from_hand(controller, target, self.types)
-
-
-@dataclass(frozen=True)
-class SacrificeSelf:
-    """Evoke: "When this creature enters, sacrifice it." """
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game._leave_battlefield(target, "sacrificed")
-
-
-@dataclass(frozen=True)
-class SacrificeCreature:
-    """ "Sacrifice a creature." (you choose which) """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.sacrifice(controller)
-
-
-@dataclass(frozen=True)
-class EachSacrifices:
-    """ "Each opponent sacrifices a creature." / "Each player sacrifices a land." """
-    who: str  # "opponent", "player" or "you" ("Sacrifice two lands.")
-    kind: str = "creature"  # "creature", "artifact", "enchantment", "land", "permanent", "nonland permanent", ...
-    count: int | str | None = 1  # "two lands"; None: "all creatures they control"
-    greatest: bool = False  # "a creature with the greatest power among creatures they control"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.turn_order_from_active():
-            if self.who == "player" or (self.who == "you") == (seat is controller):
-                game.sacrifice(seat, self.kind, None if self.count is None else game.amount(self.count), self.greatest)
-
-
-@dataclass(frozen=True)
-class GivePoison:
-    """Prologue to Phyresis: "Each opponent gets a poison counter." / Ichor Rats: "each player gets a poison counter." (CR 122.1f)"""
-    who: str  # "opponent" or "player"
-    count: int = 1
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.turn_order_from_active():
-            if self.who == "player" or seat is not controller:
-                game.give_poison(seat, self.count)
-
-
-@dataclass(frozen=True)
-class PoisonShrinksOpponentsCreatures:
-    """Phyresis Outbreak: "Then each creature your opponents control gets -1/-1 until end of turn for each poison counter its
-    controller has." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.opponents(controller):
-            poison = seat.player_counters.get("poison", 0)
-            if poison:
-                for permanent in [p for p in seat.battlefield if "Creature" in p.card.type_line]:
-                    game.modify_until_end_of_turn(permanent, Modifier(power=-poison, toughness=-poison))
-
-
-@dataclass(frozen=True)
-class EachSacrificesThenReturn:
-    """Deadly Brew: "Each player sacrifices a creature or planeswalker of their choice. If you sacrificed a permanent this way, you
-    may return another permanent card from your graveyard to your hand." """
-    kind: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        mine: list = []
-        for seat in game.turn_order_from_active():
-            gone = game.sacrifice(seat, self.kind)
-            if seat is controller:
-                mine = gone
-        if mine:
-            game.may_return_permanent_card(controller, [p.card for p in mine])
-
-
-@dataclass(frozen=True)
-class PlayersLoseSacrificeAddManaDraw:
-    """Priest of Forgotten Gods: "Any number of target players each lose 2 life and sacrifice a creature of their choice. You add {B}{B}
-    and draw a card." """
-    life: int
-    units: tuple[frozenset[str], ...]
-    target: str = "player"
-    any_number = True
-    multi_target = True
-    optional_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in target or []:
-            if not seat.lost:
-                game.change_life(seat, -self.life)
-                game.sacrifice(seat, "creature")
-        game.add_mana(controller, self.units)
-        game.draw(controller, 1)
-
-
 _CONTRACT_BODY = "it gets +2/+0 until end of turn if it's attacking one of your opponents. Otherwise, its controller loses 2 life."
-
-
-CONTRACT_TEXT = ("Enchant creature\nWhenever enchanted creature attacks, it gets +2/+0 until end of turn if it's attacking one of your "
-                 "opponents. Otherwise, its controller loses 2 life.")
-
-
-@dataclass(frozen=True)
-class CreateContract:
-    """Scriv, the Obligator: "Whenever Scriv enters or attacks, create a white Aura enchantment token named Contract attached to
-    target creature an opponent controls. The token has enchant creature and "Whenever enchanted creature attacks, ..."" """
-    target: str = "creature an opponent controls"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and game.on_battlefield(target):
-            token = Card(name="Contract", type_line="Token Enchantment \u2014 Aura", colors=("W",), oracle_text=CONTRACT_TEXT)
-            game.create_attached_token(controller, token, target)
-
-
-@dataclass(frozen=True)
-class ContractAttack:
-    """Contract: "it gets +2/+0 until end of turn if it's attacking one of your opponents. Otherwise, its controller loses 2 life."
-    The enchanted creature is the subject; the trigger's X is the seat it attacks."""
-    binds = SUBJECT
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        if target is None or item is None:
-            return
-        if game.seats[item.x] is not controller:
-            game.modify_until_end_of_turn(target, Modifier(2, 0))
-        else:
-            game.change_life(game.controller(target), -2)
-
-
-@dataclass(frozen=True)
-class PhaseOut:
-    """Guardian of Faith: "any number of other target creatures you control phase out." They (and what is attached to them) are treated
-    as though they don't exist until their controller's next untap step."""
-    target: str = "creature you control"
-    another = True
-    any_number = True
-    multi_target = True
-    optional_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for creature in target or []:
-            game.phase_out(creature)
-
-
-@dataclass(frozen=True)
-class TragicArrogance:
-    """Tragic Arrogance: "For each player, you choose from among the permanents that player controls an artifact, a creature, an
-    enchantment, and a planeswalker. Then each player sacrifices all other nonland permanents they control." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.tragic_arrogance(controller)
-
-
-@dataclass(frozen=True)
-class SacrificeAll:
-    """ "Sacrifice all creatures you control." """
-    kind: str = "creature"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.sacrifice(controller, self.kind, None)
-
-
-@dataclass(frozen=True)
-class TargetSacrifices:
-    """ "Target player sacrifices a creature." (target is "player" or "opponent") """
-    target: str
-    kind: str = "creature"
-    greatest: bool = False  # "a creature with the greatest power among creatures they control" (Consumed by Greed)
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.sacrifice(target, self.kind, greatest=self.greatest)
 
 
 _MASS_KINDS = {"battles": "battle", "creatures": "creature", "creature tokens": "creature", "artifacts": "artifact", "enchantments": "enchantment",
@@ -3567,12 +1160,6 @@ _PLURAL_SACRIFICE = {"creatures": "creature", "artifacts or enchantments": "arti
                      "nonland permanents": "nonland permanent", "permanents": "permanent"}
 
 
-class _GiftMatch:
-    """A token specification and whether its quoted ability's closing quote was there (see _create)."""
-    def __init__(self, spec: str, quote: str):
-        self.spec, self.quote = spec, quote
-
-
 def _gift(m: _GiftMatch, **fields: Any) -> Any:
     parsed = _token(m.spec + '."' if m.quote else m.spec)
     return GiveBack(*parsed, **fields) if parsed else None
@@ -3592,348 +1179,6 @@ def _damage_each(m: re.Match) -> DamageEach | None:
         elif part:
             players = "all" if part == "player" else "opponents"
     return DamageEach(_count(m[1]), creatures, players, _mass_filter(None, None, m[3]))
-
-
-@dataclass(frozen=True)
-class ReturnToHand:
-    """Bounce: "Return target nonland permanent you don't control to its owner's hand." """
-    target: str
-    another: bool = False  # "Return another target creature ...": not the source itself
-    optional_target: bool = False  # "Return up to one target creature ...": the target may be left out
-    distinct: bool = False  # "Return up to two target creatures ...": the second can't be the first again
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None:
-            return
-        if hasattr(target, "physical"):  # Sink into Stupor: a spell on the stack
-            ReturnSpellToHand().resolve(game, controller, target)
-        else:
-            game.return_to_hand(target)
-
-
-@dataclass(frozen=True)
-class ReturnAllToHand:
-    kind: str
-    restriction: MassFilter | None = None  # Perplexing Test: "all creature tokens" / "all nontoken creatures"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.return_all_to_hand(game.mass_targets(self.kind, controller, self.restriction))
-
-
-@dataclass(frozen=True)
-class ReturnFromGraveyard:
-    """ "Return target creature card from your graveyard to your hand / to the battlefield." """
-    target: str  # "graveyard:<card type>:<yours|any>"
-    to: str  # "hand" or "battlefield"
-    tapped: bool = False  # "... to the battlefield tapped"
-    optional_target: bool = False  # "Return up to two target creature cards ...": each may be left out
-    distinct: bool = False
-    finality: bool = False  # Excava: "with a finality counter on it. It's a 1/1 Spirit creature with flying in addition ..."
-    another: bool = False  # Myr Retriever: "another target artifact card": not this creature's own card, now in the graveyard
-    counter: str = ""  # Season of the Burrow: "... to the battlefield with an indestructible counter on it"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.return_from_graveyard(target, controller, self.to, self.tapped, self.finality, counter=self.counter)
-
-
-@dataclass(frozen=True)
-class DamageTargetsController:
-    """Blooming Blast: "... also deals 3 damage to that creature's controller." (the creature the effect before it targeted)"""
-    amount: int
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        owner = game.controller_of(target) if target is not None else None
-        if owner is not None:
-            game.damage(owner, self.amount, source=game.resolving_source)
-
-
-@dataclass(frozen=True)
-class LoseLifeEqualToManaValue:
-    """Reanimate: "You lose life equal to its mana value." (the card the previous effect put onto the battlefield)"""
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.change_life(controller, -int(target.card.cmc))
-
-
-@dataclass(frozen=True)
-class ShuffleIntoLibrary:
-    """Perpetual Timepiece: "Shuffle any number of target cards from your graveyard into your library." Quandrix Command: "Target
-    player shuffles up to three target cards from their graveyard into their library." (always you, and your graveyard)"""
-    target: str = "graveyard:card:yours"
-    max_targets: int = 0  # "up to three"
-    any_number = True
-    multi_target = True
-    optional_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.shuffle_into_library(controller, list(target or []))
-
-
-@dataclass(frozen=True)
-class ReturnAllFromGraveyard:
-    """Eiganjo Dynastorian's spell: "Return all enchantment cards from your graveyard to the battlefield." (or to your hand)"""
-    kind: str  # a card kind, "enchantment"
-    to: str = "battlefield"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.return_all_from_graveyard(controller, self.kind, self.to)
-
-
-@dataclass(frozen=True)
-class ExileFromGraveyard:
-    target: str
-    if_type: str = ""  # Feral Appetite: "If a creature card is exiled this way, create a ... token": the card type
-    then: Any = None  # ... and what happens then
-    copy_token: bool = False  # Lorehold Archivist's spell: "Create a token that's a copy of it."
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None or not game.exile_from_graveyard(target):
-            return
-        if self.then and self.if_type.capitalize() in target.card.type_line:
-            self.then.resolve(game, controller, None)
-        if self.copy_token:
-            card = target.card
-            game.create_tokens(controller, card if card.type_line.startswith("Token") else
-                               dataclasses.replace(card, type_line="Token " + card.type_line), 1)
-
-
-@dataclass(frozen=True)
-class _ItGains:
-    """ "It gains trample until end of turn.": the creature that just got counters, or else the source itself."""
-    keywords: frozenset[str]
-
-
-@dataclass(frozen=True)
-class _ThatAlsoGains:
-    """ "That creature also gains indestructible until end of turn.": the creature a pump just gave +2/+2 (see _merge_three_way)."""
-    keywords: frozenset[str]
-
-
-@dataclass(frozen=True)
-class _TheyGain:
-    """ "Those creatures gain flying until end of turn." / "They gain trample ..." after counters on several creatures."""
-    keywords: frozenset[str]
-
-
-@dataclass(frozen=True)
-class CopySelfToken:
-    """Leitmotif Composer: "Create a token that's a copy of this creature." Offspring: "create a 1/1 token copy of it"."""
-    one_by_one: bool = False  # CR 702.175a: the copy is 1/1 instead of the printed size
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            card = target.card if target.card.type_line.startswith("Token") else \
-                dataclasses.replace(target.card, type_line="Token " + target.card.type_line)
-            if self.one_by_one:
-                card = dataclasses.replace(card, power="1", toughness="1")
-            game.create_tokens(controller, card, 1)
-
-
-@dataclass(frozen=True)
-class AttachThisToSubject:
-    """Shielded by Faith: "You may attach this Aura to that creature." (the creature that entered)"""
-    binds = SUBJECT
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and game.resolving_source is not None:
-            game.attach(game.resolving_source, target)
-
-
-@dataclass(frozen=True)
-class CreateTokenAttachSubject:
-    """Ajani's Chosen: "Create a 2/2 white Cat creature token. If that enchantment is an Aura, you may attach it to the token." """
-    token: Card
-    binds = SUBJECT
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        made = game.create_tokens(controller, self.token, 1)
-        if made and target is not None and "Aura" in target.card.type_line and game.on_battlefield(target):
-            game.may_attach(controller, target, made[0])
-
-
-@dataclass(frozen=True)
-class CreateTokenAttachSource:
-    """Fractal Harness: "Create a 0/0 ... Fractal creature token. Put X +1/+1 counters on it and attach this Equipment to it." """
-    token: Card
-    counters: tuple[int | str, str]
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for made in game.create_tokens(controller, self.token, 1, (game.amount(self.counters[0]), self.counters[1])):
-            if target is not None:
-                game.attach(target, made)
-
-
-@dataclass(frozen=True)
-class _PutCountersAndAttach:
-    """The second sentence of Fractal Harness: "Put X +1/+1 counters on it and attach this Equipment to it." """
-    count: int | str
-    counter: str
-
-
-@dataclass(frozen=True)
-class CreateTokenWithGraveyardAttachment:
-    """Forum Filibuster: "Create a 2/1 ... token. When you do, return up to one target Aura or Equipment card from your
-    graveyard to the battlefield attached to that token." (chosen as it resolves rather than targeted)"""
-    token: Card
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for made in game.create_tokens(controller, self.token, 1):
-            game.return_attachment_to(controller, made)
-
-
-@dataclass(frozen=True)
-class _RecallAttachment:
-    """The "When you do, return up to one target Aura or Equipment card from your graveyard to the battlefield attached to
-    that token." sentence; only ever the second step of a CreateTokenWithGraveyardAttachment (see _merge_conditional)."""
-
-
-@dataclass(frozen=True)
-class _AttachItToToken:
-    """ "If that enchantment is an Aura, you may attach it to the token." after a CreateTokens (see _merge_conditional)."""
-
-
-@dataclass(frozen=True)
-class MillThenExileRandomPlay:
-    """Advanced Reconstruction: "Mill a card, then exile a card from your graveyard at random. You may play the exiled card this
-    turn." (one template across two sentences)"""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.mill(controller, 1)
-        game.exile_random_from_graveyard(controller, play_this_turn=True)
-
-
-@dataclass(frozen=True)
-class ExileDiscarded:
-    """Containment Construct: "Whenever you discard a card, you may exile that card from your graveyard. If you do, you may play
-    that card this turn." (the trigger is "you may")"""
-    play: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        carried = item.carried if item is not None else None
-        cards = carried if isinstance(carried, tuple) else (carried,)  # "one of them" when several were discarded together
-        options = [c for c in cards if isinstance(c, Card) and any(g is c for g in controller.graveyard)]
-        if not options:
-            return
-        card = options[0]
-        if len(options) > 1:
-            card = options[controller.player.choose(EXILE_DISCARDED_PROMPT, [c.name for c in options])]
-        game.exile_card_from_graveyard(controller, card, play_this_turn=self.play)
-
-
-@dataclass(frozen=True)
-class MayCopyLeftCard:
-    """Spirit of Resilience: "... you may have this creature become a copy of an artifact or creature card from among those
-    cards until end of turn." (the cards that left the graveyard ride along with the trigger)"""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        carried = item.carried if item is not None else None
-        options = [c for c in (carried if isinstance(carried, tuple) else ())
-                   if "Creature" in c.type_line or "Artifact" in c.type_line]
-        if target is None or not options:
-            return
-        game.may_become_copy(controller, target, options)
-
-
-@dataclass(frozen=True)
-class TapAndGoad:
-    """Killian, Decisive Mentor: "Tap up to one target creature and goad it." """
-    target: str = "creature"
-    optional_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.tap(target)
-            game.goad(target, controller)
-
-
-@dataclass(frozen=True)
-class _ItHas:
-    """ "It has "Sacrifice this token: Add {C}."" after a token was created (see _merge_conditional)."""
-    ability: str
-
-
-@dataclass(frozen=True)
-class _CopyOfIt:
-    """ "Create a token that's a copy of it." after an exile (see _merge_conditional)."""
-
-
-@dataclass(frozen=True)
-class _InsteadDraw:
-    """ "If you control eight or more lands, draw two cards instead." (see _merge_conditional)"""
-    condition: "Condition"
-    count: int
-
-
-@dataclass(frozen=True)
-class _ExileTokenAtEnd:
-    """ "Exile that token at the beginning of the next end step." after a token was created (see _merge_conditional)."""
-
-
-@dataclass(frozen=True)
-class _InsteadTokens:
-    """ "If that spell's mana value is 5 or greater, create three of those tokens instead." (see _merge_conditional)"""
-    condition: "Condition"
-    count: Quantity
-
-
-@dataclass(frozen=True)
-class _UntapThatLand:
-    """ "Then if you control four or more lands, untap that land." """
-    condition: "Condition"
-
-
-@dataclass(frozen=True)
-class _IfExiledThen:
-    """ "If a creature card is exiled this way, create a ... token." """
-    card_type: str
-    effect: Any
-
-
-@dataclass(frozen=True)
-class Conditional:
-    """ "Then if there are three or more creature cards in your graveyard, this creature becomes prepared.": the effect
-    happens only if the condition holds as it resolves."""
-    condition: "Condition"
-    effect: Any
-
-    @property
-    def binds(self) -> str | None:
-        return found if (found := binding(self.effect)) in (SOURCE, SUBJECT, PLAYER) else None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.condition_holds(self.condition, controller, game.resolving_source):
-            self.effect.resolve(game, controller, target)
-
-
-@dataclass(frozen=True)
-class ExileOwnGraveyard:
-    """Emeritus of Ideation: "Exile eight cards from your graveyard. If you do, this creature becomes prepared." (the
-    trigger is "you may"); nothing happens if there are fewer cards than that."""
-    count: int
-    then: Any = None
-
-    @property
-    def binds(self) -> str | None:
-        return SOURCE if self.then and binding(self.then) == SOURCE else None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.exile_own_graveyard(controller, self.count) and self.then:
-            self.then.resolve(game, controller, target)
-
-
-@dataclass(frozen=True)
-class _IfYouDo:
-    """ "If you do, <effect>." after an effect that can be declined or fail (see _merge_conditional)."""
-    effect: Any
 
 
 def _if_you_do(m: re.Match) -> Any:
@@ -3984,1321 +1229,6 @@ def _merge_conditional(effects: list) -> list | None:
 def _if_exiled(m: re.Match) -> Any:
     rest = _parse([m[2][:1].upper() + m[2][1:] + m[3]])
     return _IfExiledThen(m[1], rest[0]) if rest and len(rest) == 1 and not target_kind(rest[0]) else None
-
-
-@dataclass(frozen=True)
-class SearchLibrary:
-    """ "Search your library for a creature card, put it into your hand, then shuffle." """
-    card_type: str  # "card", "creature", "instant or sorcery", "basic land", ...
-    to: str  # "hand", or "top" of the library after shuffling
-    reveal: bool  # "reveal it": everyone sees which card
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.tutor(controller, self.card_type, self.to, self.reveal)
-
-
-@dataclass(frozen=True)
-class LoseLife:
-    amount: int | str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.change_life(controller, -game.amount(self.amount))
-
-
-@dataclass(frozen=True)
-class SearchForLands:
-    """Land ramp: "Search your library for up to two basic land cards, reveal those cards, put one onto
-    the battlefield tapped and the other into your hand, then shuffle." (Cultivate)"""
-    count: int | str  # up to this many ("X")
-    subtypes: tuple[str, ...]  # () means basic lands; otherwise lands with one of these land types
-    battlefield: int | str  # how many go onto the battlefield (the rest go to the hand); "X": all of them
-    tapped: bool
-    reveal: bool
-    basic_only: bool = False  # "basic Plains cards": the land types and also basic
-    share_type: bool = False  # "that share a land type"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        count = game.amount(self.count)  # Traverse the Outlands: up to X
-        game.search_for_lands(controller, count, self.subtypes, count if self.battlefield == "X" else game.amount(self.battlefield), self.tapped,
-                              self.reveal, self.basic_only, self.share_type)
-
-
-RETURN_LAND_PROMPT = "Return which land to your hand? "
-
-
-@dataclass(frozen=True)
-class ReturnOwnLand:
-    """Bounceland: "Return a land you control to its owner's hand." (you choose; it can be the land itself)"""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        lands = [p for p in controller.battlefield if "Land" in p.card.type_line]
-        if lands:
-            game.return_to_hand(lands[controller.player.choose(RETURN_LAND_PROMPT, [game.label(p) for p in lands])])
-
-
-@dataclass(frozen=True)
-class Scry:
-    count: int | str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.scry(controller, game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class RevealLands:
-    """Animist's Awakening: "Reveal the top X cards of your library. Put all land cards from among them onto the battlefield tapped
-    and the rest on the bottom of your library in a random order." Open the Way (`until_lands`): "Reveal cards from the top of your
-    library until you reveal X land cards. Put those land cards ..." Spell mastery (`untap_if`): "... untap those lands." """
-    count: int | str
-    until_lands: bool = False
-    untap_if: "Condition | None" = None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.reveal_lands(controller, game.amount(self.count), self.until_lands, self.untap_if)
-
-
-@dataclass(frozen=True)
-class _UntapThoseLands:
-    """Spell mastery: "If there are two or more instant and/or sorcery cards in your graveyard, untap those lands." """
-    condition: "Condition"
-
-
-@dataclass(frozen=True)
-class RevealTop:
-    """ "Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield tapped.
-    Otherwise, draw a card." (Thrasios). Only built by _merge_reveal_top."""
-    scry: int
-    tapped: bool
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.reveal_top_land_or_draw(controller, self.scry, self.tapped)
-
-
-@dataclass(frozen=True)
-class RevealTopStep:
-    """One sentence of RevealTop; alone it isn't understood. kind: "reveal" (with scry), "land" or "otherwise"."""
-    kind: str
-    scry: int = 0
-    tapped: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone reveal-the-top step is never built")
-
-
-@dataclass(frozen=True)
-class AddMana:
-    """Ritual: "Add {B}{B}{B}." The mana waits in its controller's pool until the step ends."""
-    units: tuple[frozenset[str], ...]
-    more: tuple[frozenset[str], ...] = ()  # Cabal Ritual: "Threshold — Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your graveyard."
-    more_if: "Condition | None" = None
-    per_named: frozenset[str] = frozenset()  # Rite of Flame: one more of these for each card with this spell's name in a graveyard
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        units = self.more if self.more_if and game.condition_holds(self.more_if, controller, game.resolving_source) else self.units
-        if self.per_named and game.resolving_item is not None:
-            named = sum(c.name == game.resolving_item.card.name for s in game.seats for c in s.graveyard)
-            units = units + (self.per_named,) * named
-        game.add_mana(controller, units)
-
-
-@dataclass(frozen=True)
-class _InsteadMana:
-    """ "Threshold — Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your graveyard." (see _merge_conditional)"""
-    condition: "Condition"
-    units: tuple[frozenset[str], ...]
-
-
-@dataclass(frozen=True)
-class LookAtHand:
-    """Gitaxian Probe: "Look at target player's hand." Only its controller learns anything."""
-    target: str = "player"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            controller.player.notify({"event": "hand", "seat": target.index, "cards": [c.name for c in target.hand]})
-
-
-@dataclass(frozen=True)
-class CommanderToHand:
-    """Command Beacon: "Put your commander into your hand from the command zone." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        options = list(controller.command_zone)
-        if options:
-            chosen = options[controller.player.choose(COMMANDER_HAND_PROMPT, [c.name for c in options])] if len(options) > 1 else options[0]
-            controller.command_zone.remove(chosen)
-            controller.hand.append(chosen)
-            game.broadcast({"event": "from_command_zone", "seat": controller.index, "card": chosen.name})
-
-
-@dataclass(frozen=True)
-class ExileAllGraveyards:
-    """ "Exile all cards from all graveyards." (Rest in Peace) """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_all_graveyards()
-
-
-@dataclass(frozen=True)
-class CopySpell:
-    """ "Copy target instant or sorcery spell. You may choose new targets for the copy." """
-    target: str  # "instant or sorcery spell", optionally "... you control"
-    new_targets: bool = False
-    return_to_hand: bool = False  # Narset's Reversal: "..., then return it to its owner's hand."
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.copy_spell(target, controller, self.new_targets)
-            if self.return_to_hand:
-                game.return_spell_to_hand(target)
-
-
-@dataclass(frozen=True)
-class CopyNextSpell:
-    """Pigment Wrangler's spell: "When you next cast an instant or sorcery spell this turn, copy that spell. You may choose new
-    targets for the copy." (see Game._cast). Thunderclap Drake copies it once for each time you've cast your commander from
-    the command zone this game instead (`per_commander_cast`)."""
-    per_commander_cast: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        controller.copy_next_turn = game.turn
-        controller.copy_next_per_commander = self.per_commander_cast
-
-
-@dataclass(frozen=True)
-class CopyTriggeringSpell:
-    """Codie: "Whenever you cast a prepared spell, copy it. You may choose new targets for the copy." The spell that set
-    the trigger off is `carried`."""
-    new_targets: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        spell = game.resolving_item.carried if game.resolving_item is not None else None
-        if spell is not None:
-            game.copy_spell(spell, controller, self.new_targets)
-
-
-@dataclass(frozen=True)
-class CopyTriggeringAbility:
-    """Unbound Flourishing: "... activate an ability, if that ability's activation cost contains {X}, copy that ability. You may
-    choose new targets for the copy." The ability that set the trigger off is `carried`."""
-    new_targets: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        ability = game.resolving_item.carried if game.resolving_item is not None else None
-        if ability is not None:
-            game.copy_ability(ability, controller, self.new_targets)
-
-
-@dataclass(frozen=True)
-class CopyTriggeredAbility:
-    """Strionic Resonator: "Copy target triggered ability you control. You may choose new targets for the copy." (Mister Fantastic:
-    "... twice. ... for the copies.")"""
-    target: str = "triggered ability you control"
-    new_targets: bool = False
-    times: int = 1
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.copy_ability(target, controller, self.new_targets, self.times)
-
-
-@dataclass(frozen=True)
-class DoubleXOfTriggeringSpell:
-    """Unbound Flourishing: "Whenever you cast a permanent spell with a mana cost that contains {X}, double the value of X." The
-    spell that set the trigger off is `carried`; it is still on the stack, so what it enters with is doubled."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        spell = game.resolving_item.carried if game.resolving_item is not None else None
-        if spell is not None and spell in game.stack:
-            spell.x *= 2
-
-
-@dataclass(frozen=True)
-class NewTargets:
-    """ "You may choose new targets for the copy." Only meaningful after a copy effect (_merge_copy folds it in)."""
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        pass
-
-
-@dataclass(frozen=True)
-class GainControl:
-    """ "Gain control of target creature (until end of turn). (Untap that creature. It gains haste until end of
-    turn.)" """
-    target: str
-    until_end_of_turn: bool = False
-    untap: bool = False
-    haste: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.gain_control(target, controller, until_eot=self.until_end_of_turn, untap=self.untap, haste=self.haste)
-
-
-@dataclass(frozen=True)
-class UntapThat:
-    """ "Untap that creature." Only meaningful right after "Gain control of ...": _merge_control folds it in."""
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        pass
-
-
-@dataclass(frozen=True)
-class GainsAbility:
-    """Urza's Saga: 'This Saga gains "{T}: Add {C}."' For as long as it stays on the battlefield its text has the line, as a Class's
-    does once it levels up (the card it really is waits in `real_card` until it leaves)."""
-    line: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        source = game.resolving_source
-        if source is not None and game.on_battlefield(source):
-            source.real_card = source.real_card or source.card
-            made = re.match(r"\{T\}: Add ((?:\{[WUBRGC]\})+)\.", self.line)  # a land is told what it makes by its data
-            produced = source.card.produced_mana + tuple(s for s in re.findall(r"[WUBRGC]", made[1]) if s not in source.card.produced_mana) if made \
-                else source.card.produced_mana
-            source.card = dataclasses.replace(source.card, oracle_text=f"{source.card.oracle_text}\n{self.line}", produced_mana=produced)
-
-
-@dataclass(frozen=True)
-class SylvanLibrary:
-    """Sylvan Library: "you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of
-    those cards, pay 4 life or put the card on top of your library." """
-    life: int = 4
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.sylvan_library(controller, self.life)
-
-
-@dataclass(frozen=True)
-class PlayerProtection:
-    """The One Ring: "You gain protection from everything until your next turn." Nothing can target you and all damage to you is
-    prevented, until your next turn begins."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        controller.protected = True
-        game.broadcast({"event": "protected", "seat": controller.index})
-
-
-@dataclass(frozen=True)
-class TargetControllerGainsLife:
-    """Nature's Claim: "Its controller gains 4 life." """
-    amount: int
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        owner = getattr(target, "last_controller", None) or getattr(target, "controller", None)
-        if owner is not None:
-            game.change_life(owner, self.amount)
-
-
-@dataclass(frozen=True)
-class LifeLocked:
-    """Teferi's Protection: "Your life total can't change" until your next turn: no life is gained or lost."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        controller.life_locked = True
-
-
-@dataclass(frozen=True)
-class PhaseOutAll:
-    """Teferi's Protection: "All permanents you control phase out." (They come back at your next untap step.)"""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in list(controller.battlefield):
-            game.phase_out(permanent)
-
-
-@dataclass(frozen=True)
-class ExileThisSpell:
-    """ "Exile CARDNAME." as a sentence of the spell: it is exiled, not put into the graveyard, when it has resolved."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is not None:
-            game.resolving_item.exile_after = True
-
-
-@dataclass(frozen=True)
-class ShuffleThisSpell:
-    """Green Sun's Zenith: "Shuffle CARDNAME into its owner's library." once it has resolved."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is not None:
-            game.resolving_item.shuffle_after = True
-
-
-@dataclass(frozen=True)
-class ExtraLandDrop:
-    """Explore: "You may play an additional land this turn." """
-    count: int = 1
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if controller.extra_lands_turn != game.turn:
-            controller.extra_lands, controller.extra_lands_turn = 0, game.turn
-        controller.extra_lands += self.count
-
-
-@dataclass(frozen=True)
-class OpponentsCantCast:
-    """Silence: "Your opponents can't cast spells this turn." (Ranger-Captain of Eos: "... noncreature spells ...")"""
-    kind: str = ""  # "" for any spell, "noncreature"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for opponent in game.opponents(controller):
-            opponent.cast_barred = (game.turn, self.kind)
-
-
-@dataclass(frozen=True)
-class ReturnSpellToHand:
-    """Reprieve: "Return target spell to its owner's hand." (the spell does not resolve)"""
-    target: str = "spell"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and target in game.stack:
-            game.stack.remove(target)
-            if not target.is_copy:
-                game._move_card(target.controller, target.physical, "hand")
-
-
-@dataclass(frozen=True)
-class SearchMany:
-    """Buried Alive: "Search your library for up to three creature cards, put them into your graveyard, then shuffle." """
-    card_type: str
-    count: int
-    to: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.tutor(controller, self.card_type, self.to, False, self.count)
-
-
-@dataclass(frozen=True)
-class EachDrawsThenDiscards:
-    """Geier Reach Sanitarium: "Each player draws a card, then discards a card." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.turn_order_from_active():
-            game.draw(seat, 1)
-            game.discard(seat, 1)
-
-
-@dataclass(frozen=True)
-class Tap:
-    """ "Tap two target permanents.": one effect per target, each a different permanent."""
-    target: str
-    distinct: bool = False
-    optional_target: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.tap(target)
-
-
-@dataclass(frozen=True)
-class LureThisTurn:
-    """Roar of Challenge: "All creatures able to block target creature this turn do so." """
-    target: str = "creature"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            target.lured_turn = game.turn
-
-
-@dataclass(frozen=True)
-class MustBlockThisTurn:
-    """ "Target creature blocks this turn if able." / "... blocks this creature this turn if able." (Torchling: that creature in
-    particular, the source of the ability)"""
-    target: str = "creature"
-    source_only: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            target.must_block_turn = game.turn
-            target.must_block_what = game.resolving_source if self.source_only else None
-
-
-@dataclass(frozen=True)
-class PutStunOnSource:
-    """ "Put three stun counters on it." in a trigger of the creature itself (Pugnacious Hammerskull, Ambling Stormshell)."""
-    count: int | str = 1
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.put_counters(target, "stun", game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class PutStunCounters:
-    """ "Put a stun counter on it." / "... on that creature.": the target of the effect before it."""
-    count: int | str = 1
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.put_counters(target, "stun", game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class PutStunOnEach:
-    """ "Put a stun counter on each of them." after "Tap up to two target creatures.": _merge_stun puts a stun counter after
-    each tap, so this is never resolved itself."""
-    count: int | str = 1
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        pass
-
-
-@dataclass(frozen=True)
-class TapThat:
-    """ "Tap it." / "Tap that creature.": the target of the effect before it."""
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.tap(target)
-
-
-@dataclass(frozen=True)
-class BecomeCreature:
-    """Crewing a Vehicle: until end of turn it is an artifact creature."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.become_creature(target)
-
-
-@dataclass(frozen=True)
-class Proliferate:
-    """ "Proliferate.": choose any permanents with counters; each gets one more counter of each kind it has."""
-    times: int | str = 1  # "Proliferate X times."
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for _ in range(game.amount(self.times)):
-            game.proliferate(controller)
-
-
-@dataclass(frozen=True)
-class FightFirst:
-    """The first target of a fight ("Target creature you control ... fights ..."): remembered for the second."""
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is not None:
-            game.resolving_item.carried = target
-
-
-@dataclass(frozen=True)
-class FightSourceFirst:
-    """ "When this creature enters, it fights up to one target creature you don't control.": the creature that fights is the source."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is not None:
-            game.resolving_item.carried = target
-
-
-@dataclass(frozen=True)
-class Fight:
-    """The second target of a fight. Each deals damage equal to its power to the other; with `one_sided` only the
-    first does ("Target creature you control deals damage equal to its power to target creature you don't control")."""
-    target: str
-    one_sided: bool = False
-    another: bool = False  # "fights another target creature": not the first target
-    optional_target: bool = False  # "fights up to one target creature"
-    follows: bool = False  # "It fights ...": the creature the sentence before it targeted, or the source if nothing did (see _merge_conditional)
-    then: bool = False  # "Then it fights ...": there has to be a sentence before it, it is never the source
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        first = game.resolving_item.carried if game.resolving_item is not None else None
-        if first is not None and target is not None and first is not target:
-            game.fight(first, target, self.one_sided)
-
-
-@dataclass(frozen=True)
-class PowerDamageToEachOther:
-    """Chandra's Ignition: "Target creature you control deals damage equal to its power to each other creature and each
-    opponent." (the creature is the one FightFirst remembered)"""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        source = game.resolving_item.carried if game.resolving_item is not None else None
-        if source is None or not game.on_battlefield(source):
-            return
-        power = game.power(source)
-        hit = [p for seat in game.live_seats() for p in seat.battlefield if "Creature" in p.card.type_line and p is not source]
-        for victim in [*hit, *game.opponents(controller)]:
-            game.damage(victim, power, source=source)
-
-
-@dataclass(frozen=True)
-class ReturnWithCounter:
-    """Persist and undying: the creature that died comes back with a counter on it. With no counter and `tapped`, Malakir Rebirth's
-    "return it to the battlefield tapped under its owner's control"."""
-    counter: str = ""  # "-1/-1" (persist) or "+1/+1" (undying)
-    tapped: bool = False
-    binds = DEAD_SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.return_with_counter(target, self.counter, self.tapped)
-
-
-@dataclass(frozen=True)
-class ChooseTarget:
-    """Malakir Rebirth: "Choose target creature." The sentences after it say "that creature"."""
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        pass
-
-
-@dataclass(frozen=True)
-class ReturnWhenItDiesThisTurn:
-    """Malakir Rebirth: 'Until end of turn, that creature gains "When this creature dies, return it to the battlefield tapped under its
-    owner's control."' (the game puts that trigger on the stack if the creature dies this turn)"""
-    binds = PREVIOUS_TARGET
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            target.returns_when_dies = game.turn
-
-
-@dataclass(frozen=True)
-class SacrificeToReturnChosen:
-    """Victimize: "Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the
-    battlefield tapped." """
-    target: str = "graveyard:creature:yours"
-    max_targets: int = 2
-    any_number = True
-    exact_x = True  # two, not fewer by choice
-    multi_target = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.sacrifice(controller):
-            for chosen in list(target or []):
-                game.return_from_graveyard(chosen, controller, "battlefield", tapped=True)
-
-
-@dataclass(frozen=True)
-class ExtraTurn:
-    """ "Take an extra turn after this one." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.extra_turns.append(controller.index)
-
-
-@dataclass(frozen=True)
-class TargetExtraTurn:
-    """ "Target player takes an extra turn after this one." """
-    target: str = "player"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.extra_turns.append(target.index)
-
-
-@dataclass(frozen=True)
-class ExtraCombat:
-    """ "After this phase, there is an additional combat phase (followed by an additional main phase)." """
-    main: bool
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.add_combat(self.main)
-
-
-@dataclass(frozen=True)
-class UntapCreatures:
-    which: str  # "attacked": the creatures that attacked this turn; "yours": every creature you control
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in controller.battlefield:
-            if "Creature" in permanent.card.type_line and (self.which == "yours" or permanent.attacked_turn == game.turn):
-                game.untap(permanent)
-
-
-@dataclass(frozen=True)
-class Untap:
-    """ "Untap target land." """
-    target: str
-    another: bool = False
-    optional_target: bool = False  # "Untap up to two target lands"
-    distinct: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.untap(target)
-
-
-UNTAP_LANDS_PROMPT = "Untap which land? "
-COMMANDER_HAND_PROMPT = "Put which commander into your hand? "
-
-
-DONE = "Done"
-
-
-@dataclass(frozen=True)
-class UntapLands:
-    """ "Untap up to three lands." (Frantic Search, Snap): you choose, not a target."""
-    count: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for _ in range(self.count):
-            tapped = [p for p in controller.battlefield if p.tapped and "Land" in p.card.type_line]
-            if not tapped:
-                return
-            choice = controller.player.choose(UNTAP_LANDS_PROMPT, [game.label(p) for p in tapped] + [DONE])
-            if choice >= len(tapped):
-                return
-            game.untap(tapped[choice])
-            game.broadcast({"event": "untapped", "seat": controller.index, "card": tapped[choice].card.name})
-
-
-@dataclass(frozen=True)
-class UntapSource:
-    """ "Untap it" / "Untap this creature": the ability's source (or, in a watching trigger, the permanent that set it off)."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.untap(target)
-
-
-@dataclass(frozen=True)
-class UntapAll:
-    """ "Untap all lands you control." """
-    kind: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.untap_all(controller, self.kind)
-
-
-@dataclass(frozen=True)
-class TapAll:
-    """ "Tap all creatures your opponents control." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.opponents(controller):
-            for permanent in seat.battlefield:
-                if "Creature" in permanent.card.type_line:
-                    game.tap(permanent)
-
-
-@dataclass(frozen=True)
-class BecomeMonarch:
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.become_monarch(controller)
-
-
-@dataclass(frozen=True)
-class VoteStart:
-    """ "Starting with you, each player votes for X or Y." (options), or for a nonland permanent (None). Only ever a
-    step of a Vote or VoteToExile (see _merge_votes)."""
-    options: tuple[str, str] | None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone vote is never built")
-
-
-@dataclass(frozen=True)
-class VoteOutcome:
-    """ "For each X vote, ..." (each) or "If X gets more votes [or the vote is tied], ..." (more): what happens."""
-    kind: str  # "each" or "more"
-    option: str
-    effects: tuple
-    tie: bool = False  # "or the vote is tied"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone vote outcome is never built")
-
-
-@dataclass(frozen=True)
-class ExileMostVoted:
-    """ "Exile each permanent with the most votes or tied for most votes." Only ever the end of a permanent vote."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone exile of the most voted is never built")
-
-
-@dataclass(frozen=True)
-class Vote:
-    """Each player votes for one of two words; the outcomes follow the votes (the effects need no target)."""
-    options: tuple[str, str]
-    outcomes: tuple[VoteOutcome, ...]
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        counts = dict(zip(self.options, game.vote(controller, list(self.options))))
-        for outcome in self.outcomes:
-            if outcome.kind == "each":
-                times = counts[outcome.option]
-            else:
-                other = next(o for o in self.options if o != outcome.option)
-                times = int(counts[outcome.option] > counts[other]
-                            or (outcome.tie and counts[outcome.option] == counts[other]))
-            for _ in range(times):
-                for effect in outcome.effects:
-                    effect.resolve(game, controller, None)
-
-
-@dataclass(frozen=True)
-class VoteToExile:
-    """Council's Judgment."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.vote_to_exile(controller)
-
-
-@dataclass(frozen=True)
-class TakeInitiative:
-    """ "You take the initiative." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.take_initiative(controller)
-
-
-@dataclass(frozen=True)
-class ThroneOfTheDeadThree:
-    """The last room of the Undercity; the engine puts it on the stack itself."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.throne_of_the_dead_three(controller)
-
-
-@dataclass(frozen=True)
-class ReturnSelfToHand:
-    """Rancor: "When this Aura is put into a graveyard from the battlefield, return it to its owner's hand." (and "When
-    enchanted creature dies, return this Aura ..."). It is already in the graveyard when this resolves."""
-    binds = DEAD_SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is None:
-            return
-        if game.on_battlefield(target):  # Mana Bloom: "return it to its owner's hand" from the battlefield
-            game.return_to_hand(target)
-        else:
-            game.return_to_hand_from_graveyard(target.card)
-
-
-@dataclass(frozen=True)
-class BecomePrepared:
-    """ "This creature becomes prepared." While it is, its controller may cast a copy of its spell half (see
-    Game.legal_actions); doing so unprepares it. Only creatures with a prepare spell can become prepared."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.prepare(target)
-
-
-@dataclass(frozen=True)
-class Transform:
-    """ "Transform this creature." A daybound permanent only turns over with the day/night rule (see Game.transform)."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.transform(target)
-
-
-@dataclass(frozen=True)
-class RevealTopToHandDrain:
-    """Yuriko: "Reveal the top card of your library and put that card into your hand. Each opponent loses life equal to that card's
-    mana value." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if not controller.library:
-            return
-        card = controller.library.pop(0)
-        controller.hand.append(card)
-        game.broadcast({"event": "revealed", "seat": controller.index, "card": card.name})
-        for opponent in game.opponents(controller):
-            game.change_life(opponent, -int(card.cmc))
-
-
-@dataclass(frozen=True)
-class NinjutsuEnter:
-    """The effect of Ninjutsu: "Put this card onto the battlefield from your hand tapped and attacking." (the game fills in whom)"""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is not None:
-            game.ninjutsu_enter(controller, game.resolving_item)
-
-
-@dataclass(frozen=True)
-class BecomeRenowned:
-    """Renown: "... and it becomes renowned." It won't trigger again (the condition "if it isn't renowned")."""
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            target.renowned = True
-
-
-@dataclass(frozen=True)
-class TargetPrepared:
-    """ "Target creature becomes prepared / unprepared." Only a creature with a prepare spell can become prepared."""
-    target: str  # "creature" or "creature that attacked this turn"
-    prepared: bool
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.prepare(target) if self.prepared else game.unprepare(target)
-
-
-@dataclass(frozen=True)
-class PrepareEach:
-    """ "Each creature you control becomes prepared." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in list(controller.battlefield):
-            game.prepare(permanent)
-
-
-@dataclass(frozen=True)
-class ExtraMountainMana:
-    """Pyre Rhymer's Molten Tide: "Until end of turn, whenever you tap a Mountain for mana, add an additional {R}." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        controller.extra_mountain_mana_turn = game.turn
-
-
-@dataclass(frozen=True)
-class PayLifeForMana:
-    """Yavimaya Bloomsage's Channel: "Until end of turn, any time you could activate a mana ability, you may pay 1 life. If
-    you do, add {C}." Paying for something uses it automatically, after the mana that costs nothing."""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        controller.life_mana_turn = game.turn
-
-
-@dataclass(frozen=True)
-class TapEnchanted:
-    """An Aura's "When this Aura enters, tap enchanted creature." (Infinite Coursework adds "It becomes unprepared.")"""
-    unprepare: bool = False
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        host = target.attached_to if target is not None else None
-        if host is not None and game.on_battlefield(host):
-            game.tap(host)
-            if self.unprepare:
-                game.unprepare(host)
-
-
-@dataclass(frozen=True)
-class Conjure:
-    """Alchemy: "Conjure a card named Storm Crow onto the battlefield." The card was looked up when the deck loaded."""
-    name: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.conjure(controller, self.name)
-
-
-@dataclass(frozen=True)
-class WhenThatDealsCombatDamage:
-    """Stensian Sanguinist: "Whenever that creature deals combat damage to a player this combat, this creature becomes
-    prepared." The creature is the last one targeted; the watch lives on this combat, so it ends with it."""
-    then: Any
-    binds = PREVIOUS_TARGET
-    text = "Whenever that creature deals combat damage to a player this combat, this creature becomes prepared."
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and game.resolving_source is not None:
-            game.combat.damage_watches.append((target, game.resolving_source, self))
-
-
-@dataclass(frozen=True)
-class ReturnDeadToBattlefield:
-    """Changing Loyalty and Gift of Immortality: "When enchanted creature dies, return it / that card to the battlefield
-    under your / its owner's control." It is already in the graveyard when this resolves."""
-    under_owner: bool
-    binds = DEAD_SUBJECT
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.return_dead_to_battlefield(target, controller, self.under_owner)
-
-
-@dataclass(frozen=True)
-class ReturnAuraToBattlefield:
-    """Screams from Within, Ghoulish Impetus and Gift of Immortality: "When enchanted creature dies, return this card
-    [from your graveyard] to the battlefield [attached to that creature] [at the beginning of the next end step]." """
-    when: str = "now"  # or "end_step"
-    to_host: bool = False  # it comes back attached to the creature that died (which came back first); otherwise you choose
-    binds = SOURCE_AND_SUBJECT  # resolves with (the Aura, the creature that died)
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.return_aura(target[0], controller, self.when, target[1] if self.to_host else None)
-
-
-@dataclass(frozen=True)
-class Goad:
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.goad(target, controller)
-
-
-@dataclass(frozen=True)
-class GoadAll:
-    """ "Goad all creatures you don't control." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.opponents(controller):
-            for permanent in list(seat.battlefield):
-                if "Creature" in permanent.card.type_line:
-                    game.goad(permanent, controller)
-
-
-@dataclass(frozen=True)
-class UnlessPays:
-    """ "Draw a card unless that player pays {1}": the effects happen unless the player who set the trigger off pays.
-    Only for effects that need no target, so they run the same either way."""
-    effects: tuple
-    cost: str
-    binds = PLAYER
-    cost_power: bool = False  # Esper Sentinel: "{X}, where X is this creature's power"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        cost = self.cost
-        if self.cost_power:
-            source = game.resolving_source
-            cost = "{%d}" % (game.power(source) if source is not None and game.on_battlefield(source) else 0)
-        item = game.resolving_item
-        if target is not None and item is not None and game.pays_unless(target, cost, item.card):
-            return
-        for effect in self.effects:
-            effect.resolve(game, controller, None)
-
-
-@dataclass(frozen=True)
-class LookAtTop:
-    """ "Look at the top five cards of your library." Only ever a step of an Impulse (see _merge_impulse)."""
-    count: int | str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone look at the top of the library is never built")
-
-
-@dataclass(frozen=True)
-class TakeFromTop:
-    """The sentence after a look: "Put one of them into your hand and the rest on the bottom of your library in any
-    order." (card_type None) or "You may reveal a creature card from among them and put it into your hand." """
-    card_type: str | None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone take from the top is never built")
-
-
-@dataclass(frozen=True)
-class RestOnBottom:
-    """ "Put the rest on the bottom of your library in a random order." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone put-the-rest is never built")
-
-
-@dataclass(frozen=True)
-class Impulse:
-    """Look at the top cards, take one, put the rest on the bottom."""
-    count: int | str
-    card_type: str | None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.look_at_top(controller, game.amount(self.count), self.card_type)
-
-
-@dataclass(frozen=True)
-class LookPutAttachment:
-    """Armored Skyhunter: "Look at the top six cards of your library. You may put an Aura or Equipment card from among them
-    onto the battlefield. If an Equipment is put onto the battlefield this way, you may attach it to a creature you control.
-    Put the rest of those cards on the bottom of your library in a random order." """
-    count: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.look_and_put_attachment(controller, self.count)
-
-
-@dataclass(frozen=True)
-class RevealUntilAura:
-    """Songbirds' Blessing: "Reveal cards from the top of your library until you reveal an Aura card. You may put that card
-    onto the battlefield. If you don't, put it into your hand. Put the rest on the bottom of your library in a random
-    order." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.reveal_until_aura(controller)
-
-
-@dataclass(frozen=True)
-class ExileTopCastAura:
-    """Herald of Amity: "Exile the top eight cards of your library. You may cast an Aura spell from among them without paying
-    its mana cost. Then put the rest on the bottom of your library in a random order." """
-    count: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_top_cast_aura(controller, self.count)
-
-
-@dataclass(frozen=True)
-class LookPutPermanents:
-    """Ao, the Dawn Sky: "Look at the top seven cards of your library. Put any number of nonland permanent cards with total
-    mana value 4 or less from among them onto the battlefield. Put the rest on the bottom of your library in a random
-    order." """
-    count: int
-    total_mv: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.look_and_put_permanents(controller, self.count, self.total_mv)
-
-
-@dataclass(frozen=True)
-class ExileUntilNonlandCast:
-    """Plargg and Nassari: "Each player exiles cards from the top of their library until they exile a nonland card. An
-    opponent chooses a nonland card exiled this way. You may cast up to two spells from among the other cards exiled this way
-    without paying their mana costs." """
-    casts: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_until_nonland_and_cast(controller, self.casts)
-
-
-@dataclass(frozen=True)
-class PutBackTop:
-    """ "Look at the top three cards of your library, then put them back in any order. (You may shuffle.)" """
-    count: Quantity
-    shuffle: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.rearrange_top(controller, game.amount(self.count), self.shuffle)
-
-
-@dataclass(frozen=True)
-class DrawThenPutBack:
-    """Brainstorm: "Draw three cards, then put two cards from your hand on top of your library in any order." """
-    draw: int
-    put: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.draw(controller, self.draw)
-        game.put_back_from_hand(controller, self.put)
-
-
-@dataclass(frozen=True)
-class _MayShuffle:
-    """ "You may shuffle." after putting cards back (see _merge_put_back)."""
-
-
-@dataclass(frozen=True)
-class Surveil:
-    count: int | str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.surveil(controller, game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class Mill:
-    """ "Mill three cards." / "Each opponent mills three cards." / "Each player mills three cards." """
-    count: int | str
-    who: str  # "you", "each opponent" or "each player"
-    put: str = ""  # Vastlands Scavenger: "Then put a creature card from among them onto the battlefield." (the card kind)
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.turn_order_from_active():
-            if self.who == "each player" or (self.who == "you") == (seat is controller):
-                milled = game.mill(seat, game.amount(self.count))
-                if self.put:
-                    game.return_chosen_from(seat, milled, self.put, "battlefield")
-
-
-@dataclass(frozen=True)
-class _PutFromAmongThem:
-    """ "Then put a creature card from among them onto the battlefield." after a Mill (see _merge_conditional)."""
-    kind: str
-
-
-@dataclass(frozen=True)
-class Discard:
-    """ "Discard a card." / "Each opponent discards two cards." / "Each player discards their hand." (count None) """
-    count: int | str | None
-    who: str  # "you", "each opponent" or "each player"
-    random: bool = False  # "at random"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.turn_order_from_active():
-            if self.who == "each player" or (self.who == "you") == (seat is controller):
-                game.discard(seat, None if self.count is None else game.amount(self.count), self.random)
-
-
-@dataclass(frozen=True)
-class DiscardHandsDrawGreatest:
-    """Windfall: "Each player discards their hand, then draws cards equal to the greatest number of cards a player
-    discarded this way." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        seats = game.turn_order_from_active()
-        discarded = {seat.index: len(seat.hand) for seat in seats}
-        for seat in seats:
-            game.discard(seat, None)
-        most = max(discarded.values(), default=0)
-        for seat in seats:
-            game.draw(seat, most)
-
-
-@dataclass(frozen=True)
-class TargetDiscard:
-    """ "Target player (or opponent) discards two cards." """
-    count: int | str
-    target: str  # "player" or "opponent"
-    random: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.discard(target, game.amount(self.count), self.random)
-
-
-@dataclass(frozen=True)
-class EachDraw:
-    """ "Each player draws seven cards." """
-    count: int | str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.turn_order_from_active():
-            game.draw(seat, game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class RevealHand:
-    """ "Target opponent reveals their hand." Only ever the start of a TargetChooseDiscard (see _merge_hand_discard)."""
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone reveal of a hand is never built")
-
-
-@dataclass(frozen=True)
-class ChooseFromHand:
-    """ "You choose a nonland card (with mana value 3 or less) from it." """
-    excluded: tuple[str, ...]  # card types it can't be, lowercase
-    max_mv: int | None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone choice from a hand is never built")
-
-
-@dataclass(frozen=True)
-class DiscardChosen:
-    """ "That player discards that card." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone discard of the chosen card is never built")
-
-
-@dataclass(frozen=True)
-class TargetChooseDiscard:
-    """Thoughtseize, Duress, Inquisition of Kozilek: look at their hand and make them discard a card you choose."""
-    target: str  # "player" or "opponent"
-    excluded: tuple[str, ...]
-    max_mv: int | None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.reveal_and_discard(controller, target, self.excluded, self.max_mv)
-
-
-@dataclass(frozen=True)
-class TargetMill:
-    """ "Target player (or opponent) mills three cards." """
-    count: int | str
-    target: str  # "player" or "opponent"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.mill(target, game.amount(self.count))
-
-
-@dataclass(frozen=True)
-class SacrificeUnlessReturnLand:
-    """The Karoo cycle: "When this land enters, sacrifice it unless you return an untapped Mountain you control to its
-    owner's hand." """
-    land_type: str
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.karoo(controller, target, self.land_type)
-
-
-@dataclass(frozen=True)
-class SacrificeUnlessPay:
-    """Gateway Plaza and the like: "When this land enters, sacrifice it unless you pay {1}." """
-    cost: str
-    binds = SOURCE
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and game.on_battlefield(target) and not game.pays_unless(controller, self.cost, target.card):
-            game._leave_battlefield(target, "sacrificed")
-
-
-@dataclass(frozen=True)
-class EntersTapped:
-    """How a permanent (usually a land) may enter tapped. `kind` is one of: "always",
-    "unless_land_types" (checklands), "unless_lands_at_most" (fastlands), "unless_lands_at_least"
-    (slowlands), "unless_opponents" (bond lands), "unless_basic_lands" (Port-style lands), "unless_land_type_count"
-    ("three or more other Islands"), "unless_opponent_lands" (Turbulent lands), "reveal" (Snarls: reveal a card from your
-    hand or it enters tapped), "shock" (pay life or it enters tapped),
-    "unless_control" (`types` are alternatives, each "Legendary+Creature"-style words that must all be types of one
-    permanent you control), "unless_a_player_life" (a player has `count` or less life), "if_lands_at_least" (tapped if
-    you control `count` or more other lands) and "if_starting_player"."""
-    kind: str
-    types: tuple[str, ...] = ()
-    count: int = 0
-    life: int = 0
-
-
-@dataclass(frozen=True)
-class IfKicked:
-    """"If this spell was kicked, draw a card.": the effect happens only if the kicker cost was paid.
-    `kicker` names one of two kicker costs: "If this spell was kicked with its {1}{B} kicker, ..." """
-    effect: Any
-    kicker: str = ""
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is not None and game.resolving_item.kicked:
-            self.effect.resolve(game, controller, target)
-
-
-@dataclass(frozen=True)
-class KickedInstead:
-    """"If this spell was kicked, it deals 4 damage instead.": when kicked, the previous effect's `field`
-    (its damage, number of tokens or cards) becomes `value`."""
-    field: str
-    value: int | str
-
-
-@dataclass(frozen=True)
-class IfNotKicked:
-    """ "If the gift wasn't promised, you lose 2 life.": the effect happens only if the spell was not kicked (or its gift not promised)."""
-    effect: Any
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.resolving_item is not None and not game.resolving_item.kicked:
-            self.effect.resolve(game, controller, target)
-
-
-@dataclass(frozen=True)
-class _KickedInsteadTail:
-    """ "If this spell was kicked, that creature gets -5/-5 until end of turn instead." (see _parse): what stands in for the effect before
-    it, with "that creature" the target of that effect."""
-    text: str
-
-
-@dataclass(frozen=True)
-class KickedReplaces:
-    """ "If the gift was promised, instead counter target spell.": when kicked (or its gift promised) these effects stand in for the
-    effect just before."""
-    effects: tuple
 
 
 _KICKED_INSTEAD = [
@@ -5352,15 +1282,6 @@ def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] =
         else:
             result.append(effect)
     return result
-
-
-@dataclass(frozen=True)
-class FetchBasicLand:
-    untap_if: "Condition | None" = None  # Fabled Passage: "Then if you control four or more lands, untap that land."
-    tapped: bool = True  # Prismatic Vista puts it onto the battlefield untapped
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.fetch_basic_land(controller, untap_if=self.untap_if, tapped=self.tapped)
 
 
 _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
@@ -6595,17 +2516,6 @@ def _merge_stun(effects: list) -> list | None:
     return merged
 
 
-@dataclass(frozen=True)
-class Condition:
-    """An intervening "if" clause, checked when the ability triggers and again when it resolves."""
-    kind: str  # "graveyard_left", "gained_life", "opponent_more_lands", "opponent_more_creatures", "spell_mv_at_least", "target_power_at_least", "opponent_dealt_noncombat_damage", "cast_this_turn", "control_at_least",
-    #            "control_none", "control_none_token", "kicked", "your_turn", "monarch", "hand_at_least", "hand_none", "no_counter",
-    #            "gained_life_at_least", "creatures_died", "control_color_at_least", "not_prepared", "not_renowned", "foretold", "no_spell_cast_turn", "delirium", "each_life_at_most", "source_equipped", "no_spells_last_turn", "two_spells_last_turn", "day", "night", "subject_greater", "citys_blessing", "graveyard_at_least", "any_hand_at_most", "opponent_more_cards", "land_entered", "lands_prime", "attackers_at_most", "defender_more_life", "player_more_lands", "x_at_least", "has_exiled_with", "in_graveyard"
-    count: int = 0
-    what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
-    also: "Condition | None" = None  # "if A and B": this one and that one must both hold
-
-
 def _singular(word: str) -> str:
     if word.endswith("ves") and word.lower().removesuffix("ves") in ("el", "wol", "dwar", "werewol"):  # Elves, Wolves, Dwarves, Werewolves
         return word.removesuffix("ves") + "f"
@@ -6708,67 +2618,6 @@ def _condition(text: str) -> Condition | None:
 
 
 _SPELL_MASTERY = re.compile(r"^Spell mastery \u2014 ")  # the condition stays in the sentence; the ability word is only a label
-
-
-@dataclass(frozen=True)
-class PayToReturnSelf:
-    """Vanguard of the Restless: "you may pay {2}{W}. If you do, return this card from your graveyard to the
-    battlefield." It works from the graveyard, so the game looks for it there."""
-    cost: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        card = item.card if item is not None else None
-        if card is not None and any(c is card for c in controller.graveyard) \
-                and game.pays_unless(controller, self.cost, card):
-            game.return_from_graveyard(game.graveyard_target(card, controller), controller, "battlefield")
-
-
-@dataclass(frozen=True)
-class MayPay:
-    """Trudge Garden, Veinwitch Coven: "You may pay {2}. If you do, <effect>." The effect is one that may have a target, chosen
-    when the ability goes on the stack either way."""
-    cost: str
-    effect: Any
-
-    @property
-    def target(self) -> str | None:
-        return target_kind(self.effect)
-
-    @property
-    def binds(self) -> str | None:
-        return SOURCE if binding(self.effect) == SOURCE else None
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        if game.pays_optional(controller, self.cost, item.card if item is not None else None):
-            self.effect.resolve(game, controller, target)
-
-
-@dataclass(frozen=True)
-class MayPayLoot:
-    """Conspiracy Theorist: "You may pay {1} and discard a card. If you do, draw a card." """
-    cost: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        if controller.hand and game.pays_optional(controller, self.cost, item.card if item is not None else None):
-            game.discard(controller, 1)
-            game.draw(controller, 1)
-
-
-@dataclass(frozen=True)
-class ReturnThisFromGraveyard:
-    """Teacher's Pest: "{B}{G}: Return this card from your graveyard to the battlefield tapped." It works from the
-    graveyard, so the game offers it there (ActivatedAbility.from_graveyard). Squee's upkeep trigger returns it to the hand."""
-    tapped: bool = False
-    to: str = "battlefield"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        item = game.resolving_item
-        card = item.card if item is not None else None
-        if card is not None and any(c is card for c in controller.graveyard):
-            game.return_from_graveyard(game.graveyard_target(card, controller), controller, self.to, self.tapped)
 
 
 _SPELL_COLORS = re.compile(r"the number of colors that spell is", re.I)  # Mana Cannons
