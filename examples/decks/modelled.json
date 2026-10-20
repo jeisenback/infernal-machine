@@ -1,0 +1,22 @@
+[
+ {"name": "edgar_markov_modelled", "commanders": ["Edgar Markov"],
+  "core": ["Bloodghast", "Preeminent Captain", "Vona's Hunger", "Drana, Liberator of Malakir", "Cruel Celebrant", "Anointed Procession", "Smothering Tithe", "Vampiric Tutor", "Demonic Tutor"]},
+ {"name": "yshtola_modelled", "commanders": ["Y'shtola, Night's Blessed"],
+  "core": ["Snuff Out", "Swords to Plowshares", "Cyclonic Rift", "Rhystic Study", "Smothering Tithe", "Aetherflux Reservoir"]},
+ {"name": "ashling_modelled", "commanders": ["Ashling, the Limitless"],
+  "core": ["Maelstrom Wanderer", "Bane of Progress", "Shroudstomper", "Grave Sifter", "Cloudshift", "Ephemerate"]},
+ {"name": "pantlaza_modelled", "commanders": ["Pantlaza, Sun-Favored"],
+  "core": ["Ghalta, Primal Hunger", "Gishath, Sun's Avatar", "Etali, Primal Conqueror // Etali, Primal Sickness", "Traverse the Outlands", "Three Visits"]},
+ {"name": "giada_modelled", "commanders": ["Giada, Font of Hope"],
+  "core": ["Serra Ascendant", "Archangel of Tithes", "Lyra Dawnbringer", "Baneslayer Angel", "Smothering Tithe", "Anointed Procession", "Akroma's Will"]},
+ {"name": "kinnan_modelled", "commanders": ["Kinnan, Bonder Prodigy"],
+  "core": ["Llanowar Elves", "Birds of Paradise", "Sol Ring", "Basalt Monolith", "Hullbreaker Horror", "Nezahal, Primal Tide", "Finale of Devastation"]},
+ {"name": "jace_multiverse_architect_modelled", "commanders": ["Jace, Multiverse Architect"],
+  "core": ["Counterspell", "Cyclonic Rift", "Teferi's Protection", "Sensei's Divining Top", "The One Ring"]},
+ {"name": "korvold_modelled", "commanders": ["Korvold, Fae-Cursed King"],
+  "core": ["Mayhem Devil", "Pitiless Plunderer", "Dockside Extortionist", "Deadly Dispute", "Academy Manufactor", "Sylvan Safekeeper"]},
+ {"name": "sisay_modelled", "commanders": ["Sisay, Weatherlight Captain"],
+  "core": ["Jodah, the Unifier", "Kinnan, Bonder Prodigy", "Emry, Lurker of the Loch", "Mox Amber", "Riftsweeper", "Training Grounds"]},
+ {"name": "tymna_thrasios_modelled", "commanders": ["Tymna the Weaver", "Thrasios, Triton Hero"],
+  "core": ["Rhystic Study", "Mystic Remora", "Drannith Magistrate", "Fierce Guardianship", "Mana Crypt", "Mana Vault"]}
+]
