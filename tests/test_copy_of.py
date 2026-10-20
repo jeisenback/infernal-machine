@@ -96,7 +96,8 @@ class SiteTests(unittest.TestCase):
         a = game.seats[0]
         dead = Permanent(HERO, owner=a)
         a.graveyard = [HERO]
-        game.exile_dead_make_spirit_copy(a, dead)
+        game.exile_dead_copy(a, dead, CopyChanges(add_types=("Spirit",), abilities=(
+            "When this token leaves the battlefield, return the exiled card to its owner's graveyard.",)))
         [made] = a.battlefield
         self.assertEqual(made.card.type_line, "Token Legendary Creature — Human Knight Spirit")
         self.assertTrue(made.card.oracle_text.endswith("When this token leaves the battlefield, return the exiled card to its owner's graveyard."))

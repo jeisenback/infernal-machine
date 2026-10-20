@@ -8,6 +8,7 @@ from typing import Any, TYPE_CHECKING
 
 from ...cards import Card
 from ...characteristics import Modifier
+from ..common import Quantity
 from ..targets import (DEAD_SUBJECT, PLAYER, SOURCE, SOURCE_AND_SUBJECT)
 from ...prompts import PromptKind
 
@@ -44,8 +45,11 @@ class CopyChanges:
     keywords: tuple[str, ...] = ()  # added as ability lines, as Twinflame's haste is
     add_colors: tuple[str, ...] = ()  # "a 2/2 black Zombie in addition to its other colors and types": W, U, B, R or G
     abilities: tuple[str, ...] = ()  # quoted abilities it has: Phantasmal Image's "When this creature becomes the target ..."
-    extra_counters: str = ""  # a clone's "it enters with an additional +1/+1 counter on it" ("1") or "X additional" ("X"); only for a creature
+    extra_counters: str = ""  # a clone's "it enters with an additional +1/+1 counter on it" ("1", "2", ...) or "X additional" ("X"); only for a creature
     extra_loyalty: int = 0  # Spark Double: "an additional loyalty counter on it if it's a planeswalker"
+    supertypes: tuple[str, ...] = ()  # "it's legendary (and snow) in addition to its other types", Adagia's "except it's legendary"
+    set_colors: tuple[str, ...] | None = None  # The Scarab God's "it's a 4/4 black Zombie": that color and no other
+    set_subtypes: tuple[str, ...] | None = None  # ... and that creature type and no other
 
 
 def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
@@ -55,6 +59,8 @@ def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
     type_line = card.type_line
     if changes.not_legendary:
         type_line = type_line.replace("Legendary ", "", 1)  # CR 707.9b: the copy is the original with this one value changed
+    if changes.set_subtypes is not None:
+        type_line = f"{type_line.partition(chr(0x2014))[0].strip()} \u2014 {' '.join(changes.set_subtypes)}"
     for word in changes.add_types:
         head, dash, tail = type_line.partition("\u2014")
         if word in _COPY_CARD_TYPES:
@@ -63,7 +69,13 @@ def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
                 type_line = f"{head.strip()} {dash} {tail.strip()}" if dash else head.strip()
         elif word not in tail.split():
             type_line = f"{head.strip()} {dash} {tail.strip()} {word}" if dash else f"{head.strip()} \u2014 {word}"
+    for word in reversed(changes.supertypes):  # before the card types ("Legendary Snow Creature"), after "Token"
+        if word not in type_line.partition("\u2014")[0].split():
+            prefix = "Token " if type_line.startswith("Token ") else ""
+            type_line = f"{prefix}{word} {type_line.removeprefix(prefix)}"
     card = dataclasses.replace(card, type_line=type_line)
+    if changes.set_colors is not None:
+        card = dataclasses.replace(card, colors=tuple(sorted(changes.set_colors)))
     if changes.add_colors:
         card = dataclasses.replace(card, colors=tuple(sorted(set(card.colors) | set(changes.add_colors))))
     if changes.power_toughness is not None:
@@ -86,18 +98,37 @@ def copy_of(card: Card, changes: CopyChanges | None = None, *, as_token: bool = 
     return apply_copy_changes(card, changes)
 
 
+# "Create a token that's a copy of <what>(, except <changes>)." is one sentence shape whatever <what> is; the effects below differ only
+# in how they find it. The riders that may follow it ("It gains haste (until end of turn).", "Sacrifice it / Exile it at the beginning
+# of the next end step.") are folded into the effect by the Follow rows in outcomes.py and applied by `finish_copies`.
+
+
+def finish_copies(game: Game, made: list, effect: Any) -> None:
+    """Apply the riders of a copy sentence to the tokens it made."""
+    if effect.haste:
+        for token in made:
+            game.modify_until_end_of_turn(token, Modifier(keywords=frozenset({"haste"})))
+    if made and (effect.sacrifice_at_end or effect.exile_at_end):
+        game.leave_at_next_end_step(made, "exiled" if effect.exile_at_end else "sacrificed", "exile" if effect.exile_at_end else "graveyard")
+
+
 @dataclass(frozen=True)
 class CopySubjectToken:
     """Miirym, Impostor Syndrome, Ratadrabik: "Create a token that's a copy of it, except it isn't legendary." The copy is of the
     permanent that set off the trigger, still there or not (it may have just died); for a trigger of the permanent's own ("When this
     creature dies, ... a copy of it") that permanent is the source."""
     changes: CopyChanges | None = None
+    count: Quantity = 1
+    haste: bool = False  # "That token gains haste until end of turn."
+    sacrifice_at_end: bool = False  # "Sacrifice it at the beginning of the next end step."
+    exile_at_end: bool = False  # "Exile it at the beginning of the next end step."
     binds = SOURCE_AND_SUBJECT
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             source, subject = target
-            game.create_tokens(controller, copy_of((subject or source).card, self.changes, as_token=True), 1)
+            made = game.create_tokens(controller, copy_of((subject or source).card, self.changes, as_token=True), game.amount(self.count))
+            finish_copies(game, made, self)
 
 
 @dataclass(frozen=True)
@@ -105,31 +136,50 @@ class CopyHostToken:
     """Helm of the Host, Endless Evil: "Create a token that's a copy of equipped creature, except the token isn't legendary." The
     creature this Equipment or Aura is attached to; with nothing attached there is nothing to copy."""
     changes: CopyChanges | None = None
+    count: Quantity = 1
+    haste: bool = False
+    sacrifice_at_end: bool = False
+    exile_at_end: bool = False
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.attached_to is not None:
-            game.create_tokens(controller, copy_of(target.attached_to.card, self.changes, as_token=True), 1)
+            made = game.create_tokens(controller, copy_of(target.attached_to.card, self.changes, as_token=True), game.amount(self.count))
+            finish_copies(game, made, self)
 
 
 @dataclass(frozen=True)
 class CopyToken:
-    """ "Create a token that's a copy of target creature you control." """
+    """ "Create a token that's a copy of target creature you control." (Feldon of the Third Path: "... of target creature card in
+    your graveyard", a `graveyard:` target)"""
     target: str
-    count: int = 1  # Rite of Replication: "If this spell was kicked, create five of those tokens instead."
+    count: Quantity = 1  # Rite of Replication: "If this spell was kicked, create five of those tokens instead."
     another: bool = False  # "a copy of another target creature you control": not the source itself
     haste: bool = False  # Inspired Skypainter's spell: "That token gains haste until end of turn."
-    legendary: bool = False  # Adagia: "..., except it's legendary."
     changes: CopyChanges | None = None  # Helm of the Host, Irenicus's Vile Duplication: "..., except it isn't legendary."
+    sacrifice_at_end: bool = False  # Kiki-Jiki: "Sacrifice it at the beginning of the next end step."
+    exile_at_end: bool = False  # Felhide Spiritbinder: "Exile it at the beginning of the next end step."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            card = copy_of(target.card, self.changes, as_token=True)
-            if self.legendary and "Legendary" not in card.type_line:
-                card = dataclasses.replace(card, type_line=card.type_line.replace("Token ", "Token Legendary ", 1))
-            for token in game.create_tokens(controller, card, game.amount(self.count)):
-                if self.haste:
-                    game.modify_until_end_of_turn(token, Modifier(keywords=frozenset({"haste"})))
+            made = game.create_tokens(controller, copy_of(target.card, self.changes, as_token=True), game.amount(self.count))
+            finish_copies(game, made, self)
+
+
+@dataclass(frozen=True)
+class CopyEachToken:
+    """Second Harvest: "For each token you control, create a token that's a copy of that permanent." (Saheeli, the Gifted: "For each
+    artifact you control, create a token that's a copy of it. Those tokens gain haste. Exile those tokens at the beginning of the
+    next end step.")"""
+    kind: str  # "token", "artifact", "nontoken creature"
+    changes: CopyChanges | None = None
+    haste: bool = False
+    sacrifice_at_end: bool = False
+    exile_at_end: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        cards = [copy_of(p.card, self.changes, as_token=True) for p in game.mass_targets(self.kind, controller)]
+        finish_copies(game, game.create_token_batch(controller, cards), self)
 
 
 @dataclass(frozen=True)
@@ -161,14 +211,17 @@ class CopySpellForEachOtherCreature:
 
 
 @dataclass(frozen=True)
-class ExileDeadMakeSpiritCopy:
-    """Hofri Ghostforge: "Exile it. If you do, create a token that's a copy of that creature, except it's a Spirit in addition to
-    its other types and it has "When this token leaves the battlefield, return the exiled card to its owner's graveyard."" """
+class ExileDeadCopy:
+    """Nightmare Shepherd, Hofri Ghostforge: "(You may) exile it. If you do, create a token that's a copy of that creature, except
+    it's 1/1 and it's a Nightmare in addition to its other types." The creature that just died is exiled from the graveyard; only
+    if that works is it copied. A copy given Hofri's "return the exiled card to its owner's graveyard" ability sends the exiled
+    card back when it leaves."""
+    changes: CopyChanges | None = None
     binds = DEAD_SUBJECT
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.exile_dead_make_spirit_copy(controller, target)
+            game.exile_dead_copy(controller, target, self.changes)
 
 
 @dataclass(frozen=True)
@@ -313,25 +366,34 @@ class _CopyEachWithHaste:
 @dataclass(frozen=True)
 class CopySpellTimes:
     """Replicate, Storm and Gravestorm: "When you cast this spell, copy it" `count` times. The spell the ability came from
-    is `carried`; the copies may have new targets."""
-    count: int
+    is `carried`; the copies may have new targets. Thousand-Year Storm: "copy it for each other instant and sorcery spell you've
+    cast before it this turn" (an X set just before)."""
+    count: Quantity
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         original = game.resolving_item.carried if game.resolving_item else None
-        for _ in range(self.count):
+        for _ in range(game.amount(self.count)):
             if original is not None:
                 game.copy_spell(original, controller, new_targets=True)
 
 
 @dataclass(frozen=True)
 class CopySelfToken:
-    """Leitmotif Composer: "Create a token that's a copy of this creature." Offspring: "create a 1/1 token copy of it"."""
+    """Leitmotif Composer: "Create a token that's a copy of this creature." Offspring: "create a 1/1 token copy of it". Splinter
+    Twin's granted ability: "..., except it has haste. Exile that token at the beginning of the next end step." """
     one_by_one: bool = False  # CR 702.175a: the copy is 1/1 instead of the printed size
+    changes: CopyChanges | None = None
+    count: Quantity = 1
+    haste: bool = False
+    sacrifice_at_end: bool = False
+    exile_at_end: bool = False
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.create_tokens(controller, copy_of(target.card, CopyChanges(power_toughness=("1", "1")) if self.one_by_one else None, as_token=True), 1)
+            changes = CopyChanges(power_toughness=("1", "1")) if self.one_by_one else self.changes
+            made = game.create_tokens(controller, copy_of(target.card, changes, as_token=True), game.amount(self.count))
+            finish_copies(game, made, self)
 
 
 @dataclass(frozen=True)
@@ -351,22 +413,32 @@ class MayCopyLeftCard:
 
 
 @dataclass(frozen=True)
-class _CopyOfIt:
-    """ "Create a token that's a copy of it." after an exile (see _merge_conditional)."""
+class CopySpell:
+    """ "Copy target instant or sorcery spell. You may choose new targets for the copy." The target may also be a creature or
+    permanent spell (Double Major, Lithoform Engine: the copy becomes a token, CR 707.10f) or an ability (Return the Favor)."""
+    target: str  # "instant or sorcery spell", optionally "... you control"; "activated or triggered ability you control"
+    new_targets: bool = False
+    return_to_hand: bool = False  # Narset's Reversal: "..., then return it to its owner's hand."
+    color: str | None = None  # Fork: "except that the copy is red"
+    twice_from_graveyard: bool = False  # Increasing Vengeance: "If this spell was cast from a graveyard, copy that spell twice instead."
+    changes: CopyChanges | None = None  # Double Major: "except it isn't legendary if the spell is legendary"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        if target.ability:
+            game.copy_ability(target, controller, self.new_targets)
+            return
+        item = game.resolving_item
+        for _ in range(2 if self.twice_from_graveyard and item is not None and item.from_graveyard else 1):
+            game.copy_spell(target, controller, self.new_targets, self.color, self.changes)
+        if self.return_to_hand:
+            game.return_spell_to_hand(target)
 
 
 @dataclass(frozen=True)
-class CopySpell:
-    """ "Copy target instant or sorcery spell. You may choose new targets for the copy." """
-    target: str  # "instant or sorcery spell", optionally "... you control"
-    new_targets: bool = False
-    return_to_hand: bool = False  # Narset's Reversal: "..., then return it to its owner's hand."
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.copy_spell(target, controller, self.new_targets)
-            if self.return_to_hand:
-                game.return_spell_to_hand(target)
+class _TwiceFromGraveyard:
+    """ "If this spell was cast from a graveyard, copy that spell twice instead." after a CopySpell."""
 
 
 @dataclass(frozen=True)

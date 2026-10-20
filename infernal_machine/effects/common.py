@@ -200,7 +200,7 @@ _WHOLE_LINE = re.compile(
     r"card revealed by the other player\. You each put the card you revealed into your hand\."
     r"|Shuffle your library\. As many times as you choose, you may exile the top card of your library\. .*"
     r"|Remove all counters from target nonland permanent you control\. Draw a card for each counter removed this way\."
-    r"|When you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the copy\."
+    r"|When you (?:next cast an|cast your next) instant or sorcery spell this turn, copy that spell\. You may choose new targets for the copy\."
     r"|When you next cast an instant or sorcery spell this turn, copy it for each time you've cast your commander from the command "
     r"zone this game\. You may choose new targets for the copies\."
     r"|You gain half X life and draw half X cards\. Round down each time\."
@@ -217,8 +217,7 @@ _WHOLE_LINE = re.compile(
     r"isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the next end step\."
     r"|That player copies that spell for each other creature they control that the spell could target\. Each copy targets a "
     r"different one of those creatures\."
-    r"|Exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature), except it's a Spirit in addition "
-    r"to its other types and it has \"When this token leaves the battlefield, return the exiled card to its owner's graveyard\.\""
+    r"|Exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature|that card)(?:, except (?:\"[^\"]*\"|[^\".])*)?\.?\"?"  # Nightmare Shepherd, Hofri Ghostforge
     r"|For each creature token you control that entered this turn, create a tapped and attacking token that's a copy of that token\. "
     r"At the beginning of the next end step, sacrifice those tokens\."
     r"|Create X tokens that are copies of another target creature you control, where X is one plus the number of instant and "

@@ -12,7 +12,7 @@ from ..characteristics import Modifier
 
 from .common import _SELF, _rules_text, _split_sentences, rules_lines
 from .events import EVENTS
-from .targets import CONTEXT_BINDINGS, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind
+from .targets import CONTEXT_BINDINGS, DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind
 from .outcomes import (
     _condition,
     _CONTRACT_BODY,
@@ -116,7 +116,7 @@ _WHO = rf"(?:({_SELF}) or another|(another)|an?)"
 _TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
 
 
-_PERMANENT_WATCH = rf"(enchanted creature|legendary creature|nontoken creature|nontoken {_TRIBE}|creature token|(?:white|blue|black|red|green) creature|token|creature or artifact|creature|land|artifact|enchantment|permanent|{_TRIBE})"
+_PERMANENT_WATCH = rf"(enchanted creature|legendary creature|nontoken creature|nontoken artifact|nontoken {_TRIBE}|creature token|(?:white|blue|black|red|green) creature|token|creature or artifact|creature|land|artifact|enchantment|permanent|{_TRIBE})"
 
 
 _WATCHES = {
@@ -493,7 +493,7 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
 _PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creature|CARDNAME)\b"
                      r"|\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
-                     r"|\btap up to one target creature and goad it\b|\btap (?:[^.]*? )?target [^.]*? and put \w+ stun counters? on it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bthat player copies that spell for each other creature they control that the spell could target\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it, except it's a Spirit in addition to its other types and it has\b", re.I)
+                     r"|\btap up to one target creature and goad it\b|\btap (?:[^.]*? )?target [^.]*? and put \w+ stun counters? on it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bthat player copies that spell for each other creature they control that the spell could target\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it\b", re.I)
 
 
 _TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')
@@ -549,7 +549,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     # (a created token's own ability, "It has "Sacrifice this token: Add {C}."", is about the token, not the creature that died)
     without_token_ability = _AURAS_ON_IT.sub("", _TOKEN_HAS.sub("", rest) if re.search(r"\btokens?\b", rest, re.I) else rest)
     about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability))))), re.I) is not None
-    copies_spell = re.match(r"(?:you may )?copy (it|that spell)\.", rest, re.I) is not None  # Codie: "it" is the spell cast
+    copies_spell = re.match(r"(?:you may )?(?:you may pay (?:\{[^}]+\})+\. If you do, )?copy (it|that spell)(?: for each [^.]*)?\.", rest,
+                            re.I) is not None  # Codie: "it" is the spell cast (Mirari: after a payment; Thousand-Year Storm: so many times)
     effects, optional, once, condition = _trigger_body(rest)
     if effects is None:
         return None, False, False, None
@@ -568,7 +569,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
             return None, False, False, None
         effects = [OnPlayer(e) if a else e for a, e in zip(aimed, effects)]
     elif about_subject:
-        if not all(binding(e) in (SOURCE, SUBJECT, SOURCE_AND_SUBJECT) for e in effects):
+        if not all(binding(e) in (SOURCE, SUBJECT, SOURCE_AND_SUBJECT, DEAD_SUBJECT) for e in effects):
             return None, False, False, None
         effects = [OnSubject(e) if binding(e) == SOURCE else e for e in effects]
     return effects, optional, once, condition
