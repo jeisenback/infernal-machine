@@ -494,6 +494,7 @@ from .targets import (
     _LAND_TYPES,
     _LAND_TYPES_PLURAL,
     _SEARCH_TYPE,
+    _SEARCH_TYPES,
     _card_kind,
     _graveyard_kind,
     _land_types,
@@ -1332,6 +1333,8 @@ _RETURN_UP_TO_DAMAGE = re.compile(r"return target creature card with mana value 
                                   r"where X is the amount of damage (?:this creature|CARDNAME) dealt to that player\.", re.I)
 
 
+_DESTINATIONS = {"into your hand": "hand", "onto the battlefield": "battlefield", "into your graveyard": "graveyard"}
+
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
     (re.compile(r"if this spell was kicked, instead (.+)", re.I), lambda m: _kicked_replaces(m[1])),
@@ -1417,8 +1420,6 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"your opponents can't cast (noncreature )?spells this turn\.", re.I), lambda m: OpponentsCantCast("noncreature" if m[1] else "")),
     (re.compile(r"search your library for a card, put that card into your graveyard, then shuffle\.", re.I),
      lambda m: SearchLibrary("card", "graveyard", False)),
-    (re.compile(r"search your library for up to (two|three|four) ([a-z]+) cards, put them into your graveyard, then shuffle\.", re.I),
-     lambda m: SearchMany(m[2].lower(), _number(m[1]), "graveyard")),
     (re.compile(r"each player draws a card, then discards a card\.", re.I), lambda m: EachDrawsThenDiscards()),
     (re.compile(rf"tap (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Tap(m[2].lower(), bool(m[1]))),
     (re.compile(rf"tap {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Tap, m)),
@@ -1618,6 +1619,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchLibrary(_card_kind(m[1]), "hand" if "into your hand" in m[0] else "top", "reveal" in m[0].lower())),
     (re.compile(r"search your library for a card with the same mana value as (?:this card|CARDNAME), reveal it, put it into your hand, then shuffle\.", re.I),
      lambda m: SearchLibrary("card|mv=self", "hand", True)),  # Transmute
+    (re.compile(r"search your library for an? ((?:legendary )?(?:permanent|creature)) card with mana value less than CARDNAME's power, "
+                r"put (?:it|that card) (onto the battlefield|into your hand), then shuffle\.", re.I),
+     lambda m: SearchLibrary(m[1].lower() + "|mv<power", _DESTINATIONS[m[2]], False)),  # Sisay, Weatherlight Captain
     (re.compile(r"search your library for a land card, put it into your graveyard, then shuffle\.", re.I),
      lambda m: SearchLibrary("land", "graveyard", False)),
     (re.compile(r"search your library for a land card, put (?:it|that card) onto the battlefield( tapped)?, then shuffle\.", re.I),
@@ -1667,6 +1671,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"search your library for an? {_LAND_TYPES} card, put (?:it|that card) onto the battlefield( tapped)?, "
                 r"then shuffle\.", re.I),
      lambda m: SearchForLands(1, _land_types(m[1]), 1, bool(m[2]), False)),
+    (re.compile(rf"search your library for (?:up to {_N_FIXED}|(any number) of) {_SEARCH_TYPES}( not named CARDNAME)?"
+                r"( that each have different names)?, (reveal them, )?(?:put them (into your hand|onto the battlefield|into your graveyard), "
+                r"then shuffle|then shuffle and put (?:them|those cards) on top(?: of your library)? in any order)\.", re.I),
+     lambda m: SearchMany(_card_kind(m[3]), None if m[2] else _number(m[1]), _DESTINATIONS.get(m[7], "top"), reveal=bool(m[6]),
+                          distinct=bool(m[5]), not_self=bool(m[4]))),  # Buried Alive, Goblin Recruiter, Tiamat
     (re.compile(r"the owner of target permanent shuffles it into their library, then reveals the top card of their library\.",
                 re.I), lambda m: ChaosWarp()),
     (re.compile(r"if it's a permanent card, they put it onto the battlefield\.", re.I), lambda m: _ChaosPut()),
@@ -1692,6 +1701,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: TakeFromTop(None)),
     (re.compile(rf"you may reveal an? {_SEARCH_TYPE} from among them and put (?:it|that card) into your hand\.", re.I),
      lambda m: TakeFromTop(_card_kind(m[1]))),
+    (re.compile(rf"you may put an? {_SEARCH_TYPE} from among them onto the battlefield\.", re.I),
+     lambda m: TakeFromTop(_card_kind(m[1]), "battlefield")),  # Ureni of the Unwritten
     (re.compile(r"put the rest on the bottom of your library in (?:a random|any) order\.", re.I),
      lambda m: RestOnBottom()),
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
@@ -1754,9 +1765,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?:{_SELF}) deals (\d+) damage to the player or planeswalker (?:that creature|it) is attacking\.", re.I),
      lambda m: DamageWhatItAttacks(int(m[1]))),
     (re.compile(r"add \{([WUBRGC])\} for each card in target opponent's hand\.", re.I), lambda m: AddManaPerCardInHand(m[1].upper())),
-    (re.compile(rf"reveal the top {_N} cards of your library\. Put all ([A-Za-z]+(?: creature)?) cards revealed this way into your hand and the rest on "
-                r"the bottom of your library in any order\.", re.I),
-     lambda m: RevealTopPutAll(_number(m[1]), m[2].lower())),
+    (re.compile(rf"reveal the top {_N} cards of your library\. Put all ([A-Za-z]+(?: creature)?) cards( with mana value \d+ or less)? "
+                r"(?:revealed this way|from among them) (into your hand|onto the battlefield) and the rest on the bottom of your library in "
+                r"(?:any|a random) order\.", re.I),
+     lambda m: RevealTopPutAll(_number(m[1]), _card_kind(f"{m[2]} card{m[3] or ''}"), _DESTINATIONS[m[4]])),  # Goblin Ringleader, Muxus
     (re.compile(r"add \{([WUBRGC])\} for each (creature you control|(?-i:[A-Z][a-z]+) on the battlefield|(?-i:[A-Z][a-z]+) you control)\.", re.I),
      lambda m: AddManaForEach(m[1].upper(), a) if (a := _amount("the number of " + m[2] if " on the battlefield" in m[2] and not m[2].startswith("the") else m[2])) else None),
     (re.compile(r"until end of turn, you don't lose this mana as steps and phases end\.", re.I), lambda m: KeepManaThisTurn()),
@@ -2482,7 +2494,7 @@ def _merge_impulse(effects: list) -> list | None:
                 if not (i < len(effects) and isinstance(effects[i], RestOnBottom)):
                     return None
                 i += 1
-            merged.append(Impulse(effect.count, take.card_type))
+            merged.append(Impulse(effect.count, take.card_type, take.to))
             continue
         if isinstance(effect, (LookAtTop, TakeFromTop, RestOnBottom)):
             return None

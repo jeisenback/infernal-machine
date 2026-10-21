@@ -35,6 +35,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | Search your library for a nonbasic land card / up to two Forest cards, put it onto the battlefield (tapped), then shuffle. | Skyshroud Claim |
 | Return target creature card from your graveyard to the battlefield tapped. | |
 | Search your library for a card, then shuffle and put that card on top. | Vampiric Tutor |
+| Search your library for up to N / any number of (kind) cards (not named CARDNAME) (that each have different names), (reveal them,) put them into your hand / onto the battlefield / into your graveyard, then shuffle. / ... then shuffle and put those cards on top in any order (the searcher chooses the order). | Buried Alive, Tiamat, Goblin Recruiter |
+| Search your library for a (legendary) permanent / creature card with mana value less than CARDNAME's power, put that card onto the battlefield / into your hand, then shuffle. (The power is read as the ability resolves.) | Sisay, Weatherlight Captain |
+| Reveal the top N cards of your library. Put all (kind) cards (with mana value N or less) revealed this way / from among them into your hand / onto the battlefield and the rest on the bottom of your library in any / a random order. | Goblin Ringleader, Muxus, Goblin Grandee |
+| Look at the top N cards of your library. You may put a (kind) card from among them onto the battlefield. Put the rest on the bottom of your library in a random order. | Ureni of the Unwritten |
 | You lose N life. | |
 | Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle. | Cultivate, Kodama's Reach |
 | Search your library for a (Plains, Island, ...) card, put it onto the battlefield (tapped), then shuffle. | Farseek, Nature's Lore |

@@ -309,18 +309,22 @@ class SearchLandWhileBehind:
 @dataclass(frozen=True)
 class RevealTopPutAll:
     """Goblin Ringleader: "Reveal the top four cards of your library. Put all Goblin cards revealed this way into your hand and the
-    rest on the bottom of your library in any order." (the order of the rest is the order they were revealed in)"""
+    rest on the bottom of your library in any order." (the order of the rest is the order they were revealed in); Muxus puts
+    "all Goblin creature cards with mana value 5 or less from among them onto the battlefield" instead."""
     count: int
-    kind: str  # "goblin", "creature", ...
+    kind: str  # "goblin", "creature", "goblin creature|mv<=5", ...
+    to: str = "hand"  # or "battlefield"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         revealed = [controller.library.pop(0) for _ in range(min(self.count, len(controller.library)))]
         game.broadcast({"event": "revealed_top", "seat": controller.index, "cards": [c.name for c in revealed]})
         for card in revealed:
-            if _card_matches_kind(self.kind, card):
-                controller.hand.append(card)
-            else:
+            if not _card_matches_kind(self.kind, card):
                 controller.library.append(card)
+            elif self.to == "battlefield":
+                game.put_onto_battlefield(controller, card)
+            else:
+                controller.hand.append(card)
 
 
 def _card_matches_kind(kind: str, card: Card) -> bool:
@@ -554,13 +558,19 @@ class ShuffleThisSpell:
 
 @dataclass(frozen=True)
 class SearchMany:
-    """Buried Alive: "Search your library for up to three creature cards, put them into your graveyard, then shuffle." """
+    """Buried Alive: "Search your library for up to three creature cards, put them into your graveyard, then shuffle."; Goblin
+    Recruiter finds "any number of Goblin cards" and puts them "on top in any order"; Tiamat finds "up to five Dragon cards not
+    named Tiamat that each have different names"."""
     card_type: str
-    count: int
-    to: str
+    count: int | None  # up to this many; None: any number
+    to: str  # "hand", "battlefield", "graveyard" or "top" (of the library, in the order the player chooses)
+    reveal: bool = False
+    distinct: bool = False  # "that each have different names"
+    not_self: bool = False  # "not named CARDNAME"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.tutor(controller, self.card_type, self.to, False, self.count)
+        count = len(controller.library) if self.count is None else self.count
+        game.tutor(controller, self.card_type, self.to, self.reveal, count, distinct=self.distinct, not_self=self.not_self)
 
 
 @dataclass(frozen=True)
@@ -585,8 +595,10 @@ class LookAtTop:
 @dataclass(frozen=True)
 class TakeFromTop:
     """The sentence after a look: "Put one of them into your hand and the rest on the bottom of your library in any
-    order." (card_type None) or "You may reveal a creature card from among them and put it into your hand." """
+    order." (card_type None), "You may reveal a creature card from among them and put it into your hand." or "You may put a
+    Dragon creature card from among them onto the battlefield." """
     card_type: str | None
+    to: str = "hand"  # or "battlefield"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         raise NotImplementedError("a lone take from the top is never built")
@@ -602,12 +614,13 @@ class RestOnBottom:
 
 @dataclass(frozen=True)
 class Impulse:
-    """Look at the top cards, take one, put the rest on the bottom."""
+    """Look at the top cards, take one (into the hand, or onto the battlefield: Ureni of the Unwritten), put the rest on the bottom."""
     count: int | str
     card_type: str | None
+    to: str = "hand"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.look_at_top(controller, game.amount(self.count), self.card_type)
+        game.look_at_top(controller, game.amount(self.count), self.card_type, self.to)
 
 
 @dataclass(frozen=True)

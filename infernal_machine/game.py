@@ -3372,6 +3372,11 @@ class Game:
             self.return_from_graveyard(GraveyardTarget(dead.card, holder), holder if under_owner else controller,
                                        "battlefield", tapped, enchantment=enchantment, transformed=transformed)
 
+    def put_onto_battlefield(self, seat: Seat, card: Card) -> None:
+        """A card taken from the library (or revealed from its top) enters under `seat`'s control, and everyone is told."""
+        self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": False})
+        self._enter(seat, Permanent(card, sick=True, owner=seat, loyalty=_starting_loyalty(card)))
+
     def look_take(self, seat: Seat, count: int, take: int) -> None:
         """Look at the top `count` cards; `take` of them go to the hand and the rest to the bottom of the library."""
         top = seat.library[:count]
@@ -3671,16 +3676,23 @@ class Game:
         """One or more of `seat`'s cards were just put into exile from its library and/or graveyard, as one event (Laelia)."""
         self.happened("exile_library_graveyard", seat)
 
-    def tutor(self, seat: Seat, card_type: str, to: str, reveal: bool, count: int = 1) -> None:
-        """Search the library for a card of `card_type`: it goes to the hand (`to` is "hand"), to the graveyard or to the top
-        of the library ("top") after shuffling. Only "reveal" shows others which card. With a `count` above one, up to that
-        many cards are found (Buried Alive), and the searcher may stop early."""
-        chosen = []
+    def tutor(self, seat: Seat, card_type: str, to: str, reveal: bool, count: int = 1, distinct: bool = False,
+              not_self: bool = False) -> None:
+        """Search the library for a card of `card_type`: it goes to the hand (`to` is "hand"), to the battlefield, to the graveyard
+        or to the top of the library ("top") after shuffling. Only "reveal" shows others which card. With a `count` above one, up
+        to that many cards are found (Buried Alive), and the searcher may stop early; several put on top go in the order the
+        searcher chooses (Goblin Recruiter). `distinct`: "that each have different names"; `not_self`: "not named CARDNAME"."""
+        chosen: list[Card] = []
         card_type = card_type.replace("mv<=x", f"mv<={self.x_value}")  # Chord of Calling
         if "mv=self" in card_type and self.resolving_item is not None:  # Transmute: the mana value of the card that was discarded
             card_type = card_type.replace("mv=self", f"mv={int(self.resolving_item.card.cmc)}")
+        if "mv<power" in card_type:  # Sisay, Weatherlight Captain: less than the source's power as the ability resolves
+            source = self.resolving_item.source if self.resolving_item is not None else None
+            power = self.power(source) if source is not None and self.on_battlefield(source) else 0
+            card_type = card_type.replace("mv<power", f"mv<{max(power, 0)}")
+        excluded = {self.resolving_item.card.name} if not_self and self.resolving_item is not None else set()
         for _ in range(count):
-            matches = _unique([c for c in seat.library if _card_matches(card_type, c)])
+            matches = _unique([c for c in seat.library if _card_matches(card_type, c) and c.name not in excluded])
             if not matches:
                 break
             options = [c.name for c in matches] + ([DONE] if count > 1 else [])
@@ -3689,11 +3701,15 @@ class Game:
                 break
             seat.library.remove(matches[choice])
             chosen.append(matches[choice])
+            if distinct:
+                excluded.add(matches[choice].name)
         self.rng.shuffle(seat.library)
         self._searched(seat)
         if not chosen:
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
             return
+        if to == "top":
+            seat.library[0:0] = self._ordered(seat, chosen) if len(chosen) > 1 else chosen
         for found in chosen:
             if to == "hand":
                 seat.hand.append(found)
@@ -3701,8 +3717,6 @@ class Game:
                 self._enter(seat, Permanent(found, sick=True, owner=seat))
             elif to == "graveyard":
                 self._move_card(seat, found, "graveyard")
-            else:
-                seat.library.insert(0, found)
             self.broadcast({"event": "searched", "seat": seat.index, "found": True, "to": to,
                             **({"card": found.name} if reveal else {})}, skip=seat)
             seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": to, "card": found.name})
@@ -4762,9 +4776,9 @@ class Game:
         seat.library = self._ordered(seat, chosen) + seat.library
         self.broadcast({"event": "put_back", "seat": seat.index, "count": len(chosen)})
 
-    def look_at_top(self, seat: Seat, count: int, card_type: str | None) -> None:
+    def look_at_top(self, seat: Seat, count: int, card_type: str | None, to: str = "hand") -> None:
         """Look at the top `count` cards: take one into the hand (a card of `card_type` if given, and then
-        only if the player wants it); the rest go to the bottom in a random order."""
+        only if the player wants it), or put it onto the battlefield (`to`); the rest go to the bottom in a random order."""
         top = seat.library[:count]
         del seat.library[:len(top)]
         matches = _unique([c for c in top if card_type is None or _card_matches(card_type, c)])
@@ -4775,7 +4789,10 @@ class Game:
             if choice < len(matches):
                 taken = matches[choice]
                 top.remove(taken)
-                seat.hand.append(taken)
+                if to == "battlefield":
+                    self.put_onto_battlefield(seat, taken)
+                else:
+                    seat.hand.append(taken)
         self.rng.shuffle(top)
         seat.library += top
         looked = len(top) + (taken is not None)

@@ -80,8 +80,10 @@ _CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|noncreature, n
               rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
 
 
-_SEARCH_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|land|artifact|enchantment|planeswalker"
-                rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|{_SUBTYPE_CARDS}|(?-i:[A-Z][a-z]+)(?: creature)?) )?card{_MANA_VALUE})")
+_SEARCH_KIND = (r"(?:legendary creature|legendary|nonbasic land|creature|land|artifact|enchantment|planeswalker"
+                rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|{_SUBTYPE_CARDS}|(?-i:[A-Z][a-z]+)(?: creature)?)")
+_SEARCH_TYPE = rf"((?:{_SEARCH_KIND} )?card{_MANA_VALUE})"
+_SEARCH_TYPES = rf"((?:{_SEARCH_KIND} )?cards{_MANA_VALUE})"  # the plural, for a search that finds several ("up to five Dragon cards")
 
 
 _CARDS_PLURAL = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|artifact|enchantment|land|permanent"
@@ -94,7 +96,7 @@ _CARD_PHRASE = re.compile(r"(?:(.+?) )?card(?: with (?:mana value (\d+)(?: (or l
 def _card_kind(phrase: str | None) -> str:
     """"creature card with mana value 3 or less" -> "creature|mv<=3"; "card" -> "card". The kind is what the
     game matches library and graveyard cards against."""
-    m = _CARD_PHRASE.fullmatch((phrase or "card").lower())
+    m = _CARD_PHRASE.fullmatch(re.sub(r"\bcards\b", "card", (phrase or "card").lower(), count=1))
     assert m is not None
     kind = m[1] or "card"
     if m[2]:

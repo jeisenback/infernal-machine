@@ -65,14 +65,15 @@ class Filter:
     alternatives: tuple[Alternative, ...] = (Alternative(),)
     controller: str | None = None  # "you", "opponent" or "own": whose, for the caller to check
     state: str = ""  # "tapped", "untapped", "attacking" or "attacking or blocking": for the caller to check
-    mana_value: tuple[str, int] | None = None  # ("<=", 3), (">=", 5) or ("=", 2)
+    mana_value: tuple[str, int] | None = None  # ("<=", 3), (">=", 5), ("=", 2) or ("<", 2)
     power_at_most: int | None = None  # "creature card with power 2 or less"
 
     def matches(self, card) -> bool:
         """Whether the card is of this kind, as far as the card itself says (not whose it is, or what it is doing)."""
         if self.mana_value is not None:
             op, value = self.mana_value
-            if not ((op == "<=" and card.cmc <= value) or (op == ">=" and card.cmc >= value) or (op == "=" and card.cmc == value)):
+            if not ((op == "<=" and card.cmc <= value) or (op == ">=" and card.cmc >= value) or (op == "=" and card.cmc == value)
+                    or (op == "<" and card.cmc < value)):
                 return False
         if self.power_at_most is not None:
             power = card.power
@@ -91,7 +92,7 @@ def _words(type_line: str) -> tuple[frozenset[str], frozenset[str]]:
 
 _MANA_VALUE = re.compile(r" with mana value (\d+)(?: (or less|or greater))?$")
 _POWER = re.compile(r" with power (\d+) or less$")
-_BAR_VALUE = re.compile(r"\|(mv|p)(<=|>=|=)(\d+)$")
+_BAR_VALUE = re.compile(r"\|(mv|p)(<=|>=|=|<)(\d+)$")
 _SPLIT = re.compile(r",? or |, | and ")
 
 
