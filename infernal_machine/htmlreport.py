@@ -186,6 +186,26 @@ def _bracket(section: "Section") -> str:
     return f"<p>{escape(section.body)}</p>"
 
 
+def _combos(section: "Section") -> str:
+    combos = section.data.get("combos")
+    if combos is None:
+        return _fallback(section)
+    if not combos:
+        return f"<p>{escape(section.body)}</p>"
+    rows = []
+    for combo in combos:
+        cards = escape(" + ".join(combo["cards"])) + (f' <small>(needs {escape(", ".join(combo["requires"]))})</small>' if combo.get("requires") else "")
+        blocked = combo.get("blocked", [])
+        cannot = escape("can't play " + ", ".join(blocked))
+        engine = '<td class="good">plays</td>' if not blocked else f'<td class="bad">{cannot}</td>'
+        rows.append(f'<tr><td>{cards}</td><td>{escape(", ".join(combo["produces"]))}</td><td>{escape(combo.get("mana") or "-")}</td>'
+                    f'<td>{escape(combo["tag"])}</td><td class="n" data-v="{combo["popularity"]}">{combo["popularity"]}</td>{engine}</tr>')
+    return (f"<p>{len(combos)} combo{'s' if len(combos) != 1 else ''} the deck holds, from Commander Spellbook; the last column says whether "
+            "the engine plays every piece.</p>"
+            '<table class="sortable"><thead><tr><th data-sort>Cards</th><th data-sort>Produces</th><th>Mana</th><th data-sort>Tag</th>'
+            '<th class="n" data-sort>Decks</th><th>Engine</th></tr></thead><tbody>' + "".join(rows) + "</tbody></table>")
+
+
 def _fix_rows(fixes: list[dict]) -> str:
     rows = []
     for fix in fixes:
@@ -234,14 +254,16 @@ def _verdict(section: "Section") -> str:
     return "".join(out)
 
 
-_RENDER = {"manabase": _mana_base, "goldfish": _goldfish, "tuning": _tuning, "matchups": _matchups, "bracket": _bracket}
+_RENDER = {"manabase": _mana_base, "goldfish": _goldfish, "tuning": _tuning, "matchups": _matchups, "bracket": _bracket, "combos": _combos}
 
 
 def _tiles(analysis: "Analysis") -> str:
     by_part = {s.part: s.data for s in analysis.sections if s.part}
     tiles = [_tile(analysis.kind, "format")]
     if "floor" in by_part.get("bracket", {}):
-        tiles.append(_tile(f'Bracket {by_part["bracket"]["floor"]}+', "at least, from its cards"))
+        tiles.append(_tile(f'Bracket {by_part["bracket"]["floor"]}+', "at least, from its cards" + (" and combos" if by_part["bracket"].get("combos") else "")))
+    if "combos" in by_part.get("combos", {}):
+        tiles.append(_tile(str(len(by_part["combos"]["combos"])), "combos it holds"))
     if "lands" in by_part.get("manabase", {}):
         short = sum(c.get("short", 0) for c in by_part["manabase"].get("colors", {}).values())
         tiles.append(_tile(str(by_part["manabase"]["lands"]), "lands" + (f", {short} sources short" if short else "")))
