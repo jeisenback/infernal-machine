@@ -151,37 +151,11 @@ def render_baseline(comparison: dict, result: dict) -> str:
     return "\n".join(out)
 
 
-def is_modelled(deck_name: str) -> bool:
-    """A deck `tools/model_deck.py` built from the most played cards (`*_modelled`), not a list anyone exported: it reads as more
-    playable than a real list, since popularity picks the cards the engine already plays (#475)."""
-    return deck_name.endswith("_modelled")
-
-
-def _share(decks: list[dict]) -> tuple[int, int]:
-    return sum(d["playable"] for d in decks), sum(d["cards"] for d in decks)
-
-
 def render_decks(result: dict, top: int = 15) -> str:
     total, playable = result["total"], result["playable"]
-    decks = result["decks"]
-    real_names = [name for name in decks if not is_modelled(name)]
-    modelled_names = [name for name in decks if is_modelled(name)]
-    if not total:
-        out = ["## Coverage: no cards", ""]
-    elif real_names and modelled_names:  # the real lists are the headline; the modelled decks are a model, shown apart
-        real_ok, real_all = _share([decks[n] for n in real_names])
-        model_ok, model_all = _share([decks[n] for n in modelled_names])
-        out = [f"## Coverage for {len(real_names)} real decklist{'s' if len(real_names) != 1 else ''}: {real_ok} of {real_all} cards fully "
-               f"playable ({100 * real_ok / real_all:.0f}%)",
-               "",
-               f"{len(modelled_names)} modelled deck{'s' if len(modelled_names) != 1 else ''}: {model_ok} of {model_all} ({100 * model_ok / model_all:.0f}%); "
-               f"all {len(decks)} decks: {playable} of {total} ({100 * playable / total:.0f}%). A modelled deck is built from the most "
-               "played cards, which the engine already plays best, so the real lists are the figure to watch.", ""]
-    else:
-        out = [f"## Coverage for {len(decks)} deck{'s' if len(decks) != 1 else ''}: {playable} of {total} cards fully playable "
-               f"({100 * playable / total:.0f}%)", ""]
-    for name in real_names + modelled_names:
-        deck = decks[name]
+    out = [f"## Coverage for {len(result['decks'])} deck{'s' if len(result['decks']) != 1 else ''}: {playable} of {total} cards fully playable "
+           f"({100 * playable / total:.0f}%)" if total else "## Coverage: no cards", ""]
+    for name, deck in result["decks"].items():
         out.append(f"- **{name}**: {deck['playable']} of {deck['cards']} cards fully playable ({100 * deck['playable'] / deck['cards']:.0f}%)")
     out += ["", "### What to build, in order (each assuming those above it are built)", "",
             "| # | Piece of work | Cards unlocked | Playable after | Some of the cards | The wording |", "|---|---|---|---|---|---|"]
