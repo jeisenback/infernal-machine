@@ -510,6 +510,7 @@ _AURAS_ON_IT = re.compile(r"that was attached to it", re.I)  # Hateful Eidolon: 
 _HENGE_BODY = "put a +1/+1 counter on it and draw a card."
 
 
+_SELF_THEN_IT = re.compile(r"((?:this (?:creature|artifact|enchantment|permanent|land|planeswalker|equipment|vehicle|aura|saga|battle)|CARDNAME)\b[^.]*\.) It\b")  # "Put a +1/+1 counter on this creature. It gains flying.": the "It" is that creature, not the permanent that set the trigger off
 _STILL_A_LAND = re.compile(r"It's still an? (?:land|artifact)\.|as though it didn't have defender")  # the "it" of these is the ability's own creature
 
 
@@ -556,6 +557,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     # "the amount of mana spent to cast that spell" is an amount the trigger carries, not an effect on the spell.
     # (a created token's own ability, "It has "Sacrifice this token: Add {C}."", is about the token, not the creature that died)
     without_token_ability = _AURAS_ON_IT.sub("", _TOKEN_HAS.sub("", rest) if re.search(r"\btokens?\b", rest, re.I) else rest)
+    without_token_ability = _SELF_THEN_IT.sub(r"\1 This", without_token_ability)
     without_token_ability = _STILL_A_LAND.sub("", without_token_ability)  # "It's still a land." closes an Animate; it is not about the subject
     about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("",_MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?copy (it|that spell)\.", rest, re.I) is not None  # Codie: "it" is the spell cast
