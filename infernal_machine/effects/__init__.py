@@ -398,6 +398,7 @@ from .activated import (  # noqa: F401
 )
 from .mana import (  # noqa: F401
     ManaSpentTrigger,
+    TapMana,
     charge_mana,
     chosen_color_mana,
     counter_mana,
@@ -408,6 +409,7 @@ from .mana import (  # noqa: F401
     is_mana_ability,
     is_optional_untap_line,
     is_restricted_mana_line,
+    is_tap_mana_line,
     land_mana_units,
     makes_mana_by_power,
     mana_ability,
@@ -430,6 +432,7 @@ from .mana import (  # noqa: F401
     may_skip_untap,
     reflected_mana,
     restricted_mana,
+    tap_mana,
 )
 from .spells import (  # noqa: F401
     is_hand_ability_line,
