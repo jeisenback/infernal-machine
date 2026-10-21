@@ -388,6 +388,7 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    GetEmblem,
     CHANGE_TARGET_PROMPT,
     COMMANDER_HAND_PROMPT,
     ChangeTarget,
@@ -1332,7 +1333,20 @@ _RETURN_UP_TO_DAMAGE = re.compile(r"return target creature card with mana value 
                                   r"where X is the amount of damage (?:this creature|CARDNAME) dealt to that player\.", re.I)
 
 
+def _emblem(text: str) -> GetEmblem | None:
+    """An emblem whose every line the engine reads as a static or triggered ability (CR 114: it is never a permanent, so an
+    activated ability on it would have no battlefield source here and leaves the line unread)."""
+    from ..report import unsupported_lines  # the report reads effects; a local import keeps the module graph one way
+    from .activated import activated_abilities
+
+    probe = Card(name="Emblem", type_line="Emblem", oracle_text=text)
+    if unsupported_lines(probe) or activated_abilities(probe):
+        return None
+    return GetEmblem(text)
+
+
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
+    (re.compile(r'you get an emblem with "(.+)"\.?', re.I), lambda m: _emblem(m[1])),  # Elspeth, Sun's Champion
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
     (re.compile(r"if this spell was kicked, instead (.+)", re.I), lambda m: _kicked_replaces(m[1])),
     (re.compile(r"if this spell was kicked, (.+?) instead\.", re.I), lambda m: _KickedInsteadTail(m[1])),

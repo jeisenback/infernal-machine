@@ -35,6 +35,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | Search your library for a nonbasic land card / up to two Forest cards, put it onto the battlefield (tapped), then shuffle. | Skyshroud Claim |
 | Return target creature card from your graveyard to the battlefield tapped. | |
 | Search your library for a card, then shuffle and put that card on top. | Vampiric Tutor |
+| You get an emblem with "..." (a loyalty ability's ultimate, usually). The emblem goes to the command zone, is never a permanent, and its text works like a permanent's static or triggered abilities; an emblem whose text the engine cannot read, or that has an activated ability, leaves the loyalty ability unread. | Elspeth, Sun's Champion; Ajani, Adversary of Tyrants; Sorin, Lord of Innistrad |
 | You lose N life. | |
 | Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle. | Cultivate, Kodama's Reach |
 | Search your library for a (Plains, Island, ...) card, put it onto the battlefield (tapped), then shuffle. | Farseek, Nature's Lore |
