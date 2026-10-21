@@ -246,26 +246,63 @@ def _mana_line(card: Card) -> str | None:
 
 @dataclass(frozen=True)
 class RestrictedMana:
-    """Cavern of Souls, Unclaimed Territory, Delighted Halfling: a second mana ability for one mana of any color that can only
-    be spent on some spells ("creature spell of the chosen type", "legendary spell"), and perhaps makes that spell uncounterable."""
-    spell: str  # "chosen_creature" or "legendary"
+    """Cavern of Souls, Eldrazi Temple, Rivaz of the Claw: a mana ability whose mana can only be spent on some spells ("a creature
+    spell of the chosen type", "colorless Eldrazi spells", "a Dragon spell or an Omen spell"), and perhaps makes that spell
+    uncounterable. An "or activate abilities of ..." clause is read but not yet honoured: the payer only knows the spell it pays for,
+    so the mana is never offered for an ability, which underplays the card rather than misplaying it."""
+    spell: str  # a kind the filters read ("creature", "dragon|omen", "colorless eldrazi", "legendary")
+    chosen: bool  # "... of the chosen type": the spell must also have the type the permanent chose as it entered
+    mana: tuple[frozenset[str], ...]  # what the ability makes, one set of types per mana
     uncounterable: bool
+    condition: "Condition | None" = None  # "Activate only if you control seven or more lands."
 
 
-_RESTRICTED_MANA = re.compile(r"\{T\}: Add one mana of any color\. Spend this mana only to cast "
-                              r"(a creature spell of the chosen type|a legendary spell)(, and that spell can't be countered)?\.")
+_RESTRICTED_MANA = re.compile(r"\{T\}: Add (one mana of any color|two mana in any combination of colors|(?:\{[WUBRGC]\})+)\. "
+                              r"Spend this mana only to cast ((?:an? )?[A-Za-z][A-Za-z ,/-]*? spells?)( of the chosen type)?"
+                              r"(?: or (?:to )?activate (?:abilities|an ability) of [^.]+?)?(, and that spell can't be countered)?\." + _IF_TAIL)
+_SPELL_WORDS = {"creature", "artifact", "enchantment", "instant", "sorcery", "planeswalker", "land", "legendary", "noncreature",
+                "nonland", "colorless", "multicolored", "or", "and"}
+
+
+def _spell_kind(phrase: str) -> str | None:
+    """"a Dragon spell or an Omen spell" -> "dragon or omen"; "colorless Eldrazi spells" -> "colorless eldrazi": a kind the filters
+    read, or None when a word is neither a card type nor a capitalized subtype (a kicked spell, a spell with devoid)."""
+    words = re.sub(r"\bspells?\b", "", phrase.replace("and/or", "or")).split()
+    kept = [w for w in words if w not in ("a", "an")]
+    if not kept or any(w.lower() not in _SPELL_WORDS and not w[:1].isupper() for w in kept):
+        return None
+    return " ".join(w.lower().strip(",") if w.lower() in _SPELL_WORDS else w.lower() + ("," if w.endswith(",") else "") for w in kept) \
+        .replace(" ,", ",")
+
+
+def _read_restricted(line: str) -> RestrictedMana | None:
+    m = _RESTRICTED_MANA.fullmatch(line)
+    if m is None:
+        return None
+    kind = _spell_kind(m[2])
+    condition = _condition(m[5]) if m[5] else None
+    if kind is None or (m[5] and condition is None):
+        return None
+    amount = m[1]
+    if amount == "one mana of any color":
+        mana: tuple[frozenset[str], ...] = (frozenset("WUBRG"),)
+    elif amount == "two mana in any combination of colors":
+        mana = (frozenset("WUBRG"), frozenset("WUBRG"))
+    else:
+        mana = tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", amount))
+    return RestrictedMana(kind, bool(m[3]), mana, bool(m[4]), condition)
 
 
 @lru_cache(maxsize=None)
 def restricted_mana(card: Card) -> RestrictedMana | None:
     for line in rules_lines(card):
-        if m := _RESTRICTED_MANA.fullmatch(line):
-            return RestrictedMana("chosen_creature" if "chosen type" in m[1] else "legendary", bool(m[2]))
+        if (found := _read_restricted(line)) is not None:
+            return found
     return None
 
 
 def is_restricted_mana_line(line: str) -> bool:
-    return _RESTRICTED_MANA.fullmatch(line) is not None
+    return _read_restricted(line) is not None
 
 
 def mana_condition(card: Card) -> "Condition | None":
