@@ -40,7 +40,7 @@ def fingerprint(deck: Deck) -> dict[str, int]:
 
 def part_settings(part: str, settings: dict, opponents: dict[str, Deck] | None = None) -> dict:
     """What a part's numbers depend on besides the deck: if these are equal in two runs, the part would come out the same."""
-    if part in ("playability", "bracket", "manabase"):
+    if part in ("playability", "bracket", "combos", "manabase"):
         return {}
     base = {"sim_games": settings["sim_games"], "turns": settings["turns"], "seed": settings["seed"]}
     if part == "goldfish":

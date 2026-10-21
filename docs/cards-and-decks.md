@@ -184,3 +184,6 @@ Changers) it bumps that number, and a file saved in another format, or the older
 again the next time a card is needed, rather than loaded with the new field's default (which would call every old card legal in
 Standard and no card a Game Changer). Nothing is lost but one round of lookups; offline play works from the files that are current.
 `examples/demo_cards.json` is a hand-made cache of this kind that ships with the repository for offline games.
+
+A third file, `.cache/combos.json`, is not about cards: it keeps Commander Spellbook's answer for each deck `analyze` or
+`brackets --combos` asked about (see [Combos](simulation.md#combos)), so a repeat run is offline. It too is safe to delete.

@@ -44,8 +44,9 @@ no hard limit above Bracket 1
 ```
 
 This reads the hard limits off the cards: Game Changers (none below Bracket 3, up to three in 3), mass land denial (not below
-Bracket 4), and it lists extra-turn cards. It cannot see two-card combos or how the deck is played, so the answer is the *lowest* bracket
-the deck can be played at, not a rating. Use it before choosing opponents: results against a deck at a higher bracket compare unlike
+Bracket 4), and it lists extra-turn cards. With `--combos` it also asks Commander Spellbook which combos the deck holds (a two-card
+combo that wins early is not below Bracket 4; `analyze` always asks, and lists them in its Combos part). It cannot see how the deck is
+played, so the answer is the *lowest* bracket the deck can be played at, not a rating. Use it before choosing opponents: results against a deck at a higher bracket compare unlike
 decks, and the matchup report warns about that.
 
 ## 3. Does the mana base hold up?
