@@ -17,11 +17,11 @@ from .cards import Card, has_keyword
 from .effects import (additional_land_mana, charge_mana, chosen_color_mana, counter_mana, counter_removal_mana, filter_mana_ability,
                       granted_land_mana, granted_mana, group_mana_grants, has_next_x_rider, is_identity_mana_land, land_mana_units,
                       makes_mana_by_power, mana_ability, mana_ability_needs_no_tap, mana_ability_sacrifices, mana_among_legendary,
-                      mana_bonus, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
-                      mana_of_imprinted, mana_pain, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
+                      mana_bonus, mana_by_amount, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
+                      mana_of_imprinted, mana_pain, mana_per_color, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
                       tap_mana, with_granted_mana)
 from .filters import has_type, matches, parse_filter
-from .mana import GENERIC_ONLY, SNOW, Cost, parse_cost, pay
+from .mana import GENERIC_ONLY, NOT_GENERIC, SNOW, Cost, parse_cost, pay
 
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
@@ -101,7 +101,7 @@ class ManaPayer:
 
     def _restriction_ok(self, restriction: str | None) -> bool:
         """Whether mana limited by `restriction` can pay for what is being paid for now."""
-        if restriction is None:
+        if restriction is None or restriction == "not_generic":  # (Jegantha's mana is marked instead: see NOT_GENERIC)
             return True
         spell = self._spending_spell
         if restriction == "not_from_hand":  # Heartwood Crafter: only spells cast from hand are off limits
@@ -230,6 +230,8 @@ class ManaPayer:
                     colors = frozenset(c for p in seat.battlefield if "Legendary" in p.card.type_line
                                        and ("Creature" in p.card.type_line or "Planeswalker" in p.card.type_line) for c in p.card.colors)
                     units = [colors] if colors else []
+                elif mana_per_color(card):  # Bloom Tender: one of each color among its controller's permanents
+                    units = [frozenset(c) for c in sorted(self.game.colors_among(seat) & frozenset("WUBRG"))]
                 elif mana_of_imprinted(card):  # Chrome Mox: the colors of the card exiled with it
                     colors = frozenset(c for _, exiled in permanent.exiled_with for c in exiled.colors)
                     units = [colors] if colors else []
@@ -240,6 +242,7 @@ class ManaPayer:
                 if not self._restriction_ok(restriction):
                     continue
                 for mana in units:
+                    mana = mana | {NOT_GENERIC} if restriction == "not_generic" else mana
                     bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage, restriction=restriction))
         if effects := self._tap_mana_effects(seat):
             abilities, lands, sacrifices = (self._tapped_for_mana(effects, bucket) for bucket in (abilities, lands, sacrifices))
@@ -414,6 +417,10 @@ class ManaPayer:
             if ability:
                 times, extra = self._tap_extra(effects, permanent, ability[1]) if (effects := self._tap_mana_effects(seat)) else (1, [])
                 found.append((permanent, parse_cost(ability[0]), [mana for mana in ability[1] for _ in range(times)] + extra))
+            elif (by := mana_by_amount(permanent.card)) is not None:  # Selvala: X of any colors, X worked out now
+                units = [frozenset("WUBRG")] * self.game.evaluate(by[1], seat)
+                if units:
+                    found.append((permanent, parse_cost(by[0]), units))
             elif (per := mana_per_count(permanent.card)) is not None and per[0] \
                     and permanent.counters.get("charge", 0) >= mana_threshold(permanent.card):  # Cabal Coffers, Evendo
                 units = [frozenset(per[1])] * sum(has_type(p.card, per[2]) for p in seat.battlefield)

@@ -9,7 +9,8 @@ from functools import lru_cache
 from ..cards import Card
 
 from .common import _ANY_N, _N_FIXED, _SELF, _THRESHOLD, _number, rules_lines
-from .outcomes import Condition, _condition
+from .families.base import Amount
+from .outcomes import Condition, _amount, _condition
 
 
 _TAP = r"\{T\}(, Sacrifice (?:CARDNAME|this (?:artifact|creature|permanent|land)))?(?:, (?:Sacrifice a Food|Mill a card))?: Add "  # group 1: sacrifice
@@ -113,7 +114,8 @@ _RESTRICTIONS = {"Spend this mana only to cast spells with mana value 5 or great
                  "big_or_x",
                  "Spend this mana only on costs that contain {X}": "x_cost",
                  "Spend this mana only to cast an instant or sorcery spell": "instant_or_sorcery",
-                 "This mana can't be spent to cast spells from your hand": "not_from_hand"}  # Heartwood Crafter
+                 "This mana can't be spent to cast spells from your hand": "not_from_hand",  # Heartwood Crafter
+                 "This mana can't be spent to pay generic mana costs": "not_generic"}  # Jegantha, the Wellspring
 
 
 _MANA_RESTRICTION = re.compile(" (" + "|".join(re.escape(k) for k in _RESTRICTIONS) + r")\.")
@@ -142,7 +144,8 @@ def _without_spent_rider(line: str) -> str:
 
 def mana_restriction(card: Card) -> str | None:
     """What the card's plain mana ability limits its mana to: "big_or_x" (spells of mana value 5 or more, or with {X} in
-    their cost), "x_cost" (costs containing {X}) or "not_from_hand" (not spells cast from hand)."""
+    their cost), "x_cost" (costs containing {X}), "not_from_hand" (not spells cast from hand) or "not_generic" (not the
+    generic part of a cost)."""
     line = _mana_line(card)
     m = _MANA_RESTRICTION.search(line) if line else None
     return _RESTRICTIONS[m[1]] if m else None
@@ -392,6 +395,29 @@ def is_optional_untap_line(line: str) -> bool:
     return _MAY_NOT_UNTAP.fullmatch(line) is not None
 
 
+# Bloom Tender, Faeburrow Elder: one mana of each color among the permanents its controller controls, worked out when it is wanted.
+_ADD_EACH_COLOR = re.compile(r"(?:Vivid \u2014 )?\{T\}: For each color among permanents you control, add one mana of that color\.")
+
+
+@lru_cache(maxsize=None)
+def mana_per_color(card: Card) -> bool:
+    return any(_ADD_EACH_COLOR.fullmatch(line) for line in rules_lines(card))
+
+
+# Selvala, Heart of the Wilds: "{G}, {T}: Add X mana in any combination of colors, where X is the greatest power among creatures you
+# control." X is an amount the game works out when the mana is wanted.
+_ADD_X_COMBINATION = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add X mana in any combination of colors, where X is (.+)\.")
+
+
+@lru_cache(maxsize=None)
+def mana_by_amount(card: Card) -> tuple[str, Amount] | None:
+    """(the mana the ability costs, how much it makes) for Selvala's kind of mana ability, or None."""
+    for line in rules_lines(card):
+        if (m := _ADD_X_COMBINATION.fullmatch(line)) and (amount := _amount(m[2])):
+            return m[1], amount
+    return None
+
+
 # CR 106.12a: "Whenever you tap a nonland permanent for mana, add one mana of any type that permanent produced." (Kinnan, Mirari's Wake,
 # Crypt Ghast, Mana Flare) is a triggered mana ability: its mana is its own. CR 106.12b: "If you tap a permanent for mana, it produces
 # three times as much of that mana instead." (Nyxbloom Ancient, Mana Reflection) is a replacement on the permanent's own mana ability.
@@ -430,7 +456,8 @@ def is_mana_ability(line: str) -> bool:
     line = _without_spent_rider(_THRESHOLD.sub(r"\2", line))
     return (_mana_match(line) is not None or _ADD_CHOSEN.fullmatch(line) is not None or _REMOVE_COUNTER_MANA.fullmatch(line) is not None or _REMOVE_ANY_NUMBER_MANA.fullmatch(line) is not None or _ADD_POWER.fullmatch(line) is not None
             or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
-            or _CHARGE_MANA.fullmatch(line) is not None
+            or _CHARGE_MANA.fullmatch(line) is not None or _ADD_EACH_COLOR.fullmatch(line) is not None
+            or ((m := _ADD_X_COMBINATION.fullmatch(line)) is not None and _amount(m[2]) is not None)
             or _FILTER.fullmatch(line) is not None
             or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))

@@ -264,6 +264,7 @@ from .families.exile_and_return import (  # noqa: F401
 )
 from .families.library_and_hand import (  # noqa: F401
     BASIC_LAND_TYPES,
+    GreatestPowerMayDraw,
     Cascade,
     DanceWithCalamity,
     DelayedDraw,
@@ -1437,6 +1438,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"each player draws a card, then discards a card\.", re.I), lambda m: EachDrawsThenDiscards()),
     (re.compile(rf"tap (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Tap(m[2].lower(), bool(m[1]))),
     (re.compile(rf"tap {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Tap, m)),
+    (re.compile(r"its controller may draw a card if its power is greater than each other creature's power\.", re.I),
+     lambda m: GreatestPowerMayDraw()),  # Selvala, Heart of the Wilds
     (re.compile(rf"its controller may draw up to {_N_FIXED} cards at the beginning of the next turn's upkeep\.", re.I),
      lambda m: DelayedDraw(_number(m[1]), True)),
     (re.compile(rf"(?:you )?draw {_N_FIXED} cards? at the beginning of the next turn's upkeep\.", re.I),  # Portent: "Draw a card ..."

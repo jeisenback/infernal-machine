@@ -8,6 +8,7 @@ from itertools import product
 
 MANA_TYPES = frozenset("WUBRGC")
 GENERIC_ONLY = "1"  # a source that can pay only for generic mana (a colorless creature tapped for Convoke, an artifact for Improvise)
+NOT_GENERIC = "!"  # mana that can't pay generic costs (Jegantha, the Wellspring): only a colored symbol takes it
 SNOW = "S"  # a snow permanent's mana also counts as snow mana: its types include this, and {S} wants it
 _SYMBOL = re.compile(r"\{([^}]+)\}")
 
@@ -108,7 +109,7 @@ def _pay_flat(cost: Cost, sources: list[frozenset[str]], paid_for: dict[int, fro
         if (k, frozenset(used)) in failed:
             return None
         if k == len(symbols):
-            rest = [i for i in order if i not in used]
+            rest = [i for i in order if i not in used and NOT_GENERIC not in sources[i]]
             if len(rest) < cost.generic:
                 return None
             if paid_for is not None:

@@ -8,7 +8,7 @@ from typing import Any, TYPE_CHECKING
 from ...cards import Card
 from ...characteristics import Modifier
 from ..common import Quantity
-from ..targets import PLAYER, PREVIOUS_TARGET, SOURCE
+from ..targets import PLAYER, PREVIOUS_TARGET, SOURCE, SUBJECT
 from .base import Condition
 from ...prompts import PromptKind
 
@@ -808,3 +808,25 @@ class FetchBasicLand:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.fetch_basic_land(controller, untap_if=self.untap_if, tapped=self.tapped)
+
+
+MAY_DRAW_PROMPT = PromptKind("may_draw", "Draw a card from ")  # followed by the source's name; options are Yes and No
+
+
+@dataclass(frozen=True)
+class GreatestPowerMayDraw:
+    """Selvala, Heart of the Wilds: "its controller may draw a card if its power is greater than each other creature's power." The
+    creature that entered is the subject; its power is compared, as the trigger resolves, with every other creature's, and its
+    controller (not the trigger's) chooses."""
+    binds = SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None or (owner := game.controller_of(target)) is None:  # it left the battlefield
+            return
+        power = game.power(target)
+        if any(game.power(p) >= power for seat in game.seats for p in seat.battlefield
+               if p is not target and "Creature" in p.card.type_line):
+            return
+        source = game.resolving_item.card.name if game.resolving_item is not None else "this ability"
+        if owner.player.choose(MAY_DRAW_PROMPT(source), ["Yes", "No"]) == 0:
+            game.draw(owner, 1)
