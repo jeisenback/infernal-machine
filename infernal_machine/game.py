@@ -3892,6 +3892,8 @@ class Game:
             count = sum(controller.commander_casts.values())
         elif what == "graveyard":
             count = sum(_card_matches(kind, c) for c in controller.graveyard)
+        elif what == "colors":  # Faeburrow Elder: each color among the permanents its controller controls
+            count = len(self.colors_among(controller))
         elif what == "source_counters":  # Door of Destinies: for each charge counter on the permanent that gives the bonus
             count = source.counters.get(kind, 0) if source is not None else 0
         elif what == "auras_on_it":
@@ -3901,6 +3903,11 @@ class Game:
             count = sum(1 for p in controller.battlefield if "Aura" in p.card.type_line and p.attached_to is not None
                         and "Creature" in p.attached_to.card.type_line)
         return Modifier(modifier.power * count, modifier.toughness * count, modifier.keywords)
+
+    @staticmethod
+    def colors_among(seat: Seat) -> frozenset[str]:
+        """The colors among the permanents `seat` controls (Bloom Tender's mana, Faeburrow Elder's bonus)."""
+        return frozenset(c for p in seat.battlefield for c in p.card.colors)
 
     def goader_of(self, permanent: Permanent) -> Seat | None:
         """Who is goading this creature: the player who goaded it, or the controller of an Aura that says it is goaded."""

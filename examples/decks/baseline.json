@@ -13,14 +13,12 @@
     "Distant Melody",
     "Eclipsed Flamekin",
     "Endurance",
-    "Faeburrow Elder",
     "Fury",
     "Greenwarden of Murasa",
     "Haunting Voyage",
     "Horde of Notions",
     "Impulsivity",
     "Incandescent Soulstoke",
-    "Jegantha, the Wellspring",
     "Kindred Summons",
     "Mass of Mysteries",
     "Muldrotha, the Gravetide",
@@ -39,7 +37,6 @@
    "cards": 100,
    "unplayable": [
     "Ajani, Sleeper Agent",
-    "Bloom Tender",
     "Brokers Ascendancy",
     "Contagion Engine",
     "Contaminant Grafter",
@@ -158,7 +155,6 @@
    "cards": 100,
    "unplayable": [
     "Badgermole Cub",
-    "Bloom Tender",
     "Endurance",
     "Finale of Devastation",
     "Freed from the Real",
@@ -273,7 +269,6 @@
    "cards": 100,
    "unplayable": [
     "Agatha's Soul Cauldron",
-    "Bloom Tender",
     "Cultist of the Absolute",
     "Deadpool, Trading Card",
     "Derevi, Empyrial Tactician",
@@ -281,7 +276,6 @@
     "Emiel the Blessed",
     "Ertai Resurrected",
     "Esika, God of the Tree // The Prismatic Bridge",
-    "Faeburrow Elder",
     "Gemstone Caverns",
     "Gleaming Splendor",
     "Ioreth of the Healing House",
@@ -293,7 +287,6 @@
     "Nicol Bolas, Dragon-God",
     "Oath of Teferi",
     "Primevals' Glorious Rebirth",
-    "Selvala, Heart of the Wilds",
     "Shang-Chi, Master of Kung Fu",
     "Sisay, Weatherlight Captain",
     "Tam, Mindful First-Year",
@@ -308,7 +301,6 @@
   "tymna_thrasios_edhrec_average": {
    "cards": 98,
    "unplayable": [
-    "Bloom Tender",
     "Demonic Consultation",
     "Devoted Druid",
     "Eldritch Evolution",

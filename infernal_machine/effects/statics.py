@@ -493,7 +493,8 @@ _AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:y
 _PER = {"artifact you control": ("permanent", "artifact"), "creature you control": ("permanent", "creature"),
         "Aura you control": ("permanent", "Aura"), "creature card in your graveyard": ("graveyard", "creature"),
         "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", ""),
-        "land you control": ("permanent", "land"), "artifact and/or enchantment you control": ("permanent", "artifact or enchantment")}
+        "land you control": ("permanent", "land"), "artifact and/or enchantment you control": ("permanent", "artifact or enchantment"),
+        "color among permanents you control": ("colors", "")}  # Faeburrow Elder
 
 
 _PER_LOWER = {k.lower(): v for k, v in _PER.items()}
