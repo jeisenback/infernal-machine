@@ -1,6 +1,4 @@
 [
- {"name": "edgar_markov_modelled", "commanders": ["Edgar Markov"],
-  "core": ["Bloodghast", "Preeminent Captain", "Vona's Hunger", "Drana, Liberator of Malakir", "Cruel Celebrant", "Anointed Procession", "Smothering Tithe", "Vampiric Tutor", "Demonic Tutor"]},
  {"name": "yshtola_modelled", "commanders": ["Y'shtola, Night's Blessed"],
   "core": ["Snuff Out", "Swords to Plowshares", "Cyclonic Rift", "Rhystic Study", "Smothering Tithe", "Aetherflux Reservoir"]},
  {"name": "ashling_modelled", "commanders": ["Ashling, the Limitless"],
