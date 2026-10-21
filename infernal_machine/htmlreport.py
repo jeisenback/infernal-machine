@@ -196,7 +196,8 @@ def _combos(section: "Section") -> str:
     for combo in combos:
         cards = escape(" + ".join(combo["cards"])) + (f' <small>(needs {escape(", ".join(combo["requires"]))})</small>' if combo.get("requires") else "")
         blocked = combo.get("blocked", [])
-        engine = '<td class="good">plays</td>' if not blocked else f'<td class="bad">{escape("can\'t play " + ", ".join(blocked))}</td>'
+        cannot = escape("can't play " + ", ".join(blocked))
+        engine = '<td class="good">plays</td>' if not blocked else f'<td class="bad">{cannot}</td>'
         rows.append(f'<tr><td>{cards}</td><td>{escape(", ".join(combo["produces"]))}</td><td>{escape(combo.get("mana") or "-")}</td>'
                     f'<td>{escape(combo["tag"])}</td><td class="n" data-v="{combo["popularity"]}">{combo["popularity"]}</td>{engine}</tr>')
     return (f"<p>{len(combos)} combo{'s' if len(combos) != 1 else ''} the deck holds, from Commander Spellbook; the last column says whether "
