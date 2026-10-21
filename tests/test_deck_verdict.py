@@ -6,8 +6,9 @@ import unittest
 from infernal_machine import coverage
 from infernal_machine.analyze import Analysis, Section, analyze_deck, format_analysis
 from infernal_machine.cards import Card, Deck
+from infernal_machine.combos import SpellbookSource
 from infernal_machine.htmlreport import render_html
-from tests.helpers import real
+from tests.helpers import commander_deck, real
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 BEAR = real("Cub", "{1}{G}", "Creature — Bear", "", "2", "2")
@@ -249,6 +250,63 @@ class HtmlTests(unittest.TestCase):
         page = render_html(analyze_deck(deck((FOREST, 20), (MOON_A, 1)), skip=SKIP))
         self.assertIn("Plays except <span", page)
         self.assertIn(MOON, page)
+
+
+def spellbook(*combos):
+    """A Commander Spellbook that answers every deck with these combos (each a tuple of card names), never the network."""
+    included = [{"id": str(i), "uses": [{"card": {"name": n}} for n in cards], "produces": [{"feature": {"name": "Win the game"}}],
+                 "bracketTag": "C"} for i, cards in enumerate(combos)]
+    return SpellbookSource(http=lambda request: {"results": {"identity": "G", "included": included, "almostIncluded": []}}, cache_path=None)
+
+
+class ComboTests(unittest.TestCase):
+    """A combo the engine can't play counts as a fix target (roadmap #453): the verdict says which combos are stuck, and each fix the
+    combos it completes."""
+
+    def test_without_combos_the_data_has_no_combos_entry(self):
+        data = coverage.playability(deck((FOREST, 20), (MOON_A, 1)))
+        self.assertNotIn("combos", data)
+        self.assertEqual(data["fixes"][0]["combos"], [])
+
+    def test_a_combo_with_a_blocked_piece_is_stuck_and_one_with_none_is_not(self):
+        data = coverage.playability(deck((FOREST, 20), (MOON_A, 1), (BEAR, 1)), combos=[("Moon Cat", "Cub"), ("Cub", "Forest")])
+        self.assertEqual(data["combos"], {"held": 2, "blocked": ["Moon Cat + Cub"]})
+        self.assertEqual(data["fixes"][0]["combos"], ["Moon Cat + Cub"])
+
+    def test_a_combo_waiting_on_two_lines_is_completed_by_the_second_fix_not_the_first(self):
+        d = deck((FOREST, 20), (MOON_A, 1), (MOON_B, 1), (odd(0), 1))
+        data = coverage.playability(d, combos=[("Moon Cat", "Odd Beast 0"), ("Moon Elk", "Cub")])
+        self.assertEqual([f["unlocks"] for f in data["fixes"]], [2, 1])
+        self.assertEqual([f["combos"] for f in data["fixes"]], [["Moon Elk + Cub"], ["Moon Cat + Odd Beast 0"]])
+
+    def test_the_printed_verdict_names_the_stuck_combos_and_what_completes_them(self):
+        d = commander_deck(MOON_A, MOON_B)
+        body = analyze_deck(d, skip=SKIP, spellbook=spellbook(("Moon Cat", "Moon Elk"), ("Cub", "Forest"))).sections[0].body
+        self.assertIn("1 of the 2 combos the deck holds can't be played, since a piece is a card above: Moon Cat + Moon Elk.", body)
+        self.assertIn("(unlocks 2: Moon Cat, Moon Elk; completes Moon Cat + Moon Elk)", body)
+        self.assertNotIn("matchup games", body)
+
+    def test_with_opponents_the_stuck_combos_qualify_the_matchups(self):
+        d = commander_deck(MOON_A)
+        analysis = analyze_deck(d, {"them": commander_deck()}, skip=["bracket", "manabase", "goldfish", "tuning"], spellbook=spellbook(("Moon Cat", "Cub")),
+                                games=2, sim_games=2, turns=2, workers=1)
+        self.assertIn("Moon Cat + Cub. The matchup games never see them.", analysis.sections[0].body)
+
+    def test_a_deck_whose_combos_all_play_says_nothing_about_them(self):
+        body = analyze_deck(commander_deck(MOON_A), skip=SKIP, spellbook=spellbook(("Cub", "Forest"))).sections[0].body
+        self.assertNotIn("combos", body)
+
+    def test_the_html_lists_the_stuck_combos_escaped_and_the_combos_a_fix_completes(self):
+        f = {**fix(1), "combos": ["<b>Evil</b> + Cub"]}
+        page = html_of({"cards": 10, "playable": 9, "unplayable": [blocked(1)], "fixes": [f], "combos": {"held": 3, "blocked": ["<b>Evil</b> + Cub"]}})
+        self.assertIn('<span class="bad">1</span> of the 3 combos the deck holds can\'t be played yet', page)
+        self.assertIn("<li>&lt;b&gt;Evil&lt;/b&gt; + Cub</li>", page)
+        self.assertIn("+1 card, completes &lt;b&gt;Evil&lt;/b&gt; + Cub, 97% playable after", page)
+        self.assertNotIn("<b>Evil</b>", page)
+
+    def test_the_html_of_a_run_without_combos_has_no_combo_line(self):
+        page = html_of({"cards": 10, "playable": 9, "unplayable": [blocked(1)], "fixes": [fix(1)]})
+        self.assertNotIn("combos the deck holds", page)
 
 
 if __name__ == "__main__":

@@ -211,8 +211,9 @@ def _fix_rows(fixes: list[dict]) -> str:
     for fix in fixes:
         more = fix["unlocks"] - len(fix["cards"])
         chips = "".join(f"<span>{escape(name)}</span>" for name in fix["cards"]) + (f"<span>+{more} more</span>" if more > 0 else "")
+        done = f", completes {escape('; '.join(fix['combos']))}" if fix.get("combos") else ""
         rows.append(f'<li><code>{escape(fix["line"])}</code><div class="chips">{chips}</div>'
-                    f'<span class="gain">+{fix["unlocks"]} card{"s" if fix["unlocks"] != 1 else ""}, {_pct(fix["playable_after"])} playable after</span></li>')
+                    f'<span class="gain">+{fix["unlocks"]} card{"s" if fix["unlocks"] != 1 else ""}{done}, {_pct(fix["playable_after"])} playable after</span></li>')
     return "".join(rows)
 
 
@@ -240,6 +241,11 @@ def _verdict(section: "Section") -> str:
            f'<div class="pbar{"" if blocked else " full"}" role="img" aria-label="{escape(label)}"><i style="width:{share * 100:.1f}%"></i></div>']
     if not blocked:
         out.append("<p>Every card is one the engine understands.</p>")
+    stuck = data.get("combos", {}).get("blocked")
+    if stuck:
+        items = "".join(f"<li>{escape(label)}</li>" for label in stuck)
+        out.append(f'<p><span class="bad">{len(stuck)}</span> of the {data["combos"]["held"]} combos the deck holds can\'t be played yet, '
+                   f"since a piece is a blocked card:</p><ul>{items}</ul>")
     fixes = data.get("fixes", [])
     if fixes:
         out.append("<h3>Fix these lines to unlock this deck</h3>")

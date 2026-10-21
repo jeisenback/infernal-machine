@@ -102,14 +102,6 @@ def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: 
         body, data = make()
         analysis.sections.append(Section(title, body, time.monotonic() - started, code, part, history.jsonable(data)))
 
-    # Never reused from an earlier run: what the engine can play changes with the engine, not with the deck or the settings.
-    if "playability" in left_out:
-        analysis.skipped.append("Playability (skipped on request)")
-    else:
-        started = time.monotonic()
-        also = " The matchup win rates below are unreliable for the same reason." if opponents and "matchups" not in left_out else ""
-        body, data = _playability(deck, name, also)
-        analysis.sections.append(Section("Playability", body, time.monotonic() - started, False, "playability", history.jsonable(data)))
     combos: ComboReport | None = None
     asked = 0.0  # how long Commander Spellbook took: counted with the combos part
     if commander and spellbook is not None:
@@ -125,6 +117,14 @@ def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: 
             asked = time.monotonic() - started
     elif spellbook is not None:
         analysis.skipped.append("Combos (Commander Spellbook knows Commander decks)")
+    # Never reused from an earlier run: what the engine can play changes with the engine, not with the deck or the settings.
+    if "playability" in left_out:
+        analysis.skipped.append("Playability (skipped on request)")
+    else:
+        started = time.monotonic()
+        also = " The matchup win rates below are unreliable for the same reason." if opponents and "matchups" not in left_out else ""
+        body, data = _playability(deck, name, also, combos.included if combos else None)
+        analysis.sections.append(Section("Playability", body, time.monotonic() - started, False, "playability", history.jsonable(data)))
     if commander:
         run("bracket", "Commander Bracket", lambda: _bracket(deck, combos.included if combos else []), code=False)
     else:
@@ -154,9 +154,10 @@ def _short(line: str, limit: int = 160) -> str:
     return line if len(line) <= limit else line[:limit - 3].rstrip() + "..."
 
 
-def _playability(deck: Deck, name: str, also: str = "") -> tuple[str, dict]:
-    """The verdict on the deck (issue #477): whether the engine plays every card, which it can't and the lines to build to unlock them."""
-    data = playability(deck, name)
+def _playability(deck: Deck, name: str, also: str = "", combos: list[Combo] | None = None) -> tuple[str, dict]:
+    """The verdict on the deck (issue #477): whether the engine plays every card, which it can't and the lines to build to unlock them,
+    and, given the combos the deck holds, which of them it can't play and which line completes each."""
+    data = playability(deck, name, None if combos is None else [c.cards for c in combos])
     cards, playable = data["cards"], data["playable"]
     if not cards:
         return "The deck has no cards.", data
@@ -165,13 +166,19 @@ def _playability(deck: Deck, name: str, also: str = "") -> tuple[str, dict]:
         return f"{verdict(0)}: {share}. Every card is one the engine understands.", data
     blocked = [(c["name"], c["copies"], c["line"]) for c in data["unplayable"]]
     lines = [f"{verdict(cards - playable)}: {share}.", "", unplayable_note(blocked, "The deck", IN_A_GAME + also)]
+    stuck = data.get("combos", {}).get("blocked")
+    if stuck:
+        unseen = " The matchup games never see them." if also else ""
+        lines += ["", f"{len(stuck)} of the {data['combos']['held']} combos the deck holds can't be played, since a piece is a card "
+                      f"above: {'; '.join(stuck)}.{unseen}"]
     fixes = data["fixes"]
     if fixes:
         lines += ["", "Fix these lines to unlock this deck:"]
         for i, fix in enumerate(fixes[:FIXES_SHOWN], 1):
             more = fix["unlocks"] - len(fix["cards"])
             who = ", ".join(fix["cards"]) + (f" and {more} more" if more > 0 else "")
-            lines.append(f"{i}. {_short(fix['line'])} (unlocks {fix['unlocks']}: {who}) -> {fix['playable_after']:.0%} playable")
+            done = f"; completes {', '.join(fix['combos'])}" if fix.get("combos") else ""
+            lines.append(f"{i}. {_short(fix['line'])} (unlocks {fix['unlocks']}: {who}{done}) -> {fix['playable_after']:.0%} playable")
         if len(fixes) > FIXES_SHOWN:
             lines.append(f"... and {len(fixes) - FIXES_SHOWN} more pieces of work that each unlock at least one card.")
     return "\n".join(lines), data
