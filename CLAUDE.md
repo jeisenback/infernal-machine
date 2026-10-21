@@ -60,6 +60,7 @@ python tools/run_tests.py                      # the same tests across processes
 python tools/coverage_audit.py --top 1         # how many Commander-legal cards are fully playable
 python tools/coverage_audit.py --decks examples/decks/*.txt --baseline examples/decks/baseline.json   # the tracked decks: no card that played may stop (--write-baseline refreshes it)
 python tools/play_smoke.py                     # every fully playable card casts or plays without an error
+python tools/explain_card.py --audit           # no card is read in a way the misparse audit knows is wrong (`explain_card.py CARD` shows how one was read)
 ```
 
 CI (`.github/workflows`): `tests` (required) and its `typecheck` job (pyright: no type errors; run it with
