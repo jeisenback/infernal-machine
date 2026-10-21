@@ -41,6 +41,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | {COST}, {T}: Add X mana in any combination of colors, where X is AMOUNT. (Any amount the effects read; X is worked out when the mana is wanted.) | Selvala, Heart of the Wilds |
 | {T}: Add MANA. This mana can't be spent to pay generic mana costs. (Only a colored symbol of a cost takes it.) | Jegantha, the Wellspring |
 | Whenever another creature enters, its controller may draw a card if its power is greater than each other creature's power. (The entering creature's controller chooses; a tie is not greater.) | Selvala, Heart of the Wilds |
+| {COST}: Untap enchanted creature. (beside the existing "Tap enchanted creature.") | Freed from the Real |
+| Put a -1/-1 counter (or any counter) on this creature: EFFECT. The counter is a cost, always payable (CR 118.3); the bot doesn't activate it, having no reason to. | Devoted Druid |
+| (You may) tap or untap target permanent / creature. With "When CARDNAME enters and whenever ...", two triggers. | Derevi, Empyrial Tactician |
+| {COST}: Put CARDNAME onto the battlefield from the command zone. Offered only while the card is in the command zone, at any time its owner has priority; not a cast, so no commander tax. | Derevi, Empyrial Tactician |
 | Compleated: a Phyrexian mana symbol in the walker's cost paid with 2 life (the payment does that only when mana will not do) makes it enter with two fewer loyalty counters, per symbol. | Vraska, Betrayal's Sting; Nissa, Ascended Animist |
 | Search your library for up to N / any number of (kind) cards (not named CARDNAME) (that each have different names), (reveal them,) put them into your hand / onto the battlefield / into your graveyard, then shuffle. / ... then shuffle and put those cards on top in any order (the searcher chooses the order). | Buried Alive, Tiamat, Goblin Recruiter |
 | Search your library for a (legendary) permanent / creature card with mana value less than CARDNAME's power, put that card onto the battlefield / into your hand, then shuffle. (The power is read as the ability resolves.) | Sisay, Weatherlight Captain |

@@ -276,6 +276,19 @@ class _IfYouDo:
 
 
 @dataclass(frozen=True)
+class PutThisFromCommandZone:
+    """Derevi, Empyrial Tactician: "{1}{G}{W}{U}: Put Derevi onto the battlefield from the command zone." The ability works only
+    while the card is in the command zone (ActivatedAbility.from_command_zone); it isn't a cast, so no commander tax is paid or added."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        card = item.card if item is not None else None
+        if card is not None and any(c is card for c in controller.command_zone):
+            controller.command_zone.remove(card)
+            game.put_onto_battlefield(controller, card)
+
+
+@dataclass(frozen=True)
 class CommanderToHand:
     """Command Beacon: "Put your commander into your hand from the command zone." """
 

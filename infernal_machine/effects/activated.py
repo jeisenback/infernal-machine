@@ -20,6 +20,7 @@ from .outcomes import (
     DefineX,
     LevelUp,
     PutCountersOnSource,
+    PutThisFromCommandZone,
     ReturnThisFromGraveyard,
     Unattach,
     _MODAL_INLINE,
@@ -87,6 +88,7 @@ class ActivatedAbility:
     reconfigure: str = ""  # "attach" (only with another creature to attach to) or "unattach" (only while attached)
     remove_counter: str = ""  # "Remove a +1/+1 counter from this creature": the kind of counter
     remove_count: int = 1  # ... and how many ("Remove three spore counters")
+    put_counter: str = ""  # "Put a -1/-1 counter on this creature": the kind of counter put on the source as a cost (CR 118.3: always payable)
     condition: "Condition | None" = None  # "Activate only if you control two or more white permanents."
     discard_self: bool = False  # "Discard this card": activated from the hand, like cycling (Magma Opus)
     exile_from_hand: bool = False  # "Exile this card from your hand": activated from the hand (the Spirit Guides)
@@ -96,6 +98,7 @@ class ActivatedAbility:
     tap_creatures: int = 0  # "Tap two untapped creatures you control": other creatures than the source (Harmonized Trio)
     life_identity: bool = False  # "Pay life equal to the number of colors in your commanders' color identity" (War Room)
     from_graveyard: bool = False  # the ability works from the graveyard ("Return this card from your graveyard ...")
+    from_command_zone: bool = False  # ... or from the command zone ("Put Derevi onto the battlefield from the command zone.")
     tap_legendary: bool = False  # ... and they have to be legendary (Relic of Legends)
     tap_type: str = ""  # ... or of this creature type (Chosen of Markov)
     discard_hand: bool = False  # "Discard your hand" (Lion's Eye Diamond)
@@ -155,6 +158,7 @@ _SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (?:other 
 
 
 _REMOVE_COUNTER_COST = re.compile(rf"Remove {_N_FIXED} {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
+_PUT_COUNTER_COST = re.compile(rf"Put an? {_COUNTER} on (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")  # Devoted Druid
 
 
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
@@ -287,6 +291,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields.update(exile_graveyard=_NUMBER[m[1]], exile_graveyard_kind=m[2] or "")
         elif m := _REMOVE_COUNTER_COST.fullmatch(part):
             fields.update(remove_counter=_counter_name(m[2]), remove_count=_number(m[1]))
+        elif m := _PUT_COUNTER_COST.fullmatch(part):
+            fields["put_counter"] = _counter_name(m[1])
         else:
             return None
     return fields
@@ -328,6 +334,8 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
         return None
     if any(isinstance(e, ReturnThisFromGraveyard) for e in effects):
         fields["from_graveyard"] = True
+    if any(isinstance(e, PutThisFromCommandZone) for e in effects):
+        fields["from_command_zone"] = True
     if any(isinstance(e, LevelUp) for e in effects):
         fields["sorcery_speed"] = True
     if any(getattr(e, "needs_exiled_with", False) for e in effects):
