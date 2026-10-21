@@ -19,8 +19,8 @@ from .effects import (additional_land_mana, charge_mana, chosen_color_mana, coun
                       makes_mana_by_power, mana_ability, mana_ability_needs_no_tap, mana_ability_sacrifices, mana_among_legendary,
                       mana_bonus, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
                       mana_of_imprinted, mana_pain, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
-                      with_granted_mana)
-from .filters import has_type, parse_filter
+                      tap_mana, with_granted_mana)
+from .filters import has_type, matches, parse_filter
 from .mana import GENERIC_ONLY, SNOW, Cost, parse_cost, pay
 
 if TYPE_CHECKING:
@@ -241,7 +241,45 @@ class ManaPayer:
                     continue
                 for mana in units:
                     bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage, restriction=restriction))
+        if effects := self._tap_mana_effects(seat):
+            abilities, lands, sacrifices = (self._tapped_for_mana(effects, bucket) for bucket in (abilities, lands, sacrifices))
         return pooled + abilities + lands + sacrifices + self._convoke_sources(seat, exclude, pooled + abilities + lands + sacrifices)
+
+    def _tap_mana_effects(self, seat: Seat) -> list:
+        """What changes the mana `seat`'s permanents make when tapped: its own Kinnan or Nyxbloom Ancient, and anyone's Mana Flare."""
+        return [effect for owner in self.game.seats for p in owner.battlefield if not self.game.loses_abilities(p)
+                for effect in tap_mana(p.card) if owner is seat or effect.anyone]
+
+    @staticmethod
+    def _tap_extra(effects: list, permanent: Permanent, units: list[frozenset[str]]) -> tuple[int, list[frozenset[str]]]:
+        """For one permanent tapped for `units` of mana: how many times as much it makes (CR 106.12b, Nyxbloom Ancient: two of them
+        make it nine times) and the mana the triggers add, once per tap however much it made (CR 106.12a, Kinnan). "Any type that
+        permanent produced" is read as any type it can make in this tap, a little generous for a land that makes one of two."""
+        if not units or counter_mana(permanent.card) is not None or mana_ability_needs_no_tap(permanent.card):
+            return 1, []  # no {T} in the cost: it isn't tapped for mana
+        times, extra = 1, []
+        produced = frozenset().union(*units) & frozenset("WUBRGC")
+        for effect in effects:
+            if matches(effect.kind, permanent.card):
+                if effect.times > 1:
+                    times *= effect.times
+                elif effect.extra or produced:
+                    extra.append(effect.extra or produced)
+        return times, extra
+
+    def _tapped_for_mana(self, effects: list, sources: list[ManaSource]) -> list[ManaSource]:
+        by_permanent: dict[int, list[ManaSource]] = {}
+        for source in sources:
+            by_permanent.setdefault(id(source.permanent), []).append(source)
+        result: list[ManaSource] = []
+        for own in by_permanent.values():
+            permanent = own[0].permanent
+            assert permanent is not None
+            times, extra = self._tap_extra(effects, permanent, [s.types for s in own])
+            # A storage land's mana costs a counter each: its multiplied mana is left out rather than charged wrongly.
+            result += [s for s in own for _ in range(1 if s.counter_each else times)]
+            result += [ManaSource(permanent, mana) for mana in extra]
+        return result
 
     def _convoke_sources(self, seat: Seat, exclude: Permanent | None, taken: list[ManaSource]) -> list[ManaSource]:
         """While a spell with Convoke (or Improvise) is being paid for: each untapped creature (artifact) not already a mana
@@ -374,7 +412,8 @@ class ManaPayer:
                 continue
             ability = filter_mana_ability(permanent.card)
             if ability:
-                found.append((permanent, parse_cost(ability[0]), ability[1]))
+                times, extra = self._tap_extra(effects, permanent, ability[1]) if (effects := self._tap_mana_effects(seat)) else (1, [])
+                found.append((permanent, parse_cost(ability[0]), [mana for mana in ability[1] for _ in range(times)] + extra))
             elif (per := mana_per_count(permanent.card)) is not None and per[0] \
                     and permanent.counters.get("charge", 0) >= mana_threshold(permanent.card):  # Cabal Coffers, Evendo
                 units = [frozenset(per[1])] * sum(has_type(p.card, per[2]) for p in seat.battlefield)

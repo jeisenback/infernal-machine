@@ -392,6 +392,40 @@ def is_optional_untap_line(line: str) -> bool:
     return _MAY_NOT_UNTAP.fullmatch(line) is not None
 
 
+# CR 106.12a: "Whenever you tap a nonland permanent for mana, add one mana of any type that permanent produced." (Kinnan, Mirari's Wake,
+# Crypt Ghast, Mana Flare) is a triggered mana ability: its mana is its own. CR 106.12b: "If you tap a permanent for mana, it produces
+# three times as much of that mana instead." (Nyxbloom Ancient, Mana Reflection) is a replacement on the permanent's own mana ability.
+_TAP_TRIGGER = re.compile(r"Whenever (you|a player) taps? an? (.+?) for mana, (?:add|that player adds) "
+                          r"(?:(?:an additional )?\{([WUBRGC])\}|one mana of any type that [a-z ]+ produced)\.")
+_TAP_TIMES = re.compile(r"If you tap an? (.+?) for mana, it produces (twice|three times) as much of that mana instead\.")
+
+
+@dataclass(frozen=True)
+class TapMana:
+    kind: str  # what is tapped, as a filter ("nonland permanent", "Swamp", "Mountain, Forest, or Plains")
+    anyone: bool = False  # "Whenever a player taps": every player's permanents, not only its controller's
+    extra: frozenset[str] | None = None  # the trigger's one mana: of these types; None: any type the permanent produced
+    times: int = 1  # a replacement instead: the permanent produces this many times as much (and there is no trigger mana)
+
+
+def _read_tap_mana(line: str) -> TapMana | None:
+    if m := _TAP_TRIGGER.fullmatch(line):
+        return TapMana(m[2], m[1] == "a player", frozenset(m[3]) if m[3] else None)
+    if m := _TAP_TIMES.fullmatch(line):
+        return TapMana(m[1], times=2 if m[2] == "twice" else 3)
+    return None
+
+
+@lru_cache(maxsize=None)
+def tap_mana(card: Card) -> tuple[TapMana, ...]:
+    """What `card` does to the mana a permanent makes when tapped (see _TAP_TRIGGER)."""
+    return tuple(found for line in rules_lines(card) if (found := _read_tap_mana(line)))
+
+
+def is_tap_mana_line(line: str) -> bool:
+    return _read_tap_mana(line) is not None
+
+
 def is_mana_ability(line: str) -> bool:
     line = _without_spent_rider(_THRESHOLD.sub(r"\2", line))
     return (_mana_match(line) is not None or _ADD_CHOSEN.fullmatch(line) is not None or _REMOVE_COUNTER_MANA.fullmatch(line) is not None or _REMOVE_ANY_NUMBER_MANA.fullmatch(line) is not None or _ADD_POWER.fullmatch(line) is not None
