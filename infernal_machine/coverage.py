@@ -12,6 +12,7 @@ import functools
 import math
 import os
 import re
+from collections.abc import Iterable, Sequence
 from typing import Any
 from .cards import Card
 from .report import unsupported_lines
@@ -330,6 +331,11 @@ def analyze(pool: list[dict], workers: int = 0) -> dict:
                                "shapes": {s: by_rank(names) for s, names in g["shapes"].items()}} for m, g in groups.items()}}
 
 
+def _work_for(line: str) -> frozenset[str]:
+    """The pieces of work a line the engine can't read waits on: its families, or the line's own wording when no family covers it."""
+    return families_of(line) or frozenset({"Other: " + shape(line)})
+
+
 def analyze_decks(decks: dict[str, Any]) -> dict:
     """What stops the given decks (name -> `Deck`) from being fully playable, and the order of work that unlocks the most cards.
     Every copy of a card counts (a piece of work that unlocks a card with two copies unlocks two cards); a line no family covers is a
@@ -348,13 +354,10 @@ def analyze_decks(decks: dict[str, Any]) -> dict:
             if not lines:
                 continue
             unplayable.append((name, copies[name], lines))
-            items: set[str] = set()
             for line in lines:
-                found = families_of(line) or frozenset({"Other: " + shape(line)})
-                items |= found
-                for item in found:
+                for item in _work_for(line):
                     example.setdefault(item, line)
-            needs.append((f"{deck_name}\x00{name}", copies[name], frozenset(items)))
+            needs.append((f"{deck_name}\x00{name}", copies[name], frozenset(item for line in lines for item in _work_for(line))))
         broken = sum(n for _, n, _ in unplayable)
         per_deck[deck_name] = {"cards": len(cards), "playable": len(cards) - broken, "unplayable": unplayable}
         total += len(cards)
@@ -417,17 +420,33 @@ def verdict(blocked: int) -> str:
     return f"{blocked} cards can't be played yet"
 
 
-def playability(deck: Any, name: str = "deck") -> dict:
+def playability(deck: Any, name: str = "deck", combos: Iterable[Sequence[str]] | None = None) -> dict:
     """What a deck's report says about the engine's reading of it, as plain data (JSON keeps it as is): the cards (copies) and how many
     play, each card that does not with its first unsupported line, and the pieces of work that unlock the most cards of this deck, in
     order, each with the share of the deck playable once it and the ones above it are built. Ranked for this deck alone, not with
-    others (`analyze_decks` shares a ranking between the decks it is given)."""
+    others (`analyze_decks` shares a ranking between the decks it is given). `combos` are the combos the deck holds, each as its cards'
+    names: given, the data says which can't be played (a piece is blocked) and each fix names the combos it completes, with the ones
+    above it built."""
     result = analyze_decks({name: deck})
     one = result["decks"][name]
     unplayable = sorted(one["unplayable"], key=lambda item: (-item[1], item[0]))
-    return {
+    data: dict[str, Any] = {
         "cards": one["cards"], "playable": one["playable"],
         "unplayable": [{"name": card, "copies": copies, "line": lines[0], "more": len(lines) - 1} for card, copies, lines in unplayable],
-        "fixes": [{"family": pick["family"], "line": pick["example"], "unlocks": pick["unlocks"], "cards": pick["cards"],
-                   "playable_after": pick["playable_after"]} for pick in result["next"] if pick["unlocks"]],
+        "fixes": [],
     }
+    work = {card: frozenset(item for line in lines for item in _work_for(line)) for card, _, lines in unplayable}
+    held = [list(cards) for cards in combos or ()]
+    waiting = [(" + ".join(cards), [n for n in cards if n in work]) for cards in held]
+    waiting = [(label, pieces) for label, pieces in waiting if pieces]
+    if combos is not None:
+        data["combos"] = {"held": len(held), "blocked": [label for label, _ in waiting]}
+    built: set[str] = set()
+    for pick in result["next"]:
+        built.add(pick["family"])
+        done = [label for label, pieces in waiting if all(work[n] <= built for n in pieces)]
+        waiting = [(label, pieces) for label, pieces in waiting if label not in done]
+        if pick["unlocks"]:
+            data["fixes"].append({"family": pick["family"], "line": pick["example"], "unlocks": pick["unlocks"], "cards": pick["cards"],
+                                  "playable_after": pick["playable_after"], "combos": done})
+    return data
