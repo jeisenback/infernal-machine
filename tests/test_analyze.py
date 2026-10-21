@@ -29,13 +29,13 @@ def titles(analysis):
 class SectionTests(unittest.TestCase):
     def test_a_commander_deck_with_opponents_gets_every_part_in_order(self):
         analysis = analyze_deck(commander_deck(), {"mirror": commander_deck()}, name="mine", **FAST)
-        self.assertEqual(titles(analysis), ["Commander Bracket", "Mana base", "Goldfish", "Tuning", "Matchups"])
+        self.assertEqual(titles(analysis), ["Playability", "Commander Bracket", "Mana base", "Goldfish", "Tuning", "Matchups"])
         self.assertEqual(analysis.kind, "Commander")
         self.assertEqual(analysis.skipped, [])
 
     def test_a_standard_deck_has_no_bracket(self):
         analysis = analyze_deck(standard_deck(), {"mirror": standard_deck()}, **FAST)
-        self.assertEqual(titles(analysis), ["Mana base", "Goldfish", "Tuning", "Matchups"])
+        self.assertEqual(titles(analysis), ["Playability", "Mana base", "Goldfish", "Tuning", "Matchups"])
         self.assertEqual(analysis.kind, "Standard")
         self.assertIn("Commander Bracket (a deck with no commander has none)", analysis.skipped)
 
@@ -46,7 +46,7 @@ class SectionTests(unittest.TestCase):
 
     def test_a_part_can_be_skipped(self):
         analysis = analyze_deck(commander_deck(), {"mirror": commander_deck()}, skip=["tuning", "matchups"], **FAST)
-        self.assertEqual(titles(analysis), ["Commander Bracket", "Mana base", "Goldfish"])
+        self.assertEqual(titles(analysis), ["Playability", "Commander Bracket", "Mana base", "Goldfish"])
         self.assertEqual(analysis.skipped, ["Tuning (skipped on request)", "Matchups (skipped on request)"])
 
     def test_an_unknown_part_is_an_error(self):
@@ -67,18 +67,23 @@ class SectionTests(unittest.TestCase):
     def test_progress_is_reported_once_for_each_part_that_runs(self):
         messages = []
         analyze_deck(commander_deck(), {"mirror": commander_deck()}, skip=["goldfish"], progress=messages.append, **FAST)
-        self.assertEqual(messages, ["Commander Bracket...", "Mana base...", "Tuning...", "Matchups..."])
+        self.assertEqual(messages, ["Commander Bracket...", "Mana base...", "Tuning...", "Matchups..."])  # (playability is quick and says nothing)
 
 
 class WarningTests(unittest.TestCase):
-    def test_cards_the_engine_cannot_play_come_first(self):
+    def test_the_verdict_on_the_deck_comes_first(self):
         analysis = analyze_deck(commander_deck(ODD), **FAST)
-        self.assertEqual(titles(analysis)[0], "Cards the engine can't play")
+        self.assertEqual(titles(analysis)[0], "Playability")
         self.assertIn("Odd Spell", analysis.sections[0].body)
+        self.assertEqual(analysis.sections[0].part, "playability")
         self.assertFalse(analysis.sections[0].code)
 
-    def test_a_clean_deck_has_no_warning(self):
-        self.assertNotIn("Cards the engine can't play", titles(analyze_deck(commander_deck(), **FAST)))
+    def test_a_clean_deck_plays_fully(self):
+        section = analyze_deck(commander_deck(), **FAST).sections[0]
+        self.assertEqual(section.title, "Playability")
+        self.assertTrue(section.body.startswith("Plays fully: "), section.body)
+        self.assertEqual(section.data["unplayable"], [])
+        self.assertEqual(section.data["fixes"], [])
 
     def test_nothing_is_said_twice(self):
         report = format_analysis(analyze_deck(commander_deck(ODD), {"mirror": commander_deck()}, **FAST))

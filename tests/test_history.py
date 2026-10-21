@@ -221,7 +221,7 @@ class AnalyzeTests(unittest.TestCase):
 
     def test_a_run_records_its_parts_and_their_numbers(self):
         first = self.analyze()
-        self.assertEqual(sorted(first.record["parts"]), ["bracket", "goldfish", "manabase", "matchups", "tuning"])
+        self.assertEqual(sorted(first.record["parts"]), ["bracket", "goldfish", "manabase", "matchups", "playability", "tuning"])
         self.assertEqual(first.record["parts"]["bracket"]["data"]["floor"], 1)
         self.assertEqual(first.record["parts"]["goldfish"]["data"]["games"], 40)
         self.assertEqual(first.record["parts"]["matchups"]["data"]["opponents"]["them"]["games"], 4)
@@ -235,7 +235,8 @@ class AnalyzeTests(unittest.TestCase):
             again = self.analyze(since=first.record)
         self.assertEqual(again.reused, ["commander bracket", "mana base", "goldfish", "tuning", "matchups"])
         self.assertEqual([s.body for s in again.sections], [s.body for s in first.sections])
-        self.assertEqual(again.seconds, 0.0)
+        self.assertEqual(sum(s.seconds for s in again.sections if s.part != "playability"), 0.0, "no part was played again")
+        self.assertLess(again.seconds, 1.0, "(the verdict on the deck is worked out again, never reused, and takes a moment)")
         self.assertIn("Reused from the earlier run", analyze.format_analysis(again))
         self.assertIn("Not compared (taken from the earlier run, so the same)", again.changes)
         self.assertNotIn("mulligan rate", again.changes, "a part taken from the earlier run is not set against itself")

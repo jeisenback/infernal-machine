@@ -400,3 +400,34 @@ def compare_baseline(baseline: dict, result: dict) -> dict:
         if before - unplayable:
             fixed[name] = sorted(before - unplayable)
     return {"regressed": regressed, "fixed": fixed, "new_decks": sorted(set(now) - set(kept)), "missing_decks": sorted(set(kept) - set(now))}
+
+
+# --- the verdict on one deck (issue #477): the same numbers for the markdown report and the HTML report -------------------------------
+
+PLAIN_LIMIT = 10  # up to this many cards the engine can't play, a deck "plays except N cards"; above it the verdict says so bluntly
+FIXES_SHOWN = 5  # the fix list that is shown at once; the rest is behind a disclosure
+
+
+def verdict(blocked: int) -> str:
+    """The headline for a deck with `blocked` cards (copies) the engine can't play."""
+    if blocked <= 0:
+        return "Plays fully"
+    if blocked <= PLAIN_LIMIT:
+        return f"Plays except {blocked} card{'s' if blocked != 1 else ''}"
+    return f"{blocked} cards can't be played yet"
+
+
+def playability(deck: Any, name: str = "deck") -> dict:
+    """What a deck's report says about the engine's reading of it, as plain data (JSON keeps it as is): the cards (copies) and how many
+    play, each card that does not with its first unsupported line, and the pieces of work that unlock the most cards of this deck, in
+    order, each with the share of the deck playable once it and the ones above it are built. Ranked for this deck alone, not with
+    others (`analyze_decks` shares a ranking between the decks it is given)."""
+    result = analyze_decks({name: deck})
+    one = result["decks"][name]
+    unplayable = sorted(one["unplayable"], key=lambda item: (-item[1], item[0]))
+    return {
+        "cards": one["cards"], "playable": one["playable"],
+        "unplayable": [{"name": card, "copies": copies, "line": lines[0], "more": len(lines) - 1} for card, copies, lines in unplayable],
+        "fixes": [{"family": pick["family"], "line": pick["example"], "unlocks": pick["unlocks"], "cards": pick["cards"],
+                   "playable_after": pick["playable_after"]} for pick in result["next"] if pick["unlocks"]],
+    }

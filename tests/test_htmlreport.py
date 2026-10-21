@@ -21,7 +21,7 @@ CARDS = [{"name": "Strong <b>Card</b>", "copies": 1, "delta": 1.25, "error": 0.2
 
 def analysis(**more):
     sections = [
-        Section("Cards the engine can't play", "Odd Spell can't be played.", code=False),
+        Section("Playability", "Plays except 1 card: Odd Spell can't be played.", part="playability", code=False),
         Section("Commander Bracket", "No hard limit above Bracket 2.", part="bracket", code=False, data={"floor": 2, "game_changers": []}),
         Section("Mana base", "text", part="manabase", data={"lands": 37, "colors": {"W": {"have": 30, "needed": 24, "short": 0},
                                                                               "R": {"have": 12, "needed": 18, "short": 6}}}),
@@ -50,8 +50,9 @@ class ContentTests(unittest.TestCase):
         self.assertIn("Strong &lt;b&gt;Card&lt;/b&gt;", self.page)
         self.assertNotIn("<b>Card</b>", self.page)
 
-    def test_the_cards_the_engine_cannot_play_come_before_everything(self):
-        self.assertLess(self.page.index("Odd Spell can&#x27;t be played."), self.page.index("<h2>"))
+    def test_the_playability_section_comes_before_everything(self):
+        self.assertLess(self.page.index("Odd Spell can&#x27;t be played."), self.page.index("<h2>Commander Bracket</h2>"))
+        self.assertLess(self.page.index("Playability"), self.page.index('<div class="tiles">'))
 
     def test_the_summary_tiles(self):
         for text in ("Commander", "Bracket 2+", "37", "lands, 6 sources short", "10%", "36%", "of 20 matchup games"):
