@@ -59,7 +59,7 @@ python -m unittest discover -s tests -t .      # CI runs this on Python 3.11 and
 python tools/run_tests.py                      # the same tests across processes (about 2.5 times faster; a failure is the same failure)
 python tools/coverage_audit.py --top 1         # how many Commander-legal cards are fully playable
 python tools/coverage_audit.py --decks examples/decks/*.txt --baseline examples/decks/baseline.json   # the tracked decks: no card that played may stop (--write-baseline refreshes it)
-                                               # a coverage pull request says what this printed before and after: the real decklists' share first, then the pool's
+                                               # a coverage pull request says what this printed before and after, beside the pool's share
 python tools/play_smoke.py                     # every fully playable card casts or plays without an error
 python tools/explain_card.py --audit           # no card is read in a way the misparse audit knows is wrong (`explain_card.py CARD` shows how one was read)
 ```

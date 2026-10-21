@@ -1,8 +1,10 @@
 # Real decklists for the coverage audit
 
-Six Commander decks that people actually play, used to aim the card-coverage work (issues #428, #475). They are the EDHREC "average deck"
-for each commander (public pages, copied as plain card lists: the first three on 2026-10-18, the last three on 2026-10-21): the 99 cards
-most often played with it, so a typical list, not any one player's. They are **not** in the gauntlet and are not meant as opponents.
+Fifteen Commander decks that people actually play, used to aim the card-coverage work (issues #428, #475). Each is the EDHREC "average
+deck" for its commander (public pages, copied as plain card lists: Atraxa, Ur-Dragon and Krenko on 2026-10-18, the rest on 2026-10-21):
+the 99 cards most often played with it, so a typical list, not any one player's. They are **not** in the gauntlet and are not meant as
+opponents. The modelled decks that stood in for some of them until 2026-10-21 (built from the most played cards, which the engine already
+plays best, so they read 93-99% playable) are gone, and so is the tool that built them.
 
 | File | Commander | Style |
 |---|---|---|
@@ -10,28 +12,23 @@ most often played with it, so a typical list, not any one player's. They are **n
 | `ur_dragon_edhrec_average.txt` | The Ur-Dragon | Dragon tribal, five colors |
 | `krenko_edhrec_average.txt` | Krenko, Mob Boss | Goblin tribal, mono red |
 | `yuriko_edhrec_average.txt` | Yuriko, the Tiger's Shadow | ninjas and tempo, Dimir |
-| `edgar_markov_edhrec_average.txt` | Edgar Markov | Vampire tokens and aristocrats, Mardu (replaces the modelled Edgar) |
+| `edgar_markov_edhrec_average.txt` | Edgar Markov | Vampire tokens and aristocrats, Mardu |
 | `niv_mizzet_edhrec_average.txt` | Niv-Mizzet, Parun | spellslinger, Izzet |
+| `ashling_edhrec_average.txt` | Ashling, the Limitless | Elementals and blink, mono red |
+| `giada_edhrec_average.txt` | Giada, Font of Hope | Angel tribal, mono white |
+| `jace_multiverse_architect_edhrec_average.txt` | Jace, Multiverse Architect | control, mono blue |
+| `kinnan_edhrec_average.txt` | Kinnan, Bonder Prodigy | big mana, Simic |
+| `korvold_edhrec_average.txt` | Korvold, Fae-Cursed King | sacrifice and treasure, Jund |
+| `pantlaza_edhrec_average.txt` | Pantlaza, Sun-Favored | Dinosaurs and discover, Naya |
+| `sisay_edhrec_average.txt` | Sisay, Weatherlight Captain | legendary toolbox, five colors |
+| `tymna_thrasios_edhrec_average.txt` | Tymna the Weaver and Thrasios, Triton Hero | partners, four-color value (EDHREC publishes this one as 98 cards; kept as published) |
+| `yshtola_edhrec_average.txt` | Y'shtola, Night's Blessed | life loss and draw, Esper |
 
 ```
 python tools/coverage_audit.py --decks examples/decks/*.txt        # what blocks them, and what to build first
 ```
 
-## Modelled decks (`*_modelled.txt`)
-
-Nine more commanders are tracked as *modelled* decks, not real lists: `modelled.json` names each commander (or partner pair) and a few core
-cards, and `tools/model_deck.py` fills the rest of the 100 cards from the card pool (Commander-legal, the commander's colors, most played
-first by Scryfall's EDHREC rank, 36 lands). Nobody exported them, so they are a model of a typical deck, like the audit's own.
-
-```
-python tools/model_deck.py examples/decks/modelled.json        # rewrites the *_modelled.txt files from .cache/commander_pool.json
-```
-
-Read the numbers with that in mind: the modelled decks are 93-99% playable and the six real EDHREC averages 74-94%, because ranking by
-popularity picks the cards the engine already plays (the top 500 cards are 92% playable). They guard against regressions in the baseline; the
-real lists are the ones to aim new work at, so the audit's headline is the real lists' share, with the modelled decks' share and the total
-beside it (a deck is "modelled" by its `_modelled` name). Replace a modelled deck with a real export (`tools/import_deck.py`) whenever you have one.
-Banned cards named as core (Mana Crypt, Dockside Extortionist) are left out and reported.
+To add a list, export one from a deck site (or copy an EDHREC average deck) and run it through `tools/import_deck.py`; record the source and date here.
 
 ## The baseline (#475)
 
@@ -52,6 +49,5 @@ decks, and every Monday. A regression, a baseline deck that was not checked, or 
 keeps one comment up to date on the roadmap epic (#453) with each deck's share and the five pieces of work that unlock the most cards.
 
 The audit reports each deck's playable share and ranks the pieces of work by the cards they unlock across all of them. Re-run it after
-each piece. Playable share (cards the engine fully reads): before #428 work 73 / 300 cards of Atraxa, 64, 66 for Krenko and Ur-Dragon
-(68% together); after the first round 79, 71, 68 (73%); after the second 79, 73, 71 (74%); on 2026-10-21, after the library search family (#495),
-80, 75, 74 (76%). To add a list, export one from a deck site and run it through `tools/import_deck.py`.
+each piece. Playable share of the first three (Atraxa, Krenko, Ur-Dragon): before #428 work 73, 64, 66 of 100 (68% together); after the
+first round 79, 71, 68 (73%); after the second 79, 73, 71 (74%); on 2026-10-21, after the library search family (#495), 80, 75, 74 (76%).

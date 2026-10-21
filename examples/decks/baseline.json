@@ -1,11 +1,44 @@
 {
  "decks": {
-  "ashling_modelled": {
+  "ashling_edhrec_average": {
    "cards": 100,
    "unplayable": [
+    "Abundant Countryside",
+    "Ancient Ziggurat",
+    "Animar, Soul of Elements",
+    "Ashling's Command",
     "Ashling, the Limitless",
-    "Bane of Progress",
-    "Grave Sifter"
+    "Cavalier of Thorns",
+    "Champion of the Path",
+    "Cream of the Crop",
+    "Descendants' Fury",
+    "Distant Melody",
+    "Eclipsed Flamekin",
+    "Endurance",
+    "Faeburrow Elder",
+    "Flamebraider",
+    "Fury",
+    "Greenwarden of Murasa",
+    "Haunting Voyage",
+    "Horde of Notions",
+    "Impulsivity",
+    "Incandescent Soulstoke",
+    "Jegantha, the Wellspring",
+    "Kindred Summons",
+    "Mass of Mysteries",
+    "Muldrotha, the Gravetide",
+    "Omnath, Locus of the Roil",
+    "Primal Beyond",
+    "Risen Reef",
+    "Secluded Courtyard",
+    "Shriekmaw",
+    "Smokebraider",
+    "Springleaf Parade",
+    "Subterfuge",
+    "Sunderflock",
+    "Titan of Industry",
+    "Twinflame Travelers",
+    "Vernal Sovereign"
    ]
   },
   "atraxa_edhrec_average": {
@@ -58,36 +91,118 @@
     "Voldaren Estate"
    ]
   },
-  "giada_modelled": {
+  "giada_edhrec_average": {
    "cards": 100,
    "unplayable": [
     "Akroma's Will",
+    "Angel of Destiny",
+    "Angel of Jubilation",
+    "Angel of Vitality",
+    "Angelic Field Marshal",
     "Archangel of Tithes",
-    "Baneslayer Angel",
+    "Battle Angels of Tyr",
+    "Bruna, the Fading Light",
+    "Court of Grace",
+    "Emeria Shepherd",
+    "Entreat the Angels",
+    "Exemplar of Light",
+    "Flare of Fortitude",
+    "Folk Hero",
     "Giada, Font of Hope",
-    "Serra Ascendant",
-    "Shadowspear",
-    "The Ozolith"
+    "Gisela, the Broken Blade",
+    "Herald of War",
+    "Linvala, Keeper of Silence",
+    "Luminarch Ascension",
+    "Metropolis Reformer",
+    "Resplendent Angel",
+    "Righteous Valkyrie",
+    "Sephara, Sky's Blade",
+    "Serra the Benevolent",
+    "The Book of Exalted Deeds",
+    "Thraben Watcher"
    ]
   },
-  "jace_multiverse_architect_modelled": {
+  "jace_multiverse_architect_edhrec_average": {
    "cards": 100,
    "unplayable": [
-    "Jace, Multiverse Architect"
+    "Ajani Unrelenting",
+    "Aminatou, the Fateshifter",
+    "Archfiend of Despair",
+    "Archon of Cruelty",
+    "Avacyn, Angel of Horror",
+    "Darksteel Angel",
+    "Dreadhorde Invasion",
+    "Fatehold Charm",
+    "Ginger, Queen of Sweets",
+    "Jace's Machinations",
+    "Jace, Multiverse Architect",
+    "Jace, Reality Sculptor",
+    "Jace, the Mind Sculptor",
+    "Jhoira, Weatherlight Corsair",
+    "Kher Keep",
+    "Martial Coup",
+    "Mass Polymorph",
+    "Nicol Bolas, Dragon-God",
+    "Nissa, Leyline Tamer",
+    "Oath of Teferi",
+    "Ob Nixilis, the Ascended",
+    "Overlord of the Mistmoors",
+    "Overwrite the Multiverse",
+    "Plan for All Outcomes",
+    "Polymorph",
+    "Proteus Staff",
+    "Restless Anchorage",
+    "Sanctum Lurker",
+    "Serra's Emissary",
+    "Shark Typhoon",
+    "Skrelv's Hive",
+    "Sunfall",
+    "Synthetic Destiny",
+    "Tamiyo, Upriser Crowned",
+    "The Theorist, Jace Beleren",
+    "White Sun's Twilight",
+    "Windcrag Siege"
    ]
   },
-  "kinnan_modelled": {
+  "kinnan_edhrec_average": {
    "cards": 100,
    "unplayable": [
+    "Badgermole Cub",
+    "Bloom Tender",
+    "Endurance",
     "Finale of Devastation",
+    "Freed from the Real",
+    "Gemstone Caverns",
     "Kinnan, Bonder Prodigy",
-    "Nezahal, Primal Tide"
+    "Mindbreak Trap",
+    "Mirage Mirror",
+    "Nature's Rhythm",
+    "Nezahal, Primal Tide",
+    "Nyxbloom Ancient",
+    "Pact of Negation",
+    "Tezzeret the Seeker",
+    "Transmute Artifact",
+    "Valley Floodcaller",
+    "Veil of Summer",
+    "Wan Shi Tong, Librarian",
+    "Wandering Archaic // Explore the Vastlands"
    ]
   },
-  "korvold_modelled": {
+  "korvold_edhrec_average": {
    "cards": 100,
    "unplayable": [
-    "Korvold, Fae-Cursed King"
+    "Bootleggers' Stash",
+    "Braids, Arisen Nightmare",
+    "Chatterfang, Squirrel General",
+    "Juri, Master of the Revue",
+    "Korvold, Fae-Cursed King",
+    "Mahadi, Emporium Master",
+    "Old Gnawbone",
+    "Revel in Riches",
+    "Ruthless Technomancer",
+    "The Reaver Cleaver",
+    "Xorn",
+    "Ziatora, the Incinerator"
    ]
   },
   "krenko_edhrec_average": {
@@ -131,30 +246,106 @@
     "Tandem Lookout"
    ]
   },
-  "pantlaza_modelled": {
+  "pantlaza_edhrec_average": {
    "cards": 100,
    "unplayable": [
+    "Akroma's Will",
+    "Bonehoard Dracosaur",
+    "Bronzebeak Foragers",
+    "Descendants' Path",
+    "Earthshaker Dreadmaw",
     "Etali, Primal Conqueror // Etali, Primal Sickness",
+    "From the Rubble",
+    "Ghalta and Mavren",
+    "Ghalta, Stampede Tyrant",
     "Gishath, Sun's Avatar",
-    "Pantlaza, Sun-Favored"
+    "Hunting Velociraptor",
+    "Marauding Raptor",
+    "Monster Manual // Zoological Study",
+    "Otepec Huntmaster",
+    "Pantlaza, Sun-Favored",
+    "Quartzwood Crasher",
+    "Regal Behemoth",
+    "Runic Armasaur",
+    "Savage Order",
+    "Secluded Courtyard",
+    "Sunfrill Imitator",
+    "Temple Altisaur",
+    "The Skullspore Nexus",
+    "Thunderherd Migration",
+    "Topiary Stomper",
+    "Trumpeting Carnosaur",
+    "Verdant Sun's Avatar",
+    "Wakening Sun's Avatar",
+    "Wayward Swordtooth",
+    "Welcome to . . . // Jurassic Park",
+    "Wrathful Raptors"
    ]
   },
-  "sisay_modelled": {
+  "sisay_edhrec_average": {
    "cards": 100,
    "unplayable": [
-    "Emry, Lurker of the Loch",
-    "Jodah, the Unifier",
+    "Agatha's Soul Cauldron",
+    "Bloom Tender",
+    "Cultist of the Absolute",
+    "Deadpool, Trading Card",
+    "Derevi, Empyrial Tactician",
+    "Dihada, Binder of Wills",
+    "Emiel the Blessed",
+    "Ertai Resurrected",
+    "Esika, God of the Tree // The Prismatic Bridge",
+    "Faeburrow Elder",
+    "Gemstone Caverns",
+    "Gleaming Splendor",
+    "Ioreth of the Healing House",
     "Kinnan, Bonder Prodigy",
-    "Riftsweeper",
+    "Kutzil, Malamet Exemplar",
+    "Lavinia, Azorius Renegade",
+    "Marvin, Murderous Mimic",
+    "Mindbreak Trap",
+    "Mount Doom",
+    "Nicol Bolas, Dragon-God",
+    "Oath of Teferi",
+    "Primevals' Glorious Rebirth",
+    "Selvala, Heart of the Wilds",
+    "Shang-Chi, Master of Kung Fu",
     "Sisay, Weatherlight Captain",
-    "Training Grounds"
+    "Tam, Mindful First-Year",
+    "Tataru Taru",
+    "Teferi, Time Raveler",
+    "The Cabbage Merchant",
+    "Touch the Spirit Realm",
+    "Tyvar, Jubilant Brawler",
+    "Urza's Ruinous Blast"
    ]
   },
-  "tymna_thrasios_modelled": {
-   "cards": 100,
+  "tymna_thrasios_edhrec_average": {
+   "cards": 98,
    "unplayable": [
-    "Drannith Magistrate",
-    "Tymna the Weaver"
+    "Bloom Tender",
+    "Demonic Consultation",
+    "Devoted Druid",
+    "Eldritch Evolution",
+    "Finale of Devastation",
+    "Gemstone Caverns",
+    "Gleaming Splendor",
+    "Hazel's Brewmaster",
+    "Kinnan, Bonder Prodigy",
+    "Mindbreak Trap",
+    "Mockingbird",
+    "Nature's Rhythm",
+    "Neoform",
+    "Opposition Agent",
+    "Pact of Negation",
+    "Survival of the Fittest",
+    "Swift Reconfiguration",
+    "Tainted Pact",
+    "Thassa's Oracle",
+    "The Cabbage Merchant",
+    "Tymna the Weaver",
+    "Valley Floodcaller",
+    "Veil of Summer",
+    "Wan Shi Tong, Librarian"
    ]
   },
   "ur_dragon_edhrec_average": {
@@ -188,10 +379,26 @@
     "The World Tree"
    ]
   },
-  "yshtola_modelled": {
+  "yshtola_edhrec_average": {
    "cards": 100,
    "unplayable": [
+    "Alisaie Leveilleur",
+    "Bloodchief Ascension",
+    "Bolas's Citadel",
+    "Dancer's Chakrams",
+    "Delney, Streetwise Lookout",
+    "Emet-Selch of the Third Seat",
+    "Fandaniel, Telophoroi Ascian",
+    "G'raha Tia, Scion Reborn",
+    "Helm of the Ghastlord",
+    "Lethal Scheme",
+    "Lyse Hext",
+    "Papalymo Totolymo",
     "Snuff Out",
+    "Syphon Mind",
+    "Tataru Taru",
+    "Teferi, Time Raveler",
+    "Transpose",
     "Y'shtola, Night's Blessed"
    ]
   },
