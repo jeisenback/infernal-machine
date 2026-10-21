@@ -1,10 +1,11 @@
 name: tracked decks
 # The decks in examples/decks against examples/decks/baseline.json (#475, #476): a card that played and no longer does fails this job,
+# and so does a card the misparse audit (tools/explain_card.py --audit, #478) finds read wrongly,
 # on a pull request that touches the engine and every Monday (when Scryfall's Oracle text may have changed under a card). The Monday run
 # also keeps one comment up to date on the roadmap epic, #453. Never fails because something got better: that only asks for a refresh.
 on:
   pull_request:
-    paths: ["infernal_machine/**", "examples/decks/**", "tools/coverage_audit.py", ".github/workflows/tracked-decks.yml"]
+    paths: ["infernal_machine/**", "examples/decks/**", "tools/coverage_audit.py", "tools/explain_card.py", ".github/workflows/tracked-decks.yml"]
   schedule:
     - cron: "52 6 * * 1"  # Mondays, after the precon report, the bot games and the coverage audit
   workflow_dispatch:
@@ -40,6 +41,10 @@ jobs:
         continue-on-error: true  # so the table is still posted when a deck got worse; the last step fails the job
         shell: bash  # with pipefail, so the audit's exit status survives the pipe to tee
         run: python tools/coverage_audit.py --decks examples/decks/*.txt --baseline examples/decks/baseline.json --top 5 | tee decks.md
+      - name: No card is read in a way the audit knows is wrong
+        if: always()  # whatever the decks check said: this is about every card, not the tracked ones
+        run: python tools/explain_card.py --audit | tee -a "$GITHUB_STEP_SUMMARY"
+        shell: bash
       - name: Show it in the job summary
         if: always() && hashFiles('decks.md') != ''
         run: cat decks.md >> "$GITHUB_STEP_SUMMARY"

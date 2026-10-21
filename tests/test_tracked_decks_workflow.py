@@ -56,6 +56,26 @@ class AuditStepTests(unittest.TestCase):
         self.assertEqual(TEXT.count("continue-on-error"), 1, "only on the audit step, whose result the last step turns into the job's")
 
 
+class MisparseAuditStepTests(unittest.TestCase):
+    NAME = "No card is read in a way the audit knows is wrong"
+
+    def test_the_audit_runs_over_the_card_file_even_when_the_decks_check_failed(self):
+        run = step(self.NAME)
+        self.assertIn("python tools/explain_card.py --audit", run)
+        self.assertIn("if: always()", run)
+
+    def test_its_exit_status_survives_the_pipe_to_tee(self):
+        run = step(self.NAME)
+        self.assertIn("| tee -a", run)
+        self.assertIn("shell: bash", run, "bash -eo pipefail, so a finding is not hidden by tee")
+
+    def test_its_failure_is_the_jobs_failure(self):
+        self.assertNotIn("continue-on-error", step(self.NAME))
+
+    def test_a_change_to_the_tool_runs_the_workflow(self):
+        self.assertIn('"tools/explain_card.py"', TEXT.split("jobs:")[0])
+
+
 class CommentStepTests(unittest.TestCase):
     def test_a_pull_request_never_posts_the_comment(self):
         self.assertIn("github.event_name != 'pull_request'", step("Keep one comment on the roadmap epic up to date"))
