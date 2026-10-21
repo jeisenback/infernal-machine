@@ -369,6 +369,7 @@ class StackItem:
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
     cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
     warped: bool = False  # cast for its warp cost: exiled at the next end step, castable from exile on a later turn
+    phyrexian_life: int = 0  # Phyrexian mana symbols of its cost paid with life: a Compleated walker enters with two fewer loyalty each
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
     whole: Card | None = None  # cast as one half of this card (an Adventure, a split half): the card that moves between zones
     from_hand: bool = False  # cast from its owner's hand (rebound only works then)
@@ -1953,7 +1954,7 @@ class Game:
             door = card if is_room(whole) else None
             if door is not None:
                 card = room_view(whole, (door.name,))
-            entering = Permanent(card, sick=True, loyalty=_starting_loyalty(card), kicked=item.kicked, kickers=item.kickers,
+            entering = Permanent(card, sick=True, loyalty=self._entering_loyalty(card, item), kicked=item.kicked, kickers=item.kickers,
                                  escaped=item.escaped, cast=not item.is_copy, doors=(door.name,) if door else (),
                                  transformed_from=whole if whole.flip is card else None,
                                  real_card=whole if door else None, owner=item.owner,
@@ -3373,6 +3374,14 @@ class Game:
         if holder is not None:
             self.return_from_graveyard(GraveyardTarget(dead.card, holder), holder if under_owner else controller,
                                        "battlefield", tapped, enchantment=enchantment, transformed=transformed)
+
+    def _entering_loyalty(self, card: Card, item: StackItem) -> int | None:
+        """The loyalty a planeswalker spell enters with: CR 702.150b (Compleated), two fewer counters for each Phyrexian mana symbol
+        of its cost that was paid with life."""
+        loyalty = _starting_loyalty(card)
+        if loyalty is not None and item.phyrexian_life and has_keyword(card, "compleated"):
+            return max(0, loyalty - 2 * item.phyrexian_life)
+        return loyalty
 
     def get_emblem(self, seat: Seat, text: str) -> None:
         """CR 114.1: an emblem with `text` goes to `seat`'s command zone and stays there for the rest of the game. It is named after

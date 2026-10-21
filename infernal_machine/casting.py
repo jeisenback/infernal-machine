@@ -137,7 +137,7 @@ class Caster:
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter,
                          dashed=bool(alternative and alternative.dash), warped=bool(alternative and alternative.warp), whole=whole, face_down=face_down,
-                         from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone))
+                         from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone), phyrexian_life=tapped.phyrexian_life)
         self.game.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",

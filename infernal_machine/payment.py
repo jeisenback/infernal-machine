@@ -62,6 +62,7 @@ class Payment(list["Permanent"]):
     pool: tuple[frozenset[str], ...] = ()
     filters: tuple["Permanent", ...] = ()  # the permanents whose Signet-style ability ("{1}, {T}: Add ...") was used
     counters: tuple[tuple["Permanent", str, int], ...] = ()  # the lands whose mana cost counters (Vivid, depletion, storage): which, how many
+    phyrexian_life: int = 0  # how many Phyrexian mana symbols were paid with 2 life instead of mana (Compleated reads it)
 
 
 class ManaPayer:
@@ -268,6 +269,7 @@ class ManaPayer:
                 return payment
             if payment is not None and seat.life > payment.life + 2 * by_life:
                 payment.life += 2 * by_life
+                payment.phyrexian_life = by_life
                 return payment
         return None
 

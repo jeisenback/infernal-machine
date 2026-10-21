@@ -32,6 +32,7 @@ SUPPORTED_KEYWORDS = {
     "ascend",  # the city's blessing for a permanent that has it
     "split second",  # nothing but mana abilities can be done while the spell is on the stack: see Game.legal_actions
     "rebound",  # exiled as it resolves from the hand, and cast free at the next upkeep: see Game._rebound
+    "compleated",  # a Phyrexian symbol paid with life costs the walker two loyalty counters as it enters: see Game._entering_loyalty
     "exalted",
     "daybound", "nightbound",  # the day/night rule: see Game._update_day_night
     "decayed",  # can't block; sacrificed at end of combat when it attacks
