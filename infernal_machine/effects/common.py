@@ -143,6 +143,8 @@ def _rules_lines(card: Card) -> tuple[str, ...]:
 
 
 _WHOLE_LINE = re.compile(
+    r'[Yy]ou get an emblem with "[^"]+"\.?'  # an emblem's text is sentences of its own, kept inside the quotes (Elspeth, Sun's Champion)
+    r"|"
     r"[Rr]eveal the top (?:two|three|four|five|six|seven|eight|\d+) cards of your library\. Put all [A-Za-z]+(?: creature)? cards"
     r"(?: with mana value \d+ or less)? (?:revealed this way|from among them) (?:into your hand|onto the battlefield) and the rest on the "
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
