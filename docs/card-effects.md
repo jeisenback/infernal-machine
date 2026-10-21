@@ -520,6 +520,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     The Wind Crystal (you gain twice that much life, after Pest Rescuer's extra one), and Academy Manufactor (a Clue, Food or
     Treasure token you would create becomes one of each, before any token doubling). All stack, and only the effect's
     controller's own events count.
+  - Vorinclex, Monstrous Raider and Innkeeper's Talent at level 3: "If you would put one or more counters on a permanent or player,
+    put twice that many ... instead" doubles every counter their controller puts, on any permanent or player (the counters a
+    permanent enters with are put by its controller; poison from infect or toxic by the source's controller); Vorinclex's "If an
+    opponent would put one or more counters ..." halves what each opponent puts, rounded down, after any doubling. Tekuthal,
+    Inquiry Dominus: "If you would proliferate, proliferate twice instead." (each time sets off "Whenever you proliferate").
+    "Proliferate twice." (Contagion Engine, Ezuri) and Deepglow Skate's "double the number of each kind of counter on any number of
+    target permanents" are read too. Not read: Vorinclex's effect on loyalty abilities' costs.
   - Exiled instead of dying: "If a creature an opponent controls would die, exile it instead" (Liesa, Gisa), "If this creature
     would die, exile it instead", and the spells that say "If that creature would die this turn, exile it instead" (Lava
     Coil) or "If a creature dealt damage this way would die this turn" (Anger of the Gods). The creature is exiled, so it
