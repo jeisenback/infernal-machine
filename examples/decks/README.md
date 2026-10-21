@@ -1,14 +1,17 @@
 # Real decklists for the coverage audit
 
-Three Commander decks that people actually play, used to aim the card-coverage work (issue #428). They are the EDHREC "average deck"
-for each commander (public pages, copied as plain card lists on 2026-10-18): the 99 cards most often played with it, so a typical
-list, not any one player's. They are **not** in the gauntlet and are not meant as opponents.
+Six Commander decks that people actually play, used to aim the card-coverage work (issues #428, #475). They are the EDHREC "average deck"
+for each commander (public pages, copied as plain card lists: the first three on 2026-10-18, the last three on 2026-10-21): the 99 cards
+most often played with it, so a typical list, not any one player's. They are **not** in the gauntlet and are not meant as opponents.
 
 | File | Commander | Style |
 |---|---|---|
 | `atraxa_edhrec_average.txt` | Atraxa, Praetors' Voice | proliferate and poison, four colors |
 | `ur_dragon_edhrec_average.txt` | The Ur-Dragon | Dragon tribal, five colors |
 | `krenko_edhrec_average.txt` | Krenko, Mob Boss | Goblin tribal, mono red |
+| `yuriko_edhrec_average.txt` | Yuriko, the Tiger's Shadow | ninjas and tempo, Dimir |
+| `edgar_markov_edhrec_average.txt` | Edgar Markov | Vampire tokens and aristocrats, Mardu (replaces the modelled Edgar) |
+| `niv_mizzet_edhrec_average.txt` | Niv-Mizzet, Parun | spellslinger, Izzet |
 
 ```
 python tools/coverage_audit.py --decks examples/decks/*.txt        # what blocks them, and what to build first
@@ -16,7 +19,7 @@ python tools/coverage_audit.py --decks examples/decks/*.txt        # what blocks
 
 ## Modelled decks (`*_modelled.txt`)
 
-Ten more commanders are tracked as *modelled* decks, not real lists: `modelled.json` names each commander (or partner pair) and a few core
+Nine more commanders are tracked as *modelled* decks, not real lists: `modelled.json` names each commander (or partner pair) and a few core
 cards, and `tools/model_deck.py` fills the rest of the 100 cards from the card pool (Commander-legal, the commander's colors, most played
 first by Scryfall's EDHREC rank, 36 lands). Nobody exported them, so they are a model of a typical deck, like the audit's own.
 
@@ -24,9 +27,10 @@ first by Scryfall's EDHREC rank, 36 lands). Nobody exported them, so they are a 
 python tools/model_deck.py examples/decks/modelled.json        # rewrites the *_modelled.txt files from .cache/commander_pool.json
 ```
 
-Read the numbers with that in mind: the modelled decks are 93-99% playable and the three real EDHREC averages 71-80%, because ranking by
+Read the numbers with that in mind: the modelled decks are 93-99% playable and the six real EDHREC averages 74-94%, because ranking by
 popularity picks the cards the engine already plays (the top 500 cards are 92% playable). They guard against regressions in the baseline; the
-real lists are the ones to aim new work at. Replace a modelled deck with a real export (`tools/import_deck.py`) whenever you have one.
+real lists are the ones to aim new work at, so the audit's headline is the real lists' share, with the modelled decks' share and the total
+beside it (a deck is "modelled" by its `_modelled` name). Replace a modelled deck with a real export (`tools/import_deck.py`) whenever you have one.
 Banned cards named as core (Mana Crypt, Dockside Extortionist) are left out and reported.
 
 ## The baseline (#475)
@@ -49,5 +53,5 @@ keeps one comment up to date on the roadmap epic (#453) with each deck's share a
 
 The audit reports each deck's playable share and ranks the pieces of work by the cards they unlock across all of them. Re-run it after
 each piece. Playable share (cards the engine fully reads): before #428 work 73 / 300 cards of Atraxa, 64, 66 for Krenko and Ur-Dragon
-(68% together); after the first round 79, 71, 68 (73%); after the second 79, 73, 71 (74%). To add a list, export one from a deck site and run it through
-`tools/import_deck.py`.
+(68% together); after the first round 79, 71, 68 (73%); after the second 79, 73, 71 (74%); on 2026-10-21, after the library search family (#495),
+80, 75, 74 (76%). To add a list, export one from a deck site and run it through `tools/import_deck.py`.

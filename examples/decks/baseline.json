@@ -33,13 +33,29 @@
     "Vraska, Betrayal's Sting"
    ]
   },
-  "edgar_markov_modelled": {
+  "edgar_markov_edhrec_average": {
    "cards": 100,
    "unplayable": [
+    "Blade of the Bloodchief",
+    "Captivating Vampire",
+    "Charismatic Conqueror",
+    "Clavile\u00f1o, First of the Blessed",
     "Cruel Celebrant",
     "Drana, Liberator of Malakir",
-    "Preeminent Captain",
-    "Vona's Hunger"
+    "Edgar, Charmed Groom // Edgar Markov's Coffin",
+    "Knight of the Ebon Legion",
+    "Master of Dark Rites",
+    "Mavren Fein, Dusk Apostle",
+    "New Blood",
+    "Olivia's Wrath",
+    "Pact of the Serpent",
+    "Patron of the Vein",
+    "Secluded Courtyard",
+    "Shared Animosity",
+    "Sorin, Imperious Bloodlord",
+    "Twilight Prophet",
+    "Vampire Socialite",
+    "Voldaren Estate"
    ]
   },
   "giada_modelled": {
@@ -104,6 +120,17 @@
     "Warren Instigator"
    ]
   },
+  "niv_mizzet_edhrec_average": {
+   "cards": 100,
+   "unplayable": [
+    "Baral, Chief of Compliance",
+    "Flame of Anor",
+    "Mizzix's Mastery",
+    "Narset, Parter of Veils",
+    "Niv-Mizzet, Visionary",
+    "Tandem Lookout"
+   ]
+  },
   "pantlaza_modelled": {
    "cards": 100,
    "unplayable": [
@@ -166,6 +193,35 @@
    "unplayable": [
     "Snuff Out",
     "Y'shtola, Night's Blessed"
+   ]
+  },
+  "yuriko_edhrec_average": {
+   "cards": 100,
+   "unplayable": [
+    "Agadeem's Awakening // Agadeem, the Undercrypt",
+    "Commandeer",
+    "Fallen Shinobi",
+    "Flare of Denial",
+    "Gingerbrute",
+    "Ink-Eyes, Servant of Oni",
+    "Kaito, Bane of Nightmares",
+    "Lim-D\u00fbl's Vault",
+    "Moon-Circuit Hacker",
+    "Nashi, Moon Sage's Scion",
+    "Satoru, the Infiltrator",
+    "Scroll Rack",
+    "Sea Gate Restoration // Sea Gate, Reborn",
+    "Shadow of Mortality",
+    "Shizo, Death's Storehouse",
+    "Silent-Blade Oni",
+    "Silver-Fur Master",
+    "Skullsnatcher",
+    "Smoke Shroud",
+    "Snuff Out",
+    "Temporal Mastery",
+    "Tetsuko Umezawa, Fugitive",
+    "Thousand-Faced Shadow",
+    "Wingcrafter"
    ]
   }
  }

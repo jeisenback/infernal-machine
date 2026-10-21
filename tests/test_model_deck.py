@@ -106,7 +106,7 @@ class WrittenDecksTests(unittest.TestCase):
     def test_every_modelled_deck_in_the_spec_was_written_and_is_a_hundred_cards(self):
         import json
         specs = json.loads((ROOT / "examples" / "decks" / "modelled.json").read_text(encoding="utf-8"))
-        self.assertGreaterEqual(len(specs), 10)
+        self.assertGreaterEqual(len(specs), 9)  # ten at first; Edgar Markov's modelled deck gave way to his real EDHREC list (#475)
         for spec in specs:
             parsed = parse_decklist((ROOT / "examples" / "decks" / (spec["name"] + ".txt")).read_text(encoding="utf-8"))
             self.assertEqual(list(parsed.commanders), spec["commanders"], spec["name"])

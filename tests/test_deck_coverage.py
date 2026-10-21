@@ -77,6 +77,19 @@ class AnalyzeDecksTests(unittest.TestCase):
         self.assertIn("**two**", text)
         self.assertIn("Coverage for 2 decks", text)
 
+    def test_the_real_lists_are_reported_apart_from_the_modelled_decks(self):
+        # #475: a modelled deck (*_modelled, built from the most played cards) flatters the number; the real lists are the headline
+        result = coverage.analyze_decks({"krenko_modelled": deck((FOREST, 9), (MOON_A, 1)), "atraxa_edhrec_average": deck((FOREST, 8), (MOON_B, 1), (ODD, 1))})
+        text = audit.render_decks(result)
+        self.assertIn("## Coverage for 1 real decklist: 8 of 10 cards fully playable (80%)", text)
+        self.assertIn("1 modelled deck: 9 of 10 (90%)", text)
+        self.assertIn("all 2 decks: 17 of 20 (85%)", text)
+        self.assertLess(text.index("**atraxa_edhrec_average**"), text.index("**krenko_modelled**"), "the real lists are listed first")
+
+    def test_with_no_modelled_deck_the_headline_is_the_plain_one(self):
+        result = coverage.analyze_decks({"one": deck((FOREST, 10), (MOON_A, 1))})
+        self.assertIn("## Coverage for 1 deck: 10 of 11 cards fully playable (91%)", audit.render_decks(result))
+
     def test_a_commander_counts_as_a_card_of_the_deck(self):
         result = coverage.analyze_decks({"mine": deck((FOREST, 10), commanders=[MOON_A])})
         self.assertEqual((result["total"], result["playable"]), (11, 10))
