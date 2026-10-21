@@ -623,7 +623,7 @@ def main(argv: list[str]) -> int:
             try:
                 with open(path, encoding="utf-8") as f:
                     decks[os.path.splitext(os.path.basename(path))[0]] = load_deck(f.read(), source)
-            except (OSError, ValueError, KeyError) as error:  # a deck that can't be read must never look like a deck with nothing wrong
+            except (OSError, ValueError, LookupError) as error:  # a deck that can't be read must never look like a deck with nothing wrong
                 print(f"cannot read the deck {path}: {error}", file=sys.stderr)
                 return 2
         result = analyze_decks(decks)

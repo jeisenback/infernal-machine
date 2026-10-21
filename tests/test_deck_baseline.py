@@ -140,6 +140,13 @@ class CommandLineTests(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertIn("In the baseline but not checked:** b", out)
 
+    def test_a_card_the_card_file_does_not_know_fails_loudly(self):
+        with tempfile.TemporaryDirectory() as d:
+            bulk, (path,) = self.files(d, ("mine", "20 Forest\n1 Renamed Card\n"))
+            code, _, err = self.run_main("--decks", path, "--bulk", bulk, "--baseline", os.path.join(d, "b.json"))
+            self.assertEqual(code, 2)
+            self.assertIn("Renamed Card", err)
+
     def test_the_baseline_flags_need_decks(self):
         code, _, err = self.run_main("--baseline", "x.json")
         self.assertEqual(code, 2)
