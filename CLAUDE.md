@@ -90,6 +90,9 @@ PY
 
 ## What to build next
 
+The analysis behind these tools (mechanisms, families, the ranking, `analyze_decks`, the baseline compare) is `infernal_machine/coverage.py`;
+`tools/coverage_audit.py` is the command line over it (fetching the pool, printing markdown), and package code such as `analyze` imports the same functions.
+
 `python tools/coverage_audit.py --mechanisms --next` ranks the work by how much each piece unlocks, weighted by how played the cards
 are; `--mechanism NAME` lists the unsupported wordings inside one mechanism or family. The backlog is tracked in issue #219.
 
