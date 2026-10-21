@@ -646,6 +646,17 @@ _DOUBLE_COUNTERS_OLD = ("If an effect would put one or more counters on a perman
                         "many of those counters instead.")  # the wording before the Oracle update
 
 
+_DOUBLE_YOU_PUT = ("If you would put one or more counters on a permanent or player, put twice that many of each of those kinds of "
+                   "counters on that permanent or player instead.")  # Vorinclex, Monstrous Raider; Innkeeper's Talent at level 3
+
+
+_HALVE_OPPONENTS_PUT = ("If an opponent would put one or more counters on a permanent or player, they put half that many of each of "
+                        "those kinds of counters on that permanent or player instead, rounded down.")
+
+
+_PROLIFERATE_TWICE = "If you would proliferate, proliferate twice instead."  # Tekuthal, Inquiry Dominus
+
+
 _DOUBLE_TOKENS_NOW = ("If one or more tokens would be created under your control, twice that many of those tokens are created "
                       "instead.")  # the wording since the 2024 Oracle update (Mondrak, Glory Dominus)
 
@@ -715,6 +726,9 @@ class Replacements:
     extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice;
     #                                    "spell": casting or copying an instant or sorcery does
     enter_counter_chosen: int = 0  # Metallic Mimic: other creatures of the type it chose enter with that many more +1/+1 counters
+    counters_you_put: int = 1  # how many times as many counters its controller puts on any permanent or player (Vorinclex, Monstrous Raider)
+    opponents_put_half: bool = False  # Vorinclex: an opponent puts half as many counters, rounded down
+    proliferate_factor: int = 1  # how many times its controller's proliferate happens (Tekuthal: "proliferate twice instead")
 
 
 @lru_cache(maxsize=None)
@@ -747,6 +761,12 @@ def replacement_effects(card: Card) -> Replacements:
             found["die_exile"] = "self"
         elif line in (_DOUBLE_COUNTERS, _DOUBLE_COUNTERS_OLD):
             found["counters"] = found.get("counters", 1) * 2
+        elif line == _DOUBLE_YOU_PUT:
+            found["counters_you_put"] = found.get("counters_you_put", 1) * 2
+        elif line == _HALVE_OPPONENTS_PUT:
+            found["opponents_put_half"] = True
+        elif line == _PROLIFERATE_TWICE:
+            found["proliferate_factor"] = found.get("proliferate_factor", 1) * 2
         elif line == _PLUS_ONE_COUNTERS:
             found["plus_one"] = found.get("plus_one", 0) + 1
         elif line == _ENTER_PER_DEATH:
@@ -896,7 +916,8 @@ def enters_by_discarding_land(card: Card) -> bool:
 def is_replacement_line(line: str) -> bool:
     return (line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
-                     _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT)
+                     _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
+                     _HALVE_OPPONENTS_PUT, _PROLIFERATE_TWICE)
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None or _damage_modifier(line) is not None)
 
 

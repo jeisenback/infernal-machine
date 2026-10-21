@@ -139,6 +139,7 @@ declare("attack_with_three", re.compile(r"When(?:ever)? you attack with three or
 declare("attack_alone", re.compile(r"Whenever (?:you attack with a creature alone|a creature you control attacks alone), (.+)", re.I),
         to="you", about_creature=True)
 declare("conjure", re.compile(r"Whenever you conjure one or more cards, (.+)", re.I), to="you")
+declare("proliferate", re.compile(r"Whenever you proliferate, (.+)", re.I), to="you")
 declare("enchanted_attack", re.compile(r"Whenever one or more creatures that are enchanted by an Aura you control attack, (.+)", re.I))
 declare("creatures_attack", re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I))
 declare("opponent_attacks", re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I), about_player=True)

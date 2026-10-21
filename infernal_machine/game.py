@@ -2984,7 +2984,7 @@ class Game:
                 target.damage_taken = (target.damage_taken if target.damage_taken_turn == self.turn else 0) + amount
                 target.damage_taken_turn = self.turn
             if infect:
-                self.give_poison(target, amount)
+                self.give_poison(target, amount, by=controller)
             else:
                 self.change_life(target, -amount)
             if amount > 0 and source is not None:  # Curiosity: "Whenever enchanted creature deals damage to an opponent"
@@ -2996,7 +2996,7 @@ class Game:
                                 self.trigger("host_combat_damage_opponent", attachment, holder, source, player=target)
             if combat and amount > 0 and source is not None and not self.loses_abilities(source) \
                     and (toxic := toxic_of(source.card)):
-                self.give_poison(target, toxic)  # Toxic N: that many poison counters in addition to the damage
+                self.give_poison(target, toxic, by=controller)  # Toxic N: that many poison counters in addition to the damage
             if combat and controller and source is not None:  # (a controller means there is a source)
                 self.trigger("combat_damage_to_player", source, controller, player=target, x=amount)
                 if target is self.monarch and controller is not target:  # CR 725.2
@@ -3123,7 +3123,8 @@ class Game:
         self._use_shields(target, outcomes[dealt][1])
         return dealt, outcomes[dealt][1]
 
-    def give_poison(self, seat: Seat, count: int) -> None:
+    def give_poison(self, seat: Seat, count: int, by: Seat | None = None) -> None:
+        count = self._counters_put_by(by, count)
         if count > 0:
             seat.player_counters["poison"] = seat.player_counters.get("poison", 0) + count
             self.broadcast({"event": "poison", "seat": seat.index, "added": count, "total": seat.player_counters["poison"]})
@@ -3989,6 +3990,13 @@ class Game:
         self.broadcast({"event": "control_returned", "seat": origin.index, "card": permanent.card.name})
 
     def proliferate(self, seat: Seat) -> None:
+        """`seat` proliferates (CR 701.27): once, or twice for each Tekuthal they control ("If you would proliferate, proliferate twice
+        instead."); each time sets off "Whenever you proliferate"."""
+        for _ in range(self._factor(seat, "proliferate_factor")):
+            self._proliferate_once(seat)
+            self.happened("proliferate", seat)
+
+    def _proliferate_once(self, seat: Seat) -> None:
         """`seat` chooses any permanents with counters (or planeswalkers); each gets one more of every kind of
         counter it has."""
         candidates = [p for s in self.live_seats() for p in s.battlefield
@@ -4154,10 +4162,15 @@ class Game:
             return kind.replace("mv<=x", f"mv<={max(self.targeting_x if x is None else x, 0)}")
         return kind
 
-    def put_counters(self, permanent: Permanent, counter: str, count: int) -> None:
+    def put_counters(self, permanent: Permanent, counter: str, count: int, by: Seat | None = None) -> None:
+        """Put `count` counters on `permanent`. `by` is the player putting them (the resolving spell's or ability's controller when
+        not said), whose Vorinclex doubles them and whose opponents' Vorinclex halves them."""
         holder = self.controller_of(permanent)
         if holder is not None:
             count = self._counters_to_add(holder, permanent.card, counter, count, permanent)
+        count = self._counters_put_by(by, count)
+        if not count and counter not in permanent.counters:  # halved to none: no counter, and nothing to report
+            return
         permanent.counters[counter] = permanent.counters.get(counter, 0) + count
         self.broadcast({"event": "counters", "card": permanent.card.name, "counter": counter,
                         "added": count, "total": permanent.counters[counter]})
@@ -5345,9 +5358,10 @@ class Game:
             bonus = sum(replacement_effects(p.card).enter_counters_per_death for p in seat.battlefield) * seat.died
             if bonus:  # Gorma, the Gullet
                 counters["+1/+1"] = counters.get("+1/+1", 0) + bonus
-        for counter, amount in counters.items():  # CR 614.1c: it arrives with them
-            number = self._counters_to_add(seat, permanent.card, counter, amount, permanent)
-            permanent.counters[counter] = permanent.counters.get(counter, 0) + number
+        for counter, amount in counters.items():  # CR 614.1c: it arrives with them, put by its controller
+            number = self._counters_put_by(seat, self._counters_to_add(seat, permanent.card, counter, amount, permanent))
+            if number:  # (halved to none: no counter)
+                permanent.counters[counter] = permanent.counters.get(counter, 0) + number
         permanent.owner = permanent.owner or seat
         permanent.entered_turn = self.turn
         if any(c is permanent.card for c in seat.paragon_marked):  # Serra Paragon's permission
@@ -5724,6 +5738,21 @@ class Game:
         for permanent in seat.battlefield:
             factor *= getattr(replacement_effects(permanent.card), attribute)
         return factor
+
+    def _counters_put_by(self, actor: Seat | None, count: int) -> int:
+        """Counters `actor` (the resolving spell's or ability's controller when not said) puts on anything: Vorinclex, Monstrous
+        Raider and Innkeeper's Talent at level 3 double what their controller puts, and each Vorinclex an opponent of the actor controls
+        halves it, rounded down (CR 614.1). The doubling is applied before the halving."""
+        if actor is None and self.resolving_item is not None:
+            actor = self.resolving_item.controller
+        if actor is None:
+            return count
+        count *= self._factor(actor, "counters_you_put")
+        for opponent in self.opponents(actor):
+            for permanent in opponent.battlefield:
+                if replacement_effects(permanent.card).opponents_put_half:
+                    count //= 2
+        return count
 
     def _counters_to_add(self, seat: Seat, card: Card, counter: str, count: int,
                          receiver: Permanent | None = None) -> int:

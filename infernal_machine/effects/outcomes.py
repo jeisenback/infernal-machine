@@ -149,6 +149,7 @@ from .families.counters import (  # noqa: F401
     DoubleCounters,
     DoubleCountersOnSource,
     DoubleCountersOnTarget,
+    DoubleAllCountersOnTargets,
     DoubleCountersOnTargets,
     EachExilesGraveyardCardCounters,
     ExileWithTimeCounters,
@@ -1898,6 +1899,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [DefineX(Amount("greatest_power", "creature")), SearchForLands("X", (), "X", True, False)]),  # Traverse the Outlands
     (re.compile(r"put a \+1/\+1 counter on target (artifact creature) for each \+1/\+1 counter on (?:this creature|CARDNAME)\.", re.I),
      lambda m: [DefineX(Amount("source_counters", "+1/+1")), PutCounters("X", "+1/+1", m[1].lower())]),  # Modular
+    (re.compile(r"proliferate twice\.", re.I), lambda m: Proliferate(2)),
     (re.compile(r"proliferate\.", re.I), lambda m: Proliferate()),
     (re.compile(r"proliferate (X) times\.", re.I), lambda m: Proliferate("X")),
     (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
@@ -1976,6 +1978,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"those cards without paying their mana costs\.", re.I), lambda m: DanceWithCalamity(_number(m[1]))),
     (re.compile(r"target (player|opponent) loses half their life, rounded (up|down)\.", re.I),
      lambda m: TargetLoseHalfLife(m[1].lower(), m[2].lower() == "up")),
+    (re.compile(rf"double the number of each kind of counter on any number of target {_PERMANENT_KIND}s\.", re.I),
+     lambda m: DoubleAllCountersOnTargets(m[1].lower())),
     (re.compile(rf"double the number of {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
      lambda m: DoubleCountersOnTarget(_counter_name(m[1]), m[2].lower())),
     (re.compile(r"look at the top card of your library\. if it's an? (creature )?card of the chosen type, you may reveal it and put it "
