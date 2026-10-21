@@ -426,3 +426,14 @@ class MayPayLoot:
         if controller.hand and game.pays_optional(controller, self.cost, item.card if item is not None else None):
             game.discard(controller, 1)
             game.draw(controller, 1)
+
+
+@dataclass(frozen=True)
+class GetEmblem:
+    """Elspeth, Sun's Champion: "You get an emblem with "Creatures you control get +2/+2 and have flying."" The emblem goes to the
+    command zone (CR 114.1) and its text works like a permanent's static or triggered abilities; only built when the engine reads
+    that text (effects/outcomes.py checks), so a walker whose emblem it cannot play is not called playable."""
+    text: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.get_emblem(controller, self.text)

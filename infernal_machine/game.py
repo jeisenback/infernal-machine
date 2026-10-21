@@ -444,6 +444,7 @@ class Seat:
     _graveyard: list = field(default_factory=_Tracked, init=False, repr=False)
     exile: list[Card] = field(default_factory=list)
     command_zone: list[Card] = field(default_factory=list)
+    emblems: list = field(default_factory=_Tracked)  # Permanents never on the battlefield (CR 114): their statics and triggers work
     commander_names: set[str] = field(default_factory=set)
     color_identity: frozenset[str] = frozenset()
     commander_casts: dict[str, int] = field(default_factory=dict)
@@ -825,7 +826,7 @@ class Game:
                     what()
                 self._tick_suspend(seat)
                 self._rebound(seat)
-            for permanent in list(seat.battlefield):
+            for permanent in list(seat.battlefield) + list(seat.emblems):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
             if self.step == "upkeep":  # Squee: a card that returns itself from the graveyard at the beginning of your upkeep
                 for card in list(seat.graveyard):
@@ -1896,6 +1897,7 @@ class Game:
                 "hand": len(s.hand), "library": len(s.library),
                 "graveyard": [c.name for c in s.graveyard], "exile": [c.name for c in s.exile],
                 "command_zone": [{"name": c.name, "tax": self.commander_tax(s, c)} for c in s.command_zone],
+                "emblems": [e.card.name for e in s.emblems],
                 "companion": s.companion.name if s.companion is not None and not s.companion_used else None,
                 "commander_damage": [{"from_seat": seat, "commander": name, "damage": dmg}
                                      for (seat, name), dmg in s.commander_damage.items()],
@@ -2286,13 +2288,13 @@ class Game:
         for event in heard_on(occurrence):
             accepts = event.accepts or (lambda hearer, about, reported: True)
             if event.to == "you":
-                for permanent in list(seat.battlefield):
+                for permanent in list(seat.battlefield) + list(seat.emblems):
                     if accepts(permanent, subject, facts):
                         self.trigger(event.name, permanent, seat, subject, x=x, spell=spell)
                 hearers = [seat]
             else:
                 for opponent in self.opponents(seat):
-                    for permanent in list(opponent.battlefield):
+                    for permanent in list(opponent.battlefield) + list(opponent.emblems):
                         if accepts(permanent, subject, facts):
                             self.trigger(event.name, permanent, opponent, subject, seat, x=x, spell=spell)
                 hearers = self.opponents(seat)
@@ -2514,7 +2516,7 @@ class Game:
         "whenever you cast a spell". `extra` adds watchers that just left the battlefield
         and still "look back in time" (CR 603.10a). Event "copy" is a spell being copied, which only a
         "cast or copy" watcher (magecraft) notices."""
-        watchers = [(p, s) for s in self.live_seats() for p in s.battlefield] + list(extra)
+        watchers = [(p, s) for s in self.live_seats() for p in s.battlefield] + [(e, s) for s in self.live_seats() for e in s.emblems] + list(extra)
         # Eminence abilities (Edgar Markov) also work from the command zone, where a card is no Permanent.
         eminent = [(Permanent(c), s) for s in self.live_seats() for c in s.command_zone]
         # A few cards watch from the graveyard (Vanguard of the Restless), where a card is no Permanent either.
@@ -3372,6 +3374,14 @@ class Game:
             self.return_from_graveyard(GraveyardTarget(dead.card, holder), holder if under_owner else controller,
                                        "battlefield", tapped, enchantment=enchantment, transformed=transformed)
 
+    def get_emblem(self, seat: Seat, text: str) -> None:
+        """CR 114.1: an emblem with `text` goes to `seat`'s command zone and stays there for the rest of the game. It is named after
+        the card that made it, as Scryfall names them, and held as a Permanent that is never on the battlefield."""
+        source = self.resolving_item.card.name if self.resolving_item is not None else "Emblem"
+        card = Card(name=f"{source} Emblem", type_line="Emblem", oracle_text=text)
+        seat.emblems.append(Permanent(card, owner=seat))
+        self.broadcast({"event": "emblem", "seat": seat.index, "card": card.name, "text": text})
+
     def put_onto_battlefield(self, seat: Seat, card: Card) -> None:
         """A card taken from the library (or revealed from its top) enters under `seat`'s control, and everyone is told."""
         self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": False})
@@ -3768,7 +3778,8 @@ class Game:
 
     def _identity_key(self) -> tuple:
         """Which permanents and graveyard cards there are and where, what card each permanent is and what it is attached to."""
-        return tuple((tuple(map(id, bf)), [id(p.card) for p in bf], [id(p.attached_to) for p in bf], tuple(map(id, seat.graveyard)))
+        return tuple((tuple(map(id, bf)), [id(p.card) for p in bf], [id(p.attached_to) for p in bf], tuple(map(id, seat.graveyard)),
+                      tuple(map(id, seat.emblems)))
                      for seat in self.seats for bf in (seat.battlefield,))
 
     def _board_view(self) -> _BoardView:
@@ -3784,7 +3795,8 @@ class Game:
             return view
         # (almost no board has an Aura or Equipment that takes away abilities, Infinite Coursework; then nothing is stripped)
         stripped = self._stripped() if any(_strips_abilities(p.card) for s in self.seats for p in s.battlefield) else set()
-        pairs = [(s, p) for s in self.seats for p in s.battlefield] + [(s, Permanent(c)) for s in self.seats for c in s.graveyard if graveyard_statics(c)]
+        pairs = [(s, p) for s in self.seats for p in s.battlefield] + [(s, e) for s in self.seats for e in s.emblems] \
+            + [(s, Permanent(c)) for s in self.seats for c in s.graveyard if graveyard_statics(c)]
         sources = [(owner, source, buffs) for owner, source in pairs if id(source) not in stripped and (buffs := static_abilities(source.card))]
         attached: dict[int, list[Permanent]] = {}  # what is attached to each permanent (by id), in battlefield order
         controller: dict[int, Seat] = {}  # who has each permanent on their battlefield (by id)

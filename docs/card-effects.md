@@ -39,6 +39,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | Search your library for a (legendary) permanent / creature card with mana value less than CARDNAME's power, put that card onto the battlefield / into your hand, then shuffle. (The power is read as the ability resolves.) | Sisay, Weatherlight Captain |
 | Reveal the top N cards of your library. Put all (kind) cards (with mana value N or less) revealed this way / from among them into your hand / onto the battlefield and the rest on the bottom of your library in any / a random order. | Goblin Ringleader, Muxus, Goblin Grandee |
 | Look at the top N cards of your library. You may put a (kind) card from among them onto the battlefield. Put the rest on the bottom of your library in a random order. | Ureni of the Unwritten |
+| You get an emblem with "..." (a loyalty ability's ultimate, usually). The emblem goes to the command zone, is never a permanent, and its text works like a permanent's static or triggered abilities; an emblem whose text the engine cannot read, or that has an activated ability, leaves the loyalty ability unread. | Elspeth, Sun's Champion; Ajani, Adversary of Tyrants; Sorin, Lord of Innistrad |
 | You lose N life. | |
 | Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle. | Cultivate, Kodama's Reach |
 | Search your library for a (Plains, Island, ...) card, put it onto the battlefield (tapped), then shuffle. | Farseek, Nature's Lore |

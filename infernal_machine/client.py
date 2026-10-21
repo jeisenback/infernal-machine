@@ -193,6 +193,8 @@ class Narrator:
             return f"{card} goes to the command zone."
         if kind == "put_onto_battlefield":
             return f"{card} enters the battlefield{' tapped' if e.get('tapped') else ''} for {who}."
+        if kind == "emblem":
+            return f"{who} gets an emblem: \"{e['text']}\""
         if kind == "left_graveyard":
             return f"{card} leaves {self.poss(e['seat'])} graveyard for the {e['to']}."
         if kind == "graveyard_exiled":

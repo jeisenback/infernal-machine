@@ -185,6 +185,7 @@ from .outcomes import (  # noqa: F401
     SacrificeSelf,
     Scry,
     SearchForLands,
+    GetEmblem,
     SearchLibrary,
     Surveil,
     TREASURE,
