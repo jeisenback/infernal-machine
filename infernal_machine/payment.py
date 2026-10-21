@@ -20,7 +20,7 @@ from .effects import (additional_land_mana, charge_mana, chosen_color_mana, coun
                       mana_bonus, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
                       mana_of_imprinted, mana_pain, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
                       with_granted_mana)
-from .filters import has_type
+from .filters import has_type, parse_filter
 from .mana import GENERIC_ONLY, SNOW, Cost, parse_cost, pay
 
 if TYPE_CHECKING:
@@ -85,12 +85,19 @@ class ManaPayer:
 
     @staticmethod
     def _restricted_mana_ok(source: Permanent, limited, spell: Card | None) -> bool:
-        """Whether `source`'s restricted any-color mana can pay for `spell`: a creature spell of the type it chose, or a legendary spell."""
-        if spell is None:
+        """Whether `source`'s restricted mana can pay for `spell`: one of the kind the ability names (filters.py), and of the type the
+        permanent chose as it entered when the ability says "of the chosen type"."""
+        if spell is None or not parse_filter(limited.spell).matches(spell):
             return False
-        if limited.spell == "legendary":
-            return "Legendary" in spell.type_line
-        return "Creature" in spell.type_line and source.chosen_type in spell.type_line.partition("\u2014")[2].split()
+        return not limited.chosen or source.chosen_type in spell.type_line.partition("\u2014")[2].split()
+
+    def _restricted_units(self, seat: Seat, permanent: Permanent, limited) -> list[frozenset[str]]:
+        """The mana a restricted ability makes for what is being paid for now, or nothing."""
+        if not self._restricted_mana_ok(permanent, limited, self._spending_spell):
+            return []
+        if limited.condition is not None and not self.game.condition_holds(limited.condition, seat, permanent):
+            return []
+        return list(limited.mana)
 
     def _restriction_ok(self, restriction: str | None) -> bool:
         """Whether mana limited by `restriction` can pay for what is being paid for now."""
@@ -185,8 +192,14 @@ class ManaPayer:
                     types = self._reflected_types(seat, *reflect)
                     if not types:
                         continue
-                if (limited := restricted_mana(card)) is not None:  # Cavern of Souls: any color only for the right spells
-                    types = frozenset("C") | (frozenset("WUBRG") if self._restricted_mana_ok(permanent, limited, self._spending_spell) else frozenset())
+                if (limited := restricted_mana(card)) is not None:  # Cavern of Souls, Eldrazi Temple: the restricted mana only for the right spells
+                    plain = mana_ability(card, seat.color_identity) or []  # its other "{T}: Add" line, not the card data (which lists every color)
+                    types = frozenset().union(*plain) if plain else frozenset()
+                    if units := self._restricted_units(seat, permanent, limited):
+                        if len(units) > 1:  # Eldrazi Temple: two mana in one tap, like a bounceland
+                            lands.extend([ManaSource(permanent, _snowy(permanent, mana), pain, damage) for mana in units] + extra)
+                            continue
+                        types = types | units[0]
                 if given := tuple(line for kind, line in grants if kind == "Land"):  # Chromatic Lantern
                     types = types | granted_land_mana(given, seat.color_identity)
                 types = types | self.game._land_type_mana(permanent)  # Urborg: it is a Swamp too
@@ -220,8 +233,9 @@ class ManaPayer:
                 elif mana_of_imprinted(card):  # Chrome Mox: the colors of the card exiled with it
                     colors = frozenset(c for _, exiled in permanent.exiled_with for c in exiled.colors)
                     units = [colors] if colors else []
-                if (limited := restricted_mana(card)) is not None and self._restricted_mana_ok(permanent, limited, self._spending_spell):
-                    units = [units[0] | frozenset("WUBRG")] + units[1:] if units else [frozenset("WUBRG")]  # Delighted Halfling
+                if (limited := restricted_mana(card)) is not None and (limited_units := self._restricted_units(seat, permanent, limited)):
+                    # Delighted Halfling: its colorless mana or the restricted color in one tap; Rivaz of the Claw: two of any colors
+                    units = ([units[0] | limited_units[0]] + units[1:] if units else [limited_units[0]]) + limited_units[1:]
                 restriction = mana_restriction(card)
                 if not self._restriction_ok(restriction):
                     continue

@@ -38,6 +38,7 @@ class Alternative:
     color_count: str = ""  # "mono" (exactly one color) or "multi" (two or more)
     historic: bool = False  # legendary, an artifact or a Saga
     permanent: bool = False  # a permanent type: a card in a library or graveyard has to have one to be a "permanent card"
+    colorless: bool = False  # it has no color
 
     def matches(self, card) -> bool:
         words, subtypes = _words(card.type_line)
@@ -56,6 +57,8 @@ class Alternative:
         if self.color_count == "mono" and len(card.colors) != 1:
             return False
         if self.color_count == "multi" and len(card.colors) < 2:
+            return False
+        if self.colorless and card.colors:
             return False
         return not (self.historic and not ({"legendary", "artifact", "saga"} & words))
 
@@ -157,6 +160,7 @@ def _alternative(words: list[str]) -> Alternative:
     color_count = ""
     historic = False
     permanent = False
+    colorless = False
     for word in words:
         if word in _NOTHING_TO_CHECK or word in ("expend", "any"):
             continue
@@ -172,6 +176,8 @@ def _alternative(words: list[str]) -> Alternative:
             colors.append(word.upper())
         elif word == "multicolored":
             color_count = "multi"
+        elif word == "colorless":
+            colorless = True
         elif word == "monocolored":
             color_count = "mono"
         elif word == "historic":
@@ -184,7 +190,8 @@ def _alternative(words: list[str]) -> Alternative:
             lacks.append(word[3:])
         else:
             needs.append(word)
-    return Alternative(tuple(needs), tuple(lacks), tuple(lacks_subtype), tuple(colors), tuple(lacks_colors), token, color_count, historic, permanent)
+    return Alternative(tuple(needs), tuple(lacks), tuple(lacks_subtype), tuple(colors), tuple(lacks_colors), token, color_count, historic, permanent,
+                       colorless)
 
 
 def matches(kind: str, card) -> bool:
