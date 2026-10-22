@@ -37,6 +37,7 @@ from .outcomes import (
     Hideaway,
     LivingWeapon,
     MayPay,
+    MayPayCountersOnSubject,
     MayPayLoot,
     OnPlayer,
     OnSubject,
@@ -412,6 +413,10 @@ _PAY_TO_RETURN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, return t
 _MAY_PAY_THEN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, (.+)", re.I)
 
 
+_MAY_PAY_COUNTER = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, put a \+1/\+1 counter on it\. If it's an? ([A-Z][a-z]+), put two \+1/\+1 "
+                              r"counters on it instead\.", re.I)  # Emiel the Blessed
+
+
 _MAY_PAY_LOOT = re.compile(r"you may pay ((?:\{[^}]+\})+) and discard a card\. If you do, draw a card\.", re.I)
 
 
@@ -445,6 +450,8 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
         return [CreateTokens(1, TREASURE), ExileTopOfThatPlayerMayCast()], False, False, None
     if m := _PAY_TO_RETURN.fullmatch(rest):
         return [PayToReturnSelf(m[1])], False, False, None
+    if m := _MAY_PAY_COUNTER.fullmatch(rest):
+        return [MayPayCountersOnSubject(m[1], m[2].capitalize())], False, False, None
     if m := _MAY_PAY_LOOT.fullmatch(rest):
         return [MayPayLoot(m[1])], False, False, None
     if m := _MAY_PAY_THEN.fullmatch(rest):
