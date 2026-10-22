@@ -131,6 +131,31 @@ The caution that matters: the goldfish reads no card text, so a removal spell or
 nothing *in a goldfish*. A low score means "does little alone", not "bad card". To measure those you need other players: that is the next
 two steps.
 
+### Cards that would complete a combo
+
+`--suggest-combos` asks Commander Spellbook which cards the deck is one card away from completing a combo with, ranks them by how many
+combos each would complete (then by how played the most played one is), and tries the best ten in the swap table above (`--suggest-combos 5`
+for five). It works for a Commander deck only, from the answer Spellbook gave for this list (cached in `.cache/combos.json`, so a second
+run is offline):
+
+```
+python -m infernal_machine.tune my_deck.txt --suggest-combos 4
+...
+Combos one card away (Commander Spellbook). The swap number is the goldfish's, which cannot see what a combo does:
+  Revival // Revenge: completes 3 combos; swap +0.00 ±0.06  (within noise)
+    with Vito, Thorn of the Dusk Rose: Near-infinite lifegain, Near-infinite lifeloss for up to two target opponents (Ruthless, 13,714 decks)  [the engine can't play Revival // Revenge]
+    ...
+  Enduring Tenacity: completes 2 combos; swap +0.31 ±0.17  (within noise)
+    with Exquisite Blood: Infinite lifegain triggers, Infinite lifeloss, Infinite lifegain (Spicy, 75,711 decks)
+    with Bloodthirsty Conqueror: Infinite lifegain triggers, Infinite lifeloss, Infinite lifegain (Spicy, 63,422 decks)
+```
+
+Each card lists the combos it would complete, with the cards of the deck they use, what they produce, Spellbook's bracket tag for them and
+how many decks play them. Read the swap number as an aside: the goldfish cannot see a combo, so a card that completes one can score
+nothing. What matters is the combo and whether the engine can play it, which is why a piece or a candidate whose text the engine cannot
+read is marked "the engine can't play": that combo would not run in a matchup either. Cards that cannot go in this deck (outside its
+colors, already in it) are listed with the reason, and a card Spellbook names that is not in the card data says so.
+
 ### Removal and card draw: measure them in real games
 
 The goldfish scores a removal spell as nothing, so the cards it ranks lowest are exactly the ones it may be wrong about. `impact` plays
