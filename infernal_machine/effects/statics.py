@@ -1125,6 +1125,21 @@ def is_additional_mana_line(line: str) -> bool:
     return _ADDITIONAL_MANA.fullmatch(line) is not None
 
 
+# Tyvar, Jubilant Brawler, Thousand-Year Elixir, Shang-Chi: the creatures' {T} abilities work the turn they come under your control.
+_HASTE_ABILITIES = re.compile(r"You may activate abilities of creatures you control as though those creatures had haste\.")
+
+
+@lru_cache(maxsize=None)
+def activates_as_though_haste(card: Card) -> bool:
+    """CR 302.6: the card lets its controller use their creatures' {T} abilities as though those creatures had haste (attacking still
+    needs haste itself)."""
+    return any(_HASTE_ABILITIES.fullmatch(line) for line in rules_lines(card))
+
+
+def is_haste_abilities_line(line: str) -> bool:
+    return _HASTE_ABILITIES.fullmatch(line) is not None
+
+
 @lru_cache(maxsize=None)
 def keeps_its_protection_aura(card: Card) -> bool:
     """Flickering Ward: its protection "doesn't remove this Aura" (CR 704.5m would otherwise)."""
