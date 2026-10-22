@@ -430,6 +430,23 @@ class MayPay:
 
 
 @dataclass(frozen=True)
+class MayPayCountersOnSubject:
+    """Emiel the Blessed: "Whenever another creature you control enters, you may pay {G/W}. If you do, put a +1/+1 counter on it. If
+    it's a Unicorn, put two +1/+1 counters on it instead." The creature that entered is the subject; the payment is chosen as the
+    ability resolves, and only a Unicorn (a creature with the type) gets the second counter."""
+    cost: str
+    subtype: str
+    binds = SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:  # it left the battlefield before the ability resolved
+            return
+        item = game.resolving_item
+        if game.pays_optional(controller, self.cost, item.card if item is not None else None):
+            game.put_counters(target, "+1/+1", 2 if self.subtype in target.card.type_line.partition("\u2014")[2].split() else 1)
+
+
+@dataclass(frozen=True)
 class MayPayLoot:
     """Conspiracy Theorist: "You may pay {1} and discard a card. If you do, draw a card." """
     cost: str

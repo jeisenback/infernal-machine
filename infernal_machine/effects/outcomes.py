@@ -410,6 +410,7 @@ from .families.spells_and_misc import (  # noqa: F401
     KickedInstead,
     KickedReplaces,
     MayPay,
+    MayPayCountersOnSubject,
     MayPayLoot,
     Modal,
     ModifiedGainHexproof,
