@@ -81,6 +81,7 @@ class ActivatedAbility:
     sacrifice_other: str | None = None  # "Sacrifice a creature": the kind ("creature", "artifact or creature", ...)
     sacrifice_another: bool = False  # "Sacrifice another creature": not the source itself
     sacrifice_count: int = 1  # "Sacrifice two creatures"
+    sacrifice_x: bool = False  # "Sacrifice X Squirrels" (Chatterfang): X is chosen, up to as many as it can sacrifice, and is the ability's X
     discard: int = 0  # "Discard a card": how many
     exile_graveyard: int = 0  # "Exile a card from your graveyard": how many
     exile_graveyard_kind: str = ""  # "Exile a creature card from your graveyard": of this kind ("" for any card)
@@ -154,7 +155,7 @@ _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
 _CARDS = r"(an?|two|three|four)"
 
 
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four) (?:other )?(creature|(?:white|blue|black|red|green) creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+)s?")
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four|X) (?:other )?(creature|(?:white|blue|black|red|green) creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+?)s?")
 
 
 _REMOVE_COUNTER_COST = re.compile(rf"Remove {_N_FIXED} {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
@@ -267,7 +268,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
         elif _PAY_LIFE_IDENTITY.fullmatch(part):
             fields["life_identity"] = True
         elif m := _SACRIFICE_OTHER.fullmatch(part):
-            fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another" or " other " in part, sacrifice_count=_NUMBER.get(m[1], 1))
+            fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another" or " other " in part, sacrifice_count=_NUMBER.get(m[1], 1),
+                          sacrifice_x=m[1] == "X")
         elif m := _DISCARD_COST.fullmatch(part):
             fields["discard"] = _NUMBER[m[1]]
         elif _DISCARD_SELF.fullmatch(part):

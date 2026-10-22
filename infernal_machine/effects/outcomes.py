@@ -795,6 +795,9 @@ FOOD = Card(name="Food", type_line="Token Artifact — Food",
 FISH = Card(name="Fish", type_line="Token Creature \u2014 Fish", colors=("U",), power="1", toughness="1")
 
 
+SQUIRREL = Card(name="Squirrel", type_line="Token Creature \u2014 Squirrel", colors=("G",), power="1", toughness="1")
+
+
 OCTOPUS = Card(name="Octopus", type_line="Token Creature \u2014 Octopus", colors=("U",), power="8", toughness="8")
 
 

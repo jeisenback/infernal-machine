@@ -31,7 +31,7 @@ from .zones import (CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -1094,7 +1094,7 @@ class Game:
             return False
         if len(seat.hand) < ability.discard or len(self._exile_cost_choices(seat, ability)) < ability.exile_graveyard:
             return False
-        if ability.sacrifice_other and len(self._sacrifice_choices(seat, permanent, ability)) < ability.sacrifice_count:
+        if ability.sacrifice_other and not ability.sacrifice_x and len(self._sacrifice_choices(seat, permanent, ability)) < ability.sacrifice_count:
             return False
         if ability.remove_counter and permanent.counters.get(ability.remove_counter, 0) < ability.remove_count:
             return False
@@ -1174,7 +1174,7 @@ class Game:
         self.broadcast({"event": "counters", "card": destination.card.name, "counter": counter,
                         "added": moved, "total": destination.counters[counter]})
 
-    def _pay_card_costs(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> None:
+    def _pay_card_costs(self, seat: Seat, source: Permanent, ability: ActivatedAbility, sacrifice_x: int = 0) -> None:
         """Pay an activated ability's "Sacrifice a creature", "Discard a card" and "Exile a card from your
         graveyard" costs (CR 602.2b)."""
         name = source.card.name
@@ -1213,12 +1213,16 @@ class Game:
             self.remove_counters(source, ability.remove_counter, ability.remove_count)
         if ability.put_counter:
             self.put_counters(source, ability.put_counter, 1, by=seat)
-        self._pay_sacrifice_cost(seat, name, source, ability)
+        self._pay_sacrifice_cost(seat, name, source, ability, sacrifice_x if ability.sacrifice_x else None)
 
-    def _pay_sacrifice_cost(self, seat: Seat, name: str, source: Permanent | None, ability: ActivatedAbility) -> None:
-        """Sacrifice what the ability's "Sacrifice a creature" cost asks for; `source` is None when the ability works from a zone."""
+    def _pay_sacrifice_cost(self, seat: Seat, name: str, source: Permanent | None, ability: ActivatedAbility,
+                            count: int | None = None) -> None:
+        """Sacrifice what the ability's "Sacrifice a creature" cost asks for (`count`: X, when it is "Sacrifice X creatures"); `source` is None
+        when the ability works from a zone."""
+        if count is None:
+            count = ability.sacrifice_count if ability.sacrifice_other else 0
         chosen = []
-        for _ in range(ability.sacrifice_count if ability.sacrifice_other else 0):
+        for _ in range(count):
             options = [p for p in self._sacrifice_choices(seat, source, ability) if p not in chosen]
             chosen.append(options[seat.player.choose(SACRIFICE_COST_PROMPT(name), [self.label(p) for p in options])])
         self.cost_sacrificed_power = sum(self.power(p) for p in chosen)
@@ -1832,13 +1836,17 @@ class Game:
             while most < MAX_X and self._ability_payment(seat, permanent, ability, most + 1) is not None:
                 most += 1
             x = seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in range(most + 1)])
+        sacrificed = 0
+        if ability.sacrifice_x:  # "Sacrifice X Squirrels": X is as many as the player chooses to sacrifice
+            most = min(len(self._sacrifice_choices(seat, permanent, ability)), MAX_X)
+            sacrificed = x = seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in range(most + 1)])
         tapped = _checked(self._ability_payment(seat, permanent, ability, x))
         self._spend_mana(seat, tapped)
         if ability.tap:
             self.tap(permanent)
         if life := self._life_cost(seat, ability):
             self.change_life(seat, -life)
-        self._pay_card_costs(seat, permanent, ability)
+        self._pay_card_costs(seat, permanent, ability, sacrificed)
         if ability.loyalty is not None:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn
@@ -4258,6 +4266,9 @@ class Game:
         seat.token_turn = self.turn  # "if you created a token this turn" (Idol of Oblivion)
         if any(replacement_effects(p.card).manufactor for p in seat.battlefield):  # Academy Manufactor
             tokens = [t for token in tokens for t in ((CLUE, FOOD, TREASURE) if token.name in ("Clue", "Food", "Treasure") else (token,))]
+        for p in seat.battlefield:  # Chatterfang: each one applies once, to the tokens the one before left
+            if replacement_effects(p.card).squirrels:
+                tokens = tokens + [SQUIRREL] * len(tokens)
         for token in tokens:
             for _ in range(self._factor(seat, "tokens")):
                 self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,

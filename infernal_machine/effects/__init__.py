@@ -61,6 +61,7 @@ from .outcomes import (  # noqa: F401
     BecomeRenowned,
     DamageTargetsController,
     FISH,
+    SQUIRREL,
     OCTOPUS,
     IfNotKicked,
     KickedReplaces,
