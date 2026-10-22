@@ -345,15 +345,16 @@ class PutCreatureFromHand:
 
 @dataclass(frozen=True)
 class MillThenReturn:
-    """ "Mill four cards, then return a creature card (and a land card) from your graveyard to your hand / the battlefield
+    """ "Mill four cards, then (you may) return a creature card (and a land card) from your graveyard to your hand / the battlefield
     (tapped)." The player picks each card among those in the graveyard, including what was just milled."""
     count: Quantity
     kinds: tuple[str, ...]
     to: str  # "hand" or "battlefield"
     tapped: bool = False
+    optional: bool = False  # "then you may return" (Tyvar, Jubilant Brawler): the player may take none
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.mill_then_return(controller, game.amount(self.count), self.kinds, self.to, self.tapped)
+        game.mill_then_return(controller, game.amount(self.count), self.kinds, self.to, self.tapped, self.optional)
 
 
 @dataclass(frozen=True)

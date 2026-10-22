@@ -1350,6 +1350,9 @@ def _emblem(text: str) -> GetEmblem | None:
 
 _DESTINATIONS = {"into your hand": "hand", "onto the battlefield": "battlefield", "into your graveyard": "graveyard"}
 
+_MILL_KIND = r"an? [a-z ]+? card(?: with mana value \d+(?: or less| or greater)?)?"  # "a creature card with mana value 2 or less"
+
+
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'you get an emblem with "(.+)"\.?', re.I), lambda m: _emblem(m[1])),  # Elspeth, Sun's Champion
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
@@ -1737,11 +1740,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnDeadAtNextUpkeep()),
     (re.compile(r"you may put a creature card from your hand onto the battlefield\. If you do, sacrifice it unless you pay its "
                 r"mana cost reduced by \{(\d+)\}\.", re.I), lambda m: PutCreatureFromHand(int(m[1]))),
-    (re.compile(rf"mill {_N} cards?, then return (an? [a-z ]+? card(?: and an? [a-z ]+? card)?) from your graveyard to "
+    (re.compile(rf"mill {_N} cards?, then (you may )?return ({_MILL_KIND}(?: and {_MILL_KIND})?) from your graveyard to "
                 r"(your hand|the battlefield)( tapped)?\.", re.I),
-     lambda m: None if " and " not in m[2] and m[3].lower() == "your hand" else  # one kind to hand: Mill, then ReturnChosen
-     MillThenReturn(_count(m[1]), tuple(_card_kind(re.sub(r"^an? ", "", part)) for part in re.split(r" and ", m[2])),
-                    "hand" if m[3].lower() == "your hand" else "battlefield", bool(m[4]))),
+     lambda m: None if " and " not in m[3] and m[4].lower() == "your hand" else  # one kind to hand: Mill, then ReturnChosen
+     MillThenReturn(_count(m[1]), tuple(_card_kind(re.sub(r"^an? ", "", part)) for part in re.split(r" and ", m[3])),
+                    "hand" if m[4].lower() == "your hand" else "battlefield", bool(m[5]), bool(m[2]))),
     (re.compile(r"each opponent creates a token that's a copy of it\. The tokens are goaded for the rest of the game\.", re.I),
      lambda m: EachOpponentGetsGoadedCopy()),
     (re.compile(r"create (?:a token that's a copy of|(five) tokens that are copies of) another target creature you control"

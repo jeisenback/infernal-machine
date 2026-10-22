@@ -30,7 +30,7 @@ from . import casting
 from .zones import (CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
-                      Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
+                      activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
@@ -1067,6 +1067,10 @@ class Game:
                     options[f"{ACTIVATE}{self.label(permanent)}: {text}"] = (permanent, ability)
         return options
 
+    def as_though_haste(self, seat: Seat) -> bool:
+        """Whether `seat` may use its creatures' {T} abilities as though they had haste (Tyvar, Thousand-Year Elixir, Shang-Chi)."""
+        return any(activates_as_though_haste(p.card) and not self.loses_abilities(p) for p in seat.battlefield)
+
     def _can_activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility, sorcery_timing: bool) -> bool:
         card = permanent.card
         if self._ability_barred(permanent):
@@ -1074,7 +1078,7 @@ class Game:
         if ability.sorcery_speed and not sorcery_timing:
             return False
         if ability.tap and (permanent.tapped or (permanent.sick and "Creature" in card.type_line
-                                                  and not self.has_keyword(permanent, "haste"))):
+                                                  and not self.has_keyword(permanent, "haste") and not self.as_though_haste(seat))):
             return False
         if ability.once_per_turn and permanent.activated_turn.get(ability.text) == self.turn:
             return False
@@ -4323,15 +4327,17 @@ class Game:
         else:
             self._leave_battlefield(entering, "sacrificed")
 
-    def mill_then_return(self, seat: Seat, count: int, kinds: tuple[str, ...], to: str, tapped: bool) -> None:
-        """Mill, then return a card of each kind from the graveyard (the player picks, among everything there)."""
+    def mill_then_return(self, seat: Seat, count: int, kinds: tuple[str, ...], to: str, tapped: bool, optional: bool = False) -> None:
+        """Mill, then return a card of each kind from the graveyard (the player picks, among everything there; with `optional`
+        ("then you may return") they may take none)."""
         self.mill(seat, count)
         for kind in kinds:
             options = [c for c in _unique(seat.graveyard) if _card_matches(kind, c)]
             if not options:
                 continue
-            card = options[seat.player.choose(RETURN_CARD_PROMPT(kind), [c.name for c in options])]
-            self.return_from_graveyard(GraveyardTarget(card, seat), seat, to, tapped)
+            pick = seat.player.choose(RETURN_CARD_PROMPT(kind), [c.name for c in options] + ([NONE_TAKEN] if optional else []))
+            if pick < len(options):
+                self.return_from_graveyard(GraveyardTarget(options[pick], seat), seat, to, tapped)
 
     def exile_noting(self, target: Permanent, source: Permanent | None) -> None:
         """Exile `target` and remember the card on `source` ("the exiled card's owner ..."). Tokens are not remembered."""
