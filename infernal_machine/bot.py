@@ -10,9 +10,11 @@ from typing import Sequence
 
 from .analysis import color_pips, is_land
 from .cards import Card, Deck
+from .combos import SpellbookSource
 from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
 from .prompts import PRIORITY_PROMPT, is_one_of, subject_of
 from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
+from .report import unsupported_lines
 from .undercity import HELPS_ITS_TARGET
 from .effects import MOVE_COUNTERS_PROMPT
 from .zones import CAST_PREFIXES, LAND_PREFIXES
@@ -23,7 +25,7 @@ from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCAR
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
 HIGH_TAX = 6  # a commander cast from the command zone three times has this much tax; past it, a graveyard with a way out can be the better place
 # A card that brings a card back from a graveyard to the battlefield or the hand: where a commander that dies can be worth leaving.
 RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
@@ -88,14 +90,16 @@ class BotPlayer:
 
     CHUMP_LIFE = 10
 
-    def __init__(self, name: str, deck: Deck, features: frozenset[str] = FEATURES):
+    def __init__(self, name: str, deck: Deck, features: frozenset[str] = FEATURES, combos: Sequence[Sequence[str]] | None = None):
         """`features` turns judgments on: "timing" (tap-and-sacrifice abilities only after casting, never before the
         main phase), "attack" (only attacks that can't be blocked and killed for nothing), "land" (plays the land its
         hand needs), "target" (removal goes on the biggest opposing creature), "mana" (casts what spends the most mana),
         "keep" (a hand of two lands is kept only by a cheap deck, and only with two cheap spells), "commander" (a commander with a high tax is weighed against other spells, and its damage goes where it adds up to 21),
         "threat" (in a pod, it finishes an opponent it can kill and otherwise attacks the one with the most on the board, not the one on
         the lowest life), "destination" (a commander that would be bounced goes to the hand to be cast without tax, and one that would
-        die with a lot of tax on it goes to the graveyard if the deck can bring it back)."""
+        die with a lot of tax on it goes to the graveyard if the deck can bring it back), "tutor" (a search or a look at the top of the library
+        takes the card that completes a combo the deck holds, with what is on the battlefield and in the hand; `combos` are the deck's combos
+        as tuples of card names, or come from the Commander Spellbook cache, and the judgment does nothing for a deck the cache doesn't know)."""
         self.features = features
         self._commanders = {c.name for c in deck.commanders}
         self._signature = deck.signature_spell.name if deck.signature_spell else None  # an Oathbreaker's spell: cast like any spell, not first like a commander
@@ -107,6 +111,7 @@ class BotPlayer:
         self._cards = {c.name: c for c in deck.commanders + deck.main + ([deck.signature_spell] if deck.signature_spell else [])}
         self._cards.update({c.prepare.name: c.prepare for c in list(self._cards.values()) if c.prepare})  # the spell halves
         self._cards.update({c.alternate.name: c.alternate for c in list(self._cards.values()) if c.alternate})  # Adventures and other cast-from-hand halves
+        self._combos = _playable_combos(deck, combos, self._cards) if "tutor" in features else []  # the combos the deck holds that the engine plays whole
         self._hand: list[Card] = []
         self._mulligans = 0
         self._seat: int | None = None
@@ -197,6 +202,10 @@ class BotPlayer:
             taken = [i for i, name in enumerate(options) if name != NONE_TAKEN]  # never declines the optional take
             if SEARCH_CARD_PROMPT.matches(prompt) and (land := self._best_search_land(options, taken)) is not None:
                 return land
+            if "tutor" in self.features and is_one_of(prompt, SEARCH_CARD_PROMPT, LOOK_PROMPT):
+                finishing = [i for i in taken if self._finishes_combo(options[i])]
+                if finishing:
+                    return finishing[0]  # the card that completes a combo, over its best card
             # its best card; one it can't see in its own deck (from an opponent's hand) counts as worth nothing
             return max(taken, key=lambda i: self._cards[options[i]].cmc if options[i] in self._cards else 0)
         if is_one_of(prompt, SACRIFICE_PROMPT, SACRIFICE_COST_PROMPT):
@@ -504,7 +513,14 @@ class BotPlayer:
 
     def _wants_on_top(self, card: Card) -> bool:
         """For scry and surveil: a land while it's short of lands, or a spell it can cast soon."""
+        if "tutor" in self.features and self._finishes_combo(card.name):
+            return True  # it completes a combo: keep it on top
         return self._lands() < LAND_GOAL if is_land(card) else card.cmc <= self._lands() + 1
+
+    def _finishes_combo(self, name: str) -> bool:
+        """Whether taking the card `name` (one it doesn't have yet) completes a combo with what is on its battlefield and in its hand."""
+        have = {p.get("name") for p in (self._my_seat() or {}).get("battlefield", [])} | set((self._state or {}).get("hand", []))
+        return name not in have and any(name in combo and combo <= have | {name} for combo in self._combos)
 
     def _cycle_away(self, card: Card | None) -> bool:
         """Cycle a land once it has enough, or a spell it won't be able to cast for a while."""
@@ -624,6 +640,15 @@ def _is_wipe(card: Card) -> bool:
                 and not kind.endswith(("you don't control", "an opponent controls", "your opponents control")))
     return any((isinstance(e, (DestroyAll, ExileAll, ReturnAllToHand)) and everyone(e.kind))
                or (isinstance(e, DamageEach) and e.creatures == "all") for e in spell_effects(card) or [])
+
+
+def _playable_combos(deck: Deck, combos: Sequence[Sequence[str]] | None, cards: dict[str, Card]) -> list[frozenset[str]]:
+    """The combos the deck holds that the engine plays whole: every piece is in the deck and fully playable. The combos are given, or
+    come from the Commander Spellbook cache (none when it has no answer for this deck)."""
+    if combos is None:
+        report = SpellbookSource().cached(deck)
+        combos = [combo.cards for combo in report.included] if report else []
+    return [frozenset(combo) for combo in combos if all(n in cards and not unsupported_lines(cards[n]) for n in combo)]
 
 
 def _cast_name(option: str) -> str:
