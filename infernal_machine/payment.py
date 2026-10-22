@@ -116,7 +116,6 @@ class ManaPayer:
         """One entry per mana each untapped permanent can make: nonland sources first, then lands, and sources that sacrifice
         themselves (Treasure) last. `pay` does not take them in that order; `_pay_mana` leaves the sacrificing ones for last."""
         abilities, lands, sacrifices = [], [], []
-        hasty = self.game.as_though_haste(seat)  # Tyvar, Thousand-Year Elixir: summoning-sick creatures tap for mana
         pooled = [ManaSource(None, unit) for unit in seat.mana_pool]
         foods = sum(has_type(p.card, "food") for p in seat.battlefield)  # Gilded Goose: one Food per use
         grants = [g for p in seat.battlefield if not self.game.loses_abilities(p) for g in group_mana_grants(p.card)]
@@ -132,7 +131,7 @@ class ManaPayer:
             if (condition := mana_condition(card)) and not self.game.condition_holds(condition, seat, permanent):
                 continue  # "Activate only if you control five or more lands."
             if (per := mana_per_count(card)) is not None:  # Gaea's Cradle: as much as you control
-                if not per[0] and not (permanent.sick and "Creature" in card.type_line and not hasty):
+                if not per[0] and not self.game.summoning_sick(seat, permanent):
                     lands.extend(ManaSource(permanent, frozenset(per[1]))
                                  for _ in range(sum(has_type(p.card, per[2]) for p in seat.battlefield)))
                 if not per[0] or mana_ability(card, seat.color_identity) is None:
@@ -205,7 +204,7 @@ class ManaPayer:
                     types = types | granted_land_mana(given, seat.color_identity)
                 types = types | self.game._land_type_mana(permanent)  # Urborg: it is a Swamp too
                 lands.extend(([ManaSource(permanent, _snowy(permanent, types), pain, damage)] if types else []) + extra)  # no mana: no source
-            elif not (permanent.sick and "Creature" in card.type_line and not mana_ability_needs_no_tap(card) and not hasty):
+            elif not (self.game.summoning_sick(seat, permanent) and not mana_ability_needs_no_tap(card)):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
                 extra = mana_extra_cost(card)
                 if extra == "food" and foods <= 0 or extra == "mill" and not seat.library:
@@ -410,9 +409,8 @@ class ManaPayer:
 
     def _filter_sources(self, seat: Seat, exclude: Permanent | None) -> list[tuple[Permanent, Cost, list]]:
         found = []
-        hasty = self.game.as_though_haste(seat)
         for permanent in seat.battlefield:
-            if permanent.tapped or permanent is exclude or (permanent.sick and "Creature" in permanent.card.type_line and not hasty) \
+            if permanent.tapped or permanent is exclude or self.game.summoning_sick(seat, permanent) \
                     or self.game.loses_abilities(permanent):
                 continue
             ability = filter_mana_ability(permanent.card)
