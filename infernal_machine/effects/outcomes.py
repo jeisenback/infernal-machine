@@ -398,6 +398,7 @@ from .families.spells_and_misc import (  # noqa: F401
     ChooseFromHand,
     ChooseTarget,
     CommanderToHand,
+    PutThisFromCommandZone,
     Conditional,
     Counter,
     CreateDelayedTrigger,
@@ -1520,6 +1521,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: AddMana(tuple(frozenset(s) for s in re.findall(r"[WUBRGC]", m[1].upper())), per_named=frozenset(re.findall(r"[WUBRGC]", m[2].upper())))),
     (re.compile(r"look at target (player|opponent)'s hand\.", re.I), lambda m: LookAtHand(m[1].lower())),
     (re.compile(r"put your commander into your hand from the command zone\.", re.I), lambda m: CommanderToHand()),
+    (re.compile(r"put (?:CARDNAME|this card) onto the battlefield from the command zone\.", re.I), lambda m: PutThisFromCommandZone()),
     (re.compile(r"exile that token at the beginning of the next end step\.", re.I), lambda m: _ExileTokenAtEnd()),
     (re.compile(rf"if (.+), create {_N} of those tokens instead\.", re.I),
      lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
@@ -1589,7 +1591,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you gain life equal to the life lost this way\.", re.I), lambda m: _GainLifeLost()),
     (re.compile(r"each player may discard their hand and draw (seven) cards\.", re.I),
      lambda m: EachMayWheel(_number(m[1]))),
-    (re.compile(r"you may tap or untap target creature\.", re.I), lambda m: TapOrUntap()),
+    (re.compile(r"(?:you may )?tap or untap target (creature|permanent)\.", re.I), lambda m: TapOrUntap(m[1].lower())),  # Derevi: permanent
     (re.compile(rf"target (player|opponent) gains {_N} life\.", re.I), lambda m: TargetGainLife(_count(m[2]), m[1].lower())),
     (re.compile(rf"target (player|opponent) loses {_N} life\.", re.I), lambda m: TargetLoseLife(_count(m[2]), m[1].lower())),
     # Sanguine Bond, Exquisite Blood: "that much" is the life the trigger's event carried, which the game keeps as X
@@ -1945,6 +1947,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnTransformed(dies=True, end_step=True)),
     (re.compile(r"conjure a card named (.+?) onto the battlefield\.", re.I), lambda m: Conjure(m[1])),
     (re.compile(r"tap enchanted creature\.", re.I), lambda m: TapEnchanted()),
+    (re.compile(r"untap enchanted creature\.", re.I), lambda m: TapEnchanted(untap=True)),  # Freed from the Real
     (re.compile(r"tap enchanted creature\. It becomes unprepared\.", re.I), lambda m: TapEnchanted(unprepare=True)),
     (re.compile(r"until end of turn, whenever you tap a mountain for mana, add an additional \{R\}\.", re.I),
      lambda m: ExtraMountainMana()),

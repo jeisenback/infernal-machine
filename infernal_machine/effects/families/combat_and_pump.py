@@ -640,13 +640,17 @@ class PrepareEach:
 
 @dataclass(frozen=True)
 class TapEnchanted:
-    """An Aura's "When this Aura enters, tap enchanted creature." (Infinite Coursework adds "It becomes unprepared.")"""
+    """An Aura's "When this Aura enters, tap enchanted creature." (Infinite Coursework adds "It becomes unprepared.") With `untap`,
+    Freed from the Real's "{U}: Untap enchanted creature." """
     unprepare: bool = False
+    untap: bool = False
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         host = target.attached_to if target is not None else None
-        if host is not None and game.on_battlefield(host):
+        if host is not None and game.on_battlefield(host) and self.untap:
+            game.untap(host)
+        elif host is not None and game.on_battlefield(host):
             game.tap(host)
             if self.unprepare:
                 game.unprepare(host)

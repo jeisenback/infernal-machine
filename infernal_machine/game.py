@@ -93,6 +93,7 @@ MANA_COLOR_PROMPT = PromptKind("mana_color", "Which color of mana? ")
 REVEAL_CHOSEN_PROMPT = PromptKind("reveal_chosen", "Reveal it and put it into your hand? ")
 CYCLE = "Cycle: "
 ACTIVATE_HAND = "Activate from hand: "  # followed by the card's name: "{U/R}{U/R}, Discard this card: ..." (Magma Opus)
+ACTIVATE_COMMAND = "Activate from the command zone: "  # followed by the card's name: "{1}{G}{W}{U}: Put Derevi onto the battlefield from the command zone."
 ACTIVATE_GRAVEYARD = "Activate from graveyard: "  # followed by the card's name: "{B}{G}: Return this card from your graveyard to the battlefield tapped."
 REVEAL_PROMPT = PromptKind("reveal", "Reveal a card from your hand for ")  # followed by the land's name
 SHOCK_PROMPT = PromptKind("shock", "Pay life so it enters untapped? ")  # followed by the land's name
@@ -1021,6 +1022,9 @@ class Game:
                         and self._graveyard_targets_exist(seat, card, ability):
                     actions.append(ACTIVATE_GRAVEYARD + card.name)
                     break
+        for card in _unique(seat.command_zone):
+            if any(a.from_command_zone and self._pay_cost(seat, cost_of(a.mana_cost)) is not None for a in activated_abilities(card)):
+                actions.append(ACTIVATE_COMMAND + card.name)
         if sorcery_timing:
             actions += list(self._unlocks(seat))
         actions += list(self._activations(seat, sorcery_timing))
@@ -1057,7 +1061,8 @@ class Game:
                        for a in granted_abilities(attachment.card)]
             own = [] if self.loses_abilities(permanent) else activated_abilities(permanent.card)
             for ability in [*own, *granted]:
-                if not ability.discard_self and not ability.from_graveyard and self._can_activate(seat, permanent, ability, sorcery_timing):
+                if not ability.discard_self and not ability.from_graveyard and not ability.from_command_zone \
+                        and self._can_activate(seat, permanent, ability, sorcery_timing):
                     text = ability.text.replace("CARDNAME", permanent.card.name)
                     options[f"{ACTIVATE}{self.label(permanent)}: {text}"] = (permanent, ability)
         return options
@@ -1197,6 +1202,8 @@ class Game:
             self._left_graveyard(seat)
         if ability.remove_counter:
             self.remove_counters(source, ability.remove_counter, ability.remove_count)
+        if ability.put_counter:
+            self.put_counters(source, ability.put_counter, 1, by=seat)
         chosen = []
         for _ in range(ability.sacrifice_count if ability.sacrifice_other else 0):
             options = [p for p in self._sacrifice_choices(seat, source, ability) if p not in chosen]
@@ -1516,7 +1523,11 @@ class Game:
         elif action.startswith(ACTIVATE_HAND):
             self._activate_from_hand(seat, _take(seat.hand, action.removeprefix(ACTIVATE_HAND)))
         elif action.startswith(ACTIVATE_GRAVEYARD):
-            self._activate_from_graveyard(seat, next(c for c in seat.graveyard if c.name == action.removeprefix(ACTIVATE_GRAVEYARD)))
+            card = next(c for c in seat.graveyard if c.name == action.removeprefix(ACTIVATE_GRAVEYARD))
+            self._activate_from_zone(seat, card, next(a for a in activated_abilities(card) if a.from_graveyard))
+        elif action.startswith(ACTIVATE_COMMAND):
+            card = next(c for c in seat.command_zone if c.name == action.removeprefix(ACTIVATE_COMMAND))
+            self._activate_from_zone(seat, card, next(a for a in activated_abilities(card) if a.from_command_zone))
         elif action.startswith(CAST_COMMANDER):
             name = action.removeprefix(CAST_COMMANDER)
             card = next(c for c in seat.command_zone if c.name == name)
@@ -1767,11 +1778,12 @@ class Game:
         finally:
             self.targeting_card = saved
 
-    def _activate_from_graveyard(self, seat: Seat, card: Card) -> None:
-        """"{B}{G}: Return this card from your graveyard to the battlefield tapped.": only its mana cost is paid; the card
-        stays where it is until the ability resolves. "{3}{B}, Exile this card from your graveyard: Return another target creature card
-        from your graveyard to your hand.": the targets are chosen first (the card is still there to be excluded), then it is exiled."""
-        ability = next(a for a in activated_abilities(card) if a.from_graveyard)
+    def _activate_from_zone(self, seat: Seat, card: Card, ability: ActivatedAbility) -> None:
+        """An ability that works from the graveyard or the command zone. "{B}{G}: Return this card from your graveyard to the
+        battlefield tapped." or Derevi's "{1}{G}{W}{U}: Put Derevi onto the battlefield from the command zone.": only its mana cost is
+        paid; the card stays where it is until the ability resolves. "{3}{B}, Exile this card from your graveyard: Return another target
+        creature card from your graveyard to your hand.": the targets are chosen first (the card is still there to be excluded), then it
+        is exiled."""
         saved, self.targeting_card = self.targeting_card, card
         try:
             targets, labels = _checked(self._choose_targets(seat, list(ability.effects), card.name, None, source_qualities(card)))
