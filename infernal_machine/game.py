@@ -1018,12 +1018,12 @@ class Game:
         for card in _unique(seat.graveyard):
             for ability in activated_abilities(card):
                 if ability.from_graveyard and (sorcery_timing or not ability.sorcery_speed) \
-                        and self._pay_cost(seat, cost_of(ability.mana_cost)) is not None \
+                        and self._zone_ability_payable(seat, ability) \
                         and self._graveyard_targets_exist(seat, card, ability):
                     actions.append(ACTIVATE_GRAVEYARD + card.name)
                     break
         for card in _unique(seat.command_zone):
-            if any(a.from_command_zone and self._pay_cost(seat, cost_of(a.mana_cost)) is not None for a in activated_abilities(card)):
+            if any(a.from_command_zone and self._zone_ability_payable(seat, a) for a in activated_abilities(card)):
                 actions.append(ACTIVATE_COMMAND + card.name)
         if sorcery_timing:
             actions += list(self._unlocks(seat))
@@ -1117,7 +1117,7 @@ class Game:
     def _life_cost(self, seat: Seat, ability: ActivatedAbility) -> int:
         return ability.life + (len(seat.color_identity) if ability.life_identity else 0)
 
-    def _sacrifice_choices(self, seat: Seat, source: Permanent, ability: ActivatedAbility) -> list[Permanent]:
+    def _sacrifice_choices(self, seat: Seat, source: Permanent | None, ability: ActivatedAbility) -> list[Permanent]:
         """What `seat` could sacrifice to pay the ability's "Sacrifice a creature" cost."""
         kind = _checked(ability.sacrifice_other)
         return [p for p in seat.battlefield if _permanent_matches(kind, p.card) and not (ability.sacrifice_another and p is source)]
@@ -1208,6 +1208,10 @@ class Game:
             self.remove_counters(source, ability.remove_counter, ability.remove_count)
         if ability.put_counter:
             self.put_counters(source, ability.put_counter, 1, by=seat)
+        self._pay_sacrifice_cost(seat, name, source, ability)
+
+    def _pay_sacrifice_cost(self, seat: Seat, name: str, source: Permanent | None, ability: ActivatedAbility) -> None:
+        """Sacrifice what the ability's "Sacrifice a creature" cost asks for; `source` is None when the ability works from a zone."""
         chosen = []
         for _ in range(ability.sacrifice_count if ability.sacrifice_other else 0):
             options = [p for p in self._sacrifice_choices(seat, source, ability) if p not in chosen]
@@ -1774,6 +1778,13 @@ class Game:
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": labels, "tapped": [p.card.name for p in tapped]})
 
+    def _zone_ability_payable(self, seat: Seat, ability: ActivatedAbility) -> bool:
+        """Whether `seat` can pay the cost of an ability that works from the graveyard or the command zone: its mana (an ability with
+        none, "Sacrifice a Food: Return this card ...", costs nothing in mana) and the permanents it sacrifices."""
+        if ability.sacrifice_other and len(self._sacrifice_choices(seat, None, ability)) < ability.sacrifice_count:
+            return False
+        return self._pay_cost(seat, cost_of(ability.mana_cost) if ability.mana_cost else Cost()) is not None
+
     def _graveyard_targets_exist(self, seat: Seat, card: Card, ability: ActivatedAbility) -> bool:
         """Whether an ability that works from the graveyard has its targets: "another target creature card" is not the card itself."""
         saved, self.targeting_card = self.targeting_card, card
@@ -1795,6 +1806,7 @@ class Game:
             self.targeting_card = saved
         tapped = _checked(self._pay_cost(seat, cost_of(ability.mana_cost))) if ability.mana_cost else Payment()
         self._spend_mana(seat, tapped)
+        self._pay_sacrifice_cost(seat, card.name, None, ability)
         if ability.exile_from_graveyard:  # a cost: the ability exists apart from the card (CR 113.7a)
             seat.graveyard.remove(card)
             self._move_card(seat, card, "exile")
