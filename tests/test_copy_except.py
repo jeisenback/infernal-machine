@@ -44,7 +44,7 @@ class ParseTests(unittest.TestCase):
 
     def test_an_except_clause_the_engine_does_not_apply_leaves_the_line_unsupported(self):
         odd = real("Odd Copier", "{2}", "Sorcery",
-                   "Create a token that's a copy of target creature you control, except it's a 5/5 black Demon.")
+                   "Create a token that's a copy of target creature you control, except it has dethrone.")
         self.assertNotEqual(unsupported_lines(odd), [])
 
 

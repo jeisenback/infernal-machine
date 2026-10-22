@@ -423,6 +423,7 @@ class ExileFromGraveyard:
     if_type: str = ""  # Feral Appetite: "If a creature card is exiled this way, create a ... token": the card type
     then: Any = None  # ... and what happens then
     copy_token: bool = False  # Lorehold Archivist's spell: "Create a token that's a copy of it."
+    copy_changes: Any = None  # The Scarab God: "..., except it's a 4/4 black Zombie." (a CopyChanges)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is None or not game.exile_from_graveyard(target):
@@ -430,7 +431,7 @@ class ExileFromGraveyard:
         if self.then and self.if_type.capitalize() in target.card.type_line:
             self.then.resolve(game, controller, None)
         if self.copy_token:
-            game.create_tokens(controller, copy_of(target.card, as_token=True), 1)
+            game.create_tokens(controller, copy_of(target.card, self.copy_changes, as_token=True), 1)
 
 
 @dataclass(frozen=True)

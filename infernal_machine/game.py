@@ -29,7 +29,7 @@ from .combat import Attack, Combat
 from . import casting
 from .zones import (CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
-from .effects import (copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
+from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
@@ -1981,7 +1981,7 @@ class Game:
                 kind, cost = item.face_down
                 entering = Permanent(card, sick=True, cast=not item.is_copy, real_card=item.whole, manifested=True, owner=item.home,
                                      turn_up_cost=cost, megamorph=kind == "Megamorph")
-                self._enter(seat, entering, x=item.x)
+                self._enter(seat, entering, x=item.x, mana_spent=item.mana_spent)
                 return
             whole = item.whole or card  # a Room enters with the door that was cast unlocked (the card itself is its front door)
             door = card if is_room(whole) else None
@@ -1996,7 +1996,7 @@ class Game:
                 return
             if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
                 self._queue(EVOKE_SACRIFICE, entering, seat)
-            self._enter(seat, entering, x=item.x)
+            self._enter(seat, entering, x=item.x, mana_spent=item.mana_spent)
             if item.gift is not None:  # "when it enters, they draw a card"
                 self._give_gift(item)
             if door is not None:
@@ -2204,6 +2204,8 @@ class Game:
             return len(this_turn)
         if kind == "one_plus_spells":  # Rionya: one plus the instant and sorcery spells you've cast this turn
             return 1 + sum(_watch_type_matches(amount.what, c) for c in this_turn)
+        if kind == "spells_before":  # Thousand-Year Storm: the instant and sorcery spells cast this turn before the one being cast
+            return max(0, sum(_watch_type_matches(amount.what, c) for c in this_turn) - 1)
         if kind == "greatest_mana_value_cast":
             return int(max((c.cmc for c in this_turn if _watch_type_matches(amount.what, c)), default=0))
         if kind == "opponents":
@@ -2715,6 +2717,11 @@ class Game:
         if kind == "triggered ability you control":  # Strionic Resonator
             return [(f"Ability: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
                     if isinstance(i.ability, TriggeredAbility) and i.controller is caster]
+        if kind == "activated or triggered ability you control":  # Lithoform Engine (a mana ability never uses the stack)
+            return [(f"Ability: {i.card.name} (seat {i.controller.index})", i) for i in self.stack if i.ability and i.controller is caster]
+        if kind == "instant spell, sorcery spell, activated ability, or triggered ability":  # Return the Favor
+            return [(f"{'Ability' if i.ability else 'Spell'}: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
+                    if i.ability or re.search(r"\b(Instant|Sorcery)\b", i.card.type_line)]
         if kind == "creature card in a graveyard":  # Animate Dead is cast on one
             kind = "graveyard:creature:any"
         if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|any>"
@@ -3589,17 +3596,17 @@ class Game:
             self.combat.attacks.append(Attack(made, seat, defender))
             self.broadcast({"event": "attack", "seat": seat.index, "card": made.card.name, "defender": defender.index})
 
-    def exile_dead_make_spirit_copy(self, seat: Seat, dead: Permanent) -> None:
-        """Hofri Ghostforge: exile the creature that just died from its owner's graveyard; if that works, `seat` creates a token
-        that's a copy of it, a Spirit too, which sends the exiled card back to the graveyard when it leaves."""
+    def exile_dead_copy(self, seat: Seat, dead: Permanent, changes: CopyChanges | None) -> None:
+        """Nightmare Shepherd, Hofri Ghostforge: exile the creature that just died from its owner's graveyard; if that works, `seat`
+        creates a token that's a copy of it with `changes`. A copy given Hofri's "return the exiled card" ability sends the exiled
+        card back to the graveyard when it leaves."""
         owner = self.owner_of(dead)
         if owner is None or not self.exile_from_graveyard(GraveyardTarget(dead.card, owner)):
             return
         card = dead.card
-        spirit = copy_of(card, CopyChanges(add_types=("Spirit",), abilities=(
-            "When this token leaves the battlefield, return the exiled card to its owner's graveyard.",)), as_token=True)
-        for made in self.create_tokens(seat, spirit, 1):
-            made.exiled_with.append((owner, card))
+        for made in self.create_tokens(seat, copy_of(card, changes, as_token=True), 1):
+            if changes and any("return the exiled card to its owner's graveyard" in ability for ability in changes.abilities):
+                made.exiled_with.append((owner, card))
 
     def return_exiled_with_to_graveyard(self, leaver: Permanent) -> None:
         """The exiled card a Hofri Ghostforge token was made from goes to its owner's graveyard."""
@@ -5367,7 +5374,7 @@ class Game:
 
     # --- helpers -------------------------------------------------------------
 
-    def _enter(self, seat: Seat, permanent: Permanent, x: int = 0) -> None:
+    def _enter(self, seat: Seat, permanent: Permanent, x: int = 0, mana_spent: int = 0) -> None:
         if (face := day_night_face(permanent.card)) is not None:  # daybound: it is day if it was neither; at night it enters transformed
             if self.day_night is None:
                 self._set_day_night(face)
@@ -5380,7 +5387,7 @@ class Game:
             self._become_temporary_copy(seat, permanent, keyword)
         elif clone := clone_rule(permanent.card):  # "You may have it enter as a copy of ...": decided as it enters
             extra_when_copy = clone.changes.extra_counters
-            self._become_copy(seat, permanent, clone)
+            self._become_copy(seat, permanent, clone, mana_spent)
         counters = {counter: (x if count == "X" else 2 * x if count == "2X" else int(count))
                     for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped, any(
                         o.damage_taken_turn == self.turn for o in self.opponents(seat)),
@@ -5388,7 +5395,7 @@ class Game:
         if permanent.extra_counters:  # Opal Palace: mana spent on the commander
             counters["+1/+1"] = counters.get("+1/+1", 0) + permanent.extra_counters
         if extra_when_copy and permanent.real_card is not None and "Creature" in permanent.card.type_line:
-            counters["+1/+1"] = counters.get("+1/+1", 0) + (x if extra_when_copy == "X" else 1)  # Altered Ego, Spark Double
+            counters["+1/+1"] = counters.get("+1/+1", 0) + (x if extra_when_copy == "X" else int(extra_when_copy))  # Altered Ego, Spark Double, Moritte
         if "Creature" in permanent.card.type_line:  # Metallic Mimic: other creatures of the type it named come with a counter
             kinds = permanent.card.type_line.partition("\u2014")[2].split()
             counters["+1/+1"] = counters.get("+1/+1", 0) + sum(
@@ -5481,20 +5488,26 @@ class Game:
         if pick < len(options):
             self.become_copy_until_end_of_turn(permanent, options[pick], keyword, seat)
 
-    def _become_copy(self, seat: Seat, permanent: Permanent, rule: CloneRule) -> None:
-        """Clone: choose a permanent on the battlefield and enter as a copy of it. A copy gets the other card's
-        printed characteristics (not its counters, damage or changes), and what the card's except clause changes (CR 707.9);
-        a token's copy isn't a token."""
-        options = [p for s in self.live_seats() if (not rule.yours or s is seat) and (not rule.opponents or s is not seat)
-                   for p in s.battlefield
-                   if _permanent_matches(rule.kind, p.card)
-                   and (not rule.min_power or (p.card.power or "").lstrip("-").isdigit() and int(p.card.power or 0) >= rule.min_power)]
+    def _become_copy(self, seat: Seat, permanent: Permanent, rule: CloneRule, mana_spent: int = 0) -> None:
+        """Clone: choose a permanent on the battlefield (or a card in a graveyard) and enter as a copy of it. A copy gets the other
+        card's printed characteristics (not its counters, damage or changes), and what the card's except clause changes (CR 707.9);
+        a token's copy isn't a token. `mana_spent` is what was paid to cast the clone (Mockingbird)."""
+        if rule.zone == "graveyard":  # Body Double: a card, which stays where it is
+            options = [(f"{card.name} (seat {s.index} graveyard)", card) for s in self.live_seats() for card in _unique(s.graveyard)
+                       if _card_matches(rule.kind, card)]
+        else:
+            options = [(self.label(p), p.card) for s in self.live_seats() if (not rule.yours or s is seat) and (not rule.opponents or s is not seat)
+                       for p in s.battlefield
+                       if _permanent_matches(rule.kind, p.card)
+                       and (not rule.min_power or (p.card.power or "").lstrip("-").isdigit() and int(p.card.power or 0) >= rule.min_power)
+                       and (not rule.entered_this_turn or p.entered_turn == self.turn)
+                       and (not rule.mana_spent_cap or p.card.cmc <= mana_spent)]
         if not options:
             return
-        pick = seat.player.choose(CLONE_PROMPT(permanent.card.name), [self.label(p) for p in options] + [NOT_A_COPY])
+        pick = seat.player.choose(CLONE_PROMPT(permanent.card.name), [label for label, _ in options] + [NOT_A_COPY])
         if pick == len(options):
             return
-        copied = options[pick].card
+        copied = options[pick][1]
         permanent.real_card = permanent.card
         permanent.card = copy_of(copied, rule.changes)
         if "Planeswalker" in permanent.card.type_line:  # Spark Double: the copy starts at the planeswalker's loyalty
@@ -5535,17 +5548,19 @@ class Game:
             self.broadcast({"event": "copied_spell", "seat": caster.index, "card": item.card.name})
             self._observe("copy", item.card, caster)
 
-    def copy_spell(self, item: StackItem, controller: Seat, new_targets: bool = False) -> None:
+    def copy_spell(self, item: StackItem, controller: Seat, new_targets: bool = False, color: str | None = None,
+                   changes: CopyChanges | None = None) -> None:
         """Put a copy of a spell on the stack under `controller`'s control; it resolves first. It isn't cast, and it
         stops existing instead of going to the graveyard. With `new_targets` the copy's controller chooses its
-        targets again (the old ones are still legal choices)."""
+        targets again (the old ones are still legal choices). Fork's copy is red (`color`); Double Major's has an except clause."""
         if (item not in self.stack and item is not self.resolving_item) or item.ability:  # (a spell may copy itself as it resolves)
             return
         targets = list(item.targets)
         if new_targets and (chosen := self._choose_targets(controller, item.effects, item.card.name,
                                                            colors=source_qualities(item.card))):
             targets = chosen[0]
-        self.stack.append(StackItem(item.card, controller, item.effects, targets, x=item.x, kicked=item.kicked,
+        card = dataclasses.replace(item.card, colors=(color,)) if color else item.card
+        self.stack.append(StackItem(apply_copy_changes(card, changes), controller, item.effects, targets, x=item.x, kicked=item.kicked,
                                     kickers=item.kickers, is_copy=True))
         self.broadcast({"event": "copied_spell", "seat": controller.index, "card": item.card.name})
         self._observe("copy", item.card, controller)
