@@ -159,6 +159,16 @@ class SacrificeSquirrelsTests(unittest.TestCase):
         game, a = seat_with(Permanent(goblin_maker), *lands(1))
         self.assertTrue([x for x in game.legal_actions(a) if "Sacrifice X Goblins" in x])
 
+    def test_a_plural_cost_reads_its_kind_and_can_be_paid(self):
+        """Goblin Warrens' "Sacrifice two Goblins" read its kind as "Goblins", which matches no creature."""
+        warrens = real("Goblin Warrens", "{3}{R}", "Enchantment", "{2}{R}, Sacrifice two Goblins: Create three 1/1 red Goblin creature tokens.",
+                       colors=("R",))
+        goblin = real("Goblin Probe", "{R}", "Creature \u2014 Goblin", "", "1", "1")
+        game, a = seat_with(Permanent(warrens), Permanent(goblin), *lands(3))
+        self.assertFalse([x for x in game.legal_actions(a) if "Sacrifice two Goblins" in x])
+        a.battlefield.append(Permanent(goblin))
+        self.assertTrue([x for x in game.legal_actions(a) if "Sacrifice two Goblins" in x])
+
     def test_it_needs_the_mana(self):
         game, a = seat_with(Permanent(CHATTERFANG), *SQUIRRELS(2))
         self.assertFalse([x for x in game.legal_actions(a) if "Sacrifice X Squirrels" in x])
