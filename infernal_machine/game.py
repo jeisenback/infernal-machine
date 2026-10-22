@@ -1071,14 +1071,19 @@ class Game:
         """Whether `seat` may use its creatures' {T} abilities as though they had haste (Tyvar, Thousand-Year Elixir, Shang-Chi)."""
         return any(activates_as_though_haste(p.card) and not self.loses_abilities(p) for p in seat.battlefield)
 
+    def summoning_sick(self, seat: Seat, permanent: Permanent) -> bool:
+        """Whether `permanent` can't use an ability with {T} yet (CR 302.6): a creature that has not been under its controller's control
+        since the start of the turn, unless it has haste, however it got it, or `seat` may use creatures' {T} abilities as though they did."""
+        return permanent.sick and "Creature" in permanent.card.type_line \
+            and not self.has_keyword(permanent, "haste") and not self.as_though_haste(seat)
+
     def _can_activate(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility, sorcery_timing: bool) -> bool:
         card = permanent.card
         if self._ability_barred(permanent):
             return False
         if ability.sorcery_speed and not sorcery_timing:
             return False
-        if ability.tap and (permanent.tapped or (permanent.sick and "Creature" in card.type_line
-                                                  and not self.has_keyword(permanent, "haste") and not self.as_though_haste(seat))):
+        if ability.tap and (permanent.tapped or self.summoning_sick(seat, permanent)):
             return False
         if ability.once_per_turn and permanent.activated_turn.get(ability.text) == self.turn:
             return False
