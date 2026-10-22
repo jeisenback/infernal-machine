@@ -81,6 +81,19 @@ stats = goldfish(deck, games=5000, turns=5)
   Alone, none of the three measurably helps or hurts; all three together against the bot without them won 509 of 960, 53.0%
   (49.9%-56.2%), which is not a measurable difference either. They are rule-following choices like `commander` and `threat`, and the weekly
   `bot strength` job keeps watching them with the rest.
+  - `tutor`: a search of the library or a look at the top of it (take a card from there) takes the card that completes a combo the deck
+    holds, with what is on the battlefield and in the hand; a scry keeps such a card on top. It counts only combos from Commander Spellbook
+    that the engine plays whole (every piece in the deck and fully playable), and only a card that would finish one, not one that would
+    start it; with none on offer the bot takes its best card as before. The combos come from the Spellbook cache (`.cache/combos.json`,
+    filled by `analyze` and `python -m infernal_machine.combos`): a deck the cache does not know, and the plain bot, get none, so a fresh
+    checkout (and the CI jobs) play as before. On Edgar Markov's average list against three bots without it (200 games each way) a
+    complete combo reached the battlefield in 37 games instead of 19 (18.5% against 9.5%), and it won 126 instead of 123 (63.0% against
+    61.5%): no measurable difference. A combo that comes together is worth about 34 points of win rate in that deck (about 92% against
+    58%), so doubling how often it does is worth about 3 points, which 200 games cannot show. It rarely applies elsewhere: in 60-game
+    samples a completing card was on offer 29 times for Kinnan (whose combos have no payoff in the engine), 6 for Tymna/Thrasios, once each
+    for Korvold and Krenko, and never for Niv-Mizzet, Sisay or Jace. A first attempt at the same issue (#490), which cast and kept the pieces
+    of a combo ahead of other cards, changed nothing (809 of 1600 duels, 50.6%, 48.1%-53.0%) and was left out: the bottleneck is finding
+    the pieces, not what the bot does with them.
   `python tools/compare_bots.py DECK DECK ...` plays one version of the bot against another on the same decks and reports the
   win rate with its 95% interval. Against the plain bot on the five Secrets of Strixhaven precons (191 games) all five
   together won 67.5% (60.6%-73.8%); alone, timing won 65.5%, attack 57.6%, land 56.8%, target 55.2% and mana 52.9%.

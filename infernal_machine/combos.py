@@ -9,6 +9,7 @@ Spellbook's bracket tag on each; `analyze` lists them, with whether the engine c
 
 from __future__ import annotations
 
+import functools
 import io
 import json
 import os
@@ -67,6 +68,14 @@ def _from_saved(saved: dict) -> Combo:
     return Combo(**{**saved, "cards": tuple(saved["cards"]), "requires": tuple(saved["requires"]), "produces": tuple(saved["produces"])})
 
 
+@functools.lru_cache(maxsize=2)
+def _read_decks(path: str, stamp: tuple[int, int]) -> dict:
+    """The decks in the cache file at `path`, read once for as long as the file (its modification time and size: `stamp`) stays as it is."""
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return data.get("decks", {}) if data.get("format") == CACHE_FORMAT else {}
+
+
 def deck_key(deck: Deck) -> str:
     """What Spellbook is asked about: the commanders and the main deck's names with their counts, in one order."""
     counts = Counter(c.name for c in deck.main)
@@ -95,6 +104,17 @@ class SpellbookSource:
                      "almost": [asdict(_combo(v)) for v in results.get("almostIncluded", [])]}
             decks[key] = saved
             self._save(decks)
+        return ComboReport(saved["identity"], [_from_saved(c) for c in saved["included"]], [_from_saved(c) for c in saved["almost"]])
+
+    def cached(self, deck: Deck) -> ComboReport | None:
+        """The combos `deck` holds if the cache already has an answer for it, else None. Never asks Spellbook and never writes: a bot
+        looks its deck up while a game is being set up, so this must be cheap (the cache file is read once while it is unchanged)."""
+        if self.cache_path is None or not os.path.exists(self.cache_path):
+            return None
+        stat = os.stat(self.cache_path)
+        saved = _read_decks(self.cache_path, (stat.st_mtime_ns, stat.st_size)).get(deck_key(deck))
+        if saved is None:
+            return None
         return ComboReport(saved["identity"], [_from_saved(c) for c in saved["included"]], [_from_saved(c) for c in saved["almost"]])
 
     def _request(self, deck: Deck) -> urllib.request.Request:
