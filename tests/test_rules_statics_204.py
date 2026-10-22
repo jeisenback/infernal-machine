@@ -7,8 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import Counter
 from infernal_machine.game import CAST, ACTIVATE, Permanent, StackItem
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
+from tests.helpers import lands, pick, table3
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))

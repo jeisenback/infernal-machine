@@ -6,8 +6,7 @@ from infernal_machine.effects import (EntersTapped, cycling, enters_tapped_rule,
                                       mana_pain)
 from infernal_machine.game import CAST, CYCLE, PASS, PLAY_LAND, SHOCK_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import FOREST, lands, pick, table
-from tests.test_mass_effects import table3
+from tests.helpers import FOREST, lands, pick, table, table3
 
 TEMPLE = Card(name="Temple of Mystery", type_line="Land", produced_mana=("G", "U"),
               oracle_text="This land enters tapped.\nWhen this land enters, scry 1.\n{T}: Add {G} or {U}.")

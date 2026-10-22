@@ -94,7 +94,7 @@ Each message is one JSON object per line:
 | server -> client | `{"type": "welcome", "seat": 0}` (`"rejoined": true` when a dropped player took their seat back) |
 | server -> client | `{"type": "event", ...}` (no reply) |
 | server -> client | `{"type": "event", "event": "state", ...}`: the whole board, sent before each of your decisions. It has `turn`, `step`, `active`, `you`, your `hand`, the `stack`, and for each seat its life, hand and library counts, graveyard, exile, command zone (with commander tax), commander damage, and battlefield (with current power and toughness, counters and attachments) |
-| server -> client | `{"type": "choose", "id": 1, "prompt": "...", "options": ["Keep", "Mulligan"]}` (`"seconds": 60` when the table has a timer) |
+| server -> client | `{"type": "choose", "id": 1, "prompt": "...", "options": ["Keep", "Mulligan"]}` (`"seconds": 60` when the table has a timer; `"kind"` and `"subject"` too when the question is a typed prompt, e.g. `"kind": "priority", "subject": "main1"`: match on the kind, not on the wording) |
 | server -> client | `{"type": "event", "event": "timed_out", "prompt": "...", "choice": "Pass"}`: the clock ran out and a bot chose for you |
 | client -> server | `{"type": "response", "id": 1, "choice": 0}` |
 | server -> client | `{"type": "error", "message": "..."}` (after bad input the prompt is sent again) |

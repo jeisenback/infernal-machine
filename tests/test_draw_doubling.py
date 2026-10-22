@@ -6,13 +6,11 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import real, table3
+from tests.helpers import ARCHIVE, real, table3
 
 REFLECTION = real("Thought Reflection", "{4}{U}{U}{U}", "Enchantment", "If you would draw a card, draw two cards instead.")
 INSIGHT = real("Teferi's Ageless Insight", "{2}{U}{U}", "Legendary Enchantment", "If you would draw a card except the first one you draw in "
                "each of your draw steps, draw two cards instead.")
-ARCHIVE = real("Alhammarret's Archive", "{5}", "Legendary Artifact", "If you would gain life, you gain twice that much life instead.\n"
-               "If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.")
 
 
 def setup(*cards):

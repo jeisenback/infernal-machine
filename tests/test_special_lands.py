@@ -6,7 +6,7 @@ from infernal_machine.game import CAST, CYCLE, PLAY_LAND, Permanent
 from infernal_machine.mana import parse_cost
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_effects import FOREST, lands, pick, table
+from tests.helpers import FOREST, lands, pick, table
 
 TOMB = REAL["Ancient Tomb"]
 AQUEDUCT = REAL["Dimir Aqueduct"]

@@ -8,10 +8,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import creature
-from tests.test_mass_effects import table3
-from tests.test_prepare_85 import fire
-from tests.test_x_targets import script
+from tests.helpers import creature, fire, script, table3
 
 DUELIST = creature("Duelist", 3, 2, "First strike\nAt the beginning of your upkeep, you and target opponent each reveal the top "
                    "card of your library. You each lose life equal to the mana value of the card revealed by the other player. "

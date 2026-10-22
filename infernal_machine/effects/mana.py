@@ -9,7 +9,8 @@ from functools import lru_cache
 from ..cards import Card
 
 from .common import _ANY_N, _N_FIXED, _SELF, _THRESHOLD, _number, rules_lines
-from .outcomes import Condition, _condition
+from .families.base import Amount
+from .outcomes import Condition, _amount, _condition
 
 
 _TAP = r"\{T\}(, Sacrifice (?:CARDNAME|this (?:artifact|creature|permanent|land)))?(?:, (?:Sacrifice a Food|Mill a card))?: Add "  # group 1: sacrifice
@@ -113,7 +114,8 @@ _RESTRICTIONS = {"Spend this mana only to cast spells with mana value 5 or great
                  "big_or_x",
                  "Spend this mana only on costs that contain {X}": "x_cost",
                  "Spend this mana only to cast an instant or sorcery spell": "instant_or_sorcery",
-                 "This mana can't be spent to cast spells from your hand": "not_from_hand"}  # Heartwood Crafter
+                 "This mana can't be spent to cast spells from your hand": "not_from_hand",  # Heartwood Crafter
+                 "This mana can't be spent to pay generic mana costs": "not_generic"}  # Jegantha, the Wellspring
 
 
 _MANA_RESTRICTION = re.compile(" (" + "|".join(re.escape(k) for k in _RESTRICTIONS) + r")\.")
@@ -142,7 +144,8 @@ def _without_spent_rider(line: str) -> str:
 
 def mana_restriction(card: Card) -> str | None:
     """What the card's plain mana ability limits its mana to: "big_or_x" (spells of mana value 5 or more, or with {X} in
-    their cost), "x_cost" (costs containing {X}) or "not_from_hand" (not spells cast from hand)."""
+    their cost), "x_cost" (costs containing {X}), "not_from_hand" (not spells cast from hand) or "not_generic" (not the
+    generic part of a cost)."""
     line = _mana_line(card)
     m = _MANA_RESTRICTION.search(line) if line else None
     return _RESTRICTIONS[m[1]] if m else None
@@ -246,26 +249,63 @@ def _mana_line(card: Card) -> str | None:
 
 @dataclass(frozen=True)
 class RestrictedMana:
-    """Cavern of Souls, Unclaimed Territory, Delighted Halfling: a second mana ability for one mana of any color that can only
-    be spent on some spells ("creature spell of the chosen type", "legendary spell"), and perhaps makes that spell uncounterable."""
-    spell: str  # "chosen_creature" or "legendary"
+    """Cavern of Souls, Eldrazi Temple, Rivaz of the Claw: a mana ability whose mana can only be spent on some spells ("a creature
+    spell of the chosen type", "colorless Eldrazi spells", "a Dragon spell or an Omen spell"), and perhaps makes that spell
+    uncounterable. An "or activate abilities of ..." clause is read but not yet honoured: the payer only knows the spell it pays for,
+    so the mana is never offered for an ability, which underplays the card rather than misplaying it."""
+    spell: str  # a kind the filters read ("creature", "dragon|omen", "colorless eldrazi", "legendary")
+    chosen: bool  # "... of the chosen type": the spell must also have the type the permanent chose as it entered
+    mana: tuple[frozenset[str], ...]  # what the ability makes, one set of types per mana
     uncounterable: bool
+    condition: "Condition | None" = None  # "Activate only if you control seven or more lands."
 
 
-_RESTRICTED_MANA = re.compile(r"\{T\}: Add one mana of any color\. Spend this mana only to cast "
-                              r"(a creature spell of the chosen type|a legendary spell)(, and that spell can't be countered)?\.")
+_RESTRICTED_MANA = re.compile(r"\{T\}: Add (one mana of any color|two mana in any combination of colors|(?:\{[WUBRGC]\})+)\. "
+                              r"Spend this mana only to cast ((?:an? )?[A-Za-z][A-Za-z ,/-]*? spells?)( of the chosen type)?"
+                              r"(?: or (?:to )?activate (?:abilities|an ability) of [^.]+?)?(, and that spell can't be countered)?\." + _IF_TAIL)
+_SPELL_WORDS = {"creature", "artifact", "enchantment", "instant", "sorcery", "planeswalker", "land", "legendary", "noncreature",
+                "nonland", "colorless", "multicolored", "or", "and"}
+
+
+def _spell_kind(phrase: str) -> str | None:
+    """"a Dragon spell or an Omen spell" -> "dragon or omen"; "colorless Eldrazi spells" -> "colorless eldrazi": a kind the filters
+    read, or None when a word is neither a card type nor a capitalized subtype (a kicked spell, a spell with devoid)."""
+    words = re.sub(r"\bspells?\b", "", phrase.replace("and/or", "or")).split()
+    kept = [w for w in words if w not in ("a", "an")]
+    if not kept or any(w.lower() not in _SPELL_WORDS and not w[:1].isupper() for w in kept):
+        return None
+    return " ".join(w.lower().strip(",") if w.lower() in _SPELL_WORDS else w.lower() + ("," if w.endswith(",") else "") for w in kept) \
+        .replace(" ,", ",")
+
+
+def _read_restricted(line: str) -> RestrictedMana | None:
+    m = _RESTRICTED_MANA.fullmatch(line)
+    if m is None:
+        return None
+    kind = _spell_kind(m[2])
+    condition = _condition(m[5]) if m[5] else None
+    if kind is None or (m[5] and condition is None):
+        return None
+    amount = m[1]
+    if amount == "one mana of any color":
+        mana: tuple[frozenset[str], ...] = (frozenset("WUBRG"),)
+    elif amount == "two mana in any combination of colors":
+        mana = (frozenset("WUBRG"), frozenset("WUBRG"))
+    else:
+        mana = tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", amount))
+    return RestrictedMana(kind, bool(m[3]), mana, bool(m[4]), condition)
 
 
 @lru_cache(maxsize=None)
 def restricted_mana(card: Card) -> RestrictedMana | None:
     for line in rules_lines(card):
-        if m := _RESTRICTED_MANA.fullmatch(line):
-            return RestrictedMana("chosen_creature" if "chosen type" in m[1] else "legendary", bool(m[2]))
+        if (found := _read_restricted(line)) is not None:
+            return found
     return None
 
 
 def is_restricted_mana_line(line: str) -> bool:
-    return _RESTRICTED_MANA.fullmatch(line) is not None
+    return _read_restricted(line) is not None
 
 
 def mana_condition(card: Card) -> "Condition | None":
@@ -355,11 +395,69 @@ def is_optional_untap_line(line: str) -> bool:
     return _MAY_NOT_UNTAP.fullmatch(line) is not None
 
 
+# Bloom Tender, Faeburrow Elder: one mana of each color among the permanents its controller controls, worked out when it is wanted.
+_ADD_EACH_COLOR = re.compile(r"(?:Vivid \u2014 )?\{T\}: For each color among permanents you control, add one mana of that color\.")
+
+
+@lru_cache(maxsize=None)
+def mana_per_color(card: Card) -> bool:
+    return any(_ADD_EACH_COLOR.fullmatch(line) for line in rules_lines(card))
+
+
+# Selvala, Heart of the Wilds: "{G}, {T}: Add X mana in any combination of colors, where X is the greatest power among creatures you
+# control." X is an amount the game works out when the mana is wanted.
+_ADD_X_COMBINATION = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\})+), \{T\}: Add X mana in any combination of colors, where X is (.+)\.")
+
+
+@lru_cache(maxsize=None)
+def mana_by_amount(card: Card) -> tuple[str, Amount] | None:
+    """(the mana the ability costs, how much it makes) for Selvala's kind of mana ability, or None."""
+    for line in rules_lines(card):
+        if (m := _ADD_X_COMBINATION.fullmatch(line)) and (amount := _amount(m[2])):
+            return m[1], amount
+    return None
+
+
+# CR 106.12a: "Whenever you tap a nonland permanent for mana, add one mana of any type that permanent produced." (Kinnan, Mirari's Wake,
+# Crypt Ghast, Mana Flare) is a triggered mana ability: its mana is its own. CR 106.12b: "If you tap a permanent for mana, it produces
+# three times as much of that mana instead." (Nyxbloom Ancient, Mana Reflection) is a replacement on the permanent's own mana ability.
+_TAP_TRIGGER = re.compile(r"Whenever (you|a player) taps? an? (.+?) for mana, (?:add|that player adds) "
+                          r"(?:(?:an additional )?\{([WUBRGC])\}|one mana of any type that [a-z ]+ produced)\.")
+_TAP_TIMES = re.compile(r"If you tap an? (.+?) for mana, it produces (twice|three times) as much of that mana instead\.")
+
+
+@dataclass(frozen=True)
+class TapMana:
+    kind: str  # what is tapped, as a filter ("nonland permanent", "Swamp", "Mountain, Forest, or Plains")
+    anyone: bool = False  # "Whenever a player taps": every player's permanents, not only its controller's
+    extra: frozenset[str] | None = None  # the trigger's one mana: of these types; None: any type the permanent produced
+    times: int = 1  # a replacement instead: the permanent produces this many times as much (and there is no trigger mana)
+
+
+def _read_tap_mana(line: str) -> TapMana | None:
+    if m := _TAP_TRIGGER.fullmatch(line):
+        return TapMana(m[2], m[1] == "a player", frozenset(m[3]) if m[3] else None)
+    if m := _TAP_TIMES.fullmatch(line):
+        return TapMana(m[1], times=2 if m[2] == "twice" else 3)
+    return None
+
+
+@lru_cache(maxsize=None)
+def tap_mana(card: Card) -> tuple[TapMana, ...]:
+    """What `card` does to the mana a permanent makes when tapped (see _TAP_TRIGGER)."""
+    return tuple(found for line in rules_lines(card) if (found := _read_tap_mana(line)))
+
+
+def is_tap_mana_line(line: str) -> bool:
+    return _read_tap_mana(line) is not None
+
+
 def is_mana_ability(line: str) -> bool:
     line = _without_spent_rider(_THRESHOLD.sub(r"\2", line))
     return (_mana_match(line) is not None or _ADD_CHOSEN.fullmatch(line) is not None or _REMOVE_COUNTER_MANA.fullmatch(line) is not None or _REMOVE_ANY_NUMBER_MANA.fullmatch(line) is not None or _ADD_POWER.fullmatch(line) is not None
             or _COUNTER_MANA.fullmatch(line) is not None or _PER_COUNT.fullmatch(line) is not None
-            or _CHARGE_MANA.fullmatch(line) is not None
+            or _CHARGE_MANA.fullmatch(line) is not None or _ADD_EACH_COLOR.fullmatch(line) is not None
+            or ((m := _ADD_X_COMBINATION.fullmatch(line)) is not None and _amount(m[2]) is not None)
             or _FILTER.fullmatch(line) is not None
             or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))

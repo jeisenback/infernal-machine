@@ -6,13 +6,25 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, attack_all
-from tests.test_effects import lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, battlefield_names, real
-from tests.test_triggers_80 import BIG, FOREST, PLAINS, RELIC, SHRINE
-from tests.test_x_targets import script
+from tests.helpers import (
+    attack_all,
+    battlefield_names,
+    BEAR,
+    BIG,
+    FOREST,
+    lands,
+    OGRE,
+    pick,
+    PLAINS,
+    real,
+    RELIC,
+    run_stack,
+    script,
+    SHRINE,
+    table,
+    Table,
+    table3,
+)
 
 AURA = real("Plain Aura", "{W}", "Enchantment — Aura", "Enchant creature\nEnchanted creature gets +1/+1.")
 AURA_TWO = real("Second Aura", "{1}{W}", "Enchantment — Aura", "Enchant creature\nEnchanted creature gets +1/+1.")

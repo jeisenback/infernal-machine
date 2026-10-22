@@ -6,10 +6,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import mana_ability, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_lands import spell
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, run_stack, spell, table3
 from tests.real import REAL
 
 LOTUS, EDGAR = REAL["Gilded Lotus"], REAL["Edgar Markov"]

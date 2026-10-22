@@ -7,13 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.combat import Attack
 from infernal_machine.game import ACTIVATE_HAND, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, BIRD, OGRE
-from tests.test_effects import RAINBOW, lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_triggers_80 import FOREST, PLAINS, RELIC, SHRINE
-from tests.test_x_targets import script
+from tests.helpers import BEAR, BIRD, FOREST, lands, OGRE, PLAINS, RAINBOW, real, RELIC, run_stack, script, SHRINE, table3
 
 LESS = " This ability costs {1} less to activate for each legendary creature you control."
 BOSEIJU = real("Boseiju, Who Endures", "", "Legendary Land",

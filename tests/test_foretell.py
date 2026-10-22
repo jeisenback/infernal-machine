@@ -5,12 +5,7 @@ import unittest
 from infernal_machine.effects import foretell_of
 from infernal_machine.game import CAST, CAST_FORETOLD, FORETELL, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import BEAR, lands, OGRE, real, run_stack, script, table3
 
 CUP = real("Poison the Cup", "{1}{B}{B}", "Instant", "Destroy target creature. If this spell was foretold, scry 2.\nForetell {1}{B} (During your "
            "turn, you may pay {2} and exile this card from your hand face down. Cast it on a later turn for its foretell cost.)")

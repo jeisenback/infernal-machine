@@ -5,9 +5,11 @@
 The first deck is the one being tested. By default it plays `--games` duels against each opponent deck in turn (the
 focus deck alternates seats). With `--pod 4` each game seats the focus deck with three opponents drawn at random from
 the list, and the win rate is read against a fair share of 1/4. Every seat is a `BotPlayer`, so the numbers are how the
-deck does in the bots' hands: a deck that needs careful play (combos, holding up mana, politics) is under-rated, and
-one the bot plays well is over-rated. Compare builds of one deck against the same opponents rather than reading one
-win rate as the deck's strength.
+deck does in the bots' hands: a deck that needs careful play (holding up mana, politics) is under-rated, and
+one the bot plays well is over-rated. A combo is not much of that: once its pieces are out the engine plays its
+triggers (Edgar Markov's life-drain pair kills the table on its own), and the bot's part is finding the pieces, which
+the "tutor" judgment helps with (doubling how often they meet, worth a few points of win rate at most; #490). Compare
+builds of one deck against the same opponents rather than reading one win rate as the deck's strength.
 
 A game that crashes or runs past `--time-limit` seconds is counted apart (and the first error shown), not as a result.
 """

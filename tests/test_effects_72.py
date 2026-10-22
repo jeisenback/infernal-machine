@@ -10,9 +10,7 @@ from infernal_machine.effects import (Amount, DefineX, CopyToken, CopyTokenAttac
                                       activated_abilities, spell_effects, triggered_abilities)
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import lands, pick, table
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, creature, lands, OGRE, pick, run_stack, table
 
 SOLDIER = Card(name="Soldier", type_line="Token Creature — Soldier", colors=("W",), power="1", toughness="1")
 

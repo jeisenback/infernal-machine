@@ -423,6 +423,16 @@ class LureThisTurn:
 
 
 @dataclass(frozen=True)
+class AttackDespiteDefender:
+    """ "This creature can attack this turn as though it didn't have defender." (Skyclave Squid, Krotiq Nestguard): the ability's source."""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.defender_ok_turn = game.turn  # CR 702.3b: it attacks as though it had no defender, this turn only
+
+
+@dataclass(frozen=True)
 class MustBlockThisTurn:
     """ "Target creature blocks this turn if able." / "... blocks this creature this turn if able." (Torchling: that creature in
     particular, the source of the ability)"""
@@ -630,13 +640,17 @@ class PrepareEach:
 
 @dataclass(frozen=True)
 class TapEnchanted:
-    """An Aura's "When this Aura enters, tap enchanted creature." (Infinite Coursework adds "It becomes unprepared.")"""
+    """An Aura's "When this Aura enters, tap enchanted creature." (Infinite Coursework adds "It becomes unprepared.") With `untap`,
+    Freed from the Real's "{U}: Untap enchanted creature." """
     unprepare: bool = False
+    untap: bool = False
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         host = target.attached_to if target is not None else None
-        if host is not None and game.on_battlefield(host):
+        if host is not None and game.on_battlefield(host) and self.untap:
+            game.untap(host)
+        elif host is not None and game.on_battlefield(host):
             game.tap(host)
             if self.unprepare:
                 game.unprepare(host)

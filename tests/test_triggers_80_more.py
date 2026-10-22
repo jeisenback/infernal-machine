@@ -7,11 +7,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import fire
+from tests.helpers import BEAR, fire, lands, OGRE, run_stack, table3
 
 PAY = lambda prompt, options: 0
 DECLINE = lambda prompt, options: len(options) - 1

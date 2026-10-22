@@ -5,8 +5,7 @@ from infernal_machine.effects import (POPULATE_PROMPT, Amount, CopyToken, Create
                                       triggered_abilities)
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick, table
+from tests.helpers import BEAR, lands, pick, table
 
 PEST_MAKER = Card(name="Pest Maker", mana_cost="{1}", type_line="Sorcery",
                   oracle_text='Create a 1/1 black and green Pest creature token with "When this creature dies, you gain 1 life."')

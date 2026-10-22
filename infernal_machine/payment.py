@@ -17,11 +17,11 @@ from .cards import Card, has_keyword
 from .effects import (additional_land_mana, charge_mana, chosen_color_mana, counter_mana, counter_removal_mana, filter_mana_ability,
                       granted_land_mana, granted_mana, group_mana_grants, has_next_x_rider, is_identity_mana_land, land_mana_units,
                       makes_mana_by_power, mana_ability, mana_ability_needs_no_tap, mana_ability_sacrifices, mana_among_legendary,
-                      mana_bonus, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
-                      mana_of_imprinted, mana_pain, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
-                      with_granted_mana)
-from .filters import has_type
-from .mana import GENERIC_ONLY, SNOW, Cost, parse_cost, pay
+                      mana_bonus, mana_by_amount, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
+                      mana_of_imprinted, mana_pain, mana_per_color, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
+                      tap_mana, with_granted_mana)
+from .filters import has_type, matches, parse_filter
+from .mana import GENERIC_ONLY, NOT_GENERIC, SNOW, Cost, parse_cost, pay
 
 if TYPE_CHECKING:
     from .game import Game, Permanent, Seat
@@ -62,6 +62,7 @@ class Payment(list["Permanent"]):
     pool: tuple[frozenset[str], ...] = ()
     filters: tuple["Permanent", ...] = ()  # the permanents whose Signet-style ability ("{1}, {T}: Add ...") was used
     counters: tuple[tuple["Permanent", str, int], ...] = ()  # the lands whose mana cost counters (Vivid, depletion, storage): which, how many
+    phyrexian_life: int = 0  # how many Phyrexian mana symbols were paid with 2 life instead of mana (Compleated reads it)
 
 
 class ManaPayer:
@@ -84,16 +85,23 @@ class ManaPayer:
 
     @staticmethod
     def _restricted_mana_ok(source: Permanent, limited, spell: Card | None) -> bool:
-        """Whether `source`'s restricted any-color mana can pay for `spell`: a creature spell of the type it chose, or a legendary spell."""
-        if spell is None:
+        """Whether `source`'s restricted mana can pay for `spell`: one of the kind the ability names (filters.py), and of the type the
+        permanent chose as it entered when the ability says "of the chosen type"."""
+        if spell is None or not parse_filter(limited.spell).matches(spell):
             return False
-        if limited.spell == "legendary":
-            return "Legendary" in spell.type_line
-        return "Creature" in spell.type_line and source.chosen_type in spell.type_line.partition("\u2014")[2].split()
+        return not limited.chosen or source.chosen_type in spell.type_line.partition("\u2014")[2].split()
+
+    def _restricted_units(self, seat: Seat, permanent: Permanent, limited) -> list[frozenset[str]]:
+        """The mana a restricted ability makes for what is being paid for now, or nothing."""
+        if not self._restricted_mana_ok(permanent, limited, self._spending_spell):
+            return []
+        if limited.condition is not None and not self.game.condition_holds(limited.condition, seat, permanent):
+            return []
+        return list(limited.mana)
 
     def _restriction_ok(self, restriction: str | None) -> bool:
         """Whether mana limited by `restriction` can pay for what is being paid for now."""
-        if restriction is None:
+        if restriction is None or restriction == "not_generic":  # (Jegantha's mana is marked instead: see NOT_GENERIC)
             return True
         spell = self._spending_spell
         if restriction == "not_from_hand":  # Heartwood Crafter: only spells cast from hand are off limits
@@ -123,7 +131,7 @@ class ManaPayer:
             if (condition := mana_condition(card)) and not self.game.condition_holds(condition, seat, permanent):
                 continue  # "Activate only if you control five or more lands."
             if (per := mana_per_count(card)) is not None:  # Gaea's Cradle: as much as you control
-                if not per[0] and not (permanent.sick and "Creature" in card.type_line):
+                if not per[0] and not self.game.summoning_sick(seat, permanent):
                     lands.extend(ManaSource(permanent, frozenset(per[1]))
                                  for _ in range(sum(has_type(p.card, per[2]) for p in seat.battlefield)))
                 if not per[0] or mana_ability(card, seat.color_identity) is None:
@@ -184,13 +192,19 @@ class ManaPayer:
                     types = self._reflected_types(seat, *reflect)
                     if not types:
                         continue
-                if (limited := restricted_mana(card)) is not None:  # Cavern of Souls: any color only for the right spells
-                    types = frozenset("C") | (frozenset("WUBRG") if self._restricted_mana_ok(permanent, limited, self._spending_spell) else frozenset())
+                if (limited := restricted_mana(card)) is not None:  # Cavern of Souls, Eldrazi Temple: the restricted mana only for the right spells
+                    plain = mana_ability(card, seat.color_identity) or []  # its other "{T}: Add" line, not the card data (which lists every color)
+                    types = frozenset().union(*plain) if plain else frozenset()
+                    if units := self._restricted_units(seat, permanent, limited):
+                        if len(units) > 1:  # Eldrazi Temple: two mana in one tap, like a bounceland
+                            lands.extend([ManaSource(permanent, _snowy(permanent, mana), pain, damage) for mana in units] + extra)
+                            continue
+                        types = types | units[0]
                 if given := tuple(line for kind, line in grants if kind == "Land"):  # Chromatic Lantern
                     types = types | granted_land_mana(given, seat.color_identity)
                 types = types | self.game._land_type_mana(permanent)  # Urborg: it is a Swamp too
                 lands.extend(([ManaSource(permanent, _snowy(permanent, types), pain, damage)] if types else []) + extra)  # no mana: no source
-            elif not (permanent.sick and "Creature" in card.type_line and not mana_ability_needs_no_tap(card)):
+            elif not (self.game.summoning_sick(seat, permanent) and not mana_ability_needs_no_tap(card)):
                 bucket = sacrifices if mana_ability_sacrifices(card) else abilities
                 extra = mana_extra_cost(card)
                 if extra == "food" and foods <= 0 or extra == "mill" and not seat.library:
@@ -216,17 +230,59 @@ class ManaPayer:
                     colors = frozenset(c for p in seat.battlefield if "Legendary" in p.card.type_line
                                        and ("Creature" in p.card.type_line or "Planeswalker" in p.card.type_line) for c in p.card.colors)
                     units = [colors] if colors else []
+                elif mana_per_color(card):  # Bloom Tender: one of each color among its controller's permanents
+                    units = [frozenset(c) for c in sorted(self.game.colors_among(seat) & frozenset("WUBRG"))]
                 elif mana_of_imprinted(card):  # Chrome Mox: the colors of the card exiled with it
                     colors = frozenset(c for _, exiled in permanent.exiled_with for c in exiled.colors)
                     units = [colors] if colors else []
-                if (limited := restricted_mana(card)) is not None and self._restricted_mana_ok(permanent, limited, self._spending_spell):
-                    units = [units[0] | frozenset("WUBRG")] + units[1:] if units else [frozenset("WUBRG")]  # Delighted Halfling
+                if (limited := restricted_mana(card)) is not None and (limited_units := self._restricted_units(seat, permanent, limited)):
+                    # Delighted Halfling: its colorless mana or the restricted color in one tap; Rivaz of the Claw: two of any colors
+                    units = ([units[0] | limited_units[0]] + units[1:] if units else [limited_units[0]]) + limited_units[1:]
                 restriction = mana_restriction(card)
                 if not self._restriction_ok(restriction):
                     continue
                 for mana in units:
+                    mana = mana | {NOT_GENERIC} if restriction == "not_generic" else mana
                     bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage, restriction=restriction))
+        if effects := self._tap_mana_effects(seat):
+            abilities, lands, sacrifices = (self._tapped_for_mana(effects, bucket) for bucket in (abilities, lands, sacrifices))
         return pooled + abilities + lands + sacrifices + self._convoke_sources(seat, exclude, pooled + abilities + lands + sacrifices)
+
+    def _tap_mana_effects(self, seat: Seat) -> list:
+        """What changes the mana `seat`'s permanents make when tapped: its own Kinnan or Nyxbloom Ancient, and anyone's Mana Flare."""
+        return [effect for owner in self.game.seats for p in owner.battlefield if not self.game.loses_abilities(p)
+                for effect in tap_mana(p.card) if owner is seat or effect.anyone]
+
+    @staticmethod
+    def _tap_extra(effects: list, permanent: Permanent, units: list[frozenset[str]]) -> tuple[int, list[frozenset[str]]]:
+        """For one permanent tapped for `units` of mana: how many times as much it makes (CR 106.12b, Nyxbloom Ancient: two of them
+        make it nine times) and the mana the triggers add, once per tap however much it made (CR 106.12a, Kinnan). "Any type that
+        permanent produced" is read as any type it can make in this tap, a little generous for a land that makes one of two."""
+        if not units or counter_mana(permanent.card) is not None or mana_ability_needs_no_tap(permanent.card):
+            return 1, []  # no {T} in the cost: it isn't tapped for mana
+        times, extra = 1, []
+        produced = frozenset().union(*units) & frozenset("WUBRGC")
+        for effect in effects:
+            if matches(effect.kind, permanent.card):
+                if effect.times > 1:
+                    times *= effect.times
+                elif effect.extra or produced:
+                    extra.append(effect.extra or produced)
+        return times, extra
+
+    def _tapped_for_mana(self, effects: list, sources: list[ManaSource]) -> list[ManaSource]:
+        by_permanent: dict[int, list[ManaSource]] = {}
+        for source in sources:
+            by_permanent.setdefault(id(source.permanent), []).append(source)
+        result: list[ManaSource] = []
+        for own in by_permanent.values():
+            permanent = own[0].permanent
+            assert permanent is not None
+            times, extra = self._tap_extra(effects, permanent, [s.types for s in own])
+            # A storage land's mana costs a counter each: its multiplied mana is left out rather than charged wrongly.
+            result += [s for s in own for _ in range(1 if s.counter_each else times)]
+            result += [ManaSource(permanent, mana) for mana in extra]
+        return result
 
     def _convoke_sources(self, seat: Seat, exclude: Permanent | None, taken: list[ManaSource]) -> list[ManaSource]:
         """While a spell with Convoke (or Improvise) is being paid for: each untapped creature (artifact) not already a mana
@@ -268,6 +324,7 @@ class ManaPayer:
                 return payment
             if payment is not None and seat.life > payment.life + 2 * by_life:
                 payment.life += 2 * by_life
+                payment.phyrexian_life = by_life
                 return payment
         return None
 
@@ -353,12 +410,17 @@ class ManaPayer:
     def _filter_sources(self, seat: Seat, exclude: Permanent | None) -> list[tuple[Permanent, Cost, list]]:
         found = []
         for permanent in seat.battlefield:
-            if permanent.tapped or permanent is exclude or (permanent.sick and "Creature" in permanent.card.type_line) \
+            if permanent.tapped or permanent is exclude or self.game.summoning_sick(seat, permanent) \
                     or self.game.loses_abilities(permanent):
                 continue
             ability = filter_mana_ability(permanent.card)
             if ability:
-                found.append((permanent, parse_cost(ability[0]), ability[1]))
+                times, extra = self._tap_extra(effects, permanent, ability[1]) if (effects := self._tap_mana_effects(seat)) else (1, [])
+                found.append((permanent, parse_cost(ability[0]), [mana for mana in ability[1] for _ in range(times)] + extra))
+            elif (by := mana_by_amount(permanent.card)) is not None:  # Selvala: X of any colors, X worked out now
+                units = [frozenset("WUBRG")] * self.game.evaluate(by[1], seat)
+                if units:
+                    found.append((permanent, parse_cost(by[0]), units))
             elif (per := mana_per_count(permanent.card)) is not None and per[0] \
                     and permanent.counters.get("charge", 0) >= mana_threshold(permanent.card):  # Cabal Coffers, Evendo
                 units = [frozenset(per[1])] * sum(has_type(p.card, per[2]) for p in seat.battlefield)

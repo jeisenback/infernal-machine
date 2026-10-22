@@ -80,6 +80,7 @@ declare("cast_self", re.compile(r"When you cast this spell, (.+)", re.I))  # goe
 declare("dies", re.compile(rf"When(?:ever)? {_SELF} dies, (.+)", re.I))
 declare("attacks", re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I))
 declare("attacks_alone", re.compile(rf"Whenever {_SELF} attacks alone, (.+)", re.I))  # Grunn, the Lonely King
+declare("damaged", re.compile(rf"When(?:ever)? {_SELF} is dealt damage, (.+)", re.I))  # Enrage; Game.deal_damage
 declare("attacks_player", re.compile(rf"Whenever {_SELF} attacks an opponent, (.+)", re.I))
 declare("blocks", re.compile(rf"Whenever {_SELF} blocks, (.+)", re.I))
 declare("becomes_blocked", re.compile(rf"Whenever {_SELF} becomes blocked, (.+)", re.I))
@@ -138,6 +139,7 @@ declare("attack_with_three", re.compile(r"When(?:ever)? you attack with three or
 declare("attack_alone", re.compile(r"Whenever (?:you attack with a creature alone|a creature you control attacks alone), (.+)", re.I),
         to="you", about_creature=True)
 declare("conjure", re.compile(r"Whenever you conjure one or more cards, (.+)", re.I), to="you")
+declare("proliferate", re.compile(r"Whenever you proliferate, (.+)", re.I), to="you")
 declare("enchanted_attack", re.compile(r"Whenever one or more creatures that are enchanted by an Aura you control attack, (.+)", re.I))
 declare("creatures_attack", re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I))
 declare("opponent_attacks", re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I), about_player=True)

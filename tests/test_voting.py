@@ -6,9 +6,7 @@ from infernal_machine.effects import Vote, VoteToExile, spell_effects, triggered
 from infernal_machine.game import VOTE_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, creature
-from tests.test_effects import FOREST
-from tests.test_mass_effects import table3
+from tests.helpers import BEAR, creature, FOREST, table3
 
 PLEA = Card(name="Plea for Power", mana_cost="{3}{U}", type_line="Sorcery",
             oracle_text="Will of the council — Starting with you, each player votes for time or knowledge. If time gets more "

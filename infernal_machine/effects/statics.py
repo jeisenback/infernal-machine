@@ -56,16 +56,19 @@ _IF_KICKED = re.compile(rf"if {_SELF} was kicked, ", re.I)
 
 
 _IF_BLOODTHIRSTY = re.compile(r"if an opponent was dealt damage this turn, ", re.I)  # Bloodthirst
+_IF_ATTACKED = re.compile(r" if you attacked this turn\.$", re.I)  # Raid: "This creature enters with a +1/+1 counter on it if you attacked this turn."
 
 
 _ENTERS_PER_KICK = re.compile(rf"{_SELF} enters with an? {_COUNTER} on it for each time it was kicked\.", re.I)
 
 
-def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, bloodthirsty: bool = False) -> dict[str, int | str]:
+def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, bloodthirsty: bool = False,
+                         raided: bool = False) -> dict[str, int | str]:
     """Counters from "This creature enters with N (or X) +1/+1 counters on it.", plus, when `kicked` (the number
     of times), "If this creature was kicked, it enters with N +1/+1 counters on it." and multikicker's
     "... enters with a +1/+1 counter on it for each time it was kicked."; and, when `bloodthirsty`, "If an opponent
-    was dealt damage this turn, this creature enters with N +1/+1 counters on it." """
+    was dealt damage this turn, this creature enters with N +1/+1 counters on it."; and, when `raided` (the controller attacked
+    this turn), "This creature enters with N +1/+1 counters on it if you attacked this turn." """
     counters: dict[str, int | str] = {}
 
     def add(name: str, number: int) -> None:
@@ -78,6 +81,10 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, blo
             if not bloodthirsty:
                 continue
             line = line[b.end():]
+        if r := _IF_ATTACKED.search(line):
+            if not raided:
+                continue
+            line = _ABILITY_WORD.sub("", line[:r.start()] + ".")  # "Raid — ": the word only labels the condition
         if kicked and (k := _IF_KICKED.match(line)):
             line = line[k.end():]
         if m := _ENTERS_WITH.fullmatch(line):
@@ -99,6 +106,8 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, blo
 def is_enters_with_counters(line: str) -> bool:
     if k := _IF_KICKED.match(line) or _IF_BLOODTHIRSTY.match(line):
         line = line[k.end():]
+    if r := _IF_ATTACKED.search(line):
+        line = _ABILITY_WORD.sub("", line[:r.start()] + ".")
     return (_ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None
             or _ESCAPES_WITH.fullmatch(line) is not None)
 
@@ -484,7 +493,8 @@ _AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:y
 _PER = {"artifact you control": ("permanent", "artifact"), "creature you control": ("permanent", "creature"),
         "Aura you control": ("permanent", "Aura"), "creature card in your graveyard": ("graveyard", "creature"),
         "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", ""),
-        "land you control": ("permanent", "land"), "artifact and/or enchantment you control": ("permanent", "artifact or enchantment")}
+        "land you control": ("permanent", "land"), "artifact and/or enchantment you control": ("permanent", "artifact or enchantment"),
+        "color among permanents you control": ("colors", "")}  # Faeburrow Elder
 
 
 _PER_LOWER = {k.lower(): v for k, v in _PER.items()}
@@ -637,6 +647,17 @@ _DOUBLE_COUNTERS_OLD = ("If an effect would put one or more counters on a perman
                         "many of those counters instead.")  # the wording before the Oracle update
 
 
+_DOUBLE_YOU_PUT = ("If you would put one or more counters on a permanent or player, put twice that many of each of those kinds of "
+                   "counters on that permanent or player instead.")  # Vorinclex, Monstrous Raider; Innkeeper's Talent at level 3
+
+
+_HALVE_OPPONENTS_PUT = ("If an opponent would put one or more counters on a permanent or player, they put half that many of each of "
+                        "those kinds of counters on that permanent or player instead, rounded down.")
+
+
+_PROLIFERATE_TWICE = "If you would proliferate, proliferate twice instead."  # Tekuthal, Inquiry Dominus
+
+
 _DOUBLE_TOKENS_NOW = ("If one or more tokens would be created under your control, twice that many of those tokens are created "
                       "instead.")  # the wording since the 2024 Oracle update (Mondrak, Glory Dominus)
 
@@ -706,6 +727,9 @@ class Replacements:
     extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice;
     #                                    "spell": casting or copying an instant or sorcery does
     enter_counter_chosen: int = 0  # Metallic Mimic: other creatures of the type it chose enter with that many more +1/+1 counters
+    counters_you_put: int = 1  # how many times as many counters its controller puts on any permanent or player (Vorinclex, Monstrous Raider)
+    opponents_put_half: bool = False  # Vorinclex: an opponent puts half as many counters, rounded down
+    proliferate_factor: int = 1  # how many times its controller's proliferate happens (Tekuthal: "proliferate twice instead")
 
 
 @lru_cache(maxsize=None)
@@ -738,6 +762,12 @@ def replacement_effects(card: Card) -> Replacements:
             found["die_exile"] = "self"
         elif line in (_DOUBLE_COUNTERS, _DOUBLE_COUNTERS_OLD):
             found["counters"] = found.get("counters", 1) * 2
+        elif line == _DOUBLE_YOU_PUT:
+            found["counters_you_put"] = found.get("counters_you_put", 1) * 2
+        elif line == _HALVE_OPPONENTS_PUT:
+            found["opponents_put_half"] = True
+        elif line == _PROLIFERATE_TWICE:
+            found["proliferate_factor"] = found.get("proliferate_factor", 1) * 2
         elif line == _PLUS_ONE_COUNTERS:
             found["plus_one"] = found.get("plus_one", 0) + 1
         elif line == _ENTER_PER_DEATH:
@@ -887,7 +917,8 @@ def enters_by_discarding_land(card: Card) -> bool:
 def is_replacement_line(line: str) -> bool:
     return (line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
-                     _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT)
+                     _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
+                     _HALVE_OPPONENTS_PUT, _PROLIFERATE_TWICE)
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None or _damage_modifier(line) is not None)
 
 
@@ -1100,6 +1131,21 @@ def additional_land_mana(card: Card, chosen: str | None = None) -> list[frozense
 
 def is_additional_mana_line(line: str) -> bool:
     return _ADDITIONAL_MANA.fullmatch(line) is not None
+
+
+# Tyvar, Jubilant Brawler, Thousand-Year Elixir, Shang-Chi: the creatures' {T} abilities work the turn they come under your control.
+_HASTE_ABILITIES = re.compile(r"You may activate abilities of creatures you control as though those creatures had haste\.")
+
+
+@lru_cache(maxsize=None)
+def activates_as_though_haste(card: Card) -> bool:
+    """CR 302.6: the card lets its controller use their creatures' {T} abilities as though those creatures had haste (attacking still
+    needs haste itself)."""
+    return any(_HASTE_ABILITIES.fullmatch(line) for line in rules_lines(card))
+
+
+def is_haste_abilities_line(line: str) -> bool:
+    return _HASTE_ABILITIES.fullmatch(line) is not None
 
 
 @lru_cache(maxsize=None)

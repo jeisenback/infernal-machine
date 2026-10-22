@@ -35,6 +35,25 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
 | Search your library for a nonbasic land card / up to two Forest cards, put it onto the battlefield (tapped), then shuffle. | Skyshroud Claim |
 | Return target creature card from your graveyard to the battlefield tapped. | |
 | Search your library for a card, then shuffle and put that card on top. | Vampiric Tutor |
+| {T}: Add one mana of any color / two mana in any combination of colors / {C}{C} / {G}. Spend this mana only to cast KIND spell(s) (of the chosen type) (or activate abilities of ...) (, and that spell can't be countered). (Activate only if ...). Any kind the filters read; the "or activate" clause is read but the mana is not yet offered for abilities. | Cavern of Souls, Maelstrom of the Spirit Dragon, Eldrazi Temple, Shrine of the Forsaken Gods, Secluded Courtyard, Rivaz of the Claw |
+| Whenever you / a player tap(s) a KIND for mana, add / that player adds one mana of any type that KIND produced / an additional {X}. If you tap a KIND for mana, it produces twice / three times as much of that mana instead. Any kind the filters read. The trigger's mana is its own, once per tap, and is not multiplied (CR 106.12a, 106.12b); "any type it produced" is any type the permanent can make in that tap. A storage land's mana is not multiplied. | Kinnan, Bonder Prodigy; Nyxbloom Ancient; Mana Reflection; Mana Flare; Crypt Ghast |
+| {T}: For each color among permanents you control, add one mana of that color. (Vivid ability word read.) This creature gets +1/+1 for each color among permanents you control. | Bloom Tender, Faeburrow Elder |
+| {COST}, {T}: Add X mana in any combination of colors, where X is AMOUNT. (Any amount the effects read; X is worked out when the mana is wanted.) | Selvala, Heart of the Wilds |
+| {T}: Add MANA. This mana can't be spent to pay generic mana costs. (Only a colored symbol of a cost takes it.) | Jegantha, the Wellspring |
+| Whenever another creature enters, its controller may draw a card if its power is greater than each other creature's power. (The entering creature's controller chooses; a tie is not greater.) | Selvala, Heart of the Wilds |
+| {COST}: Untap enchanted creature. (beside the existing "Tap enchanted creature.") | Freed from the Real |
+| Put a -1/-1 counter (or any counter) on this creature: EFFECT. The counter is a cost, always payable (CR 118.3); the bot doesn't activate it, having no reason to. | Devoted Druid |
+| (You may) tap or untap target permanent / creature. With "When CARDNAME enters and whenever ...", two triggers. | Derevi, Empyrial Tactician |
+| You may activate abilities of creatures you control as though those creatures had haste. (CR 302.6: a summoning-sick creature's {T} abilities, mana abilities and mana-costing ones included, work; attacking still needs haste. Only its controller's creatures.) | Tyvar, Jubilant Brawler; Thousand-Year Elixir; Shang-Chi |
+| Mill N cards, then (you may) return a KIND card (with mana value N or less) from your graveyard to the battlefield / your hand. (Chosen as the ability resolves, from everything in the graveyard; with "you may" the player may take none.) | Tyvar, Jubilant Brawler |
+| {COST}: Put CARDNAME onto the battlefield from the command zone. Offered only while the card is in the command zone, at any time its owner has priority; not a cast, so no commander tax. | Derevi, Empyrial Tactician |
+| Whenever another creature you control enters, you may pay {COST}. If you do, put a +1/+1 counter on it. If it's a SUBTYPE, put two +1/+1 counters on it instead. (The creature that entered gets the counters; the payment is asked as the trigger resolves.) | Emiel the Blessed |
+| Compleated: a Phyrexian mana symbol in the walker's cost paid with 2 life (the payment does that only when mana will not do) makes it enter with two fewer loyalty counters, per symbol. | Vraska, Betrayal's Sting; Nissa, Ascended Animist |
+| Search your library for up to N / any number of (kind) cards (not named CARDNAME) (that each have different names), (reveal them,) put them into your hand / onto the battlefield / into your graveyard, then shuffle. / ... then shuffle and put those cards on top in any order (the searcher chooses the order). | Buried Alive, Tiamat, Goblin Recruiter |
+| Search your library for a (legendary) permanent / creature card with mana value less than CARDNAME's power, put that card onto the battlefield / into your hand, then shuffle. (The power is read as the ability resolves.) | Sisay, Weatherlight Captain |
+| Reveal the top N cards of your library. Put all (kind) cards (with mana value N or less) revealed this way / from among them into your hand / onto the battlefield and the rest on the bottom of your library in any / a random order. | Goblin Ringleader, Muxus, Goblin Grandee |
+| Look at the top N cards of your library. You may put a (kind) card from among them onto the battlefield. Put the rest on the bottom of your library in a random order. | Ureni of the Unwritten |
+| You get an emblem with "..." (a loyalty ability's ultimate, usually). The emblem goes to the command zone, is never a permanent, and its text works like a permanent's static or triggered abilities; an emblem whose text the engine cannot read, or that has an activated ability, leaves the loyalty ability unread. | Elspeth, Sun's Champion; Ajani, Adversary of Tyrants; Sorin, Lord of Innistrad |
 | You lose N life. | |
 | Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle. | Cultivate, Kodama's Reach |
 | Search your library for a (Plains, Island, ...) card, put it onto the battlefield (tapped), then shuffle. | Farseek, Nature's Lore |
@@ -513,6 +532,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     The Wind Crystal (you gain twice that much life, after Pest Rescuer's extra one), and Academy Manufactor (a Clue, Food or
     Treasure token you would create becomes one of each, before any token doubling). All stack, and only the effect's
     controller's own events count.
+  - Vorinclex, Monstrous Raider and Innkeeper's Talent at level 3: "If you would put one or more counters on a permanent or player,
+    put twice that many ... instead" doubles every counter their controller puts, on any permanent or player (the counters a
+    permanent enters with are put by its controller; poison from infect or toxic by the source's controller); Vorinclex's "If an
+    opponent would put one or more counters ..." halves what each opponent puts, rounded down, after any doubling. Tekuthal,
+    Inquiry Dominus: "If you would proliferate, proliferate twice instead." (each time sets off "Whenever you proliferate").
+    "Proliferate twice." (Contagion Engine, Ezuri) and Deepglow Skate's "double the number of each kind of counter on any number of
+    target permanents" are read too. Not read: Vorinclex's effect on loyalty abilities' costs.
   - Exiled instead of dying: "If a creature an opponent controls would die, exile it instead" (Liesa, Gisa), "If this creature
     would die, exile it instead", and the spells that say "If that creature would die this turn, exile it instead" (Lava
     Coil) or "If a creature dealt damage this way would die this turn" (Anger of the Gods). The creature is exiled, so it
@@ -1261,9 +1287,19 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     graveyard"); ward costs still pay one card.
   - "Scry N, then reveal the top card of your library. If it's a land card, put it onto the battlefield
     (tapped). Otherwise, draw a card." (Thrasios, Triton Hero) is understood as a whole or not at all.
+  - **Ability words that are a condition (#427):** Raid reads "if you attacked this turn" (the condition `attacked_this_turn`: you declared an attack
+    with at least one creature this turn, CR 508.1) in a trigger's "if" clause (Storm Fleet Spy, Mardu Skullhunter) and in "This creature enters with a
+    +1/+1 counter on it if you attacked this turn" (War-Name Aspirant, applied as it enters). Lieutenant reads "if you control your commander"
+    (`control_commander`: a commander of yours is on the battlefield, not in the command zone; Loyal Subordinate, Loyal Apprentice). Enrage is a trigger
+    on the new event `damaged`, "Whenever this creature is dealt damage" (Imperial Ceratops): it fires for any damage above 0, even a lethal blow.
 
 - **Hidden cards:** a drawn card's name goes only to the player who drew it.
 - **Replays:** the same `seed` gives the same shuffles.
+- **Landfall wordings (#427):** "you may have <it> deal / lose / become / gain / get ..." in a trigger is read as the optional effect itself ("you may have
+  this creature deal 1 damage to target player or planeswalker", Cosi's Ravager; "you may have target land you control become a 3/3 Elemental creature with
+  haste until end of turn. It's still a land.", Embodiment of Fury). "This creature can attack this turn as though it didn't have defender" (Skyclave Squid,
+  Krotiq Nestguard, any trigger or activated ability) sets `Permanent.defender_ok_turn`, which `Combat._can_attack` checks; the "it" in that sentence and in
+  "It's still a land." is the creature itself, not the permanent that set the trigger off.
 
 ## What the engine can't play yet
 

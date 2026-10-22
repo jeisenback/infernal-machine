@@ -8,15 +8,8 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, BIRD, creature
-from tests.test_effects import FOREST
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import fire, prepper
+from tests.helpers import BEAR, BIRD, COURSEWORK, creature, fire, FOREST, prepper, run_stack, table3
 
-COURSEWORK = Card(name="Infinite Coursework", mana_cost="{2}{U}", type_line="Enchantment — Aura",
-                  oracle_text="Enchant creature\nWhen this Aura enters, tap enchanted creature. It becomes unprepared.\n"
-                              "Enchanted creature loses all abilities and doesn't untap during its controller's untap step.")
 HASTE_AURA = Card(name="Spurs", type_line="Enchantment — Aura", oracle_text="Enchant creature\nEnchanted creature has haste.")
 GREEN = Card(name="Green", mana_cost="{G}", cmc=1.0, type_line="Sorcery", oracle_text="Draw a card.")
 

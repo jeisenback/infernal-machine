@@ -7,11 +7,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, HIDEAWAY_PLAY_PROMPT, HIDEAWAY_PROMPT, PLAY_LAND, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_triggers_80 import FOREST, PLAINS
+from tests.helpers import BEAR, creature, FOREST, OGRE, pick, PLAINS, run_stack, table3
 
 REMINDER = ("Hideaway 4 (When this land enters, look at the top four cards of your library, exile one face down, then put "
             "the rest on the bottom in a random order.)")

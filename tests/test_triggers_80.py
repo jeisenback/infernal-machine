@@ -10,31 +10,26 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import triggered_abilities
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import FOREST, PLAINS  # noqa: F401  (they live in tests/helpers.py; other tests still import them from here)
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_x_targets import script
+from tests.helpers import (
+    BEAR,
+    BIG,
+    card,
+    creature,
+    FOREST,
+    lands,
+    names,
+    OGRE,
+    pick,
+    PLAINS,
+    RELIC,
+    run_stack,
+    script,
+    SHRINE,
+    table3,
+    triggers_80_supported as supported,
+)
 
-RELIC = Card(name="Relic", type_line="Artifact", mana_cost="{1}", cmc=1.0)
-SHRINE = Card(name="Shrine", type_line="Enchantment", mana_cost="{2}", cmc=2.0)
 GREEN_BEAR = Card(name="Green Bear", type_line="Creature — Bear", colors=("G",), power="2", toughness="2", mana_cost="{1}{G}", cmc=2.0)
-BIG = Card(name="Big", type_line="Creature — Giant", power="5", toughness="5", mana_cost="{4}{R}", cmc=5.0)
-
-
-def card(text, name="Test", type_line="Creature — Test", **fields):
-    return Card(name=name, type_line=type_line, oracle_text=text, power="2" if "Creature" in type_line else None,
-                toughness="2" if "Creature" in type_line else None, **fields)
-
-
-def supported(test, c):
-    test.assertEqual(unsupported_lines(c), [], c.oracle_text)
-
-
-def names(seat, zone="battlefield"):
-    items = getattr(seat, zone)
-    return sorted(p.card.name if isinstance(p, Permanent) else p.name for p in items)
 
 
 def fire(game, seat, permanent, event, **kw):

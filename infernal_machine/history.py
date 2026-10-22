@@ -27,7 +27,7 @@ from typing import Any
 from .cards import Deck
 from .sequential import Z
 
-PART_TITLES = {"bracket": "Commander Bracket", "manabase": "mana base", "goldfish": "goldfish", "tuning": "tuning", "matchups": "matchups"}
+PART_TITLES = {"playability": "playability", "bracket": "Commander Bracket", "manabase": "mana base", "goldfish": "goldfish", "tuning": "tuning", "matchups": "matchups"}
 VERSION = 1  # of the snapshot's layout: a saved run of another version is neither compared nor reused
 
 
@@ -40,7 +40,7 @@ def fingerprint(deck: Deck) -> dict[str, int]:
 
 def part_settings(part: str, settings: dict, opponents: dict[str, Deck] | None = None) -> dict:
     """What a part's numbers depend on besides the deck: if these are equal in two runs, the part would come out the same."""
-    if part in ("bracket", "manabase"):
+    if part in ("playability", "bracket", "combos", "manabase"):
         return {}
     base = {"sim_games": settings["sim_games"], "turns": settings["turns"], "seed": settings["seed"]}
     if part == "goldfish":
@@ -131,6 +131,14 @@ def compare(old: dict, new: dict, source: str = "the earlier run") -> str:
                      + "), so numbers that depend on them are not directly comparable.")
     parts_old, parts_new = old.get("parts", {}), new.get("parts", {})
     reused = set(new.get("reused", []))  # parts taken from the earlier run: nothing to compare
+
+    a, b = _data(parts_old, parts_new, "playability", reused)
+    if a and b:
+        before, after = {c["name"] for c in a["unplayable"]}, {c["name"] for c in b["unplayable"]}
+        in_old, in_new = set(old["deck"]), set(new["deck"])  # a card taken out of the deck did not become playable, and an added one did not break
+        now_playable, now_blocked = sorted((before - after) & in_new), sorted((after - before) & in_old)
+        extra = ([f"now playable: {', '.join(now_playable)}"] if now_playable else []) + ([f"no longer: {', '.join(now_blocked)}"] if now_blocked else [])
+        lines.append(f"Playable cards: {a['playable']} of {a['cards']} -> {b['playable']} of {b['cards']}" + (f" ({'; '.join(extra)})" if extra else "") + ".")
 
     a, b = _data(parts_old, parts_new, "bracket", reused)
     if a and b:

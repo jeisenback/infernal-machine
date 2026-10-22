@@ -8,10 +8,7 @@ from infernal_machine.effects import DEMONSTRATE_PROMPT, alternative_costs, grav
 from infernal_machine.game import CAST, CAST_GRAVEYARD, COST_PROMPT, ENCORE, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, pick, run_stack, table3
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 

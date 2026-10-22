@@ -5,9 +5,7 @@ from infernal_machine.combat import Combat
 from infernal_machine.effects import LivingWeapon, echo_cost, triggered_abilities
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
+from tests.helpers import BEAR, lands, pick, table3
 
 LAND = Card(name="Wastes", type_line="Basic Land", produced_mana=("C",))
 

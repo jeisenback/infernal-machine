@@ -8,10 +8,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, CAST, UNTAP_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, real
+from tests.helpers import pick, real, run_stack, Table, table3
 
 HOLLOW_TREES = Card(
     name="Hollow Trees", type_line="Land", produced_mana=("G",),

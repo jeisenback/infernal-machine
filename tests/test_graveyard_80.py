@@ -6,12 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import activate, fire
-from tests.test_triggers_80 import FOREST, RELIC, SHRINE, card
+from tests.helpers import activate, BEAR, card, fire, FOREST, lands, OGRE, pick, RELIC, run_stack, SHRINE, table3
 
 CONVERTER = Card(name="Currency Converter", mana_cost="{1}", cmc=1.0, type_line="Artifact",
                  oracle_text="Whenever you discard a card, you may exile that card from your graveyard.\n{2}, {T}: Draw a card, "

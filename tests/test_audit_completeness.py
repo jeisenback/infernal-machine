@@ -6,7 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.effects import triggered_abilities
 from infernal_machine.report import SECOND_FACE, unsupported_lines
-from tests.test_rules_text_81 import real
+from tests.helpers import real
 
 ENTERS_AND_DRAWS = ("When this creature enters and whenever an opponent draws a card except the first one they draw in each of their draw steps, "
                     "this creature deals 1 damage to any target.")
@@ -77,10 +77,10 @@ class CastTriggerTargetTests(unittest.TestCase):
 
     def cast(self, graveyard):
         from infernal_machine.game import CAST, Permanent
-        from tests.test_effects import lands
-        from tests.test_mass_effects import table3
-        from tests.test_more_triggers import run_stack
-        from tests.test_x_targets import script
+        from tests.helpers import lands
+        from tests.helpers import table3
+        from tests.helpers import run_stack
+        from tests.helpers import script
         game, _ = table3(script("Bear"))
         a = game.seats[0]
         artisan = real("Artisan", "{1}", "Creature \u2014 Eldrazi",

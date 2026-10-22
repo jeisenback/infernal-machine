@@ -5,13 +5,22 @@ from infernal_machine.effects import (DamageEach, DestroyAll, EachSacrifices, Ex
                                       TargetSacrifices, spell_effects)
 from infernal_machine.game import CAST, COMMAND_ZONE_PROMPT, SACRIFICE_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import table3  # noqa: F401  (it lives in tests/helpers.py; other tests still import it from here)
+from tests.helpers import (
+    COMMANDER,
+    DARKSTEEL,
+    EFFECTS_BEAR as BEAR,
+    EXILE_OGRE as OGRE,
+    lands,
+    MARTYR,
+    PAWN,
+    pick,
+    RAISE,
+    SOL_RING,
+    table,
+    table3,
+    ZULAPORT,
+)
 from tests.real import REAL
-from tests.test_effects import BEAR, DARKSTEEL, SOL_RING, lands, pick, table
-from tests.test_exile import COMMANDER, OGRE
-from tests.test_tokens import RAISE
-from tests.test_triggers import MARTYR
-from tests.test_watch_triggers import PAWN, ZULAPORT
 
 WRATH = Card(name="Wrath of God", mana_cost="{2}{W}{W}", type_line="Sorcery",
              oracle_text="Destroy all creatures. They can't be regenerated.")

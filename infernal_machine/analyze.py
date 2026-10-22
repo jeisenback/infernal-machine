@@ -1,11 +1,13 @@
-"""One report for a deck: the Bracket, the mana base, the goldfish, the tuning report and, with opponents, the matchups.
+"""One report for a deck: the Bracket, the combos, the mana base, the goldfish, the tuning report and, with opponents, the matchups.
 
     python -m infernal_machine.analyze DECKLIST [OPPONENT ...] [--games 40] [--sim-games 500] [--turns 8] [--seed 0]
                                        [--pod 2] [--workers N] [--try "Card Name"]... [--skip tuning,matchups] [--output FILE]
 
 Each part is a tool of its own (`brackets`, `manabase`, `simulate`, `tune`, `matchup`) and keeps its own options and meaning; this
 runs them in order with the shared ones given once and prints markdown. The cards the engine can't play come first, since they qualify
-everything below them. A Standard deck (no commander) has no Bracket section; with no opponents there is no matchup section. What was
+everything below them. A Standard deck (no commander) has no Bracket section and no combos (Commander Spellbook knows Commander
+decks); with no opponents there is no matchup section. The combos come from Commander Spellbook, one request per deck, cached in
+`.cache/combos.json`; when it can't be reached and the cache has no answer, the part is left out and the report says so. What was
 run, and how long each part took, is at the end. Progress goes to stderr so a long run shows it is alive.
 """
 
@@ -20,15 +22,17 @@ from dataclasses import dataclass, field
 from . import history
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
+from .combos import Combo, ComboReport, SpellbookSource, format_combos
 from .formats import add_format_argument, format_of, with_format
 from .gauntlet import deck_format, opponent_paths
 from .manabase import analyze_mana_base, format_mana_base
 from .matchup import format_matchups, matchups
-from .report import IN_A_GAME, unplayable_cards, unplayable_note
+from .coverage import FIXES_SHOWN, playability, verdict
+from .report import IN_A_GAME, unplayable_note, unsupported_lines
 from .simulate import format_simulation, simulate
 from .tune import format_tuning, tune
 
-PARTS = ("bracket", "manabase", "goldfish", "tuning", "matchups")  # the names `skip` takes
+PARTS = ("playability", "bracket", "combos", "manabase", "goldfish", "tuning", "matchups")  # the names `skip` takes
 
 
 @dataclass
@@ -67,10 +71,11 @@ def _known_parts(skip: Iterable[str]) -> set[str]:
 def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: str = "deck", games: int = 40, sim_games: int = 500,
                  turns: int = 8, seed: int = 0, pod: int = 2, workers: int = 1, candidates: Iterable = (),
                  skip: Iterable[str] = (), progress: Callable[[str], None] | None = None, since: dict | None = None, reuse: bool = True,
-                 since_name: str = "the earlier run") -> Analysis:
+                 since_name: str = "the earlier run", spellbook: SpellbookSource | None = None) -> Analysis:
     """Run the parts of the analysis and collect them. `games` is per opponent for the matchups, `sim_games` for the goldfish and the
     tuning report; `skip` names parts (see PARTS) to leave out. `since` is an earlier run (`history.load`): what moved against it is in
-    `changes`, and a part it has for the same deck and settings is reused unless `reuse` is false."""
+    `changes`, and a part it has for the same deck and settings is reused unless `reuse` is false. `spellbook` finds the combos a
+    Commander deck holds (none given: no combos part)."""
     left_out = _known_parts(skip)
     candidates = list(candidates)
     settings = {"games": games, "sim_games": sim_games, "turns": turns, "seed": seed, "pod": pod, "candidates": [getattr(c, "name", str(c)) for c in candidates]}
@@ -97,14 +102,38 @@ def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: 
         body, data = make()
         analysis.sections.append(Section(title, body, time.monotonic() - started, code, part, history.jsonable(data)))
 
-    unplayable = unplayable_cards(deck)
-    if unplayable:
+    combos: ComboReport | None = None
+    asked = 0.0  # how long Commander Spellbook took: counted with the combos part
+    if commander and spellbook is not None:
+        if "combos" in left_out:
+            analysis.skipped.append("Combos (skipped on request)")
+        else:
+            say("Combos (Commander Spellbook)...")
+            started = time.monotonic()
+            try:
+                combos = spellbook.find(deck)
+            except OSError as error:
+                analysis.skipped.append(f"Combos (Commander Spellbook could not be reached and the cache has no answer for this deck: {error})")
+            asked = time.monotonic() - started
+    elif spellbook is not None:
+        analysis.skipped.append("Combos (Commander Spellbook knows Commander decks)")
+    # Never reused from an earlier run: what the engine can play changes with the engine, not with the deck or the settings.
+    if "playability" in left_out:
+        analysis.skipped.append("Playability (skipped on request)")
+    else:
+        started = time.monotonic()
         also = " The matchup win rates below are unreliable for the same reason." if opponents and "matchups" not in left_out else ""
-        analysis.sections.append(Section("Cards the engine can't play", unplayable_note(unplayable, "The deck", IN_A_GAME + also), 0.0, code=False))
+        body, data = _playability(deck, name, also, combos.included if combos else None)
+        analysis.sections.append(Section("Playability", body, time.monotonic() - started, False, "playability", history.jsonable(data)))
     if commander:
-        run("bracket", "Commander Bracket", lambda: _bracket(deck), code=False)
+        run("bracket", "Commander Bracket", lambda: _bracket(deck, combos.included if combos else []), code=False)
     else:
         analysis.skipped.append(f"Commander Bracket ({'a deck with no commander has none' if not deck.commanders else 'Brackets are for Commander decks, not ' + fmt.label})")
+    if combos is not None:
+        found = combos
+        run("combos", "Combos", lambda: _combos(deck, found))
+        if analysis.sections[-1].part == "combos":
+            analysis.sections[-1].seconds += asked
     run("manabase", "Mana base", lambda: _mana_base(deck))
     run("goldfish", "Goldfish", lambda: _goldfish(deck, sim_games, turns, seed))
     run("tuning", "Tuning", lambda: _tuning(deck, sim_games, turns, seed, candidates))
@@ -120,14 +149,60 @@ def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: 
     return analysis
 
 
+def _short(line: str, limit: int = 160) -> str:
+    """A rules-text line for one row of the printed report: long ones are cut (the saved numbers and the HTML keep the whole line)."""
+    return line if len(line) <= limit else line[:limit - 3].rstrip() + "..."
+
+
+def _playability(deck: Deck, name: str, also: str = "", combos: list[Combo] | None = None) -> tuple[str, dict]:
+    """The verdict on the deck (issue #477): whether the engine plays every card, which it can't and the lines to build to unlock them,
+    and, given the combos the deck holds, which of them it can't play and which line completes each."""
+    data = playability(deck, name, None if combos is None else [c.cards for c in combos])
+    cards, playable = data["cards"], data["playable"]
+    if not cards:
+        return "The deck has no cards.", data
+    share = f"{playable} of {cards} cards fully playable ({playable / cards:.0%})"
+    if playable == cards:
+        return f"{verdict(0)}: {share}. Every card is one the engine understands.", data
+    blocked = [(c["name"], c["copies"], c["line"]) for c in data["unplayable"]]
+    lines = [f"{verdict(cards - playable)}: {share}.", "", unplayable_note(blocked, "The deck", IN_A_GAME + also)]
+    stuck = data.get("combos", {}).get("blocked")
+    if stuck:
+        unseen = " The matchup games never see them." if also else ""
+        lines += ["", f"{len(stuck)} of the {data['combos']['held']} combos the deck holds can't be played, since a piece is a card "
+                      f"above: {'; '.join(stuck)}.{unseen}"]
+    fixes = data["fixes"]
+    if fixes:
+        lines += ["", "Fix these lines to unlock this deck:"]
+        for i, fix in enumerate(fixes[:FIXES_SHOWN], 1):
+            more = fix["unlocks"] - len(fix["cards"])
+            who = ", ".join(fix["cards"]) + (f" and {more} more" if more > 0 else "")
+            done = f"; completes {', '.join(fix['combos'])}" if fix.get("combos") else ""
+            lines.append(f"{i}. {_short(fix['line'])} (unlocks {fix['unlocks']}: {who}{done}) -> {fix['playable_after']:.0%} playable")
+        if len(fixes) > FIXES_SHOWN:
+            lines.append(f"... and {len(fixes) - FIXES_SHOWN} more pieces of work that each unlock at least one card.")
+    return "\n".join(lines), data
+
+
 def _sentence(text: str) -> str:
     """A capital first letter and a full stop, leaving the rest as it is (`str.capitalize` would lower "Bracket")."""
     return text[:1].upper() + text[1:] + "."
 
 
-def _bracket(deck: Deck) -> tuple[str, dict]:
-    report = bracket_analyze(deck)
-    return _sentence(report.summary()), {"floor": report.floor, "game_changers": sorted(report.game_changers)}
+def _bracket(deck: Deck, combos: list[Combo]) -> tuple[str, dict]:
+    report = bracket_analyze(deck, combos)
+    return _sentence(report.summary()), {"floor": report.floor, "game_changers": sorted(report.game_changers),
+                                         "combos": [c.label() for c in report.combos]}
+
+
+def _combos(deck: Deck, report: ComboReport) -> tuple[str, dict]:
+    """The combos the deck holds, each with whether the engine plays every piece (a combo it can't play qualifies the numbers below)."""
+    cards = {c.name: c for c in deck.commanders + deck.main}
+    playable = {name: not unsupported_lines(card) for name, card in cards.items()}
+    rows = [{"cards": list(c.cards), "requires": list(c.requires), "produces": list(c.produces), "mana": c.mana, "tag": c.tag_name,
+             "bracket": c.bracket, "popularity": c.popularity, "blocked": [n for n in c.cards if not playable.get(n, True)]}
+            for c in report.included]
+    return format_combos(report, playable), {"identity": report.identity, "combos": rows}
 
 
 def _mana_base(deck: Deck) -> tuple[str, dict]:
@@ -224,7 +299,7 @@ def main(argv: list[str], source=None) -> int:
         analysis = analyze_deck(deck, opponents, name=name(args.decklist), games=args.games, sim_games=args.sim_games, turns=args.turns,
                                 seed=args.seed, pod=args.pod, workers=args.workers, candidates=candidates,
                                 skip=skipped, progress=lambda m: print(m, file=sys.stderr, flush=True), since=earlier,
-                                reuse=not args.no_reuse, since_name=args.since or "the earlier run")
+                                reuse=not args.no_reuse, since_name=args.since or "the earlier run", spellbook=SpellbookSource())
     except (CardNotFound, ValueError, OSError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 2

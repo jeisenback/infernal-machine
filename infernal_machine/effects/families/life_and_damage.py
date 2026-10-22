@@ -8,7 +8,7 @@ from typing import Any, TYPE_CHECKING
 from ...cards import Card
 from ...characteristics import Modifier
 from ..common import Quantity
-from ..targets import (DEAD_SOURCE, MassFilter, PLAYER, PREVIOUS_TARGET, SOURCE)
+from ..targets import (DEAD_SOURCE, MassFilter, PLAYER, PREVIOUS_TARGET, SOURCE, SUBJECT)
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
@@ -157,7 +157,7 @@ class DamageWhatItAttacks:
     """Raid Bombardment: "... deals 1 damage to the player or planeswalker that creature is attacking." The creature that
     attacked is the subject."""
     amount: int
-    binds = SOURCE
+    binds = SUBJECT  # it acts on the attacker, which the trigger carries (this was SOURCE, and only the parser's wrap made it work)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         attack = next((a for a in game.combat.attacks if a.attacker is target), None) if target is not None else None

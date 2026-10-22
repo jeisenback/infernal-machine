@@ -6,19 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, CAST_EXILE, FOREVER, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_x_targets import script
-
-
-def scryfall(layout, *faces, cmc=3.0, colors=None):
-    data = {"name": " // ".join(f["name"] for f in faces), "layout": layout, "cmc": cmc, "id": "x", "color_identity": [],
-            "legalities": {"commander": "legal"}, "card_faces": list(faces)}
-    if colors is not None:
-        data["colors"] = colors
-    return data
+from tests.helpers import BEAR, lands, LIBRARY, run_stack, script, scryfall, table3
 
 
 GIANT = {"name": "Giant", "type_line": "Creature — Giant", "mana_cost": "{2}{R}", "oracle_text": "", "power": "3", "toughness": "3"}
@@ -32,7 +20,6 @@ ADVENTURER = Card.from_scryfall(scryfall("adventure", GIANT, STOMP, colors=["R"]
 SORCERY_ADVENTURER = Card.from_scryfall(scryfall("adventure", GIANT, RITUAL, colors=["R"]))
 SPLIT = Card.from_scryfall(scryfall("split", FIRE, ICE, cmc=4.0))
 MODAL = Card.from_scryfall(scryfall("modal_dfc", DEMON, BACK_SPELL, cmc=4.0))
-LIBRARY = [Card(name="Filler", type_line="Land")] * 10
 
 
 def table(card, *answers, n=5):

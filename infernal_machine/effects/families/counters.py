@@ -357,6 +357,23 @@ class DoubleCountersOnTargets:
 
 
 @dataclass(frozen=True)
+class DoubleAllCountersOnTargets:
+    """Deepglow Skate: "double the number of each kind of counter on any number of target permanents." Each kind is put again, so a
+    counter doubler doubles it once more."""
+    target: str
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in target or []:
+            if game.on_battlefield(permanent):
+                for counter, count in list(permanent.counters.items()):
+                    if count > 0:
+                        game.put_counters(permanent, counter, count)
+
+
+@dataclass(frozen=True)
 class Amass:
     """Orcish Bowmasters: "Amass Orcs 1." Put that many +1/+1 counters on an Army you control; without one, create a 0/0 black
     Army creature token first. The Army is also an Orc."""

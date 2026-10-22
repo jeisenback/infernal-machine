@@ -6,12 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, CAST, PLAY_LAND, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import RAINBOW, lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_triggers_80 import FOREST, PLAINS
-from tests.test_x_targets import script
+from tests.helpers import FOREST, lands, pick, PLAINS, RAINBOW, real, run_stack, script, table3
 
 EXPLORATION = real("Exploration", "{G}", "Enchantment", "You may play an additional land on each of your turns.")
 AZUSA = real("Azusa, Lost but Seeking", "{2}{G}", "Legendary Creature — Human Monk",

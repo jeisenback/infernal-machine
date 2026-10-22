@@ -7,9 +7,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import lands, run_stack, table3
 
 MELODY = Card(name="Entrancing Melody", mana_cost="{X}{U}{U}", cmc=2.0, type_line="Sorcery", colors=("U",),
               oracle_text="Gain control of target creature with mana value X.")

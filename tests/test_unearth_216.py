@@ -5,8 +5,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import UNEARTH, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import run_stack, table3
 
 REMINDER = ("({cost}: Return this card from your graveyard to the battlefield. It gains haste. Exile it at the beginning of the "
             "next end step or if it would leave the battlefield. Unearth only as a sorcery.)")

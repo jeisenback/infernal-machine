@@ -6,10 +6,7 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import FOREST, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, FOREST, OGRE, pick, run_stack, table3
 
 SHIFT = Card(name="Reality Shift", mana_cost="{1}{U}", cmc=2.0, type_line="Instant", colors=("U",),
              oracle_text="Exile target creature. Its controller manifests the top card of their library.")

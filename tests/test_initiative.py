@@ -6,10 +6,7 @@ from infernal_machine.effects import TakeInitiative, ThroneOfTheDeadThree, spell
 from infernal_machine.game import THRONE_PROMPT, VENTURE_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from infernal_machine.undercity import ROOMS, START
-from tests.test_combat import BEAR, creature
-from tests.test_effects import FOREST, lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, creature, FOREST, lands, run_stack, table3
 
 UNDERCITY_SCOUT = creature("Scout", 2, 2, "When this creature enters, you take the initiative.")
 SPELL = Card(name="Seize", mana_cost="{2}", type_line="Sorcery", oracle_text="You take the initiative.")

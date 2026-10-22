@@ -6,8 +6,7 @@ from infernal_machine.effects import AddMana, activated_abilities, spell_effects
 from infernal_machine.game import ACTIVATE, CAST, X_PROMPT, Permanent
 from infernal_machine.mana import Cost, SNOW, parse_cost, pay
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import creature
-from tests.test_effects import FOREST, lands, pick, table
+from tests.helpers import creature, FOREST, lands, pick, table
 
 W, B, G, R = (frozenset(c) for c in "WBGR")
 SWAMP = Card(name="Swamp", type_line="Basic Land — Swamp", produced_mana=("B",))

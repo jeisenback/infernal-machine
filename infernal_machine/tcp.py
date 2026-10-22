@@ -10,7 +10,8 @@ Protocol (one JSON object per line, UTF-8):
                                                                  {"type": "welcome", "spectator": true} for a watcher)
   server -> client  {"type": "event", ...}                      no reply expected
   server -> client  {"type": "event", "event": "state", ...}    the whole board, sent before your decisions
-  server -> client  {"type": "choose", "id": 1, "prompt": "...", "options": [...]}   ("seconds": 60 when a clock runs)
+  server -> client  {"type": "choose", "id": 1, "prompt": "...", "options": [...]}   ("seconds": 60 when a clock runs; "kind" and "subject" when the
+                                                                 question is a typed prompt: match on the kind, not the wording)
   client -> server  {"type": "response", "id": 1, "choice": 0}      (an answer to an earlier id is ignored)
   server -> client  {"type": "error", "message": "..."}         bad input; re-prompted
 """
@@ -23,6 +24,8 @@ import socket
 import threading
 import time
 from typing import Sequence
+
+from .prompts import wire_fields
 
 
 class Disconnected(ConnectionError):
@@ -66,7 +69,7 @@ class TcpPlayer:
         if not options:
             raise ValueError("choose() needs at least one option")
         self._next_id += 1
-        request = {"type": "choose", "id": self._next_id, "prompt": prompt, "options": list(options)}
+        request = {"type": "choose", "id": self._next_id, "prompt": prompt, "options": list(options), **wire_fields(prompt)}
         if seconds:
             request["seconds"] = seconds
         self._send(request)

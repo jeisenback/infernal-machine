@@ -10,7 +10,7 @@ from infernal_machine.game import (CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PRO
                                    SACRIFICE_COST_PROMPT, TARGET_PROMPT, Game, Permanent, StackItem)
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_effects import pick, table
+from tests.helpers import pick, table
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))

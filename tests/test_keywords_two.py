@@ -4,9 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import (affinity_for, devour, replicate_cost, static_abilities, storm_kind)
 from infernal_machine.game import CAST, DEVOUR_PROMPT, Permanent, REPLICATE_PROMPT
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
+from tests.helpers import BEAR, lands, pick, table3
 
 PLANESWALKER = Card(name="Jace", type_line="Legendary Planeswalker — Jace", loyalty="3")
 SAPROLING = Card(name="Saproling", type_line="Token Creature — Saproling", colors=("G",), power="1", toughness="1")

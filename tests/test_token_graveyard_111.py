@@ -7,9 +7,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, run_stack, table3
 
 GRAVE_TEXT = "put a +1/+1 counter on this creature."
 

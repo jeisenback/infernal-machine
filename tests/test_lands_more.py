@@ -4,9 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import filter_mana_ability, mana_life_cost, mana_life_types, reflected_mana
 from infernal_machine.game import CYCLE, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_effects import FOREST, pick, table
-from tests.test_lands import SWAMP, spell
-from tests.test_mass_effects import table3
+from tests.helpers import FOREST, pick, spell, SWAMP, table, table3
 
 MYSTIC = Card(name="Fetid Heath", type_line="Land", produced_mana=("C",),
               oracle_text="{T}: Add {C}.\n{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}.")

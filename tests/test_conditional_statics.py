@@ -4,8 +4,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import Condition, spell_effects, static_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import creature
-from tests.test_effects import FOREST, SOL_RING, table
+from tests.helpers import creature, FOREST, SOL_RING, table
 
 TECH = creature("Tinkerer", 1, 1, "As long as you control an artifact, CARDNAME gets +2/+2.")
 SPRINTER = creature("Sprinter", 2, 2, "As long as it's your turn, CARDNAME has haste.")

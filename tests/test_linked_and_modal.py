@@ -6,11 +6,7 @@ from infernal_machine.effects import (Exile, ExileUntilLeaves, TargetDraw, Targe
 from infernal_machine.game import CAST, DONE_MODES, MODE_PROMPT, PASS, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_effects import lands, pick, table
-from tests.test_exile import COMMANDER, OGRE
-from tests.test_mass_effects import table3
-from tests.test_tokens import RAISE
-from tests.test_triggers import MULLDRIFTER
+from tests.helpers import COMMANDER, EXILE_OGRE as OGRE, lands, MULLDRIFTER, pick, RAISE, table, table3
 
 OBLIVION_RING = REAL["Oblivion Ring"]
 BANISHING_LIGHT = REAL["Banishing Light"]

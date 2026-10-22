@@ -143,8 +143,11 @@ def _rules_lines(card: Card) -> tuple[str, ...]:
 
 
 _WHOLE_LINE = re.compile(
-    r"[Rr]eveal the top (?:two|three|four|five|six|seven|eight|\d+) cards of your library\. Put all [A-Za-z]+(?: creature)? cards revealed "
-    r"this way into your hand and the rest on the bottom of your library in any order\."  # Goblin Ringleader
+    r'[Yy]ou get an emblem with "[^"]+"\.?'  # an emblem's text is sentences of its own, kept inside the quotes (Elspeth, Sun's Champion)
+    r"|"
+    r"[Rr]eveal the top (?:two|three|four|five|six|seven|eight|\d+) cards of your library\. Put all [A-Za-z]+(?: creature)? cards"
+    r"(?: with mana value \d+ or less)? (?:revealed this way|from among them) (?:into your hand|onto the battlefield) and the rest on the "
+    r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
     r"|Choose two target creature cards in your graveyard\. Sacrifice a creature\. If you do, return the chosen cards to the battlefield tapped\."  # Victimize
     r"|Search your library for up to X basic land cards, where X is the greatest power among creatures you control\. Put those cards "
     r"onto the battlefield tapped, then shuffle\."  # Traverse the Outlands

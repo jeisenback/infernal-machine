@@ -5,9 +5,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import SYLVAN_CHOOSE_PROMPT, SYLVAN_PAY_PROMPT, SYLVAN_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
+from tests.helpers import real, run_stack, table3
 
 LIBRARY = real("Sylvan Library", "{1}{G}", "Enchantment",
                "At the beginning of your draw step, you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. "

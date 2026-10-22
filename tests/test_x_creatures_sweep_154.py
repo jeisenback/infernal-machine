@@ -6,12 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, BIRD, OGRE, attack_all
-from tests.test_effects import lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, battlefield_names, real
-from tests.test_triggers_80 import BIG, FOREST, RELIC
+from tests.helpers import attack_all, battlefield_names, BEAR, BIG, BIRD, FOREST, lands, OGRE, pick, real, RELIC, run_stack, table, Table, table3
 
 FOOD = Card(name="Food", type_line="Token Artifact — Food")
 

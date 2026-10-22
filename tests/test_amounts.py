@@ -5,8 +5,7 @@ from infernal_machine.effects import line_effects, spell_effects, triggered_abil
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, creature
-from tests.test_effects import table
+from tests.helpers import BEAR, creature, table
 
 LIFEBLOOD = REAL["Lifeblood Hydra"]
 MYCOLOTH = REAL["Mycoloth"]

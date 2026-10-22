@@ -9,14 +9,14 @@ python -m infernal_machine.analyze DECKLIST [OPPONENT ...] [--games 40] [--sim-g
                                    [--workers N] [--try "Card Name"]... [--skip tuning,matchups] [--output FILE] [--html FILE]
 ```
 
-One command for everything below: it runs the Bracket check, the mana base, the goldfish, the tuning report and, when opponents are
+One command for everything below: it runs the Bracket check, the combos, the mana base, the goldfish, the tuning report and, when opponents are
 given, the matchups, and prints one markdown report (`--output` also writes it to a file, and `--html` the same numbers as one
 HTML page: see [tune-a-deck](tune-a-deck.md)). Each part is the tool of its own section
 with the options shared across them given once: `--games` is matchup games per opponent, `--sim-games` the games for the goldfish and
-the tuning report. The cards the engine can't play come first, since they qualify everything under them, and each fact is said once (the
+the tuning report. The **Playability** part comes first, since it qualifies everything under it: a verdict ("Plays fully", "Plays except N cards" up to ten, "N cards can't be played yet" above), the cards the engine can't fully play, and the lines to build to unlock the most of them, ranked for this deck; with the combos from Commander Spellbook it also names the combos the engine can't play (a piece is a blocked card, so the matchup games never see them) and, beside each fix, the combos it completes once the fixes above it are built (the HTML report draws it as a block at the top with the five best fixes and the rest behind a disclosure). It is worked out again on every run, never reused from `--since`, since it changes with the engine, not with the deck; "What changed" says how many cards started or stopped playing, and each fact is said once (the
 tuning report's own Bracket, mana base and unreadable-card lines, and the matchup report's sentence about the focus deck, are left out
 because the report already has them). A Standard deck has no Bracket part; without opponents there is no matchup part; `--skip` leaves
-out parts (`bracket`, `manabase`, `goldfish`, `tuning`, `matchups`). The end of the report lists what was left out and how long each part
+out parts (`playability`, `bracket`, `combos`, `manabase`, `goldfish`, `tuning`, `matchups`). The end of the report lists what was left out and how long each part
 took; progress goes to stderr, so a long run shows it is alive. The matchup games are the slow part (roughly a few seconds a game); the
 goldfish and tuning take a minute or so at the defaults.
 
@@ -30,8 +30,10 @@ python -m infernal_machine.brackets DECKLIST
 a deck's cards and returns the lowest bracket it can be played at (`floor`): the Game Changers in it (Scryfall's `game_changer` flag,
 so the list follows Scryfall; none below Bracket 3, up to three in Bracket 3), mass land denial (found by its Oracle text: destroys,
 exiles or returns all lands, or makes each player sacrifice four or more; not below Bracket 4), and its extra-turn cards, which are
-listed but not counted against it. It cannot see two-card infinite combos or how the deck is played, and it cannot tell Bracket 1
-from 2 or 4 from 5, so the floor is a first check before choosing opponents, not a rating.
+listed but not counted against it. With `--combos` (and always in `analyze`) it also asks Commander Spellbook which combos the deck
+holds (see [Combos](#combos)) and keeps the floor at or above what Spellbook's tag on each allows: a Ruthless combo (a two-card combo
+that wins early) is not below Bracket 4, a Powerful or Spicy one not below 3, a Core or Oddball one not below 2. It cannot see how the
+deck is played, and it cannot tell Bracket 1 from 2 or 4 from 5, so the floor is a first check before choosing opponents, not a rating.
 
 - **Tuning:** the report starts with the deck's Bracket line, and a `--try` card that is a Game Changer, is mass land denial, or
   takes a Game Changer out says what the swap does to the floor.
@@ -39,6 +41,22 @@ from 2 or 4 from 5, so the floor is a first check before choosing opponents, not
   higher bracket than the focus deck, because those win rates compare unlike decks. `--max-bracket N` leaves such opponents out.
 - Decks without a commander (Standard) have no bracket. `.cache/oracle_bulk.json` is downloaded again on first use, because cards
   gained the flag; `.cache/cards.json` is fetched again too (see [The card caches](cards-and-decks.md#the-card-caches)).
+
+## Combos
+
+```
+python -m infernal_machine.combos DECKLIST
+```
+
+`combos.SpellbookSource().find(deck)` asks [Commander Spellbook](https://commanderspellbook.com) (`POST /find-my-combos/`, one request
+per deck) which combos the deck holds and which are one card away, and keeps the answer in `.cache/combos.json` keyed by the commanders
+and the counted main deck, so a repeat run is offline and the list is as current as the cache (delete the file to ask again). Each
+`Combo` has the cards it uses, what else it needs in Spellbook's words, what it produces ("Exile your library", "Win the game",
+"Infinite colorless mana"), the mana it needs, Spellbook's bracket tag (Exhibition, Core, Oddball, Powerful, Spicy, Ruthless, Banned)
+and how many of EDHREC's decks hold it. In `analyze` the **Combos** part follows the Bracket: a table of the combos the deck holds with
+a last column saying whether the engine plays every piece (a combo it cannot play qualifies the numbers below it the same way an
+unplayable card does), or one line when Spellbook knows none; `--skip combos` leaves it out, and when Spellbook cannot be reached and
+the cache has no answer for the deck the part is left out and the end of the report says so. A Standard deck has no combos part.
 
 ## Simulating a deck
 

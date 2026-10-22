@@ -6,8 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST_PARAGON, PLAY_PARAGON, Permanent
 from tests.real import REAL
-from tests.test_effects import lands, table
-from tests.test_more_triggers import run_stack
+from tests.helpers import lands, run_stack, table
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 CHEAP = Card(name="Cheap Bear", mana_cost="{1}", cmc=1, type_line="Creature — Bear", power="2", toughness="2")

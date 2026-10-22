@@ -5,8 +5,7 @@ from infernal_machine.effects import Replacements, replacement_effects
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, OGRE, creature
-from tests.test_effects import DIVINATION, lands, pick, table
+from tests.helpers import BEAR, creature, DIVINATION, lands, OGRE, pick, table
 
 RIP = REAL["Rest in Peace"]
 LEYLINE = REAL["Leyline of the Void"]

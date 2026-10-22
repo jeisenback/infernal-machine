@@ -5,14 +5,8 @@ import unittest
 from infernal_machine.effects import triggered_abilities
 from infernal_machine.game import ACTIVATE, CAST, CHANGE_WHICH_PROMPT, TARGET_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import pick, script
+from tests.helpers import BEAR, CHANGE_TARGET_BOLT as BOLT, lands, OGRE, pick, real, Responder, run_stack, script, stack_fight, table3
 
-BOLT = real("Lightning Bolt", "{R}", "Instant", "Lightning Bolt deals 3 damage to any target.")
 SMITE = real("Smite", "{1}{W}", "Instant", "Destroy target creature an opponent controls.")
 CLASH = real("Clash", "{1}{R}", "Instant", "Target creature you control fights target creature you don't control.")
 DEFLECTION = real("Deflection", "{3}{U}", "Instant", "Change the target of target spell with a single target.")
@@ -21,35 +15,6 @@ MISCHIEF = real("Imp's Mischief", "{1}{R}", "Instant", "Change the target of tar
 BEND = real("Bolt Bend", "{3}{R}", "Instant", "Change the target of target spell or ability with a single target.")
 REROUTE = real("Reroute", "{R}", "Instant", "Change the target of target activated ability with a single target.")
 PINGER = real("Pinger", "{1}", "Artifact", "{T}: Pinger deals 1 damage to any target.")
-
-
-class Responder:
-    """Seat B's replies, remembering what it was asked for a target."""
-
-    def __init__(self, *answers):
-        self.answers, self.asked = list(answers), []
-
-    def __call__(self, prompt, options):
-        if prompt.startswith((TARGET_PROMPT, CHANGE_WHICH_PROMPT)):
-            self.asked.append(list(options))
-        return pick(self.answers.pop(0) if self.answers else "Pass")(prompt, options)
-
-
-def stack_fight(spell, aimed, response, *, mine=(), theirs=(), third=(), answers=(), a_answers=(), counter=None, n=6, b_lands=6):
-    """A casts `spell` at `aimed`; B (with `response`) answers it with the retargeting spell, and the stack resolves."""
-    from tests.test_x_targets import script
-    responder = counter or Responder(*answers)
-    game, _ = table3(script(aimed, *a_answers), responder)
-    a, b, c = game.seats
-    a.hand, a.battlefield = [spell], lands(n)
-    a.battlefield += [Permanent(x) for x in mine]
-    b.hand, b.battlefield = [response], lands(b_lands) + [Permanent(x) for x in theirs]
-    c.battlefield = [Permanent(x) for x in third]
-    game._perform(a, CAST + spell.name)
-    game._perform(b, CAST + response.name)
-    run_stack(game)
-    game._check_state()
-    return game, a, b, c, responder
 
 
 class ParseTests(unittest.TestCase):
@@ -64,7 +29,7 @@ class DeflectionTests(unittest.TestCase):
         self.assertEqual((a.life, b.life, c.life), (40, 40, 37))
 
     def test_without_the_response_it_hits_the_old_target(self):
-        from tests.test_x_targets import script
+        from tests.helpers import script
         game, _ = table3(script("Player: B"))
         a, b, c = game.seats
         a.hand, a.battlefield = [BOLT], lands(2)
@@ -94,7 +59,7 @@ class DeflectionTests(unittest.TestCase):
         self.assertEqual([p.card.name for p in b.battlefield if "Land" not in p.card.type_line], [])
 
     def test_a_spell_with_two_targets_cannot_be_aimed_at(self):
-        from tests.test_x_targets import script
+        from tests.helpers import script
         game, _ = table3(script("Ogre", "Bear"))
         a, b, c = game.seats
         a.hand, a.battlefield = [CLASH], lands(3) + [Permanent(OGRE)]
@@ -131,7 +96,7 @@ class VariantTests(unittest.TestCase):
 
 class AbilityTests(unittest.TestCase):
     def activated(self, response, *answers):
-        from tests.test_x_targets import script
+        from tests.helpers import script
         responder = Responder(*answers)
         game, _ = table3(script("Player: B"), responder)
         a, b, c = game.seats
@@ -153,7 +118,7 @@ class AbilityTests(unittest.TestCase):
         self.assertEqual((b.life, c.life), (40, 39))
 
     def test_reroute_cannot_aim_at_a_spell_or_a_triggered_ability(self):
-        from tests.test_x_targets import script
+        from tests.helpers import script
         game, _ = table3(script("Player: B"))
         a, b, c = game.seats
         a.hand, a.battlefield = [BOLT], lands(2)
@@ -162,7 +127,7 @@ class AbilityTests(unittest.TestCase):
         self.assertFalse(game._can_cast(b, REROUTE))
 
     def test_a_triggered_ability_is_a_target_for_bolt_bend_but_not_for_reroute(self):
-        from tests.test_x_targets import script
+        from tests.helpers import script
         game, _ = table3(script("Player: B"))
         a, b, c = game.seats
         prober = Permanent(real("Prober", "{1}", "Creature — Human", "When this creature enters, it deals 1 damage to any target.", "1", "1"))
@@ -197,7 +162,7 @@ KILL = real("Smite", "{1}{W}", "Instant", "Destroy target creature an opponent c
 
 def respond(spell, aimed, on_battlefield, *answers, mine=(), theirs=(), act=None):
     """A casts `spell` at `aimed`; B (holding `on_battlefield` permanents) answers by `act(game, a, b)`; then the stack resolves."""
-    from tests.test_x_targets import script
+    from tests.helpers import script
     responder = Responder(*answers)
     game, _ = table3(script(*aimed), responder)
     a, b, c = game.seats
@@ -270,7 +235,7 @@ class OnlyOneThingTests(unittest.TestCase):
         self.assertEqual(sorted(p.card.name for p in b.battlefield if "Land" not in p.card.type_line), ["Bear"])
 
     def test_only_an_instant_or_sorcery_spell_is_a_target_of_the_specimen(self):
-        from tests.test_x_targets import script
+        from tests.helpers import script
         aura = real("Dampen", "{1}{U}", "Enchantment — Aura", "Enchant creature\nEnchanted creature gets -1/-0.")
         game, _ = table3(script("Bear"))
         a, b, c = game.seats

@@ -6,12 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import Table, battlefield_names, real
-from tests.test_triggers_80 import FOREST, PLAINS, RELIC
+from tests.helpers import battlefield_names, BEAR, FOREST, lands, OGRE, pick, PLAINS, real, RELIC, run_stack, Table, table3
 
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))

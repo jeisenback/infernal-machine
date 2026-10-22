@@ -1,5 +1,6 @@
 import unittest
 
+from infernal_machine.prompts import Prompt, PromptKind
 from infernal_machine.bot import BotPlayer, goldfish, keep_hand, worst_card
 from infernal_machine.cards import Card, Deck
 from infernal_machine.game import (CAST, CYCLE, DISCARD_PROMPT, DONE_MODES, KEEP_ON_TOP, MODE_PROMPT, PASS, PUT_IN_GRAVEYARD, PUT_ON_BOTTOM,
@@ -57,7 +58,7 @@ class BotPlayerTests(unittest.TestCase):
 
 
     def test_bots_use_spell_effects(self):
-        from tests.test_effects import BEAR, BOLT, COUNTERSPELL, DIVINATION, MURDER, RAINBOW
+        from tests.helpers import EFFECTS_BEAR as BEAR, EFFECTS_BOLT as BOLT, COUNTERSPELL, DIVINATION, MURDER, RAINBOW
         commander = Card(name="Omnath", mana_cost="{2}{G}", type_line="Legendary Creature — Elemental", toughness="3")
         mixed = Deck([commander], [RAINBOW] * 38 + [BOLT] * 20 + [DIVINATION, COUNTERSPELL, MURDER] * 7 + [BEAR] * 20, [])
         bots = [BotPlayer(f"P{i}", mixed) for i in range(3)]
@@ -94,6 +95,13 @@ class JudgmentTests(unittest.TestCase):
     def test_scry_and_surveil_keep_spells_it_can_cast_soon(self):
         self.assertEqual(board(3).choose(SCRY_PROMPT(CHEAP.name), [KEEP_ON_TOP, PUT_ON_BOTTOM]), 0)
         self.assertEqual(board(3).choose(SURVEIL_PROMPT(PRICEY.name), [KEEP_ON_TOP, PUT_IN_GRAVEYARD]), 1)
+
+    def test_the_bot_goes_by_a_prompts_kind_not_its_words(self):
+        reworded = PromptKind("scry", "Look at the top card: ")  # the same kind as SCRY_PROMPT, other words
+        self.assertEqual(board(3).choose(reworded(CHEAP.name), [KEEP_ON_TOP, PUT_ON_BOTTOM]), 0)
+        self.assertEqual(board(3).choose(reworded(PRICEY.name), [KEEP_ON_TOP, PUT_ON_BOTTOM]), 1)
+        self.assertEqual(board(3).choose(Prompt.from_wire("Look at the top card: " + CHEAP.name, "scry", CHEAP.name), [KEEP_ON_TOP, PUT_ON_BOTTOM]), 0)
+        self.assertEqual(board(4, mine=1, theirs=3).choose(PromptKind("priority", "Your move at ")("main1"), [PASS, CAST + WRATH.name]), 1)
 
     def test_modes_prefer_removal_and_skip_costly_extras(self):
         modes = ["You gain 2 life.", "Destroy target artifact.", "Draw a card."]

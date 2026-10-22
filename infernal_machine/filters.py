@@ -38,6 +38,7 @@ class Alternative:
     color_count: str = ""  # "mono" (exactly one color) or "multi" (two or more)
     historic: bool = False  # legendary, an artifact or a Saga
     permanent: bool = False  # a permanent type: a card in a library or graveyard has to have one to be a "permanent card"
+    colorless: bool = False  # it has no color
 
     def matches(self, card) -> bool:
         words, subtypes = _words(card.type_line)
@@ -57,6 +58,8 @@ class Alternative:
             return False
         if self.color_count == "multi" and len(card.colors) < 2:
             return False
+        if self.colorless and card.colors:
+            return False
         return not (self.historic and not ({"legendary", "artifact", "saga"} & words))
 
 
@@ -65,14 +68,15 @@ class Filter:
     alternatives: tuple[Alternative, ...] = (Alternative(),)
     controller: str | None = None  # "you", "opponent" or "own": whose, for the caller to check
     state: str = ""  # "tapped", "untapped", "attacking" or "attacking or blocking": for the caller to check
-    mana_value: tuple[str, int] | None = None  # ("<=", 3), (">=", 5) or ("=", 2)
+    mana_value: tuple[str, int] | None = None  # ("<=", 3), (">=", 5), ("=", 2) or ("<", 2)
     power_at_most: int | None = None  # "creature card with power 2 or less"
 
     def matches(self, card) -> bool:
         """Whether the card is of this kind, as far as the card itself says (not whose it is, or what it is doing)."""
         if self.mana_value is not None:
             op, value = self.mana_value
-            if not ((op == "<=" and card.cmc <= value) or (op == ">=" and card.cmc >= value) or (op == "=" and card.cmc == value)):
+            if not ((op == "<=" and card.cmc <= value) or (op == ">=" and card.cmc >= value) or (op == "=" and card.cmc == value)
+                    or (op == "<" and card.cmc < value)):
                 return False
         if self.power_at_most is not None:
             power = card.power
@@ -91,7 +95,7 @@ def _words(type_line: str) -> tuple[frozenset[str], frozenset[str]]:
 
 _MANA_VALUE = re.compile(r" with mana value (\d+)(?: (or less|or greater))?$")
 _POWER = re.compile(r" with power (\d+) or less$")
-_BAR_VALUE = re.compile(r"\|(mv|p)(<=|>=|=)(\d+)$")
+_BAR_VALUE = re.compile(r"\|(mv|p)(<=|>=|=|<)(\d+)$")
 _SPLIT = re.compile(r",? or |, | and ")
 
 
@@ -156,6 +160,7 @@ def _alternative(words: list[str]) -> Alternative:
     color_count = ""
     historic = False
     permanent = False
+    colorless = False
     for word in words:
         if word in _NOTHING_TO_CHECK or word in ("expend", "any"):
             continue
@@ -171,6 +176,8 @@ def _alternative(words: list[str]) -> Alternative:
             colors.append(word.upper())
         elif word == "multicolored":
             color_count = "multi"
+        elif word == "colorless":
+            colorless = True
         elif word == "monocolored":
             color_count = "mono"
         elif word == "historic":
@@ -183,7 +190,8 @@ def _alternative(words: list[str]) -> Alternative:
             lacks.append(word[3:])
         else:
             needs.append(word)
-    return Alternative(tuple(needs), tuple(lacks), tuple(lacks_subtype), tuple(colors), tuple(lacks_colors), token, color_count, historic, permanent)
+    return Alternative(tuple(needs), tuple(lacks), tuple(lacks_subtype), tuple(colors), tuple(lacks_colors), token, color_count, historic, permanent,
+                       colorless)
 
 
 def matches(kind: str, card) -> bool:

@@ -8,9 +8,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_mass_effects import table3
-from tests.test_triggers_80 import RELIC
-from tests.test_infinite_coursework_85 import COURSEWORK
+from tests.helpers import COURSEWORK, RELIC, table3
 
 GOLDSPAN = Card(name="Goldspan Dragon", mana_cost="{3}{R}{R}", type_line="Creature — Dragon", power="4", toughness="4",
                 oracle_text="Flying, haste\nTreasures you control have \"{T}, Sacrifice this artifact: Add two mana of any one "

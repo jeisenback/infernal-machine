@@ -6,10 +6,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick
-from tests.test_rules_text_81 import Table, battlefield_names, real
-from tests.test_triggers_80 import BIG, FOREST, RELIC, SHRINE
+from tests.helpers import battlefield_names, BEAR, BIG, FOREST, lands, OGRE, pick, real, RELIC, SHRINE, Table
 
 WALKER = real("Walker", "{3}", "Legendary Planeswalker — Test", "")
 INDESTRUCTIBLE = real("Rock", "{2}", "Creature — Golem", "Indestructible", "4", "4")

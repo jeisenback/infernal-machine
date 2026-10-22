@@ -6,7 +6,7 @@ from infernal_machine.cards import Card
 from infernal_machine.combat import Combat
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_mass_effects import table3
+from tests.helpers import table3
 
 
 def creature(name, text="", colors=(), types="Creature — Bear", power=2):

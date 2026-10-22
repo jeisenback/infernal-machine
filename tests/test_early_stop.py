@@ -4,7 +4,7 @@ import random
 import unittest
 
 from infernal_machine.compare import HOPELESS_FACTOR, MAX_LOOKS, MIN_LOOK_PAIRS, Z, compare_builds, format_comparison, look_z, stop_reason, summarize
-from tests.test_compare import BEAR, DUD, standard
+from tests.helpers import COMPARE_BEAR as BEAR, DUD, standard
 
 
 def sequence(rng, mean, pairs):

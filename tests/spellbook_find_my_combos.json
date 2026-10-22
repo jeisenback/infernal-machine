@@ -1,0 +1,312 @@
+{
+ "count": null,
+ "next": null,
+ "previous": null,
+ "results": {
+  "identity": "GWUB",
+  "included": [
+   {
+    "id": "742-1295",
+    "status": "OK",
+    "uses": [
+     {
+      "card": {
+       "name": "Demonic Consultation"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "name": "Thassa's Oracle"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "name": "Exile your library"
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "name": "Win the game"
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UB",
+    "manaNeeded": "{U}{U}{B}",
+    "manaValueNeeded": 3,
+    "bracketTag": "R",
+    "popularity": 149578,
+    "legalities": {
+     "commander": true
+    },
+    "description": "Cast Demonic Consultation by paying {B}, naming Thassa's Oracle and thus exiling your library due to you not having a card named Thassa's Oracle in your library.\nCast Thassa's Oracle by paying {U}{U}.\nThassa's Oracle enters the battlefield, causing you to win the game."
+   },
+   {
+    "id": "1295-3093",
+    "status": "OK",
+    "uses": [
+     {
+      "card": {
+       "name": "Tainted Pact"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "name": "Thassa's Oracle"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "name": "Win the game"
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UB",
+    "manaNeeded": "{1}{U}{U}{B}",
+    "manaValueNeeded": 4,
+    "bracketTag": "R",
+    "popularity": 131683,
+    "legalities": {
+     "commander": true
+    },
+    "description": "Cast Tainted Pact by paying {1}{B}, exiling your library.\nCast Thassa's Oracle by paying {U}{U}.\nThassa's Oracle enters the battlefield, causing you to win the game."
+   }
+  ],
+  "includedByChangingCommanders": [],
+  "almostIncluded": [
+   {
+    "id": "742-2836",
+    "status": "OK",
+    "uses": [
+     {
+      "card": {
+       "name": "Demonic Consultation"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "name": "Laboratory Maniac"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "B"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "name": "Exile your library"
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "name": "Win the game"
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UB",
+    "manaNeeded": "{B}",
+    "manaValueNeeded": 1,
+    "bracketTag": "S",
+    "popularity": 14602,
+    "legalities": {
+     "commander": true
+    },
+    "description": "Cast Demonic Consultation by paying {B}, naming Laboratory Maniac and thus exiling your library due to you not having a card named Laboratory Maniac in your library.\nDraw a card, causing you to win the game due to Laboratory Maniac."
+   },
+   {
+    "id": "1295-3189",
+    "status": "OK",
+    "uses": [
+     {
+      "card": {
+       "name": "Doomsday"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "name": "Thassa's Oracle"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "name": "Win the game"
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UB",
+    "manaNeeded": "{U}{U}{B}{B}{B}",
+    "manaValueNeeded": 5,
+    "bracketTag": "S",
+    "popularity": 14579,
+    "legalities": {
+     "commander": true
+    },
+    "description": "Cast Doomsday by paying {B}{B}{B}, searching your library and graveyard for any five other cards, exiling all other cards from your graveyard and library, and then placing the remaining cards on top of your library and losing half your life, rounded up.\nCast Thassa's Oracle by paying {U}{U}.\nThassa's Oracle enters the battlefield, winning the game."
+   },
+   {
+    "id": "953-1295",
+    "status": "OK",
+    "uses": [
+     {
+      "card": {
+       "name": "Enter the Infinite"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "name": "Thassa's Oracle"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H",
+       "L"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "name": "Infinite card draw"
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "name": "Infinite draw triggers"
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "name": "Win the game"
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "U",
+    "manaNeeded": "{8}{U}{U}{U}{U}{U}{U}",
+    "manaValueNeeded": 14,
+    "bracketTag": "P",
+    "popularity": 12585,
+    "legalities": {
+     "commander": true
+    },
+    "description": "Cast Enter the Infinite by paying {8}{U}{U}{U}{U}, drawing your library and then putting any card besides Thassa's Oracle from your hand on top of your library.\nCast Thassa's Oracle by paying {U}{U}.\nThassa's Oracle enters the battlefield ability triggers, causing you to win the game."
+   }
+  ],
+  "almostIncludedByAddingColors": [
+   {
+    "id": "1295-4059",
+    "status": "OK",
+    "uses": [
+     {
+      "card": {
+       "name": "Dance with Calamity"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     },
+     {
+      "card": {
+       "name": "Thassa's Oracle"
+      },
+      "quantity": 1,
+      "zoneLocations": [
+       "H"
+      ],
+      "mustBeCommander": false
+     }
+    ],
+    "requires": [],
+    "produces": [
+     {
+      "feature": {
+       "name": "Exile your library"
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "name": "Win the game"
+      },
+      "quantity": 1
+     }
+    ],
+    "identity": "UR",
+    "manaNeeded": "{7}{U}{U}{R}",
+    "manaValueNeeded": 10,
+    "bracketTag": "P",
+    "popularity": 424,
+    "legalities": {
+     "commander": true
+    },
+    "description": "Cast Dance with Calamity by paying {7}{R}, exiling your library.\nCast Thassa's Oracle by paying {U}{U}.\nWhen Thassa's Oracle enters the battlefield, it triggers, causing you to win the game."
+   }
+  ],
+  "almostIncludedByChangingCommanders": [],
+  "almostIncludedByAddingColorsAndChangingCommanders": []
+ }
+}

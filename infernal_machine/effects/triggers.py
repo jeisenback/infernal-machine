@@ -37,6 +37,7 @@ from .outcomes import (
     Hideaway,
     LivingWeapon,
     MayPay,
+    MayPayCountersOnSubject,
     MayPayLoot,
     OnPlayer,
     OnSubject,
@@ -412,6 +413,10 @@ _PAY_TO_RETURN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, return t
 _MAY_PAY_THEN = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, (.+)", re.I)
 
 
+_MAY_PAY_COUNTER = re.compile(r"you may pay ((?:\{[^}]+\})+)\. If you do, put a \+1/\+1 counter on it\. If it's an? ([A-Z][a-z]+), put two \+1/\+1 "
+                              r"counters on it instead\.", re.I)  # Emiel the Blessed
+
+
 _MAY_PAY_LOOT = re.compile(r"you may pay ((?:\{[^}]+\})+) and discard a card\. If you do, draw a card\.", re.I)
 
 
@@ -428,6 +433,10 @@ _YURIKO_BODY = ("reveal the top card of your library and put that card into your
 _RAGAVAN_BODY = ("create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.")
 
 
+_MAY_HAVE = re.compile(r"^you may have ((?:this|target) [^,.]+?|CARDNAME|it|that \w+) (deal|lose|become|gain|get) ", re.I)
+_THIRD_PERSON = {"deal": "deals", "lose": "loses", "become": "becomes", "gain": "gains", "get": "gets"}
+
+
 def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]:
     """The part of a trigger after its event: (effects, or None if not understood; "you may";
     "only once each turn"; an intervening "if" clause)."""
@@ -441,6 +450,8 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
         return [CreateTokens(1, TREASURE), ExileTopOfThatPlayerMayCast()], False, False, None
     if m := _PAY_TO_RETURN.fullmatch(rest):
         return [PayToReturnSelf(m[1])], False, False, None
+    if m := _MAY_PAY_COUNTER.fullmatch(rest):
+        return [MayPayCountersOnSubject(m[1], m[2].capitalize())], False, False, None
     if m := _MAY_PAY_LOOT.fullmatch(rest):
         return [MayPayLoot(m[1])], False, False, None
     if m := _MAY_PAY_THEN.fullmatch(rest):
@@ -467,6 +478,7 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
         return [dataclasses.replace(modal[0], modes=different, optional=True)], False, False, condition
     once = rest.endswith(_TRIGGERS_ONCE)
     rest = rest.removesuffix(_TRIGGERS_ONCE)
+    rest = _MAY_HAVE.sub(lambda m: f"you may {m[1]} {_THIRD_PERSON[m[2].lower()]} ", rest, count=1)  # "you may have this creature deal 1 damage ..."
     optional = rest.lower().startswith("you may ")
     if optional and re.match(r"you may (?:discard|sacrifice|remove) [^.]*\. If you do, ", rest, re.I):
         optional = False  # "you may discard a card. If you do, draw a card" is one effect that asks for itself (see _merge_loot)
@@ -503,6 +515,10 @@ _AURAS_ON_IT = re.compile(r"that was attached to it", re.I)  # Hateful Eidolon: 
 
 
 _HENGE_BODY = "put a +1/+1 counter on it and draw a card."
+
+
+_SELF_THEN_IT = re.compile(r"((?:this (?:creature|artifact|enchantment|permanent|land|planeswalker|equipment|vehicle|aura|saga|battle)|CARDNAME)\b[^.]*\.) It\b")  # "Put a +1/+1 counter on this creature. It gains flying.": the "It" is that creature, not the permanent that set the trigger off
+_STILL_A_LAND = re.compile(r"It's still an? (?:land|artifact)\.|as though it didn't have defender")  # the "it" of these is the ability's own creature
 
 
 def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | None, bool, bool, Condition | None]:
@@ -548,6 +564,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     # "the amount of mana spent to cast that spell" is an amount the trigger carries, not an effect on the spell.
     # (a created token's own ability, "It has "Sacrifice this token: Add {C}."", is about the token, not the creature that died)
     without_token_ability = _AURAS_ON_IT.sub("", _TOKEN_HAS.sub("", rest) if re.search(r"\btokens?\b", rest, re.I) else rest)
+    without_token_ability = _SELF_THEN_IT.sub(r"\1 This", without_token_ability)
+    without_token_ability = _STILL_A_LAND.sub("", without_token_ability)  # "It's still a land." closes an Animate; it is not about the subject
     about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?(?:you may pay (?:\{[^}]+\})+\. If you do, )?copy (it|that spell)(?: for each [^.]*)?\.", rest,
                             re.I) is not None  # Codie: "it" is the spell cast (Mirari: after a payment; Thousand-Year Storm: so many times)

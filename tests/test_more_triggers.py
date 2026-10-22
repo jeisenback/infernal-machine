@@ -5,9 +5,7 @@ from infernal_machine.effects import Draw, GainLife, triggered_abilities
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.helpers import resolve_triggers, run_stack, take_turn_attacking  # noqa: F401  (they live in tests/helpers.py; other tests still import them from here)
-from tests.test_combat import BEAR, attack_all, creature
-from tests.test_effects import table
+from tests.helpers import attack_all, BEAR, creature, resolve_triggers, run_stack, SPIRIT, table, take_turn_attacking
 
 DRYAD = Card(name="Dryad", mana_cost="{G}", type_line="Enchantment",
              oracle_text="At the beginning of each upkeep, you gain 1 life.")
@@ -28,7 +26,6 @@ OHRAN = Card(name="Ohran", mana_cost="{G}", type_line="Enchantment",
              oracle_text="Whenever a creature you control deals combat damage to a player, draw a card.")
 CRAFTER = Card(name="Crafter", mana_cost="{U}", type_line="Enchantment",
                oracle_text="Whenever a creature token you control deals combat damage to a player, draw a card.")
-SPIRIT = Card(name="Spirit", type_line="Token Creature — Spirit", power="1", toughness="1")
 BOOTS = Card(name="Boots", mana_cost="{1}", type_line="Artifact — Equipment",
              oracle_text="Whenever equipped creature attacks, you gain 2 life.\nEquip {1}")
 IMPETUS = Card(name="Impetus", mana_cost="{B}", type_line="Enchantment — Aura",
@@ -435,7 +432,7 @@ class XSpellTests(unittest.TestCase):
 
     def test_casting_records_the_spell(self):
         from infernal_machine.game import CAST
-        from tests.test_effects import lands, pick
+        from tests.helpers import lands, pick
         game, _, _ = table(pick(CAST, "2"))
         a = game.seats[0]
         zimone = Permanent(ZIMONE)

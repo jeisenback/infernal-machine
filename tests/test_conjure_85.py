@@ -11,14 +11,7 @@ from infernal_machine.cards import Card, CardNotFound, Deck, load_deck
 from infernal_machine.effects import triggered_abilities
 from infernal_machine.game import CAST, Game, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_cast_events import BOLT
-from tests.test_effects import lands
-from tests.test_exile import COMMANDER
-from tests.test_game import ScriptedPlayer
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import half, prepper, supported
-from tests.test_x_targets import script
+from tests.helpers import BOLT, COMMANDER, half, lands, prepper, run_stack, script, ScriptedPlayer, supported, table3
 
 STORM_CROW = Card(name="Storm Crow", mana_cost="{1}{U}", cmc=2.0, type_line="Creature — Bird", oracle_text="Flying",
                   power="1", toughness="2", colors=("U",))

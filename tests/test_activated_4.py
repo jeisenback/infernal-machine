@@ -7,7 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.mana import parse_cost
 from tests.real import REAL
-from tests.test_effects import table
+from tests.helpers import table
 
 FOOD = Card(name="Food", type_line="Artifact — Food")
 CHEAP = Card(name="Cheap Spell", mana_cost="{3}", cmc=3, type_line="Sorcery")

@@ -276,6 +276,19 @@ class _IfYouDo:
 
 
 @dataclass(frozen=True)
+class PutThisFromCommandZone:
+    """Derevi, Empyrial Tactician: "{1}{G}{W}{U}: Put Derevi onto the battlefield from the command zone." The ability works only
+    while the card is in the command zone (ActivatedAbility.from_command_zone); it isn't a cast, so no commander tax is paid or added."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        card = item.card if item is not None else None
+        if card is not None and any(c is card for c in controller.command_zone):
+            controller.command_zone.remove(card)
+            game.put_onto_battlefield(controller, card)
+
+
+@dataclass(frozen=True)
 class CommanderToHand:
     """Command Beacon: "Put your commander into your hand from the command zone." """
 
@@ -417,6 +430,23 @@ class MayPay:
 
 
 @dataclass(frozen=True)
+class MayPayCountersOnSubject:
+    """Emiel the Blessed: "Whenever another creature you control enters, you may pay {G/W}. If you do, put a +1/+1 counter on it. If
+    it's a Unicorn, put two +1/+1 counters on it instead." The creature that entered is the subject; the payment is chosen as the
+    ability resolves, and only a Unicorn (a creature with the type) gets the second counter."""
+    cost: str
+    subtype: str
+    binds = SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:  # it left the battlefield before the ability resolved
+            return
+        item = game.resolving_item
+        if game.pays_optional(controller, self.cost, item.card if item is not None else None):
+            game.put_counters(target, "+1/+1", 2 if self.subtype in target.card.type_line.partition("\u2014")[2].split() else 1)
+
+
+@dataclass(frozen=True)
 class MayPayLoot:
     """Conspiracy Theorist: "You may pay {1} and discard a card. If you do, draw a card." """
     cost: str
@@ -426,3 +456,14 @@ class MayPayLoot:
         if controller.hand and game.pays_optional(controller, self.cost, item.card if item is not None else None):
             game.discard(controller, 1)
             game.draw(controller, 1)
+
+
+@dataclass(frozen=True)
+class GetEmblem:
+    """Elspeth, Sun's Champion: "You get an emblem with "Creatures you control get +2/+2 and have flying."" The emblem goes to the
+    command zone (CR 114.1) and its text works like a permanent's static or triggered abilities; only built when the engine reads
+    that text (effects/outcomes.py checks), so a walker whose emblem it cannot play is not called playable."""
+    text: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.get_emblem(controller, self.text)

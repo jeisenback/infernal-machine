@@ -15,6 +15,7 @@ import sys
 from collections import Counter
 from typing import Callable
 
+from .prompts import PRIORITY_PROMPT, Prompt
 from .tcp import send_promptly
 
 BOARD_KEY = "b"
@@ -192,6 +193,8 @@ class Narrator:
             return f"{card} goes to the command zone."
         if kind == "put_onto_battlefield":
             return f"{card} enters the battlefield{' tapped' if e.get('tapped') else ''} for {who}."
+        if kind == "emblem":
+            return f"{who} gets an emblem: \"{e['text']}\""
         if kind == "left_graveyard":
             return f"{card} leaves {self.poss(e['seat'])} graveyard for the {e['to']}."
         if kind == "graveyard_exiled":
@@ -302,7 +305,7 @@ class Client:
             self._last_board = board
 
     def _choose(self, message: dict) -> None:
-        prompt, options = message["prompt"], message["options"]
+        prompt, options = Prompt.from_wire(message["prompt"], message.get("kind"), message.get("subject", "")), message["options"]
         choice = 0 if self.auto_pass and options == ["Pass"] else self.decide(prompt, options, message.get("seconds"))
         if choice is not None:  # None: the clock ran out and the server has moved on
             self._send({"type": "response", "id": message["id"], "choice": choice})
@@ -311,7 +314,7 @@ class Client:
         """Ask the player to pick one of `options` (the index back). At the terminal: the board when it changed, the
         options numbered from 1, Enter to pass. `seconds` is the time limit, if the table has one; an answer typed
         after it is sent anyway, and the server ignores it. The web client asks in the browser instead."""
-        if prompt.startswith("Priority"):
+        if PRIORITY_PROMPT.matches(prompt):
             self._show_board(only_if_changed=True)
         self.show(f"\n{prompt}")
         for n, option in enumerate(options, 1):

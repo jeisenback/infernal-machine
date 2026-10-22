@@ -9,9 +9,7 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, OGRE, run_stack, table3
 
 FIREMANE = Card(name="Firemane Commando", mana_cost="{3}{W}", type_line="Creature — Angel Soldier", power="3", toughness="3",
                 oracle_text="Flying\nWhenever you attack with two or more creatures, draw a card.\nWhenever another player "

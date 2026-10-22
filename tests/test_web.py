@@ -6,8 +6,7 @@ import threading
 import unittest
 
 from infernal_machine.web import WebClient, WebServer
-from tests.test_effects import table
-from tests.test_play import FakeServer
+from tests.helpers import FakeServer, table
 
 
 class WebClientTests(unittest.TestCase):

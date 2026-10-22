@@ -7,10 +7,7 @@ from infernal_machine.cards import Card, shown_type_line
 from infernal_machine.creature_types import CREATURE_TYPES
 from infernal_machine.game import Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import attack_all
-from tests.test_effects import table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import attack_all, run_stack, table, table3
 
 REMINDER = "(This card is every creature type.)"
 MAULER = Card(name="Taurean Mauler", mana_cost="{2}{R}", cmc=3, type_line="Creature — Shapeshifter", power="4", toughness="4",
@@ -60,6 +57,14 @@ class TypeLineTests(unittest.TestCase):
         import dataclasses
         copy = dataclasses.replace(MAULER, type_line="Token " + MAULER.type_line)
         self.assertEqual(len(copy.type_line.split()), len(MAULER.type_line.split()) + 1)
+
+    def test_the_list_follows_scryfall_s_catalog(self):
+        # The ten types Scryfall's catalog gained after the 2026-10-11 snapshot (#493): the Star Trek set's peoples, and the
+        # rest of the catalog as of 2026-10-21. The list is kept sorted and unique so a type is found once and added in its place.
+        for name in ("Aenar", "Android", "Denobulan", "El-Aurian", "Ferengi", "Kwejian", "Medusan", "Missing", "Tribble", "Trill"):
+            self.assertIn(name, CREATURE_TYPES)
+        self.assertEqual(list(CREATURE_TYPES), sorted(CREATURE_TYPES))
+        self.assertEqual(len(CREATURE_TYPES), len(set(CREATURE_TYPES)))
 
     def test_players_are_shown_a_short_type_line(self):
         self.assertEqual(shown_type_line(MAULER), "Creature — every creature type")

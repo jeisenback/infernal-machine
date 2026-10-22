@@ -5,8 +5,7 @@ from infernal_machine.characteristics import power, toughness
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR, attack_all
-from tests.test_effects import BOLT, lands, pick, table
+from tests.helpers import attack_all, BEAR, EFFECTS_BOLT as BOLT, lands, pick, table
 
 GROWTH = REAL["Soldier On"]
 WITHER = Card(name="Wither", mana_cost="{B}", type_line="Instant",

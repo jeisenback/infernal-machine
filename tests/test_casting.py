@@ -2,7 +2,7 @@ import unittest
 
 from infernal_machine.cards import Card, Deck
 from infernal_machine.game import CAST, CAST_COMMANDER, PASS, Game, Permanent, _instant_speed
-from tests.test_game import ScriptedPlayer
+from tests.helpers import ScriptedPlayer
 
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))

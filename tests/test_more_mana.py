@@ -5,7 +5,7 @@ from infernal_machine.effects import filter_mana_ability, spell_effects
 from infernal_machine.game import CAST, PASS, X_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_effects import FOREST, lands, pick, table
+from tests.helpers import FOREST, lands, pick, table
 
 ISLAND = Card(name="Island", type_line="Basic Land — Island", produced_mana=("U",))
 SIGNET = Card(name="Azorius Signet", mana_cost="{2}", type_line="Artifact", oracle_text="{1}, {T}: Add {W}{U}.")

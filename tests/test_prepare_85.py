@@ -9,40 +9,11 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import triggered_abilities
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_x_targets import script
+from tests.helpers import activate, BEAR, fire, half, lands, OGRE, pick, prepper, run_stack, script, SPELL, supported, table3
 
-SPELL = Card(name="Quick Study", mana_cost="{1}{U}", type_line="Instant", oracle_text="Draw two cards.", cmc=2.0)
 FOREST = Card(name="Forest", type_line="Basic Land — Forest", produced_mana=("G",))
 TRINKET = Card(name="Trinket", type_line="Artifact")
 SHRINE = Card(name="Shrine", type_line="Enchantment")
-
-
-def prepper(text, name="Student"):
-    return Card(name=f"{name} // Quick Study", mana_cost="{1}", type_line="Creature — Wizard", power="1", toughness="1",
-                oracle_text=text, prepare=SPELL)
-
-
-def half(name, text, type_line="Sorcery"):
-    return Card(name=name, mana_cost="{1}", type_line=type_line, oracle_text=text)
-
-
-def supported(test, card):
-    test.assertEqual(unsupported_lines(card), [], card.oracle_text)
-
-
-def fire(game, seat, permanent, event):
-    game.trigger(event, permanent, seat)
-    run_stack(game)
-
-
-def activate(game, seat, fragment):
-    action = next(a for a in game.legal_actions(seat) if a.startswith(ACTIVATE) and fragment in a)
-    game._perform(seat, action)
-    run_stack(game)
 
 
 TOMEKEEPER = prepper("When this creature enters, choose up to one —\n• Target creature becomes prepared.\n"

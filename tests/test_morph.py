@@ -6,12 +6,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import MorphCost, morph_of
 from infernal_machine.game import CAST, CAST_FACE_DOWN, FACE_DOWN, TURN_UP, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR
-from tests.test_effects import lands
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_rules_text_81 import real
-from tests.test_x_targets import script
+from tests.helpers import BEAR, lands, real, run_stack, script, table3
 
 HARUSPEX = real("Grim Haruspex", "{2}{B}", "Creature — Human Wizard", "Morph {B}\nWhenever another nontoken creature you control dies, draw a card.", "3", "2")
 DEN = real("Den Protector", "{1}{G}", "Creature — Human Warrior", "Creatures with power less than Den Protector's power can't block it.\n"

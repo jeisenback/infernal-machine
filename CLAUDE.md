@@ -33,7 +33,7 @@ To add a line:
 3. **Export it** from `effects/__init__.py` (explicit lists) if it is a new public name.
 4. **Do the work in `Game`** (`game.py`; combat is `combat.py`, paying for things with mana is `payment.py`, casting a spell is `casting.py`, and playing or casting from a zone other than the hand is a `ZonePlay` in `zones.py`: add one class and list it in `ZONE_PLAYS`, and the legal actions, the dispatch, the bot and the goldfish all see it).
    *Asking the player:* a question to a player is a typed prompt (`prompts.py`): a `PromptKind("clone", "Choose what to copy for ")` constant, asked as `choose(CLONE_PROMPT(name), options)`
-   and recognised with `CLONE_PROMPT.matches(prompt)`, which compares the kind's name, not the wording. A `Prompt` is still a `str`, so the wire format is unchanged.
+   and recognised with `CLONE_PROMPT.matches(prompt)`, which compares the kind's name, not the wording. A `Prompt` is still a `str`; the server sends its `kind` and `subject` beside the text. Never take a prompt apart by its words (`startswith`, `==`, `removeprefix`): use `KIND.matches`, `is_one_of`, `subject_of` (`tests/test_prompts.py` fails on it).
 5. **Test it from the card's real Oracle text**, never from invented wording: `tests/real.py` (`REAL`, built from
    `tests/real_oracle_texts.json`) or `real(name, cost, type_line, text, power, toughness)`. Play the card through the game
    (`table3`, `script`, `run_stack`, `lands`, `pick`, `BEAR`, `OGRE`), include a case where the effect must not apply, and check the
@@ -58,11 +58,14 @@ Run before you push:
 python -m unittest discover -s tests -t .      # CI runs this on Python 3.11 and 3.13
 python tools/run_tests.py                      # the same tests across processes (about 2.5 times faster; a failure is the same failure)
 python tools/coverage_audit.py --top 1         # how many Commander-legal cards are fully playable
+python tools/coverage_audit.py --decks examples/decks/*.txt --baseline examples/decks/baseline.json   # the tracked decks: no card that played may stop (--write-baseline refreshes it)
+                                               # a coverage pull request says what this printed before and after, beside the pool's share
 python tools/play_smoke.py                     # every fully playable card casts or plays without an error
+python tools/explain_card.py --audit           # no card is read in a way the misparse audit knows is wrong (`explain_card.py CARD` shows how one was read)
 ```
 
 CI (`.github/workflows`): `tests` (required) and its `typecheck` job (pyright: no type errors; run it with
-`pip install pyright==1.1.414 && python -m pyright`; an `Optional` you know is there is unwrapped with `_checked(value)` in `game.py`), `precon report` (every card of the five precon decks must be fully playable),
+`pip install pyright==1.1.414 && python -m pyright`; an `Optional` you know is there is unwrapped with `_checked(value)` in `game.py`), `precon report` (every card of the five precon decks must be fully playable), `tracked decks` (which also runs the misparse audit, `python tools/explain_card.py --audit`: no card may be read wrongly in a way a rule knows; the decks in `examples/decks` against `baseline.json`: a card that played may not stop; every pull request that touches the engine, and Mondays, when it also updates one comment on the roadmap epic #453),
 `bot games` (120 four-player bot games between the precon decks, none may raise; seed `g` is game `g`; it runs on every pull request, and
 its job `bot games (all shards)` is the one to require next to `tests`), `coverage audit` (weekly, a measurement that never fails), and `bot strength` (weekly: the default bot against the plain bot on the precon decks, 480 duels in six shards; it fails only if the whole 95% interval is below 50%, i.e. a change made the bot reliably worse; each shard takes about a minute on GitHub's runners, and the first run (2026-10-15) won 310 of 480, 64.6% (60.2%-68.7%); run it by hand with `python tools/compare_bots.py examples/precons/*.txt`, or on GitHub with `gh workflow run "bot strength"`).
 
@@ -88,6 +91,9 @@ PY
 ```
 
 ## What to build next
+
+The analysis behind these tools (mechanisms, families, the ranking, `analyze_decks`, the baseline compare) is `infernal_machine/coverage.py`;
+`tools/coverage_audit.py` is the command line over it (fetching the pool, printing markdown), and package code such as `analyze` imports the same functions.
 
 `python tools/coverage_audit.py --mechanisms --next` ranks the work by how much each piece unlocks, weighted by how played the cards
 are; `--mechanism NAME` lists the unsupported wordings inside one mechanism or family. The backlog is tracked in issue #219.

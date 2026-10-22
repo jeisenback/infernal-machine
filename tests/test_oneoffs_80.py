@@ -6,14 +6,8 @@ import unittest
 from infernal_machine.cards import Card
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.test_combat import BEAR, OGRE
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_prepare_85 import activate, fire
-from tests.test_x_targets import script
+from tests.helpers import activate, BEAR, card, fire, FOREST, lands, OGRE, pick, RELIC, run_stack, script, SHRINE, table3
 from infernal_machine.effects import CONTRACT_TEXT
-from tests.test_triggers_80 import FOREST, RELIC, SHRINE, card
 
 BOGBEAST = Card(name="Blossoming Bogbeast", mana_cost="{4}{G}", type_line="Creature — Beast", power="5", toughness="5",
                 oracle_text="Whenever this creature attacks, you gain 2 life. Then creatures you control gain trample and get +X/+X "

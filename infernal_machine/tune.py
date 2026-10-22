@@ -1,6 +1,6 @@
 """Tuning report: which cards earn their slot, and what a different land count or a candidate card would do.
 
-    python -m infernal_machine.tune DECKLIST [--games N] [--turns N] [--seed N] [--try "Card Name"]...
+    python -m infernal_machine.tune DECKLIST [--games N] [--turns N] [--seed N] [--try "Card Name"]... [--suggest-combos [N]]
 
 It scores a deck by what `simulate` sees: the mana a game spends on spells plus the damage it deals by the last turn
 (`game_value`). To measure a card it replays the same games with that card replaced by a blank, so every shuffle is
@@ -8,6 +8,9 @@ the same and the difference is the card's contribution; only the games where the
 those are replayed. This rewards deploying mana and creatures. It cannot see what a card's text does (removal, card
 draw, counterspells, life gain), so a low score means "does little in a goldfish", not "bad card": read it next to the
 card's job in the deck.
+
+`--suggest-combos` also tries the cards Commander Spellbook says are one card from completing a combo the deck is close to (the N that
+complete the most, ten by default), and says which combos each would complete and what they produce.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from dataclasses import dataclass, field, replace
 from .analysis import is_land
 from .brackets import BracketReport, analyze, bracket_floor, is_mass_land_denial
 from .cards import Card, Deck
+from .combos import Combo, SpellbookSource
 from .commander import copy_limit
 from .formats import STANDARD
 from .manabase import ManaBase, analyze_mana_base, format_mana_base
@@ -66,6 +70,27 @@ class TuningReport:
     bracket: BracketReport | None = None  # what the deck's cards say about its Commander Bracket (None for a deck with no commander)
     swap_notes: dict[str, str] = field(default_factory=dict)  # candidate -> what trying it would do to the Bracket, when it does something
     mana_base: ManaBase | None = None  # sources of each color the deck needs and has (None for a deck with no colored symbols)
+    suggestions: list["ComboSuggestion"] = field(default_factory=list)  # the cards one away from completing combos (`--suggest-combos`)
+
+
+@dataclass
+class ComboSuggestion:
+    """A card Commander Spellbook says would complete combos the deck is one card from."""
+    card: str
+    combos: list[Combo]  # the combos it would complete, the most played first; each lists the deck's cards and this one
+
+
+def combo_suggestions(deck: Deck, almost: list[Combo], limit: int = 10) -> list[ComboSuggestion]:
+    """The cards that would complete the most of the combos `almost` (Spellbook's combos one card away) holds, then the one with the
+    most played combo, then by name; at most `limit`. A combo missing more than one card of the deck's (or none) is left out."""
+    held = {card.name for card in deck.commanders + deck.main}
+    by_card: dict[str, list[Combo]] = {}
+    for combo in almost:
+        missing = [name for name in combo.cards if name not in held]
+        if len(missing) == 1:
+            by_card.setdefault(missing[0], []).append(combo)
+    ranked = sorted(by_card.items(), key=lambda item: (-len(item[1]), -max(c.popularity for c in item[1]), item[0]))
+    return [ComboSuggestion(name, sorted(combos, key=lambda c: (-c.popularity, c.label()))) for name, combos in ranked[:limit]]
 
 
 def candidate_problem(deck: Deck, card: Card) -> str | None:
@@ -253,12 +278,44 @@ def format_tuning(report: TuningReport, *, bracket: bool = True, unplayable: boo
                   + (f"  [{report.swap_notes[new]}]" if new in report.swap_notes else "")
                   + (f"  [the engine can't read: {report.candidate_unplayable[new][:60]}]" if new in report.candidate_unplayable else "")
                   for new, old, effect in report.swaps]
-    if report.skipped:
-        lines += ["", "Not tried: " + ", ".join(f"{name} ({why})" for name, why in report.skipped)]
+    if report.suggestions:
+        lines += ["", *_suggestion_lines(report)]
+    shown = {suggestion.card for suggestion in report.suggestions}
+    if skipped := [(name, why) for name, why in report.skipped if name not in shown]:
+        lines += ["", "Not tried: " + ", ".join(f"{name} ({why})" for name, why in skipped)]
     return "\n".join(lines)
 
 
-def main(argv: list[str]) -> int:
+COMBOS_SHOWN = 3  # the combos listed under each suggested card; the rest are counted
+
+
+def _suggestion_lines(report: TuningReport) -> list[str]:
+    """The cards one away from a combo, each with the combos it would complete and what they produce. The swap number is the goldfish's,
+    which cannot see a combo, so it is only a side note; whether the engine plays the combo whole is what the deck's report is about."""
+    effects = {new: effect for new, _, effect in report.swaps}
+    why_not = dict(report.skipped)
+    cannot = {name for name, _, _ in report.unplayable}
+    lines = ["Combos one card away (Commander Spellbook). The swap number is the goldfish's, which cannot see what a combo does:"]
+    for suggestion in report.suggestions:
+        n = len(suggestion.combos)
+        if suggestion.card in effects:
+            tried = f"swap {_plusminus(effects[suggestion.card])}"
+        else:
+            tried = f"not tried: {why_not.get(suggestion.card, 'no swap was measured')}"
+        lines.append(f"  {suggestion.card}: completes {n} combo{'s' if n != 1 else ''}; {tried}")
+        for combo in suggestion.combos[:COMBOS_SHOWN]:
+            others = [name for name in combo.cards if name != suggestion.card]
+            makes = ", ".join(combo.produces[:3]) + (", ..." if len(combo.produces) > 3 else "")
+            needs = f" (needs {', '.join(combo.requires)})" if combo.requires else ""
+            stuck = sorted({name for name in others if name in cannot} | ({suggestion.card} if suggestion.card in report.candidate_unplayable else set()))
+            lines.append(f"    with {' + '.join(others)}{needs}: {makes} ({combo.tag_name}, {combo.popularity:,} decks)"
+                         + (f"  [the engine can't play {', '.join(stuck)}]" if stuck else ""))
+        if n > COMBOS_SHOWN:
+            lines.append(f"    and {n - COMBOS_SHOWN} more")
+    return lines
+
+
+def main(argv: list[str], source=None, spellbook: SpellbookSource | None = None) -> int:
     import argparse
 
     from .cards import BulkSource, CardNotFound, load_deck
@@ -272,9 +329,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--play", action="store_true", help="be on the play (no draw on turn 1)")
     parser.add_argument("--try", dest="candidates", action="append", default=[], metavar="CARD", help="a card to test in the weakest slot")
+    parser.add_argument("--suggest-combos", type=int, nargs="?", const=10, default=None, metavar="N",
+                        help="also try the N cards (default 10) that would complete the most combos the deck is one card from (Commander Spellbook)")
     parser.add_argument("--bulk", default=".cache/oracle_bulk.json")
     args = parser.parse_args(argv[1:])
-    source = BulkSource(args.bulk)
+    source = source or BulkSource(args.bulk)
     with open(args.decklist, encoding="utf-8") as f:
         deck = load_deck(f.read(), source)
     try:
@@ -282,7 +341,29 @@ def main(argv: list[str]) -> int:
     except CardNotFound as error:
         print(f"unknown card: {error}", file=sys.stderr)
         return 2
-    print(format_tuning(tune(deck, args.games, args.turns, args.seed, candidates, args.play)))
+    suggestions: list[ComboSuggestion] = []
+    unknown: list[tuple[str, str]] = []
+    if args.suggest_combos is not None:
+        if not deck.commanders:
+            print("Error: --suggest-combos needs a Commander deck (Commander Spellbook knows no other)", file=sys.stderr)
+            return 2
+        try:
+            found = (spellbook or SpellbookSource()).find(deck)
+        except OSError as error:
+            print(f"Error: Commander Spellbook could not be reached and the cache has no answer for this deck ({error})", file=sys.stderr)
+            return 2
+        suggestions = combo_suggestions(deck, found.almost, args.suggest_combos)
+        for suggestion in suggestions:
+            if any(card.name == suggestion.card for card in candidates):
+                continue
+            try:
+                candidates.append(source.get(suggestion.card))
+            except CardNotFound:
+                unknown.append((suggestion.card, "not in the card data"))
+    report = tune(deck, args.games, args.turns, args.seed, candidates, args.play)
+    report.suggestions = suggestions
+    report.skipped += unknown
+    print(format_tuning(report))
     return 0
 
 

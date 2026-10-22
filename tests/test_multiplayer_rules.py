@@ -6,10 +6,7 @@ from infernal_machine.effects import (BecomeMonarch, ExtraCombat, ExtraTurn, Goa
 from infernal_machine.game import CAST, STEPS, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import BEAR
-from tests.test_effects import lands, pick, table
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import BEAR, lands, pick, run_stack, table, table3
 
 TIME_WALK = Card(name="Time Walk", mana_cost="{1}{U}", type_line="Sorcery", oracle_text="Take an extra turn after this one.")
 ISLAND = Card(name="Island", type_line="Basic Land", produced_mana=("U",))

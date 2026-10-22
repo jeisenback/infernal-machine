@@ -6,11 +6,20 @@ from infernal_machine.effects import (ExileFromGraveyard, LoseLife, LoseLifeEqua
 from infernal_machine.game import (CAST, COMMAND_ZONE_PROMPT, PASS, SEARCH_CARD_PROMPT, GraveyardTarget, Permanent)
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_effects import BEAR, BOLT, FOREST, SOL_RING, lands, pick, table
-from tests.test_exile import COMMANDER, OGRE
-from tests.test_mass_effects import table3
-from tests.test_tokens import RAISE
-from tests.test_triggers import MULLDRIFTER
+from tests.helpers import (
+    COMMANDER,
+    EFFECTS_BEAR as BEAR,
+    EFFECTS_BOLT as BOLT,
+    EXILE_OGRE as OGRE,
+    FOREST,
+    lands,
+    MULLDRIFTER,
+    pick,
+    RAISE,
+    SOL_RING,
+    table,
+    table3,
+)
 
 RIFT = REAL["Cyclonic Rift"]
 EVACUATION = Card(name="Evacuation", mana_cost="{3}{U}{U}", type_line="Instant",

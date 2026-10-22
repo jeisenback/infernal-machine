@@ -5,10 +5,7 @@ from Scryfall (without the reminder text)."""
 import unittest
 
 from infernal_machine.game import Permanent
-from tests.test_effects import lands, pick
-from tests.test_mass_effects import table3
-from tests.test_prepare_85 import fire
-from tests.test_triggers_80 import FOREST, card, supported
+from tests.helpers import card, fire, FOREST, lands, pick, table3, triggers_80_supported as supported
 
 ZIMONE = card("At the beginning of your end step, if a land entered the battlefield under your control this turn and you "
               "control a prime number of lands, create Primo, the Indivisible, a legendary 0/0 green and blue Fractal creature "

@@ -5,10 +5,7 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.game import GraveyardTarget, Permanent
-from tests.test_effects import pick
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
-from tests.test_triggers_80 import BEAR, BIG, FOREST, RELIC, SHRINE, card, supported
+from tests.helpers import BEAR, BIG, card, FOREST, pick, RELIC, run_stack, SHRINE, table3, triggers_80_supported as supported
 
 SPIRIT = card("Whenever one or more cards leave your graveyard, put a +1/+1 counter on this creature, then you may have this "
               "creature become a copy of an artifact or creature card from among those cards until end of turn.", "Spirit")

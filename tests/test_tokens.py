@@ -5,11 +5,8 @@ from infernal_machine.effects import CLUE, TREASURE, CreateTokens, TargetControl
 from infernal_machine.game import ACTIVATE, CAST, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_combat import attack_all
-from tests.test_effects import BOLT, FOREST, lands, pick, table
+from tests.helpers import attack_all, EFFECTS_BOLT as BOLT, FOREST, lands, pick, RAISE, table
 
-RAISE = Card(name="Raise the Alarm", mana_cost="{1}{W}", type_line="Instant",
-             oracle_text="Create two 1/1 white Soldier creature tokens.")
 BEAST_WITHIN = Card(name="Beast Within", mana_cost="{2}{G}", type_line="Instant",
                     oracle_text="Destroy target permanent. Its controller creates a 3/3 green Beast creature token.")
 SMOTHERING = REAL["Smothering Tithe"]

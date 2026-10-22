@@ -7,9 +7,7 @@ from infernal_machine.effects import ManaSpentTrigger, mana_spent_trigger
 from infernal_machine.game import CAST, CAST_COMMANDER, SCRY_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.real import REAL
-from tests.test_effects import BEAR, COMMANDER, FOREST
-from tests.test_mass_effects import table3
-from tests.test_more_triggers import run_stack
+from tests.helpers import EFFECTS_BEAR as BEAR, EFFECTS_COMMANDER as COMMANDER, FOREST, run_stack, table3
 
 STUDY_HALL = REAL["Study Hall"]
 PATH = REAL["Path of Ancestry"]
