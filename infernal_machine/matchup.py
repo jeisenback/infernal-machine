@@ -74,6 +74,7 @@ class GameResult:
     reasons: dict[int, str] = field(default_factory=dict)  # seat -> why it lost
     logs: dict[int, SeatLog] = field(default_factory=dict)
     error: str | None = None  # "timeout" or the exception
+    seed: int | None = None  # the game's seed (a game replays from its decks, seat and seed), set by `play_one`
     games: list = field(default_factory=list)  # for a match (`match.play_match`), the games of it; then everything above is about the match
 
 
@@ -84,7 +85,7 @@ def play_one(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 60,
     makers = bots or [BotPlayer] * len(decks)
     game = Game([(make(f"P{i}", deck), deck) for i, (make, deck) in enumerate(zip(makers, decks))], seed=seed,
                 format=format_of(decks))
-    result = GameResult(focus_seat)
+    result = GameResult(focus_seat, seed=seed)
     logs = result.logs = {i: SeatLog() for i in range(len(decks))}
     deadline = time.monotonic() + time_limit
     forward = game.broadcast
@@ -174,6 +175,7 @@ class Record:
     board_limit: int = 0  # games that ended because the board passed BOARD_LIMIT permanents
     errors: int = 0  # crashed or timed out
     first_error: str = ""
+    first_error_at: str = ""  # which game it was: its seed and the focus seat, to replay it
     fair_share: float = 0.5
     turns: float = 0.0  # average length of the finished games
     on_play: tuple[int, int] = (0, 0)  # (wins, games) when the focus deck went first
@@ -212,7 +214,10 @@ def _record(name: str, results: list[GameResult], pod: int, best_of: int = 1) ->
             w, l, d = game_record(r)
             won, lost, drawn = won + w, lost + l, drawn + d
         record.game_record = (won, lost, drawn)
-    record.first_error = next((r.error for r in results if r.error), "") or ""
+    failed = next((r for r in results if r.error), None)
+    if failed is not None:
+        record.first_error = failed.error or ""
+        record.first_error_at = f"seed {failed.seed}, focus seat {failed.focus_seat}" if failed.seed is not None else ""
     lengths = []
     play, draw, stumbled, idle = [0, 0], [0, 0], [0, 0], [0, 0]
     for r in done:
