@@ -27,6 +27,8 @@ jobs:
         run: python tools/template_audit.py | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Whether the fully playable cards actually play
         run: python tools/play_smoke.py | tee -a "$GITHUB_STEP_SUMMARY" || true
+      - name: Whether the costs of their activated abilities can be paid
+        run: python tools/ability_smoke.py | tee -a "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-audit
