@@ -26,6 +26,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Remember how long each test module took, to balance the processes next time
+        uses: actions/cache@v4
+        with:
+          path: .cache/test_times.json
+          key: test-times-${{ matrix.python-version }}-${{ github.run_id }}
+          restore-keys: test-times-${{ matrix.python-version }}-
       - name: Run the test suite, across the runner's cores (#519)
         run: |
           echo "cores: $(nproc)"
