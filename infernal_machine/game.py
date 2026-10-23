@@ -1090,15 +1090,7 @@ class Game:
         if ability.loyalty is not None and (permanent.loyalty_turn == self.turn
                                             or (permanent.loyalty or 0) + ability.loyalty < 0):
             return False
-        if self._life_cost(seat, ability) > seat.life:  # CR 119.4
-            return False
-        if len(seat.hand) < ability.discard or len(self._exile_cost_choices(seat, ability)) < ability.exile_graveyard:
-            return False
-        if ability.sacrifice_other and not ability.sacrifice_x and len(self._sacrifice_choices(seat, permanent, ability)) < ability.sacrifice_count:
-            return False
-        if ability.remove_counter and permanent.counters.get(ability.remove_counter, 0) < ability.remove_count:
-            return False
-        if ability.tap_creatures and len(self._crew_candidates(seat, permanent, ability.tap_legendary, ability.tap_type)) < ability.tap_creatures:
+        if not self._card_costs_payable(seat, permanent, ability):
             return False
         if ability.condition and not self.condition_holds(ability.condition, seat, permanent):
             return False
@@ -1115,6 +1107,19 @@ class Game:
             return False
         return self._effects_possible(seat, ability.effects, source_qualities(card), permanent)
 
+    def _card_costs_payable(self, seat: Seat, source: Permanent | None, ability: ActivatedAbility) -> bool:
+        """Whether `seat` has what the ability's costs other than mana ask for: the life, the cards to discard or exile from the graveyard,
+        the permanents to sacrifice, the counters to remove, the creatures to tap. `source` is None when the ability works from a zone."""
+        if self._life_cost(seat, ability) > seat.life:  # CR 119.4
+            return False
+        if len(seat.hand) < ability.discard or len(self._exile_cost_choices(seat, ability)) < ability.exile_graveyard:
+            return False
+        if ability.sacrifice_other and not ability.sacrifice_x and len(self._sacrifice_choices(seat, source, ability)) < ability.sacrifice_count:
+            return False
+        if ability.remove_counter and source is not None and source.counters.get(ability.remove_counter, 0) < ability.remove_count:
+            return False
+        return not ability.tap_creatures or len(self._crew_candidates(seat, source, ability.tap_legendary, ability.tap_type)) >= ability.tap_creatures
+
     def _exile_cost_choices(self, seat: Seat, ability: ActivatedAbility) -> list[Card]:
         """The cards of `seat`'s graveyard that could be exiled to pay the ability's "Exile a creature card" cost."""
         return [c for c in seat.graveyard if _card_matches(ability.exile_graveyard_kind or "card", c)]
@@ -1127,7 +1132,7 @@ class Game:
         kind = _checked(ability.sacrifice_other)
         return [p for p in seat.battlefield if _permanent_matches(kind, p.card) and not (ability.sacrifice_another and p is source)]
 
-    def _crew_candidates(self, seat: Seat, vehicle: Permanent, legendary: bool = False, kind: str = "") -> list[Permanent]:
+    def _crew_candidates(self, seat: Seat, vehicle: Permanent | None, legendary: bool = False, kind: str = "") -> list[Permanent]:
         """The untapped creatures that could crew `vehicle` (summoning sickness doesn't matter, CR 702.122); only legendary
         ones, for Relic of Legends."""
         return [p for p in seat.battlefield if p is not vehicle and not p.tapped and "Creature" in p.card.type_line
@@ -1174,10 +1179,10 @@ class Game:
         self.broadcast({"event": "counters", "card": destination.card.name, "counter": counter,
                         "added": moved, "total": destination.counters[counter]})
 
-    def _pay_card_costs(self, seat: Seat, source: Permanent, ability: ActivatedAbility, sacrifice_x: int = 0) -> None:
+    def _pay_card_costs(self, seat: Seat, source: Permanent | None, ability: ActivatedAbility, sacrifice_x: int = 0, name: str = "") -> None:
         """Pay an activated ability's "Sacrifice a creature", "Discard a card" and "Exile a card from your
-        graveyard" costs (CR 602.2b)."""
-        name = source.card.name
+        graveyard" costs (CR 602.2b). `source` is None, and `name` the card's, when the ability works from a zone."""
+        name = source.card.name if source is not None else name
         if ability.crew:  # tap creatures until their power adds up to the crew number
             crewed = 0
             while crewed < ability.crew:
@@ -1209,9 +1214,9 @@ class Game:
             self._move_card(seat, card, "exile")
         if ability.exile_graveyard:
             self._left_graveyard(seat)
-        if ability.remove_counter:
+        if ability.remove_counter and source is not None:
             self.remove_counters(source, ability.remove_counter, ability.remove_count)
-        if ability.put_counter:
+        if ability.put_counter and source is not None:
             self.put_counters(source, ability.put_counter, 1, by=seat)
         self._pay_sacrifice_cost(seat, name, source, ability, sacrifice_x if ability.sacrifice_x else None)
 
@@ -1789,8 +1794,9 @@ class Game:
 
     def _zone_ability_payable(self, seat: Seat, ability: ActivatedAbility) -> bool:
         """Whether `seat` can pay the cost of an ability that works from the graveyard or the command zone: its mana (an ability with
-        none, "Sacrifice a Food: Return this card ...", costs nothing in mana) and the permanents it sacrifices."""
-        if ability.sacrifice_other and len(self._sacrifice_choices(seat, None, ability)) < ability.sacrifice_count:
+        none, "Sacrifice a Food: Return this card ...", costs nothing in mana) and the rest of it (the cards to discard, the permanents
+        to sacrifice, the creatures to tap)."""
+        if not self._card_costs_payable(seat, None, ability):
             return False
         return self._pay_cost(seat, cost_of(ability.mana_cost) if ability.mana_cost else Cost()) is not None
 
@@ -1807,7 +1813,7 @@ class Game:
         battlefield tapped." or Derevi's "{1}{G}{W}{U}: Put Derevi onto the battlefield from the command zone.": only its mana cost is
         paid; the card stays where it is until the ability resolves. "{3}{B}, Exile this card from your graveyard: Return another target
         creature card from your graveyard to your hand.": the targets are chosen first (the card is still there to be excluded), then it
-        is exiled."""
+        is exiled. The rest of its cost is paid as a battlefield ability's is: "Discard two cards: Return this card ..." discards them (#529)."""
         saved, self.targeting_card = self.targeting_card, card
         try:
             targets, labels = _checked(self._choose_targets(seat, list(ability.effects), card.name, None, source_qualities(card)))
@@ -1815,7 +1821,9 @@ class Game:
             self.targeting_card = saved
         tapped = _checked(self._pay_cost(seat, cost_of(ability.mana_cost))) if ability.mana_cost else Payment()
         self._spend_mana(seat, tapped)
-        self._pay_sacrifice_cost(seat, card.name, None, ability)
+        if life := self._life_cost(seat, ability):
+            self.change_life(seat, -life)
+        self._pay_card_costs(seat, None, ability, name=card.name)
         if ability.exile_from_graveyard:  # a cost: the ability exists apart from the card (CR 113.7a)
             seat.graveyard.remove(card)
             self._move_card(seat, card, "exile")
