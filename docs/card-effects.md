@@ -478,7 +478,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - **Triggers on what is attached:** "Whenever equipped (or enchanted) creature dies / deals combat damage to a
     player, ..." (the Equipment's or Aura's controller gets the trigger). "Whenever enchanted creature deals damage to
     an opponent, you may draw a card" (Curiosity, Keen Sense, Ophidian Eye; any damage, combat or not) and its combat
-    form (Sleeper's Robe): the opponent is an opponent of the Aura's controller, and damage to a creature or of 0 does not count. "When this Aura is put into a graveyard
+    form (Sleeper's Robe): the opponent is an opponent of the Aura's controller, and damage to a creature or of 0 does not count. The damage an ability deals ("Niv-Mizzet deals 1 damage to any target") is dealt by the permanent, so it sets these off, and a spell's damage, which no permanent deals, does not; with Niv-Mizzet, Parun it closes the draw loop. "When this Aura is put into a graveyard
     from the battlefield, return it to its owner's hand" (Rancor) works for any permanent, and so does "When
     enchanted creature dies, return this Aura to its owner's hand": it comes back from the graveyard it is in.
     Exiled, it isn't returned. Other Aura returns on "When enchanted creature dies" work too: "return it to the

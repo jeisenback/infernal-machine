@@ -61,7 +61,7 @@ class Damage:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.damage(target, game.amount(self.amount))
+            game.damage(target, game.amount(self.amount), source=game.resolving_source)  # CR 120.3: the ability's source deals it
 
 
 @dataclass(frozen=True)
@@ -70,7 +70,7 @@ class DamageToYou:
     amount: Quantity
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.damage(controller, game.amount(self.amount))
+        game.damage(controller, game.amount(self.amount), source=game.resolving_source)
 
 
 @dataclass(frozen=True)
@@ -162,7 +162,7 @@ class DamageWhatItAttacks:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         attack = next((a for a in game.combat.attacks if a.attacker is target), None) if target is not None else None
         if attack is not None:
-            game.damage(attack.walker if attack.walker is not None else attack.defender, self.amount)
+            game.damage(attack.walker if attack.walker is not None else attack.defender, self.amount, source=game.resolving_source)
 
 
 @dataclass(frozen=True)
@@ -293,13 +293,13 @@ class DamageEach:
         if self.creatures:
             kind = "creature" if self.creatures == "all" else "creature you don't control"
             for permanent in game.mass_targets(kind, controller, self.restriction):
-                game.damage(permanent, amount)
+                game.damage(permanent, amount, source=game.resolving_source)
             if self.creatures == "opponents and planeswalkers":  # Volcanic Torrent
                 for permanent in game.mass_targets("planeswalker you don't control", controller, None):
-                    game.damage(permanent, amount)
+                    game.damage(permanent, amount, source=game.resolving_source)
         if self.players:
             for seat in (game.live_seats() if self.players == "all" else game.opponents(controller)):
-                game.damage(seat, amount)
+                game.damage(seat, amount, source=game.resolving_source)
 
 
 @dataclass(frozen=True)
