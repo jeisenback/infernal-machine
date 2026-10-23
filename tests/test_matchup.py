@@ -139,6 +139,22 @@ class MatchupTests(unittest.TestCase):
         records = matchups(BEARS, {"walls": WALLS}, games=3, max_turns=10, time_limit=0.0)
         self.assertEqual((records[0].games, records[0].errors, records[0].first_error), (0, 3, "timeout"))
 
+    def test_a_crashed_game_says_which_game_it_was(self):
+        with mock.patch("infernal_machine.matchup.Game.play", side_effect=ValueError("boom")):
+            record, = matchups(BEARS, {"walls": WALLS}, games=3, max_turns=10)
+            result = play_one([BEARS, WALLS], 1, seed=77, max_turns=10)
+        self.assertEqual((record.errors, record.first_error), (3, "ValueError: boom"))
+        self.assertRegex(record.first_error_at, r"^seed \d+, focus seat 0$")
+        self.assertEqual((result.error, result.seed, result.focus_seat), ("ValueError: boom", 77, 1))
+
+    def test_a_timed_out_game_says_which_game_it_was_as_well(self):
+        record, = matchups(BEARS, {"walls": WALLS}, games=2, max_turns=10, time_limit=0.0)
+        self.assertRegex(record.first_error_at, r"^seed \d+, focus seat 0$")
+
+    def test_without_an_error_there_is_no_game_to_name(self):
+        record, = matchups(BEARS, {"walls": WALLS}, games=2, max_turns=10)
+        self.assertEqual((record.errors, record.first_error, record.first_error_at), (0, "", ""))
+
     def test_report_text(self):
         text = format_matchups(matchups(BEARS, {"walls": WALLS}, games=4, max_turns=10), "bears")
         self.assertIn("walls", text)

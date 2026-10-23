@@ -66,6 +66,10 @@ class Caster:
         effects = kicked_effects(effects, kicked, kickers)
         picked = self._pick_options(seat, card, alternative, kicked, bought_back, lambda mana: self._payment(
             seat, paying, from_command_zone, 0, alternative, kickers, extra + mana))
+        if free and not self._can_pay_extras(seat, card, alternative, kicked, bought_back):
+            # CR 601.2b, 601.2h: a spell whose additional cost can't be paid can't be cast, even for free (cascade, suspend ...): it stays where it is
+            self.game.broadcast({"event": "cant_cast", "seat": seat.index, "card": card.name})
+            return
         extra += "".join(o.mana for o in picked)  # "pay {3}{B}" as an additional cost
         x = 0  # announced before the targets (CR 601.2b-c): "up to X target creatures" needs it
         if alternative is None and (cost_of(paying.mana_cost).x or any(c.sacrifice_x for c in additional_costs(card))):

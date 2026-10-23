@@ -32,6 +32,12 @@ def features(text: str) -> frozenset[str]:
     return names
 
 
+def error_note(record) -> str:
+    """How a pair line says that games crashed or timed out: how many, the first one's error, and which game it was (to replay it)."""
+    at = f" ({record.first_error_at})" if record.first_error_at else ""
+    return f"  [{record.errors} errors: {record.first_error}{at}]"
+
+
 def save(path: str | None, args: argparse.Namespace, wins: int, games: int, errors: int) -> None:
     if path:
         with open(path, "w", encoding="utf-8") as f:
@@ -66,7 +72,7 @@ def main() -> int:
             record, = matchups(decks[name], others, args.games, args.pod, args.seed, 120, args.time_limit, args.workers, candidate, baseline)
             wins, games, errors = wins + record.wins, games + record.games, errors + record.errors
             print(f"{name[:24]:<24} in a pod of {args.pod}: {record.wins}-{record.losses}-{record.draws}"
-                  + (f"  [{record.errors} errors: {record.first_error}]" if record.errors else ""), flush=True)
+                  + (error_note(record) if record.errors else ""), flush=True)
         low, high = wilson(wins, games)
         print(f"\ncandidate [{args.features or 'plain'}] vs baseline [{args.against or 'plain'}] in pods of {args.pod}: {wins}/{games} = "
               f"{wins / games:.1%} (95% interval {low:.1%}-{high:.1%}; a fair share is {1 / args.pod:.0%}); {errors} crashed or timed out")
@@ -78,7 +84,7 @@ def main() -> int:
             record, = matchups(decks[focus], {opponent: decks[opponent]}, args.games, 2, args.seed, 60, args.time_limit, args.workers, candidate, baseline)
             wins, games, errors = wins + record.wins, games + record.games, errors + record.errors
             print(f"{focus[:24]:<24} vs {opponent[:24]:<24} {record.wins}-{record.losses}-{record.draws}"
-                  + (f"  [{record.errors} errors: {record.first_error}]" if record.errors else ""), flush=True)
+                  + (error_note(record) if record.errors else ""), flush=True)
     low, high = wilson(wins, games)
     print(f"\ncandidate [{args.features or 'plain'}] vs baseline [{args.against or 'plain'}]: {wins}/{games} = {wins / games:.1%} "
           f"(95% interval {low:.1%}-{high:.1%}); {errors} crashed or timed out")
