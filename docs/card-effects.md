@@ -532,6 +532,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     The Wind Crystal (you gain twice that much life, after Pest Rescuer's extra one), and Academy Manufactor (a Clue, Food or
     Treasure token you would create becomes one of each, before any token doubling). All stack, and only the effect's
     controller's own events count.
+  - Chatterfang, Squirrel General: "If one or more tokens would be created under your control, those tokens plus that many 1/1 green
+    Squirrel creature tokens are created instead." Every batch of tokens its controller creates comes with as many 1/1 green Squirrels, applied
+    after Academy Manufactor and before token doubling (so Doubling Season doubles the Squirrels too); two Chatterfangs each add that many
+    Squirrels to what the other left, and the Squirrels it makes do not make more. His "{B}, Sacrifice X Squirrels: Target creature gets
+    +X/-X until end of turn." asks for X (up to the Squirrels you control, himself included), sacrifices that many as a cost, and pumps by X.
   - Vorinclex, Monstrous Raider and Innkeeper's Talent at level 3: "If you would put one or more counters on a permanent or player,
     put twice that many ... instead" doubles every counter their controller puts, on any permanent or player (the counters a
     permanent enters with are put by its controller; poison from infect or toxic by the source's controller); Vorinclex's "If an
@@ -1242,6 +1247,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   | Exile a card from your graveyard | "{1}, Exile a card from your graveyard: You gain 1 life." |
   | Remove a counter, or two to five, from this (+1/+1 or a named one) | "{2}{G}, Remove a +1/+1 counter from this creature: Destroy target artifact or enchantment." / "Remove three spore counters from this creature: Create a 1/1 green Saproling creature token." (the Thallids) |
   | Sacrifice a Food / Treasure / Clue | "{1}, Sacrifice a Food: Target creature gains indestructible until end of turn. Tap it." |
+  | Sacrifice X creatures (of a type) | Chatterfang: "{B}, Sacrifice X Squirrels: Target creature gets +X/-X until end of turn." (X is asked, then that many are sacrificed; plurals like "two Squirrels" read too) |
 
   - They can be activated whenever you have priority, unless they say "Activate only as a sorcery".
     "Activate only once each turn" is respected.

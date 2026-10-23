@@ -669,6 +669,10 @@ _DOUBLE_PLUS_ONE = ("If one or more +1/+1 counters would be put on a creature yo
                     "put on that creature instead.")  # Branching Evolution
 
 
+_SQUIRRELS = ("If one or more tokens would be created under your control, those tokens plus that many 1/1 green Squirrel creature tokens "
+              "are created instead.")  # Chatterfang, Squirrel General
+
+
 _MANUFACTOR = "If you would create a Clue, Food, or Treasure token, instead create one of each."
 
 
@@ -718,6 +722,7 @@ class Replacements:
     life_gain_plus: int = 0  # Pest Rescuer: its controller gains that much more life whenever they gain life
     life_gain_factor: int = 1  # how many times as much life its controller gains (The Wind Crystal)
     plus_one_factor: int = 1  # how many times as many +1/+1 counters go on its controller's creatures (Branching Evolution)
+    squirrels: bool = False  # Chatterfang: as many 1/1 Squirrels as the tokens its controller creates, besides them
     manufactor: bool = False  # Academy Manufactor: a Clue, Food or Treasure token becomes one of each
     graveyard_self: bool = False  # this one is exiled instead of going to a graveyard (a Disturb back)
     draw_double: tuple[str, ...] = ()  # "always", "extra" (not the draw step's first card) or "empty" (no cards in hand): a draw is two cards
@@ -756,6 +761,8 @@ def replacement_effects(card: Card) -> Replacements:
             found["plus_one_factor"] = found.get("plus_one_factor", 1) * 2
         elif line == _MANUFACTOR:
             found["manufactor"] = True
+        elif line == _SQUIRRELS:
+            found["squirrels"] = True
         elif line == _DIE_EXILE_OPPONENT:
             found["die_exile"] = "opponent"
         elif _DIE_EXILE_SELF.fullmatch(line):
@@ -917,7 +924,7 @@ def enters_by_discarding_land(card: Card) -> bool:
 def is_replacement_line(line: str) -> bool:
     return (line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
-                     _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
+                     _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _SQUIRRELS, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
                      _HALVE_OPPONENTS_PUT, _PROLIFERATE_TWICE)
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None or _damage_modifier(line) is not None)
 
