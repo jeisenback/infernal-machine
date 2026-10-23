@@ -1,6 +1,7 @@
 """Run the test suite in parallel processes (issue #441): python tools/run_tests.py [--jobs N] [MODULE ...]
 
-The same tests as `python -m unittest discover -s tests -t .`, which CI runs and which takes about seven minutes in one process. This
+The same tests as `python -m unittest discover -s tests -t .`, which takes about seven minutes in one process; CI runs this script instead (#519),
+on the runner's four cores, with the times file restored from the last run. This
 splits the test modules across processes (balanced by how long each took last time, kept in `.cache/test_times.json`, else by file
 size) and prints the same kind of summary: the tests run, the failures with their tracebacks, and the time. Exit code 1 if anything failed.
 Name modules (`tests.test_zone_plays`) to run only those.
