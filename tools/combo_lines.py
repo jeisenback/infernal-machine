@@ -215,8 +215,8 @@ def run(line: Line, cards: dict[str, Card], rounds: int) -> str:
         after = line.measure(game, mine) if line.measure else 0
         return f"ends on its own, {line.unit} {before} to {after}"
     after = line.measure(game, mine) if line.measure else 0
-    if line.cost is not None:
-        return f"runs {rounds} rounds; one tap yields {after} mana, a round pays {line.cost} ({after - line.cost:+d})"
+    if line.cost is not None:  # read before the loop: the pool pays first, so what is left after it depends on the round
+        return f"runs {rounds} rounds; one tap yields {before} mana, a round pays {line.cost} ({before - line.cost:+d})"
     gain = f", {line.unit} {before} to {after}" if line.measure else ""
     return f"runs {rounds} rounds{gain}"
 

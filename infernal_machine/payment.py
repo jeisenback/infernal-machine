@@ -63,6 +63,7 @@ class Payment(list["Permanent"]):
     filters: tuple["Permanent", ...] = ()  # the permanents whose Signet-style ability ("{1}, {T}: Add ...") was used
     counters: tuple[tuple["Permanent", str, int], ...] = ()  # the lands whose mana cost counters (Vivid, depletion, storage): which, how many
     phyrexian_life: int = 0  # how many Phyrexian mana symbols were paid with 2 life instead of mana (Compleated reads it)
+    surplus: tuple[frozenset[str], ...] = ()  # the mana the tapped permanents made and the cost did not use: it goes to the pool (CR 106.4)
 
 
 class ManaPayer:
@@ -390,6 +391,12 @@ class ManaPayer:
         payment = Payment({id(p): p for p in permanents}.values())
         payment.pool = tuple(s.types for s, _ in used if s.permanent is None and not s.life)  # a life-paid {C} (Channel) isn't pooled
         payment.filters = tuple(p for p, _, _ in ordered)
+        # CR 106.4: a Sol Ring tapped for {1} made {C}{C}, and the other {C} stays in the pool until the step ends. Mana with a
+        # restriction, a cost in life or damage, or a counter taken off the permanent is left out: whether it pays for the next thing is its own question.
+        tapped = {id(p) for p in permanents}
+        spent = set(chosen)
+        payment.surplus = tuple(s.types for i, s in enumerate(pool) if i not in spent and s.permanent is not None and id(s.permanent) in tapped
+                                and not (s.restriction or s.pain or s.counter or s.life))
         # A permanent hurts (or costs life) once per tap, however many of its mana are used.
         hurt: dict[int, int] = {}
         paid_life: dict[int, int] = {}
@@ -457,3 +464,4 @@ class ManaPayer:
             self.game.change_life(seat, -life)
         for unit in getattr(sources, "pool", ()):
             seat.mana_pool.remove(unit)
+        seat.mana_pool.extend(getattr(sources, "surplus", ()))  # (no event: it is the cost's own change, and the snapshot shows the pool)
