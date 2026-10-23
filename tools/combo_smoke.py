@@ -45,14 +45,14 @@ def run_stack(game: Game) -> None:
             game._check_state()
 
 
-def table(pieces: list[Card]) -> tuple[Game, object]:
-    players = [ScriptedPlayer("A", first_option), ScriptedPlayer("B", first_option)]
+def table(pieces: list[Card], opponents: int = 1) -> tuple[Game, object]:
+    players = [ScriptedPlayer(name, first_option) for name in "ABCDE"[:opponents + 1]]
     deck = Deck(commanders=[COMMANDER], main=[RAINBOW] * 20, sideboard=[])
     game = Game([(player, deck) for player in players], seed=1)
     game.turn, game.active, game.step = 2, 0, "main1"
     for seat in game.seats:
         seat.hand, seat.command_zone = [], []
-    mine, theirs = game.seats
+    mine, theirs = game.seats[0], game.seats[1]
     mine.battlefield = [Permanent(RAINBOW) for _ in range(12)]
     theirs.battlefield = [Permanent(OGRE), Permanent(BEAR)]
     for card in pieces:
