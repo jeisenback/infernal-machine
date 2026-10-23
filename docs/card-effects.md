@@ -455,6 +455,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     while the condition holds, checked each time you pay. "{1}, {T}: Add one mana of any color." (Hall of Oracles) works
     like a Signet. A filter or Signet can no longer tap for mana to pay for its own cost (a land with a plain
     {T}: Add {C} could before).
+  - **Mana a payment doesn't use stays in the pool** (CR 106.4): Sol Ring tapped for a {1} spell made {C}{C}, and the other {C} pays for
+    the next spell or ability that step, as the mana of a ritual does; the pool empties at the end of the step. Mana with a restriction
+    (Jegantha's, which can't pay generic costs), mana that cost life or damage to make, and mana that took a counter off its permanent
+    are not kept.
   - "{T}: Add {G} for each creature you control" (Gaea's Cradle, Elvish Archdruid) and "{2}, {T}: Add {B} for each Swamp
     you control" (Cabal Coffers): the amount is worked out each time you pay. Coffers' {2} is paid first, so it is only
     worth it with enough Swamps (the payment picks the first mana that fits).
