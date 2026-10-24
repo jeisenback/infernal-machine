@@ -47,6 +47,7 @@ from .prompts import PRIORITY_PROMPT, PromptKind
 _T = TypeVar("_T")
 
 STARTING_LIFE = 40
+LOOP_CHECK_AFTER = 1000  # stack resolutions in one priority round after which the game state is compared from one resolution to the next (see LoopDraw)
 BOARD_LIMIT = 300  # permanents in play, all players together, past which a game is ended as a draw (see BoardLimitReached)
 HAND_SIZE = 7
 STEPS = [
@@ -577,6 +578,11 @@ class BoardLimitReached(Exception):
     creature, every turn, or within one resolution), but each step costs more as the board grows, so such a game never finishes.
     `Game.play` catches this and ends the game as a draw, with `Game.ended` set to "board_limit"."""
 
+class LoopDraw(Exception):
+    """The game state came back exactly as it was while only stack items were resolving and nobody did anything but pass: a loop of
+    mandatory actions with no way to stop, which draws the game (CR 104.4b). `Game.play` catches this and ends the game as a draw, with
+    `Game.ended` set to "loop"."""
+
 
 class Game:
     # What the mana being paid is for, so "Spend this mana only ..." sources can say whether they qualify: a spell, or an
@@ -590,7 +596,7 @@ class Game:
             raise ValueError(f"{format.name.capitalize()} needs at least two players")
         self.format = format
         self.board_limit = board_limit  # None for no limit
-        self.ended: str | None = None  # why the game stopped without a winner, if it did: "board_limit"
+        self.ended: str | None = None  # why the game stopped without a winner, if it did: "board_limit" or "loop"
         self.rng = random.Random(seed)
         self.seats = [
             Seat(
@@ -713,6 +719,8 @@ class Game:
                 self.active = self._next_turn_seat()
         except BoardLimitReached:
             self.ended = "board_limit"  # the turn was cut off mid-way: nobody wins
+        except LoopDraw:
+            self.ended = "loop"
         winner = None if self.ended else self.winner()
         self.broadcast({"event": "game_over", "winner": winner.index if winner else None, "turn": self.turn,
                         **({"reason": self.ended} if self.ended else {})})
@@ -904,6 +912,26 @@ class Game:
             self.delayed = [d for d in self.delayed if not d.expired(self)]
         self._check_state()
 
+    def _loop_state(self) -> tuple:
+        """Everything that decides what happens next, as a hashable value: two equal states mean the same thing will happen again.
+        Permanents are described by what they are, not by identity, since a loop may put the same card back as a new object."""
+        def describe(thing: object) -> object:
+            if isinstance(thing, Seat):
+                return ("seat", thing.index)
+            if isinstance(thing, Permanent):
+                return ("permanent", thing.card.name, thing.tapped)
+            return getattr(thing, "name", type(thing).__name__)
+
+        seats = []
+        for seat in self.seats:
+            battlefield = tuple((p.card.name, p.tapped, p.sick, tuple(sorted(p.counters.items())), p.damage,
+                                 seat.battlefield.index(p.attached_to) if p.attached_to in seat.battlefield else -1) for p in seat.battlefield)
+            zones = tuple(tuple(c.name for c in zone) for zone in (seat.hand, seat.library, seat.graveyard, seat.exile, seat.command_zone))
+            seats.append((seat.life, seat.lost, battlefield, zones, tuple(sorted(tuple(sorted(u)) for u in seat.mana_pool))))
+        stack = tuple((item.card.name, item.controller.index, item.x, tuple(describe(t) for t in item.targets)) for item in self.stack)
+        pending = tuple((t.controller.index, t.card.name if t.card else t.permanent.card.name if t.permanent else "") for t in self.pending)
+        return (self.turn, self.step, self.active, tuple(seats), stack, pending, hash(self.rng.getstate()))
+
     def _priority_round(self, active: Seat) -> None:
         """Pass priority around the table (CR 117.4).
 
@@ -912,11 +940,19 @@ class Game:
         """
         passes = 0
         holder = active
+        resolved = 0  # stack items resolved since a player last did something
+        seen: set = set()
         self._put_triggers_on_stack()
         while True:
             if passes >= len(self.live_seats()):
                 if not self.stack:
                     return
+                resolved += 1
+                if resolved > LOOP_CHECK_AFTER:  # CR 104.4b: only passes and resolutions, and the game is where it was before
+                    state = self._loop_state()
+                    if state in seen:
+                        raise LoopDraw()
+                    seen.add(state)
                 self._resolve(self.stack.pop())
                 holder = active  # after resolving, the active player gets priority (CR 117.3b)
             else:
@@ -927,6 +963,8 @@ class Game:
                     passes += 1
                     holder = self.seats[self._next_live_seat(holder.index)]
                     continue
+                resolved = 0  # something was done: a player could have stopped it, so this is no loop of mandatory actions
+                seen.clear()
                 self._perform(holder, choice)  # the same player gets priority again (CR 117.3c)
             passes = 0
             self._check_state()
