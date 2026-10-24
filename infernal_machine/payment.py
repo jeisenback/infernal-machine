@@ -246,7 +246,7 @@ class ManaPayer:
                     mana = mana | {NOT_GENERIC} if restriction == "not_generic" else mana
                     bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage, restriction=restriction))
         if effects := self._tap_mana_effects(seat):
-            abilities, lands, sacrifices = (self._tapped_for_mana(effects, bucket) for bucket in (abilities, lands, sacrifices))
+            abilities, lands, sacrifices = (self._tapped_for_mana(effects, bucket, seat) for bucket in (abilities, lands, sacrifices))
         return pooled + abilities + lands + sacrifices + self._convoke_sources(seat, exclude, pooled + abilities + lands + sacrifices)
 
     def _tap_mana_effects(self, seat: Seat) -> list:
@@ -255,14 +255,17 @@ class ManaPayer:
                 for effect in tap_mana(p.card) if owner is seat or effect.anyone]
 
     @staticmethod
-    def _tap_extra(effects: list, permanent: Permanent, units: list[frozenset[str]]) -> tuple[int, list[frozenset[str]]]:
+    def _tap_extra(effects: list, permanent: Permanent, units: list[frozenset[str]],
+                   also: frozenset[str] = frozenset()) -> tuple[int, list[frozenset[str]]]:
         """For one permanent tapped for `units` of mana: how many times as much it makes (CR 106.12b, Nyxbloom Ancient: two of them
         make it nine times) and the mana the triggers add, once per tap however much it made (CR 106.12a, Kinnan). "Any type that
-        permanent produced" is read as any type it can make in this tap, a little generous for a land that makes one of two."""
+        permanent produced" is read as any type it can make in this tap, a little generous for a land that makes one of two.
+        `also` is the restricted mana it could make that this payment can't spend (Delighted Halfling's blue, for a cost that is not a
+        legendary spell): the mana a trigger adds is not restricted, so Kinnan's extra mana can be of those types."""
         if not units or counter_mana(permanent.card) is not None or mana_ability_needs_no_tap(permanent.card):
             return 1, []  # no {T} in the cost: it isn't tapped for mana
         times, extra = 1, []
-        produced = frozenset().union(*units) & frozenset("WUBRGC")
+        produced = (frozenset().union(*units) | also) & frozenset("WUBRGC")
         for effect in effects:
             if matches(effect.kind, permanent.card):
                 if effect.times > 1:
@@ -271,7 +274,16 @@ class ManaPayer:
                     extra.append(effect.extra or produced)
         return times, extra
 
-    def _tapped_for_mana(self, effects: list, sources: list[ManaSource]) -> list[ManaSource]:
+    def _unusable_restricted_types(self, seat: Seat, permanent: Permanent) -> frozenset[str]:
+        """The types of the restricted mana `permanent` could make if this payment could spend it, which it can't."""
+        limited = restricted_mana(permanent.card)
+        if limited is None or self._restricted_units(seat, permanent, limited):
+            return frozenset()
+        if limited.condition is not None and not self.game.condition_holds(limited.condition, seat, permanent):
+            return frozenset()
+        return frozenset().union(*limited.mana)
+
+    def _tapped_for_mana(self, effects: list, sources: list[ManaSource], seat: Seat) -> list[ManaSource]:
         by_permanent: dict[int, list[ManaSource]] = {}
         for source in sources:
             by_permanent.setdefault(id(source.permanent), []).append(source)
@@ -279,7 +291,7 @@ class ManaPayer:
         for own in by_permanent.values():
             permanent = own[0].permanent
             assert permanent is not None
-            times, extra = self._tap_extra(effects, permanent, [s.types for s in own])
+            times, extra = self._tap_extra(effects, permanent, [s.types for s in own], self._unusable_restricted_types(seat, permanent))
             # A storage land's mana costs a counter each: its multiplied mana is left out rather than charged wrongly.
             result += [s for s in own for _ in range(1 if s.counter_each else times)]
             result += [ManaSource(permanent, mana) for mana in extra]

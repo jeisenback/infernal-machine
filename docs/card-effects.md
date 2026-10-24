@@ -591,7 +591,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Chosen type and color (#200): Cavern of Souls, Unclaimed Territory and Pillar of Origins make one mana of any color
     only for a creature spell of the type named as they entered, and Delighted Halfling only for a legendary spell; the
     colorless mana of the land still pays for anything. Mana from Cavern of Souls or the Halfling that is spent on such a spell
-    makes it uncounterable (a Cavern tapped for such a spell is treated as having made its colored mana). "This creature is
+    makes it uncounterable (a Cavern tapped for such a spell is treated as having made its colored mana). Kinnan's extra mana ("add one mana of any type that permanent produced") is not restricted, and it can be of the type the restricted mana would have been: the Halfling and Kinnan pay Freed from the Real's {U}, which repeats. "This creature is
     the chosen type in addition to its other types" adds the type to the permanent's type line (it goes to the graveyard as the
     card it was); "Other creatures you control of the chosen type get +1/+1" (Adaptive Automaton), "Creatures you control of the
     chosen color get +N/+N" (Heraldic Banner, Hall of Triumph), Metallic Mimic's extra +1/+1 counter for each other creature
