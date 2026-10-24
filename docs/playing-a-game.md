@@ -158,3 +158,12 @@ precon games was about 70, and a limit of 300 only ends a game that has gone wro
   that way, so a runaway is not mistaken for a timeout or a crash.
 - **`tools/bot_games.py`:** prints the seeds of games that ended at the limit and still exits 0, since a runaway board is a finding and not
   a crash; replay one with `--start SEED --games 1`.
+
+A loop that does not grow the board is the other way a game can fail to finish. CR 104.4b: a loop of mandatory actions with no way to
+stop is a draw (a loop with an optional action in it is not, and neither is one that ends when a player loses). In `Game._priority_round`,
+after 1000 stack items have resolved with nobody doing anything but passing, the game state (every seat's zones, life, mana, the stack,
+the pending triggers and the random generator) is compared from one resolution to the next; the first time one comes back exactly,
+`LoopDraw` is raised, `Game.play` sets `game.ended` to `"loop"`, returns no winner, and the `game_over` event carries `"reason": "loop"`.
+Any action a player takes resets the count. This is only the exact repeat: a loop that adds something each time (a token, a counter) is
+not seen as one and meets the board limit instead. `tools/bot_games.py` prints the seeds of games drawn this way. A combo whose loop is
+the player's own choice, like the ones `tools/combo_lines.py` plays, is never one of these: every round has an action in it.

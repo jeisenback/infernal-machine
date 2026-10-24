@@ -39,6 +39,7 @@ def main(argv: list[str]) -> int:
     wins: collections.Counter = collections.Counter()
     crashes: list[tuple[int, list[str], str]] = []
     limited: list[int] = []  # games that ended because the board passed the permanent limit: a runaway, not a crash
+    looped: list[int] = []  # games drawn by a loop of mandatory actions whose state came back (CR 104.4b)
     limit = BOARD_LIMIT
     started = time.time()
     for seed in range(args.start, args.start + args.games):
@@ -54,11 +55,15 @@ def main(argv: list[str]) -> int:
             if game.ended == "board_limit":
                 limited.append(seed)
                 limit = game.board_limit or BOARD_LIMIT
+            elif game.ended == "loop":
+                looped.append(seed)
     print(f"games {args.start}..{args.start + args.games - 1}: {args.games - len(crashes)} finished, "
           f"{len(crashes)} crashed, wins {dict(wins)}, {time.time() - started:.0f}s")
     if limited:
         print(f"{len(limited)} ended as draws at the board limit ({limit} permanents), seeds {limited}: a token engine out of control. "
               "Replay one with --start SEED --games 1.")
+    if looped:
+        print(f"{len(looped)} ended as draws by a loop, seeds {looped}. Replay one with --start SEED --games 1.")
     for seed, names, trace in crashes:
         print(f"\nseed {seed} ({', '.join(names)}):\n{trace}")
     return 1 if crashes else 0

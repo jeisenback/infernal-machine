@@ -29,7 +29,7 @@ sys.path.insert(0, os.getcwd())
 
 from infernal_machine.cards import Card  # noqa: E402
 from infernal_machine.effects.outcomes import SQUIRREL, TREASURE  # noqa: E402
-from infernal_machine.game import BoardLimitReached, Game, Permanent, Seat  # noqa: E402
+from infernal_machine.game import BoardLimitReached, Game, LoopDraw, Permanent, Seat  # noqa: E402
 from tools.combo_smoke import run_stack, table  # noqa: E402
 
 Measure = Callable[[Game, Seat], int]
@@ -211,6 +211,8 @@ def run(line: Line, cards: dict[str, Card], rounds: int) -> str:
                 return f"wins in round {number}"
     except BoardLimitReached:
         return f"runs to the board limit in round {done + 1}"
+    except LoopDraw:
+        return f"ends as a draw by a loop in round {done + 1}"
     if not line.loop:  # the start sets it going and the triggers do the rest
         after = line.measure(game, mine) if line.measure else 0
         return f"ends on its own, {line.unit} {before} to {after}"
