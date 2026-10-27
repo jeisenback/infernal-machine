@@ -15,6 +15,9 @@ CHATTERFANG = real("Chatterfang, Squirrel General", "{2}{G}", "Legendary Creatur
                    "long as defending player controls a Forest.)\nIf one or more tokens would be created under your control, those tokens plus that many "
                    "1/1 green Squirrel creature tokens are created instead.\n{B}, Sacrifice X Squirrels: Target creature gets +X/-X until end of turn.",
                    "3", "3", colors=("G",))
+KINNAN = real("Kinnan, Bonder Prodigy", "{G}{U}", "Legendary Creature \u2014 Human Druid", "Whenever you tap a nonland permanent for mana, add one mana of any "
+              "type that permanent produced.\n{5}{G}{U}: Look at the top five cards of your library. You may put a non-Human creature card from among them "
+              "onto the battlefield. Put the rest on the bottom of your library in a random order.", "2", "2", colors=("G", "U"))
 UNTAP = "{3}: Untap this artifact"
 
 
@@ -68,6 +71,32 @@ class ShortcutTests(unittest.TestCase):
         with self.assertRaises(BoardLimitReached):
             take(game, mine, Shortcut(("Warren Soultrader",), ("Bear", "Squirrel 1/1")), 10)
         self.assertIs(mine.player, original)
+
+
+class KeepPoolTests(unittest.TestCase):
+    """Kinnan with Basalt Monolith: a tap makes four, the untap pays three. The game spends the pool first, which keeps the pool where it
+    was; a shortcut that keeps the pool pays from the permanent first, so the extra mana builds up."""
+
+    def table(self):
+        game, _, _ = table()
+        mine = game.seats[0]
+        mine.battlefield = [Permanent(BASALT), Permanent(KINNAN, sick=False)]
+        return game, mine
+
+    def test_the_surplus_builds_up_one_a_round(self):
+        game, mine = self.table()
+        take(game, mine, Shortcut((UNTAP,)), 6, keep_pool=True)
+        self.assertEqual(len(mine.mana_pool), 6)
+
+    def test_by_default_the_pool_is_spent_first_and_stays_small(self):
+        game, mine = self.table()
+        take(game, mine, Shortcut((UNTAP,)), 6)
+        self.assertLess(len(mine.mana_pool), 4)
+
+    def test_the_order_is_put_back_afterwards(self):
+        game, mine = self.table()
+        take(game, mine, Shortcut((UNTAP,)), 2, keep_pool=True)
+        self.assertFalse(game.pool_last)
 
 
 class PickTests(unittest.TestCase):

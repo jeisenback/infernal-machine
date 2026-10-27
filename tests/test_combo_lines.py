@@ -34,7 +34,7 @@ class RunnerTests(unittest.TestCase):
 
     def test_a_mana_loop_reports_what_one_tap_yields_against_what_a_round_pays(self):
         line = Line("Basalt Monolith", "-", ("Basalt Monolith",), loop=("{3}: Untap this artifact",), measure=mana_yield, cost=3)
-        self.assertEqual(run(line, CARDS, 5), "runs 5 rounds; one tap yields 3 mana, a round pays 3 (+0)")
+        self.assertEqual(run(line, CARDS, 5), "runs 5 rounds; one tap yields 3 mana, a round pays 3 (+0); 0 in the pool")
 
     def test_a_step_with_until_takes_no_action_when_what_it_waits_for_is_offered(self):
         line = Line("Skirk Prospector", "-", ("Skirk Prospector",), setup=goblins(2), loop=("Skirk Prospector until Skirk Prospector",),

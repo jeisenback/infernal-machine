@@ -247,7 +247,10 @@ class ManaPayer:
                     bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage, restriction=restriction))
         if effects := self._tap_mana_effects(seat):
             abilities, lands, sacrifices = (self._tapped_for_mana(effects, bucket, seat) for bucket in (abilities, lands, sacrifices))
-        return pooled + abilities + lands + sacrifices + self._convoke_sources(seat, exclude, pooled + abilities + lands + sacrifices)
+        taken = pooled + abilities + lands + sacrifices
+        if self.game.pool_last:  # a loop that makes more than it pays leaves the rest in the pool, instead of paying with it the next time
+            return abilities + lands + sacrifices + self._convoke_sources(seat, exclude, taken) + pooled
+        return taken + self._convoke_sources(seat, exclude, taken)
 
     def _tap_mana_effects(self, seat: Seat) -> list:
         """What changes the mana `seat`'s permanents make when tapped: its own Kinnan or Nyxbloom Ancient, and anyone's Mana Flare."""

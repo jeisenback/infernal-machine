@@ -63,10 +63,13 @@ class _Declared:
         return getattr(self._player, name)
 
 
-def take(game: Game, seat: Seat, shortcut: Shortcut, times: int) -> ShortcutResult:
-    """Go round `shortcut` up to `times` times as `seat`."""
-    original = seat.player
+def take(game: Game, seat: Seat, shortcut: Shortcut, times: int, keep_pool: bool = False) -> ShortcutResult:
+    """Go round `shortcut` up to `times` times as `seat`. With `keep_pool` the loop pays from its permanents before the mana pool, so
+    that what a round makes over what it pays builds up in the pool (a player may pay with either; the game ordinarily spends the pool
+    first, which keeps the pool where it was)."""
+    original, pool_last = seat.player, game.pool_last
     seat.player = _Declared(original, shortcut.answers)
+    game.pool_last = keep_pool or pool_last
     done = 0
     try:
         for number in range(1, times + 1):
@@ -85,6 +88,7 @@ def take(game: Game, seat: Seat, shortcut: Shortcut, times: int) -> ShortcutResu
             done = number
     finally:
         seat.player = original
+        game.pool_last = pool_last
     return ShortcutResult(done, None, _over(game))
 
 

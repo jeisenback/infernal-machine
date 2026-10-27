@@ -155,7 +155,8 @@ player as usual). It stops when a step is not offered (and says which, in which 
 Nothing in the game proposes one yet; `tools/combo_lines.py` is the one user, and a bot that follows a combo line would be the next.
 
 What it does not do: make anything infinite. N rounds give N rounds' worth, and the payer spends the mana pool before it taps anything,
-so a loop that makes one mana more than it pays leaves the pool where it was, not N mana richer. A round that grows the board meets the
+so a loop that makes one mana more than it pays leaves the pool where it was, not N mana richer. `take(..., keep_pool=True)` (`Game.pool_last`) has the payer spend the pool last, so the surplus of each round stays in it (a prototype for
+`tools/combo_lines.py`; nothing else sets it). A round that grows the board meets the
 board limit; one whose whole state comes back is drawn (`LoopDraw`). Opponents get no chance to respond inside it.
 
 ## Runaway boards

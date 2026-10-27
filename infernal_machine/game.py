@@ -597,6 +597,7 @@ class Game:
         self.format = format
         self.board_limit = board_limit  # None for no limit
         self.ended: str | None = None  # why the game stopped without a winner, if it did: "board_limit" or "loop"
+        self.pool_last = False  # a payment takes mana from the permanents before it takes what is in the pool (see shortcut.take)
         self.rng = random.Random(seed)
         self.seats = [
             Seat(
