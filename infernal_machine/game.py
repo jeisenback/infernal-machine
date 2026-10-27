@@ -3093,6 +3093,10 @@ class Game:
                             self.trigger("host_damage_opponent", attachment, holder, source, player=target)
                             if combat:
                                 self.trigger("host_combat_damage_opponent", attachment, holder, source, player=target)
+            dealer = controller or (self.resolving_item.controller if self.resolving_item is not None else None)  # a spell's damage has no permanent
+            if amount > 0 and not combat and dealer is not None and dealer is not target:  # Niv-Mizzet, Visionary
+                for permanent in list(dealer.battlefield):
+                    self.trigger("ally_noncombat_damage", permanent, dealer, subject=source, x=amount)
             if combat and amount > 0 and source is not None and not self.loses_abilities(source) \
                     and (toxic := toxic_of(source.card)):
                 self.give_poison(target, toxic, by=controller)  # Toxic N: that many poison counters in addition to the damage

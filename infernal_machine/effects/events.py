@@ -131,6 +131,7 @@ declare("lose_life", re.compile(r"Whenever you lose life, (.+)", re.I), to="you"
 declare("exploits", re.compile(rf"When(?:ever)? {_SELF} exploits a creature, (.+)", re.I))  # the Exploit keyword (Game.exploit)
 declare("sacrifice_creature", re.compile(r"Whenever you sacrifice a creature, (.+)", re.I))
 declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals combat damage to a player, (.+)", re.I), about_creature=True)
+declare("ally_noncombat_damage", re.compile(r"Whenever a source you control deals noncombat damage to an opponent, (.+)", re.I), about_creature=True)  # Niv-Mizzet, Visionary
 declare("token_combat_damage", re.compile(r"Whenever a creature token you control deals combat damage to a player, (.+)",
                                       re.I), about_creature=True)
 declare("host_attacks", re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I), about_creature=True)
