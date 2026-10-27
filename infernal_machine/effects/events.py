@@ -134,6 +134,7 @@ declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals
 declare("ally_noncombat_damage", re.compile(r"Whenever a source you control deals noncombat damage to an opponent, (.+)", re.I), about_creature=True)  # Niv-Mizzet, Visionary
 declare("paired_damage_opponent", re.compile(rf"As long as {_SELF} is paired with another creature, each of those creatures has "
                                               r"\"Whenever this creature deals damage to an opponent, (.+?)\"", re.I), about_creature=True, about_player=True)  # Tandem Lookout (Soulbond)
+declare("dinosaur_damaged", re.compile(r"Whenever a Dinosaur you control is dealt damage, (.+)", re.I), about_creature=True)  # Wrathful Raptors; x is the damage
 declare("token_combat_damage", re.compile(r"Whenever a creature token you control deals combat damage to a player, (.+)",
                                       re.I), about_creature=True)
 declare("host_attacks", re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I), about_creature=True)

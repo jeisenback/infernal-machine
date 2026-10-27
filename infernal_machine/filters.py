@@ -133,6 +133,9 @@ def parse_filter(text: str) -> Filter:
 def _alternatives(text: str) -> tuple[Alternative, ...]:
     if text == "any":  # a creature or a planeswalker (the "any target" of a Lightning Bolt, without the players)
         return (Alternative(needs=("creature",)), Alternative(needs=("planeswalker",)))
+    if text.startswith("any non-"):  # "any target that isn't a Dinosaur": a creature or planeswalker of another type (the players are added by the caller)
+        other = text.removeprefix("any non-")
+        return (Alternative(needs=("creature",), lacks_subtype=(other,)), Alternative(needs=("planeswalker",), lacks_subtype=(other,)))
     if "|" in text and not text.startswith("|"):  # "R|G": a red or green spell
         return tuple(a for part in text.split("|") for a in _alternatives(part))
     parts = [p for p in _SPLIT.split(text.replace(" spells", "").replace(" spell", "")) if p]

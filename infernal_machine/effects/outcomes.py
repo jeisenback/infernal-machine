@@ -342,6 +342,7 @@ from .families.library_and_hand import (  # noqa: F401
 from .families.life_and_damage import (  # noqa: F401
     Annihilate,
     Damage,
+    DamageFromSubject,
     DamageEach,
     DamageTargetsController,
     DamageToYou,
@@ -1435,6 +1436,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: AddMana((frozenset("WUBRG"),) * _ANY_N[m[1].lower()])),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
 
+    (re.compile(r"it deals that much damage to any target that isn't an? ([A-Z][a-z]+)\.", re.I),  # Wrathful Raptors
+     lambda m: DamageFromSubject("X", f"any non-{m[1].lower()}")),
     (re.compile(rf"{_SELF} deals {_N} damage to you\.", re.I), lambda m: DamageToYou(_count(m[1]))),
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
