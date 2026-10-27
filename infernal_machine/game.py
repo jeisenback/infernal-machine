@@ -156,6 +156,8 @@ NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
 SACRIFICE_PROMPT = PromptKind("sacrifice", "Choose a creature to sacrifice")
 EXPLOIT_PROMPT = PromptKind("exploit", "Exploit: choose a creature to sacrifice for ")  # followed by the exploiting creature's name
 NO_EXPLOIT = "Don't sacrifice a creature"
+PAIR_PROMPT = PromptKind("pair", "Soulbond: pair ")  # followed by the creature's name
+NO_PAIR = "Don't pair"
 SACRIFICE_COST_PROMPT = PromptKind("sacrifice_cost", "Choose what to sacrifice for ")  # followed by the spell's name
 DISCARD_COST_PROMPT = PromptKind("discard_cost", "Choose a card to discard for ")  # followed by the ability's source
 EXILE_COST_PROMPT = PromptKind("exile_cost", "Choose a card to exile from your graveyard for ")  # followed by the ability's source
@@ -279,6 +281,7 @@ class Permanent:
     last_power: int = 0  # its power just before it left (CR 608.2h: last known information)
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
+    paired: "Permanent | None" = None  # Soulbond: the creature it is paired with (each points at the other)
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     exiled_with: list = field(default_factory=list)  # (owner seat, card) this permanent's abilities exiled for good
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
@@ -3100,6 +3103,9 @@ class Game:
                             self.trigger("host_damage_opponent", attachment, holder, source, player=target)
                             if combat:
                                 self.trigger("host_combat_damage_opponent", attachment, holder, source, player=target)
+            if amount > 0 and source is not None and source.paired is not None and controller is not None and controller is not target:  # Tandem Lookout
+                for lookout in (source, source.paired):
+                    self.trigger("paired_damage_opponent", lookout, controller, source, player=target)
             dealer = controller or (self.resolving_item.controller if self.resolving_item is not None else None)  # a spell's damage has no permanent
             if amount > 0 and not combat and dealer is not None and dealer is not target:  # Niv-Mizzet, Visionary
                 for permanent in list(dealer.battlefield):
@@ -5529,6 +5535,27 @@ class Game:
         if saga_chapters(permanent.card):
             self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
+        if "Creature" in permanent.card.type_line:
+            self._soulbond(seat, permanent)
+
+    def _soulbond(self, seat: Seat, entering: Permanent) -> None:
+        """Soulbond (CR 702.95): when it enters, a soulbond creature may pair with another unpaired creature, and when another creature
+        enters, an unpaired soulbond creature may pair with it. Taken as the creature enters, not through the stack."""
+        def unpaired(p: Permanent) -> bool:
+            return p.paired is None and "Creature" in p.card.type_line and self.on_battlefield(p)
+        if self.has_keyword(entering, "soulbond") and unpaired(entering):
+            self._offer_pair(seat, entering, [p for p in seat.battlefield if p is not entering and unpaired(p)])
+        for holder in [p for p in seat.battlefield if p is not entering and self.has_keyword(p, "soulbond") and unpaired(p)]:
+            if unpaired(entering) and unpaired(holder):
+                self._offer_pair(seat, holder, [entering])
+
+    def _offer_pair(self, seat: Seat, holder: Permanent, options: list[Permanent]) -> None:
+        if not options:
+            return
+        pick = seat.player.choose(PAIR_PROMPT(holder.card.name), [self.label(p) for p in options] + [NO_PAIR])
+        if pick < len(options):
+            holder.paired, options[pick].paired = options[pick], holder
+            self.broadcast({"event": "paired", "card": holder.card.name, "with": options[pick].card.name})
 
     def _choose_creature_type(self, seat: Seat, card: Card) -> str:
         """The creature type `seat` names as `card` enters: one of those in its cards, the most common first."""
@@ -5955,10 +5982,22 @@ class Game:
         if zone == "graveyard":  # "Whenever a creature card is put into your graveyard from anywhere"
             self._observe("card_to_graveyard", card, seat)
 
+    def _unpair(self) -> None:
+        """A pair ends when either creature is gone, is no longer a creature, or when they are no longer under one player's control (CR 702.95e)."""
+        for seat in self.seats:
+            for p in seat.battlefield:
+                partner = p.paired
+                if partner is not None and not (partner.paired is p and partner in seat.battlefield
+                                                and "Creature" in p.card.type_line and "Creature" in partner.card.type_line):
+                    p.paired = None
+                    if partner.paired is p:
+                        partner.paired = None
+
     def _check_state(self) -> None:
         """State-based actions (CR 704.5): losing the game, lethal damage, zero toughness or loyalty."""
         while True:
             changed = False
+            self._unpair()
             for seat in self.live_seats():
                 if (not seat.citys_blessing and len(seat.battlefield) >= 10
                         and any(has_keyword(p.card, "ascend") for p in seat.battlefield)):
