@@ -65,6 +65,19 @@ class Damage:
 
 
 @dataclass(frozen=True)
+class DamageFromSubject:
+    """Wrathful Raptors: "... it deals that much damage to any target that isn't a Dinosaur." The permanent that set the trigger off deals it."""
+    amount: Quantity
+    target: str
+    binds = SUBJECT  # about the permanent that set it off (the resolver gives it the chosen target; the subject is read from the item)
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if target is not None and item is not None:
+            game.damage(target, game.amount(self.amount), source=item.subject)  # CR 120.3: the damaged creature is the source
+
+
+@dataclass(frozen=True)
 class DamageToYou:
     """Mana Vault: "... it deals 1 damage to you." (the ability's controller, from its source)"""
     amount: Quantity

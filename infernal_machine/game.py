@@ -2801,7 +2801,7 @@ class Game:
                 options += [(f"{card.name} (seat {seat.index} graveyard)", GraveyardTarget(card, seat))
                             for card in _unique(seat.graveyard) if _card_matches(card_type, card)]
             return options
-        if kind in ("any", "player", "player or planeswalker"):
+        if kind in ("any", "player", "player or planeswalker") or kind.startswith("any non-"):
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.live_seats() if not s.protected]
         elif kind == "opponent":
             options += [(f"Player: {s.name} (seat {s.index})", s) for s in self.opponents(caster) if not s.protected]
@@ -3156,6 +3156,10 @@ class Game:
                             "source": source.card.name if source else None})
             if amount > 0 and "Creature" in target.card.type_line:  # Enrage (CR 120.2): any damage dealt to it, however much
                 self.trigger("damaged", target, _checked(self.controller_of(target)), subject=source)
+                if "Dinosaur" in target.card.type_line:  # Wrathful Raptors
+                    owner = _checked(self.controller_of(target))
+                    for watcher in list(owner.battlefield):
+                        self.trigger("dinosaur_damaged", watcher, owner, subject=target, x=amount)
         if source is not None and amount > 0:  # "Whenever that creature deals combat damage to a player this turn, ..."
             victim = "player" if isinstance(target, Seat) else "creature" if "Creature" in target.card.type_line else "planeswalker"
             self._remembered(source, {"damage"} | ({f"combat_{victim}"} if combat else set()), amount, target if isinstance(target, Seat) else None)

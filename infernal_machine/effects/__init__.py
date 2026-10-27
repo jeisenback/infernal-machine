@@ -93,6 +93,7 @@ from .outcomes import (  # noqa: F401
     CreateTokens,
     DEMONSTRATE_PROMPT,
     Damage,
+    DamageFromSubject,
     DamageEach,
     DanceWithCalamity,
     DefineX,
