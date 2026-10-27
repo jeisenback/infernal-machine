@@ -479,6 +479,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   "Can't attack or block" is supported through Auras.
   - **Other equip costs:** "Equip—Pay 3 life.", "Equip—Sacrifice a creature.", "Equip—Discard a card." are paid like any
     ability cost. "Equip legendary creature {3}" (a restriction on what it can equip) isn't supported.
+  - **Noncombat damage you deal:** "Whenever a source you control deals noncombat damage to an opponent, you draw that many cards" (Niv-Mizzet, Visionary) hears damage from a permanent's ability and from a spell you cast (the spell's controller is the dealer), to an opponent; combat damage, damage to you or to a creature, and an opponent's source do not count. Draws as many cards as the damage; with Niv-Mizzet, Parun it is an infinite loop.
   - **Triggers on what is attached:** "Whenever equipped (or enchanted) creature dies / deals combat damage to a
     player, ..." (the Equipment's or Aura's controller gets the trigger). "Whenever enchanted creature deals damage to
     an opponent, you may draw a card" (Curiosity, Keen Sense, Ophidian Eye; any damage, combat or not) and its combat
