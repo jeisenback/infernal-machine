@@ -132,6 +132,8 @@ declare("exploits", re.compile(rf"When(?:ever)? {_SELF} exploits a creature, (.+
 declare("sacrifice_creature", re.compile(r"Whenever you sacrifice a creature, (.+)", re.I))
 declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals combat damage to a player, (.+)", re.I), about_creature=True)
 declare("ally_noncombat_damage", re.compile(r"Whenever a source you control deals noncombat damage to an opponent, (.+)", re.I), about_creature=True)  # Niv-Mizzet, Visionary
+declare("paired_damage_opponent", re.compile(rf"As long as {_SELF} is paired with another creature, each of those creatures has "
+                                              r"\"Whenever this creature deals damage to an opponent, (.+?)\"", re.I), about_creature=True, about_player=True)  # Tandem Lookout (Soulbond)
 declare("token_combat_damage", re.compile(r"Whenever a creature token you control deals combat damage to a player, (.+)",
                                       re.I), about_creature=True)
 declare("host_attacks", re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I), about_creature=True)

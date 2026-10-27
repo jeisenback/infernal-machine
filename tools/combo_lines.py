@@ -44,6 +44,7 @@ class Line:
     hand: tuple[str, ...] = ()
     graveyard: tuple[str, ...] = ()
     attach: tuple[tuple[str, str], ...] = ()  # (aura, the permanent it is on), both on the battlefield
+    pair: tuple[str, str] | None = None  # two battlefield creatures paired by Soulbond
     opponents: int = 1
     lands: int = 0  # City of Brass the table starts with: none unless the loop needs mana to start
     library: int = 0  # cards in the library of the player running the loop (the table's is 20)
@@ -109,6 +110,8 @@ LINES: list[Line] = [
     Line("Niv-Mizzet, Parun + Ophidian Eye", "infinite draws and damage", ("Niv-Mizzet, Parun", "Ophidian Eye"), attach=(("Ophidian Eye", "Niv-Mizzet, Parun"),), library=80, start=draw_a_card, measure=opponent_life, unit="opponent life"),
     Line("Niv-Mizzet, Parun + Niv-Mizzet, Visionary", "infinite draws and damage", ("Niv-Mizzet, Parun", "Niv-Mizzet, Visionary"), library=80, start=draw_a_card, measure=opponent_life, unit="opponent life"),
     Line("Niv-Mizzet, the Firemind + Niv-Mizzet, Visionary", "infinite draws and damage", ("Niv-Mizzet, the Firemind", "Niv-Mizzet, Visionary"), library=80, start=draw_a_card, measure=opponent_life, unit="opponent life"),
+    Line("Tandem Lookout + Niv-Mizzet, Parun", "infinite draws and damage", ("Niv-Mizzet, Parun", "Tandem Lookout"), pair=("Niv-Mizzet, Parun", "Tandem Lookout"), library=80, start=draw_a_card, measure=opponent_life, unit="opponent life"),
+    Line("Niv-Mizzet, the Firemind + Tandem Lookout", "infinite draws and damage", ("Niv-Mizzet, the Firemind", "Tandem Lookout"), pair=("Niv-Mizzet, the Firemind", "Tandem Lookout"), library=80, start=draw_a_card, measure=opponent_life, unit="opponent life"),
     Line("Niv-Mizzet, the Firemind + Curiosity", "infinite draws and damage", ("Niv-Mizzet, the Firemind", "Curiosity"), attach=(("Curiosity", "Niv-Mizzet, the Firemind"),), library=80, start=draw_a_card, measure=opponent_life, unit="opponent life"),
     Line("Niv-Mizzet, the Firemind + Ophidian Eye", "infinite draws and damage", ("Niv-Mizzet, the Firemind", "Ophidian Eye"), attach=(("Ophidian Eye", "Niv-Mizzet, the Firemind"),), library=80, start=draw_a_card, measure=opponent_life, unit="opponent life"),
     Line("Kinnan, Bonder Prodigy + Basalt Monolith", "infinite colorless mana", ("Kinnan, Bonder Prodigy", "Basalt Monolith"), loop=("{3}: Untap this artifact",), measure=mana_yield, cost=3),
@@ -157,6 +160,9 @@ def build(line: Line, cards: dict[str, Card]) -> tuple[Game, Seat]:
         mine.battlefield.append(placed[name])
     for aura, onto in line.attach:
         placed[aura].attached_to = placed[onto]
+    if line.pair:
+        first, second = (placed[name] for name in line.pair)
+        first.paired, second.paired = second, first
     mine.hand = [cards[name] for name in line.hand]
     mine.graveyard = [cards[name] for name in line.graveyard]
     if line.commander:
