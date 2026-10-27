@@ -195,9 +195,11 @@ class Combat:
         owed = Cost() if owed is None else owed
         barred = permanent.vow_of if permanent.counters.get("vow") else None
         untapped = permanent if not self.game.has_keyword(permanent, "vigilance") else None
+        # Even an untaxed attacker is checked once something is owed: it taps, and the mana the tax counted on may be its own (a mana
+        # creature, or one that Enduring Vitality lets tap for mana).
         allowed = [o for o in opponents if o is not barred and not self._barred_from_attacking(permanent, o) and (
-            (tax := self._attack_tax(permanent, o)) == Cost()
-            or self.game._pay_cost(seat, owed + tax, untapped) is not None)]
+            (total := owed + self._attack_tax(permanent, o)) == Cost()
+            or self.game._pay_cost(seat, total, untapped) is not None)]
         return allowed, [w for w in walkers if self.game.controller_of(w) in allowed]
 
     def add_attacker(self, permanent: Permanent, controller: Seat, defender: Seat) -> None:
