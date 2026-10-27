@@ -935,8 +935,9 @@ _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)?( tapped)?
 _CLONE_KIND = r"(?:nonland permanent|permanent|[A-Za-z]+(?: or [A-Za-z]+)?)"
 
 
-_CLONE_SOURCE = re.compile(rf"any ({_CLONE_KIND}) on the battlefield|(an?|another) ({_CLONE_KIND}) (you control|an opponent controls)"
-                           r"(?: with power (\d+) or greater)?")
+_CLONE_SOURCE = re.compile(rf"any ({_CLONE_KIND}) on the battlefield(?P<spent> with mana value less than or equal to the amount of mana spent to cast CARDNAME)?"
+                           rf"|any ({_CLONE_KIND}) card in a graveyard|any (permanent) that entered this turn"
+                           rf"|(an?|another) ({_CLONE_KIND}) (you control|an opponent controls)(?: with power (\d+) or greater)?")
 
 
 @dataclass(frozen=True)
@@ -949,6 +950,9 @@ class CloneRule:
     min_power: int = 0  # "with power 4 or greater"
     tapped: bool = False  # "enter tapped as a copy of any land": tapped when it is a copy
     changes: CopyChanges = CopyChanges()
+    zone: str = "battlefield"  # Body Double, Echoing Deeps: "any creature card in a graveyard"
+    entered_this_turn: bool = False  # Sakashima's Protege: "any permanent that entered this turn"
+    mana_spent_cap: bool = False  # Mockingbird: "with mana value less than or equal to the amount of mana spent to cast CARDNAME"
 
 
 @lru_cache(maxsize=None)
@@ -960,9 +964,13 @@ def _clone_rule_of_line(line: str) -> CloneRule | None:
     if source is None or changes is None:
         return None
     if source[1]:
-        return CloneRule(source[1].lower(), tapped=bool(m[1]), changes=changes)
-    return CloneRule(source[3].lower(), yours=source[4] == "you control", opponents=source[4] != "you control",
-                     min_power=int(source[5] or 0), tapped=bool(m[1]), changes=changes)
+        return CloneRule(source[1].lower(), tapped=bool(m[1]), changes=changes, mana_spent_cap=bool(source["spent"]))
+    if source[3]:
+        return CloneRule(source[3].lower(), tapped=bool(m[1]), changes=changes, zone="graveyard")
+    if source[4]:
+        return CloneRule(source[4].lower(), tapped=bool(m[1]), changes=changes, entered_this_turn=True)
+    return CloneRule(source[6].lower(), yours=source[7] == "you control", opponents=source[7] != "you control",
+                     min_power=int(source[8] or 0), tapped=bool(m[1]), changes=changes)
 
 
 # Cursed Mirror: a copy only until end of turn, with a keyword added.

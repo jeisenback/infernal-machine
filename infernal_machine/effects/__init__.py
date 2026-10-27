@@ -82,6 +82,7 @@ from .outcomes import (  # noqa: F401
     Condition,
     CopySpell,
     CopySpellTimes,
+    apply_copy_changes,
     copy_of,
     CopyChanges,
     CopyToken,

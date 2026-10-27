@@ -114,6 +114,7 @@ from .families.copying import (  # noqa: F401
     CopiesOfAnotherCreature,
     CopyChanges,
     CopyChosenPermanent,
+    CopyEachToken,
     CopyEnteredTokensAttacking,
     CopyHostToken,
     CopyNextSpell,
@@ -129,15 +130,15 @@ from .families.copying import (  # noqa: F401
     CopyTriggeringAbility,
     CopyTriggeringSpell,
     EachOpponentGetsGoadedCopy,
-    ExileDeadMakeSpiritCopy,
+    ExileDeadCopy,
     ExileThenCastCopy,
     MayCopyLeftCard,
+    _TwiceFromGraveyard,
     MayCopyThisSpellFromGraveyard,
     TokenOrSelfCopy,
     TokensBecomeCopies,
     _COPY_CARD_TYPES,
     _CopyEachWithHaste,
-    _CopyOfIt,
     _OthersBecomeCopies,
     apply_copy_changes,
     copy_of,
@@ -637,13 +638,14 @@ def _understood_ability(text: str) -> bool:
 
 
 _COPY_QUOTE = re.compile(r'"([^"]+)"')
-_COPY_SPLIT = re.compile(r",\s*(?:and\s+)?|\s+and\s+")
+_COPY_SPLIT = re.compile(r",\s*(?:and\s+)?|\s+and,?\s+")  # (Moritte: "... types and, if it's a creature, it enters ...")
 
 
 def _copy_changes(text: str) -> CopyChanges | None:
     """Read the clauses after "except"; None if any is something the engine does not apply (so the line stays unsupported)."""
     fields: dict[str, Any] = {}
     types: list[str] = []
+    supertypes: list[str] = []
     colors: list[str] = []
     keywords: list[str] = []
     abilities: list[str] = []
@@ -654,8 +656,12 @@ def _copy_changes(text: str) -> CopyChanges | None:
     for clause in _COPY_SPLIT.split(text):
         clause = clause.strip()
         was_keywords, after_keywords = after_keywords, False
+        if not clause or re.fullmatch(r"if it's a creature", clause, re.I):  # Moritte: "..., if it's a creature, it enters with ..." (counters only go on a creature anyway)
+            continue
         if re.fullmatch(r"(?:it|the token)? ?(?:isn't|is not|'s not) legendary|it's not legendary", clause, re.I):
             fields["not_legendary"] = True
+        elif re.fullmatch(r"(?:it|the token)? ?(?:isn't|is not|'s not) legendary if (?:that|equipped|enchanted|the) [A-Za-z]+ is legendary", clause, re.I):
+            fields["not_legendary"] = True  # Helm of the Host, Miirym, Spark Double, Double Major: a copy that was never legendary is unchanged
         elif m := re.fullmatch(r"(?:it's |the token is |is )?(\d+)/(\d+)", clause, re.I):
             fields["power_toughness"] = (m[1], m[2])
         elif m := re.fullmatch(r"(?:it's |is )?an? (\d+)/(\d+) (white|blue|black|red|green) ([A-Za-z ]+) in addition to its other colors_and_types",
@@ -663,6 +669,14 @@ def _copy_changes(text: str) -> CopyChanges | None:
             fields["power_toughness"] = (m[1], m[2])
             colors.append(_COPY_COLORS[m[3].lower()])
             types.extend(w.capitalize() for w in m[4].split())
+        elif m := re.fullmatch(r"(?:it's |is )?an? (\d+)/(\d+) (white|blue|black|red|green) ([A-Z][a-z]+)", clause):  # The Scarab God
+            fields["power_toughness"] = (m[1], m[2])
+            fields["set_colors"] = (_COPY_COLORS[m[3].lower()],)
+            fields["set_subtypes"] = (m[4],)
+        elif m := re.fullmatch(r"(?:it's |is )?(legendary|snow)(?: and (legendary|snow))?(?: in addition to its other types)?", clause, re.I):
+            supertypes.extend(w.capitalize() for w in (m[1], m[2]) if w)
+        elif m := re.fullmatch(r"(?:it's |is )?an? (artifact|enchantment)", clause, re.I):  # Machine God's Effigy: "it's an artifact"
+            types.append(m[1].capitalize())
         elif m := re.fullmatch(r"(?:it's |is )?an? ([A-Za-z ]+?) in addition to its other (?:creature )?types", clause, re.I):
             types.extend(w.capitalize() for w in m[1].split())
         elif m := re.fullmatch(r"(?:it |the token )?has \x00(\d+)\x00", clause, re.I):
@@ -679,6 +693,8 @@ def _copy_changes(text: str) -> CopyChanges | None:
             after_keywords = True
         elif re.fullmatch(r"it enters with an additional \+1/\+1 counter on it if it's a creature", clause, re.I):
             fields["extra_counters"] = "1"
+        elif m := re.fullmatch(r"it enters with (two|three) additional \+1/\+1 counters on it", clause, re.I):  # Moritte of the Frost
+            fields["extra_counters"] = str(_number(m[1]))
         elif re.fullmatch(r"it enters with X_additional \+1/\+1 counters on it", clause, re.I):
             fields["extra_counters"] = "X"
         elif re.fullmatch(r"it enters with an additional loyalty counter on it if it's a planeswalker", clause, re.I):
@@ -688,7 +704,10 @@ def _copy_changes(text: str) -> CopyChanges | None:
     return CopyChanges(
         not_legendary=fields.get("not_legendary", False), power_toughness=fields.get("power_toughness"),
         add_types=tuple(types), keywords=tuple(keywords), add_colors=tuple(colors), abilities=tuple(abilities),
-        extra_counters=fields.get("extra_counters", ""), extra_loyalty=fields.get("extra_loyalty", 0))
+        extra_counters=fields.get("extra_counters", ""), extra_loyalty=fields.get("extra_loyalty", 0), supertypes=tuple(supertypes),
+        set_colors=fields.get("set_colors"), set_subtypes=fields.get("set_subtypes"))
+
+
 
 
 def _merge_attacking_tokens(effects: list) -> list | None:
@@ -1296,11 +1315,39 @@ def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] =
 
 _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
                    r"|monocolored permanent|(?:white|blue|black|red|green) permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
-                   r"|non(?:white|blue|black|red|green|artifact) creature|noncreature artifact or noncreature enchantment"
+                   r"|non(?:white|blue|black|red|green|artifact|legendary) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker|creature or enchantment|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that player controls)?"
                    r"(?: with mana value (?:\d+ or (?:less|greater)|X))?)")
+
+
+_COPY_TOKEN = re.compile(
+    r"create (?:a token that's a copy|(?P<count>two|three|four|five|X) tokens that are copies) of "
+    rf"(?:(?P<another>another )?target (?P<kind>{_PERMANENT_KIND})"
+    r"|target (?P<grave>creature|artifact) card in your graveyard"
+    r"|(?P<subject>it|that (?:creature|permanent|artifact|enchantment|card|token))"
+    r"|(?P<host>equipped|enchanted) (?:creature|artifact|permanent)"
+    r"|(?P<self>CARDNAME|this (?:creature|artifact|enchantment|land|planeswalker|permanent|Aura|Equipment|Class|Vehicle|Saga|Room|token)))"
+    r"(?:, except (?P<changes>.+))?\.(?P<quote>\"?)", re.I)  # (a quoted ability's own full stop comes before its closing quote)
+
+
+def _copy_token(m: re.Match) -> Any:
+    """ "Create a token that's a copy of <what>(, except <changes>)." for every <what> the engine can find: its riders ("It gains
+    haste.", "Sacrifice it at the beginning of the next end step.") are folded in by the Follow rows of _CONDITIONAL."""
+    changes = _copy_changes(m["changes"] + '."' * bool(m["quote"])) if m["changes"] else None
+    if m["changes"] and changes is None:
+        return None
+    count = _count(m["count"]) if m["count"] else 1
+    if m["kind"]:
+        return CopyToken(m["kind"].lower(), count, another=bool(m["another"]), changes=changes)
+    if m["grave"]:
+        return CopyToken(f"graveyard:{m['grave'].lower()}:yours", count, changes=changes)
+    if m["subject"]:
+        return CopySubjectToken(changes, count)
+    if m["host"]:
+        return CopyHostToken(changes, count)
+    return CopySelfToken(changes=changes, count=count)
 
 
 # "up to two target creatures": the plural kinds, and the singular they stand for
@@ -1458,12 +1505,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ExileDamagedIfDie()),
     (re.compile(r"exile enchanted creature\.", re.I), lambda m: ExileEnchanted()),
     (re.compile(r"that token gains haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
-    (re.compile(r"that token gains haste\.", re.I), lambda m: _TokenHasHaste()),
+    (re.compile(r"(?:it|that token|they|those tokens) gains? haste\.", re.I), lambda m: _TokenHasHaste()),
     (re.compile(r"sacrifice (?:it|this creature)\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."
-    (re.compile(r"create a token that's a copy of it\.", re.I), lambda m: _CopyOfIt()),
     (re.compile(r"mill a card, then exile a card from your graveyard at random\. you may play the exiled card this turn\.", re.I),
      lambda m: MillThenExileRandomPlay()),
-    (re.compile(rf"create a token that's a copy of {_SELF}\.", re.I), lambda m: CopySelfToken()),
     (re.compile(r"exile (?:that card|one of them) from your graveyard\.(?: if you do, you may (?:play|cast) (?:that card|it) this turn\.)?", re.I),
      lambda m: ExileDiscarded(play="you may" in m[0].lower())),
     (re.compile(r"you may have (?:this creature|CARDNAME) become a copy of an artifact or creature card from among those cards "
@@ -1507,10 +1552,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"when you do, return up to one target Aura or Equipment card from your graveyard to the battlefield attached to "
                 r"that token\.", re.I), lambda m: _RecallAttachment()),
     (re.compile(r"the token created this way gains haste\.", re.I), lambda m: _PopulatedTokenRider(haste=True)),
-    (re.compile(r"sacrifice it at the beginning of the next end step\.", re.I), lambda m: _PopulatedTokenRider(sacrifice=True)),
+    (re.compile(r"sacrifice (?:it|that token) at the beginning of the next end step\.", re.I), lambda m: _PopulatedTokenRider(sacrifice=True)),
     (re.compile(r'(?:it has|they have) "(.+)"', re.I), lambda m: _ItHas(m[1]) if _is_known_ability(m[1]) else None),
-    (re.compile(r"when you next cast an instant or sorcery spell this turn, copy that spell\. You may choose new targets for the "
-                r"copy\.", re.I), lambda m: CopyNextSpell()),
+    (re.compile(r"when you (?:next cast an|cast your next) instant or sorcery spell this turn, copy that spell\. You may choose new targets "
+                r"for the copy\.", re.I), lambda m: CopyNextSpell()),
     (re.compile(r"when you next cast an instant or sorcery spell this turn, copy it for each time you've cast your commander from "
                 r"the command zone this game\. You may choose new targets for the copies\.", re.I),
      lambda m: CopyNextSpell(per_commander_cast=True)),
@@ -1529,7 +1574,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"look at target (player|opponent)'s hand\.", re.I), lambda m: LookAtHand(m[1].lower())),
     (re.compile(r"put your commander into your hand from the command zone\.", re.I), lambda m: CommanderToHand()),
     (re.compile(r"put (?:CARDNAME|this card) onto the battlefield from the command zone\.", re.I), lambda m: PutThisFromCommandZone()),
-    (re.compile(r"exile that token at the beginning of the next end step\.", re.I), lambda m: _ExileTokenAtEnd()),
+    (re.compile(r"exile (?:it|that token) at the beginning of the next end step\.", re.I), lambda m: _ExileTokenAtEnd()),
     (re.compile(rf"if (.+), create {_N} of those tokens instead\.", re.I),
      lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
@@ -1757,9 +1802,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: CopiesOfAnotherCreature(5 if m[1] else 1, bool(m[2]))),
     (re.compile(r"that player copies that spell for each other creature they control that the spell could target\. Each copy "
                 r"targets a different one of those creatures\.", re.I), lambda m: CopySpellForEachOtherCreature()),
-    (re.compile(r"exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature), except it's a Spirit in "
-                r"addition to its other types and it has \"When this token leaves the battlefield, return the exiled card to its "
-                r"owner's graveyard\.\"", re.I), lambda m: ExileDeadMakeSpiritCopy()),
+    (re.compile(r"exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature|that card)(?:, except (.+))?\.(\"?)",
+                re.I), lambda m: ExileDeadCopy(c) if (c := _copy_changes(m[1] + '."' * bool(m[2])) if m[1] else CopyChanges()) else None),
     (re.compile(r"return the exiled card to its owner's graveyard\.", re.I), lambda m: ReturnExiledToGraveyard()),
     (re.compile(rf"{_SELF} becomes a copy of up to one target nonlegendary creature you control until end of turn, except it has "
                 r"([a-z]+)\.", re.I), lambda m: BecomeCopyUntilEndOfTurn(m[1].capitalize())),
@@ -1820,8 +1864,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. Exile that "
                 r"card and put the rest on the bottom of your library in a random order\. You may cast the exiled card "
                 r"without paying its mana cost\.", re.I), lambda m: ShuffleRevealCast()),
-    (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell)( you control)?\.", re.I),
-     lambda m: CopySpell(m[1].lower() + (m[2] or "").lower())),
+    (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell|creature spell|permanent spell|activated or triggered ability"
+                r"|instant spell, sorcery spell, activated ability, or triggered ability)( you control)?"
+                r"(?:, except (?:that the copy is (white|blue|black|red|green)|(.+)))?\.", re.I),
+     lambda m: CopySpell(m[1].lower() + (m[2] or "").lower(), color=_COPY_COLORS[m[3].lower()] if m[3] else None, changes=c)
+     if (c := _copy_changes(m[4]) if m[4] else None) or not m[4] else None),
+    (re.compile(r"if this spell was cast from a graveyard, copy that spell twice instead\.", re.I), lambda m: _TwiceFromGraveyard()),
+    (re.compile(r"copy it for each other instant and sorcery spell you've cast before it this turn\.", re.I),  # Thousand-Year Storm
+     lambda m: [DefineX(Amount("spells_before", "instant or sorcery spell")), CopySpellTimes("X")]),
     (re.compile(r"copy target (instant or sorcery spell), then return it to its owner's hand\.", re.I),
      lambda m: CopySpell(m[1].lower(), return_to_hand=True)),
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
@@ -1965,17 +2015,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"each creature you control becomes prepared\.", re.I), lambda m: PrepareEach()),
     (re.compile(r"target (creature(?: that attacked this turn)?) becomes (prepared|unprepared)\.", re.I),
      lambda m: TargetPrepared(m[1].lower(), m[2].lower() == "prepared")),
-    (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}\.", re.I), lambda m: CopyToken(m[1].lower())),
-    (re.compile(rf"create a token that's a copy of (another )?target {_PERMANENT_KIND}, except (.+)\.", re.I),
-     lambda m: CopyToken(m[2].lower(), another=bool(m[1]), changes=c) if (c := _copy_changes(m[3])) else None),
-    (re.compile(r"create a token that's a copy of (?:equipped|enchanted) creature, except (.+)\.", re.I),
-     lambda m: CopyHostToken(c) if (c := _copy_changes(m[1])) else None),
-    (re.compile(r"create a token that's a copy of (?:it|that (?:creature|card)), except (.+)\.", re.I),
-     lambda m: CopySubjectToken(c) if (c := _copy_changes(m[1])) else None),
-    (re.compile(rf"create a token that's a copy of target {_PERMANENT_KIND}, except it's legendary\.", re.I),
-     lambda m: CopyToken(m[1].lower(), legendary=True)),
-    (re.compile(rf"create a token that's a copy of another target {_PERMANENT_KIND}\.", re.I),
-     lambda m: CopyToken(m[1].lower(), another=True)),
+    (_COPY_TOKEN, _copy_token),
+    (re.compile(r"for each (token|artifact|creature|nontoken creature|enchantment|land|permanent) you control, create a token that's a "
+                r"copy of (?:it|that (?:creature|permanent|artifact|token))(?:, except (.+))?\.", re.I),
+     lambda m: CopyEachToken(m[1].lower(), c) if (c := _copy_changes(m[2]) if m[2] else CopyChanges()) else None),
     (re.compile(rf"create a token that's a copy of {_SELF}, tapped and attacking\.", re.I), lambda m: CopyTokenAttacking()),
     (re.compile(r"that attacking player creates a tapped (.+? creature token(?: with [a-z, ]+)?) that's attacking that opponent\.",
                 re.I), lambda m: _attacker_token("a " + m[1])),
@@ -2674,7 +2717,9 @@ _SPELL_COLORS = re.compile(r"the number of colors that spell is", re.I)  # Mana 
 
 # "Copy target instant or sorcery spell. You may choose new targets for the copy." is one effect. The second sentence on its own has no
 # copy to refer to, so the line isn't understood.
-_merge_copy = Follows(Follow(NewTargets, (CopySpell, CopyTriggeringSpell, CopyTriggeredAbility), set_fields(new_targets=lambda m: True)))
+_merge_copy = Follows(Follow(NewTargets, (CopySpell, CopyTriggeringSpell, CopyTriggeredAbility, CopySpellTimes),
+                             lambda previous, marker: dataclasses.replace(previous, new_targets=True) if hasattr(previous, "new_targets") else previous),  # (CopySpellTimes's copies always may)
+                      Follow(_TwiceFromGraveyard, CopySpell, set_fields(twice_from_graveyard=lambda m: True)))
 
 
 # Mana Drain's second sentence belongs to the Counter before it, and Chaos Warp's to its ChaosWarp; alone they aren't understood.
@@ -2715,10 +2760,13 @@ _merge_exile = Follows(
     Follow(PlayExiled, ExileTop, set_fields(play=lambda m: m.until), fits=lambda previous, marker: not previous.play))
 
 
+_COPY_SENTENCES = (CopyToken, CopySubjectToken, CopyHostToken, CopySelfToken, CopyEachToken)  # "Create a token that's a copy of ..."
+
+
 _CONDITIONAL = Follows(
     Follow(_InsteadDraw, Draw, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition)),
     Follow(_InsteadMana, AddMana, set_fields(more=lambda m: m.units, more_if=lambda m: m.condition)),
-    Follow(_ExileTokenAtEnd, CreateTokens, set_fields(exile_at_end=lambda m: True)),
+    Follow(_ExileTokenAtEnd, (CreateTokens, *_COPY_SENTENCES), set_fields(exile_at_end=lambda m: True)),
     Follow(_InsteadTokens, CreateTokens, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition)),
     Follow(_UntapThoseLands, RevealLands, set_fields(untap_if=lambda m: m.condition)),
     Follow(_UntapThatLand, FetchBasicLand, set_fields(untap_if=lambda m: m.condition)),
@@ -2731,15 +2779,25 @@ _CONDITIONAL = Follows(
            fits=lambda previous, marker: previous.count == 1),
     Follow(_AttachItToToken, CreateTokens, lambda previous, marker: CreateTokenAttachSubject(previous.token),
            fits=lambda previous, marker: previous.count == 1),
-    Follow(_PopulatedTokenRider, Populate, lambda previous, marker: dataclasses.replace(
+    Follow(_PopulatedTokenRider, (Populate, *_COPY_SENTENCES), lambda previous, marker: dataclasses.replace(
         previous, haste=previous.haste or marker.haste, sacrifice_at_end=previous.sacrifice_at_end or marker.sacrifice)),
     Follow(_ItHas, CreateTokens, lambda previous, marker: dataclasses.replace(
         previous, token=dataclasses.replace(previous.token, oracle_text=marker.ability)),
            fits=lambda previous, marker: not previous.token.oracle_text),
-    Follow(_CopyOfIt, ExileFromGraveyard, set_fields(copy_token=lambda m: True)),
-    Follow(_TokenHasHaste, CopyHostToken, lambda previous, marker: dataclasses.replace(
+    # The riders of a copy sentence (see `finish_copies`). "They gain haste" and "exile/sacrifice them" also follow attacking tokens
+    # (_merge_attacking_tokens) and "exile those tokens" Twinflame's targets (_merge_target_copies), so those rows are not strict.
+    Follow(_TokenHasHaste, _COPY_SENTENCES, lambda previous, marker: dataclasses.replace(
         previous, changes=dataclasses.replace(previous.changes or CopyChanges(), keywords=(previous.changes or CopyChanges()).keywords + ("haste",)))),
-    Follow(_TokenGainsHaste, CopyToken, set_fields(haste=lambda m: True)),
+    Follow(_TokenGainsHaste, _COPY_SENTENCES, set_fields(haste=lambda m: True)),
+    Follow((_TheyGainHaste, _ItGains), _COPY_SENTENCES, set_fields(haste=lambda m: True), strict=False,  # "It gains haste until end of turn."
+           fits=lambda previous, marker: getattr(marker, "keywords", frozenset({"haste"})) == frozenset({"haste"})),
+    Follow(PumpSource, _COPY_SENTENCES, set_fields(haste=lambda m: True), strict=False,  # "It gains haste until end of turn."
+           fits=lambda previous, marker: marker.modifier.keywords == frozenset({"haste"}) and marker.modifier.power == marker.modifier.toughness == 0),
+    Follow((_ExileThoseTokens, _ExileThemLater), _COPY_SENTENCES, set_fields(exile_at_end=lambda m: True), strict=False),
+    Follow(_SacrificeThemLater, _COPY_SENTENCES, set_fields(sacrifice_at_end=lambda m: True), strict=False),
+    # Lorehold Archivist's spell, The Scarab God: "Exile target creature card from a graveyard. Create a token that's a copy of it."
+    Follow(CopySubjectToken, ExileFromGraveyard, lambda previous, marker: dataclasses.replace(previous, copy_token=True, copy_changes=marker.changes),
+           strict=False, fits=lambda previous, marker: marker.count == 1 and not (marker.haste or marker.sacrifice_at_end or marker.exile_at_end)),
     Follow(_IfYouDo, ExileOwnGraveyard, set_fields(then=lambda m: m.effect)),
     Follow(_IfExiledThen, ExileFromGraveyard, set_fields(if_type=lambda m: m.card_type, then=lambda m: m.effect)),
 )

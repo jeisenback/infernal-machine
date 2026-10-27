@@ -7,7 +7,7 @@ from typing import Any, TYPE_CHECKING
 
 from ...characteristics import Modifier
 from ..common import cant_be_countered
-from ..targets import (PLAYER, PREVIOUS_TARGET, SOURCE, SUBJECT, binding, target_kind)
+from ..targets import (DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind)
 from .base import Amount, Condition
 from ...prompts import PromptKind
 
@@ -421,7 +421,7 @@ class MayPay:
 
     @property
     def binds(self) -> str | None:
-        return SOURCE if binding(self.effect) == SOURCE else None
+        return found if (found := binding(self.effect)) in (SOURCE, SUBJECT, SOURCE_AND_SUBJECT, DEAD_SUBJECT, PLAYER) else None  # as Conditional
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         item = game.resolving_item

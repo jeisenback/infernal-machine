@@ -842,26 +842,55 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     not its counters or damage; a copy of a token isn't a token. It goes to the graveyard as the Clone card.
     Bots copy the biggest creature. What it may copy is a kind ("any creature", "any nonland permanent", "any artifact or
     enchantment", "a creature you control", "a creature an opponent controls", "a creature you control with power 4 or
-    greater", "enter tapped as a copy of any land": tapped when it is a copy). The "except ..." clause is a list of changes
-    (`CopyChanges`, shared with token copies): it isn't legendary, N/N, a type or a color in addition to its other types,
-    keywords, a quoted ability (only one the engine understands), "an additional +1/+1 counter if it's a creature",
-    "an additional loyalty counter if it's a planeswalker", X additional counters. Any other clause (a new name, "loses all
-    other card types", "doesn't copy its color", conditional abilities) leaves the line unsupported. Phantasmal Image,
-    Spark Double, Vesuva, Glasspool Mimic, Malleable Impostor, Phyrexian Metamorph, Altered Ego.
+    greater", "enter tapped as a copy of any land": tapped when it is a copy), or a card: "any creature card in a graveyard"
+    (Body Double, Echoing Deeps; the card stays where it is), "any permanent that entered this turn" (Sakashima's Protege),
+    "any creature on the battlefield with mana value less than or equal to the amount of mana spent to cast CARDNAME"
+    (Mockingbird). The "except ..." clause is a list of changes
+    (`CopyChanges`, shared with token copies): it isn't legendary (also "if that permanent is legendary"), N/N, a type or a
+    color in addition to its other types, "it's an artifact", "it's legendary and snow in addition to its other types",
+    "it's a 4/4 black Zombie" (that color and creature type and no other), keywords, a quoted ability (only one the engine
+    understands), "an additional +1/+1 counter if it's a creature" (also two), "an additional loyalty counter if it's a
+    planeswalker", X additional counters. Any other clause (a new name, "loses all other card types", "doesn't copy its
+    color", conditional abilities) leaves the line unsupported. Phantasmal Image, Spark Double, Vesuva, Glasspool Mimic,
+    Malleable Impostor, Phyrexian Metamorph, Altered Ego, Machine God's Effigy, Moritte of the Frost.
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets
     again (the old ones are still choices); without it the copy keeps them.
     "..., then return it to its owner's hand." (Narset's Reversal) copies first, then the spell leaves the stack for its
     owner's hand without resolving. "Whenever you cast a Faerie or Wizard permanent spell, copy it." (Archmage of Echoes):
-    a watch for either of two types and a permanent; the copy of a permanent spell becomes a token.
+    a watch for either of two types and a permanent; the copy of a permanent spell becomes a token. The target may also be a
+    "creature spell you control" (Double Major: "except it isn't legendary if the spell is legendary" is an except clause
+    applied to the copy) or a "permanent spell you control" (Lithoform Engine), an "activated or triggered ability you
+    control" (Lithoform Engine) or an "instant spell, sorcery spell, activated ability, or triggered ability" (Return the
+    Favor). "..., except that the copy is red." (Fork) makes the copy that color only. "If this spell was cast from a
+    graveyard, copy that spell twice instead." (Increasing Vengeance) looks at how the copying spell was cast. "Whenever you
+    cast an instant or sorcery spell, you may pay {3}. If you do, copy that spell." (Mirari, Riku of Two Reflections) asks
+    on resolution. "When you cast your next instant or sorcery spell this turn, copy that spell." (Doublecast, Teach by
+    Example, Galvanic Iteration) is Pigment Wrangler's delayed copy in other words. "Whenever you cast an instant or sorcery
+    spell, copy it for each other instant and sorcery spell you've cast before it this turn." (Thousand-Year Storm) counts
+    the instants and sorceries in this turn's cast log before the one being cast.
   - Abilities: "Whenever you activate an ability, if it isn't a mana ability, you may pay {2}. If you do, copy that ability.
     You may choose new targets for the copy." (Rings of Brighthearth; also "of an artifact" for Kurkesh, and Illusionist's and
     Battlemage's Bracers for the equipped creature's). The game raises "activated" for every activated ability that uses the
     stack (loyalty abilities included; mana abilities are paid with, not activated). "{2}, {T}: Copy target triggered ability
     you control. You may choose new targets for the copy." (Strionic Resonator; "twice ... the copies" for Mister Fantastic)
     targets a triggered ability of yours on the stack. A copy of an ability keeps its X and (unless new targets are chosen) its targets.
-  - "Create a token that's a copy of target creature" and populate were added earlier.
+  - Token copies are one sentence shape, "Create a token that's a copy of <what>(, except <changes>).", for every <what> the
+    engine can find: "target <permanent kind>" ("another target ...", "target nonlegendary creature you control"), "target
+    creature card in your graveyard" (Feldon of the Third Path; the card stays), "it" / "that creature" / "that artifact" /
+    "that card" (the permanent that set a trigger off, still there or not; Flameshadow Conjuring, Mirrorworks, Riku), "this
+    creature" / CARDNAME / "this Equipment" (the source; Splinter Twin's granted ability), "equipped creature" / "enchanted
+    artifact" (Helm of the Host), and "For each token (artifact, creature) you control, create a token that's a copy of that
+    permanent." (Second Harvest). "Two tokens that are copies of" makes two. The sentences that may follow are riders folded
+    into it: "It gains haste." / "That token gains haste." / "Those tokens gain haste." (the copy keeps haste), "It gains haste
+    until end of turn.", "Sacrifice it (that token, them) at the beginning of the next end step." (Kiki-Jiki, The Fire
+    Crystal) and "Exile it (that token, those tokens) at the beginning of the next end step." (Flameshadow Conjuring,
+    Felhide Spiritbinder). "(You may) exile it. If you do, create a token that's a copy of that creature, except ..." after a
+    creature dies (Nightmare Shepherd, Hofri Ghostforge) exiles the card from the graveyard first and copies it only if that
+    worked; Hofri's copy sends the exiled card back when it leaves. "Exile target creature card from a graveyard. Create a
+    token that's a copy of it, except it's a 4/4 black Zombie." (The Scarab God) is the exile with a copy of what it exiled.
+    Populate was added earlier.
 - **Control change:** "Gain control of target creature." (permanent), "Gain control of target creature until end of turn.
   Untap that creature. It gains haste until end of turn." (Threaten), and Control Magic ("Enchant creature. You
   control enchanted creature."). The permanent moves to the new controller's battlefield, is summoning sick for

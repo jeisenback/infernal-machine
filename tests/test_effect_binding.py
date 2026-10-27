@@ -68,10 +68,12 @@ class WrapperTests(unittest.TestCase):
         self.assertIsNone(binding(Conditional(None, outcomes.TapThat())), "a follow-up on the previous target is not passed on, as before")
         self.assertIsNone(binding(Conditional(None, Draw(1))))
 
-    def test_may_pay_passes_on_only_the_source(self):
+    def test_may_pay_passes_on_source_subject_and_player_and_nothing_else(self):
         self.assertEqual(binding(MayPay("{1}", self.ON_SOURCE)), SOURCE)
         self.assertIsNone(binding(MayPay("{1}", Draw(1))))
-        self.assertIsNone(binding(MayPay("{1}", outcomes.OnSubject(Draw(1)))), "a subject is not passed on, as before")
+        self.assertEqual(binding(MayPay("{1}", outcomes.OnSubject(Draw(1)))), SUBJECT)  # Flameshadow Conjuring copies the creature that entered
+        self.assertEqual(binding(MayPay("{1}", outcomes.PlayerLosesLife(1))), PLAYER)
+        self.assertIsNone(binding(MayPay("{1}", outcomes.TapThat())), "a follow-up on the previous target is not passed on, as before")
 
     def test_a_graveyard_exile_with_a_then_passes_on_its_source(self):
         self.assertEqual(binding(ExileOwnGraveyard(8, self.ON_SOURCE)), SOURCE)
