@@ -144,6 +144,20 @@ winner = game.play()
   Creatures die from lethal damage (unless indestructible) or 0 toughness,
   and planeswalkers die at 0 loyalty. Damage wears off in the cleanup step.
 
+## Shortcuts
+
+A player may name a loop and how many times to go round it (the Comprehensive Rules' shortcuts; opponents may respond to the proposal).
+`infernal_machine/shortcut.py` is that: `take(game, seat, Shortcut(steps, answers), times)` takes the actions of one round, in order,
+`times` times. Each step is a piece of an action's text (the first legal action that contains it is taken; "A until B" takes A again and
+again until B is offered), the stack resolves after each (`Game.resolve_stack`), and the answers are what the player says to the
+questions the actions raise ("wanted", or "about~wanted" for a question that contains "about"; a question none answers goes to the
+player as usual). It stops when a step is not offered (and says which, in which round), when the game is over, or after `times` rounds.
+Nothing in the game proposes one yet; `tools/combo_lines.py` is the one user, and a bot that follows a combo line would be the next.
+
+What it does not do: make anything infinite. N rounds give N rounds' worth, and the payer spends the mana pool before it taps anything,
+so a loop that makes one mana more than it pays leaves the pool where it was, not N mana richer. A round that grows the board meets the
+board limit; one whose whole state comes back is drawn (`LoopDraw`). Opponents get no chance to respond inside it.
+
 ## Runaway boards
 
 Nothing in the rules stops a token engine that copies itself (a copy of each creature every turn, or within one resolution), but each

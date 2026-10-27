@@ -932,6 +932,18 @@ class Game:
         pending = tuple((t.controller.index, t.card.name if t.card else t.permanent.card.name if t.permanent else "") for t in self.pending)
         return (self.turn, self.step, self.active, tuple(seats), stack, pending, hash(self.rng.getstate()))
 
+    def resolve_stack(self) -> None:
+        """Let the triggers go on the stack and the stack resolve with nobody doing anything: what a priority round does when every
+        player only passes, with the state-based actions checked after each resolution (CR 704.3)."""
+        while self.pending or self.stack:
+            self._put_triggers_on_stack()
+            while self.stack:
+                self._resolve(self.stack.pop())
+                self._check_state()
+            if self.winner() is not None:
+                return
+        self._check_state()
+
     def _priority_round(self, active: Seat) -> None:
         """Pass priority around the table (CR 117.4).
 

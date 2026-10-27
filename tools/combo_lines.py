@@ -30,7 +30,8 @@ sys.path.insert(0, os.getcwd())
 from infernal_machine.cards import Card  # noqa: E402
 from infernal_machine.effects.outcomes import SQUIRREL, TREASURE  # noqa: E402
 from infernal_machine.game import BoardLimitReached, Game, LoopDraw, Permanent, Seat  # noqa: E402
-from tools.combo_smoke import run_stack, table  # noqa: E402
+from infernal_machine.shortcut import Shortcut, pick, take  # noqa: E402
+from tools.combo_smoke import table  # noqa: E402
 
 Measure = Callable[[Game, Seat], int]
 
@@ -164,21 +165,15 @@ def build(line: Line, cards: dict[str, Card]) -> tuple[Game, Seat]:
         mine.library = [cards["Memnite"]] * line.library
     for seat in game.seats:
         seat.player.policy = answer(line.answers)
-    run_stack(game)
-    game._check_state()
+    game.resolve_stack()
     return game, mine
 
 
 def answer(preferred: tuple[str, ...]) -> Callable[[str, list[str]], int]:
+    """A policy for a scripted player: the shortcut's own way of picking, else the first option."""
     def policy(prompt: str, options: list[str]) -> int:
-        for want in preferred:
-            about, _, wanted = want.rpartition("~")  # "about~wanted": only for a question that contains "about"
-            if about not in str(prompt):
-                continue
-            for i, option in enumerate(options):
-                if wanted in option:
-                    return i
-        return 0
+        chosen = pick(preferred, prompt, options)
+        return 0 if chosen is None else chosen
     return policy
 
 
@@ -186,33 +181,21 @@ def run(line: Line, cards: dict[str, Card], rounds: int) -> str:
     game, mine = build(line, cards)
     opponent = game.seats[1]
     before = line.measure(game, mine) if line.measure else 0
-    done = 0
     try:
         if line.start:
             line.start(game, mine)
-            run_stack(game)
-            game._check_state()
+            game.resolve_stack()
         if opponent.lost or game.winner() is not None:
             return "wins once started"
-        for number in range(1, rounds + 1):
-            for step in line.loop:
-                action, _, until = step.partition(" until ")  # "A until B": A again and again until B is offered
-                for _ in range(80 if until else 1):
-                    if until and any(until in a for a in game.legal_actions(mine)):
-                        break
-                    actions = [a for a in game.legal_actions(mine) if action in a]
-                    if not actions:
-                        return f"stops in round {number}: \"{action}\" is not offered" + (f" before \"{until}\"" if until else "")
-                    game._perform(mine, actions[0])
-                    run_stack(game)
-                    game._check_state()
-            done = number
-            if opponent.lost or game.winner() is not None:
-                return f"wins in round {number}"
+        played = take(game, mine, Shortcut(line.loop, line.answers), rounds)
+        if played.over and (opponent.lost or game.winner() is not None):
+            return f"wins in round {played.rounds}"
+        if played.stopped:
+            return f"stops in {played.stopped}"
     except BoardLimitReached:
-        return f"runs to the board limit in round {done + 1}"
+        return "runs to the board limit"
     except LoopDraw:
-        return f"ends as a draw by a loop in round {done + 1}"
+        return "ends as a draw by a loop"
     if not line.loop:  # the start sets it going and the triggers do the rest
         after = line.measure(game, mine) if line.measure else 0
         return f"ends on its own, {line.unit} {before} to {after}"
