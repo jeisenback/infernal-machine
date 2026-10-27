@@ -6,7 +6,7 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
-from tests.helpers import BEAR, FOREST, lands, table
+from tests.helpers import BEAR, FOREST, lands, real, table, table3
 
 PRISON = Card(name="Prison", mana_cost="{2}{W}", type_line="Enchantment",
               oracle_text="Creatures can't attack you unless their controller pays {1} for each creature they control that's "
@@ -64,6 +64,42 @@ class AllAttackersPayTogetherTests(unittest.TestCase):
     def test_no_tax_means_nothing_is_paid(self):
         game, a, attackers = declare(Card(name="Plain", type_line="Enchantment"), [BEAR, BEAR], forests=2)
         self.assertEqual((len(attackers), tapped_lands(a)), (2, 0))
+
+
+PROPAGANDA = real("Propaganda", "{2}{U}", "Enchantment", "Creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you.")
+
+
+def split_attack(prompt, options):
+    """The Bear goes for seat 1, who has the tax; the Dork for seat 2, who has none."""
+    want = "seat 2" if "Dork" in prompt else "seat 1"
+    return next((i for i, o in enumerate(options) if want in o), 0)
+
+
+class AnUntaxedAttackerStillTapsTests(unittest.TestCase):
+    """An attacker whose own defender charges nothing is still tapped, and the mana the tax of the attackers before it counted on may be
+    its own: the game raised when the tax could not be paid (#550)."""
+
+    def declare(self, creatures, forests):
+        game, _ = table3(split_attack)
+        a, taxed, untaxed = game.seats
+        a.battlefield = [Permanent(c, sick=False) for c in creatures] + lands(forests, FOREST)
+        taxed.battlefield = [Permanent(PROPAGANDA)]
+        game.combat.declare_attackers(a)
+        return a, [(x.attacker.card.name, x.defender.index) for x in game.combat.attacks]
+
+    def test_the_mana_creature_stays_home_when_the_bear_needs_its_mana(self):
+        a, attacks = self.declare([BEAR, DORK], forests=1)  # the Bear's {2} is the Forest and the Dork
+        self.assertEqual(attacks, [("Bear", 1)])
+        self.assertEqual((tapped_lands(a), next(p for p in a.battlefield if p.card.name == "Dork").tapped), (1, True))
+
+    def test_it_attacks_when_the_lands_pay(self):
+        a, attacks = self.declare([BEAR, DORK], forests=2)
+        self.assertEqual(attacks, [("Bear", 1), ("Dork", 2)])
+        self.assertEqual(tapped_lands(a), 2)
+
+    def test_a_vigilant_mana_creature_attacks_and_pays(self):
+        a, attacks = self.declare([BEAR, VIGILANT_DORK], forests=1)
+        self.assertEqual(len(attacks), 2)  # vigilance: it does not tap to attack, so its mana is still there
 
 
 if __name__ == "__main__":
