@@ -25,7 +25,7 @@ from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCAR
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor", "sink"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
 HIGH_TAX = 6  # a commander cast from the command zone three times has this much tax; past it, a graveyard with a way out can be the better place
 # A card that brings a card back from a graveyard to the battlefield or the hand: where a commander that dies can be worth leaving.
 RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
@@ -99,7 +99,8 @@ class BotPlayer:
         the lowest life), "destination" (a commander that would be bounced goes to the hand to be cast without tax, and one that would
         die with a lot of tax on it goes to the graveyard if the deck can bring it back), "tutor" (a search or a look at the top of the library
         takes the card that completes a combo the deck holds, with what is on the battlefield and in the hand; `combos` are the deck's combos
-        as tuples of card names, or come from the Commander Spellbook cache, and the judgment does nothing for a deck the cache doesn't know)."""
+        as tuples of card names, or come from the Commander Spellbook cache, and the judgment does nothing for a deck the cache doesn't know),
+        "sink" (with nothing left to cast, an ability that costs only mana is activated, the dearest first, once a turn for each source)."""
         self.features = features
         self._commanders = {c.name for c in deck.commanders}
         self._signature = deck.signature_spell.name if deck.signature_spell else None  # an Oathbreaker's spell: cast like any spell, not first like a commander
@@ -121,6 +122,7 @@ class BotPlayer:
         self._damage_limit = COMMANDER_DAMAGE
         self._joint: dict[str, list[str]] = {}  # this combat's double blocks: the attacker -> the blockers that were planned for it
         self._joint_turn: int | None = None
+        self._sunk: set[tuple[int | None, str]] = set()  # (turn, the source's label) of the mana sinks used
 
     def _card(self, name: str) -> Card:
         """The card called `name`. One from another deck (Plargg and Nassari casts opponents' cards) is known by name only."""
@@ -259,6 +261,8 @@ class BotPlayer:
         for i, option in enumerate(options):
             if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)) and self._activation_time(prompt, option):
                 return i
+        if "sink" in self.features and (sink := self._mana_sink(prompt, options)) is not None:
+            return sink
         for i, option in enumerate(options):
             if option.startswith(COMPANION):  # nothing else to do with the mana: the companion is a card from outside the game for {3}
                 return i
@@ -325,6 +329,21 @@ class BotPlayer:
             if name is not None and dealt[name] + _stats(options[i])[0] >= self._damage_limit:
                 return i
         return None
+
+    def _mana_sink(self, prompt: str, options: Sequence[str]) -> int | None:
+        """With "sink": the dearest ability that costs only mana (Kinnan's {5}{G}{U}, Thrasios's {4}) in the second main phase, when
+        nothing else was worth doing. Each source does it once a turn, so a mana-only ability cannot make it loop."""
+        if subject_of(prompt, PRIORITY_PROMPT) != "main2":
+            return None
+        turn = (self._state or {}).get("turn")
+        sinks = [(_mana_value(cost), i) for i, option in enumerate(options)
+                 if option.startswith(ACTIVATE) and MANA_ONLY.fullmatch(cost := option.split("): ", 1)[1].split(":", 1)[0])
+                 and (turn, option.split("): ", 1)[0]) not in self._sunk]
+        if not sinks:
+            return None
+        _, best = max(sinks)
+        self._sunk.add((turn, options[best].split("): ", 1)[0]))
+        return best
 
     def _activation_time(self, prompt: str, option: str) -> bool:
         """With "timing": equip, crew and loyalty abilities in either main phase, but an ability that taps or sacrifices
@@ -662,6 +681,14 @@ def _is_ritual(card: Card | None) -> bool:
     """A card that only adds mana ("Add {B}{B}{B}."): the bot doesn't plan ahead, so it would only waste it."""
     lines = [line.strip() for line in (card.oracle_text if card else "").splitlines() if line.strip()]
     return bool(lines) and all(re.fullmatch(r"Add (\{[WUBRGC]\})+\.", line) for line in lines)
+
+
+MANA_ONLY = re.compile(r"(\{[^{}]+\})+")
+
+
+def _mana_value(cost: str) -> int:
+    """What a cost of mana symbols comes to: a number is itself, any other symbol is one."""
+    return sum(int(symbol) if symbol.isdigit() else 1 for symbol in re.findall(r"\{([^{}]+)\}", cost))
 
 
 def _limited_cost(action: str) -> bool:
