@@ -2540,6 +2540,9 @@ class Game:
             return seat.attackers_turn == self.turn and seat.most_attackers >= condition.count
         if kind == "source_counters_at_least":  # a Planet's "12+ |" abilities: that many counters of the kind on it
             return source is not None and source.counters.get(condition.what, 0) >= condition.count
+        if kind == "instant_and_sorcery_in_graveyard":  # Flow State
+            types = {t for c in seat.graveyard for t in ("Instant", "Sorcery") if t in c.type_line}
+            return types == {"Instant", "Sorcery"}
         if kind == "in_graveyard":  # Anger: "As long as this card is in your graveyard"
             return source is not None and any(c is source.card for c in seat.graveyard)
         if kind == "has_exiled_with":  # Currency Converter, Quintorius: "a card exiled with this"
@@ -4981,30 +4984,40 @@ class Game:
         seat.library = self._ordered(seat, chosen) + seat.library
         self.broadcast({"event": "put_back", "seat": seat.index, "count": len(chosen)})
 
-    def look_at_top(self, seat: Seat, count: int, card_type: str | None, to: str = "hand") -> None:
-        """Look at the top `count` cards: take one into the hand (a card of `card_type` if given, and then
-        only if the player wants it), or put it onto the battlefield (`to`); the rest go to the bottom in a random order."""
+    def look_at_top(self, seat: Seat, count: int, card_type: str | None, to: str = "hand", take: int = 1, rest: str = "bottom") -> None:
+        """Look at the top `count` cards: take one (or `take`) into the hand (a card of `card_type` if given, and then
+        only if the player wants it), or put it onto the battlefield (`to`); the rest go to the bottom in a random order, or into
+        the graveyard (`rest`, Glimpse the Future)."""
         top = seat.library[:count]
         del seat.library[:len(top)]
-        matches = _unique([c for c in top if card_type is None or _card_matches(card_type, c)])
-        taken = None
-        if matches:
+        taken: list[Card] = []
+        for _ in range(take):
+            matches = _unique([c for c in top if card_type is None or _card_matches(card_type, c)])
+            if not matches:
+                break
             options = [c.name for c in matches] + ([NONE_TAKEN] if card_type else [])
-            choice = seat.player.choose(LOOK_PROMPT, options)
-            if choice < len(matches):
-                taken = matches[choice]
-                top.remove(taken)
-                if to == "battlefield":
-                    self.put_onto_battlefield(seat, taken)
-                else:
-                    seat.hand.append(taken)
-        self.rng.shuffle(top)
-        seat.library += top
-        looked = len(top) + (taken is not None)
+            choice = seat.player.choose(LOOK_PROMPT, options) if len(options) > 1 else 0
+            if choice >= len(matches):
+                break
+            card = matches[choice]
+            top.remove(card)
+            taken.append(card)
+            if to == "battlefield":
+                self.put_onto_battlefield(seat, card)
+            else:
+                seat.hand.append(card)
+        if rest == "graveyard":
+            for card in top:
+                self._move_card(seat, card, "graveyard")
+                self.broadcast({"event": "milled", "seat": seat.index, "card": card.name})
+        else:
+            self.rng.shuffle(top)
+            seat.library += top
+        looked = len(top) + len(taken)
         self.broadcast({"event": "looked", "seat": seat.index, "count": looked,
-                        **({"card": taken.name} if taken and card_type else {})}, skip=seat)
+                        **({"card": taken[0].name} if taken and card_type else {})}, skip=seat)
         seat.player.notify({"event": "looked", "seat": seat.index, "count": looked,
-                            "card": taken.name if taken else None})
+                            "card": taken[0].name if taken else None})
 
     def _can_put_attachment(self, seat: Seat, card: Card) -> bool:
         """Whether an Aura or Equipment card could be put onto the battlefield (an Aura needs something to enchant)."""

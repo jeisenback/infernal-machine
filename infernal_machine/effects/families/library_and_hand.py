@@ -460,6 +460,14 @@ class ExileDiscarded:
 
 
 @dataclass(frozen=True)
+class _InsteadTake:
+    """Flow State: "If there is an instant card and a sorcery card in your graveyard, instead put two of them into your hand and the
+    rest on the bottom of your library in any order." (folded into the Impulse before it, see _merge_conditional)"""
+    condition: "Condition"
+    count: int
+
+
+@dataclass(frozen=True)
 class _InsteadDraw:
     """ "If you control eight or more lands, draw two cards instead." (see _merge_conditional)"""
     condition: "Condition"
@@ -596,10 +604,14 @@ class LookAtTop:
 @dataclass(frozen=True)
 class TakeFromTop:
     """The sentence after a look: "Put one of them into your hand and the rest on the bottom of your library in any
-    order." (card_type None), "You may reveal a creature card from among them and put it into your hand." or "You may put a
-    Dragon creature card from among them onto the battlefield." """
+    order." (card_type None), "Put two of them into your hand and the rest into your graveyard." (Stock Up's and Glimpse the
+    Future's family, #564: `take` of them, the rest to `rest`; "Put one of those cards into your hand." says where the rest go
+    in a later sentence, `rest` None), "You may reveal a creature card from among them and put it into your hand." or "You may
+    put a Dragon creature card from among them onto the battlefield." """
     card_type: str | None
     to: str = "hand"  # or "battlefield"
+    take: int | str = 1
+    rest: str | None = "bottom"  # or "graveyard"; None: the rest-on-the-bottom sentence follows
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         raise NotImplementedError("a lone take from the top is never built")
@@ -615,13 +627,19 @@ class RestOnBottom:
 
 @dataclass(frozen=True)
 class Impulse:
-    """Look at the top cards, take one (into the hand, or onto the battlefield: Ureni of the Unwritten), put the rest on the bottom."""
+    """Look at the top cards, take one or `take` (into the hand, or onto the battlefield: Ureni of the Unwritten), put the rest on the
+    bottom or into the graveyard (`rest`). Flow State: `more` of them instead when `more_if` holds."""
     count: int | str
     card_type: str | None
     to: str = "hand"
+    take: int | str = 1
+    rest: str = "bottom"
+    more: int = 0
+    more_if: "Condition | None" = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.look_at_top(controller, game.amount(self.count), self.card_type, self.to)
+        take = self.more if self.more_if and game.condition_holds(self.more_if, controller, game.resolving_source) else self.take
+        game.look_at_top(controller, game.amount(self.count), self.card_type, self.to, game.amount(take), self.rest)
 
 
 @dataclass(frozen=True)
