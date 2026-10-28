@@ -257,8 +257,9 @@ def kind_of(card: Card) -> str:
     return next((word for word in TYPES if word in card.type_line), "Other")
 
 
-def analyze(pool: list[dict], workers: int = 0) -> dict:
-    """The audit's numbers for a list of Scryfall card objects."""
+def analyze(pool: list[dict], workers: int = 0, popularity: bool = True) -> dict:
+    """The audit's numbers for a list of Scryfall card objects. `popularity` is whether EDHREC's rank says how played a card is
+    (Commander); without it (Standard) every card counts the same, there is no rank table or typical deck, and `next` counts cards."""
     total = playable = 0
     by_type: dict[str, list[int]] = collections.defaultdict(lambda: [0, 0])
     ranked: list[tuple[int, bool]] = []
@@ -285,7 +286,7 @@ def analyze(pool: list[dict], workers: int = 0) -> dict:
             playable += 1
             by_type[kind][1] += 1
         entries.append((data.get("edhrec_rank"), not lines))
-        if data.get("edhrec_rank"):
+        if data.get("edhrec_rank") and popularity:
             ranked.append((data["edhrec_rank"], not lines))
             best_rank[card.name] = data["edhrec_rank"]
         if len(lines) == 1:
@@ -313,18 +314,22 @@ def analyze(pool: list[dict], workers: int = 0) -> dict:
 
     def by_rank(names: set[str]) -> list[str]:
         return sorted(names, key=lambda n: best_rank.get(n, 10 ** 7))
-    popular = {n: (sum(ok for _, ok in ranked[:n]), min(n, len(ranked))) for n in RANK_BUCKETS}
-    scale = inclusion_scale([r for r, _ in ranked])
-    deck = deck_coverage(entries, scale)
-    picks = next_targets(needs, weigh=lambda rank: inclusion(rank, scale))
+    if popularity:
+        popular = {n: (sum(ok for _, ok in ranked[:n]), min(n, len(ranked))) for n in RANK_BUCKETS}
+        scale = inclusion_scale([r for r, _ in ranked])
+        deck = deck_coverage(entries, scale)
+        picks = next_targets(needs, weigh=lambda rank: inclusion(rank, scale))
+    else:  # no play data: each card counts one, and what is playable after a piece of work is a share of the cards
+        popular, deck = {}, {}
+        picks = next_targets(needs, weigh=lambda rank: 1.0)
     gained = 0.0
-    for pick in picks:  # what the deck's playable share is once this piece and those above it are built
+    for pick in picks:  # what the deck's (or the pool's) playable share is once this piece and those above it are built
         gained += pick["weight"]
-        pick["deck_share"] = (deck["playable"] + gained) / DECK_CARDS
+        pick["deck_share"] = (deck["playable"] + gained) / DECK_CARDS if popularity else (playable + gained) / total
     return {"total": total, "playable": playable, "by_type": dict(by_type), "popular": popular, "one_gap": one_gap,
             "shapes": {s: by_rank(names) for s, names in shapes.items()},
             "only_gap": {s: by_rank(names) for s, names in only_gap.items()},
-            "best_rank": best_rank, "crashes": crashes, "blocked": blocked, "next": picks, "deck": deck,
+            "best_rank": best_rank, "crashes": crashes, "blocked": blocked, "next": picks, "deck": deck, "popularity": popularity,
             "families": {f: {"cards": by_rank({n for names in shapes_.values() for n in names}),
                              "shapes": {s: by_rank(names) for s, names in shapes_.items()}} for f, shapes_ in family_shapes.items()},
             "mechanisms": {m: {"all": everywhere[m], "cards": by_rank(g["cards"]), "only": by_rank(g["only"]),

@@ -1,7 +1,7 @@
 """How much of the Commander card pool the engine understands, weighted by how much each card is played (the coverage audit,
 issue #219).
 
-    python tools/coverage_audit.py [--pool .cache/commander_pool.json] [--top 40] [--json OUT.json]
+    python tools/coverage_audit.py [--format commander] [--pool .cache/commander_pool.json] [--top 40] [--json OUT.json]
 
 Fetches every Commander-legal paper card from Scryfall's search API (about 185 pages, a few minutes; the result is kept in
 `--pool` and reused for a week), runs the report's `unsupported_lines` over each card, and prints a markdown summary: the share
@@ -72,15 +72,15 @@ from infernal_machine.coverage import (  # noqa: E402
     compare_baseline,
 )
 
-SEARCH = "legal:commander game:paper -t:token -is:funny"
+SEARCH = "legal:{format} game:paper -t:token -is:funny"  # Scryfall's search for the cards legal in a format
 
 
-def fetch_pool(path: str, max_age_days: float = 7.0, pause: float = 0.11) -> list[dict]:
-    """The Commander-legal paper cards as Scryfall's JSON, from `path` if it is fresh, else from the search API."""
+def fetch_pool(path: str, max_age_days: float = 7.0, pause: float = 0.11, format: str = "commander") -> list[dict]:
+    """The paper cards legal in `format` as Scryfall's JSON, from `path` if it is fresh, else from the search API."""
     if os.path.exists(path) and time.time() - os.path.getmtime(path) < max_age_days * 86400:
         with open(path) as f:
             return json.load(f)
-    url = "https://api.scryfall.com/cards/search?" + urllib.parse.urlencode({"q": SEARCH, "unique": "cards"})
+    url = "https://api.scryfall.com/cards/search?" + urllib.parse.urlencode({"q": SEARCH.format(format=format), "unique": "cards"})
     cards: list[dict] = []
     while url:
         request = urllib.request.Request(url, headers={"User-Agent": "infernal-machine/0.1", "Accept": "application/json"})
@@ -102,19 +102,23 @@ def fetch_pool(path: str, max_age_days: float = 7.0, pause: float = 0.11) -> lis
     return cards
 
 
-def render(result: dict, top: int = 40) -> str:
+def render(result: dict, top: int = 40, format: str = "commander") -> str:
     total, playable = result["total"], result["playable"]
-    out = [f"## Coverage audit: {playable} of {total} Commander-legal cards fully playable ({100 * playable / total:.1f}%)", ""]
+    out = [f"## Coverage audit: {playable} of {total} {format.capitalize()}-legal cards fully playable ({100 * playable / total:.1f}%)", ""]
     out.append("| Card type | Fully playable |\n|---|---|")
     for kind, (count, ok) in sorted(result["by_type"].items(), key=lambda kv: -kv[1][0]):
         out.append(f"| {kind} | {ok} of {count} ({100 * ok / count:.0f}%) |")
-    out += ["", "| Most played (EDHREC rank) | Fully playable |\n|---|---|"]
-    for n, (ok, of) in result["popular"].items():
-        out.append(f"| top {n} | {ok} of {of} ({100 * ok / of:.0f}%) |" if of else f"| top {n} | no ranked cards |")
-    deck = result["deck"]
-    out += ["", f"A typical {deck['cards'] + 1}-card deck ({deck['basics']} basic lands, the rest chosen by how played each card is) is "
-                f"{deck['share']:.1%} fully playable: about {deck['unplayable']:.1f} of its cards the engine cannot play, and a "
-                f"{deck['clean']:.1%} chance that every one of them is playable."]
+    if result.get("popularity", True):
+        out += ["", "| Most played (EDHREC rank) | Fully playable |\n|---|---|"]
+        for n, (ok, of) in result["popular"].items():
+            out.append(f"| top {n} | {ok} of {of} ({100 * ok / of:.0f}%) |" if of else f"| top {n} | no ranked cards |")
+        deck = result["deck"]
+        out += ["", f"A typical {deck['cards'] + 1}-card deck ({deck['basics']} basic lands, the rest chosen by how played each card is) is "
+                    f"{deck['share']:.1%} fully playable: about {deck['unplayable']:.1f} of its cards the engine cannot play, and a "
+                    f"{deck['clean']:.1%} chance that every one of them is playable."]
+    else:
+        out += ["", f"There is no play data for {format.capitalize()}, so every card counts the same: the tables below are counts of cards, and "
+                    f"the tracked decks (when there are some) say which gaps matter."]
     gaps = len(result["shapes"])
     singles = sum(1 for names in result["shapes"].values() if len(names) == 1)
     out += ["", f"{result['one_gap']} cards have exactly one unsupported line. There are {gaps} distinct unsupported lines, "
@@ -122,7 +126,7 @@ def render(result: dict, top: int = 40) -> str:
     rank = result["best_rank"]
 
     def table(title: str, groups: dict[str, list[str]]) -> None:
-        out.append(f"### {title}\n\n| Cards | Unsupported line | Most played |\n|---|---|---|")
+        out.append(f"### {title}\n\n| Cards | Unsupported line | {'Most played' if result.get('popularity', True) else 'Some of the cards'} |\n|---|---|---|")
         for line, names in sorted(groups.items(), key=lambda kv: -len(kv[1]))[:top]:
             best = ", ".join(f"{n} #{rank[n]}" if n in rank else n for n in names[:2])
             out.append(f"| {len(names)} | `{line.replace('|', '/')}` | {best} |")
@@ -232,6 +236,13 @@ def render_mechanism(result: dict, name: str, top: int = 25) -> str:
 
 def render_next(result: dict) -> str:
     """The families to build, in order, with what each one unlocks once the ones above it are built."""
+    if not result.get("popularity", True):  # no play data: the cards unlocked are all there is to count, and the share is of the pool
+        out = [f"## Next targets: the best piece of work first, each assuming those above it are built", "",
+               "| # | Family | Cards unlocked | Pool playable after | Also needs | Some of the cards |", "|---|---|---|---|---|---|"]
+        for i, pick in enumerate(result["next"], 1):
+            out.append(f"| {i} | {pick['family']} | {pick['unlocks']} | {pick['deck_share']:.1%} | {pick['also_needs'] or '-'} | {', '.join(pick['cards'][:3]) or '-'} |")
+        out += ["", f"{result['blocked']} unplayable cards have a line no family covers, so they are never counted as unlocked.", ""]
+        return "\n".join(out)
     out = [f"## Next targets: the best piece of work first, each assuming those above it are built", "",
            "| # | Family | Cards unlocked | In top " + str(POPULAR) + " | Per deck | Deck playable after | Also needs | Most played |",
            "|---|---|---|---|---|---|---|---|"]
@@ -247,7 +258,8 @@ def render_next(result: dict) -> str:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pool", default=".cache/commander_pool.json")
+    parser.add_argument("--format", default="commander", help="the format whose legal cards are audited (Scryfall's name for it: commander, standard, ...)")
+    parser.add_argument("--pool", help="the saved Scryfall cards (default .cache/<format>_pool.json)")
     parser.add_argument("--top", type=int, default=40)
     parser.add_argument("--json", help="also write the numbers here")
     parser.add_argument("--mechanisms", action="store_true", help="also group the gaps by mechanism")
@@ -290,11 +302,12 @@ def main(argv: list[str]) -> int:
             print("\n" + render_baseline(comparison, result))
             return 1 if comparison["regressed"] or comparison["missing_decks"] else 0
         return 0
-    result = analyze(fetch_pool(args.pool), args.workers)
+    pool = fetch_pool(args.pool or f".cache/{args.format}_pool.json", format=args.format)
+    result = analyze(pool, args.workers, popularity=args.format == "commander")  # EDHREC's rank is Commander's play data
     if args.mechanism:
         print(render_mechanism(result, args.mechanism, args.top))
     else:
-        print(render(result, args.top))
+        print(render(result, args.top, args.format))
         if args.mechanisms:
             print(render_mechanisms(result, args.top))
         if args.next:

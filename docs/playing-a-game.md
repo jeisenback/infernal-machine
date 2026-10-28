@@ -137,7 +137,7 @@ winner = game.play()
     double strike, deathtouch and lifelink.
   - A blocked attacker deals lethal damage to each blocker in the order they blocked. Any extra goes
     to the last blocker, or to the player with trample. It stays blocked even if its blockers leave.
-  - Creatures can't attack planeswalkers yet.
+  - A creature attacks a player or a planeswalker that player controls; damage to a planeswalker removes loyalty counters.
 - **Commander damage:** combat damage from each commander is tracked per player.
   21 from one commander makes that player lose.
 - **State checks:** players lose at 0 life, when drawing from an empty library, or at 21 commander damage.
