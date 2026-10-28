@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
+from ...analysis import is_land
 from ...cards import Card
 from ...characteristics import Modifier
 from ..common import Quantity
@@ -730,6 +731,28 @@ class Discard:
         for seat in game.turn_order_from_active():
             if self.who == "each player" or (self.who == "you") == (seat is controller):
                 game.discard(seat, None if self.count is None else game.amount(self.count), self.random)
+
+
+@dataclass(frozen=True)
+class _StunPerNonlandDiscard:
+    """Marker: "When you discard one or more nonland cards this way, tap up to that many target creatures and put a stun counter on
+    each of them." (Seasoned Cryomancer); folded into the Discard before it as DiscardThenStun."""
+    kind: str = "creature"
+
+
+@dataclass(frozen=True)
+class DiscardThenStun:
+    """Seasoned Cryomancer: discard `count` cards, then tap and stun up to as many creatures as nonland cards were discarded. The
+    creatures are chosen when the number is known (a reflexive trigger, CR 603.12), so they are not targets of the enters trigger."""
+    count: int | str
+    kind: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        discarded = game.discard(controller, game.amount(self.count))
+        many = sum(1 for card in discarded if not is_land(card))
+        if many:
+            source = game.resolving_source
+            game.tap_and_stun_up_to(controller, many, self.kind, source.card.name if source is not None else "the ability")
 
 
 @dataclass(frozen=True)
