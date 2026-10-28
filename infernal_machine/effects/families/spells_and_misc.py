@@ -382,6 +382,17 @@ class IfKicked:
 
 
 @dataclass(frozen=True)
+class IfAdditionalCostPaid:
+    """"If this spell's additional cost was paid, you gain 2 life." (Requiting Hex): the effect happens only if the optional
+    additional cost was paid; like IfKicked, it is settled as the spell is cast (`additional_paid_effects`)."""
+    effect: Any
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None and game.resolving_item.additional_paid:
+            self.effect.resolve(game, controller, target)
+
+
+@dataclass(frozen=True)
 class KickedInstead:
     """"If this spell was kicked, it deals 4 damage instead.": when kicked, the previous effect's `field`
     (its damage, number of tokens or cards) becomes `value`."""

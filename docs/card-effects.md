@@ -706,6 +706,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
     trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
     in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - Blight as an additional cost (`AdditionalCost.blight`, `Game.blight`): "As an additional cost to cast this spell, you may
+    blight 1." (Requiting Hex) is a choice between blighting and paying nothing more, offered only while you control a creature;
+    the counters go on a creature you choose as the cost is paid. "If this spell's additional cost was paid, you gain 2 life."
+    (`IfAdditionalCostPaid`) is settled as the spell is cast, as the kicked riders are. Blight as an activated-ability cost or
+    an effect ("you may blight 2. If you do, ...") is not read yet.
   - Three single cards from the popularity passes (`tests/test_remaining_cards.py`): Victimize (choose two creature cards in your graveyard,
     sacrifice a creature, and if you do they return tapped), Malakir Rebirth ("that creature gains 'When this creature dies, return it to the
     battlefield tapped' until end of turn": `Permanent.returns_when_dies` holds the turn, and the game puts the trigger on the stack when

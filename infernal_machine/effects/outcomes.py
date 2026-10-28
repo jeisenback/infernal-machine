@@ -411,6 +411,7 @@ from .families.spells_and_misc import (  # noqa: F401
     DefineX,
     DoubleXOfTriggeringSpell,
     HYPOTHESIS_COUNTER_PROMPT,
+    IfAdditionalCostPaid,
     IfKicked,
     IfNotKicked,
     KickedInstead,
@@ -1303,6 +1304,20 @@ def _kicked(m: re.Match) -> IfKicked | None:
     return IfKicked(effects[0], kicker) if effects else None
 
 
+def _additional_paid(m: re.Match) -> IfAdditionalCostPaid | None:
+    sentence = m[1][:1].upper() + m[1][1:]
+    effects = _parse([sentence])
+    return IfAdditionalCostPaid(effects[0]) if effects is not None and len(effects) == 1 else None
+
+
+def additional_paid_effects(effects: list | None, paid: bool) -> list | None:
+    """A spell's effects once it's known whether its optional additional cost was paid: "If this spell's additional cost was
+    paid, ..." effects become plain effects, or are dropped (before targets are chosen, as kicked effects are)."""
+    if effects is None:
+        return None
+    return [e.effect if isinstance(e, IfAdditionalCostPaid) else e for e in effects if paid or not isinstance(e, IfAdditionalCostPaid)]
+
+
 def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] = ()) -> list | None:
     """A spell's effects once it's known whether it was kicked: "If this spell was kicked, ..." effects
     become plain effects, or are dropped. This happens before targets are chosen, so kicked effects can target."""
@@ -1428,6 +1443,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if this spell was kicked, (.+?) instead\.", re.I), lambda m: _KickedInsteadTail(m[1])),
     (re.compile(r"if this spell wasn't kicked, (.+)", re.I), lambda m: _not_kicked(m[1])),
     (re.compile(rf"if this spell was kicked(?: with its ({_MANA_SYMBOLS}) kicker)?, (.+)", re.I), _kicked),
+    (re.compile(r"if this spell's additional cost was paid, (.+)", re.I), _additional_paid),  # Requiting Hex
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
     (re.compile(r"draw an additional card\.", re.I), lambda m: Draw(1)),
     (re.compile(rf"(?:you )?gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),

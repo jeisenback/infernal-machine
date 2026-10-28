@@ -15,7 +15,7 @@ from .analysis import is_land
 from .cards import Card, has_keyword
 from .characteristics import source_qualities
 from .effects import (AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
-                      Scry, TriggeredAbility, additional_costs, affinity_for, alternative_costs, buyback_cost, buyback_other_cost,
+                      Scry, TriggeredAbility, NOTHING_MORE, additional_costs, additional_paid_effects, affinity_for, alternative_costs, buyback_cost, buyback_other_cost,
                       chosen_cost_reductions, conditional_cost_reduction, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest_power, reduced_by_total_power,
@@ -66,6 +66,8 @@ class Caster:
         effects = kicked_effects(effects, kicked, kickers)
         picked = self._pick_options(seat, card, alternative, kicked, bought_back, lambda mana: self._payment(
             seat, paying, from_command_zone, 0, alternative, kickers, extra + mana))
+        additional_paid = bool(additional_costs(card)) and NOTHING_MORE not in picked  # "If this spell's additional cost was paid"
+        effects = additional_paid_effects(effects, additional_paid)
         if free and not self._can_pay_extras(seat, card, alternative, kicked, bought_back):
             # CR 601.2b, 601.2h: a spell whose additional cost can't be paid can't be cast, even for free (cascade, suspend ...): it stays where it is
             self.game.broadcast({"event": "cant_cast", "seat": seat.index, "card": card.name})
@@ -135,7 +137,7 @@ class Caster:
             prepared.prepared = False
         self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back, picked)
         sacrificed = self.game._sacrifice_for_copies(seat, card)
-        item = g.StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
+        item = g.StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, additional_paid=additional_paid, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
                          foretold=graveyard is not None and graveyard.word == "Foretell", from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
@@ -328,6 +330,8 @@ class Caster:
             return False
         if sum(c.discard for c in extras) > len(others):
             return False
+        if any(c.blight for c in extras) and not any(g._permanent_matches("creature", p.card) for p in seat.battlefield):
+            return False  # blight needs a creature you control to put the counters on
         for kind in {c.sacrifice for c in extras if c.sacrifice and not c.sacrifice_x}:
             needed = sum(c.sacrifice == kind for c in extras if not c.sacrifice_x)
             if sum(g._permanent_matches(kind, p.card) for p in seat.battlefield) < needed:
@@ -372,6 +376,8 @@ class Caster:
                 seat.hand.remove(discarded)
                 self.game.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
                 self.game._discard_into_zone(seat, discarded)
+            if extra.blight:
+                self.game.blight(seat, extra.blight, card.name)
             for _ in range(x if extra.sacrifice_x else 1 if extra.sacrifice else 0):
                 options = [p for p in seat.battlefield if g._permanent_matches(extra.sacrifice, p.card)]
                 choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT(card.name), [self.game.label(p) for p in options])]

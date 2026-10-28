@@ -96,7 +96,11 @@ class AdditionalCost:
     life_x: bool = False  # "pay X life" (Toxic Deluge): X is chosen as the spell is cast
     sacrifice_x: bool = False  # "sacrifice X creatures" (Immoral Bargain): `sacrifice` is the kind, X of them
     mana: str = ""  # "pay {2}": mana added to the cost (only as one of `options`)
+    blight: int = 0  # "blight 1": put that many -1/-1 counters on a creature you control
     options: tuple["AdditionalCost", ...] = ()  # "sacrifice an artifact or discard a card": pay one of these
+
+
+NOTHING_MORE = AdditionalCost()  # the choice not to pay an optional additional cost ("you may blight 1")
 
 
 _KICKER = re.compile(rf"(?:Multik|K)icker ({_MANA_SYMBOLS})(?: and/or ({_MANA_SYMBOLS}))?")
@@ -131,6 +135,9 @@ _ADDITIONAL_PART = (r"(?:sacrifice an? (artifact or creature|creature or planesw
 
 
 _ADDITIONAL_EITHER = re.compile(rf"As an additional cost to cast this spell, ({_ADDITIONAL_PART}(?:(?:, or |, | or ){_ADDITIONAL_PART})+)\.")
+
+
+_ADDITIONAL_BLIGHT = re.compile(r"As an additional cost to cast this spell, (you may )?blight (\d+)\.")  # Requiting Hex
 
 
 _X_LIMIT = re.compile(r"X can't be greater than the number of players in the game\.")  # Open the Way
@@ -633,6 +640,9 @@ def additional_costs(card: Card) -> list[AdditionalCost]:
             costs.append(AdditionalCost(options=tuple(
                 AdditionalCost(sacrifice=part[0] or None, discard=bool(part[1]), life=_number(part[2]) if part[2] else 0, mana=part[3])
                 for part in re.findall(_ADDITIONAL_PART, m[1]))))
+        elif m := _ADDITIONAL_BLIGHT.fullmatch(line):  # "you may blight 1": a choice between blighting and paying nothing more
+            blight = AdditionalCost(blight=int(m[2]))
+            costs.append(AdditionalCost(options=(blight, NOTHING_MORE)) if m[1] else blight)
     return costs
 
 
@@ -680,7 +690,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
