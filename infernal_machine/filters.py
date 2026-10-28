@@ -70,9 +70,12 @@ class Filter:
     state: str = ""  # "tapped", "untapped", "attacking" or "attacking or blocking": for the caller to check
     mana_value: tuple[str, int] | None = None  # ("<=", 3), (">=", 5), ("=", 2) or ("<", 2)
     power_at_most: int | None = None  # "creature card with power 2 or less"
+    keyword: str = ""  # "creature spell with flying": a keyword printed on the card (Momo, Friendly Flier)
 
     def matches(self, card) -> bool:
         """Whether the card is of this kind, as far as the card itself says (not whose it is, or what it is doing)."""
+        if self.keyword and not _has_printed_keyword(card, self.keyword):
+            return False
         if self.mana_value is not None:
             op, value = self.mana_value
             if not ((op == "<=" and card.cmc <= value) or (op == ">=" and card.cmc >= value) or (op == "=" and card.cmc == value)
@@ -91,6 +94,15 @@ def _words(type_line: str) -> tuple[frozenset[str], frozenset[str]]:
     head, _, tail = type_line.lower().partition("—")
     subtypes = frozenset(tail.split())
     return frozenset(head.split()) | subtypes, subtypes
+
+
+_KEYWORD = re.compile(r" with (flying|flash|haste|trample|vigilance|lifelink|deathtouch|menace|reach|first strike|double strike|hexproof|"
+                      r"indestructible|defender)$")
+
+
+def _has_printed_keyword(card, keyword: str) -> bool:
+    """Whether a keyword is printed on the card: a line of keywords ("Flying, vigilance, lifelink") holds it."""
+    return any(keyword in (w.strip().lower() for w in line.split(",")) for line in card.oracle_text.splitlines())
 
 
 _MANA_VALUE = re.compile(r" with mana value (\d+)(?: (or less|or greater))?$")
@@ -117,6 +129,9 @@ def parse_filter(text: str) -> Filter:
     elif m := _POWER.search(text):
         power_at_most = int(m[1])
         text = text[:m.start()]
+    keyword = ""
+    if m := _KEYWORD.search(text):
+        keyword, text = m[1], text[:m.start()]
     controller = None
     for suffix, who in _CONTROLLERS:
         if text.endswith(suffix):
@@ -127,7 +142,7 @@ def parse_filter(text: str) -> Filter:
         if text.startswith(word + " "):
             state, text = word, text.removeprefix(word + " ")
             break
-    return Filter(_alternatives(text), controller, state, mana_value, power_at_most)
+    return Filter(_alternatives(text), controller, state, mana_value, power_at_most, keyword)
 
 
 def _alternatives(text: str) -> tuple[Alternative, ...]:

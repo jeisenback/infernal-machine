@@ -16,7 +16,7 @@ from .cards import Card, has_keyword
 from .characteristics import source_qualities
 from .effects import (AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
                       Scry, TriggeredAbility, additional_costs, affinity_for, alternative_costs, buyback_cost, buyback_other_cost,
-                      chosen_cost_reductions, conditional_cost_reduction, cost_reductions, entwine_cost, escalate_cost, gift_of,
+                      chosen_cost_reductions, conditional_cost_reduction, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest_power, reduced_by_total_power,
                       replicate_cost, restricted_mana, self_cost_reduction, storm_kind, strive_cost, target_kind, triggered_abilities,
@@ -248,6 +248,11 @@ class Caster:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""
         reduction = sum(amount for p in seat.battlefield for kind, amount in cost_reductions(p.card)
                         if g._spell_matches(kind, card))
+        for p in seat.battlefield:  # Radagast, Momo: the first spell of a kind each turn (the spell being cast is not in the log yet)
+            for kind, amount, your_turn in first_spell_reductions(p.card):
+                if ((not your_turn or self.game.active == seat.index) and g._spell_matches(kind, card)
+                        and not any(turn == self.game.turn and g._spell_matches(kind, c) for turn, c in seat.cast_log)):
+                    reduction += amount
         kinds = card.type_line.partition("\u2014")[2].split()
         for owner in self.game.live_seats():  # Herald's Horn, Urza's Incubator: spells of the type a permanent chose
             for p in owner.battlefield:
