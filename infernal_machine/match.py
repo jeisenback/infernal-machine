@@ -1,7 +1,8 @@
 """Best-of-three matches with sideboarding (issue #412): the way Standard is played.
 
 A match is up to `best_of` games between two decks. Between games each side sideboards by one simple rule (`sideboard`), and the player
-who lost the last game plays first in the next (CR 103.2: the loser chooses, and chooses to play). The match is won by the first side to
+who lost the last game plays first in the next (CR 103.2: the loser chooses, and chooses to play; after a drawn game the one who chose
+last time chooses again, so the deck that started the draw starts again). The match is won by the first side to
 win a majority of the games; if neither does (games drawn by the turn limit) it is drawn. `matchup --best-of 3` plays matches and
 reports the match win rate as well as the game win rate.
 
@@ -91,11 +92,12 @@ def play_match(decks: list[Deck], focus_seat: int, seed: int, max_turns: int = 6
     current = list(decks)
     seat_of = [0, 1]  # the seat each deck sits in this game
     for k in range(best_of):
-        if k:  # the engine starts the player in seat `first`; the loser of the last game takes it (after a draw, the other deck than last time)
+        if k:  # the engine starts the player in seat `first`; the loser of the last game takes it. CR 103.2: after a draw, the player
+            # who chose in that game chooses again, and that was its starting player (the chooser plays), so the same deck starts.
             first = random.Random(game_seed(seed, k)).randrange(2)
             last = played[-1]
-            loser = (1 - last.winner) if last.winner is not None else (1 - last.starting_seat)
-            seat_of = [first, 1 - first] if loser == 0 else [1 - first, first]
+            starter = (1 - last.winner) if last.winner is not None else last.starting_seat
+            seat_of = [first, 1 - first] if starter == 0 else [1 - first, first]
         ordered = [current[deck] for deck in sorted((0, 1), key=lambda d: seat_of[d])]
         game = _by_deck(play_one(ordered, seat_of[focus_seat], game_seed(seed, k), max_turns, time_limit, bots), seat_of, focus_seat)
         played.append(game)

@@ -87,6 +87,9 @@ class LegalityTests(unittest.TestCase):
         rotated = Card.from_scryfall({**SOURCE_DATA, "legalities": {"standard": "not_legal", "commander": "legal"}})
         self.assertFalse(rotated.standard_legal)
         self.assertTrue(rotated.commander_legal)
+        banned = Card.from_scryfall({**SOURCE_DATA, "legalities": {"standard": "banned", "commander": "legal"}})
+        self.assertFalse(banned.standard_legal, "Standard's ban list is Scryfall's legality: a banned card is not legal (#521)")
+        self.assertEqual(deck_problems(standard(main=[FOREST] * 59 + [banned]), STANDARD), [f"{banned.name} is not legal in Standard"])
         self.assertEqual(Card.from_dict(card.to_dict()).standard_legal, True)  # it survives the card cache
         self.assertEqual(Card.from_dict(rotated.to_dict()).standard_legal, False)
 

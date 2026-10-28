@@ -75,6 +75,18 @@ class SideboardTests(unittest.TestCase):
         self.assertEqual(sum(c.name == "Big Drake" for c in d.main), 8)
         self.assertEqual(sum(c.name == "Big Drake" for c in new.main), 8 - match.SWAPS)
 
+    def test_a_legal_deck_is_still_legal_after_sideboarding(self):
+        """The swaps are one for one between the main deck and the sideboard, so the deck keeps its size and the copy limit, which counts
+        the sideboard (#521)."""
+        from infernal_machine.formats import STANDARD, deck_problems
+        fillers = [spell(f"Filler {n}", "{G}") for n in "ABCDEF"]
+        d = deck([FOREST] * 24 + [BIG] * 4 + [MID] * 4 + [SMALL] * 4 + fillers * 4, [CHEAP_SIDE] * 4 + [PRICEY_SIDE] * 4)
+        self.assertEqual(deck_problems(d, STANDARD), [])
+        new, swaps = match.sideboard(d, cast=[c.name for c in fillers])
+        self.assertEqual(len(swaps), match.SWAPS)
+        self.assertEqual((len(new.main), len(new.sideboard)), (60, 8))
+        self.assertEqual(deck_problems(new, STANDARD), [])
+
     def test_ties_are_settled_by_name(self):
         a, b = spell("Aardvark", "{G}"), spell("Zebra", "{G}")
         d = deck([FOREST] * 20 + [a, b] + [MID] * 2, [spell("Yak Side", "{G}"), spell("Bat Side", "{G}")])
@@ -130,6 +142,15 @@ class PlayMatchTests(unittest.TestCase):
                 first_seat = random.Random(match.game_seed(seed, k)).randrange(2)
                 loser_marker = "Beta Bear" if (0, 1, 0)[k - 1] == 0 else "Alpha Bear"
                 self.assertEqual(calls[k]["names"][first_seat], [loser_marker], (seed, k))
+
+    def test_after_a_draw_the_deck_that_started_it_starts_again(self):
+        """CR 103.2: the player who chose in a drawn game chooses again, and the chooser plays first."""
+        for seed in range(12):
+            result, calls = self.play([None, None, 0], seed=seed)
+            self.assertEqual(len(calls), 3)
+            starters = [calls[k]["names"][random.Random(match.game_seed(seed, k) if k else seed).randrange(2)] for k in range(3)]
+            self.assertEqual(starters[1], starters[0], (seed, "after the first draw"))
+            self.assertEqual(starters[2], starters[1], (seed, "and after the second"))
 
     def test_the_first_game_seats_the_decks_as_given(self):
         result, calls = self.play([0, 0], focus=1)

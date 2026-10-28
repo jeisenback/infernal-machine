@@ -168,9 +168,13 @@ no mulligan is free (CR 103.5c).
   two is an error. `matchups` and the simulation tools use it, so a 60-card list with no commander goes through `simulate`, `tune`
   and `matchup` as it is.
 - **The server:** `python -m infernal_machine.server --format standard` checks every human and bot deck against Standard.
-- **Not there yet:** best-of-three with sideboarding (the sideboard is read and checked but not used in play), and a legality list
-  that follows rotation other than through Scryfall's own `legalities.standard`. Cached cards from before this change are fetched again
-  (see "The card caches" below).
+- **Matches (`match.py`, `matchup --best-of 3`):** a best-of-three with sideboarding between games by one rule (the cards never cast
+  come out, sideboard cards in the deck's colors come in, up to three), the loser of a game playing first in the next and the deck that
+  started a drawn game starting again (CR 103.2: the chooser plays, and after a draw chooses again). The sideboarding rule is measured,
+  not assumed (`play_match(..., sideboarding=(True, False))` has one side keep its deck): on the five gauntlet baselines, 80 matches with
+  one side sideboarding went 40-40 against 37-42-1 with neither, no effect to speak of between decks that alike.
+- **The ban list** is Scryfall's `legalities.standard`: a banned card reads "not legal", like a rotated one, and nothing else follows
+  rotation. Cached cards from before this field existed are fetched again (see "The card caches" below).
 
 ## The card caches
 
