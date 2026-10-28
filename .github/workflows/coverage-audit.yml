@@ -19,10 +19,14 @@ jobs:
         run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
-          path: .cache/commander_pool.json
-          key: commander-pool-${{ steps.week.outputs.week }}
+          path: |
+            .cache/commander_pool.json
+            .cache/standard_pool.json
+          key: pools-${{ steps.week.outputs.week }}
       - name: How much of the Commander card pool the engine understands
         run: python tools/coverage_audit.py --mechanisms --next --json coverage-audit.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: How much of the Standard card pool the engine understands
+        run: python tools/coverage_audit.py --format standard --next --json coverage-audit-standard.json | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Which rules-text templates are unused, and which sentences two of them read
         run: python tools/template_audit.py | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Whether the fully playable cards actually play
@@ -32,4 +36,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-audit
-          path: coverage-audit.json
+          path: |
+            coverage-audit.json
+            coverage-audit-standard.json
