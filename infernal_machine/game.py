@@ -88,6 +88,7 @@ NINJUTSU_PROMPT = PromptKind("ninjutsu", "Return which unblocked attacker to han
 FOREVER = 10**9  # the last turn of a permission that does not run out (a card on an adventure)
 CAST_PREPARED = "Cast prepared: "  # a copy of a prepared creature's spell
 IMPRINT_PROMPT = PromptKind("imprint", "Exile which card from your hand? ")
+CHOOSE_EXILED_PROMPT = PromptKind("choose_exiled", "Choose one of the exiled cards to play")
 AMASS_PROMPT = PromptKind("amass", "Put the counters on which Army? ")
 MOX_DIAMOND_PROMPT = PromptKind("mox_diamond", "Discard which land to put it onto the battlefield? ")
 MANA_COLOR_PROMPT = PromptKind("mana_color", "Which color of mana? ")
@@ -1705,18 +1706,24 @@ class Game:
         seat.exile_play = [(c, until) for c, until in seat.exile_play if c != card] + \
                           [(c, until) for c, until in seat.exile_play if c == card][1:]
 
-    def exile_top(self, seat: Seat, count: int, play: str | None) -> list[Card]:
-        """Exile the top `count` cards of the library; `play` is None, "this turn" or "next turn" (until the end of
-        their controller's next turn): the cards may then be played from exile until that turn ends."""
+    def exile_top(self, seat: Seat, count: int, play: str | None, choose_one: bool = False) -> list[Card]:
+        """Exile the top `count` cards of the library; `play` is None, "this turn", "next turn" (until the end of
+        their controller's next turn) or "next end step": the cards may then be played from exile until that turn ends
+        (the end step itself is counted in: the permission is kept to the turn). With `choose_one`, only the card the
+        controller chooses may be played."""
         seats = len(self.seats)
-        until = (None if play is None else self.turn if play == "this turn"
+        mine_now = seat.index == self.active and self.step not in ("end", "cleanup")  # their end step is still to come this turn
+        until = (None if play is None else self.turn if play == "this turn" or (play == "next end step" and mine_now)
                  else self.turn + ((seat.index - self.active) % seats or seats))  # the end of their next turn
         exiled = [seat.library.pop(0) for _ in range(min(count, len(seat.library)))]
         self.broadcast({"event": "exiled_from_library", "seat": seat.index, "cards": [c.name for c in exiled],
                         "may_play": play is not None})
+        chosen = None
+        if choose_one and until is not None and len(exiled) > 1:  # CR 701: the others stay exiled, and cannot be played
+            chosen = exiled[seat.player.choose(CHOOSE_EXILED_PROMPT, [c.name for c in exiled])]
         for card in exiled:
             self._move_card(seat, card, "exile")
-            if until is not None and card in seat.exile:
+            if until is not None and card in seat.exile and (chosen is None or card is chosen):
                 seat.exile_play.append((card, until))
         if exiled:
             self._exiled_from_library_or_graveyard(seat)
@@ -2580,6 +2587,8 @@ class Game:
             return any(turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in seat.cast_log)
         if kind == "no_counter":  # "if it had no -1/-1 counters on it": what it had when it left
             return source is None or source.counters.get(condition.what, 0) == 0
+        if kind == "opponent_lost_life":
+            return any(o.life_lost_turn == self.turn and o.life_lost_amount > 0 for o in self.opponents(seat))
         if kind == "max_speed":
             return seat.speed >= 4
         if kind == "your_turn":

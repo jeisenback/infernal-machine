@@ -202,6 +202,9 @@ _ONCE_EACH_TURN = "Activate only once each turn."
 _YOUR_TURN_ONLY = "Activate only during your turn."
 
 
+_YOUR_TURN_ONCE = "Activate only during your turn and only once each turn."  # Snowslope Hunter
+
+
 _INSTANT_ONLY = "Activate only as an instant."  # what every ability without a timing restriction is already
 
 
@@ -325,6 +328,9 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
     if _YOUR_TURN_ONLY in sentences:
         fields["condition"] = Condition("your_turn")
         sentences.remove(_YOUR_TURN_ONLY)
+    if _YOUR_TURN_ONCE in sentences:
+        fields.update(condition=Condition("your_turn"), once_per_turn=True)
+        sentences.remove(_YOUR_TURN_ONCE)
     for sentence in list(sentences):
         if m := _ACTIVATE_ONLY_IF.fullmatch(sentence):
             if (condition := _condition(m[2])) is None:
