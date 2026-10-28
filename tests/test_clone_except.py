@@ -61,7 +61,7 @@ class ParseTests(unittest.TestCase):
 
     def test_an_except_clause_the_engine_does_not_apply_leaves_the_line_unsupported(self):
         odd = real("Odd Twin", "{2}{U}", "Creature — Shapeshifter",
-                   "You may have this creature enter as a copy of any creature on the battlefield, except its name is Odd Twin.", "0", "0")
+                   "You may have this creature enter as a copy of any creature on the battlefield, except it's green.", "0", "0")
         self.assertNotEqual(unsupported_lines(odd), [])
 
     def test_a_quoted_ability_the_engine_does_not_understand_leaves_the_line_unsupported(self):

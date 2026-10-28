@@ -953,10 +953,18 @@ class CloneRule:
     zone: str = "battlefield"  # Body Double, Echoing Deeps: "any creature card in a graveyard"
     entered_this_turn: bool = False  # Sakashima's Protege: "any permanent that entered this turn"
     mana_spent_cap: bool = False  # Mockingbird: "with mana value less than or equal to the amount of mana spent to cast CARDNAME"
+    exile_copied: bool = False  # Superior Spider-Man's Mind Swap: "When you do, exile that card." (the card in the graveyard it copied)
+
+
+_CLONE_EXILES_COPIED = re.compile(r"(.+\.) When you do, exile that card\.")  # Mind Swap
 
 
 @lru_cache(maxsize=None)
 def _clone_rule_of_line(line: str) -> CloneRule | None:
+    line = _ABILITY_WORD.sub("", line)  # "Mind Swap — ": the word is only a label
+    exile_copied = False
+    if e := _CLONE_EXILES_COPIED.fullmatch(line):
+        line, exile_copied = e[1], True
     if not (m := _CLONE.fullmatch(line + "." if line.endswith('."') else line)):  # (a quoted ability ends the line: ... sacrifice it.")
         return None
     source = _CLONE_SOURCE.fullmatch(m[2])
@@ -966,7 +974,9 @@ def _clone_rule_of_line(line: str) -> CloneRule | None:
     if source[1]:
         return CloneRule(source[1].lower(), tapped=bool(m[1]), changes=changes, mana_spent_cap=bool(source["spent"]))
     if source[3]:
-        return CloneRule(source[3].lower(), tapped=bool(m[1]), changes=changes, zone="graveyard")
+        return CloneRule(source[3].lower(), tapped=bool(m[1]), changes=changes, zone="graveyard", exile_copied=exile_copied)
+    if exile_copied:
+        return None  # "that card" is a card in a graveyard; a copy of a permanent has none to exile
     if source[4]:
         return CloneRule(source[4].lower(), tapped=bool(m[1]), changes=changes, entered_this_turn=True)
     return CloneRule(source[6].lower(), yours=source[7] == "you control", opponents=source[7] != "you control",
