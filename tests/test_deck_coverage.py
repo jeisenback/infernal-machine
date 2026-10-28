@@ -38,7 +38,7 @@ class AnalyzeDecksTests(unittest.TestCase):
         result = coverage.analyze_decks({"mine": deck((FOREST, 30), (BEAR, 10))})
         self.assertEqual((result["total"], result["playable"]), (40, 40))
         self.assertEqual(result["next"], [])
-        self.assertIn("40 of 40 cards fully playable (100%)", audit.render_decks(result))
+        self.assertIn("40 of 40 cards fully playable (100%); 1 of 1 play in full", audit.render_decks(result))
 
     def test_every_copy_counts(self):
         result = coverage.analyze_decks({"mine": deck((FOREST, 20), (MOON_A, 3), (BEAR, 1))})
@@ -75,7 +75,11 @@ class AnalyzeDecksTests(unittest.TestCase):
         text = audit.render_decks(result)
         self.assertIn("**one**", text)
         self.assertIn("**two**", text)
-        self.assertIn("Coverage for 2 decks", text)
+        self.assertIn("Coverage for 2 decks: 20 of 23 cards fully playable (87%); 0 of 2 play in full", text)
+
+    def test_the_headline_counts_the_decks_that_play_in_full(self):
+        result = coverage.analyze_decks({"one": deck((FOREST, 10), (BEAR, 1)), "two": deck((FOREST, 10), (ODD, 1)), "three": deck((BEAR, 3))})
+        self.assertIn("Coverage for 3 decks: 24 of 25 cards fully playable (96%); 2 of 3 play in full", audit.render_decks(result))
 
     def test_a_commander_counts_as_a_card_of_the_deck(self):
         result = coverage.analyze_decks({"mine": deck((FOREST, 10), commanders=[MOON_A])})
@@ -105,7 +109,7 @@ class GoldenReportTests(unittest.TestCase):
         mine = deck((FOREST, 20), (MOON_A, 1), (MOON_B, 1), (ODD, 1))
         self.assertEqual(
             audit.render_decks(coverage.analyze_decks({"mine": mine})),
-            "## Coverage for 1 deck: 20 of 23 cards fully playable (87%)\n\n- **mine**: 20 of 23 cards fully playable (87%)\n\n"
+            "## Coverage for 1 deck: 20 of 23 cards fully playable (87%); 0 of 1 play in full\n\n- **mine**: 20 of 23 cards fully playable (87%)\n\n"
             "### What to build, in order (each assuming those above it are built)\n\n"
             "| # | Piece of work | Cards unlocked | Playable after | Some of the cards | The wording |\n|---|---|---|---|---|---|\n"
             "| 1 | Other: Whenever the moon is full, frobnicate the widget. | 2 | 96% | Moon Cat, Moon Elk | Whenever the moon is full, frobnicate the widget. |\n"

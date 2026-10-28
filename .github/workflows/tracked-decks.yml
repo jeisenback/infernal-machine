@@ -1,5 +1,6 @@
 name: tracked decks
-# The decks in examples/decks against examples/decks/baseline.json (#475, #476): a card that played and no longer does fails this job,
+# The decks in examples/decks against examples/decks/baseline.json (#475, #476), and the Standard decks in examples/decks/standard against
+# their own baseline (#521): a card that played and no longer does fails this job,
 # and so does a card the misparse audit (tools/explain_card.py --audit, #478) finds read wrongly,
 # on a pull request that touches the engine and every Monday (when Scryfall's Oracle text may have changed under a card). The Monday run
 # also keeps one comment up to date on the roadmap epic, #453. Never fails because something got better: that only asks for a refresh.
@@ -41,13 +42,20 @@ jobs:
         continue-on-error: true  # so the table is still posted when a deck got worse; the last step fails the job
         shell: bash  # with pipefail, so the audit's exit status survives the pipe to tee
         run: python tools/coverage_audit.py --decks examples/decks/*.txt --baseline examples/decks/baseline.json --top 5 | tee decks.md
+      - name: The tracked Standard decks against their baseline
+        id: standard
+        if: always()  # Standard's verdict is wanted whatever Commander's was
+        continue-on-error: true
+        shell: bash
+        run: python tools/coverage_audit.py --decks examples/decks/standard/*.txt --baseline examples/decks/standard/baseline.json --top 5 | tee standard.md
       - name: No card is read in a way the audit knows is wrong
         if: always()  # whatever the decks check said: this is about every card, not the tracked ones
         run: python tools/explain_card.py --audit | tee -a "$GITHUB_STEP_SUMMARY"
         shell: bash
       - name: Show it in the job summary
         if: always() && hashFiles('decks.md') != ''
-        run: cat decks.md >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          { echo "# Commander"; cat decks.md; echo; echo "# Standard"; cat standard.md 2>/dev/null || echo "(the Standard decks were not checked)"; } >> "$GITHUB_STEP_SUMMARY"
       - name: Keep one comment on the roadmap epic up to date
         if: always() && github.event_name != 'pull_request' && hashFiles('decks.md') != ''
         env:
@@ -59,7 +67,11 @@ jobs:
             echo "<!-- tracked-decks -->"
             echo "## Tracked decks, $(date -u +%F)"
             echo
-            head -c 60000 decks.md
+            echo "# Commander"
+            head -c 30000 decks.md
+            echo
+            echo "# Standard"
+            head -c 30000 standard.md 2>/dev/null || echo "(the Standard decks were not checked)"
           } > comment.md
           id=$(gh api "repos/$GH_REPO/issues/$EPIC/comments" --paginate -q '.[] | select(.body | contains("<!-- tracked-decks -->")) | .id' | head -1)
           if [ -n "$id" ]; then
@@ -68,7 +80,7 @@ jobs:
             gh issue comment "$EPIC" --body-file comment.md
           fi
       - name: Fail if a tracked deck got worse (or could not be read)
-        if: always() && steps.decks.outcome == 'failure'
+        if: always() && (steps.decks.outcome == 'failure' || steps.standard.outcome == 'failure')
         run: |
-          echo "A card that played in examples/decks/baseline.json no longer does, a baseline deck was not checked, or a deck file could not be read." >&2
+          echo "A card that played in examples/decks/baseline.json or examples/decks/standard/baseline.json no longer does, a baseline deck was not checked, or a deck file could not be read." >&2
           exit 1

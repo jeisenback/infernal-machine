@@ -155,18 +155,33 @@ class CommandLineTests(unittest.TestCase):
 
 
 class TrackedDecksTests(unittest.TestCase):
-    """The decks in examples/decks and their baseline.json agree: each deck has an entry, each entry has a deck."""
+    """The decks in examples/decks (Commander) and examples/decks/standard (Standard, #521) and their baseline.json agree: each deck has
+    an entry, each entry has a deck."""
+
+    FOLDERS = (ROOT / "examples" / "decks", ROOT / "examples" / "decks" / "standard")
 
     def test_every_tracked_deck_has_a_baseline_entry_and_the_other_way_round(self):
-        names = {p.stem for p in (ROOT / "examples" / "decks").glob("*.txt")}
-        kept = json.loads((ROOT / "examples" / "decks" / "baseline.json").read_text(encoding="utf-8"))["decks"]
-        self.assertEqual(names, set(kept))
+        for folder in self.FOLDERS:
+            names = {p.stem for p in folder.glob("*.txt")}
+            kept = json.loads((folder / "baseline.json").read_text(encoding="utf-8"))["decks"]
+            self.assertEqual(names, set(kept), folder.name)
+            self.assertGreaterEqual(len(names), 10, folder.name)
 
     def test_each_baseline_entry_is_sorted_and_within_the_deck_size(self):
-        kept = json.loads((ROOT / "examples" / "decks" / "baseline.json").read_text(encoding="utf-8"))["decks"]
+        for folder in self.FOLDERS:
+            kept = json.loads((folder / "baseline.json").read_text(encoding="utf-8"))["decks"]
+            for name, entry in kept.items():
+                self.assertEqual(entry["unplayable"], sorted(entry["unplayable"]), name)
+                self.assertLessEqual(len(entry["unplayable"]), entry["cards"], name)
+
+    def test_a_standard_deck_is_sixty_cards_with_no_commander(self):
+        kept = json.loads((ROOT / "examples" / "decks" / "standard" / "baseline.json").read_text(encoding="utf-8"))["decks"]
         for name, entry in kept.items():
-            self.assertEqual(entry["unplayable"], sorted(entry["unplayable"]), name)
-            self.assertLessEqual(len(entry["unplayable"]), entry["cards"], name)
+            self.assertEqual(entry["cards"], 60, name)
+        for path in (ROOT / "examples" / "decks" / "standard").glob("*.txt"):
+            text = path.read_text(encoding="utf-8")
+            self.assertTrue(text.startswith("// Standard: "), f"{path.name} names its archetype, share, source and date first")
+            self.assertNotIn("Commander", text, path.name)
 
 
 if __name__ == "__main__":
