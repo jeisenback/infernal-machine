@@ -679,8 +679,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Stun counters (`Game.untap`): a tapped permanent with a stun counter loses one instead of untapping, in the untap step and when an
     effect untaps it; an untapped one keeps its counters. "Tap target creature and put a stun counter on it" (and N counters), the
     "up to one/two/three" and "one or two" forms with "put a stun counter on each of them", and the same inside triggers are
-    understood; "creatures your opponents control" is now a kind the plural patterns accept. Not understood: conditional
-    counters ("if it's your turn"), counters on the source itself, "twice X", and the Siege/Battle cards.
+    understood; "creatures your opponents control" is now a kind the plural patterns accept. "Draw two cards, then discard two
+    cards. When you discard one or more nonland cards this way, tap up to that many target creatures and put a stun counter on
+    each of them." (Seasoned Cryomancer, `DiscardThenStun`, `Game.tap_and_stun_up_to`): the creatures are chosen once the
+    discards are known, one at a time with the choice to stop (CR 603.12), never the same one twice; discarded lands do not count.
+    Not understood: conditional counters ("if it's your turn"), counters on the source itself, "twice X", and the Siege/Battle cards.
   - "Change the target of target spell (or ability, or activated ability) with a single target" (`ChangeTarget`, `Game.change_target`):
     only a spell or ability with exactly one target (not a list of targets) can be aimed at; you pick another legal target for it, from
     the point of view of the spell's controller, and "unless that spell's controller pays {2}" (Divert) is asked of that player. Also

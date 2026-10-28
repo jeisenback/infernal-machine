@@ -110,6 +110,7 @@ DISCARD_PROMPT = PromptKind("discard", "Discard down to hand size")
 DISCARD_CARD_PROMPT = PromptKind("discard_card", "Choose a card to discard")  # options are card names
 CHOOSE_DISCARD_PROMPT = PromptKind("choose_discard", "Choose a card from their hand to discard")  # options are card names
 TARGET_PROMPT = PromptKind("target", "Choose a target for ")  # followed by the spell's name
+NO_MORE_TARGETS = "No more"  # the last option when "up to that many" targets are chosen one at a time
 SEARCH_PROMPT = PromptKind("search", "Choose a basic land to put onto the battlefield")
 SEARCH_OPTIONAL_PROMPT = PromptKind("search_optional", "Search your library for a basic land?")
 COMMAND_ZONE_PROMPT = PromptKind("command_zone", "Move your commander to the command zone?")  # options: "Command zone", then the zone it's going to
@@ -5443,8 +5444,8 @@ class Game:
         if pick < 2:
             target.tapped = pick == 0
 
-    def discard(self, seat: Seat, count: int | None, random: bool = False) -> None:
-        """Discard `count` cards (the whole hand if None); the player chooses which unless it says "at random"."""
+    def discard(self, seat: Seat, count: int | None, random: bool = False) -> list[Card]:
+        """Discard `count` cards (the whole hand if None); the player chooses which unless it says "at random". Returns them."""
         discarded = []
         for _ in range(len(seat.hand) if count is None else min(count, len(seat.hand))):
             if count is None:
@@ -5458,6 +5459,23 @@ class Game:
             discarded.append(card)
             self._discarded(seat, card, together=True)
         self._discarded_nonland(seat, discarded)
+        return discarded
+
+    def tap_and_stun_up_to(self, seat: Seat, many: int, kind: str, name: str) -> None:
+        """Seasoned Cryomancer: "tap up to that many target creatures and put a stun counter on each of them", the creatures chosen
+        once `many` is known (as the reflexive trigger would choose them, CR 603.12), one at a time, with the choice to stop."""
+        chosen: list[Permanent] = []
+        for _ in range(many):
+            options = [(label, p) for label, p in self.target_options(kind, seat, self.resolving_colors) if p not in chosen]
+            if not options:
+                break
+            pick = seat.player.choose(TARGET_PROMPT(name), [label for label, _ in options] + [NO_MORE_TARGETS])
+            if pick == len(options):
+                break
+            chosen.append(options[pick][1])
+        for permanent in chosen:
+            self.tap(permanent)
+            self.put_counters(permanent, "stun", 1)
 
     def _discard_into_zone(self, seat: Seat, card: Card) -> None:
         """A card that was just discarded goes to the graveyard. With madness it goes to exile, and its owner may cast it for

@@ -334,6 +334,8 @@ from .families.library_and_hand import (  # noqa: F401
     _IfYouDoDraw,
     _InsteadDraw,
     _InsteadTake,
+    _StunPerNonlandDiscard,
+    DiscardThenStun,
     _MayDiscard,
     _MayShuffle,
     _PutFromAmongThem,
@@ -2121,6 +2123,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [Discard(None, "each player"), EachDraw(_count(m[1]))]),
     (re.compile(rf"draw {_N} cards?, then discard {_N} cards?\.", re.I),
      lambda m: [Draw(_count(m[1])), Discard(_count(m[2]), "you")]),
+    (re.compile(rf"when you discard one or more nonland cards this way, tap up to that many target {_PLURAL_KIND} and put a stun "
+                r"counter on each of them\.", re.I),
+     lambda m: _StunPerNonlandDiscard(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2]))),  # Seasoned Cryomancer
     (re.compile(rf"discard {_N} cards?, then draw {_N} cards?\.", re.I),
      lambda m: [Discard(_count(m[1]), "you"), Draw(_count(m[2]))]),
     (re.compile(r"target (player|opponent) reveals their hand\.", re.I), lambda m: RevealHand(m[1].lower())),
@@ -2803,6 +2808,8 @@ _CONDITIONAL = Follows(
     Follow(_InsteadTake, Impulse, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.card_type is None and previous.rest == "bottom"),
     Follow(_InsteadMana, AddMana, set_fields(more=lambda m: m.units, more_if=lambda m: m.condition)),
+    Follow(_StunPerNonlandDiscard, Discard, lambda previous, marker: DiscardThenStun(previous.count, marker.kind),
+           fits=lambda previous, marker: previous.who == "you" and previous.count is not None and not previous.random),
     Follow(_ExileTokenAtEnd, (CreateTokens, *_COPY_SENTENCES), set_fields(exile_at_end=lambda m: True)),
     Follow(_InsteadTokens, CreateTokens, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition)),
     Follow(_UntapThoseLands, RevealLands, set_fields(untap_if=lambda m: m.condition)),
