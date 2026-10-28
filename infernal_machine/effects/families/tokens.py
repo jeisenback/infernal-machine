@@ -42,6 +42,7 @@ class CreateTokens:
     more_if: "Condition | None" = None
     exile_at_end: bool = False  # Manaform Hellkite: "Exile that token at the beginning of the next end step."
     haste: bool = False  # Sokenzan: "They gain haste until end of turn."
+    attacks_this_combat: bool = False  # Howlsquad Heavy: "That token attacks this combat if able."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         count = self.more if self.more_if and game.condition_holds(self.more_if, controller, game.resolving_source) else self.count
@@ -54,6 +55,9 @@ class CreateTokens:
         if self.haste:
             for permanent in made:
                 game.modify_until_end_of_turn(permanent, Modifier(keywords=frozenset({"haste"})))
+        if self.attacks_this_combat:
+            for permanent in made:
+                permanent.must_attack_turn = game.turn
         if self.exile_at_end and made:
             game.leave_at_next_end_step(made, "exiled", "exile")
 

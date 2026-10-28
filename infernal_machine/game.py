@@ -312,6 +312,7 @@ class Permanent:
     manifested: bool = False  # a face-down 2/2 whose real card is `real_card`; a creature card can be turned face up
     bestowed_from: "Card | None" = None  # a bestowed Aura: the creature card it goes back to when its creature leaves
     must_attack: "Seat | None" = None  # an Encore token: it attacks this player this turn if able
+    must_attack_turn: int = 0  # the turn it attacks this combat if able, at the defender its controller picks (Howlsquad Heavy's token)
     goaded_by: "Seat | None" = None  # until that player's next turn it must attack, and not them if possible
     prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
     renowned: bool = False  # Renown: it has already got its counters
@@ -510,6 +511,8 @@ class Seat:
     graveyard_left_turn: int | None = None  # the last turn a card left this player's graveyard
     cast_log: list[tuple[int, Card]] = field(default_factory=list)  # (turn, spell) for every spell cast
     drew_from_empty: bool = False
+    speed: int = 0  # Start your engines!: 0 (none), 1 to 4 (max speed)
+    speed_turn: int = 0  # the turn it last went up (once each turn)
     wins_game: bool = False  # Laboratory Maniac: it drew from an empty library with the card out
     lost: bool = False
 
@@ -1071,6 +1074,7 @@ class Game:
         for card in _unique(seat.graveyard):
             for ability in activated_abilities(card):
                 if ability.from_graveyard and (sorcery_timing or not ability.sorcery_speed) \
+                        and not (ability.condition and not self.condition_holds(ability.condition, seat, None)) \
                         and self._zone_ability_payable(seat, ability) \
                         and self._graveyard_targets_exist(seat, card, ability):
                     actions.append(ACTIVATE_GRAVEYARD + card.name)
@@ -2576,6 +2580,8 @@ class Game:
             return any(turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in seat.cast_log)
         if kind == "no_counter":  # "if it had no -1/-1 counters on it": what it had when it left
             return source is None or source.counters.get(condition.what, 0) == 0
+        if kind == "max_speed":
+            return seat.speed >= 4
         if kind == "your_turn":
             return self.active == seat.index
         if kind == "monarch":
@@ -3045,6 +3051,8 @@ class Game:
                 amount *= self._factor(seat, "life_gain_factor_low")
         if amount < 0:  # Bloodletter of Aclazotz: "twice that much life" during its controller's turn
             active = self.seats[self.active]
+            if active is not seat and 0 < active.speed < 4 and active.speed_turn != self.turn:  # CR 702.179: an opponent loses life on your turn
+                active.speed, active.speed_turn = active.speed + 1, self.turn
             if active is not seat:
                 for p in active.battlefield:
                     if not self.loses_abilities(p):
@@ -6007,6 +6015,8 @@ class Game:
             changed = False
             self._unpair()
             for seat in self.live_seats():
+                if seat.speed == 0 and any(self.has_keyword(p, "start your engines!") for p in seat.battlefield):  # CR 702.179: speed starts at 1
+                    seat.speed = 1
                 if (not seat.citys_blessing and len(seat.battlefield) >= 10
                         and any(has_keyword(p.card, "ascend") for p in seat.battlefield)):
                     seat.citys_blessing = True
