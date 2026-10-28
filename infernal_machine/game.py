@@ -27,11 +27,11 @@ from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
 from . import casting
-from .zones import (CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
+from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -474,6 +474,7 @@ class Seat:
     keep_pool_turn: int | None = None  # the turn its mana pool is kept as steps end (Rousing Refrain)
     suspended: list = field(default_factory=list)  # [card, time counters] for each card suspended in exile
     foretold: list = field(default_factory=list)  # (turn, card) for each foretold card in exile (it can be cast from the next turn on)
+    plotted: list = field(default_factory=list)  # (turn, card) for each plotted card in exile (it can be cast free from the next turn on)
     signature: str | None = None  # an Oathbreaker's signature spell, which starts in the command zone and is cast only while its owner controls the Oathbreaker
     companion: Card | None = None  # kept outside the game: for {3}, once, at sorcery timing, it goes into the hand (CR 702.139)
     companion_used: bool = False
@@ -1059,6 +1060,7 @@ class Game:
                     actions.append(UNEARTH + card.name)
         actions += EXILE.offers(self, seat, sorcery_timing)
         actions += LIBRARY.offers(self, seat, sorcery_timing)
+        actions += PLOTTED.offers(self, seat, sorcery_timing)
         for spell in _unique([p.card.prepare for p in seat.battlefield if p.prepared and p.card.prepare]):
             if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, spell)) and self._can_cast(seat, spell):
                 actions.append(CAST_PREPARED + spell.name)
@@ -1783,6 +1785,22 @@ class Game:
         seat.foretold.append((self.turn, card))
         self.broadcast({"event": "foretold", "seat": seat.index})
         self.happened("foretold", seat)
+
+    def _plot(self, seat: Seat, name: str) -> None:
+        """Plot (CR 702.170): a special action. The plot cost is paid and the card goes from the hand to exile, face up."""
+        card = next(c for c in seat.hand if c.name == name)
+        self._spend_mana(seat, _checked(self._payment(seat, dataclasses.replace(card, mana_cost=_checked(plot_of(card))))))
+        seat.hand.remove(card)
+        seat.exile.append(card)
+        seat.plotted.append((self.turn, card))
+        self.broadcast({"event": "plotted", "seat": seat.index, "card": card.name})
+
+    def _cast_plotted(self, seat: Seat, name: str) -> None:
+        card = next(c for turn, c in seat.plotted if c.name == name and turn < self.turn and c in seat.exile)
+        before = seat.exile.count(card)
+        self._cast(seat, card, seat.exile, graveyard=GraveyardCast("Plot", "{0}"))
+        if seat.exile.count(card) < before:  # it was cast (it stays plotted if it couldn't be)
+            seat.plotted.remove(next(entry for entry in seat.plotted if entry[1] == card))
 
     def _cast_foretold(self, seat: Seat, name: str) -> None:
         card = next(c for turn, c in seat.foretold if c.name == name and turn < self.turn and c in seat.exile)
