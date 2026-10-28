@@ -2678,6 +2678,8 @@ _CONDITIONS = [
     (re.compile(r"you control an? ([A-Za-z]+) or an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, f"{m[1]} or {m[2]}")),
     (re.compile(r"you control an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, _singular(m[1]))),
     (re.compile(r"it's your turn"), lambda m: Condition("your_turn")),
+    (re.compile(r"it's not your turn"), lambda m: Condition("not_your_turn")),  # Eddymurk Crab
+    (re.compile(r"it's your first, second, or third turn of the game"), lambda m: Condition("own_first_turns", 3)),  # Starting Town
     (re.compile(r"it's not a token"), lambda m: Condition("source_not_token")),
     (re.compile(r"you control no other creatures"), lambda m: Condition("control_no_other", what="creature")),
     (re.compile(r"that player didn't cast an? ([a-z]+) spell this turn"), lambda m: Condition("player_cast_none", what=m[1])),
