@@ -65,12 +65,19 @@ class ReturnLater:
 @dataclass(frozen=True)
 class ExileTop:
     """ "Exile the top two cards of your library. Until the end of your next turn, you may play those cards." (`play` is
-    None, "this turn" or "next turn")"""
+    None, "this turn", "next turn" or "next end step"). With `choose_one` ("Choose one of them."): only the card its controller
+    chooses can be played."""
     count: int | str
     play: str | None = None
+    choose_one: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_top(controller, game.amount(self.count), self.play)
+        game.exile_top(controller, game.amount(self.count), self.play, self.choose_one)
+
+
+@dataclass(frozen=True)
+class _ChooseOneOfThem:
+    """ "Choose one of them." after an ExileTop of several cards (see _merge_exile)."""
 
 
 @dataclass(frozen=True)

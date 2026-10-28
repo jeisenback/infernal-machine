@@ -221,6 +221,7 @@ from .families.exile_and_return import (  # noqa: F401
     ExileTargetIfDies,
     ExileThisSpell,
     ExileTop,
+    _ChooseOneOfThem,
     ExileTopCastAura,
     ExileTopOfEachCastFree,
     ExileTopOfThatPlayerMayCast,
@@ -1632,6 +1633,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PlayExiled("this turn")),
     (re.compile(r"until (?:the )?end of your next turn, you may play (?:it|that card|those cards|them)\.", re.I),
      lambda m: PlayExiled("next turn")),
+    (re.compile(r"you may play (?:it|that card|those cards|them) until (?:the )?end of your next turn\.", re.I),
+     lambda m: PlayExiled("next turn")),  # Clockwork Percussionist
+    (re.compile(r"you may play (?:it|that card|those cards|them) until your next end step\.", re.I),
+     lambda m: PlayExiled("next end step")),  # Opera Love Song
+    (re.compile(r"until your next end step, you may play (?:it|that card|those cards|them)\.", re.I),
+     lambda m: PlayExiled("next end step")),
+    (re.compile(r"choose one of them\.", re.I), lambda m: _ChooseOneOfThem()),  # Heroes' Hangout
     (re.compile(r"the exiled card's owner creates an X/X (\w+) (\w+) creature token, where X is the mana value of the exiled card\.", re.I),
      lambda m: ExiledOwnerGetsToken(Card(name=m[2], type_line=f"Token Creature — {m[2]}", power="0", toughness="0",
                                          colors=(_COLOR_WORDS[m[1].lower()],)))),
@@ -2699,6 +2707,7 @@ _CONDITIONS = [
     (re.compile(rf"(?:there are {_N_FIXED} or more cards in your graveyard|{_N_FIXED} or more cards are in your graveyard)"),
      lambda m: Condition("graveyard_at_least", _number(m[1] or m[2]), "card")),
     (re.compile(r"an opponent was dealt noncombat damage this turn"), lambda m: Condition("opponent_dealt_noncombat_damage")),
+    (re.compile(r"an opponent lost life this turn"), lambda m: Condition("opponent_lost_life")),  # Fireglass Mentor
     (re.compile(rf"there are {_N_FIXED} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
      lambda m: Condition("graveyard_at_least", _number(m[1]), m[2].replace(" and/or ", " or "))),
     (re.compile(rf"a player has {_N_FIXED} or fewer cards in hand"), lambda m: Condition("any_hand_at_most", _number(m[1]))),
@@ -2771,7 +2780,8 @@ _merge_control = Follows(
 _merge_exile = Follows(
     Follow(ExileInstead, Counter, set_fields(exile=lambda m: True)),
     Follow(ReturnLater, Exile, lambda previous, marker: Flicker(previous.target, "end_step", marker.to, marker.under_owner, previous.another)),
-    Follow(PlayExiled, ExileTop, set_fields(play=lambda m: m.until), fits=lambda previous, marker: not previous.play))
+    Follow(PlayExiled, ExileTop, set_fields(play=lambda m: m.until), fits=lambda previous, marker: not previous.play),
+    Follow(_ChooseOneOfThem, ExileTop, set_fields(choose_one=lambda m: True), fits=lambda previous, marker: previous.count != 1 and not previous.play))
 
 
 _COPY_SENTENCES = (CopyToken, CopySubjectToken, CopyHostToken, CopySelfToken, CopyEachToken)  # "Create a token that's a copy of ..."
