@@ -43,6 +43,7 @@ SUPPORTED_KEYWORDS = {
     "islandwalk", "swampwalk", "mountainwalk", "forestwalk", "plainswalk",  # not "snow landwalk" or "nonbasic landwalk"
     "extort",  # whenever its controller casts a spell they may pay {W/B}: each opponent loses 1 life and they gain that much
     "soulbond",  # pairs with another creature as either enters: see Game._soulbond
+    "start your engines!",  # speed starts at 1 and goes up when an opponent loses life on your turn: see Game.change_life
     "myriad",  # a tapped and attacking copy for each opponent other than the defending player, exiled at end of combat
 }
 # Lines that only matter when building the deck, which commander.py checks.

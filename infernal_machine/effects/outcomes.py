@@ -437,6 +437,7 @@ from .families.spells_and_misc import (  # noqa: F401
     _ThatAlsoGains,
     _TheyGain,
     _TheyGainHaste,
+    _TokenAttacksThisCombat,
 )
 from .families.tokens import (  # noqa: F401
     AttackerCreatesAttackingToken,
@@ -717,6 +718,10 @@ def _merge_attacking_tokens(effects: list) -> list | None:
     for effect in effects:
         if isinstance(effect, _TheyGainHaste) and merged and isinstance(merged[-1], CreateTokens):  # Sokenzan
             merged[-1] = dataclasses.replace(merged[-1], haste=True)
+        elif isinstance(effect, _TokenAttacksThisCombat):
+            if not (merged and isinstance(merged[-1], CreateTokens)):
+                return None
+            merged[-1] = dataclasses.replace(merged[-1], attacks_this_combat=True)
         elif isinstance(effect, _SacrificeThemLater):
             if not (merged and isinstance(merged[-1], TokensJoinAttack)):
                 return None
@@ -2273,6 +2278,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PumpEach(_modifier(m, 2), subtype="non-" + m[1])),  # Return of the Wildspeaker
     (re.compile(r'for each opponent, create (.+) that attack that opponent this turn if able\.("?)', re.I), _attacking_tokens),
     (re.compile(r"they gain haste until end of turn\.", re.I), lambda m: _TheyGainHaste()),
+    (re.compile(r"that token attacks this combat if able\.", re.I), lambda m: _TokenAttacksThisCombat()),  # Howlsquad Heavy
     (re.compile(r"exile them at the beginning of the next end step\.", re.I), lambda m: _ExileThemLater()),
     (re.compile(r"sacrifice them at the beginning of the next end step\.", re.I), lambda m: _SacrificeThemLater()),
     (re.compile(r"create (.+?) tapped and attacking (\d+/\d+ [^.]*? creature tokens?)\.", re.I),  # Mobilize
@@ -2648,6 +2654,7 @@ _CONDITIONS = [
      lambda m: Condition("control_color_at_least", _number(m[1]), m[2])),
     (re.compile(rf"you control {_N_FIXED} or more ([A-Za-z]+)"),
      lambda m: Condition("control_at_least", _number(m[1]), _singular(m[2]))),
+    (re.compile(r"your speed is 4"), lambda m: Condition("max_speed")),  # Max speed
     (re.compile(r"you control no creatures with ([a-z]+)"), lambda m: Condition("control_none_keyword", what=m[1])),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
     (re.compile(r"you don't control an? ([A-Za-z]+) creature token"), lambda m: Condition("control_none_token", what=m[1])),

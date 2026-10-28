@@ -204,6 +204,11 @@ class CreateDelayedTrigger:
 
 
 @dataclass(frozen=True)
+class _TokenAttacksThisCombat:
+    """ "That token attacks this combat if able." after a CreateTokens (see _merge_attacking_tokens)."""
+
+
+@dataclass(frozen=True)
 class _TheyGainHaste:
     """ "They gain haste until end of turn.": only ever after AttackingTokens."""
 

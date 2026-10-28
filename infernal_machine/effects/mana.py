@@ -313,6 +313,8 @@ def mana_condition(card: Card) -> "Condition | None":
     line = _mana_line(card)
     m = _mana_match(line) if line else None
     text = m.group(m.re.groups) if m else None
+    if not text:  # Howlsquad Heavy: "Add {R} for each Goblin you control. Activate only if your speed is 4."
+        text = next((m.group(m.re.groups) for rule in rules_lines(card) if (m := _PER_COUNT.fullmatch(_THRESHOLD.sub(r"\2", rule)))), None)
     return _condition(text) if text else None
 
 
@@ -536,7 +538,7 @@ _FILTER = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\}|\{[WUBRG]/[WUBRG]\})+), \{T\}: A
 
 
 # Gaea's Cradle, Cabal Coffers, Elvish Archdruid: "{T}: Add {G} for each creature you control." (maybe with a mana cost)
-_PER_COUNT = re.compile(r"(?:((?:\{\d+\}|\{[WUBRGC]\})+), )?\{T\}: Add \{([WUBRGC])\} for each ([A-Za-z]+) you control\.")
+_PER_COUNT = re.compile(r"(?:((?:\{\d+\}|\{[WUBRGC]\})+), )?\{T\}: Add \{([WUBRGC])\} for each ([A-Za-z]+) you control\." + _IF_TAIL)
 
 
 @lru_cache(maxsize=None)

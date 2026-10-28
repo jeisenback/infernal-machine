@@ -74,7 +74,7 @@ class Combat:
                 defender = targets[0] if len(targets) == 1 else targets[seat.player.choose(
                     ATTACK_PROMPT(self.game.label(permanent)), [f"Attack Player: {o.name} (seat {o.index})" for o in targets])]
             else:
-                forced = self._has(permanent, MUST_ATTACK)  # "attacks each combat if able": no way to stay home
+                forced = self._has(permanent, MUST_ATTACK) or (permanent.must_attack_turn != 0 and permanent.must_attack_turn == self.game.turn)  # "attacks each combat if able": no way to stay home
                 choice = seat.player.choose(ATTACK_PROMPT(self.game.label(permanent)), options[forced:]) + forced
                 if choice == 0:
                     continue

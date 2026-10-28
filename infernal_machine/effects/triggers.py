@@ -189,7 +189,7 @@ _PLAYER_PRONOUNS = [
 ]
 
 
-_ABILITY_WORD = re.compile(r"^[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — "
+_ABILITY_WORD = re.compile(r"^(?!Max speed)[A-Z][\w' -]* \u2014 ")  # "Landfall — ", "Constellation — " (not "Max speed — ": that one gates the ability, see _MAX_SPEED_LINE)
 
 
 # What an Aura says when its creature dies, in terms of "it" (the creature, already gone) and "this card" (the Aura).

@@ -106,7 +106,11 @@ def _rules_text(card: Card) -> str:
         short = front.split(" ")[0]  # "Kaalia" for Kaalia of the Vast, "Edgar" for Edgar Markov
     for name in dict.fromkeys((card.name, front, front.split(",")[0], short)):
         text = re.sub(rf"(?<!\w){re.escape(name)}(?!\w)", "CARDNAME", text)
-    return _join_modes(text)
+    return _join_modes(_MAX_SPEED_LINE.sub(r"\1 Activate only if your speed is 4.", text))
+
+
+# "Max speed — {T}: Add {R}." is the ability only while your speed is 4 (CR 702.178): read as the ability with that condition.
+_MAX_SPEED_LINE = re.compile(r"^Max speed \u2014 (\{.*\.)$", re.M)
 
 
 # "When this creature enters, choose one —" and "{T}: Choose one —" are followed by their modes on separate lines.
