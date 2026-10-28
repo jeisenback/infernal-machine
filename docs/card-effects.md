@@ -375,7 +375,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Rules text of #81: "Counter target spell unless its controller pays {N}" (the controller is asked), "Destroy target artifact,
     enchantment, or planeswalker", "Return six target nonland permanents ...", "target creature with mana value X",
     "gets +X/+X and gains hexproof and indestructible", "Then it fights up to one target creature", "Proliferate X times",
-    Dig Through Time's look-seven-take-two, Commander's Insight, Culling Ritual (mana for each permanent destroyed), Mana Geyser,
+    Dig Through Time's look-seven-take-two (now the same Impulse as Stock Up's, #570), Commander's Insight, Culling Ritual (mana for each permanent destroyed), Mana Geyser,
     Biomass Mutation, Wave of Reckoning, Winds of Rath ("that aren't enchanted"), Volcanic Torrent (creatures and planeswalkers),
     damage to "each of one or two targets", draw-then-discard, mill-then-return, "You may sacrifice a permanent. If you do, draw two
     cards", "sacrifice X creatures" as an additional cost (Immoral Bargain, whose X is chosen at casting although its mana cost has no {X}), X limited by the number of players (Open the Way),

@@ -289,7 +289,6 @@ from .families.library_and_hand import (  # noqa: F401
     LookAtTop,
     LookPutAttachment,
     LookPutPermanents,
-    LookTakeRestBottom,
     LookTopTakeChosen,
     MayDiscardThenDraw,
     MayRemoveCounterThenDraw,
@@ -2003,8 +2002,6 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     # "It fights ...": the creature the sentence before it targeted (Primal Might, Epic Confrontation), or, with none, the source (Agatha's Champion)
     (re.compile(rf"(then )?(?:it|that creature|this creature) fights (up to one )?target {_FIGHTER}\.", re.I),
      lambda m: Fight(m[3].lower(), optional_target=bool(m[2]), follows=True, then=bool(m[1]))),
-    (re.compile(rf"look at the top {_N_FIXED} cards of your library\. Put {_N_FIXED} of them into your hand and the rest on the bottom of your "
-                r"library in any order\.", re.I), lambda m: LookTakeRestBottom(_number(m[1]), _number(m[2]))),
     (re.compile(r"target player draws X cards plus an additional card for each time they've cast a commander from the command zone "
                 r"this game\.", re.I), lambda m: TargetDrawXPlusCasts()),
     (re.compile(r"add \{([WUBRGC])\} or \{([WUBRGC])\} for each permanent destroyed this way\.", re.I),

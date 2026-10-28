@@ -3561,15 +3561,6 @@ class Game:
         self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": False})
         self._enter(seat, Permanent(card, sick=True, owner=seat, loyalty=_starting_loyalty(card)))
 
-    def look_take(self, seat: Seat, count: int, take: int) -> None:
-        """Look at the top `count` cards; `take` of them go to the hand and the rest to the bottom of the library."""
-        top = seat.library[:count]
-        del seat.library[:len(top)]
-        for _ in range(min(take, len(top))):
-            card = top.pop(seat.player.choose(SPLIT_HAND_PROMPT, [c.name for c in top]) if len(top) > 1 else 0)
-            seat.hand.append(card)
-        seat.library.extend(top)
-
     def three_way_split(self, seat: Seat, count: int, play: bool) -> None:
         """Expressive Iteration: look at the top `count` cards; one to your hand, one to the bottom of your library, one
         exiled (and playable this turn, if `play`)."""

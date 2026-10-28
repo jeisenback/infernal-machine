@@ -213,8 +213,6 @@ _WHOLE_LINE = re.compile(
     r"|You gain half X life and draw half X cards\. Round down each time\."
     r"|Mill a card, then exile a card from your graveyard at random\. You may play the exiled card this turn\."
     r"|Exile (?:that card|one of them) from your graveyard\. If you do, you may (?:play|cast) (?:that card|it) this turn\."
-    r"|Look at the top (?:six|seven|eight) cards of your library\. Put (?:two|three) of them into your hand and the rest on the "
-    r"bottom of your library in any order\."
     r"|You may put a \+1/\+1 counter on a creature\. Then choose odd or even\. Return each creature with power of the chosen "
     r"quality to its owner's hand\."
     r"|You may put a creature card from your hand onto the battlefield\. If you do, sacrifice it unless you pay its mana cost "
