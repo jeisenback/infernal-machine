@@ -223,6 +223,15 @@ class PreventCombatDamageToYou:
 
 
 @dataclass(frozen=True)
+class WinGame:
+    """Revel in Riches: "... you win the game." (CR 104.2a: the other players lose, which the state-based actions see.)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.wins_game = True
+        game.broadcast({"event": "wins_game", "seat": controller.index})
+
+
+@dataclass(frozen=True)
 class PreventAllCombatDamage:
     """Fog: "Prevent all combat damage that would be dealt this turn." """
 

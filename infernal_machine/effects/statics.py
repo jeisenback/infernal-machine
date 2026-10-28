@@ -1072,6 +1072,25 @@ def is_group_mana_grant_line(line: str) -> bool:
     return (m := _GROUP_GRANT.fullmatch(line)) is not None and is_mana_ability(m[2])
 
 
+def _group_activated(line: str) -> tuple[str, ActivatedAbility] | None:
+    """(type of permanent, the ability) for a line that gives a group of permanents an activated ability we understand."""
+    if (m := _GROUP_GRANT.fullmatch(line)) and not is_mana_ability(m[2]) and (a := _ACTIVATED.fullmatch(m[2])):
+        if ability := _parse_activated(m[2], a[1], a[2], False):
+            return _GROUP_KIND[m[1]], ability
+    return None
+
+
+def is_group_activated_grant_line(line: str) -> bool:
+    """Bootleggers' Stash: "Lands you control have "{T}: Create a Treasure token."" where the quoted ability is one we understand."""
+    return _group_activated(line) is not None
+
+
+@lru_cache(maxsize=None)
+def group_activated_grants(card: Card) -> tuple[tuple[str, ActivatedAbility], ...]:
+    """The activated abilities `card` gives to a group of permanents you control, as (type of permanent, the ability)."""
+    return tuple(found for line in rules_lines(card) if (found := _group_activated(line)))
+
+
 @lru_cache(maxsize=None)
 def group_mana_grants(card: Card) -> tuple[tuple[str, str], ...]:
     """The mana abilities `card` gives to a group of permanents you control, as (type of permanent, the ability's line)."""
