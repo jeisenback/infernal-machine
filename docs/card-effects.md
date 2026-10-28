@@ -308,6 +308,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     that becomes a copy until end of turn (Muddle), Hofri Ghostforge's Spirit copy. The "except ..." (`CopyChanges`) means the same
     thing in all of them, and a copy of a token is a token only if it is made as one. Nothing else builds a "Token ..." type line from
     a card (a test looks).
+  - "The first creature spell you cast each turn costs {2} less to cast." (Radagast's family: a kind of spell, the amount, and "during
+    each of your turns" for your own turn only; Momo, Friendly Flier's "non-Lemur creature spell with flying", a keyword printed on
+    the card being a filter now). The reduction applies while no spell of that kind is in the turn's cast log, so the second one pays
+    in full. "The first kicked spell" (Vine Gecko) and "face-down creature spell" (Kadena) are not read.
   - Creature types and counts (found by auditing real decks, #428): "Goblin spells you cast cost {1} less to cast." and "Red creature
     spells ..." (a creature type or a color and a type is a filter; Goblin Warchief, Dragonspeaker Shaman, Hazoret's Monument);
     "As an additional cost to cast this spell, sacrifice a Goblin." (Goblin Grenade); "X deals damage to any target (or target

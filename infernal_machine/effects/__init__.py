@@ -336,6 +336,7 @@ from .costs import (  # noqa: F401
     copies_per_sacrifice,
     cost_reductions,
     cumulative_upkeep,
+    first_spell_reductions,
     cycling,
     devour,
     echo_cost,

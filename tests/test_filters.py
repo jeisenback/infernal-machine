@@ -196,6 +196,15 @@ class Context(unittest.TestCase):
         self.assertTrue(matches("tapped creature", BEAR))
         self.assertFalse(matches("tapped creature", LAND))
 
+    def test_a_keyword_printed_on_the_card(self):
+        flyer = Card(name="Hawk", type_line="Creature — Bird", oracle_text="Flying, vigilance", mana_cost="{1}{W}", cmc=2)
+        lemur = Card(name="Lemur", type_line="Creature — Lemur", oracle_text="Flying", mana_cost="{W}", cmc=1)
+        walker = Card(name="Walker", type_line="Creature — Human", oracle_text="Vigilance", mana_cost="{1}{W}", cmc=2)
+        self.assertEqual(parse_filter("creature spell with flying").keyword, "flying")
+        self.assertEqual([matches("creature spell with flying", c) for c in (flyer, lemur, walker)], [True, True, False])
+        self.assertEqual([matches("non-Lemur creature spell with flying", c) for c in (flyer, lemur, walker)], [True, False, False])
+        self.assertFalse(matches("creature with flying", BOLT), "not a creature")
+
     def test_a_filter_is_read_once(self):
         self.assertIs(parse_filter("creature"), parse_filter("creature"))
         self.assertEqual(parse_filter("Creature"), parse_filter("creature"))

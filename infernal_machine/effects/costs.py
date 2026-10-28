@@ -762,6 +762,21 @@ def non_hand_cost_reduction(card: Card) -> int:
     return sum(int(m[1]) for line in rules_lines(card) if (m := _NON_HAND_REDUCTION.fullmatch(line)))
 
 
+_FIRST_SPELL_REDUCTION = re.compile(r"The first (.+?) spell( with [a-z ]+?)? you cast (?:during )?each (of your )?turns? costs \{(\d+)\} less to cast\.")
+_FIRST_SPELL_UNREAD = ("kicked", "face-down")  # Vine Gecko, Kadena: a kind the filter grammar does not know, so the line stays unread
+
+
+def first_spell_reductions(card: Card) -> list[tuple[str, int, bool]]:
+    """"The first creature spell you cast each turn costs {2} less to cast." (Radagast's family; Momo, Friendly Flier: "The first non-Lemur
+    creature spell with flying you cast during each of your turns"): (the kind of spell, how much, whether only on your own turn)."""
+    found = []
+    for line in rules_lines(card):
+        if (m := _FIRST_SPELL_REDUCTION.fullmatch(line)) and not any(word in m[1] for word in _FIRST_SPELL_UNREAD):
+            found.append((m[1] + " spell" + (m[2] or ""), int(m[4]), bool(m[3])))
+    return found
+
+
 def is_cost_reduction_line(line: str) -> bool:
     return any(p.fullmatch(line) for p in (_REDUCTION, _TWO_COLOR_REDUCTION, _PER_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY, _NON_HAND_REDUCTION)) \
-        or (m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None
+        or (m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None \
+        or (m := _FIRST_SPELL_REDUCTION.fullmatch(line)) is not None and not any(word in m[1] for word in _FIRST_SPELL_UNREAD)
