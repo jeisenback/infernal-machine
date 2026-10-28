@@ -310,6 +310,7 @@ class Permanent:
     doors: tuple[str, ...] = ()  # a Room: the names of its unlocked doors (its `card` reads as only those; the whole card is `real_card`)
     cast: bool = False  # it came from a spell that was cast ("When it enters, if you cast it")
     returns_when_dies: int = 0  # Malakir Rebirth: the turn it gained "When this creature dies, return it to the battlefield tapped"
+    earthbent: bool = False  # a land earthbent into a creature for good: `original` is the land, and it returns tapped when it dies or is exiled
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     chosen_color: str | None = None  # "As this enters, choose a color." (a color letter)
     manifested: bool = False  # a face-down 2/2 whose real card is `real_card`; a creature card can be turned face up
@@ -403,6 +404,8 @@ class StackItem:
 GERM = Card(name="Phyrexian Germ", type_line="Token Creature — Phyrexian Germ", colors=("B",), power="0", toughness="0")
 RETURN_WHEN_DIES = TriggeredAbility("dies", (ReturnWithCounter("", True),), False,
                                     "When this creature dies, return it to the battlefield tapped under its owner's control.")
+RETURN_WHEN_EXILED = TriggeredAbility("leaves", (ReturnWithCounter("", True),), False,
+                                      "When this creature is exiled, return it to the battlefield tapped.")  # an earthbent land
 EVOKE_SACRIFICE = TriggeredAbility("enters", (SacrificeSelf(),), False,
                                    "When this permanent enters, if its evoke cost was paid, sacrifice it.")
 
@@ -917,7 +920,7 @@ class Game:
                     permanent.deathtouched = False
                     permanent.until_end_of_turn = []  # CR 514.2
                     permanent.regeneration = 0
-                    if permanent.original is not None:  # a Vehicle's crew lasts until end of turn
+                    if permanent.original is not None and not permanent.earthbent:  # a Vehicle's crew lasts until end of turn
                         permanent.card, permanent.original = permanent.original, None
             for permanent in [p for s in self.live_seats() for p in s.battlefield]:  # control "until end of turn" ends
                 if permanent.control_eot:
@@ -1230,6 +1233,15 @@ class Game:
         if on_your_turn:
             permanent.until_end_of_turn.append(Modifier(0, 0, on_your_turn, your_turn=True))
         self.broadcast({"event": "became_creature", "card": permanent.card.name, "power": power, "toughness": toughness})
+
+    def earthbend(self, land: Permanent, count: int) -> None:
+        """Earthbend N (its reminder text): the land becomes a 0/0 creature with haste that's still a land, for good (not until
+        end of turn), and gets N +1/+1 counters; when it dies or is exiled it returns to the battlefield tapped, as a land again."""
+        base = land.original or land.card
+        self.animate(land, 0, 0, (), base.type_line.partition("\u2014")[2].strip(), False, frozenset())
+        land.card = dataclasses.replace(land.card, oracle_text=f"{land.card.oracle_text}\nHaste".strip())
+        land.earthbent = True
+        self.put_counters(land, PLUS, count)
 
     def move_counters(self, source: Permanent, destination: Permanent, counter: str | None, count: int | None) -> None:
         """Move up to `count` counters (all of them if None) from one permanent to another. They are moved, not put
@@ -4211,11 +4223,17 @@ class Game:
         if dead is None:
             return
         seat = dead.owner or dead.last_controller
-        if seat is None or dead.card not in seat.graveyard:
+        if seat is None:
             return
-        seat.graveyard.remove(dead.card)
-        self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": dead.card.name, "to": "battlefield"})
-        self._left_graveyard(seat, [dead.card])
+        if dead.card in seat.exile:  # an earthbent land that was exiled
+            seat.exile.remove(dead.card)
+            self.broadcast({"event": "returned_from_exile", "seat": seat.index, "card": dead.card.name})
+        elif dead.card in seat.graveyard:
+            seat.graveyard.remove(dead.card)
+            self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": dead.card.name, "to": "battlefield"})
+            self._left_graveyard(seat, [dead.card])
+        else:
+            return
         self._enter(seat, Permanent(dead.card, sick=True, tapped=tapped, loyalty=_starting_loyalty(dead.card),
                                     counters={counter: 1} if counter else {}))
 
@@ -5908,6 +5926,8 @@ class Game:
                     self.graveyarded_turn, self.graveyarded_count = self.turn, 0
                 self.graveyarded_count += 1
             self.trigger("leaves", permanent, controller)  # "When this creature leaves the battlefield" (Soulgorger Orgg)
+            if destination == "exile" and permanent.earthbent:  # an earthbent land: "When it ... is exiled, return it to the battlefield tapped."
+                self._queue(RETURN_WHEN_EXILED, permanent, controller)
             if destination == "graveyard":  # Rancor: "put into a graveyard from the battlefield"; a token does too (CR 111.7)
                 self.trigger("put_into_graveyard", permanent, controller)
                 self._observe("permanent_to_graveyard", permanent.card, controller, subject=permanent, extra=gone)
@@ -5921,7 +5941,7 @@ class Game:
                     controller.died_turn, controller.died = self.turn, 0
                 controller.died += 1
                 self.trigger("dies", permanent, controller)
-                if permanent.returns_when_dies == self.turn:
+                if permanent.returns_when_dies == self.turn or permanent.earthbent:
                     self._queue(RETURN_WHEN_DIES, permanent, controller)
                 for attachment, attachment_seat in everyone:  # "When enchanted creature dies"
                     if attachment.attached_to is permanent:

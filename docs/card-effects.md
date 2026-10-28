@@ -706,6 +706,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
     trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
     in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - Earthbend N (`Earthbend`, `Game.earthbend`; Ba Sing Se, Earthbending Lesson, Earth Village Ruffians, Haru, Rebellious Captives):
+    target land you control becomes a 0/0 creature with haste that's still a land, for good (the animation outlasts the turn, unlike a
+    crewed Vehicle's), and gets N +1/+1 counters; when it dies or is exiled it returns to the battlefield tapped as a land again
+    (`Permanent.earthbent`, `RETURN_WHEN_EXILED`). "Earthbend X, where X is ..." and "then earthbend N" in the middle of a sentence
+    are not read yet.
   - Conditional dual lands (`mana_lines`): "{T}: Add {C}." with "{T}: Add {W} or {U}. Activate only if this land entered this turn or
     if you control a basic land." (Gleaming Bastion, Hidden Lair, Dark Fortress, Gathering Place, Training Compound) read as the
     Verge lands do, one line per condition, so the colors come only while the condition holds; "A or if B" is a `Condition` with

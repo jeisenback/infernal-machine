@@ -50,6 +50,7 @@ from .outcomes import (  # noqa: F401
     AddMana,
     Amount,
     Animate,
+    Earthbend,
     Annihilate,
     AttachAura,
     AttackingTokens,
