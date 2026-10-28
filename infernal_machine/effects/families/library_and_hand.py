@@ -213,17 +213,6 @@ EXILE_DISCARDED_PROMPT = PromptKind("exile_discarded", "Exile which discarded ca
 
 
 @dataclass(frozen=True)
-class LookTakeRestBottom:
-    """Dig Through Time: "Look at the top seven cards of your library. Put two of them into your hand and the rest on the bottom
-    of your library in any order." (one template across two sentences)"""
-    count: int
-    take: int
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.look_take(controller, self.count, self.take)
-
-
-@dataclass(frozen=True)
 class ThreeWaySplit:
     """Expressive Iteration: "Look at the top three cards of your library. Put one of them into your hand, put one of them
     on the bottom of your library, and exile one of them. You may play the exiled card this turn." (three sentences, folded
@@ -627,8 +616,8 @@ class RestOnBottom:
 
 @dataclass(frozen=True)
 class Impulse:
-    """Look at the top cards, take one or `take` (into the hand, or onto the battlefield: Ureni of the Unwritten), put the rest on the
-    bottom or into the graveyard (`rest`). Flow State: `more` of them instead when `more_if` holds."""
+    """Look at the top cards, take one or `take` (into the hand, or onto the battlefield: Ureni of the Unwritten; Dig Through Time's two of
+    seven), put the rest on the bottom or into the graveyard (`rest`). Flow State: `more` of them instead when `more_if` holds."""
     count: int | str
     card_type: str | None
     to: str = "hand"
