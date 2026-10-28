@@ -156,6 +156,7 @@ MORPH_RETURN_PROMPT = PromptKind("morph_return", "Return which permanent to turn
 CHANGE_WHICH_PROMPT = PromptKind("change_which", "Change which target of ")  # followed by the spell's name
 NO_TARGET = "No target"  # the choice that leaves out an "up to one target"
 SACRIFICE_PROMPT = PromptKind("sacrifice", "Choose a creature to sacrifice")
+EXILE_CHOICE_PROMPT = PromptKind("exile_choice", "Choose what to exile for ")  # followed by the spell's name; options are your permanents
 EXPLOIT_PROMPT = PromptKind("exploit", "Exploit: choose a creature to sacrifice for ")  # followed by the exploiting creature's name
 NO_EXPLOIT = "Don't sacrifice a creature"
 PAIR_PROMPT = PromptKind("pair", "Soulbond: pair ")  # followed by the creature's name
@@ -4453,6 +4454,15 @@ class Game:
 
     def exile(self, permanent: Permanent) -> None:
         self._leave_battlefield(permanent, "exiled", destination="exile")
+
+    def exile_chosen(self, seat: Seat, kind: str = "creature") -> None:
+        """"Target opponent exiles a creature they control.": `seat` chooses one of its permanents of `kind` and exiles it, as for
+        an edict (no targeting: hexproof and indestructible don't help). Nothing happens when it has none."""
+        options = [p for p in seat.battlefield if _permanent_matches(kind, p.card)]
+        if not options:
+            return
+        source = self.resolving_item.card.name if self.resolving_item is not None else "the ability"
+        self.exile(options[seat.player.choose(EXILE_CHOICE_PROMPT(source), [self.label(p) for p in options])])
 
     def copies_of_creature(self, seat: Seat, original: Permanent, count: int, not_legendary: bool, exile: bool = False) -> None:
         """Orthion, Tempestra, Rionya: `count` tokens that are copies of `original` with haste (not legendary for Tempestra),

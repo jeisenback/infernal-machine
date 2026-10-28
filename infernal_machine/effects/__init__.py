@@ -119,6 +119,7 @@ from .outcomes import (  # noqa: F401
     ExileAll,
     ExileFromGraveyard,
     ExileGraveyard,
+    TargetExiles,
     ExileTop,
     ExileUntilLeaves,
     ExileX,
