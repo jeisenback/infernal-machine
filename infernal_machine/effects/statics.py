@@ -1382,8 +1382,6 @@ _ENTERS_TAPPED = [
      lambda m: EntersTapped("if_lands_at_least", count=_number(m[1]))),
     (re.compile(rf"If you were the starting player, {_SELF} enters tapped\.", re.I),
      lambda m: EntersTapped("if_starting_player")),
-    (re.compile(rf"{_SELF} enters tapped unless it's your first, second, or third turn of the game\.", re.I),
-     lambda m: EntersTapped("unless_own_first_turns", count=3)),  # Starting Town
     (re.compile(rf"{_SELF} enters tapped if you were the starting player\.", re.I),
      lambda m: EntersTapped("if_starting_player")),
     (re.compile(rf"As {_SELF} enters, you may reveal an? ([A-Z][a-z]+) card from your hand\. "
@@ -1392,6 +1390,14 @@ _ENTERS_TAPPED = [
     (re.compile(rf"{_SELF} enters tapped with {_N_FIXED} {_COUNTER} on it\.", re.I), lambda m: EntersTapped("always")),
     (re.compile(rf"{_SELF} enters tapped\. As (?:it|{_SELF}) enters, choose a color(?: other than (?:white|blue|black|red|green))?\.", re.I),
      lambda m: EntersTapped("always")),
+    # Last, after the wordings with a kind of their own: any condition the intervening-if grammar reads (#569). Starting Town, The Lonely
+    # Mountain, Eddymurk Crab; a condition it does not read leaves the line unsupported.
+    (re.compile(rf"{_SELF} enters tapped unless (.+)\.", re.I),
+     lambda m: EntersTapped("unless_condition", condition=c) if (c := _condition(m[1])) is not None else None),
+    (re.compile(rf"{_SELF} enters tapped if (.+)\.", re.I),
+     lambda m: EntersTapped("if_condition", condition=c) if (c := _condition(m[1])) is not None else None),
+    (re.compile(rf"If (.+), {_SELF} enters tapped\.", re.I),
+     lambda m: EntersTapped("if_condition", condition=c) if (c := _condition(m[1])) is not None else None),
 ]
 
 
@@ -1415,13 +1421,19 @@ def is_choose_color_line(line: str) -> bool:
 
 
 @lru_cache(maxsize=None)
-def enters_tapped_rule(card: Card) -> EntersTapped | None:
-    for line in rules_lines(card):
-        for pattern, build in _ENTERS_TAPPED:
-            if m := pattern.fullmatch(line):
-                return build(m)
+def _enters_tapped_rule_of_line(line: str) -> EntersTapped | None:
+    """The rule a line states, if the engine reads it: the first pattern that matches decides, and the generic condition rows at the end
+    return None for a condition the grammar does not know."""
+    for pattern, build in _ENTERS_TAPPED:
+        if m := pattern.fullmatch(line):
+            return build(m)
     return None
 
 
+@lru_cache(maxsize=None)
+def enters_tapped_rule(card: Card) -> EntersTapped | None:
+    return next((rule for line in rules_lines(card) if (rule := _enters_tapped_rule_of_line(line)) is not None), None)
+
+
 def is_enters_tapped_line(line: str) -> bool:
-    return any(pattern.fullmatch(line) for pattern, _ in _ENTERS_TAPPED)
+    return _enters_tapped_rule_of_line(line) is not None

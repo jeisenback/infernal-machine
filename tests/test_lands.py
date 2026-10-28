@@ -51,7 +51,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(enters_tapped_rule(BOND), EntersTapped("unless_opponents", count=2))
         self.assertEqual(enters_tapped_rule(SHOCK), EntersTapped("shock", life=2))
         self.assertIsNone(enters_tapped_rule(FOREST))
-        self.assertIsNone(enters_tapped_rule(Card(name="x", oracle_text="This land enters tapped unless you control an artifact.")))
+        self.assertIsNone(enters_tapped_rule(Card(name="x", oracle_text="This land enters tapped unless the moon is full.")))  # not a condition the grammar knows
 
     def test_mana_lines(self):
         self.assertEqual(mana_pain(PAIN), (frozenset("GU"), 1))

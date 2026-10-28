@@ -2616,6 +2616,10 @@ class Game:
             return seat.speed >= 4
         if kind == "your_turn":
             return self.active == seat.index
+        if kind == "not_your_turn":
+            return self.active != seat.index
+        if kind == "own_first_turns":  # Starting Town: one of this player's own first turns (an opponent's turn is not one of theirs)
+            return self.active == seat.index and seat.turns_taken <= condition.count
         if kind == "monarch":
             return self.monarch is seat
         if kind == "source_no_counters":
@@ -5747,8 +5751,9 @@ class Game:
             return lands >= rule.count
         if rule.kind == "if_starting_player":
             return seat.index == self.starting_seat
-        if rule.kind == "unless_own_first_turns":  # Starting Town: untapped only on your own first turns (an opponent's turn is not yours)
-            return not (self.active == seat.index and seat.turns_taken <= rule.count)
+        if rule.kind in ("unless_condition", "if_condition"):  # any condition of the intervening-if grammar (#569)
+            assert rule.condition is not None
+            return self.condition_holds(rule.condition, seat) == (rule.kind == "if_condition")
         if rule.kind == "reveal":  # a Snarl: show a matching card from your hand or enter tapped
             matching = [c for c in seat.hand if any(t in c.type_line for t in rule.types)]
             if matching and seat.player.choose(REVEAL_PROMPT(card.name), [f"Reveal {matching[0].name}", "Enter tapped"]) == 0:

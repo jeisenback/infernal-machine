@@ -685,9 +685,12 @@ class EntersTapped:
     hand or it enters tapped), "shock" (pay life or it enters tapped),
     "unless_control" (`types` are alternatives, each "Legendary+Creature"-style words that must all be types of one
     permanent you control), "unless_a_player_life" (a player has `count` or less life), "if_lands_at_least" (tapped if
-    you control `count` or more other lands), "if_starting_player" and "unless_own_first_turns" (Starting Town: untapped only during
-    one of its controller's first `count` turns)."""
+    you control `count` or more other lands), "if_starting_player", and the two that carry a `condition` of the intervening-if grammar
+    (#569): "unless_condition" (tapped unless it holds: Starting Town's "it's your first, second, or third turn of the game", The Lonely
+    Mountain's "you control an Equipment") and "if_condition" (tapped if it holds: Eddymurk Crab's "it's not your turn"). A new wording
+    is a row of `_CONDITIONS`, not a kind here; the kinds above are the older wordings, each with its own branch."""
     kind: str
     types: tuple[str, ...] = ()
     count: int = 0
     life: int = 0
+    condition: "Condition | None" = None

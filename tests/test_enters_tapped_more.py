@@ -8,7 +8,7 @@ import unittest
 from dataclasses import replace
 
 from infernal_machine.cards import Card
-from infernal_machine.effects import (EntersTapped, enters_tapped_rule, enters_with_counters, triggered_abilities)
+from infernal_machine.effects import (Condition, EntersTapped, enters_tapped_rule, enters_with_counters, triggered_abilities)
 from infernal_machine.game import CHOOSE_COLOR_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.helpers import BEAR, pick, real, run_stack, table3, take_turn_attacking
@@ -238,7 +238,7 @@ class StartingTownTests(unittest.TestCase):
 
     def test_rule(self):
         self.assertEqual(unsupported_lines(STARTING_TOWN), [])
-        self.assertEqual(enters_tapped_rule(STARTING_TOWN), EntersTapped("unless_own_first_turns", count=3))
+        self.assertEqual(enters_tapped_rule(STARTING_TOWN), EntersTapped("unless_condition", condition=Condition("own_first_turns", 3)))
 
     def test_untapped_on_your_first_three_turns_and_tapped_on_the_fourth(self):
         for own_turn, tapped in ((1, False), (2, False), (3, False), (4, True), (9, True)):
@@ -264,3 +264,44 @@ class StartingTownTests(unittest.TestCase):
         game, _ = table3()
         take_turn_attacking(game, game.seats[0])
         self.assertEqual([s.turns_taken for s in game.seats], [1, 0, 0])
+
+
+EDDYMURK_CRAB = real("Eddymurk Crab", "{5}{U}{U}", "Creature — Elemental Crab",
+                     "Flash\nThis spell costs {1} less to cast for each instant and sorcery card in your graveyard.\nThis creature enters "
+                     "tapped if it's not your turn.\nWhen this creature enters, tap up to two target creatures.", "5", "6")
+LONELY_MOUNTAIN = real("The Lonely Mountain", "", "Land — Mountain",
+                       "({T}: Add {R}.)\nThis land enters tapped unless you control an Equipment.\n{4}{R}, {T}: Create a 2/2 red Dwarf "
+                       "creature token. This ability costs {1} less to activate for each Equipment you control. Activate only as a sorcery.")
+SWORD = Card(name="Sword", type_line="Artifact — Equipment", oracle_text="Equip {1}")
+
+
+class ConditionGrammarTests(unittest.TestCase):
+    """"enters tapped unless <condition>" and "enters tapped if <condition>" read any condition the intervening-if grammar knows (#569)."""
+
+    def test_the_rules(self):
+        self.assertEqual(enters_tapped_rule(EDDYMURK_CRAB), EntersTapped("if_condition", condition=Condition("not_your_turn")))
+        self.assertEqual(enters_tapped_rule(LONELY_MOUNTAIN), EntersTapped("unless_condition", condition=Condition("control_at_least", 1, "Equipment")))
+        self.assertNotIn("This land enters tapped unless you control an Equipment.", unsupported_lines(LONELY_MOUNTAIN))  # (its Dwarf-making ability is not)
+        self.assertNotIn("This creature enters tapped if it's not your turn.", unsupported_lines(EDDYMURK_CRAB))
+
+    def test_a_condition_the_grammar_does_not_know_leaves_the_line_unread(self):
+        odd = land("Odd Land", "This land enters tapped unless the moon is full.")
+        self.assertIsNone(enters_tapped_rule(odd))
+        self.assertEqual(unsupported_lines(odd), ["This land enters tapped unless the moon is full."])
+
+    def test_eddymurk_crab_is_tapped_off_turn_and_untapped_on_its_controllers_turn(self):
+        for active, tapped in ((1, True), (0, False)):
+            with self.subTest(active=active):
+                game, _ = table3()
+                game.active = active
+                self.assertEqual(comes_in(game, game.seats[0], EDDYMURK_CRAB).tapped, tapped)
+
+    def test_the_lonely_mountain_wants_an_equipment(self):
+        game, _ = table3()
+        self.assertTrue(comes_in(game, game.seats[0], LONELY_MOUNTAIN).tapped)
+        game, _ = table3()
+        game.seats[0].battlefield = [Permanent(SWORD)]
+        self.assertFalse(comes_in(game, game.seats[0], LONELY_MOUNTAIN).tapped)
+        game, _ = table3()
+        game.seats[0].battlefield = [Permanent(HORSE)]
+        self.assertTrue(comes_in(game, game.seats[0], LONELY_MOUNTAIN).tapped, "a Mount is not an Equipment")
