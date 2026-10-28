@@ -364,6 +364,7 @@ from .families.life_and_damage import (  # noqa: F401
     PoisonShrinksOpponentsCreatures,
     PowerDamageToEachOther,
     PreventAllCombatDamage,
+    WinGame,
     PreventCombatDamageToYou,
     PreventNext,
     RevealTopToHandDrain,
@@ -1048,6 +1049,7 @@ _AMOUNTS = [
     (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
     (re.compile(r"(?:the number of )?((?-i:[A-Z][a-z]+)) on the battlefield", re.I), lambda m: Amount("on_battlefield", _singular(m[1]))),  # a creature type
     (re.compile(r"(?:the number of )?creatures? that died under your control this turn", re.I), lambda m: Amount("creatures_died")),
+    (re.compile(r"(?:the number of )?creatures? that died this turn", re.I), lambda m: Amount("all_creatures_died")),  # Mahadi: whoever controlled them
     (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
     (re.compile(r"the amount of life you lost this turn", re.I), lambda m: Amount("life_lost")),
     (re.compile(r"half your life total, rounded (down|up)", re.I), lambda m: Amount("half_life", m[1].lower())),
@@ -1957,6 +1959,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield tapped\.", re.I), lambda m: SacrificeToReturnChosen()),  # Victimize
     (re.compile(r"choose target (creature(?: you control)?)\.", re.I), lambda m: ChooseTarget(m[1].lower())),
     (re.compile(r"draw that many cards\.", re.I), lambda m: Draw("X")),
+    (re.compile(r"create that many (Treasure|Clue|Food) tokens\.", re.I), lambda m: CreateTokens("X", _NAMED_TOKENS[m[1].lower()])),  # Old Gnawbone
     (re.compile(r"until end of turn, that creature gains \"when this creature dies, return it to the battlefield tapped under its owner's "
                 r"control\.\"", re.I), lambda m: ReturnWhenItDiesThisTurn()),  # Malakir Rebirth
     (re.compile(r"search your library for up to X basic land cards, where X is the greatest power among creatures you control\. put those "
@@ -2275,6 +2278,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"create (.+?) tapped and attacking (\d+/\d+ [^.]*? creature tokens?)\.", re.I),  # Mobilize
      lambda m: (lambda parsed: TokensJoinAttack(parsed[0], parsed[1]) if parsed else None)(_token(f"{m[1]} {m[2]}"))),
     (re.compile(r"prevent all combat damage that would be dealt this turn\.", re.I), lambda m: PreventAllCombatDamage()),
+    (re.compile(r"you win the game\.", re.I), lambda m: WinGame()),  # Revel in Riches
     (re.compile(rf"prevent the next {_NUM} damage that would be dealt to (any target|target creature|you|{_SELF}) this turn\.", re.I),
      lambda m: _prevent_next(_number(m[1]), m[2])),
     (re.compile(r"prevent all damage that would be dealt to target creature this turn\.", re.I),
