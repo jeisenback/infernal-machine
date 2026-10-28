@@ -161,6 +161,7 @@ NO_EXPLOIT = "Don't sacrifice a creature"
 PAIR_PROMPT = PromptKind("pair", "Soulbond: pair ")  # followed by the creature's name
 NO_PAIR = "Don't pair"
 SACRIFICE_COST_PROMPT = PromptKind("sacrifice_cost", "Choose what to sacrifice for ")  # followed by the spell's name
+BLIGHT_PROMPT = PromptKind("blight", "Choose a creature to blight for ")  # followed by the spell's name; options are your creatures
 DISCARD_COST_PROMPT = PromptKind("discard_cost", "Choose a card to discard for ")  # followed by the ability's source
 EXILE_COST_PROMPT = PromptKind("exile_cost", "Choose a card to exile from your graveyard for ")  # followed by the ability's source
 COST_PROMPT = PromptKind("cost", "Choose how to cast ")  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
@@ -359,6 +360,7 @@ class StackItem:
     kicked: int = 0  # how many times the kicker cost was paid
     kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
     bought_back: bool = False  # its buyback cost was paid: it returns to its owner's hand as it resolves
+    additional_paid: bool = False  # its additional cost was paid, when that was a choice ("you may blight 1")
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     mana_spent: int = 0  # the mana paid to cast it (Deekah: "the amount of mana spent to cast that spell")
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
@@ -5461,6 +5463,12 @@ class Game:
         self._discarded_nonland(seat, discarded)
         return discarded
 
+    def blight(self, seat: Seat, count: int, name: str) -> None:
+        """Blight N: put N -1/-1 counters on a creature `seat` controls, chosen by its player (the ability's reminder text)."""
+        options = [p for p in seat.battlefield if _permanent_matches("creature", p.card)]
+        chosen = options[seat.player.choose(BLIGHT_PROMPT(name), [self.label(p) for p in options])]
+        self.put_counters(chosen, MINUS, count, by=seat)
+
     def tap_and_stun_up_to(self, seat: Seat, many: int, kind: str, name: str) -> None:
         """Seasoned Cryomancer: "tap up to that many target creatures and put a stun counter on each of them", the creatures chosen
         once `many` is known (as the reflexive trigger would choose them, CR 603.12), one at a time, with the choice to stop."""
@@ -6286,7 +6294,8 @@ def _take_face(cards: list[Card], name: str) -> Card:
 def _extra_text(cost) -> str:
     """How an additional cost is shown when there is a choice of two."""
     return (f"Sacrifice a {cost.sacrifice}" if cost.sacrifice else "Discard a card" if cost.discard
-            else f"Pay {cost.life} life" if cost.life else f"Pay {cost.mana}")
+            else f"Pay {cost.life} life" if cost.life else f"Blight {cost.blight}" if cost.blight
+            else f"Pay {cost.mana}" if cost.mana else "Pay nothing more")
 
 
 def _unique(cards: list[Card]) -> list[Card]:

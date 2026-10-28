@@ -136,6 +136,7 @@ from .outcomes import (  # noqa: F401
     GrantProtection,
     HEARTWOOD,
     HYPOTHESIS_COUNTER_PROMPT,
+    IfAdditionalCostPaid,
     IfKicked,
     KickedInstead,
     LivingWeapon,
@@ -234,6 +235,7 @@ from .outcomes import (  # noqa: F401
     YouAndTargetDraw,
     ZimonesHypothesis,
     is_modal_header,
+    additional_paid_effects,
     kicked_effects,
     mode_text,
 )
@@ -325,6 +327,7 @@ from .costs import (  # noqa: F401
     AdditionalCost,
     AlternativeCost,
     GraveyardCast,
+    NOTHING_MORE,
     additional_costs,
     affinity_for,
     alternative_costs,
