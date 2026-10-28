@@ -17,7 +17,7 @@ from .effects import RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, Retur
 from .report import unsupported_lines
 from .undercity import HELPS_ITS_TARGET
 from .effects import MOVE_COUNTERS_PROMPT
-from .zones import CAST_PREFIXES, LAND_PREFIXES
+from .zones import CAST_PREFIXES, LAND_PREFIXES, PLOT
 from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, COMPANION, CAST_PREPARED, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT)
@@ -258,6 +258,9 @@ class BotPlayer:
                 return i
         for i, option in enumerate(options):
             if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)) and self._activation_time(prompt, option):
+                return i
+        for i, option in enumerate(options):
+            if option.startswith(PLOT):  # nothing left to cast: put a card away for a free cast later
                 return i
         for i, option in enumerate(options):
             if option.startswith(COMPANION):  # nothing else to do with the mana: the companion is a card from outside the game for {3}

@@ -9,7 +9,7 @@ new zone is one new class and one entry in the list, not edits in four files. `G
 from __future__ import annotations
 
 from .analysis import is_land
-from .effects import graveyard_casts, graveyard_permits, is_aftermath
+from .effects import graveyard_casts, graveyard_permits, is_aftermath, plot_of
 from .filters import parse_filter
 
 # The action prefixes (re-exported by game.py, which the bot, the goldfish and the tests import them from).
@@ -22,6 +22,8 @@ PLAY_EXILE = "Play land from exile: "
 CAST_PERMIT = "Cast from graveyard (permission): "  # Gisa and Geralf, Lurrus: once each turn, a kind of spell, for its mana cost
 PLAY_TOP = "Play land from the top of your library: "  # Courser of Kruphix, Future Sight
 CAST_TOP = "Cast from the top of your library: "  # Future Sight, Mystic Forge, Realmwalker
+PLOT = "Plot: "  # followed by the card's name: pay its plot cost and exile it from the hand, at sorcery speed
+CAST_PLOTTED = "Cast plotted: "  # followed by the card's name: cast from exile as a sorcery on a later turn, without paying its mana cost
 
 
 def _timely(game: g.Game, seat: g.Seat, card, sorcery_timing: bool) -> bool:
@@ -207,8 +209,35 @@ class Library(ZonePlay):
         return True
 
 
-GRAVEYARD, PARAGON, PERMITS, EXILE, LIBRARY = Graveyard(), Paragon(), Permits(), Exile(), Library()
-ZONE_PLAYS: tuple[ZonePlay, ...] = (GRAVEYARD, PARAGON, PERMITS, EXILE, LIBRARY)
+class Plotted(ZonePlay):
+    """Plot (CR 702.170): from the hand, a special action at sorcery speed puts the card into exile for its plot cost; on a later turn it is
+    cast from exile as a sorcery without paying its mana cost, whatever its type."""
+    land_prefix, cast_prefix = "", CAST_PLOTTED
+    extra_prefixes = (PLOT,)
+
+    def offers(self, game, seat, sorcery_timing):
+        if not sorcery_timing:
+            return []
+        actions = [PLOT + c.name for c in g._unique(seat.hand)
+                   if (cost := plot_of(c)) and game._payment(seat, g.dataclasses.replace(c, mana_cost=cost)) is not None]
+        for turn, card in seat.plotted:
+            if turn < game.turn and card in seat.exile and CAST_PLOTTED + card.name not in actions \
+                    and game._can_cast(seat, card, graveyard=g.GraveyardCast("Plot", "{0}")):
+                actions.append(CAST_PLOTTED + card.name)
+        return actions
+
+    def perform(self, game, seat, action):
+        if action.startswith(PLOT):
+            game._plot(seat, action.removeprefix(PLOT))
+        elif action.startswith(CAST_PLOTTED):
+            game._cast_plotted(seat, action.removeprefix(CAST_PLOTTED))
+        else:
+            return False
+        return True
+
+
+GRAVEYARD, PARAGON, PERMITS, EXILE, LIBRARY, PLOTTED = Graveyard(), Paragon(), Permits(), Exile(), Library(), Plotted()
+ZONE_PLAYS: tuple[ZonePlay, ...] = (GRAVEYARD, PARAGON, PERMITS, EXILE, LIBRARY, PLOTTED)
 LAND_PREFIXES = tuple(z.land_prefix for z in ZONE_PLAYS if z.land_prefix)
 CAST_PREFIXES = tuple(z.cast_prefix for z in ZONE_PLAYS)
 

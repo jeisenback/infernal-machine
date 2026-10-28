@@ -136,7 +136,7 @@ class Caster:
         self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back, picked)
         sacrificed = self.game._sacrifice_for_copies(seat, card)
         item = g.StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
-                         foretold=graveyard is not None and graveyard.word == "Foretell", from_graveyard=graveyard is not None and graveyard.word != "Foretell",
+                         foretold=graveyard is not None and graveyard.word == "Foretell", from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter,
@@ -195,7 +195,7 @@ class Caster:
                 ability = TriggeredAbility("cast", (CopySpellTimes(copies),), False, "Copy that spell")
                 self.game.stack.append(g.StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         self.game._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared,
-                      prepared=prepared is not None, spell=item, from_graveyard=graveyard is not None and graveyard.word != "Foretell")
+                      prepared=prepared is not None, spell=item, from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"))
         if seat.spent_turn != self.game.turn:
             seat.spent_turn, seat.spent_amount = self.game.turn, 0
         before, seat.spent_amount = seat.spent_amount, seat.spent_amount + spent

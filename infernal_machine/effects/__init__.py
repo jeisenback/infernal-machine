@@ -380,6 +380,7 @@ from .costs import (  # noqa: F401
     suspend_of,
     ninjutsu_of,
     foretell_of,
+    plot_of,
     disturb_of,
     gift_of,
     unearth_cost,

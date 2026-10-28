@@ -130,6 +130,8 @@ class Narrator:
             return f"{card} ({who}) is {'destroyed' if kind == 'destroyed' else 'put into the graveyard'}."
         if kind == "exiled":
             return f"{card} ({who}) is exiled."
+        if kind == "plotted":
+            return f"{who} {v('plot')} {card}."
         if kind == "sacrificed":
             return f"{who} {v('sacrifice')} {card}."
         if kind == "returned":
