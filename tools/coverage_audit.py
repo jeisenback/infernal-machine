@@ -157,8 +157,9 @@ def render_baseline(comparison: dict, result: dict) -> str:
 
 def render_decks(result: dict, top: int = 15) -> str:
     total, playable = result["total"], result["playable"]
+    whole = sum(1 for deck in result["decks"].values() if not deck["unplayable"])  # the decks the engine plays in full (#521)
     out = [f"## Coverage for {len(result['decks'])} deck{'s' if len(result['decks']) != 1 else ''}: {playable} of {total} cards fully playable "
-           f"({100 * playable / total:.0f}%)" if total else "## Coverage: no cards", ""]
+           f"({100 * playable / total:.0f}%); {whole} of {len(result['decks'])} play in full" if total else "## Coverage: no cards", ""]
     for name, deck in result["decks"].items():
         out.append(f"- **{name}**: {deck['playable']} of {deck['cards']} cards fully playable ({100 * deck['playable'] / deck['cards']:.0f}%)")
     out += ["", "### What to build, in order (each assuming those above it are built)", "",

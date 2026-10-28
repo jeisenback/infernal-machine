@@ -1,0 +1,39 @@
+// Standard: Jeskai Artifacts, 4.4% of MTGGoldfish's paper Standard metagame on 2026-10-28. MTGGoldfish deck 8014633 (Jeskai by GLP), $1K Standard RCQ - SCG CON Hartford - Friday - 10:00 am , 13th Place, 5-2 (melee.gg), Oct 23, 2026.
+Deck
+2 Authority of the Consuls
+2 Boomerang Basics
+1 Braided Net
+3 Candy Trail
+4 Castle Doom
+1 Clay-Fired Bricks
+2 Cryogen Relic
+1 Day of Judgment
+1 Erode
+4 Floodfarm Verge
+1 Fomori Vault
+1 Gleaming Bastion
+3 Hallowed Fountain
+4 Island
+1 Meticulous Archive
+3 Perilous Snare
+3 Pinnacle Starcage
+5 Plains
+3 Repurposing Bay
+4 Simulacrum Synthesizer
+2 Spring-Loaded Sawblades
+1 The Fire Crystal
+1 The Irencrag
+2 The Mind Stone
+4 United Battlefront
+1 White Auracite
+
+Sideboard
+1 Astelli Reclaimer
+2 Authority of the Consuls
+2 Day of Judgment
+1 Krang, Master Mind
+2 No More Lies
+1 Pinnacle Starcage
+2 Rest in Peace
+2 Torpor Orb
+2 Voice of Victory

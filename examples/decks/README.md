@@ -1,5 +1,7 @@
 # Real decklists for the coverage audit
 
+The Standard decks are in `standard/` (its README says where they come from); this page is the Commander ones.
+
 Fifteen Commander decks that people actually play, used to aim the card-coverage work (issues #428, #475). Each is the EDHREC "average
 deck" for its commander (public pages, copied as plain card lists: Atraxa, Ur-Dragon and Krenko on 2026-10-18, the rest on 2026-10-21):
 the 99 cards most often played with it, so a typical list, not any one player's. They are **not** in the gauntlet and are not meant as

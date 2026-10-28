@@ -53,7 +53,33 @@ class AuditStepTests(unittest.TestCase):
 
     def test_nothing_swallows_a_failure(self):
         self.assertNotIn("|| true", TEXT)
-        self.assertEqual(TEXT.count("continue-on-error"), 1, "only on the audit step, whose result the last step turns into the job's")
+        self.assertEqual(TEXT.count("continue-on-error"), 2, "only on the two audit steps, whose results the last step turns into the job's")
+
+
+class StandardStepTests(unittest.TestCase):
+    """The Standard decks (#521) are checked the same way, against their own baseline, whatever Commander's verdict was."""
+
+    NAME = "The tracked Standard decks against their baseline"
+
+    def test_it_checks_every_standard_deck_against_the_standard_baseline(self):
+        run = step(self.NAME)
+        self.assertIn("--decks examples/decks/standard/*.txt", run)
+        self.assertIn("--baseline examples/decks/standard/baseline.json", run)
+        self.assertIn("if: always()", run, "Commander's failure must not skip Standard's check")
+
+    def test_its_exit_status_survives_the_pipe_to_tee_and_does_not_fail_on_its_own(self):
+        run = step(self.NAME)
+        self.assertIn("shell: bash", run)
+        self.assertIn("| tee standard.md", run)
+        self.assertIn("continue-on-error: true", run)
+        self.assertIn("id: standard", run)
+
+    def test_the_last_step_fails_the_job_when_the_standard_audit_failed(self):
+        self.assertIn("steps.standard.outcome == 'failure'", step("Fail if a tracked deck got worse"))
+
+    def test_the_comment_and_the_summary_carry_both(self):
+        self.assertIn("standard.md", step("Show it in the job summary"))
+        self.assertIn("standard.md", step("Keep one comment on the roadmap epic up to date"))
 
 
 class MisparseAuditStepTests(unittest.TestCase):
@@ -85,7 +111,7 @@ class CommentStepTests(unittest.TestCase):
         self.assertIn("<!-- tracked-decks -->", run)
         self.assertIn("-X PATCH", run)
         self.assertIn("gh issue comment", run)
-        self.assertIn("head -c 60000", run, "GitHub refuses a comment over 65536 characters")
+        self.assertEqual(run.count("head -c 30000"), 2, "Commander's and Standard's halves: GitHub refuses a comment over 65536 characters")
 
     def test_the_comment_failing_is_not_ignored(self):
         self.assertNotIn("continue-on-error", step("Keep one comment on the roadmap epic up to date"))

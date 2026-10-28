@@ -1,0 +1,226 @@
+{
+ "decks": {
+  "azorius_control": {
+   "cards": 60,
+   "unplayable": [
+    "Captain Marvel, Earth's Protector",
+    "Consult the Star Charts",
+    "Get Lost",
+    "Petrified Hamlet",
+    "Pinnacle Starcage",
+    "Restless Anchorage",
+    "Settle the Wreckage",
+    "Stock Up",
+    "The Theorist, Jace Beleren",
+    "Wan Shi Tong, Librarian"
+   ]
+  },
+  "azorius_momo": {
+   "cards": 60,
+   "unplayable": [
+    "Daydream",
+    "Gleaming Bastion",
+    "Guiding Hydra",
+    "Mockingbird",
+    "Momo, Friendly Flier",
+    "Nurturing Pixie",
+    "Practiced Offense",
+    "Quantum Riddler",
+    "Sage of the Skies",
+    "Starfield Shepherd",
+    "Starting Town",
+    "Steamcore Scholar"
+   ]
+  },
+  "boros_dragons": {
+   "cards": 60,
+   "unplayable": [
+    "Clarion Conqueror",
+    "Magda, the Hoardmaster",
+    "Magmatic Hellkite",
+    "Momo, Friendly Flier",
+    "Multiversal Passage",
+    "Sarkhan, Dragon Ascendant",
+    "Smaug the Magnificent",
+    "Twinmaw Stormbrood // Charring Bite"
+   ]
+  },
+  "boros_dwarves": {
+   "cards": 60,
+   "unplayable": [
+    "Chainsaw",
+    "Dragonfire Blade",
+    "Dwarven Mauler",
+    "D\u00e1in's Company",
+    "K\u00edli the Resourceful",
+    "The Lonely Mountain",
+    "Thorin, Mountain-king"
+   ]
+  },
+  "dimir_excruciator": {
+   "cards": 60,
+   "unplayable": [
+    "Deadly Cover-Up",
+    "Deceit",
+    "Doomsday Excruciator",
+    "Intimidation Tactics",
+    "Requiting Hex",
+    "Seasoned Cryomancer",
+    "Strategic Betrayal",
+    "Superior Spider-Man",
+    "Winternight Stories"
+   ]
+  },
+  "dimir_midrange": {
+   "cards": 60,
+   "unplayable": [
+    "Floodpits Drowner",
+    "Hidden Lair",
+    "Kaito, Bane of Nightmares",
+    "Requiting Hex",
+    "Shoot the Sheriff",
+    "Soulstone Sanctuary",
+    "Spyglass Siren",
+    "Strategic Betrayal",
+    "The Theorist, Jace Beleren",
+    "The Wondrous Wasp",
+    "Tishana's Tidebinder",
+    "Wan Shi Tong, Librarian",
+    "We Say Thee Nay!"
+   ]
+  },
+  "dimir_reanimator": {
+   "cards": 60,
+   "unplayable": [
+    "Deadly Cover-Up",
+    "Deceit",
+    "Multiversal Passage",
+    "Overlord of the Balemurk",
+    "Requiting Hex",
+    "Seasoned Cryomancer",
+    "Strategic Betrayal",
+    "Superior Spider-Man",
+    "The Theorist, Jace Beleren",
+    "Uldaros Theorix",
+    "Winternight Stories"
+   ]
+  },
+  "izzet_prowess": {
+   "cards": 60,
+   "unplayable": [
+    "Eddymurk Crab",
+    "Flow State",
+    "Impractical Joke",
+    "Multiversal Passage",
+    "Secret Identity",
+    "Sleight of Hand",
+    "Starting Town",
+    "Vibrant Outburst",
+    "Wild Ride"
+   ]
+  },
+  "izzet_spellementals": {
+   "cards": 60,
+   "unplayable": [
+    "Eddymurk Crab",
+    "Flow State",
+    "Get Out",
+    "Hearth Elemental // Stoke Genius",
+    "Hydro-Man, Fluid Felon",
+    "Impractical Joke",
+    "Sleight of Hand",
+    "Sunderflock"
+   ]
+  },
+  "jeskai_artifacts": {
+   "cards": 60,
+   "unplayable": [
+    "Boomerang Basics",
+    "Braided Net // Braided Quipu",
+    "Clay-Fired Bricks // Cosmium Kiln",
+    "Cryogen Relic",
+    "Fomori Vault",
+    "Gleaming Bastion",
+    "Perilous Snare",
+    "Pinnacle Starcage",
+    "Repurposing Bay",
+    "Simulacrum Synthesizer",
+    "Spring-Loaded Sawblades // Bladewheel Chariot",
+    "The Irencrag",
+    "The Mind Stone",
+    "United Battlefront"
+   ]
+  },
+  "jeskai_control": {
+   "cards": 60,
+   "unplayable": [
+    "Accumulate Wisdom",
+    "Ajani Unrelenting",
+    "Chandra, Torch of Defiance",
+    "Combustion Technique",
+    "Flashback",
+    "Great Hall of the Biblioplex",
+    "Jeskai Revelation",
+    "Mistrise Village",
+    "Ral, Crackling Wit",
+    "Stock Up",
+    "Tablet of Discovery"
+   ]
+  },
+  "jund_sacrifice": {
+   "cards": 60,
+   "unplayable": [
+    "Biotech Specialist",
+    "Gene Pollinator",
+    "Greedy Freebooter",
+    "Lively Dirge",
+    "Mutagen Man, Living Ooze",
+    "Obsessive Pursuit",
+    "Requiting Hex",
+    "Rottenmouth Viper",
+    "Smaug the Magnificent",
+    "Starting Town",
+    "The Misty Mountains Cold",
+    "The Sackville-Bagginses",
+    "Wolverine, Fierce Fighter"
+   ]
+  },
+  "mono_green_landfall": {
+   "cards": 60,
+   "unplayable": [
+    "Ba Sing Se",
+    "Demolition Field",
+    "Earthbender Ascension",
+    "Elven Passage",
+    "Escape Tunnel",
+    "Keen-Eyed Curator",
+    "Pit of Offerings",
+    "Sapling Nursery"
+   ]
+  },
+  "rakdos_lizards": {
+   "cards": 60,
+   "unplayable": [
+    "Gev, Scaled Scorch",
+    "Hired Claw",
+    "Ingris Stingerquill",
+    "Master of Barbs",
+    "Rockface Village",
+    "Starting Town",
+    "Stinging Vitriol",
+    "Thought-Stalker Warlock"
+   ]
+  },
+  "selesnya_landfall": {
+   "cards": 60,
+   "unplayable": [
+    "Ba Sing Se",
+    "Doorkeeper Thrull",
+    "Earthbender Ascension",
+    "Escape Tunnel",
+    "Esper Origins // Summon: Esper Maduin",
+    "Sapling Nursery"
+   ]
+  }
+ }
+}

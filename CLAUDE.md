@@ -59,6 +59,7 @@ python -m unittest discover -s tests -t .      # the one-process way (about 7 mi
 python tools/run_tests.py                      # the same tests across processes (about 2.5 times faster; a failure is the same failure)
 python tools/coverage_audit.py --top 1         # how many Commander-legal cards are fully playable
 python tools/coverage_audit.py --decks examples/decks/*.txt --baseline examples/decks/baseline.json   # the tracked decks: no card that played may stop (--write-baseline refreshes it)
+python tools/coverage_audit.py --decks examples/decks/standard/*.txt --baseline examples/decks/standard/baseline.json   # the same for the tracked Standard decks
                                                # a coverage pull request says what this printed before and after, beside the pool's share
 python tools/play_smoke.py                     # every fully playable card casts or plays without an error
 python tools/ability_smoke.py                  # the costs of their activated abilities (sacrifice, discard, ...) are offered and paid (a card with a new cost: --card NAME)
@@ -66,7 +67,7 @@ python tools/explain_card.py --audit           # no card is read in a way the mi
 ```
 
 CI (`.github/workflows`): `tests` (required) and its `typecheck` job (pyright: no type errors; run it with
-`pip install pyright==1.1.414 && python -m pyright`; an `Optional` you know is there is unwrapped with `_checked(value)` in `game.py`), `precon report` (every card of the five precon decks must be fully playable), `tracked decks` (which also runs the misparse audit, `python tools/explain_card.py --audit`: no card may be read wrongly in a way a rule knows; the decks in `examples/decks` against `baseline.json`: a card that played may not stop; every pull request that touches the engine, and Mondays, when it also updates one comment on the roadmap epic #453),
+`pip install pyright==1.1.414 && python -m pyright`; an `Optional` you know is there is unwrapped with `_checked(value)` in `game.py`), `precon report` (every card of the five precon decks must be fully playable), `tracked decks` (which also runs the misparse audit, `python tools/explain_card.py --audit`: no card may be read wrongly in a way a rule knows; the decks in `examples/decks` and `examples/decks/standard` against their `baseline.json`: a card that played may not stop; every pull request that touches the engine, and Mondays, when it also updates one comment on the roadmap epic #453),
 `bot games` (120 four-player bot games between the precon decks, none may raise; seed `g` is game `g`; it runs on every pull request, and
 its job `bot games (all shards)` is the one to require next to `tests`), `coverage audit` (weekly, a measurement that never fails), and `bot strength` (weekly: the default bot against the plain bot on the precon decks, 480 duels in six shards; it fails only if the whole 95% interval is below 50%, i.e. a change made the bot reliably worse; each shard takes about a minute on GitHub's runners, and the first run (2026-10-15) won 310 of 480, 64.6% (60.2%-68.7%); run it by hand with `python tools/compare_bots.py examples/precons/*.txt`, or on GitHub with `gh workflow run "bot strength"`).
 

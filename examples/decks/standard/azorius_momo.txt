@@ -1,0 +1,31 @@
+// Standard: Azorius Momo, 3.2% of MTGGoldfish's paper Standard metagame on 2026-10-28. MTGGoldfish deck 8013459 (Azorius Momo by HyPPeR), Standard Challenge 32 2026-10-23 (1) , 1st Place, 8-1 (www.mtgo.com), Oct 23, 2026.
+Deck
+2 Abandoned Air Temple
+4 Daydream
+3 Erode
+4 Floodfarm Verge
+2 Gleaming Bastion
+1 Guiding Hydra
+4 Hallowed Fountain
+1 Mockingbird
+4 Momo, Friendly Flier
+2 Nurturing Pixie
+7 Plains
+2 Practiced Offense
+4 Quantum Riddler
+4 Sage of the Skies
+2 Seam Rip
+4 Springleaf Drum
+4 Starfield Shepherd
+2 Starting Town
+4 Steamcore Scholar
+
+Sideboard
+3 Clarion Conqueror
+1 Curious Farm Animals
+2 Disdainful Stroke
+1 Flashfreeze
+3 Rest in Peace
+2 Seam Rip
+1 Spider-Sense
+2 Wan Shi Tong, Librarian

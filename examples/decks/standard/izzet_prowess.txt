@@ -1,0 +1,32 @@
+// Standard: Izzet Prowess, 5.1% of MTGGoldfish's paper Standard metagame on 2026-10-28. MTGGoldfish deck 8014627 (Temur Prowess by Chris McMahon), $1K Standard RCQ - SCG CON Hartford - Friday - 10:00 am , 7th Place, 5-2-1 (melee.gg), Oct 23, 2026.
+Deck
+4 Burst Lightning
+4 Eddymurk Crab
+4 Elusive Otter
+4 Flow State
+2 Impractical Joke
+4 Island
+1 Mountain
+2 Multiversal Passage
+4 Opt
+4 Pompous Battlemage
+4 Riverpyre Verge
+3 Secret Identity
+4 Sleight of Hand
+4 Slickshot Show-Off
+4 Spirebluff Canal
+1 Starting Town
+4 Steam Vents
+2 Vibrant Outburst
+1 Wild Ride
+
+Sideboard
+1 Broadside Barrage
+2 Colorstorm Stallion
+2 Disdainful Stroke
+2 Fire Magic
+2 Quantum Riddler
+1 Sear
+2 Soul-Guide Lantern
+2 Spell Snare
+1 Sunspine Lynx

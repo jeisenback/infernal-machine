@@ -1,0 +1,35 @@
+// Standard: Dimir Reanimator, 7.8% of MTGGoldfish's paper Standard metagame on 2026-10-28. MTGGoldfish deck 8019519 (Dimir Uldaros by Adriano Moscato), Arena Championship 13 , 5th Place, 9-2 (melee.gg), Oct 24, 2026.
+Deck
+3 Bitter Triumph
+2 Cavern of Souls
+1 Deadly Cover-Up
+4 Deceit
+3 Duress
+4 Gloomlake Verge
+2 Multiversal Passage
+3 Overlord of the Balemurk
+3 Requiting Hex
+4 Restless Reef
+4 Seasoned Cryomancer
+4 Shipwreck Marsh
+2 Strategic Betrayal
+4 Superior Spider-Man
+3 Swamp
+2 The Theorist, Jace Beleren
+2 Theorix Charm
+3 Uldaros Theorix
+2 Undercity Sewers
+4 Watery Grave
+1 Winternight Stories
+
+Sideboard
+2 Day of Black Sun
+1 Deadly Cover-Up
+1 Disdainful Stroke
+2 Doomsday Excruciator
+1 Emeritus of Ideation
+2 Flashfreeze
+2 Ghost Vacuum
+1 M.O.D.O.K.
+2 Qarsi Revenant
+1 Spell Snare

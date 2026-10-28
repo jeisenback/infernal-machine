@@ -1,0 +1,37 @@
+// Standard: Jund Sacrifice, 1.8% of MTGGoldfish's paper Standard metagame on 2026-10-28. MTGGoldfish deck 8019522 (Jund Sacrifice by Bernardo Santos), Arena Championship 13 , 8th Place, 8-3 (melee.gg), Oct 24, 2026.
+Deck
+4 Biotech Specialist
+3 Blazemire Verge
+1 Blood Crypt
+4 Blooming Marsh
+2 Callous Inspector
+1 Forest
+4 Gene Pollinator
+4 Greedy Freebooter
+4 Lively Dirge
+1 Mutagen Man, Living Ooze
+4 Obsessive Pursuit
+4 Overgrown Tomb
+2 Requiting Hex
+2 Rottenmouth Viper
+1 Smaug the Magnificent
+4 Starting Town
+2 Stir Up Trouble
+3 Stomping Ground
+1 Swamp
+2 The Misty Mountains Cold
+4 The Sackville-Bagginses
+1 Umbral Collar Zealot
+1 Wastewood Verge
+1 Wolverine, Fierce Fighter
+
+Sideboard
+3 Duress
+1 Guerrilla Gorilla
+1 Leatherhead, Swamp Stalker
+1 Maelstrom Pulse
+1 Pawpatch Formation
+1 Shoot the Sheriff
+2 Strategic Betrayal
+2 The Ooze
+3 Torpor Orb

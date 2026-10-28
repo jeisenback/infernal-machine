@@ -1,0 +1,25 @@
+// Standard: Selesnya Landfall, 1.5% of MTGGoldfish's paper Standard metagame on 2026-10-28. MTGGoldfish deck 8014894 (Selesnya Landfall by _Batutinha_), Standard Challenge 16 2026-10-24 , 2nd Place, 6-3 (www.mtgo.com), Oct 24, 2026.
+Deck
+3 Ba Sing Se
+4 Doorkeeper Thrull
+4 Earthbender Ascension
+3 Escape Tunnel
+3 Esper Origins
+4 Fabled Passage
+9 Forest
+1 Hushwood Verge
+4 Icetill Explorer
+4 Llanowar Elves
+3 Mightform Harmonizer
+4 Mossborn Hydra
+2 Plains
+4 Sapling Nursery
+4 Sazh's Chocobo
+4 Temple Garden
+
+Sideboard
+3 Clarion Conqueror
+4 Erode
+2 Sheltered by Ghosts
+3 Surrak, Elusive Hunter
+3 Torpor Orb
