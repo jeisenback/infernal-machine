@@ -4,13 +4,11 @@
    "cards": 60,
    "unplayable": [
     "Captain Marvel, Earth's Protector",
-    "Consult the Star Charts",
     "Get Lost",
     "Petrified Hamlet",
     "Pinnacle Starcage",
     "Restless Anchorage",
     "Settle the Wreckage",
-    "Stock Up",
     "The Theorist, Jace Beleren",
     "Wan Shi Tong, Librarian"
    ]
@@ -109,11 +107,9 @@
    "cards": 60,
    "unplayable": [
     "Eddymurk Crab",
-    "Flow State",
     "Impractical Joke",
     "Multiversal Passage",
     "Secret Identity",
-    "Sleight of Hand",
     "Starting Town",
     "Vibrant Outburst",
     "Wild Ride"
@@ -123,12 +119,10 @@
    "cards": 60,
    "unplayable": [
     "Eddymurk Crab",
-    "Flow State",
     "Get Out",
     "Hearth Elemental // Stoke Genius",
     "Hydro-Man, Fluid Felon",
     "Impractical Joke",
-    "Sleight of Hand",
     "Sunderflock"
    ]
   },
@@ -139,7 +133,6 @@
     "Braided Net // Braided Quipu",
     "Clay-Fired Bricks // Cosmium Kiln",
     "Cryogen Relic",
-    "Fomori Vault",
     "Gleaming Bastion",
     "Perilous Snare",
     "Pinnacle Starcage",
@@ -163,7 +156,6 @@
     "Jeskai Revelation",
     "Mistrise Village",
     "Ral, Crackling Wit",
-    "Stock Up",
     "Tablet of Discovery"
    ]
   },

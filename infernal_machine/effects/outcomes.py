@@ -334,6 +334,7 @@ from .families.library_and_hand import (  # noqa: F401
     YouAndTargetDraw,
     _IfYouDoDraw,
     _InsteadDraw,
+    _InsteadTake,
     _MayDiscard,
     _MayShuffle,
     _PutFromAmongThem,
@@ -1273,6 +1274,7 @@ _KICKED_INSTEAD = [
     (re.compile(rf"if this spell was kicked, {_SELF} deals {_N} damage instead\.", re.I), "amount"),
     (re.compile(rf"if this spell was kicked, create {_N} of those tokens instead\.", re.I), "count"),
     (re.compile(rf"if this spell was kicked, draw {_N} cards instead\.", re.I), "count"),
+    (re.compile(rf"if this spell was kicked, put {_N} of those cards into your hand instead\.", re.I), "take"),  # Consult the Star Charts
 ]
 
 
@@ -1786,8 +1788,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: DrawThenPutBack(_number(m[1]), _number(m[2]))),
     (re.compile(rf"look at the top (?:{_N} cards?|card) of your library\.", re.I),
      lambda m: LookAtTop(_count(m[1] or "one"))),
-    (re.compile(r"put one of them into your hand and the rest on the bottom of your library in any order\.", re.I),
-     lambda m: TakeFromTop(None)),
+    (re.compile(rf"put {_N_FIXED} of (?:them|those cards) into your hand(?: and (?:the rest|the other) (on the bottom of your library"
+                r"(?: in (?:any|a random) order)?|into your graveyard))?\.", re.I),
+     lambda m: TakeFromTop(None, take=_number(m[1]), rest=None if m[2] is None else "graveyard" if m[2].startswith("into") else "bottom")),
+    (re.compile(rf"if (.+), instead put {_N_FIXED} of them into your hand and the rest on the bottom of your library in any order\.", re.I),
+     lambda m: _InsteadTake(c, _number(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(rf"you may reveal an? {_SEARCH_TYPE} from among them and put (?:it|that card) into your hand\.", re.I),
      lambda m: TakeFromTop(_card_kind(m[1]))),
     (re.compile(rf"you may put an? {_SEARCH_TYPE} from among them onto the battlefield\.", re.I),
@@ -2584,11 +2589,12 @@ def _merge_impulse(effects: list) -> list | None:
         if isinstance(effect, LookAtTop) and i + 1 < len(effects) and isinstance(effects[i + 1], TakeFromTop):
             take = effects[i + 1]
             i += 2
-            if take.card_type is not None:  # the optional reveal needs the rest-on-the-bottom sentence
-                if not (i < len(effects) and isinstance(effects[i], RestOnBottom)):
+            if take.card_type is not None or take.rest is None:  # the optional reveal, and "Put one of those cards into your hand.",
+                kicked = i < len(effects) and isinstance(effects[i], KickedInstead)  # need the rest-on-the-bottom sentence (Consult the
+                if not (i + kicked < len(effects) and isinstance(effects[i + kicked], RestOnBottom)):  # Star Charts: after its kicked clause)
                     return None
-                i += 1
-            merged.append(Impulse(effect.count, take.card_type, take.to))
+                del effects[i + kicked]
+            merged.append(Impulse(effect.count, take.card_type, take.to, take.take, take.rest or "bottom"))
             continue
         if isinstance(effect, (LookAtTop, TakeFromTop, RestOnBottom)):
             return None
@@ -2652,6 +2658,7 @@ _CONDITIONS = [
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
     (re.compile(rf"X is {_N_FIXED} or more"), lambda m: Condition("x_at_least", _number(m[1]))),
     (re.compile(r"this card is in your graveyard"), lambda m: Condition("in_graveyard")),
+    (re.compile(r"there is an instant card and a sorcery card in your graveyard"), lambda m: Condition("instant_and_sorcery_in_graveyard")),  # Flow State
     (re.compile(r"that player controls more lands than you"), lambda m: Condition("player_more_lands")),
     (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),
     (re.compile(rf"that spell's mana value is {_N_FIXED} or greater"), lambda m: Condition("spell_mv_at_least", _number(m[1]))),
@@ -2789,6 +2796,8 @@ _COPY_SENTENCES = (CopyToken, CopySubjectToken, CopyHostToken, CopySelfToken, Co
 
 _CONDITIONAL = Follows(
     Follow(_InsteadDraw, Draw, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition)),
+    Follow(_InsteadTake, Impulse, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition),
+           fits=lambda previous, marker: previous.card_type is None and previous.rest == "bottom"),
     Follow(_InsteadMana, AddMana, set_fields(more=lambda m: m.units, more_if=lambda m: m.condition)),
     Follow(_ExileTokenAtEnd, (CreateTokens, *_COPY_SENTENCES), set_fields(exile_at_end=lambda m: True)),
     Follow(_InsteadTokens, CreateTokens, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition)),

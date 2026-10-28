@@ -1106,6 +1106,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   your hand and the rest on the bottom of your library in any order." and "Look at the top five cards... You may
   reveal a creature card from among them and put it into your hand. Put the rest on the bottom..." are understood
   only as a whole. The rest go to the bottom in a random order (the engine picks the order for "any order").
+  The take can be two ("Put two of them into your hand": Stock Up, Drawn from Dreams, Dark Bargain; the second choice offers
+  what is left), the rest can go into your graveyard instead (Glimpse the Future, Sleight of Hand's "the other"), the rest can be
+  named in a later sentence ("Put one of those cards into your hand. ... Put the rest on the bottom of your library in a random
+  order.": Consult the Star Charts, whose X is the lands you control and whose kicker makes it two, and Fomori Vault), and a
+  condition can raise the take (Flow State: "If there is an instant card and a sorcery card in your graveyard, instead put two of
+  them into your hand ..."). "Put up to two of them" (Thassa's Intervention, The Mana Rig) is not read.
   The optional reveal shows everyone the card; the plain version keeps it private. Bots take the highest
   mana value card.
 - **Tutors:** the searcher picks from the matching cards in their library, which is then shuffled. Other players
