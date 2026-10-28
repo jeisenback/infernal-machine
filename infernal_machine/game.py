@@ -458,6 +458,7 @@ class Seat:
     commander_casts: dict[str, int] = field(default_factory=dict)
     commander_damage: dict[tuple[int, str], int] = field(default_factory=dict)  # (seat, commander) -> damage
     lands_played: int = 0
+    turns_taken: int = 0  # this player's own turns so far, the current one included ("your first, second, or third turn of the game")
     draw_turn: int | None = None  # the last turn this player drew a card (not counting the opening hand)
     draw_count: int = 0  # how many they drew on draw_turn
     life_lost_turn: int | None = None  # the last turn this player lost life
@@ -745,6 +746,7 @@ class Game:
 
     def _take_turn(self, seat: Seat) -> None:
         seat.lands_played = 0
+        seat.turns_taken += 1
         self.monarch_at_turn_start = self.monarch
         self.broadcast({"event": "turn", "turn": self.turn, "seat": seat.index})
         over = lambda: self.winner() is not None or seat.lost
@@ -5750,6 +5752,8 @@ class Game:
             return lands >= rule.count
         if rule.kind == "if_starting_player":
             return seat.index == self.starting_seat
+        if rule.kind == "unless_own_first_turns":  # Starting Town: untapped only on your own first turns (an opponent's turn is not yours)
+            return not (self.active == seat.index and seat.turns_taken <= rule.count)
         if rule.kind == "reveal":  # a Snarl: show a matching card from your hand or enter tapped
             matching = [c for c in seat.hand if any(t in c.type_line for t in rule.types)]
             if matching and seat.player.choose(REVEAL_PROMPT(card.name), [f"Reveal {matching[0].name}", "Enter tapped"]) == 0:

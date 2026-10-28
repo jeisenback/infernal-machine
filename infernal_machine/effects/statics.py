@@ -1372,6 +1372,8 @@ _ENTERS_TAPPED = [
      lambda m: EntersTapped("if_lands_at_least", count=_number(m[1]))),
     (re.compile(rf"If you were the starting player, {_SELF} enters tapped\.", re.I),
      lambda m: EntersTapped("if_starting_player")),
+    (re.compile(rf"{_SELF} enters tapped unless it's your first, second, or third turn of the game\.", re.I),
+     lambda m: EntersTapped("unless_own_first_turns", count=3)),  # Starting Town
     (re.compile(rf"{_SELF} enters tapped if you were the starting player\.", re.I),
      lambda m: EntersTapped("if_starting_player")),
     (re.compile(rf"As {_SELF} enters, you may reveal an? ([A-Z][a-z]+) card from your hand\. "

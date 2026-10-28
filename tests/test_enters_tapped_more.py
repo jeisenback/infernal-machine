@@ -11,7 +11,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import (EntersTapped, enters_tapped_rule, enters_with_counters, triggered_abilities)
 from infernal_machine.game import CHOOSE_COLOR_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, pick, run_stack, table3
+from tests.helpers import BEAR, pick, real, run_stack, table3, take_turn_attacking
 
 
 def land(name, text, kind="Land"):
@@ -227,3 +227,40 @@ class KarooTests(unittest.TestCase):
         karoo = comes_in(game, a, DORMANT_VOLCANO)
         run_stack(game)
         self.assertEqual((karoo in a.battlefield, mountain in a.battlefield), (False, True))
+
+
+STARTING_TOWN = real("Starting Town", "", "Land — Town", "This land enters tapped unless it's your first, second, or third turn of the game.\n"
+                                                      "{T}: Add {C}.\n{T}, Pay 1 life: Add one mana of any color.")
+
+
+class StartingTownTests(unittest.TestCase):
+    """Untapped only during one of its controller's own first three turns (#564): the fourth turn, or an opponent's turn, and it is tapped."""
+
+    def test_rule(self):
+        self.assertEqual(unsupported_lines(STARTING_TOWN), [])
+        self.assertEqual(enters_tapped_rule(STARTING_TOWN), EntersTapped("unless_own_first_turns", count=3))
+
+    def test_untapped_on_your_first_three_turns_and_tapped_on_the_fourth(self):
+        for own_turn, tapped in ((1, False), (2, False), (3, False), (4, True), (9, True)):
+            with self.subTest(own_turn=own_turn):
+                game, _ = table3()
+                seat = game.seats[0]
+                game.active, seat.turns_taken = 0, own_turn
+                self.assertEqual(comes_in(game, seat, STARTING_TOWN).tapped, tapped)
+
+    def test_your_own_turns_are_counted_not_the_tables(self):
+        game, _ = table3()
+        seat = game.seats[1]
+        game.active, game.turn, seat.turns_taken = 1, 8, 3  # the table's eighth turn is this player's third
+        self.assertFalse(comes_in(game, seat, STARTING_TOWN).tapped)
+
+    def test_tapped_on_an_opponents_turn_even_early(self):
+        game, _ = table3()
+        seat = game.seats[0]
+        game.active, seat.turns_taken = 1, 1
+        self.assertTrue(comes_in(game, seat, STARTING_TOWN).tapped)
+
+    def test_a_turn_taken_counts_for_the_player_who_took_it(self):
+        game, _ = table3()
+        take_turn_attacking(game, game.seats[0])
+        self.assertEqual([s.turns_taken for s in game.seats], [1, 0, 0])
