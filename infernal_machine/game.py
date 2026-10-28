@@ -2500,8 +2500,12 @@ class Game:
         number the event carried (how many attackers went at the controller, for "two or more of those creatures");
         `player` is the player the trigger is about ("that player"); `subject` the permanent it is about ("that creature")."""
         kind = condition.kind
+        if condition.otherwise is not None and self.condition_holds(condition.otherwise, seat, source, x, player, subject):
+            return True
         if condition.also is not None and not self.condition_holds(condition.also, seat, source, x, player, subject):
             return False
+        if kind == "source_entered_this_turn":  # Gleaming Bastion: "this land entered this turn"
+            return source is not None and source.entered_turn == self.turn
         if kind == "no_spell_cast_turn":
             return not any(turn == self.turn for turn, _ in seat.cast_log)
         if kind == "delirium":  # four or more card types among the cards in the graveyard

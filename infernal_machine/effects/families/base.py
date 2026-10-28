@@ -27,3 +27,4 @@ class Condition:
     count: int = 0
     what: str = ""  # a spell kind ("instant or sorcery spell") or a type ("Plains", "Snake", "creature")
     also: "Condition | None" = None  # "if A and B": this one and that one must both hold
+    otherwise: "Condition | None" = None  # "if A or if B": this one or that one must hold (Gleaming Bastion)
