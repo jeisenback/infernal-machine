@@ -250,8 +250,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     More conditions: "unless you control a planeswalker / a basic land / a legendary creature / a Mount or Vehicle / a
     Mountain" (one type of land works for any of the five), "unless a player has 13 or less life" (any player, you
     included), "If you control two or more other lands, this land enters tapped", "If you were the starting player, this
-    land enters tapped" (the game remembers who started), and a reveal of any one creature type ("you may reveal an
-    Elemental card from your hand", with the Snarl wording kept for two land types).
+    land enters tapped" (the game remembers who started), "unless it's your first, second, or third turn of the game"
+    (Starting Town: each player's own turns are counted, so it is untapped on your first three turns and tapped from the
+    fourth, or on anyone else's turn), and a reveal of any one creature type ("you may reveal an Elemental card from your
+    hand", with the Snarl wording kept for two land types).
   - "This land enters tapped with two charge (depletion, ...) counters on it": tapped, with the counters. The Vivid lands
     ("{T}, Remove a charge counter: Add one mana of any color") make their own color for free and any color for a counter,
     and only a mana of another color uses one (generic mana and the land's own color do not). The depletion lands ("{T},
