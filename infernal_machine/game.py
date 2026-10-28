@@ -5650,11 +5650,11 @@ class Game:
         """Clone: choose a permanent on the battlefield (or a card in a graveyard) and enter as a copy of it. A copy gets the other
         card's printed characteristics (not its counters, damage or changes), and what the card's except clause changes (CR 707.9);
         a token's copy isn't a token. `mana_spent` is what was paid to cast the clone (Mockingbird)."""
-        if rule.zone == "graveyard":  # Body Double: a card, which stays where it is
-            options = [(f"{card.name} (seat {s.index} graveyard)", card) for s in self.live_seats() for card in _unique(s.graveyard)
+        if rule.zone == "graveyard":  # Body Double: a card, which stays where it is (Superior Spider-Man exiles it)
+            options = [(f"{card.name} (seat {s.index} graveyard)", card, s) for s in self.live_seats() for card in _unique(s.graveyard)
                        if _card_matches(rule.kind, card)]
         else:
-            options = [(self.label(p), p.card) for s in self.live_seats() if (not rule.yours or s is seat) and (not rule.opponents or s is not seat)
+            options = [(self.label(p), p.card, s) for s in self.live_seats() if (not rule.yours or s is seat) and (not rule.opponents or s is not seat)
                        for p in s.battlefield
                        if _permanent_matches(rule.kind, p.card)
                        and (not rule.min_power or (p.card.power or "").lstrip("-").isdigit() and int(p.card.power or 0) >= rule.min_power)
@@ -5662,12 +5662,16 @@ class Game:
                        and (not rule.mana_spent_cap or p.card.cmc <= mana_spent)]
         if not options:
             return
-        pick = seat.player.choose(CLONE_PROMPT(permanent.card.name), [label for label, _ in options] + [NOT_A_COPY])
+        pick = seat.player.choose(CLONE_PROMPT(permanent.card.name), [label for label, _, _ in options] + [NOT_A_COPY])
         if pick == len(options):
             return
-        copied = options[pick][1]
+        _, copied, owner = options[pick]
         permanent.real_card = permanent.card
         permanent.card = copy_of(copied, rule.changes)
+        if rule.changes.name == "CARDNAME":  # "except its name is Superior Spider-Man": the clone's own name
+            permanent.card = dataclasses.replace(permanent.card, name=permanent.real_card.name)
+        if rule.exile_copied and copied in owner.graveyard:  # Mind Swap: "When you do, exile that card."
+            self.exile_from_graveyard(GraveyardTarget(copied, owner))
         if "Planeswalker" in permanent.card.type_line:  # Spark Double: the copy starts at the planeswalker's loyalty
             permanent.loyalty = (_starting_loyalty(permanent.card) or 0) + rule.changes.extra_loyalty
         if rule.tapped:

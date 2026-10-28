@@ -852,12 +852,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Bots copy the biggest creature. What it may copy is a kind ("any creature", "any nonland permanent", "any artifact or
     enchantment", "a creature you control", "a creature an opponent controls", "a creature you control with power 4 or
     greater", "enter tapped as a copy of any land": tapped when it is a copy), or a card: "any creature card in a graveyard"
-    (Body Double, Echoing Deeps; the card stays where it is), "any permanent that entered this turn" (Sakashima's Protege),
+    (Body Double, Echoing Deeps; the card stays where it is, unless the line ends "When you do, exile that card.": Superior
+    Spider-Man's Mind Swap, an ability word the line may start with), "any permanent that entered this turn" (Sakashima's Protege),
     "any creature on the battlefield with mana value less than or equal to the amount of mana spent to cast CARDNAME"
     (Mockingbird). The "except ..." clause is a list of changes
     (`CopyChanges`, shared with token copies): it isn't legendary (also "if that permanent is legendary"), N/N, a type or a
     color in addition to its other types, "it's an artifact", "it's legendary and snow in addition to its other types",
-    "it's a 4/4 black Zombie" (that color and creature type and no other), keywords, a quoted ability (only one the engine
+    "it's a 4/4 black Zombie" (that color and creature type and no other), "its name is CARDNAME" (the copy keeps the clone's own
+    name, as Superior Spider-Man does; "he's a 4/4 Spider Human Hero in addition to his other types" is read with its pronouns),
+    keywords, a quoted ability (only one the engine
     understands), "an additional +1/+1 counter if it's a creature" (also two), "an additional loyalty counter if it's a
     planeswalker", X additional counters. Any other clause (a new name, "loses all other card types", "doesn't copy its
     color", conditional abilities) leaves the line unsupported. Phantasmal Image, Spark Double, Vesuva, Glasspool Mimic,

@@ -669,6 +669,11 @@ def _copy_changes(text: str) -> CopyChanges | None:
             fields["not_legendary"] = True  # Helm of the Host, Miirym, Spark Double, Double Major: a copy that was never legendary is unchanged
         elif m := re.fullmatch(r"(?:it's |the token is |is )?(\d+)/(\d+)", clause, re.I):
             fields["power_toughness"] = (m[1], m[2])
+        elif m := re.fullmatch(r"(?:its|his|her) name is (CARDNAME|[A-Z][\w' ,-]+)", clause):  # Sakashima the Impostor, Superior Spider-Man
+            fields["name"] = m[1]
+        elif m := re.fullmatch(r"(?:it's |he's |she's |is )?an? (\d+)/(\d+) ([A-Za-z ]+?) in addition to (?:its|his|her) other types", clause, re.I):
+            fields["power_toughness"] = (m[1], m[2])  # Superior Spider-Man: "he's a 4/4 Spider Human Hero in addition to his other types"
+            types.extend(w.capitalize() for w in m[3].split())
         elif m := re.fullmatch(r"(?:it's |is )?an? (\d+)/(\d+) (white|blue|black|red|green) ([A-Za-z ]+) in addition to its other colors_and_types",
                                clause, re.I):
             fields["power_toughness"] = (m[1], m[2])
@@ -710,7 +715,7 @@ def _copy_changes(text: str) -> CopyChanges | None:
         not_legendary=fields.get("not_legendary", False), power_toughness=fields.get("power_toughness"),
         add_types=tuple(types), keywords=tuple(keywords), add_colors=tuple(colors), abilities=tuple(abilities),
         extra_counters=fields.get("extra_counters", ""), extra_loyalty=fields.get("extra_loyalty", 0), supertypes=tuple(supertypes),
-        set_colors=fields.get("set_colors"), set_subtypes=fields.get("set_subtypes"))
+        set_colors=fields.get("set_colors"), set_subtypes=fields.get("set_subtypes"), name=fields.get("name"))
 
 
 

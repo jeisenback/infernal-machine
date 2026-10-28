@@ -50,6 +50,7 @@ class CopyChanges:
     supertypes: tuple[str, ...] = ()  # "it's legendary (and snow) in addition to its other types", Adagia's "except it's legendary"
     set_colors: tuple[str, ...] | None = None  # The Scarab God's "it's a 4/4 black Zombie": that color and no other
     set_subtypes: tuple[str, ...] | None = None  # ... and that creature type and no other
+    name: str | None = None  # Sakashima, Superior Spider-Man: "except its name is CARDNAME" (the copy keeps the clone's own name)
 
 
 def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
@@ -80,6 +81,8 @@ def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
         card = dataclasses.replace(card, colors=tuple(sorted(set(card.colors) | set(changes.add_colors))))
     if changes.power_toughness is not None:
         card = dataclasses.replace(card, power=changes.power_toughness[0], toughness=changes.power_toughness[1])
+    if changes.name is not None and changes.name != "CARDNAME":  # ("CARDNAME" is filled in by the clone, which knows its own name)
+        card = dataclasses.replace(card, name=changes.name)
     extra = [k.capitalize() for k in changes.keywords] + [f'{a}' for a in changes.abilities]
     if extra:
         card = dataclasses.replace(card, oracle_text="\n".join([card.oracle_text, *extra]).strip())
