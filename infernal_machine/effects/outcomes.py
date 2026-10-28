@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
 )
 from .families.combat_and_pump import (  # noqa: F401
     Animate,
+    Earthbend,
     Attach,
     AttachAura,
     AttachThisToSubject,
@@ -1981,6 +1982,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"target (creature) blocks this turn if able\.", re.I), lambda m: MustBlockThisTurn(m[1].lower())),
     (re.compile(rf"target (creature) blocks (?:this creature|{{self}}) this turn if able\.".replace("{self}", "CARDNAME"), re.I),
      lambda m: MustBlockThisTurn(m[1].lower(), source_only=True)),
+    (re.compile(r"earthbend (\d+)\.", re.I), lambda m: Earthbend(int(m[1]))),  # Ba Sing Se
     (re.compile(rf"tap target {_PERMANENT_KIND} and put {_N} stun counters? on (?:it|that creature)\.", re.I),
      lambda m: [Tap(m[1].lower()), PutStunCounters(_count(m[2]))]),
     (re.compile(rf"put {_N} stun counters? on each of them\.", re.I), lambda m: PutStunOnEach(_count(m[1]))),

@@ -60,6 +60,18 @@ class Animate:
 
 
 @dataclass(frozen=True)
+class Earthbend:
+    """ "Earthbend 2.": target land you control becomes a 0/0 creature with haste that's still a land, gets that many +1/+1
+    counters, and comes back to the battlefield tapped when it dies or is exiled (the keyword action's reminder text)."""
+    count: int
+    target: str = "land you control"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.earthbend(target, self.count)
+
+
+@dataclass(frozen=True)
 class StillALand:
     """ "It's still a land." Only ever the end of an Animate (see _merge_animate)."""
 

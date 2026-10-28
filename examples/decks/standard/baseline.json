@@ -162,7 +162,6 @@
   "mono_green_landfall": {
    "cards": 60,
    "unplayable": [
-    "Ba Sing Se",
     "Demolition Field",
     "Earthbender Ascension",
     "Elven Passage",
@@ -187,7 +186,6 @@
   "selesnya_landfall": {
    "cards": 60,
    "unplayable": [
-    "Ba Sing Se",
     "Doorkeeper Thrull",
     "Earthbender Ascension",
     "Escape Tunnel",
