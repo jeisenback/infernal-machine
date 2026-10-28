@@ -706,6 +706,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
     trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
     in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - Conditional dual lands (`mana_lines`): "{T}: Add {C}." with "{T}: Add {W} or {U}. Activate only if this land entered this turn or
+    if you control a basic land." (Gleaming Bastion, Hidden Lair, Dark Fortress, Gathering Place, Training Compound) read as the
+    Verge lands do, one line per condition, so the colors come only while the condition holds; "A or if B" is a `Condition` with
+    `otherwise` (either holds), "this land entered this turn" and "you control a basic land" are new conditions. The Tainted lands
+    ("{T}: Add {W} or {B}. Activate only if you control a Swamp.") now take the same path and no longer make their colors without a
+    Swamp.
   - Blight as an additional cost (`AdditionalCost.blight`, `Game.blight`): "As an additional cost to cast this spell, you may
     blight 1." (Requiting Hex) is a choice between blighting and paying nothing more, offered only while you control a creature;
     the counters go on a creature you choose as the cost is paid. "If this spell's additional cost was paid, you gain 2 life."

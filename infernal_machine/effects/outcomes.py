@@ -2696,6 +2696,8 @@ _CONDITIONS = [
     (re.compile(r"you control no creatures with ([a-z]+)"), lambda m: Condition("control_none_keyword", what=m[1])),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
     (re.compile(r"you don't control an? ([A-Za-z]+) creature token"), lambda m: Condition("control_none_token", what=m[1])),
+    (re.compile(r"you control a basic land"), lambda m: Condition("control_at_least", 1, "basic land")),  # Gleaming Bastion
+    (re.compile(r"this land entered this turn"), lambda m: Condition("source_entered_this_turn")),  # Gleaming Bastion
     (re.compile(r"you control an? ([A-Za-z]+) or an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, f"{m[1]} or {m[2]}")),
     (re.compile(r"you control an? ([A-Za-z]+)"), lambda m: Condition("control_at_least", 1, _singular(m[1]))),
     (re.compile(r"it's your turn"), lambda m: Condition("your_turn")),
@@ -2752,6 +2754,9 @@ def _condition(text: str) -> Condition | None:
     for pattern, build in _CONDITIONS:
         if m := pattern.fullmatch(text):
             return build(m)
+    first, _, rest = text.partition(" or if ")  # "if A or if B": either holds (Gleaming Bastion)
+    if rest and (head := _condition(first)) is not None and (tail := _condition(rest)) is not None:
+        return dataclasses.replace(head, otherwise=tail)
     first, _, rest = text.partition(" and ")  # "if A and B": both must hold (Zimone)
     while rest:
         if (head := _condition(first)) is not None and (tail := _condition(rest)) is not None:

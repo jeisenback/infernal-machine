@@ -509,11 +509,15 @@ def mana_life_types(card: Card) -> frozenset[str]:
 
 def mana_lines(card: Card) -> list[tuple[frozenset[str], "Condition | None"]] | None:
     """A land with several plain "{T}: Add {R}." lines, one of them with an "Activate only if" condition (the Verge lands: "{T}: Add
-    {B}." and "{T}: Add {R}. Activate only if you control a Swamp or a Mountain."): each line's color and condition. None otherwise."""
+    {B}." and "{T}: Add {R}. Activate only if you control a Swamp or a Mountain."; Gleaming Bastion: "{T}: Add {C}." and "{T}: Add
+    {W} or {U}. Activate only if this land entered this turn or if you control a basic land."): each line's colors and condition.
+    None otherwise."""
     found = []
     for line in rules_lines(card):
         if (m := _ADD_SYMBOLS.fullmatch(line)) and len(re.findall(r"[WUBRGC]", m[2])) == 1:
             found.append((frozenset(m[2][1]), _condition(m[3]) if m[3] else None))
+        elif m := _ADD_EITHER.fullmatch(line):
+            found.append((frozenset((m[2], m[3])), _condition(m[4]) if m[4] else None))
     return found if len(found) > 1 and any(condition for _, condition in found) else None
 
 
