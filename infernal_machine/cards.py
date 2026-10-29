@@ -6,6 +6,7 @@ import gzip
 import json
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -374,10 +375,11 @@ class BulkSource:
     def get_many(self, names: Iterable[str]) -> dict[str, Card]:
         index = self._load()
         wanted = list(dict.fromkeys(names))
-        missing = [n for n in wanted if n.lower() not in index]
+        found = {n: index.get(n.lower()) or index.get(_plain(n)) for n in wanted}
+        missing = [n for n, card in found.items() if card is None]
         if missing:
             raise CardNotFound(", ".join(missing))
-        return {n: index[n.lower()] for n in wanted}
+        return {n: card for n, card in found.items() if card is not None}
 
     def refresh(self) -> int:
         """Download the bulk file now, replacing the saved copy. Returns how many cards it holds."""
@@ -410,8 +412,16 @@ class BulkSource:
         return send(urllib.request.Request(url, headers={"User-Agent": self.user_agent, "Accept": "*/*"}))
 
 
+def _plain(name: str) -> str:
+    """A card name reduced to the form deck sites also write it in: no accents, any case, and a split or room card's halves joined
+    by one slash or two ("Lorien Revealed" is "Lórien Revealed", "Wear/Tear" is "Wear // Tear"; MTGGoldfish's lists, #590)."""
+    bare = "".join(c for c in unicodedata.normalize("NFKD", name) if not unicodedata.combining(c))
+    return re.sub(r"\s*//?\s*", " // ", bare.lower())
+
+
 def _name_index(cards: Iterable[Card]) -> dict[str, Card]:
-    """Cards by lowercase full name, plus each face of a split or double-faced card ("Fire", "Ice", "Fire // Ice")."""
+    """Cards by lowercase full name, plus each face of a split or double-faced card ("Fire", "Ice", "Fire // Ice"), plus the
+    plain form of each of those names (`_plain`) that no two cards share."""
     cards = list(cards)
     index: dict[str, Card] = {}
     for card in cards:
@@ -421,6 +431,11 @@ def _name_index(cards: Iterable[Card]) -> dict[str, Card]:
             parts = card.name.split(" // ")
             if position < len(parts):
                 index.setdefault(parts[position].lower(), card)
+    plain: dict[str, Card | None] = {}
+    for key, card in index.items():  # (an exact name is its own plain form when it has none to lose, so it is never overridden)
+        form = _plain(key)
+        plain[form] = card if plain.get(form, card) is card else None  # two cards with one plain form: neither is guessed
+    index.update((form, card) for form, card in plain.items() if card is not None)
     return index
 
 

@@ -34,4 +34,4 @@ this folder's headline (how many of the cards play, and how many of the decks pl
 (`examples/decks/standard/README.md`): take the featured deck of each of the most played archetypes from the metagame page, download
 its plain list, run it through `tools/import_deck.py`, put the archetype, share, date, deck and event in the first line, and refresh
 the baseline. MTGGoldfish's plain lists drop accents and write a split or room card with one slash (`Lorien Revealed`, `Wear/Tear`);
-the card file needs the Oracle name (`Lórien Revealed`, `Wear // Tear`), so those names were corrected by hand here.
+the card file finds them by either spelling, and the files here keep the Oracle names (`Lórien Revealed`, `Wear // Tear`).
