@@ -706,6 +706,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
     trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
     in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - "CARDNAME deals damage equal to the number of <things> to <target>" with the source as "it", "he" or "she" (Smaug the
+    Magnificent, Jet, Cat-Gator, Stadium Headliner, Coordinated Maneuver): the amount grammar's count ("Treasures you control",
+    "creatures you control") sets X as the effect resolves, then the source deals X damage, as Massive Raid's form already did.
+    A sum of two counts (Slash of Light) and "this Spacecraft" (Warmaker Gunship) are not read yet.
   - "Target opponent exiles a creature they control and their graveyard." (Strategic Betrayal; `TargetExiles`, `Game.exile_chosen`):
     the opponent chooses the creature, as for an edict, so hexproof and indestructible don't help; with no creature the graveyard
     still goes. "Target player exiles a <kind> they control" reads for the sacrifice kinds. End of the Hunt's "with the greatest
