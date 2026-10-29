@@ -831,6 +831,10 @@ FOOD = Card(name="Food", type_line="Token Artifact — Food",
             oracle_text="{2}, {T}, Sacrifice this artifact: You gain 3 life.")
 
 
+BLOOD = Card(name="Blood", type_line="Token Artifact — Blood",  # CR 111.10g
+             oracle_text="{1}, {T}, Discard a card, Sacrifice this token: Draw a card.")
+
+
 FISH = Card(name="Fish", type_line="Token Creature \u2014 Fish", colors=("U",), power="1", toughness="1")
 
 
@@ -844,7 +848,7 @@ HEARTWOOD = Card(name="Heartwood", type_line="Token Artifact — Heartwood", ora
                  colors=("R", "G"))
 
 
-_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "heartwood": HEARTWOOD}
+_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "blood": BLOOD, "heartwood": HEARTWOOD}
 
 
 _COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
@@ -863,7 +867,7 @@ _CREATURE_TOKEN = re.compile(
 )
 
 
-_NAMED_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) (Treasure|Clue|Food|Heartwood) tokens?")
+_NAMED_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) (Treasure|Clue|Food|Blood|Heartwood) tokens?")
 
 
 def _attacker_token(spec: str) -> "AttackerCreatesAttackingToken | None":
