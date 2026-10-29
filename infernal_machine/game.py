@@ -311,6 +311,7 @@ class Permanent:
     megamorph: bool = False  # it gets a +1/+1 counter when it is turned face up
     doors: tuple[str, ...] = ()  # a Room: the names of its unlocked doors (its `card` reads as only those; the whole card is `real_card`)
     cast: bool = False  # it came from a spell that was cast ("When it enters, if you cast it")
+    mana_types_spent: tuple[frozenset[str], ...] = ()  # the types each mana spent to cast it could be (Deceit: "if {U}{U} was spent to cast it")
     returns_when_dies: int = 0  # Malakir Rebirth: the turn it gained "When this creature dies, return it to the battlefield tapped"
     earthbent: bool = False  # a land earthbent into a creature for good: `original` is the land, and it returns tapped when it dies or is exiled
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
@@ -366,6 +367,7 @@ class StackItem:
     additional_paid: bool = False  # its additional cost was paid, when that was a choice ("you may blight 1")
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
     mana_spent: int = 0  # the mana paid to cast it (Deekah: "the amount of mana spent to cast that spell")
+    mana_types_spent: tuple[frozenset[str], ...] = ()  # the types each of that mana could be (Deceit: "if {U}{U} was spent to cast it")
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
     rider_counters: int = 0  # Opal Palace: how many of its mana was spent on this commander
     from_graveyard: bool = False  # cast from a graveyard (flashback and the like): Sevinne's Reclamation asks
@@ -2100,7 +2102,7 @@ class Game:
             if item.face_down is not None:  # cast with morph: it enters face down, the real card kept for turning up
                 kind, cost = item.face_down
                 entering = Permanent(card, sick=True, cast=not item.is_copy, real_card=item.whole, manifested=True, owner=item.home,
-                                     turn_up_cost=cost, megamorph=kind == "Megamorph")
+                                     turn_up_cost=cost, megamorph=kind == "Megamorph", mana_types_spent=item.mana_types_spent)
                 self._enter(seat, entering, x=item.x, mana_spent=item.mana_spent)
                 return
             whole = item.whole or card  # a Room enters with the door that was cast unlocked (the card itself is its front door)
@@ -2111,7 +2113,8 @@ class Game:
                                  escaped=item.escaped, cast=not item.is_copy, doors=(door.name,) if door else (),
                                  transformed_from=whole if whole.flip is card else None,
                                  real_card=whole if door else None, owner=item.owner,
-                                 extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0))
+                                 extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0),
+                                 mana_types_spent=item.mana_types_spent)
             if enters_by_discarding_land(card) and not self._discard_land_to_enter(seat, card):  # Mox Diamond
                 return
             if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
@@ -2611,6 +2614,10 @@ class Game:
             return not any(has_type(p.card, condition.what) for p in seat.battlefield if p is not source)
         if kind == "eminence":  # the watcher is only looked for on the battlefield and in the command zone
             return True
+        if kind == "mana_spent_colors":  # Deceit: "if {U}{U} was spent to cast it": that much of the mana could have been that color
+            # (a source that makes either color counts for either: the choice of what it paid was the caster's, taken in their favour)
+            return source is not None and all(sum(letter in types for types in source.mana_types_spent) >= condition.what.count(letter)
+                                              for letter in set(condition.what))
         if kind == "kicked":  # "if it was kicked (with its {R} kicker)"
             return source is not None and bool(source.kicked) and (not condition.what or condition.what in source.kickers)
         if kind == "graveyard_left":

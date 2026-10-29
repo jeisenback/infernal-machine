@@ -706,6 +706,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
     trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
     in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - "When this creature enters, if {U}{U} was spent to cast it, ..." (the Incarnations: Deceit, Catharsis, Emptiness, Vibrance,
+    Wistfulness; `Condition("mana_spent_colors")`): the payment records the types each mana spent on the cost itself could be
+    (`Payment.spent`, carried as `StackItem.mana_types_spent` onto the permanent), and the condition holds when that many of them
+    could have been the color, generic mana included (CR 601.2h: which color a hybrid symbol or a dual land paid is the caster's
+    choice, taken in their favour, so two duals count for both colors). Evoke pays through the same path. "Return up to one other
+    target <permanent> to its owner's hand" reads with the bounce template.
   - "Damage can't be prevented this turn." (`NoPreventionThisTurn`, `Game.no_prevention_turn`; Impractical Joke, Pyrewood Gearhulk's
     trigger): for the rest of the turn no shield, Fog or static prevention holds, as with Sunspine Lynx on the battlefield. "Deals N
     damage to up to one target creature or planeswalker" joins the "up to one target creature" form.
