@@ -135,8 +135,10 @@ class SpellbookSource:
         if self.cache_path is None:
             return
         os.makedirs(os.path.dirname(self.cache_path) or ".", exist_ok=True)
-        with open(self.cache_path, "w", encoding="utf-8") as f:
+        partial = self.cache_path + ".tmp"  # written beside the file and renamed over it: a reader in another process (a bot's
+        with open(partial, "w", encoding="utf-8") as f:  # `cached` during the tests) sees the old file or the new one, never an empty one
             json.dump({"format": CACHE_FORMAT, "decks": decks}, f)
+        os.replace(partial, self.cache_path)
 
 
 def format_combos(report: ComboReport, playable: dict[str, bool] | None = None) -> str:
