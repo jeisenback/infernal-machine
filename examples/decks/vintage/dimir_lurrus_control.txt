@@ -1,0 +1,49 @@
+// Vintage: Dimir Lurrus Control, 7.8% of MTGGoldfish's paper Vintage metagame on 2026-10-29. MTGGoldfish deck 8007937 (Dimir Lurrus Control by Pietart), Vintage Challenge 32 2026-10-18, 1st Place, 8-1 (www.mtgo.com), Oct 18, 2026.
+Deck
+1 Aether Spellbomb
+1 Ancestral Recall
+4 Bilbo, Thief in the Night
+1 Black Lotus
+1 Brainstorm
+1 Daze
+1 Demonic Tutor
+1 Dig Through Time
+1 Dismember
+3 Fatal Push
+1 Flooded Strand
+3 Flow State
+4 Force of Negation
+4 Force of Will
+1 Gitaxian Probe
+1 Gush
+1 Island
+1 Lórien Revealed
+1 Mental Misstep
+1 Mox Jet
+1 Mox Sapphire
+4 Polluted Delta
+4 Psychic Frog
+2 Spell Pierce
+1 Strip Mine
+1 Swamp
+1 Thoughtseize
+1 Time Walk
+1 Treasure Cruise
+1 Undercity Sewers
+4 Underground Sea
+1 Urza's Saga
+1 Vexing Bauble
+4 Wasteland
+
+Sideboard
+3 Consign to Memory
+1 Dismember
+1 Fatal Push
+1 Lurrus of the Dream-Den
+1 Nihil Spellbomb
+3 Null Rod
+1 Pithing Needle
+1 Snuff Out
+1 The Tabernacle at Pendrell Vale
+1 Tormod's Crypt
+1 Toxic Deluge

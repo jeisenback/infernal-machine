@@ -1,0 +1,38 @@
+// Legacy: Sneak and Show, 4.2% of MTGGoldfish's paper Legacy metagame on 2026-10-29. MTGGoldfish deck 8007724 (Sneak and Show by GieralK), Legacy Challenge 32 2026-10-18, 2nd Place, 8-2 (www.mtgo.com), Oct 18, 2026.
+Deck
+4 Ancient Tomb
+4 Atraxa, Grand Unifier
+4 Brainstorm
+1 Chrome Mox
+1 City of Traitors
+2 Emrakul, the Aeons Torn
+1 Flooded Strand
+2 Flusterstorm
+4 Force of Will
+2 Island
+4 Lotus Petal
+1 Misty Rainforest
+1 Mountain
+1 Polluted Delta
+4 Ponder
+1 Prismari Charm
+1 Raph & Mikey, Troublemakers
+4 Scalding Tarn
+4 Show and Tell
+4 Sneak Attack
+2 Spell Pierce
+4 Stock Up
+1 Thundering Falls
+3 Volcanic Island
+
+Sideboard
+1 Abrade
+1 Alpine Moon
+1 Brotherhood's End
+2 Consign to Memory
+1 Fury
+2 Ghost Vacuum
+3 Hexing Squelcher
+1 Mindbreak Trap
+2 Pyroblast
+1 Pyroclasm

@@ -1,0 +1,30 @@
+// Pioneer: Jund Artifact Sacrifice, 5.6% of MTGGoldfish's paper Pioneer metagame on 2026-10-29. MTGGoldfish deck 8012442 (Jund Artifact Sacrifice by SpockVidaLoka), Pioneer Challenge 32 2026-10-22, 14th Place, 4-2 (www.mtgo.com), Oct 22, 2026.
+Deck
+4 Biotech Specialist
+4 Blackcleave Cliffs
+4 Blood Crypt
+3 Blooming Marsh
+3 Copperline Gorge
+4 Deadly Dispute
+4 Experimental Synthesizer
+4 Greedy Freebooter
+1 Mountain
+4 Oni-Cult Anvil
+2 Overgrown Tomb
+4 Shrapnel Blast
+4 Springleaf Drum
+2 Stomping Ground
+1 Swamp
+4 The Sackville-Bagginses
+2 Thoughtseize
+2 Torch the Tower
+4 Voldaren Epicure
+
+Sideboard
+3 Abrupt Decay
+1 Duress
+1 Fable of the Mirror-Breaker
+3 Fatal Push
+2 Hexing Squelcher
+3 Soul-Guide Lantern
+2 Thoughtseize

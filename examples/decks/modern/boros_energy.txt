@@ -1,0 +1,32 @@
+// Modern: Boros Energy, 5.6% of MTGGoldfish's paper Modern metagame on 2026-10-29. MTGGoldfish deck 8006214 (Boros Energy by Daniel Keener), Regional Championship - SCG CON Los Angeles - Season 5 - Round 1 - Saturday - 9:00 am, 6th Place, 12-3-1 (melee.gg), Oct 10, 2026.
+Deck
+4 Ajani, Nacatl Pariah
+2 Arena of Glory
+4 Arid Mesa
+1 Dalkovan Encampment
+2 Elegant Parlor
+3 Flooded Strand
+4 Galvanic Discharge
+3 Goblin Bombardment
+4 Guide of Souls
+1 Haliya, Guided by Light
+4 Lightning Bolt
+4 Marsh Flats
+1 Mountain
+4 Ocelot Pride
+2 Plains
+4 Ragavan, Nimble Pilferer
+1 Ranger-Captain of Eos
+3 Sacred Foundry
+4 Seasoned Pyromancer
+1 Thraben Charm
+4 Voice of Victory
+
+Sideboard
+2 Blood Moon
+4 High Noon
+1 Meltdown
+4 Obsidian Charmaw
+1 The Legend of Roku
+2 Wear // Tear
+1 Wrath of the Skies

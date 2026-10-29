@@ -1,0 +1,33 @@
+// Modern: Izzet Prowess, 7.8% of MTGGoldfish's paper Modern metagame on 2026-10-29. MTGGoldfish deck 7984346 (Izzet Prowess by Kazuaki Kurokawa), チャンピオンズカップファイナル シーズン5ラウンド1 Champions Cup Final Season 5 Round 1, 2nd Place, 13-1-2 (melee.gg), Oct 3, 2026.
+Deck
+3 Arid Mesa
+3 Bloodstained Mire
+4 Cori-Steel Cutter
+4 Dragon's Rage Channeler
+3 Expressive Iteration
+2 Fiery Islet
+4 Lava Dart
+4 Lightning Bolt
+4 Mishra's Bauble
+4 Monastery Swiftspear
+3 Mountain
+3 Mutagenic Growth
+4 Preordain
+3 Scalding Tarn
+4 Slickshot Show-Off
+2 Spell Snare
+3 Steam Vents
+1 Thundering Falls
+1 Unholy Heat
+1 Violent Urge
+
+Sideboard
+1 Brazen Borrower
+4 Consign to Memory
+1 Meltdown
+1 Murktide Regent
+1 Obsidian Charmaw
+2 Spell Pierce
+1 Spell Snare
+2 Tormod's Crypt
+2 Unholy Heat

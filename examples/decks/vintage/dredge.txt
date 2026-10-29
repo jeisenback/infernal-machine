@@ -1,0 +1,28 @@
+// Vintage: Dredge, 3.7% of MTGGoldfish's paper Vintage metagame on 2026-10-29. MTGGoldfish deck 8017599 (Dredge by Lord_Beerus), Vintage Challenge 32 2026-10-25, 27th Place, 2-2 (www.mtgo.com), Oct 25, 2026.
+Deck
+4 Bazaar of Baghdad
+1 Chalice of the Void
+4 Creeping Chill
+2 Force of Negation
+4 Force of Will
+1 Golgari Grave-Troll
+4 Golgari Thug
+4 Grief
+4 Hollow One
+4 Ichorid
+1 Mental Misstep
+4 Narcomoeba
+4 Noxious Revival
+4 Prized Amalgam
+4 Serum Powder
+4 Shambling Shell
+3 Silversmote Ghoul
+4 Stinkweed Imp
+
+Sideboard
+1 Force of Negation
+4 Force of Vigor
+4 Leyline of the Void
+4 Sickening Shoal
+1 Strip Mine
+1 Wasteland

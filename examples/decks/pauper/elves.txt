@@ -1,0 +1,25 @@
+// Pauper: Elves, 5.4% of MTGGoldfish's paper Pauper metagame on 2026-10-29. MTGGoldfish deck 7987743 (Mono-Green Elves by THXrhys), British Pauper Open, 2nd Place, 8-2 (melee.gg), Oct 3, 2026.
+Deck
+4 Avenging Hunter
+2 Elvish Mystic
+10 Forest
+3 Fyndhorn Elves
+4 Generous Ent
+1 Gingerbread Cabin
+2 Land Grant
+4 Lead the Stampede
+3 Llanowar Elves
+4 Masked Vandal
+4 Nyxborn Hydra
+4 Priest of Titania
+4 Quirion Ranger
+3 Sagu Wildling
+4 Timberwatch Elf
+4 Winding Way
+
+Sideboard
+3 Faerie Macabre
+4 Monstrous Emergence
+2 Pulse of Murasa
+3 Spinewoods Paladin
+3 Vitu-Ghazi Inspector

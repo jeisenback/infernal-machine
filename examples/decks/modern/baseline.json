@@ -1,0 +1,146 @@
+{
+ "decks": {
+  "affinity": {
+   "cards": 60,
+   "unplayable": [
+    "Emry, Lurker of the Loch",
+    "Engineered Explosives",
+    "Mishra's Bauble",
+    "Pinnacle Emissary",
+    "Pithing Needle",
+    "Shadowspear",
+    "Weapons Manufacturing"
+   ]
+  },
+  "azorius_control": {
+   "cards": 60,
+   "unplayable": [
+    "Day's Undoing",
+    "March of Otherworldly Light",
+    "Monumental Henge",
+    "Narset, Parter of Veils",
+    "Orim's Chant",
+    "Prismatic Ending",
+    "Solitude",
+    "Teferi, Time Raveler",
+    "Theorist's Sanctum",
+    "Wrath of the Skies"
+   ]
+  },
+  "boros_energy": {
+   "cards": 60,
+   "unplayable": [
+    "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger",
+    "Arena of Glory",
+    "Dalkovan Encampment",
+    "Galvanic Discharge",
+    "Guide of Souls",
+    "Ocelot Pride",
+    "Seasoned Pyromancer",
+    "Thraben Charm"
+   ]
+  },
+  "domain_zoo": {
+   "cards": 60,
+   "unplayable": [
+    "Leyline Binding",
+    "Leyline of the Guildpact",
+    "Quantum Riddler",
+    "Scion of Draco",
+    "Stubborn Denial",
+    "Territorial Kavu",
+    "Tribal Flames"
+   ]
+  },
+  "eldrazi": {
+   "cards": 60,
+   "unplayable": [
+    "Ancient Stirrings",
+    "Basking Broodscale",
+    "Blade of the Bloodchief",
+    "Devourer of Destiny",
+    "Emrakul, the Promised End",
+    "Glaring Fleshraker",
+    "Kozilek's Command",
+    "Malevolent Rumble",
+    "Shifting Woodland",
+    "Soul-Guide Lantern",
+    "Ugin's Labyrinth",
+    "Vexing Bauble"
+   ]
+  },
+  "eldrazi_ramp": {
+   "cards": 60,
+   "unplayable": [
+    "Ancient Stirrings",
+    "Basking Broodscale",
+    "Blade of the Bloodchief",
+    "Devourer of Destiny",
+    "Emrakul, the Promised End",
+    "Gemstone Caverns",
+    "Kozilek's Command",
+    "Malevolent Rumble",
+    "Shifting Woodland",
+    "Soul-Guide Lantern",
+    "Ugin's Labyrinth",
+    "Vexing Bauble"
+   ]
+  },
+  "esper_blink": {
+   "cards": 60,
+   "unplayable": [
+    "Consign to Memory",
+    "Fatal Push",
+    "Ketramose, the New Dawn",
+    "March of Otherworldly Light",
+    "Prismatic Ending",
+    "Psychic Frog",
+    "Quantum Riddler",
+    "Relic of Progenitus",
+    "River of Tears",
+    "Solitude"
+   ]
+  },
+  "goryos_vengeance": {
+   "cards": 60,
+   "unplayable": [
+    "Atraxa, Grand Unifier",
+    "Consign to Memory",
+    "Faithful Mending",
+    "Goryo's Vengeance",
+    "March of Otherworldly Light",
+    "Psychic Frog",
+    "Quantum Riddler",
+    "Solitude",
+    "Winternight Stories",
+    "Wrath of the Skies"
+   ]
+  },
+  "izzet_prowess": {
+   "cards": 60,
+   "unplayable": [
+    "Cori-Steel Cutter",
+    "Dragon's Rage Channeler",
+    "Lava Dart",
+    "Mishra's Bauble",
+    "Unholy Heat",
+    "Violent Urge"
+   ]
+  },
+  "jeskai_energy": {
+   "cards": 60,
+   "unplayable": [
+    "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger",
+    "Arena of Glory",
+    "Dalkovan Encampment",
+    "Galvanic Discharge",
+    "Guide of Souls",
+    "Ocelot Pride",
+    "Phelia, Exuberant Shepherd",
+    "Quantum Riddler",
+    "Solitude",
+    "Starfield Shepherd"
+   ]
+  }
+ }
+}

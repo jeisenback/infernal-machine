@@ -1,0 +1,140 @@
+{
+ "decks": {
+  "beanstalk_control_non_yorion": {
+   "cards": 60,
+   "unplayable": [
+    "Daze",
+    "Leyline Binding",
+    "Murktide Regent",
+    "Phelia, Exuberant Shepherd",
+    "Quantum Riddler",
+    "Stifle",
+    "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+    "Terminus"
+   ]
+  },
+  "boros_energy": {
+   "cards": 60,
+   "unplayable": [
+    "Ajani, Nacatl Pariah // Ajani, Nacatl Avenger",
+    "Amped Raptor",
+    "Galvanic Discharge",
+    "Guide of Souls",
+    "Hexing Squelcher",
+    "Karakas",
+    "Lazotep Quarry",
+    "Ocelot Pride",
+    "Phlage, Titan of Fire's Fury",
+    "Sand Scout",
+    "Static Prison"
+   ]
+  },
+  "death_and_taxes_yorion_black_white": {
+   "cards": 80,
+   "unplayable": [
+    "Aether Vial",
+    "Cloak and Dagger, Entwined",
+    "Emperor of Bones",
+    "Karakas",
+    "Lich's Relic",
+    "Lion Sash",
+    "Overlord of the Balemurk",
+    "Phelia, Exuberant Shepherd",
+    "Pre-War Formalwear",
+    "Recruiter of the Guard",
+    "Solitude"
+   ]
+  },
+  "dimir_tempo": {
+   "cards": 60,
+   "unplayable": [
+    "Bilbo, Thief in the Night",
+    "Daze",
+    "Fatal Push",
+    "Kaito, Bane of Nightmares",
+    "Mishra's Bauble",
+    "Moonshadow",
+    "Nethergoyf",
+    "Snuff Out"
+   ]
+  },
+  "doomsday": {
+   "cards": 60,
+   "unplayable": [
+    "Daze",
+    "Doomsday",
+    "Edge of Autumn",
+    "Murktide Regent",
+    "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+    "Thassa's Oracle"
+   ]
+  },
+  "eldrazi": {
+   "cards": 60,
+   "unplayable": [
+    "Chalice of the Void",
+    "City of Traitors",
+    "Eldrazi Linebreaker",
+    "Eye of Ugin",
+    "Glaring Fleshraker",
+    "It That Heralds the End",
+    "Kozilek's Command",
+    "Reality Smasher",
+    "Thought-Knot Seer"
+   ]
+  },
+  "izzet_delver": {
+   "cards": 60,
+   "unplayable": [
+    "Cori-Steel Cutter",
+    "Daze",
+    "Dragon's Rage Channeler",
+    "Mishra's Bauble",
+    "Murktide Regent",
+    "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
+    "Unholy Heat",
+    "Urza's Bauble"
+   ]
+  },
+  "lands": {
+   "cards": 61,
+   "unplayable": [
+    "Blast Zone",
+    "Dark Depths",
+    "Grafdigger's Cage",
+    "Karakas",
+    "Malevolent Rumble",
+    "Maze of Ith",
+    "Pithing Needle",
+    "Sphere of Resistance",
+    "Talon Gates of Madara",
+    "The Tabernacle at Pendrell Vale",
+    "Thespian's Stage"
+   ]
+  },
+  "mystic_forge_combo": {
+   "cards": 60,
+   "unplayable": [
+    "Glaring Fleshraker",
+    "Karn, the Great Creator",
+    "Kozilek's Command",
+    "Pithing Needle",
+    "Planar Nexus",
+    "Tezzeret, Cruel Captain",
+    "Ugin, Eye of the Storms",
+    "Urza's Workshop"
+   ]
+  },
+  "sneak_and_show": {
+   "cards": 60,
+   "unplayable": [
+    "Atraxa, Grand Unifier",
+    "City of Traitors",
+    "Emrakul, the Aeons Torn",
+    "Raph & Mikey, Troublemakers",
+    "Show and Tell",
+    "Sneak Attack"
+   ]
+  }
+ }
+}

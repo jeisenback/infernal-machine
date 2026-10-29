@@ -1,0 +1,38 @@
+// Modern: Jeskai Energy, 3.9% of MTGGoldfish's paper Modern metagame on 2026-10-29. MTGGoldfish deck 7984347 (Jeskai Energy by Hirotaka Kawasaki), チャンピオンズカップファイナル シーズン5ラウンド1 Champions Cup Final Season 5 Round 1, 3rd Place, 11-3-1 (melee.gg), Oct 3, 2026.
+Deck
+4 Ajani, Nacatl Pariah
+1 Arena of Glory
+4 Arid Mesa
+2 Dalkovan Encampment
+1 Elegant Parlor
+4 Ephemerate
+4 Flooded Strand
+2 Galvanic Discharge
+3 Goblin Bombardment
+4 Guide of Souls
+1 Hallowed Fountain
+1 Island
+1 Meticulous Archive
+1 Mountain
+4 Ocelot Pride
+2 Phelia, Exuberant Shepherd
+2 Plains
+4 Quantum Riddler
+2 Ragavan, Nimble Pilferer
+1 Sacred Foundry
+2 Scalding Tarn
+2 Seam Rip
+4 Solitude
+1 Spell Snare
+2 Starfield Shepherd
+1 Steam Vents
+
+Sideboard
+3 Consign to Memory
+1 Containment Priest
+1 Grafdigger's Cage
+2 High Noon
+3 Obsidian Charmaw
+1 Surgical Extraction
+2 Test of Talents
+2 Wrath of the Skies
