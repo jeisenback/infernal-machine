@@ -17,8 +17,10 @@ Hosting a table, joining it, and the protocol between them.
 | `--timer SECONDS` | a clock on every decision: when it runs out, a bot answers for the player (default: no limit) |
 | `--password TEXT` | players and spectators must give it to join (see below) |
 | `--cache FILE` | where fetched cards are saved (default `.cache/cards.json`) |
-| `--format commander\|standard\|brawl\|duel` (default `commander`) | the game to play; decks are checked against it |
+| `--format NAME` (default `commander`) | the game to play, any format in `formats.FORMATS` (Commander, Standard, Pioneer, Modern, Legacy, Vintage, Pauper, Brawl, Duel Commander, Oathbreaker); decks are checked against it |
 | `--no-check` | accept decks that aren't legal for the format |
+| `--allow NAME` | house rules: accept this card although the format doesn't allow it (repeat, or a comma list); every other deck rule still holds |
+| `--allow-banned` | house rules: accept any card the format bans (not one outside its pool, such as a silver-border card) |
 
 Each human sends their decklist when they connect. The server fetches the cards, checks the deck, and either
 seats the player or explains why not (wrong size, a card outside the commander's colors, an unknown card, a name

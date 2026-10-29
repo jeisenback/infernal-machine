@@ -23,7 +23,7 @@ from . import history
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
 from .combos import Combo, ComboReport, SpellbookSource, format_combos
-from .formats import add_format_argument, format_of, with_format
+from .formats import add_format_argument, format_of, house_rules, with_format
 from .gauntlet import deck_format, opponent_paths
 from .manabase import analyze_mana_base, format_mana_base
 from .matchup import format_matchups, matchups
@@ -304,6 +304,8 @@ def main(argv: list[str], source=None) -> int:
         print(f"Error: {error}", file=sys.stderr)
         return 2
     settings = f"Goldfish and tuning: {args.sim_games} games, {args.turns} turns; matchups: {args.games} games per opponent; seed {args.seed}."
+    if note := house_rules(args).note([deck, *opponents.values()], format_of([deck])):  # #528: not the numbers of a legal deck
+        settings += " " + note
     report = format_analysis(analysis, settings)
     print(report)
     if args.output:

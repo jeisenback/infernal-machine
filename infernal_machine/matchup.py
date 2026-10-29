@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from .bot import BotPlayer
 from .brackets import analyze
 from .cards import Deck
-from .formats import add_format_argument, format_of, with_format
+from .formats import add_format_argument, format_of, house_rules, with_format
 from .gauntlet import deck_format, opponent_paths
 from .game import BOARD_LIMIT, Game
 from .report import unplayable_cards, unplayable_note
@@ -463,6 +463,8 @@ def main(argv: list[str]) -> int:
             return 2
     records = matchups(focus, opponents, args.games, args.pod, args.seed, args.max_turns, args.time_limit, args.workers,
                        early_stop=args.early_stop, best_of=args.best_of)
+    if note := house_rules(args).note([focus, *opponents.values()], format_of([focus])):  # #528
+        print(note)
     print(format_matchups(records, os.path.splitext(os.path.basename(args.decklist))[0]))
     return 0
 

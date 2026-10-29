@@ -13,7 +13,7 @@ import dataclasses
 from collections import Counter
 from dataclasses import dataclass
 
-from .cards import Deck
+from .cards import Card, Deck
 from .commander import copy_limit, deck_problems as commander_problems
 from .companion import companion_problems
 from .oathbreaker import deck_problems as oathbreaker_problems
@@ -59,9 +59,52 @@ def with_format(deck: Deck, name: str | None) -> Deck:
     return dataclasses.replace(deck, format=name)
 
 
+@dataclass(frozen=True)
+class HouseRules:
+    """Cards a run plays although its format does not allow them (#528): those named, and with `banned` every card the format bans
+    (not a card outside its pool, such as a silver-border card). The format's other rules still hold for them: copies, deck size,
+    singleton, color identity."""
+    names: frozenset[str] = frozenset()
+    banned: bool = False
+
+    def permits(self, card: Card, fmt: Format) -> bool:
+        return card.name in self.names or (self.banned and fmt.legality in card.banned)
+
+    def used(self, decks: list[Deck], fmt: Format) -> list[str]:
+        """The cards of `decks` that are not legal in `fmt` and that these rules let in."""
+        return sorted({card.name for deck in decks for card in _every_card(deck)
+                       if not card.legal_in(fmt.legality) and self.permits(card, fmt)})
+
+    def note(self, decks: list[Deck], fmt: Format) -> str:
+        """What a report or a game says when it played such cards: its numbers are not those of a legal deck."""
+        used = self.used(decks, fmt)
+        return f"Includes cards not legal in {fmt.label}, played under house rules: {', '.join(used)}." if used else ""
+
+
+NO_HOUSE_RULES = HouseRules()
+
+
+def _every_card(deck: Deck) -> list[Card]:
+    return [*deck.commanders, *deck.main, *deck.sideboard, *[c for c in (deck.companion, deck.signature_spell) if c is not None]]
+
+
+def add_house_rules_arguments(parser) -> None:
+    parser.add_argument("--allow", action="append", default=[], metavar="NAME",
+                        help="house rules: play this card although the format does not allow it (repeat, or a comma list)")
+    parser.add_argument("--allow-banned", action="store_true", help="house rules: play any card the format bans (not one outside its pool)")
+
+
+def house_rules(args) -> HouseRules:
+    """The house rules the command line asked for (`add_house_rules_arguments`)."""
+    names = frozenset(name.strip() for given in args.allow for name in given.split(",") if name.strip())
+    return HouseRules(names, args.allow_banned)
+
+
 def add_format_argument(parser) -> None:
+    """`--format`, and the house rules that go with it on every tool that takes it (#528)."""
     parser.add_argument("--format", choices=sorted(FORMATS), help="the format the decks are played in (default: Commander for decks with a commander, "
                                                                    "Standard for the rest; Brawl and Duel Commander must be asked for)")
+    add_house_rules_arguments(parser)
 
 
 def format_of(decks: list[Deck]) -> Format:
@@ -83,13 +126,15 @@ def format_of(decks: list[Deck]) -> Format:
     return COMMANDER if kinds == {True} else STANDARD
 
 
-def deck_problems(deck: Deck, fmt: Format) -> list[str]:
-    """Every rule of `fmt` the deck breaks; an empty list means it is legal."""
+def deck_problems(deck: Deck, fmt: Format, house: HouseRules = NO_HOUSE_RULES) -> list[str]:
+    """Every rule of `fmt` the deck breaks; an empty list means it is legal. A card `house` lets in is not reported for its legality,
+    and still counts for every other rule."""
+    allow = frozenset(card.name for card in _every_card(deck) if house.permits(card, fmt))
     if fmt.name == "oathbreaker":
-        return oathbreaker_problems(deck, fmt.min_deck, fmt.legality, fmt.label)
+        return oathbreaker_problems(deck, fmt.min_deck, fmt.legality, fmt.label, allow)
     if fmt.commander:  # (a companion is outside the 100 cards)
-        return (commander_problems(deck, fmt.min_deck, fmt.legality, fmt.label, planeswalkers=fmt.name == "brawl")
-                + companion_problems(deck, fmt.min_deck, True, fmt.legality, fmt.label))
+        return (commander_problems(deck, fmt.min_deck, fmt.legality, fmt.label, planeswalkers=fmt.name == "brawl", allow=allow)
+                + companion_problems(deck, fmt.min_deck, True, fmt.legality, fmt.label, allow))
     problems: list[str] = []
     if deck.commanders:
         problems.append(f"{fmt.label} decks have no commander")
@@ -98,12 +143,12 @@ def deck_problems(deck: Deck, fmt: Format) -> list[str]:
     kept = deck.sideboard + ([deck.companion] if deck.companion else [])  # the companion is one of the sideboard's fifteen
     if len(kept) > fmt.sideboard:
         problems.append(f"Sideboard has {len(kept)} cards{' (with the companion)' if deck.companion else ''}; the limit is {fmt.sideboard}")
-    problems += companion_problems(deck, fmt.min_deck, False, fmt.legality, fmt.label)
+    problems += companion_problems(deck, fmt.min_deck, False, fmt.legality, fmt.label, allow)
     counts = Counter(card.name for card in deck.main + kept)  # the limit counts the sideboard too
     for card in {c.name: c for c in deck.main + kept}.values():
         limit = 1 if fmt.legality in card.restricted else copy_limit(card, fmt.copy_limit)  # Vintage's restricted list: one copy
         if limit is not None and counts[card.name] > limit:
             problems.append(f"{card.name}: {counts[card.name]} copies, limit is {limit}{' (restricted)' if fmt.legality in card.restricted else ''}")
-        if not card.legal_in(fmt.legality):
+        if not card.legal_in(fmt.legality) and card.name not in allow:
             problems.append(f"{card.name} is not legal in {fmt.label}")
     return problems

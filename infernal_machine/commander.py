@@ -61,7 +61,8 @@ def copy_limit(card: Card, default: int = 1) -> int | None:
     return _NUMBERS.get(match.group(2), 1)
 
 
-def deck_problems(deck: Deck, size: int = DECK_SIZE, legality: str = "commander", label: str = "Commander", planeswalkers: bool = False) -> list[str]:
+def deck_problems(deck: Deck, size: int = DECK_SIZE, legality: str = "commander", label: str = "Commander", planeswalkers: bool = False,
+                  allow: frozenset[str] = frozenset()) -> list[str]:
     """Return every rule of a commander format the deck breaks; an empty list means it's legal. The defaults are Commander's (100 cards,
     legal in Commander); `formats.py` passes Brawl's and Duel Commander's: the size, which legality a card must have (`commander`,
     `standard` or `duel`), the name for the messages and whether a legendary planeswalker can lead the deck."""
@@ -93,7 +94,7 @@ def deck_problems(deck: Deck, size: int = DECK_SIZE, legality: str = "commander"
         outside = set(card.color_identity) - identity
         if outside:
             problems.append(f"{card.name} is outside the commander's color identity ({''.join(sorted(outside))})")
-        if not card.legal_in(legality):
+        if not card.legal_in(legality) and card.name not in allow:  # `allow`: house rules (#528)
             problems.append(f"{card.name} is not legal in {label}")
     return problems
 

@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
-from .formats import add_format_argument, format_of, with_format
+from .formats import add_format_argument, format_of, house_rules, with_format
 from .gauntlet import deck_format, opponent_paths
 from .matchup import GameResult, play_plans, plan_games
 from .report import unplayable_cards
@@ -284,8 +284,11 @@ def main(argv: list[str]) -> int:
     name = lambda path: os.path.splitext(os.path.basename(path))[0]  # noqa: E731
     baseline = load(args.baseline)
     opponents = {name(p): load(p) for p in opponent_paths(args.opponents, format=deck_format(baseline))}
-    comparison = compare_builds(baseline, load(args.changed), opponents, args.games, args.pod, args.seed, args.max_turns,
+    changed = load(args.changed)
+    comparison = compare_builds(baseline, changed, opponents, args.games, args.pod, args.seed, args.max_turns,
                                 args.time_limit, args.workers, args.goldfish_games, args.turns, args.early_stop, args.target)
+    if note := house_rules(args).note([baseline, changed, *opponents.values()], format_of([baseline])):  # #528
+        print(note)
     print(format_comparison(comparison, name(args.baseline), name(args.changed)))
     return 0
 
