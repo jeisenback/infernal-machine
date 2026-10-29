@@ -1,0 +1,43 @@
+// Vintage: Raker Shops, 4.6% of MTGGoldfish's paper Vintage metagame on 2026-10-29. MTGGoldfish deck 8004931 (Raker Shops by Peppembr), Vintage Challenge 32 2026-10-17, 9th Place, 4-2 (www.mtgo.com), Oct 17, 2026.
+Deck
+4 Ancient Tomb
+1 Black Lotus
+1 Chalice of the Void
+1 City of Traitors
+4 Glaring Fleshraker
+4 Grim Monolith
+1 Inventors' Fair
+1 Karn, the Great Creator
+1 Mana Crypt
+1 Mana Vault
+3 Manifold Key
+1 Memory Jar
+4 Mishra's Workshop
+1 Mox Emerald
+1 Mox Jet
+1 Mox Opal
+1 Mox Pearl
+1 Mox Ruby
+1 Mox Sapphire
+1 Mystic Forge
+1 Pithing Needle
+4 Scrawling Crawler
+4 Sensei's Divining Top
+1 Sol Ring
+3 Talon Gates of Madara
+4 Tezzeret, Cruel Captain
+1 The Fantasticar
+4 The One Ring
+1 Time Vault
+1 Tolarian Academy
+1 Urza's Saga
+1 Vexing Bauble
+
+Sideboard
+2 Argentum Masticore
+3 Defense Grid
+2 Dismember
+2 Grafdigger's Cage
+3 Mindbreak Trap
+1 Mycosynth Lattice
+2 Portable Hole

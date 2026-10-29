@@ -1,0 +1,27 @@
+// Legacy: Eldrazi, 4.5% of MTGGoldfish's paper Legacy metagame on 2026-10-29. MTGGoldfish deck 8004713 (Eldrazi by Pharina), Legacy Challenge 32 2026-10-17, 3rd Place, 6-2 (www.mtgo.com), Oct 17, 2026.
+Deck
+4 Ancient Tomb
+4 Cavern of Souls
+4 Chalice of the Void
+1 City of Traitors
+4 Eldrazi Linebreaker
+4 Eldrazi Temple
+3 Eye of Ugin
+4 Glaring Fleshraker
+3 It That Heralds the End
+4 Kozilek's Command
+4 Lotus Petal
+4 Reality Smasher
+4 Secluded Courtyard
+1 Sire of Seven Deaths
+4 Thought-Knot Seer
+4 Wasteland
+4 Wastescape Battlemage
+
+Sideboard
+2 Dismember
+3 Disruptor Flute
+2 Eldrazi Confluence
+4 Leyline of the Void
+2 Null Rod
+2 Warping Wail

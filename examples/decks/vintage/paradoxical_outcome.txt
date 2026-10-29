@@ -1,0 +1,49 @@
+// Vintage: Paradoxical Outcome, 3.9% of MTGGoldfish's paper Vintage metagame on 2026-10-29. MTGGoldfish deck 8015529 (Paradoxical Outcome by crK), Vintage Challenge 16 2026-10-25, 1st Place, 6-2 (www.mtgo.com), Oct 25, 2026.
+Deck
+1 Ancestral Recall
+4 Ancient Tomb
+1 Black Lotus
+1 Council of Reeds
+4 Flooded Strand
+4 Force of Will
+1 Forth Eorlingas!
+1 Island
+1 Karn, the Great Creator
+1 Mana Crypt
+1 Mana Vault
+1 Mental Misstep
+1 Mox Emerald
+1 Mox Jet
+1 Mox Opal
+1 Mox Pearl
+1 Mox Ruby
+1 Mox Sapphire
+4 Paradoxical Outcome
+1 Pithing Needle
+2 Portable Hole
+1 Sensei's Divining Top
+1 Sol Ring
+4 Stock Up
+4 Tezzeret, Cruel Captain
+1 The Endstone
+1 The One Ring
+3 Thundertrap Trainer
+1 Time Vault
+1 Time Walk
+1 Tinker
+1 Tolarian Academy
+4 Tundra
+1 Urza's Saga
+1 Vexing Bauble
+1 Volcanic Island
+
+Sideboard
+1 Darksteel Angel
+3 Force of Negation
+1 Hexing Squelcher
+2 Hullbreacher
+1 Mindbreak Trap
+1 Plains
+1 Portable Hole
+1 Soul-Guide Lantern
+4 Swords to Plowshares

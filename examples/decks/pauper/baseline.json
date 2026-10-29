@@ -1,0 +1,119 @@
+{
+ "decks": {
+  "blue_terror": {
+   "cards": 60,
+   "unplayable": [
+    "Deem Inferior",
+    "Delver of Secrets // Insectile Aberration",
+    "Dispel",
+    "Sleep of the Dead"
+   ]
+  },
+  "bogles": {
+   "cards": 60,
+   "unplayable": [
+    "Ancestral Mask",
+    "Armadillo Cloak",
+    "Benevolent Blessing",
+    "Ethereal Armor",
+    "Malevolent Rumble",
+    "Spirit Link"
+   ]
+  },
+  "dimir_faeries": {
+   "cards": 60,
+   "unplayable": [
+    "Dispel",
+    "Extract a Confession",
+    "Moon-Circuit Hacker",
+    "Snuff Out",
+    "Spellstutter Sprite"
+   ]
+  },
+  "elves": {
+   "cards": 60,
+   "unplayable": [
+    "Land Grant",
+    "Lead the Stampede",
+    "Masked Vandal",
+    "Nyxborn Hydra",
+    "Quirion Ranger",
+    "Winding Way"
+   ]
+  },
+  "grixis_affinity": {
+   "cards": 60,
+   "unplayable": [
+    "Black Mage's Rod",
+    "Blood Fountain",
+    "Galvanic Blast",
+    "Ichor Wellspring",
+    "Reckoner's Bargain",
+    "Refurbished Familiar",
+    "Sewer-veillance Cam"
+   ]
+  },
+  "mono_red_madness": {
+   "cards": 60,
+   "unplayable": [
+    "Fireblast",
+    "Grab the Prize",
+    "Highway Robbery",
+    "Lava Dart",
+    "Melded Moxite",
+    "Sneaky Snacker",
+    "Voldaren Epicure"
+   ]
+  },
+  "mono_red_rally": {
+   "cards": 60,
+   "unplayable": [
+    "Galvanic Blast",
+    "Gingerbrute",
+    "Inventor's Axe",
+    "Voldaren Epicure"
+   ]
+  },
+  "ruby_storm": {
+   "cards": 60,
+   "unplayable": [
+    "Crossover Collaboration",
+    "Desperate Ritual",
+    "First Day of Class",
+    "Glimpse the Impossible",
+    "Seize the Storm",
+    "Thornscape Familiar",
+    "Twinned Vision"
+   ]
+  },
+  "spy_combo": {
+   "cards": 60,
+   "unplayable": [
+    "Balustrade Spy",
+    "Dread Return",
+    "Gatecreeper Vine",
+    "Land Grant",
+    "Lead the Stampede",
+    "Lotleth Giant",
+    "Masked Vandal",
+    "Mesmeric Fiend",
+    "Nyxborn Hydra",
+    "Overgrown Battlement",
+    "Quirion Ranger",
+    "Wall of Roots",
+    "Winding Way"
+   ]
+  },
+  "tron": {
+   "cards": 60,
+   "unplayable": [
+    "Bonder's Ornament",
+    "Ethereal Haze",
+    "Mystical Teachings",
+    "Prohibit",
+    "Stream of Thought",
+    "Tangle"
+   ]
+  }
+ }
+}

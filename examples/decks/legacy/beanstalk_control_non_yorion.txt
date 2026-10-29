@@ -1,0 +1,38 @@
+// Legacy: Beanstalk Control (Non-Yorion), 4.0% of MTGGoldfish's paper Legacy metagame on 2026-10-29. MTGGoldfish deck 8018390 (Beanstalk Control (Non-Yorion) by ChuckNoris43), Legacy Challenge 32 2026-10-25 (1), 2nd Place, 6-3 (www.mtgo.com), Oct 25, 2026.
+Deck
+4 Brainstorm
+2 Daze
+4 Flooded Strand
+1 Force of Negation
+4 Force of Will
+1 Island
+2 Leyline Binding
+1 Lórien Revealed
+1 Meticulous Archive
+4 Misty Rainforest
+3 Murktide Regent
+2 Phelia, Exuberant Shepherd
+1 Plains
+4 Ponder
+3 Quantum Riddler
+1 Savannah
+3 Stifle
+4 Swords to Plowshares
+2 Tamiyo, Inquisitive Student
+1 Terminus
+2 Tropical Island
+2 Tundra
+1 Underground Sea
+4 Up the Beanstalk
+3 Wasteland
+
+Sideboard
+2 Carpet of Flowers
+1 Celestial Purge
+3 Consign to Memory
+2 Containment Priest
+1 Erode
+2 Lavinia, Azorius Renegade
+1 Surgical Extraction
+2 Terminus
+1 Wrath of the Skies

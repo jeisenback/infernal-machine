@@ -1,0 +1,31 @@
+// Pioneer: Dimir Aggro, 4.8% of MTGGoldfish's paper Pioneer metagame on 2026-10-29. MTGGoldfish deck 8015248 (Dimir Aggro by itstime), Pioneer Challenge 16 2026-10-24, 3rd Place, 5-1 (www.mtgo.com), Oct 24, 2026.
+Deck
+2 Bitter Triumph
+4 Darkslick Shores
+4 Faerie Miscreant
+4 Fatal Push
+4 Floodpits Drowner
+4 Gloomlake Verge
+2 Island
+4 Kaito, Bane of Nightmares
+4 Mockingbird
+4 Moon-Circuit Hacker
+2 Multiversal Passage
+4 Mutavault
+1 Nowhere to Run
+1 Otawara, Soaring City
+3 Sheoldred, the Apocalypse
+2 Swamp
+1 Takenuma, Abandoned Mire
+4 Thoughtseize
+2 Unholy Annex // Ritual Chamber
+4 Watery Grave
+
+Sideboard
+2 Change the Equation
+2 Duress
+1 Enduring Curiosity
+2 Languish
+4 Leyline of the Void
+2 Path of Peril
+2 Tishana's Tidebinder

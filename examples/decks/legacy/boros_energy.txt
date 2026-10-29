@@ -1,0 +1,35 @@
+// Legacy: Boros Energy, 7.6% of MTGGoldfish's paper Legacy metagame on 2026-10-29. MTGGoldfish deck 8016565 (Boros Energy by Craigpuncher), Legacy Challenge 32 2026-10-23 (1), 3rd Place, 7-1 (www.mtgo.com), Oct 23, 2026.
+Deck
+4 Ajani, Nacatl Pariah
+4 Amped Raptor
+4 Arid Mesa
+1 Elegant Parlor
+1 Flooded Strand
+1 Galvanic Discharge
+3 Goblin Bombardment
+4 Guide of Souls
+2 Hexing Squelcher
+2 Karakas
+2 Lazotep Quarry
+1 Marsh Flats
+1 Mountain
+4 Ocelot Pride
+1 Phlage, Titan of Fire's Fury
+2 Plains
+3 Plateau
+3 Sand Scout
+2 Static Prison
+4 Swords to Plowshares
+1 Tundra
+4 Voice of Victory
+4 Wasteland
+2 Windswept Heath
+
+Sideboard
+1 Abrade
+2 Consign to Memory
+3 Disruptor Flute
+1 Erode
+3 Mindbreak Trap
+3 Pyroblast
+2 Surgical Extraction

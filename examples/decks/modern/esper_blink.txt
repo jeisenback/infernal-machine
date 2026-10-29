@@ -1,0 +1,42 @@
+// Modern: Esper Blink, 5.4% of MTGGoldfish's paper Modern metagame on 2026-10-29. MTGGoldfish deck 7984348 (Esper by Keita Tonouchi), チャンピオンズカップファイナル シーズン5ラウンド1 Champions Cup Final Season 5 Round 1, 4th Place, 11-3-1 (melee.gg), Oct 3, 2026.
+Deck
+1 Bleachbone Verge
+1 Consign to Memory
+2 Ephemerate
+1 Fatal Push
+4 Flooded Strand
+1 Floodfarm Verge
+1 Force of Negation
+1 Gloomlake Verge
+1 Godless Shrine
+1 Hallowed Fountain
+1 Island
+4 Ketramose, the New Dawn
+2 March of Otherworldly Light
+2 Marsh Flats
+1 Meticulous Archive
+2 No More Lies
+1 Plains
+4 Polluted Delta
+3 Prismatic Ending
+4 Psychic Frog
+4 Quantum Riddler
+4 Relic of Progenitus
+1 River of Tears
+1 Shadowy Backstreet
+4 Solitude
+2 Spell Snare
+1 Swamp
+3 Thoughtseize
+1 Undercity Sewers
+1 Watery Grave
+
+Sideboard
+3 Consign to Memory
+1 Fatal Push
+2 Force of Negation
+2 High Noon
+2 Mystical Dispute
+1 Spell Snare
+2 Teferi, Time Raveler
+2 Wrath of the Skies

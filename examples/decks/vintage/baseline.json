@@ -1,0 +1,150 @@
+{
+ "decks": {
+  "dimir_lurrus_control": {
+   "cards": 60,
+   "unplayable": [
+    "Bilbo, Thief in the Night",
+    "Daze",
+    "Fatal Push",
+    "Gush",
+    "Psychic Frog",
+    "Vexing Bauble"
+   ]
+  },
+  "dredge": {
+   "cards": 60,
+   "unplayable": [
+    "Chalice of the Void",
+    "Creeping Chill",
+    "Golgari Grave-Troll",
+    "Grief",
+    "Hollow One",
+    "Ichorid",
+    "Narcomoeba",
+    "Noxious Revival",
+    "Prized Amalgam",
+    "Serum Powder",
+    "Stinkweed Imp"
+   ]
+  },
+  "esper_lurrus_control": {
+   "cards": 60,
+   "unplayable": [
+    "Bilbo, Thief in the Night",
+    "Karakas",
+    "Prismatic Ending",
+    "Psychic Frog",
+    "Vexing Bauble"
+   ]
+  },
+  "jewel_shops": {
+   "cards": 60,
+   "unplayable": [
+    "Coveted Jewel",
+    "Karn, the Great Creator",
+    "Mana Crypt",
+    "Paradoxical Outcome",
+    "Tezzeret, Cruel Captain",
+    "Time Vault",
+    "Tinker",
+    "Trinisphere",
+    "Vexing Bauble"
+   ]
+  },
+  "lurrus_breach": {
+   "cards": 60,
+   "unplayable": [
+    "Flame of Anor",
+    "Hexing Squelcher",
+    "Mana Crypt",
+    "Merchant Scroll",
+    "Paradoxical Outcome",
+    "Snapcaster Mage",
+    "Soul-Guide Lantern",
+    "Thundertrap Trainer",
+    "Underworld Breach",
+    "Vexing Bauble"
+   ]
+  },
+  "lurrus_po": {
+   "cards": 60,
+   "unplayable": [
+    "Chain of Vapor",
+    "Dark Confidant",
+    "Dress Down",
+    "Flame of Anor",
+    "Forth Eorlingas!",
+    "Mana Crypt",
+    "Merchant Scroll",
+    "Paradoxical Outcome",
+    "Pithing Needle",
+    "Snapcaster Mage",
+    "Soul-Guide Lantern",
+    "Thundertrap Trainer",
+    "Vexing Bauble"
+   ]
+  },
+  "mono_white_initiative": {
+   "cards": 60,
+   "unplayable": [
+    "Anointed Peacekeeper",
+    "Archon of Emeria",
+    "Chancellor of the Annex",
+    "Clarion Conqueror",
+    "Karakas",
+    "Mana Crypt",
+    "Seasoned Dungeoneer",
+    "Vexing Bauble",
+    "Void Mirror",
+    "White Plume Adventurer"
+   ]
+  },
+  "oath_of_druids": {
+   "cards": 60,
+   "unplayable": [
+    "Atraxa, Grand Unifier",
+    "Forbidden Orchard",
+    "Mana Crypt",
+    "Oath of Druids",
+    "Oko, Thief of Crowns",
+    "Serra's Emissary",
+    "Show and Tell",
+    "Vexing Bauble"
+   ]
+  },
+  "paradoxical_outcome": {
+   "cards": 60,
+   "unplayable": [
+    "Council of Reeds",
+    "Forth Eorlingas!",
+    "Karn, the Great Creator",
+    "Mana Crypt",
+    "Paradoxical Outcome",
+    "Pithing Needle",
+    "Tezzeret, Cruel Captain",
+    "The Endstone",
+    "Thundertrap Trainer",
+    "Time Vault",
+    "Tinker",
+    "Vexing Bauble"
+   ]
+  },
+  "raker_shops": {
+   "cards": 60,
+   "unplayable": [
+    "Chalice of the Void",
+    "City of Traitors",
+    "Glaring Fleshraker",
+    "Karn, the Great Creator",
+    "Mana Crypt",
+    "Memory Jar",
+    "Pithing Needle",
+    "Talon Gates of Madara",
+    "Tezzeret, Cruel Captain",
+    "The Fantasticar",
+    "Time Vault",
+    "Vexing Bauble"
+   ]
+  }
+ }
+}

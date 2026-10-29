@@ -53,7 +53,7 @@ class AuditStepTests(unittest.TestCase):
 
     def test_nothing_swallows_a_failure(self):
         self.assertNotIn("|| true", TEXT)
-        self.assertEqual(TEXT.count("continue-on-error"), 2, "only on the two audit steps, whose results the last step turns into the job's")
+        self.assertEqual(TEXT.count("continue-on-error"), 3, "only on the three audit steps, whose results the last step turns into the job's")
 
 
 class StandardStepTests(unittest.TestCase):
@@ -80,6 +80,39 @@ class StandardStepTests(unittest.TestCase):
     def test_the_comment_and_the_summary_carry_both(self):
         self.assertIn("standard.md", step("Show it in the job summary"))
         self.assertIn("standard.md", step("Keep one comment on the roadmap epic up to date"))
+
+
+FORMATS = ("pauper", "pioneer", "modern", "legacy", "vintage")
+
+
+class OtherFormatsStepTests(unittest.TestCase):
+    """The Pauper, Pioneer, Modern, Legacy and Vintage decks (#522) are checked the same way, each against its own baseline."""
+
+    NAME = "The tracked decks of the other constructed formats against their baselines"
+
+    def test_it_checks_every_format_against_its_own_baseline_whatever_the_others_said(self):
+        run = step(self.NAME)
+        self.assertIn(f"for format in {' '.join(FORMATS)}; do", run)
+        self.assertIn("--decks examples/decks/$format/*.txt --baseline examples/decks/$format/baseline.json", run)
+        self.assertIn("if: always()", run)
+        for fmt in FORMATS:
+            self.assertTrue((WORKFLOWS.parent.parent / "examples" / "decks" / fmt / "baseline.json").exists(), fmt)
+
+    def test_one_format_getting_worse_fails_the_step_and_the_rest_still_run(self):
+        run = step(self.NAME)
+        self.assertIn("shell: bash", run, "bash -eo pipefail, so a failing audit is not hidden by tee")
+        self.assertIn("| tee $format.md || status=1", run, "a failure is remembered and the loop goes on")
+        self.assertIn("exit $status", run)
+        self.assertIn("continue-on-error: true", run)
+        self.assertIn("id: formats", run)
+
+    def test_the_last_step_fails_the_job_when_a_format_got_worse(self):
+        self.assertIn("steps.formats.outcome == 'failure'", step("Fail if a tracked deck got worse"))
+
+    def test_the_summary_has_their_tables_and_the_comment_their_headlines(self):
+        self.assertIn("cat $format.md", step("Show it in the job summary"))
+        comment = step("Keep one comment on the roadmap epic up to date")
+        self.assertIn("head -1 $format.md", comment, "one line each, so the comment stays under GitHub's limit")
 
 
 class MisparseAuditStepTests(unittest.TestCase):

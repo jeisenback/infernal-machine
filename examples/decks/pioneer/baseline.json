@@ -1,0 +1,123 @@
+{
+ "decks": {
+  "dimir_aggro": {
+   "cards": 60,
+   "unplayable": [
+    "Faerie Miscreant",
+    "Fatal Push",
+    "Floodpits Drowner",
+    "Kaito, Bane of Nightmares",
+    "Mockingbird",
+    "Moon-Circuit Hacker",
+    "Nowhere to Run",
+    "Unholy Annex // Ritual Chamber"
+   ]
+  },
+  "golgari_midrange": {
+   "cards": 61,
+   "unplayable": [
+    "Fatal Push",
+    "Graveyard Trespasser // Graveyard Glutton",
+    "Restless Cottage",
+    "Unholy Annex // Ritual Chamber"
+   ]
+  },
+  "izzet_aggro": {
+   "cards": 60,
+   "unplayable": [
+    "Academic Dispute",
+    "Boomerang Basics",
+    "Emberheart Challenger",
+    "Monstrous Rage",
+    "Reckless Rage",
+    "Screaming Nemesis",
+    "Stormchaser's Talent"
+   ]
+  },
+  "izzet_phoenix": {
+   "cards": 60,
+   "unplayable": [
+    "Arclight Phoenix",
+    "Fiery Impulse",
+    "Flashback",
+    "Picklock Prankster // Free the Fae",
+    "Proft's Eidetic Memory"
+   ]
+  },
+  "izzet_prowess": {
+   "cards": 60,
+   "unplayable": [
+    "Academic Dispute",
+    "Boomerang Basics",
+    "Den of the Bugbear",
+    "Emberheart Challenger",
+    "Hearth Elemental // Stoke Genius",
+    "Monstrous Rage",
+    "Reckless Rage",
+    "Stormchaser's Talent"
+   ]
+  },
+  "jund_artifact_sacrifice": {
+   "cards": 60,
+   "unplayable": [
+    "Biotech Specialist",
+    "Experimental Synthesizer",
+    "Greedy Freebooter",
+    "Oni-Cult Anvil",
+    "The Sackville-Bagginses",
+    "Torch the Tower",
+    "Voldaren Epicure"
+   ]
+  },
+  "jund_sacrifice": {
+   "cards": 60,
+   "unplayable": [
+    "Biotech Specialist",
+    "Greedy Freebooter",
+    "Lively Dirge",
+    "Magda, the Hoardmaster",
+    "The Sackville-Bagginses",
+    "Witch's Oven"
+   ]
+  },
+  "mono_red_prowess": {
+   "cards": 60,
+   "unplayable": [
+    "Den of the Bugbear",
+    "Emberheart Challenger",
+    "Kumano Faces Kakkazan // Etching of Kumano",
+    "Monstrous Rage",
+    "Reckless Rage",
+    "Rockface Village",
+    "Screaming Nemesis",
+    "Soul-Scar Mage",
+    "Sunspine Lynx",
+    "Witchstalker Frenzy"
+   ]
+  },
+  "nykthos_ramp": {
+   "cards": 60,
+   "unplayable": [
+    "Cavalier of Thorns",
+    "Garruk, Curse Breaker",
+    "Invasion of Ixalan // Belligerent Regisaur",
+    "Lair of the Hydra",
+    "Leyline of the Guildpact",
+    "Old-Growth Troll",
+    "Storm the Festival",
+    "Sunken Citadel"
+   ]
+  },
+  "selesnya_company": {
+   "cards": 60,
+   "unplayable": [
+    "Archon of Emeria",
+    "Collected Company",
+    "Elspeth, Storm Slayer",
+    "March of Otherworldly Light",
+    "Professor of Symbology",
+    "Thalia, Guardian of Thraben"
+   ]
+  }
+ }
+}

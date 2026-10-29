@@ -1,0 +1,42 @@
+// Vintage: Jewel Shops, 17.9% of MTGGoldfish's paper Vintage metagame on 2026-10-29. MTGGoldfish deck 8018423 (Jewel Shops by Munchlax446), Vintage Challenge 16 2026-10-25 (1), 2nd Place, 7-1 (www.mtgo.com), Oct 25, 2026.
+Deck
+1 Ancestral Recall
+4 Ancient Tomb
+1 Black Lotus
+4 Coveted Jewel
+4 Force of Will
+1 Karn, the Great Creator
+1 Mana Crypt
+1 Mana Vault
+1 Manifold Key
+1 Mental Misstep
+4 Misdirection
+4 Mishra's Workshop
+1 Mox Emerald
+1 Mox Jet
+1 Mox Pearl
+1 Mox Ruby
+1 Mox Sapphire
+2 Otawara, Soaring City
+4 Paradoxical Outcome
+4 Phyrexian Metamorph
+4 Sink into Stupor
+1 Snow-Covered Island
+1 Sol Ring
+1 Tezzeret, Cruel Captain
+4 The One Ring
+1 Time Vault
+1 Time Walk
+1 Tinker
+1 Tolarian Academy
+1 Trinisphere
+1 Urza's Saga
+1 Vexing Bauble
+
+Sideboard
+4 Argentum Masticore
+4 Azure Beastbinder
+4 Commandeer
+1 Grafdigger's Cage
+1 Pithing Needle
+1 Tormod's Crypt

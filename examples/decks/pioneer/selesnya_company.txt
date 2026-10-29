@@ -1,0 +1,34 @@
+// Pioneer: Selesnya Company, 3.7% of MTGGoldfish's paper Pioneer metagame on 2026-10-29. MTGGoldfish deck 8019005 (Selesnya Company by Kako_Ferrer), Pioneer Challenge 32 2026-10-26, 2nd Place, 7-2 (www.mtgo.com), Oct 26, 2026.
+Deck
+2 Abandoned Air Temple
+2 Archon of Emeria
+4 Badgermole Cub
+1 Boseiju, Who Endures
+4 Brushland
+4 Collected Company
+1 Eiganjo, Seat of the Empire
+1 Elspeth, Storm Slayer
+4 Elvish Mystic
+4 Enduring Innocence
+1 Forest
+4 Llanowar Elves
+1 March of Otherworldly Light
+3 Ouroboroid
+3 Plains
+4 Professor of Symbology
+4 Razorverge Thicket
+4 Skyclave Apparition
+2 Starting Town
+4 Temple Garden
+3 Thalia, Guardian of Thraben
+
+Sideboard
+1 Airbending Lesson
+2 Aven Interrupter
+3 Clarion Conqueror
+1 Elspeth, Storm Slayer
+1 Germination Practicum
+1 Origin of Metalbending
+2 Seam Rip
+2 Solarium Sentry
+2 Unlicensed Hearse
