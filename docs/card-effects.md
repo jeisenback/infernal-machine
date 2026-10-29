@@ -706,6 +706,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
     trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
     in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - Multiversal Passage (`chooses_basic_land_type`, `CHOOSE_LAND_TYPE_PROMPT`): "As this land enters, choose a basic land type. Then
+    you may pay 2 life. If you don't, it enters tapped." and "This land is the chosen type." The type is chosen first, then the shock
+    question; the land becomes that type alone (CR 305.7) and so taps for its color (CR 305.6), counts as that type for conditions
+    and searches on the battlefield, and leaves as the printed card.
   - "CARDNAME deals damage equal to the number of <things> to <target>" with the source as "it", "he" or "she" (Smaug the
     Magnificent, Jet, Cat-Gator, Stadium Headliner, Coordinated Maneuver): the amount grammar's count ("Treasures you control",
     "creatures you control") sets X as the effect resolves, then the source deals X damage, as Massive Raid's form already did.
