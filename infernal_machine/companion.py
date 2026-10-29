@@ -101,7 +101,7 @@ CONDITIONS: dict[str, Callable] = {
 def companion_problems(deck, minimum: int, commander_format: bool, legality: str, label: str) -> list[str]:
     """What is wrong with a deck's companion, if it has one: the card has no companion ability, the starting deck breaks its condition
     (or the condition is one this does not check), or, in a commander format, it is outside the commanders' color identity, in the deck
-    already, or not legal in the format (`legality` names the `*_legal` field of `Card`). `minimum` is the format's minimum deck size."""
+    already, or not legal in the format (`legality` is the `Format.legality` a card needs, `Card.legal_in`). `minimum` is the format's minimum deck size."""
     card = deck.companion
     if card is None:
         return []
@@ -120,6 +120,6 @@ def companion_problems(deck, minimum: int, commander_format: bool, legality: str
             problems.append(f"{card.name} is outside the commander's color identity ({''.join(sorted(outside))})")
         if any(c.name == card.name for c in deck.commanders + deck.main):
             problems.append(f"{card.name} is the companion and also in the deck (singleton)")
-        if not getattr(card, f"{legality}_legal", True):
+        if not card.legal_in(legality):
             problems.append(f"{card.name} is not legal in {label}")
     return problems

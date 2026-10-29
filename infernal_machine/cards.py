@@ -33,10 +33,9 @@ class Card:
     loyalty: str | None = None
     color_identity: tuple[str, ...] = ()
     produced_mana: tuple[str, ...] = ()
-    commander_legal: bool = True
-    standard_legal: bool = True
-    duel_legal: bool = True  # not on the Duel Commander banned list (Scryfall's "duel" legality)
-    oathbreaker_legal: bool = True  # legal in Oathbreaker (Scryfall's "oathbreaker" legality)
+    legal: tuple[str, ...] | None = None  # the formats Scryfall's `legalities` mark "legal" or "restricted" (its names: "commander",
+    #   "standard", "duel", "pioneer", ...); None: no legality data (a card made by hand), legal in every format. See `legal_in`.
+    restricted: tuple[str, ...] = ()  # the formats that allow one copy of it (Vintage's restricted list)
     game_changer: bool = False  # on Scryfall's Commander Game Changers list (Commander Brackets)
     scryfall_id: str | None = None
     back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
@@ -45,6 +44,10 @@ class Card:
     alternate: "Card | None" = None  # the other half that is cast from the hand instead: an Adventure, a split half, a modal back spell
     other_face: str = ""  # the name of a second face the engine can't play (a back that is a permanent, a meld)
     flip: "Card | None" = None  # a transforming double-faced card's back face, which the permanent becomes when it transforms
+
+    def legal_in(self, legality: str) -> bool:
+        """Whether the card may be played in the format whose legality is `legality` (`Format.legality`: Scryfall's name for it)."""
+        return self.legal is None or legality in self.legal
 
     def __hash__(self) -> int:
         """Cards key `lru_cache`s on every rules lookup, so this is hashed millions of times in a long game. The generated hash
@@ -81,7 +84,7 @@ class Card:
                            oracle_text=back_face.get("oracle_text", ""),
                            color_identity=tuple(data.get("color_identity", [])),
                            produced_mana=_face_mana(back_face, tuple(data.get("produced_mana", []))),
-                           commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", oathbreaker_legal=data.get("legalities", {}).get("oathbreaker") == "legal", game_changer=bool(data.get("game_changer")),
+                           **_legalities(data), game_changer=bool(data.get("game_changer")),
                            scryfall_id=data.get("id"))
         prepare = None
         if data.get("layout") == "prepare" and len(data.get("card_faces", [])) == 2:
@@ -90,7 +93,7 @@ class Card:
                           cmc=_mana_value(spell.get("mana_cost", "")), type_line=spell.get("type_line", ""),
                           oracle_text=spell.get("oracle_text", ""), colors=_cost_colors(spell.get("mana_cost", "")),
                           color_identity=tuple(data.get("color_identity", [])),
-                          commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", oathbreaker_legal=data.get("legalities", {}).get("oathbreaker") == "legal", game_changer=bool(data.get("game_changer")),
+                          **_legalities(data), game_changer=bool(data.get("game_changer")),
                           scryfall_id=data.get("id"))
         faces = data.get("card_faces", [])
         alternate = None
@@ -103,7 +106,7 @@ class Card:
                        power=second.get("power"), toughness=second.get("toughness"), loyalty=second.get("loyalty"),
                        color_identity=tuple(data.get("color_identity", [])),
                        produced_mana=_face_mana(second, tuple(data.get("produced_mana", []))),
-                       commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", oathbreaker_legal=data.get("legalities", {}).get("oathbreaker") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
+                       **_legalities(data), game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
         if data.get("layout") == "meld":
             other_face = "the melded card"
         elif len(faces) == 2 and (data.get("layout") in ("split", "adventure") or data.get("layout") == "modal_dfc" and back is None):
@@ -115,7 +118,7 @@ class Card:
                 alternate = cls(name=second["name"], mana_cost=second.get("mana_cost", ""), cmc=_mana_value(second.get("mana_cost", "")),
                                 type_line=second.get("type_line", ""), oracle_text=second.get("oracle_text", ""),
                                 colors=tuple(second.get("colors") or _cost_colors(second.get("mana_cost", ""))), color_identity=tuple(data.get("color_identity", [])),
-                                commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", oathbreaker_legal=data.get("legalities", {}).get("oathbreaker") == "legal", game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
+                                **_legalities(data), game_changer=bool(data.get("game_changer")), scryfall_id=data.get("id"))
             else:
                 other_face = second["name"]  # not played: a back that is a permanent
         cmc = _mana_value(face.get("mana_cost", "")) if data.get("layout") == "split" and "mana_cost" in face else float(data.get("cmc", 0))
@@ -131,7 +134,7 @@ class Card:
             loyalty=face.get("loyalty"),
             color_identity=tuple(data.get("color_identity", [])),
             produced_mana=produced,
-            commander_legal=data.get("legalities", {}).get("commander") == "legal", standard_legal=data.get("legalities", {}).get("standard") == "legal", duel_legal=data.get("legalities", {}).get("duel") == "legal", oathbreaker_legal=data.get("legalities", {}).get("oathbreaker") == "legal", game_changer=bool(data.get("game_changer")),
+            **_legalities(data), game_changer=bool(data.get("game_changer")),
             scryfall_id=data.get("id"),
             back=back,
             prepare=prepare,
@@ -142,7 +145,9 @@ class Card:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Card":
-        tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity", "produced_mana")}
+        tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity", "produced_mana", "restricted")}
+        if data.get("legal") is not None:
+            tuples["legal"] = tuple(data["legal"])
         back = cls.from_dict(data["back"]) if data.get("back") else None
         prepare = cls.from_dict(data["prepare"]) if data.get("prepare") else None
         alternate = cls.from_dict(data["alternate"]) if data.get("alternate") else None
@@ -151,6 +156,13 @@ class Card:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def _legalities(data: dict) -> dict:
+    """`legal` and `restricted` from a Scryfall card's `legalities` (every face shares the card's)."""
+    given = data.get("legalities", {})
+    return {"legal": tuple(sorted(f for f, status in given.items() if status in ("legal", "restricted"))),
+            "restricted": tuple(sorted(f for f, status in given.items() if status == "restricted"))}
 
 
 def _mana_value(cost: str) -> float:
@@ -285,7 +297,7 @@ def _match_requested(wanted: list[str], found: dict[str, Card]) -> dict[str, Car
     return result
 
 
-CARD_FORMAT = 6  # bumped whenever Card gains a field, so a card file saved earlier is fetched again instead of read with that field's default
+CARD_FORMAT = 7  # bumped whenever Card gains a field, so a card file saved earlier is fetched again instead of read with that field's default
 
 
 class CachedSource:
@@ -293,7 +305,7 @@ class CachedSource:
 
     The file is `{"format": CARD_FORMAT, "cards": {...}}`. A file in an older format, or the old bare mapping with no `format` key,
     is read as empty: its cards are fetched again, once, rather than loaded with defaults for the fields they were saved without
-    (a card saved before `standard_legal` existed would otherwise count as Standard-legal for good).
+    (a card saved before `legal` existed would otherwise count as legal in every format for good).
     """
 
     def __init__(self, source: CardSource, path: str | Path):

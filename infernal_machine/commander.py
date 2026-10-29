@@ -93,7 +93,7 @@ def deck_problems(deck: Deck, size: int = DECK_SIZE, legality: str = "commander"
         outside = set(card.color_identity) - identity
         if outside:
             problems.append(f"{card.name} is outside the commander's color identity ({''.join(sorted(outside))})")
-        if not getattr(card, f"{legality}_legal", True):
+        if not card.legal_in(legality):
             problems.append(f"{card.name} is not legal in {label}")
     return problems
 

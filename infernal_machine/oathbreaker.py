@@ -38,6 +38,6 @@ def deck_problems(deck: Deck, size: int = 60, legality: str = "oathbreaker", lab
             problems.append(f"{card.name}: {counts[card.name]} copies, limit is {limit}")
         if outside := set(card.color_identity) - identity:
             problems.append(f"{card.name} is outside the Oathbreaker's color identity ({''.join(sorted(outside))})")
-        if not getattr(card, f"{legality}_legal", True):
+        if not card.legal_in(legality):
             problems.append(f"{card.name} is not legal in {label}")
     return problems

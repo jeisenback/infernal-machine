@@ -16,7 +16,7 @@ BOSS = Card(name="Boss", mana_cost="{3}{G}", cmc=4, type_line="Legendary Creatur
 RATS = Card(name="Relentless Rats", mana_cost="{1}{B}", cmc=2, type_line="Creature — Rat", power="2", toughness="2",
             oracle_text="Relentless Rats gets +1/+1 for each other creature you control named Relentless Rats.\n"
                         "A deck can have any number of cards named Relentless Rats.")
-ROTATED = Card(name="Old Card", mana_cost="{G}", cmc=1, type_line="Creature — Elf", power="1", toughness="1", standard_legal=False)
+ROTATED = Card(name="Old Card", mana_cost="{G}", cmc=1, type_line="Creature — Elf", power="1", toughness="1", legal=("commander",))
 SOURCE_DATA = {"name": "Llanowar Visionary", "mana_cost": "{2}{G}", "cmc": 3, "type_line": "Creature — Elf Druid", "oracle_text": "",
                "legalities": {"standard": "legal", "commander": "legal"}}
 
@@ -83,21 +83,21 @@ class LegalityTests(unittest.TestCase):
 
     def test_scryfall_legality_is_read(self):
         card = Card.from_scryfall(SOURCE_DATA)
-        self.assertTrue(card.standard_legal and card.commander_legal)
+        self.assertTrue(card.legal_in("standard") and card.legal_in("commander"))
         rotated = Card.from_scryfall({**SOURCE_DATA, "legalities": {"standard": "not_legal", "commander": "legal"}})
-        self.assertFalse(rotated.standard_legal)
-        self.assertTrue(rotated.commander_legal)
+        self.assertFalse(rotated.legal_in("standard"))
+        self.assertTrue(rotated.legal_in("commander"))
         banned = Card.from_scryfall({**SOURCE_DATA, "legalities": {"standard": "banned", "commander": "legal"}})
-        self.assertFalse(banned.standard_legal, "Standard's ban list is Scryfall's legality: a banned card is not legal (#521)")
+        self.assertFalse(banned.legal_in("standard"), "Standard's ban list is Scryfall's legality: a banned card is not legal (#521)")
         self.assertEqual(deck_problems(standard(main=[FOREST] * 59 + [banned]), STANDARD), [f"{banned.name} is not legal in Standard"])
-        self.assertEqual(Card.from_dict(card.to_dict()).standard_legal, True)  # it survives the card cache
-        self.assertEqual(Card.from_dict(rotated.to_dict()).standard_legal, False)
+        self.assertEqual(Card.from_dict(card.to_dict()).legal_in("standard"), True)  # it survives the card cache
+        self.assertEqual(Card.from_dict(rotated.to_dict()).legal_in("standard"), False)
 
 
 class FormatTests(unittest.TestCase):
     def test_the_formats(self):
         self.assertEqual((COMMANDER.life, STANDARD.life, STANDARD.copy_limit), (40, 20, 4))
-        self.assertEqual(set(FORMATS), {"commander", "standard", "brawl", "duel", "oathbreaker"})
+        self.assertEqual(set(FORMATS), {"commander", "standard", "brawl", "duel", "oathbreaker", "pioneer", "modern", "legacy", "vintage", "pauper"})
 
     def test_a_table_is_the_format_its_decks_are(self):
         commander = Deck([BOSS], [FOREST] * 99, [])

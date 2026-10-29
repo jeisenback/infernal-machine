@@ -8,7 +8,6 @@
       "colors": [
         "G"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{4}{G}{G}",
       "name": "Colossal Dreadmaw",
@@ -27,7 +26,6 @@
       "colors": [
         "G"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{2}{G}",
       "name": "Cultivate",
@@ -44,7 +42,6 @@
         "G"
       ],
       "colors": [],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "",
       "name": "Forest",
@@ -65,7 +62,6 @@
       "colors": [
         "G"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{G}",
       "name": "Giant Growth",
@@ -84,7 +80,6 @@
       "colors": [
         "G"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{3}{G}",
       "name": "Giant Spider",
@@ -103,7 +98,6 @@
       "colors": [
         "G"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{1}{G}",
       "name": "Grizzly Bears",
@@ -122,7 +116,6 @@
       "colors": [
         "R"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{3}{R}",
       "name": "Hill Giant",
@@ -141,7 +134,6 @@
       "colors": [
         "R"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{3}{R}",
       "name": "Kaelen, Stormcaller",
@@ -160,7 +152,6 @@
       "colors": [
         "R"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{R}",
       "name": "Lightning Bolt",
@@ -179,7 +170,6 @@
       "colors": [
         "G"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{G}",
       "name": "Llanowar Elves",
@@ -194,7 +184,6 @@
       "cmc": 2.0,
       "color_identity": [],
       "colors": [],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{2}",
       "name": "Mind Stone",
@@ -213,7 +202,6 @@
       "colors": [
         "G"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{2}{G}{G}",
       "name": "Mira, Greenwarden",
@@ -230,7 +218,6 @@
         "R"
       ],
       "colors": [],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "",
       "name": "Mountain",
@@ -251,7 +238,6 @@
       "colors": [
         "R"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{1}{R}",
       "name": "Pyroclasm",
@@ -270,7 +256,6 @@
       "colors": [
         "R"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{R}",
       "name": "Raging Goblin",
@@ -289,7 +274,6 @@
       "colors": [
         "G"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{1}{G}",
       "name": "Rampant Growth",
@@ -308,7 +292,6 @@
       "colors": [
         "R"
       ],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{4}{R}{R}",
       "name": "Shivan Dragon",
@@ -323,7 +306,6 @@
       "cmc": 1.0,
       "color_identity": [],
       "colors": [],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{1}",
       "name": "Sol Ring",
@@ -338,7 +320,6 @@
       "cmc": 2.0,
       "color_identity": [],
       "colors": [],
-      "commander_legal": true,
       "loyalty": null,
       "mana_cost": "{2}",
       "name": "Swiftfoot Boots",
@@ -350,5 +331,5 @@
       "type_line": "Artifact \u2014 Equipment"
     }
   },
-  "format": 6
+  "format": 7
 }
