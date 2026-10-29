@@ -45,7 +45,6 @@
    "cards": 60,
    "unplayable": [
     "Black Mage's Rod",
-    "Blood Fountain",
     "Galvanic Blast",
     "Ichor Wellspring",
     "Reckoner's Bargain",
@@ -61,8 +60,7 @@
     "Highway Robbery",
     "Lava Dart",
     "Melded Moxite",
-    "Sneaky Snacker",
-    "Voldaren Epicure"
+    "Sneaky Snacker"
    ]
   },
   "mono_red_rally": {
@@ -70,8 +68,7 @@
    "unplayable": [
     "Galvanic Blast",
     "Gingerbrute",
-    "Inventor's Axe",
-    "Voldaren Epicure"
+    "Inventor's Axe"
    ]
   },
   "ruby_storm": {

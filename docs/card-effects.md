@@ -738,6 +738,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     crewed Vehicle's), and gets N +1/+1 counters; when it dies or is exiled it returns to the battlefield tapped as a land again
     (`Permanent.earthbent`, `RETURN_WHEN_EXILED`). "Earthbend X, where X is ..." and "then earthbend N" in the middle of a sentence
     are not read yet.
+  - Blood tokens (`BLOOD`, CR 111.10g; Voldaren Epicure, Blood Fountain and about 40 more): "Create a Blood token" makes a token
+    artifact with "{1}, {T}, Discard a card, Sacrifice this token: Draw a card.", read like Treasure, Clue and Food; the ability
+    is offered only with a card to discard and the mana to pay.
   - "Target creature with power 2 or less" (Escape Tunnel, Ragged Playmate): a target kind may end in "with power N or less";
     the creature's power as the target is chosen counts (`Game.target_options`), counters and pumps included, so a 2/2 with a
     +1/+1 counter is not a legal target, and the ability has none if nothing qualifies (CR 115.5).
