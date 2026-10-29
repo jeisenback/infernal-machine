@@ -39,3 +39,42 @@ jobs:
           path: |
             coverage-audit.json
             coverage-audit-standard.json
+  formats:  # one line for each constructed format beside Standard (#522), so a gain shows in every format it touches
+    # Only when the workflow is run by hand ("Run workflow", or `gh workflow run "coverage audit"`): it spends about 25 runner-minutes,
+    # too many for every Monday on the Actions budget; between runs, `coverage_audit.py --format NAME` measures a pool locally.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45  # five pools from Scryfall's search API, one page at a time: about 22 minutes in all when none is cached
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Get this week's cache key
+        id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/pauper_pool.json
+            .cache/pioneer_pool.json
+            .cache/modern_pool.json
+            .cache/legacy_pool.json
+            .cache/vintage_pool.json
+          key: format-pools-${{ steps.week.outputs.week }}
+      - name: How much of each format's card pool the engine plays
+        shell: bash
+        run: |
+          {
+            echo "## How much of each format's card pool the engine plays"
+            echo
+            for format in pauper pioneer modern legacy vintage; do
+              # (the whole output, then its first line: cutting the pipe short would read as a failure)
+              if out=$(python tools/coverage_audit.py --format "$format" --top 1); then
+                line=${out%%$'\n'*}
+                echo "- ${line#'## Coverage audit: '}"
+              else
+                echo "- ${format}: the pool could not be fetched or measured"
+              fi
+            done
+          } | tee -a "$GITHUB_STEP_SUMMARY"
