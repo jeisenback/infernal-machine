@@ -217,7 +217,7 @@ def deck_coverage(entries: list[tuple[int | None, bool]], scale: float) -> dict:
             "share": (DECK_BASICS + playable) / DECK_CARDS, "clean": clean, "scale": scale if scale != float("inf") else None}
 
 
-def next_targets(cards: list[tuple[str, int | None, frozenset[str]]], limit: int = 15, weigh=weight) -> list[dict]:
+def next_targets(cards: Sequence[tuple[str, float | None, frozenset[str]]], limit: int = 15, weigh=weight) -> list[dict]:
     """The families to build, best first. `cards` are (name, rank, families the card still needs). Greedy: take the family whose
     cards weigh the most (a card needing several shares its weight between those not yet built), assume it built, repeat. `weigh`
     maps a rank to a card's weight: `weight`, or an inclusion probability to count cards per deck."""
@@ -341,12 +341,24 @@ def _work_for(line: str) -> frozenset[str]:
     return families_of(line) or frozenset({"Other: " + shape(line)})
 
 
-def analyze_decks(decks: dict[str, Any]) -> dict:
+_SHARE = re.compile(r"^//.*?\b(\d+(?:\.\d+)?)% of ")
+
+
+def deck_share(text: str) -> float | None:
+    """The metagame share a decklist's first line names (`// Standard: Dimir Midrange, 10.6% of MTGGoldfish's paper Standard metagame
+    on 2026-10-28. ...`), or None when it names none (the Commander lists, EDHREC averages, have no share)."""
+    match = _SHARE.match(text.split("\n", 1)[0])
+    return float(match[1]) if match else None
+
+
+def analyze_decks(decks: dict[str, Any], weights: dict[str, float] | None = None) -> dict:
     """What stops the given decks (name -> `Deck`) from being fully playable, and the order of work that unlocks the most cards.
     Every copy of a card counts (a piece of work that unlocks a card with two copies unlocks two cards); a line no family covers is a
-    piece of work of its own, named by its wording."""
+    piece of work of its own, named by its wording. With `weights` (a deck's metagame share, #565) the result also carries `weighted`,
+    the same order with each deck's copies multiplied by its weight (a deck not in `weights` weighs 1), so the pieces that unlock cards
+    in the decks people play come first; the headline and `next` stay count-based, since a baseline must not move with the metagame."""
     per_deck: dict[str, dict] = {}
-    needs: list[tuple[str, int | None, frozenset[str]]] = []
+    needs: list[tuple[str, int, frozenset[str]]] = []
     example: dict[str, str] = {}
     total = playable = 0
     for deck_name, deck in decks.items():
@@ -380,7 +392,14 @@ def analyze_decks(decks: dict[str, Any]) -> dict:
         for _, n, lines in deck["unplayable"]:
             for kind in {mechanism_of(line) for line in lines}:
                 by_kind[kind] += n
-    return {"decks": per_deck, "next": picks, "total": total, "playable": playable, "by_kind": by_kind.most_common()}
+    result = {"decks": per_deck, "next": picks, "total": total, "playable": playable, "by_kind": by_kind.most_common()}
+    if weights is not None:
+        weighed = [(key, copies * weights.get(key.split("\x00", 1)[0], 1.0), families) for key, copies, families in needs]
+        result["weighted"] = [{**pick, "unlocks": round(pick["weight"], 1), "cards": [key.split("\x00", 1)[1] for key in pick["cards"]],
+                               "example": example.get(pick["family"], "")}
+                              for pick in next_targets(weighed, limit=max(len(needs), 1) * 4, weigh=float)]
+        result["weights"] = dict(weights)
+    return result
 
 
 def baseline_of(result: dict) -> dict:
