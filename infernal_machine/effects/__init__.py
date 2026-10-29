@@ -140,6 +140,7 @@ from .outcomes import (  # noqa: F401
     HYPOTHESIS_COUNTER_PROMPT,
     IfAdditionalCostPaid,
     IfKicked,
+    ReflexiveTrigger,
     KickedInstead,
     LivingWeapon,
     LoseLife,

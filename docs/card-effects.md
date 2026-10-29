@@ -706,6 +706,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
     trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
     in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - Reflexive triggers with an intervening "if" (`ReflexiveTrigger`, `Game.reflexive_trigger`; Earthbender Ascension): "Put a quest
+    counter on this enchantment. When you do, if it has four or more quest counters on it, put a +1/+1 counter on target creature
+    you control. It gains trample until end of turn." The counter always goes on; the "When you do" part is queued as a trigger of
+    its own as the ability resolves (CR 603.12), so it chooses its target then and is removed with none (CR 603.3d), and its "if"
+    is checked as it triggers and resolves (CR 603.4). In a watching trigger, the "it" of that clause and of an "It gains ..." after
+    a targeted sentence is not the permanent that set it off. "When you do, <effect>" without an "if" is not read yet.
   - Multiversal Passage (`chooses_basic_land_type`, `CHOOSE_LAND_TYPE_PROMPT`): "As this land enters, choose a basic land type. Then
     you may pay 2 life. If you don't, it enters tapped." and "This land is the chosen type." The type is chosen first, then the shock
     question; the land becomes that type alone (CR 305.7) and so taps for its color (CR 305.6), counts as that type for conditions

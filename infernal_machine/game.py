@@ -2487,6 +2487,12 @@ class Game:
             permanent.triggered_turn[ability.text] = self.turn
         self.pending.append(PendingTrigger(ability, permanent, controller, x, subject, player, spell=spell))
 
+    def reflexive_trigger(self, controller: Seat, effects: tuple, condition: Condition | None, text: str) -> None:
+        """"When you do, ...": a reflexive trigger (CR 603.12) of the ability resolving now, queued for its source like any trigger, so
+        it chooses its targets as it goes on the stack; with no legal target it is removed (CR 603.3d), the effect before it done."""
+        if self.resolving_source is not None:
+            self._queue(TriggeredAbility("reflexive", effects, False, text, condition=condition), self.resolving_source, controller)
+
     def add_delayed(self, ability: TriggeredAbility, item: "StackItem", controller: Seat, next_turn: bool = False,
                     only: Permanent | None = None, when: frozenset = frozenset()) -> None:
         """Set up `ability` for `controller` (CR 603.7): it watches until the turn ends, or the controller's next turn does. A spell

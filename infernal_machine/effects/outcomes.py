@@ -415,6 +415,7 @@ from .families.spells_and_misc import (  # noqa: F401
     HYPOTHESIS_COUNTER_PROMPT,
     IfAdditionalCostPaid,
     IfKicked,
+    ReflexiveTrigger,
     IfNotKicked,
     KickedInstead,
     KickedReplaces,
@@ -1234,6 +1235,13 @@ def _if_you_do(m: re.Match) -> Any:
     return _IfYouDo(inner[0]) if inner and len(inner) == 1 and isinstance(inner[0], (BecomePrepared, SearchForLands)) else None
 
 
+def _when_you_do_if(m: re.Match) -> Any:
+    """"When you do, if <condition>, <effect>.": the effect may target, since the reflexive trigger chooses its targets itself."""
+    condition = _condition(m[1])
+    inner = _parse([m[2][:1].upper() + m[2][1:] + "."]) if condition else None
+    return ReflexiveTrigger(tuple(inner), condition, m[0]) if condition is not None and inner else None
+
+
 def _then_if(m: re.Match) -> Any:
     condition = _condition(m[1])
     inner = _parse([m[2][:1].upper() + m[2][1:] + "."]) if condition else None
@@ -1267,6 +1275,10 @@ def _merge_conditional(effects: list) -> list | None:
         elif isinstance(effect, _ItGains):
             if merged and isinstance(merged[-1], PutCounters) and not merged[-1].grant:
                 merged[-1] = dataclasses.replace(merged[-1], grant=effect.keywords)
+            elif (merged and isinstance(merged[-1], ReflexiveTrigger) and isinstance(merged[-1].effects[-1], PutCounters)
+                  and not merged[-1].effects[-1].grant):  # the creature the reflexive trigger put counters on
+                inner = merged[-1].effects[:-1] + (dataclasses.replace(merged[-1].effects[-1], grant=effect.keywords),)
+                merged[-1] = dataclasses.replace(merged[-1], effects=inner)
             else:
                 merged.append(PumpSource(Modifier(keywords=effect.keywords)))
         else:
@@ -1616,6 +1628,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
+    (re.compile(r"when you do, if (.+?), (.+)\.", re.I), _when_you_do_if),  # Earthbender Ascension
     (re.compile(r"if (this spell was foretold), (.+)\.", re.I), _then_if),
     (re.compile(r"if (X is \d+ or more), (?!double the number)(.+)\.", re.I), _then_if),
     (re.compile(rf"if X is {_N} or more, double the number of ([+\-\u2212]1/[+\-\u2212]1) counters on any number of other target "
