@@ -1874,6 +1874,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                                      r"without paying its mana cost\.", re.I), lambda m: SurgeToVictory()),
     (re.compile(rf"remove {_N_FIXED} ([a-z]+) counters? from (?:{_SELF})\.", re.I),
      lambda m: RemoveCountersFromSource(_number(m[1]), m[2].lower())),
+    (re.compile(rf"(?:{_SELF}|he|she) deals damage equal to (.+?) to {_DAMAGE_KIND}\.", re.I),  # Smaug the Magnificent, Jet
+     lambda m: [DefineX(a), Damage("X", "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))] if (a := _amount(m[1])) else None),
     (re.compile(rf"(?:{_SELF}) deals damage to target (player|opponent) equal to (.+)\.", re.I),
      lambda m: [DefineX(a), Damage("X", m[1].lower())] if (a := _amount(m[2])) else None),
     (re.compile(rf"(?:{_SELF}) deals damage to (any target|target player or planeswalker) equal to (?:the number of |)(.+)\.", re.I),  # Massive Raid, Goblin War Strike
