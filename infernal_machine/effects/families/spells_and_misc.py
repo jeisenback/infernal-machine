@@ -235,6 +235,19 @@ class _GiftMatch:
 
 
 @dataclass(frozen=True)
+class ReflexiveTrigger:
+    """ "When you do, if it has four or more quest counters on it, put a +1/+1 counter on target creature you control." (Earthbender
+    Ascension): a reflexive trigger (CR 603.12) set up by the effect before it, which always happens. It goes on the stack as an
+    ability of its own and chooses its targets then; the intervening "if" is checked as it triggers and resolves (CR 603.4)."""
+    effects: tuple
+    condition: "Condition | None" = None
+    text: str = ""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.reflexive_trigger(controller, self.effects, self.condition, self.text)
+
+
+@dataclass(frozen=True)
 class _ItGains:
     """ "It gains trample until end of turn.": the creature that just got counters, or else the source itself."""
     keywords: frozenset[str]
