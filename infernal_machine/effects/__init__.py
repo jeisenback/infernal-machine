@@ -96,6 +96,7 @@ from .outcomes import (  # noqa: F401
     Damage,
     DamageFromSubject,
     DamageEach,
+    NoPreventionThisTurn,
     DanceWithCalamity,
     DefineX,
     Demonstrate,

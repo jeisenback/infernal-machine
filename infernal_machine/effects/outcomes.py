@@ -368,6 +368,7 @@ from .families.life_and_damage import (  # noqa: F401
     PlayerLosesLife,
     PoisonShrinksOpponentsCreatures,
     PowerDamageToEachOther,
+    NoPreventionThisTurn,
     PreventAllCombatDamage,
     WinGame,
     PreventCombatDamageToYou,
@@ -1487,8 +1488,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N} damage to you\.", re.I), lambda m: DamageToYou(_count(m[1]))),
     (re.compile(rf"{_SELF} deals {_N} damage to {_DAMAGE_KIND}\.", re.I),
      lambda m: Damage(_count(m[1]), "any" if m[2].lower() == "any target" else m[2].lower().removeprefix("target "))),
-    (re.compile(rf"{_SELF} deals {_N} damage to up to one target creature\.", re.I),  # Season of the Bold
-     lambda m: Damage(_count(m[1]), "creature", optional_target=True)),
+    (re.compile(rf"{_SELF} deals {_N} damage to up to one target (creature|creature or planeswalker)\.", re.I),  # Season of the Bold, Impractical Joke
+     lambda m: Damage(_count(m[1]), m[2].lower(), optional_target=True)),
+    (re.compile(r"damage can't be prevented this turn\.", re.I), lambda m: NoPreventionThisTurn()),  # Impractical Joke
     (re.compile(rf"{_SELF} deals {_N} damage to each of one or two targets\.", re.I),  # Prismari Charm
      lambda m: [Damage(_count(m[1]), "any"), Damage(_count(m[1]), "any", optional_target=True, distinct=True)]),
     (re.compile(rf"{_SELF} deals {_N} damage to each of up to two target creatures and/or planeswalkers\.", re.I),  # Volcanic Salvo

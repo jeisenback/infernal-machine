@@ -706,6 +706,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
     trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
     in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - "Damage can't be prevented this turn." (`NoPreventionThisTurn`, `Game.no_prevention_turn`; Impractical Joke, Pyrewood Gearhulk's
+    trigger): for the rest of the turn no shield, Fog or static prevention holds, as with Sunspine Lynx on the battlefield. "Deals N
+    damage to up to one target creature or planeswalker" joins the "up to one target creature" form.
   - Reflexive triggers with an intervening "if" (`ReflexiveTrigger`, `Game.reflexive_trigger`; Earthbender Ascension): "Put a quest
     counter on this enchantment. When you do, if it has four or more quest counters on it, put a +1/+1 counter on target creature
     you control. It gains trample until end of turn." The counter always goes on; the "When you do" part is queued as a trigger of

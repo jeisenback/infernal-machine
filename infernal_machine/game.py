@@ -671,6 +671,7 @@ class Game:
         self.resolving_target: Any = None  # the last target chosen for it, which "that creature" in a condition means
         self.resolving_colors: frozenset[str] = frozenset()  # its colors (for protection from damage)
         self.fog_turn: int | None = None  # the turn all combat damage is prevented (Fog)
+        self.no_prevention_turn: int | None = None  # the turn damage can't be prevented (Impractical Joke)
         self.shields: list[list] = []  # [what is shielded, damage still to prevent, turn]: "prevent the next 2 damage ... this turn"
 
     @property
@@ -3333,7 +3334,8 @@ class Game:
         all damage that would be dealt to this creature", else what the shields made this turn still hold."""
         everyone = [p for s in self.live_seats() for p in s.battlefield if not self.loses_abilities(p)]
         if any("unpreventable" in damage_prevention(p.card) for p in everyone) \
-                or (source is not None and "unpreventable:self" in damage_prevention(source.card)):
+                or (source is not None and "unpreventable:self" in damage_prevention(source.card)) \
+                or self.no_prevention_turn == self.turn:  # Impractical Joke: "Damage can't be prevented this turn."
             return 0
         if combat and self.fog_turn == self.turn:
             return EVERYTHING
