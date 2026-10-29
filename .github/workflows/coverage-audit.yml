@@ -40,6 +40,9 @@ jobs:
             coverage-audit.json
             coverage-audit-standard.json
   formats:  # one line for each constructed format beside Standard (#522), so a gain shows in every format it touches
+    # Only when the workflow is run by hand ("Run workflow", or `gh workflow run "coverage audit"`): it spends about 25 runner-minutes,
+    # too many for every Monday on the Actions budget; between runs, `coverage_audit.py --format NAME` measures a pool locally.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45  # five pools from Scryfall's search API, one page at a time: about 22 minutes in all when none is cached
     steps:
