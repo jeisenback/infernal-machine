@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from .cards import Deck
-from .formats import add_format_argument, with_format
+from .formats import add_format_argument, format_of, house_rules, with_format
 from .gauntlet import deck_format, opponent_paths
 from .compare import pair_up, score, stop_reason, summarize
 from .matchup import play_plans, plan_games
@@ -235,13 +235,16 @@ def main(argv: list[str], source=None) -> int:
 
     try:
         focus = load(args.decklist)
-        report = measure_impacts(focus, {name(p): load(p) for p in opponent_paths(args.opponents, format=deck_format(focus))}, args.cards, top=args.top, games=args.games,
+        opponents = {name(p): load(p) for p in opponent_paths(args.opponents, format=deck_format(focus))}
+        report = measure_impacts(focus, opponents, args.cards, top=args.top, games=args.games,
                                  pod=args.pod, seed=args.seed, max_turns=args.max_turns, time_limit=args.time_limit, workers=args.workers,
                                  goldfish_games=args.goldfish_games, progress=lambda m: print(m, file=sys.stderr, flush=True),
                                  early_stop=args.early_stop, target=args.target)
     except (CardNotFound, ValueError, OSError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 2
+    if note := house_rules(args).note([focus, *opponents.values()], format_of([focus])):  # #528
+        print(note)
     print(format_impacts(report))
     return 0
 

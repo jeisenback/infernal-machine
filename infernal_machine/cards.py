@@ -36,6 +36,7 @@ class Card:
     legal: tuple[str, ...] | None = None  # the formats Scryfall's `legalities` mark "legal" or "restricted" (its names: "commander",
     #   "standard", "duel", "pioneer", ...); None: no legality data (a card made by hand), legal in every format. See `legal_in`.
     restricted: tuple[str, ...] = ()  # the formats that allow one copy of it (Vintage's restricted list)
+    banned: tuple[str, ...] = ()  # the formats that ban it (not those whose pool it is outside); house rules can let these in (#528)
     game_changer: bool = False  # on Scryfall's Commander Game Changers list (Commander Brackets)
     scryfall_id: str | None = None
     back: "Card | None" = None  # a modal double-faced card's land back face, which can be played instead (Pathways)
@@ -145,7 +146,7 @@ class Card:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Card":
-        tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity", "produced_mana", "restricted")}
+        tuples = {key: tuple(data.get(key, ())) for key in ("colors", "color_identity", "produced_mana", "restricted", "banned")}
         if data.get("legal") is not None:
             tuples["legal"] = tuple(data["legal"])
         back = cls.from_dict(data["back"]) if data.get("back") else None
@@ -159,10 +160,11 @@ class Card:
 
 
 def _legalities(data: dict) -> dict:
-    """`legal` and `restricted` from a Scryfall card's `legalities` (every face shares the card's)."""
+    """`legal`, `restricted` and `banned` from a Scryfall card's `legalities` (every face shares the card's)."""
     given = data.get("legalities", {})
     return {"legal": tuple(sorted(f for f, status in given.items() if status in ("legal", "restricted"))),
-            "restricted": tuple(sorted(f for f, status in given.items() if status == "restricted"))}
+            "restricted": tuple(sorted(f for f, status in given.items() if status == "restricted")),
+            "banned": tuple(sorted(f for f, status in given.items() if status == "banned"))}
 
 
 def _mana_value(cost: str) -> float:
@@ -297,7 +299,7 @@ def _match_requested(wanted: list[str], found: dict[str, Card]) -> dict[str, Car
     return result
 
 
-CARD_FORMAT = 7  # bumped whenever Card gains a field, so a card file saved earlier is fetched again instead of read with that field's default
+CARD_FORMAT = 8  # bumped whenever Card gains a field, so a card file saved earlier is fetched again instead of read with that field's default
 
 
 class CachedSource:

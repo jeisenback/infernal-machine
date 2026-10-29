@@ -15,7 +15,7 @@ from .cards import Deck
 from .commander import copy_limit
 
 
-def deck_problems(deck: Deck, size: int = 60, legality: str = "oathbreaker", label: str = "Oathbreaker") -> list[str]:
+def deck_problems(deck: Deck, size: int = 60, legality: str = "oathbreaker", label: str = "Oathbreaker", allow: frozenset[str] = frozenset()) -> list[str]:
     """Every Oathbreaker rule the deck breaks; an empty list means it is legal."""
     problems: list[str] = []
     signature = deck.signature_spell
@@ -38,6 +38,6 @@ def deck_problems(deck: Deck, size: int = 60, legality: str = "oathbreaker", lab
             problems.append(f"{card.name}: {counts[card.name]} copies, limit is {limit}")
         if outside := set(card.color_identity) - identity:
             problems.append(f"{card.name} is outside the Oathbreaker's color identity ({''.join(sorted(outside))})")
-        if not card.legal_in(legality):
+        if not card.legal_in(legality) and card.name not in allow:  # `allow`: house rules (#528)
             problems.append(f"{card.name} is not legal in {label}")
     return problems

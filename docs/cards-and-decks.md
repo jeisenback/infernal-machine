@@ -192,6 +192,27 @@ no mulligan is free (CR 103.5c).
   before this field existed are fetched again (see "The card caches" below). How much of each format's pool plays is
   `tools/coverage_audit.py --format NAME`.
 
+## House rules
+
+A casual table plays cards its format bans: Mana Crypt or Dockside Extortionist in Commander, a rotated card in Standard. Every tool
+that takes `--format` (`matchup`, `compare`, `impact`, `analyze`), the server and `tune` take two flags for that (`formats.HouseRules`):
+
+- `--allow NAME`: play this card although the format does not allow it. Repeat it, or give a comma list (`--allow "Mana Crypt,Jeweled Lotus"`).
+- `--allow-banned`: play any card the format bans, which is what a casual table usually means. A card outside the format's pool
+  (a silver-border card, an Alchemy card in paper) is not banned, so it still needs `--allow` by name. Scryfall's `banned` status is kept
+  on each card for this (`Card.banned`).
+
+A card let in this way is only excused its legality: copies, deck size, the singleton rule and color identity still hold for it
+(`formats.deck_problems(deck, fmt, house)`, and the Commander, Oathbreaker and companion checks under it). A report or a game that
+played such a card says so and names it, "Includes cards not legal in Commander, played under house rules: Mana Crypt.", since its
+numbers are not those of a legal deck: `analyze` puts it in the report's settings line (markdown and HTML), `matchup`, `compare`,
+`impact` and `tune` print it above their tables, and the server logs it as the game starts. `tune --try "Mana Crypt" --allow-banned`
+tries a banned candidate instead of skipping it. The Commander Bracket is not changed by the flags: it rates the cards as it always
+does. `matchup`, `compare`, `impact` and `analyze` do not check legality at all, so for them the flags only decide what the note names.
+
+The flags only matter for a card the engine plays. Mana Crypt, the usual example, is not fully playable yet: its upkeep coin flip is
+unread (`python tools/explain_card.py "Mana Crypt"`). A saved deck cannot carry its own house rules yet: the flags cover a run.
+
 ## The card caches
 
 Cards are looked up through one of two cache files, both under `.cache/` and both safe to delete:

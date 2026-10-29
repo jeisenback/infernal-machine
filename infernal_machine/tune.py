@@ -26,7 +26,7 @@ from .brackets import BracketReport, analyze, bracket_floor, is_mass_land_denial
 from .cards import Card, Deck
 from .combos import Combo, SpellbookSource
 from .commander import copy_limit
-from .formats import FORMATS, STANDARD
+from .formats import COMMANDER, FORMATS, NO_HOUSE_RULES, STANDARD, HouseRules, add_house_rules_arguments, format_of, house_rules
 from .manabase import ManaBase, analyze_mana_base, format_mana_base
 from .report import unplayable_cards, unplayable_note, unsupported_lines
 from .simulate import game_value, play_game, play_games
@@ -93,22 +93,23 @@ def combo_suggestions(deck: Deck, almost: list[Combo], limit: int = 10) -> list[
     return [ComboSuggestion(name, sorted(combos, key=lambda c: (-c.popularity, c.label()))) for name, combos in ranked[:limit]]
 
 
-def candidate_problem(deck: Deck, card: Card) -> str | None:
+def candidate_problem(deck: Deck, card: Card, house: HouseRules = NO_HOUSE_RULES) -> str | None:
     """Why `card` can't be swapped into `deck`, or None. A Commander deck (one with a commander) needs the card inside the
     commander's color identity, legal in Commander, and not past its copy limit (singleton, so a card already in it is out).
     A deck with no commander is a constructed deck (Standard unless it names another format): the card must be legal in its format
-    and under four copies in main and sideboard (one for a card on Vintage's restricted list)."""
+    and under four copies in main and sideboard (one for a card on Vintage's restricted list). A card `house` lets in (#528) may be
+    illegal in the format; the other rules still hold for it."""
     in_deck = sum(1 for c in deck.main + deck.commanders + deck.sideboard if c.name == card.name)
     if not deck.commanders:  # a constructed deck: legal in its format, and the sideboard counts toward the four copies
         fmt = FORMATS.get(deck.format, STANDARD)
-        if not card.legal_in(fmt.legality):
+        if not card.legal_in(fmt.legality) and not house.permits(card, fmt):
             return f"not legal in {fmt.label}"
         limit = 1 if fmt.legality in card.restricted else copy_limit(card, fmt.copy_limit)
         return None if limit is None or in_deck < limit else f"already at {limit} copies"
     identity = {color for c in deck.commanders for color in c.color_identity}
     if set(card.color_identity) - identity:
         return f"outside the commander's color identity ({''.join(sorted(set(card.color_identity) - identity))})"
-    if not card.legal_in("commander"):
+    if not card.legal_in("commander") and not house.permits(card, COMMANDER):
         return "not legal in Commander"
     limit = copy_limit(card)
     if limit is not None and in_deck >= limit:
@@ -159,7 +160,7 @@ def _deltas(deck: Deck, changed: Deck, base: list[dict], games: int, turns: int,
 
 
 def tune(deck: Deck, games: int = 500, turns: int = 8, seed: int = 0, candidates: list[Card] | None = None,
-         on_the_play: bool = False, free_mulligan: bool | None = None) -> TuningReport:
+         on_the_play: bool = False, free_mulligan: bool | None = None, house: HouseRules = NO_HOUSE_RULES) -> TuningReport:
     if free_mulligan is None:
         free_mulligan = bool(deck.commanders)
     unplayable = unplayable_cards(deck)
@@ -199,7 +200,7 @@ def tune(deck: Deck, games: int = 500, turns: int = 8, seed: int = 0, candidates
     baseline = sum(game_value(run) for run in base) / games
     legal, skipped = [], []
     for card in candidates or []:
-        problem = candidate_problem(deck, card)
+        problem = candidate_problem(deck, card, house)
         (skipped.append((card.name, problem)) if problem else legal.append(card))
     swaps = _swap_candidates(deck, impacts, legal, seen_in, *args)
     return TuningReport(games, turns, round(baseline, 2), impacts, _land_sweep(deck, impacts, *args), swaps, skipped,
@@ -333,9 +334,11 @@ def main(argv: list[str], source=None, spellbook: SpellbookSource | None = None)
     parser.add_argument("--try", dest="candidates", action="append", default=[], metavar="CARD", help="a card to test in the weakest slot")
     parser.add_argument("--suggest-combos", type=int, nargs="?", const=10, default=None, metavar="N",
                         help="also try the N cards (default 10) that would complete the most combos the deck is one card from (Commander Spellbook)")
+    add_house_rules_arguments(parser)
     parser.add_argument("--bulk", default=".cache/oracle_bulk.json")
     args = parser.parse_args(argv[1:])
     source = source or BulkSource(args.bulk)
+    house = house_rules(args)
     with open(args.decklist, encoding="utf-8") as f:
         deck = load_deck(f.read(), source)
     try:
@@ -362,9 +365,12 @@ def main(argv: list[str], source=None, spellbook: SpellbookSource | None = None)
                 candidates.append(source.get(suggestion.card))
             except CardNotFound:
                 unknown.append((suggestion.card, "not in the card data"))
-    report = tune(deck, args.games, args.turns, args.seed, candidates, args.play)
+    report = tune(deck, args.games, args.turns, args.seed, candidates, args.play, house=house)
     report.suggestions = suggestions
     report.skipped += unknown
+    tried = [card for card in candidates if not any(name == card.name for name, _ in report.skipped)]
+    if note := house.note([deck, Deck([], tried, [])], format_of([deck])):
+        print(note)
     print(format_tuning(report))
     return 0
 
