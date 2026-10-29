@@ -132,6 +132,21 @@ class ExileGraveyard:
 
 
 @dataclass(frozen=True)
+class TargetExiles:
+    """ "Target opponent exiles a creature they control and their graveyard." (Strategic Betrayal): the player chooses the
+    creature, as for an edict, so hexproof and indestructible don't help; with none, the graveyard still goes."""
+    target: str  # "player" or "opponent"
+    kind: str = "creature"
+    graveyard: bool = False  # "... and their graveyard"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_chosen(target, self.kind)
+            if self.graveyard:
+                game.exile_graveyard(target)
+
+
+@dataclass(frozen=True)
 class PlayExiledCard:
     """A Hideaway land's "You may play the exiled card without paying its mana cost if <condition>." The condition is
     checked as the ability resolves."""

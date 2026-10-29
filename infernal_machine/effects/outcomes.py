@@ -217,6 +217,7 @@ from .families.exile_and_return import (  # noqa: F401
     ExileEnchanted,
     ExileFromGraveyard,
     ExileGraveyard,
+    TargetExiles,
     ExileInstead,
     ExileOwnGraveyard,
     ExileTargetIfDies,
@@ -2203,6 +2204,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"target (player|opponent) sacrifices a creature with the greatest power among creatures they control\.", re.I),
      lambda m: TargetSacrifices(m[1].lower(), greatest=True)),
     (re.compile(r"exile target player's graveyard\.", re.I), lambda m: ExileGraveyard()),
+    (re.compile(rf"target (player|opponent) exiles an? {_SACRIFICE_KIND} they control( and their graveyard)?\.", re.I),  # Strategic Betrayal
+     lambda m: TargetExiles(m[1].lower(), m[2].lower(), graveyard=bool(m[3]))),
     (re.compile(rf"put a ({_COUNTER}) on each of up to (two|three) target creatures\.", re.I),  # Elegant Rotunda
      lambda m: [PutCounters(1, _counter_name(m[2]), "creature", optional_target=True, distinct=n > 0) for n in range(_number(m[3]))]),
     (re.compile(rf"put {_N} {_COUNTER} on up to one target creature\.", re.I),  # Gideon, Ally of Zendikar's kin: a loyalty ability may pick no one

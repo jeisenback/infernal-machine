@@ -706,6 +706,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     mana cost" (Rishkar's Expertise); "Non-Human creatures you control get +3/+3"; "Until end of turn, creatures you control gain
     trample and get +X/+X"; "Return target spell or nonland permanent an opponent controls to its owner's hand"; and a mode named
     in front of its text ("\u2022 Sell Contraband \u2014 Create a Treasure token") reads as the mode itself.
+  - "Target opponent exiles a creature they control and their graveyard." (Strategic Betrayal; `TargetExiles`, `Game.exile_chosen`):
+    the opponent chooses the creature, as for an edict, so hexproof and indestructible don't help; with no creature the graveyard
+    still goes. "Target player exiles a <kind> they control" reads for the sacrifice kinds. End of the Hunt's "with the greatest
+    mana value" form is not read yet.
   - Earthbend N (`Earthbend`, `Game.earthbend`; Ba Sing Se, Earthbending Lesson, Earth Village Ruffians, Haru, Rebellious Captives):
     target land you control becomes a 0/0 creature with haste that's still a land, for good (the animation outlasts the turn, unlike a
     crewed Vehicle's), and gets N +1/+1 counters; when it dies or is exiled it returns to the battlefield tapped as a land again
