@@ -80,9 +80,9 @@ class DeckRulesTests(unittest.TestCase):
         self.assertIn("Sig Spell is outside the Oathbreaker's color identity (R)", self.problems(off_sig))
 
     def test_cards_must_be_legal_in_oathbreaker(self):
-        banned = dataclasses.replace(BEAR, name="Banned Cub", oathbreaker_legal=False)
+        banned = dataclasses.replace(BEAR, name="Banned Cub", legal=("commander",))
         self.assertEqual(self.problems(oath_deck(main=[banned] + [FOREST] * 57)), ["Banned Cub is not legal in Oathbreaker"])
-        banned_sig = dataclasses.replace(SIG, oathbreaker_legal=False)
+        banned_sig = dataclasses.replace(SIG, legal=("commander",))
         self.assertEqual(self.problems(oath_deck(signature=banned_sig)), ["Sig Spell is not legal in Oathbreaker"])
 
 
@@ -95,12 +95,12 @@ class CardTests(unittest.TestCase):
                     "card_faces": [{"name": "Front", "mana_cost": "{R}", "type_line": "Creature — Imp", "oracle_text": "", "power": "1", "toughness": "1"},
                                    {"name": "Back", "mana_cost": "{R}", "type_line": back_type, "oracle_text": "", "colors": ["R"]}]}
         plain = {"name": "Cub", "type_line": "Creature", "cmc": 0, "legalities": banned}
-        self.assertFalse(Card.from_scryfall(plain).oathbreaker_legal)
-        self.assertTrue(Card.from_scryfall({**plain, "legalities": {"oathbreaker": "legal"}}).oathbreaker_legal)
-        self.assertFalse(Card.from_scryfall(faces("modal_dfc", "Land")).back.oathbreaker_legal)
-        self.assertFalse(Card.from_scryfall(faces("prepare")).prepare.oathbreaker_legal)
-        self.assertFalse(Card.from_scryfall(faces("transform", "Creature — Imp")).flip.oathbreaker_legal)
-        self.assertFalse(Card.from_scryfall(faces("adventure")).alternate.oathbreaker_legal)
+        self.assertFalse(Card.from_scryfall(plain).legal_in("oathbreaker"))
+        self.assertTrue(Card.from_scryfall({**plain, "legalities": {"oathbreaker": "legal"}}).legal_in("oathbreaker"))
+        self.assertFalse(Card.from_scryfall(faces("modal_dfc", "Land")).back.legal_in("oathbreaker"))
+        self.assertFalse(Card.from_scryfall(faces("prepare")).prepare.legal_in("oathbreaker"))
+        self.assertFalse(Card.from_scryfall(faces("transform", "Creature — Imp")).flip.legal_in("oathbreaker"))
+        self.assertFalse(Card.from_scryfall(faces("adventure")).alternate.legal_in("oathbreaker"))
         self.assertGreaterEqual(CARD_FORMAT, 6)
 
 

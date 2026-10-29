@@ -47,7 +47,7 @@ class DeckProblemsTests(unittest.TestCase):
         self.assertEqual(problems, ["Lightning Bolt is outside the commander's color identity (R)"])
 
     def test_banned_card(self):
-        banned = Card(name="Mana Crypt", type_line="Artifact", commander_legal=False)
+        banned = Card(name="Mana Crypt", type_line="Artifact", legal=())
         self.assertEqual(deck_problems(deck([legend("Omnath", "G")], banned)), ["Mana Crypt is not legal in Commander"])
 
     def test_partners_combine_identity(self):

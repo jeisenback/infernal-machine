@@ -131,7 +131,7 @@ class FormatRuleTests(unittest.TestCase):
         self.assertTrue(any("singleton" in p for p in deck_problems(twice, COMMANDER)))
 
     def test_it_must_be_legal_in_the_format(self):
-        banned = dataclasses.replace(KERUGA, color_identity=("G",), duel_legal=False)
+        banned = dataclasses.replace(KERUGA, color_identity=("G",), legal=("commander",))
         self.assertEqual(deck_problems(self.commander_deck(banned), COMMANDER), [])
         self.assertIn("Keruga, the Macrosage is not legal in Duel Commander", deck_problems(self.commander_deck(banned), DUEL_COMMANDER))
 

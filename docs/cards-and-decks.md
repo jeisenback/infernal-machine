@@ -107,20 +107,20 @@ The same checks, with each format's own numbers, through `formats.deck_problems(
 | Duel Commander | 100 | 20 | **15** | Duel Commander (its own banned list) | as Commander |
 | Oathbreaker | 60 | 20 | **none** | Oathbreaker (its own banned list) | any planeswalker, plus a signature spell |
 
-A deck says which format it is played in with `Deck.format` (`formats.with_format(deck, "brawl")`, or `--format brawl|duel|commander|standard`
-on `matchup`, `compare`, `impact` and `analyze`). One that does not is Commander if it has a commander and Standard if it does not:
+A deck says which format it is played in with `Deck.format` (`formats.with_format(deck, "brawl")`, or `--format NAME` with any name in
+`formats.FORMATS` on `matchup`, `compare`, `impact` and `analyze`). One that does not is Commander if it has a commander and Standard if it does not:
 Brawl and Oathbreaker are 60 cards and Duel Commander has Commander's 100, so none of them can be told from its shape and all are asked for
 by name. Every deck
 at a table must be in the same format, and a Brawl or Duel Commander deck must have a commander. The game uses the format's starting
 life and commander-damage limit (the bot is told the limit and aims its commander by it); the Commander Brackets are Commander's, so
-`analyze` leaves that section out for the others. Duel legality comes from Scryfall's `duel` legality, kept on each card as `duel_legal`
-(so the card file was fetched again when it was added). There are no saved Brawl or Duel Commander decks to play against by default:
+`analyze` leaves that section out for the others. Duel legality comes from Scryfall's `duel` legality, kept on each card with the rest in `Card.legal`
+(see "Constructed formats" below). There are no saved Brawl or Duel Commander decks to play against by default:
 name opponents.
 
 **Oathbreaker** (`oathbreaker.py`). A deck is 60 cards: an Oathbreaker (any planeswalker, in `Deck.commanders`), a signature spell
 (an instant or sorcery, in `Deck.signature_spell`; decklist sections `Oathbreaker` and `Signature Spell`) and 58 others, singleton, all in
-the Oathbreaker's color identity, signature spell included, and legal in Oathbreaker (`Card.oathbreaker_legal`, Scryfall's `oathbreaker`
-legality, so `CARD_FORMAT` is 6). In the game both start in the command zone and work like a commander: two more to cast for each earlier
+the Oathbreaker's color identity, signature spell included, and legal in Oathbreaker (`Card.legal_in("oathbreaker")`, Scryfall's `oathbreaker`
+legality). In the game both start in the command zone and work like a commander: two more to cast for each earlier
 cast, and back to the command zone instead of the graveyard, exile, hand or library. The signature spell is offered only while its owner
 controls their Oathbreaker (a permanent of that name), at the timing its type gives. There is no commander damage: nothing is recorded and the
 seats are told no limit. The bot casts the Oathbreaker first like a commander, and the signature spell like any other spell, so it holds
@@ -154,16 +154,29 @@ stats.land_count, stats.average_mana_value, stats.curve, stats.color_pips
 - `average_mana_value` also leaves out lands.
 - `color_pips` counts colored mana symbols across all costs. Hybrid symbols count toward both colors.
 
-## Standard
+## Constructed formats
 
-The engine plays Standard as well as Commander. A format (`formats.py`: `COMMANDER`, `STANDARD`) sets the starting life, the deck
-size and the copy limit; `Game(seats, seed, format=STANDARD)` starts at 20 life with no command zone, commander tax or commander
+The engine plays Standard, Pioneer, Modern, Legacy, Vintage and Pauper as well as Commander. They share Standard's rules and differ in
+which cards are legal:
+
+| | cards | sideboard | copies | life | a card must be legal in |
+|---|---|---|---|---|---|
+| Standard | 60 or more | up to 15 | 4 | 20 | Standard |
+| Pioneer | 60 or more | up to 15 | 4 | 20 | Pioneer |
+| Modern | 60 or more | up to 15 | 4 | 20 | Modern |
+| Legacy | 60 or more | up to 15 | 4 | 20 | Legacy |
+| Vintage | 60 or more | up to 15 | 4, **1** of a restricted card | 20 | Vintage (legal or restricted) |
+| Pauper | 60 or more | up to 15 | 4 | 20 | Pauper |
+
+A deck with no commander is Standard unless it names another (`--format pioneer`, `with_format`). A format (`formats.py`:
+`COMMANDER`, `STANDARD`, `PIONEER`, ...) sets the starting life, the deck size and the copy limit; `Game(seats, seed, format=STANDARD)` starts at 20 life with no command zone, commander tax or commander
 damage. A two-player game already follows the two-player rules: the player who goes first skips their first draw (CR 103.8a) and
 no mulligan is free (CR 103.5c).
 
-- **Deck rules (`formats.deck_problems(deck, STANDARD)`):** at least 60 cards in the main deck, at most 15 in the sideboard, no more
+- **Deck rules (`formats.deck_problems(deck, fmt)`):** at least 60 cards in the main deck, at most 15 in the sideboard, no more
   than four copies of a card counting the sideboard (basic lands, and cards that say "a deck can have any number of cards named",
-  have no limit), every card Standard-legal on Scryfall (`Card.standard_legal`), and no commander. Commander decks are checked as before.
+  have no limit; in Vintage one copy of a card on its restricted list), every card legal in the format on Scryfall
+  (`Card.legal_in(fmt.legality)`), and no commander. Commander decks are checked as before. `tune` holds its candidates to the same rules.
 - **Which format a table plays:** `format_of(decks)` is Commander if every deck has a commander and Standard if none does; mixing the
   two is an error. `matchups` and the simulation tools use it, so a 60-card list with no commander goes through `simulate`, `tune`
   and `matchup` as it is.
@@ -173,8 +186,11 @@ no mulligan is free (CR 103.5c).
   started a drawn game starting again (CR 103.2: the chooser plays, and after a draw chooses again). The sideboarding rule is measured,
   not assumed (`play_match(..., sideboarding=(True, False))` has one side keep its deck): on the five gauntlet baselines, 80 matches with
   one side sideboarding went 40-40 against 37-42-1 with neither, no effect to speak of between decks that alike.
-- **The ban list** is Scryfall's `legalities.standard`: a banned card reads "not legal", like a rotated one, and nothing else follows
-  rotation. Cached cards from before this field existed are fetched again (see "The card caches" below).
+- **Legality** is Scryfall's `legalities`: `Card.legal` keeps the formats it marks "legal" or "restricted", and `Card.restricted` the
+  ones that allow a single copy (Vintage's restricted list). A banned card is not legal, like a rotated one, and nothing else follows
+  rotation or the ban lists. A card made by hand, with no legality data (`legal` is None), is legal in every format. Cached cards from
+  before this field existed are fetched again (see "The card caches" below). How much of each format's pool plays is
+  `tools/coverage_audit.py --format NAME`.
 
 ## The card caches
 
@@ -183,8 +199,8 @@ Cards are looked up through one of two cache files, both under `.cache/` and bot
 - `oracle_bulk.json` (`BulkSource`): Scryfall's bulk Oracle Cards data, downloaded once and refreshed after a week.
 - `cards.json` (`CachedSource`, the server's default): the cards fetched one by one from the Scryfall API.
 
-Each file records `CARD_FORMAT`, the version of the `Card` fields. When the engine adds a field to `Card` (Standard legality, Game
-Changers) it bumps that number, and a file saved in another format, or the older bare mapping with no format at all, is fetched
+Each file records `CARD_FORMAT`, the version of the `Card` fields. When the engine adds a field to `Card` (the formats a card is legal
+in, Game Changers) it bumps that number, and a file saved in another format, or the older bare mapping with no format at all, is fetched
 again the next time a card is needed, rather than loaded with the new field's default (which would call every old card legal in
 Standard and no card a Game Changer). Nothing is lost but one round of lookups; offline play works from the files that are current.
 `examples/demo_cards.json` is a hand-made cache of this kind that ships with the repository for offline games.

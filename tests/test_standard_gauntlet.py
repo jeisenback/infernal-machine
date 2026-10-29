@@ -106,7 +106,7 @@ class CheckAndAddTests(unittest.TestCase):
         self.dir = self._dir.name
         self.good = creature("Good Bear", "{1}{G}", 2, 2)
         self.odd = creature("Odd Bear", "{G}", 1, 1, "Frobnicate the quuxes.")
-        self.old = creature("Old Bear", "{G}", 1, 1, standard_legal=False)
+        self.old = creature("Old Bear", "{G}", 1, 1, legal=("commander",))
         self.bulk = bulk(self.dir, [FOREST, BOSS, self.good, self.odd, self.old])
         self.manifest = os.path.join(self.dir, "gauntlet.json")
         os.makedirs(os.path.join(self.dir, "gauntlet"))
@@ -205,7 +205,7 @@ class RecipeTests(unittest.TestCase):
     def test_cards_that_do_not_fit_are_left_out(self):
         odd = [creature("Legend", "{1}{G}", 3, 3, type_line="Legendary Creature — Elf"),
                creature("Unreadable", "{G}", 1, 1, "Frobnicate the quuxes."),
-               creature("Old", "{G}", 1, 1, standard_legal=False),
+               creature("Old", "{G}", 1, 1, legal=("commander",)),
                creature("Pair // Twin", "{G}", 1, 1),
                creature("Wall", "{1}{G}", 0, 4),
                creature("Huge", "{6}{G}", 8, 8),

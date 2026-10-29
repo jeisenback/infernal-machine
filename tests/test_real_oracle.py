@@ -109,7 +109,7 @@ class ScryfallDataTests(unittest.TestCase):
         self.assertEqual((card.back.name, card.back.type_line, card.back.oracle_text),
                          ("Lavaglide Pathway", "Land", "{T}: Add {R}."))
         self.assertEqual(card.back.produced_mana, ("R",))
-        self.assertTrue(card.commander_legal)
+        self.assertTrue(card.legal_in("commander"))
         self.assertEqual(card.color_identity, ("R", "U"))
 
 

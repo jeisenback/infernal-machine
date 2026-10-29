@@ -26,7 +26,7 @@ from .brackets import BracketReport, analyze, bracket_floor, is_mass_land_denial
 from .cards import Card, Deck
 from .combos import Combo, SpellbookSource
 from .commander import copy_limit
-from .formats import STANDARD
+from .formats import FORMATS, STANDARD
 from .manabase import ManaBase, analyze_mana_base, format_mana_base
 from .report import unplayable_cards, unplayable_note, unsupported_lines
 from .simulate import game_value, play_game, play_games
@@ -96,17 +96,19 @@ def combo_suggestions(deck: Deck, almost: list[Combo], limit: int = 10) -> list[
 def candidate_problem(deck: Deck, card: Card) -> str | None:
     """Why `card` can't be swapped into `deck`, or None. A Commander deck (one with a commander) needs the card inside the
     commander's color identity, legal in Commander, and not past its copy limit (singleton, so a card already in it is out).
-    A deck with no commander is a Standard deck: the card must be Standard-legal and under four copies in main and sideboard."""
+    A deck with no commander is a constructed deck (Standard unless it names another format): the card must be legal in its format
+    and under four copies in main and sideboard (one for a card on Vintage's restricted list)."""
     in_deck = sum(1 for c in deck.main + deck.commanders + deck.sideboard if c.name == card.name)
-    if not deck.commanders:  # a Standard deck: legal in Standard, and the sideboard counts toward the four copies
-        if not card.standard_legal:
-            return "not legal in Standard"
-        limit = copy_limit(card, STANDARD.copy_limit)
+    if not deck.commanders:  # a constructed deck: legal in its format, and the sideboard counts toward the four copies
+        fmt = FORMATS.get(deck.format, STANDARD)
+        if not card.legal_in(fmt.legality):
+            return f"not legal in {fmt.label}"
+        limit = 1 if fmt.legality in card.restricted else copy_limit(card, fmt.copy_limit)
         return None if limit is None or in_deck < limit else f"already at {limit} copies"
     identity = {color for c in deck.commanders for color in c.color_identity}
     if set(card.color_identity) - identity:
         return f"outside the commander's color identity ({''.join(sorted(set(card.color_identity) - identity))})"
-    if not card.commander_legal:
+    if not card.legal_in("commander"):
         return "not legal in Commander"
     limit = copy_limit(card)
     if limit is not None and in_deck >= limit:

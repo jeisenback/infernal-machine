@@ -63,7 +63,7 @@ class TuneTests(unittest.TestCase):
     def test_a_commander_deck_only_tries_legal_candidates(self):
         green = Card(name="Green Boss", mana_cost="{G}", cmc=1, type_line="Legendary Creature — Elf", color_identity=("G",))
         off_color = Card(name="Blue Bear", mana_cost="{1}{U}", cmc=2, type_line="Creature — Bear", power="2", toughness="2", color_identity=("U",))
-        banned = Card(name="Banned Bear", mana_cost="{1}{G}", cmc=2, type_line="Creature — Bear", power="2", toughness="2", color_identity=("G",), commander_legal=False)
+        banned = Card(name="Banned Bear", mana_cost="{1}{G}", cmc=2, type_line="Creature — Bear", power="2", toughness="2", color_identity=("G",), legal=())
         fine = Card(name="Fine Bear", mana_cost="{1}{G}", cmc=2, type_line="Creature — Bear", power="2", toughness="2", color_identity=("G",))
         report = tune(deck(*[FOREST] * 40, *[BEAR] * 59, commanders=[green]), games=30, turns=4, seed=1, candidates=[off_color, banned, fine, BEAR])
         self.assertEqual([n for n, _, _ in report.swaps], ["Fine Bear"])

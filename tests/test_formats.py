@@ -37,7 +37,7 @@ class FormatTests(unittest.TestCase):
         self.assertEqual((STANDARD.life, STANDARD.min_deck, STANDARD.commander), (20, 60, False))
         self.assertEqual((BRAWL.life, BRAWL.min_deck, BRAWL.commander_damage, BRAWL.multiplayer_life), (25, 60, 21, 30))
         self.assertEqual((DUEL_COMMANDER.life, DUEL_COMMANDER.min_deck, DUEL_COMMANDER.commander_damage), (20, 100, 15))
-        self.assertEqual(sorted(FORMATS), ["brawl", "commander", "duel", "oathbreaker", "standard"])
+        self.assertEqual(sorted(FORMATS), ["brawl", "commander", "duel", "legacy", "modern", "oathbreaker", "pauper", "pioneer", "standard", "vintage"])
 
     def test_brawl_has_more_life_with_more_players(self):
         self.assertEqual([BRAWL.starting_life(n) for n in (2, 3, 4)], [25, 30, 30])
@@ -77,9 +77,9 @@ class FormatOfTests(unittest.TestCase):
 
     def test_an_unknown_format_is_an_error(self):
         with self.assertRaises(ValueError):
-            format_of([commander_deck(60, fmt="pauper")])
+            format_of([commander_deck(60, fmt="vanguard")])
         with self.assertRaises(ValueError):
-            with_format(commander_deck(60), "pauper")
+            with_format(commander_deck(60), "vanguard")
 
     def test_with_format(self):
         deck = commander_deck(60)
@@ -103,7 +103,7 @@ class DeckRulesTests(unittest.TestCase):
         self.assertIn("Plain Walker can't be your commander", deck_problems(commander_deck(60, PLAIN_WALKER), BRAWL), "it must be legendary")
 
     def test_brawl_cards_must_be_standard_legal(self):
-        old = dataclasses.replace(GREEN_BEAR, name="Old Cub", standard_legal=False)
+        old = dataclasses.replace(GREEN_BEAR, name="Old Cub", legal=("commander",))
         problems = deck_problems(commander_deck(60, extra=[old]), BRAWL)
         self.assertEqual(problems, ["Old Cub is not legal in Brawl"])
         self.assertEqual(deck_problems(commander_deck(100, extra=[old]), COMMANDER), [], "Commander does not care")
@@ -116,7 +116,7 @@ class DeckRulesTests(unittest.TestCase):
         self.assertTrue(any("outside the commander's color identity" in p for p in deck_problems(commander_deck(100, extra=[RED_BEAR]), DUEL_COMMANDER)))
 
     def test_duel_commander_is_a_hundred_cards_with_its_own_banned_list(self):
-        banned = dataclasses.replace(GREEN_BEAR, name="Banned Cub", duel_legal=False)
+        banned = dataclasses.replace(GREEN_BEAR, name="Banned Cub", legal=("commander",))
         self.assertEqual(deck_problems(commander_deck(100), DUEL_COMMANDER), [])
         self.assertEqual(deck_problems(commander_deck(100, extra=[banned]), DUEL_COMMANDER), ["Banned Cub is not legal in Duel Commander"])
         self.assertEqual(deck_problems(commander_deck(100, extra=[banned]), COMMANDER), [], "legal in Commander, banned in Duel Commander")
@@ -125,15 +125,15 @@ class DeckRulesTests(unittest.TestCase):
     def test_commander_proper_is_unchanged(self):
         self.assertEqual(deck_problems(commander_deck(100), COMMANDER), commander.deck_problems(commander_deck(100)))
         self.assertIn("is not legal in Commander", " ".join(deck_problems(
-            commander_deck(100, extra=[dataclasses.replace(GREEN_BEAR, name="Bad", commander_legal=False)]), COMMANDER)))
+            commander_deck(100, extra=[dataclasses.replace(GREEN_BEAR, name="Bad", legal=())]), COMMANDER)))
 
 
 class CardTests(unittest.TestCase):
     def test_duel_legality_is_read_from_scryfall(self):
         base = {"name": "Cub", "type_line": "Creature", "cmc": 0, "legalities": {"commander": "legal", "duel": "banned"}}
-        self.assertFalse(Card.from_scryfall(base).duel_legal)
-        self.assertTrue(Card.from_scryfall({**base, "legalities": {"duel": "legal"}}).duel_legal)
-        self.assertFalse(Card.from_scryfall({**base, "legalities": {}}).duel_legal, "no legality given is not legal, as for the other formats")
+        self.assertFalse(Card.from_scryfall(base).legal_in("duel"))
+        self.assertTrue(Card.from_scryfall({**base, "legalities": {"duel": "legal"}}).legal_in("duel"))
+        self.assertFalse(Card.from_scryfall({**base, "legalities": {}}).legal_in("duel"), "no legality given is not legal, as for the other formats")
 
     def test_every_face_a_card_can_be_played_as_carries_the_legality(self):
         banned = {"commander": "legal", "standard": "legal", "duel": "banned"}
@@ -142,18 +142,18 @@ class CardTests(unittest.TestCase):
             return {"name": "Front // Back", "layout": layout, "cmc": 1, "legalities": banned,
                     "card_faces": [{"name": "Front", "mana_cost": "{R}", "type_line": "Creature — Imp", "oracle_text": "", "power": "1", "toughness": "1"},
                                    {"name": "Back", "mana_cost": "{R}", "type_line": back_type, "oracle_text": "", "colors": ["R"]}]}
-        self.assertFalse(Card.from_scryfall(faces("modal_dfc", "Land")).back.duel_legal, "a modal double-faced card's land back")
-        self.assertFalse(Card.from_scryfall(faces("prepare")).prepare.duel_legal, "the spell half of a prepare card")
-        self.assertFalse(Card.from_scryfall(faces("transform", "Creature — Imp")).flip.duel_legal, "the back of a transforming card")
-        self.assertFalse(Card.from_scryfall(faces("adventure")).alternate.duel_legal, "the adventure of an adventure card")
-        self.assertFalse(Card.from_scryfall(faces("split")).alternate.duel_legal, "the other half of a split card")
+        self.assertFalse(Card.from_scryfall(faces("modal_dfc", "Land")).back.legal_in("duel"), "a modal double-faced card's land back")
+        self.assertFalse(Card.from_scryfall(faces("prepare")).prepare.legal_in("duel"), "the spell half of a prepare card")
+        self.assertFalse(Card.from_scryfall(faces("transform", "Creature — Imp")).flip.legal_in("duel"), "the back of a transforming card")
+        self.assertFalse(Card.from_scryfall(faces("adventure")).alternate.legal_in("duel"), "the adventure of an adventure card")
+        self.assertFalse(Card.from_scryfall(faces("split")).alternate.legal_in("duel"), "the other half of a split card")
         ok = {**faces("adventure"), "legalities": {"duel": "legal"}}
-        self.assertTrue(Card.from_scryfall(ok).alternate.duel_legal)
+        self.assertTrue(Card.from_scryfall(ok).alternate.legal_in("duel"))
 
     def test_the_card_file_format_moved_with_the_new_field(self):
         self.assertGreaterEqual(CARD_FORMAT, 5)
-        card = Card.from_dict(Card(name="X", duel_legal=False).to_dict())
-        self.assertFalse(card.duel_legal)
+        card = Card.from_dict(Card(name="X", legal=("commander",)).to_dict())
+        self.assertFalse(card.legal_in("duel"))
 
 
 class GameTests(unittest.TestCase):

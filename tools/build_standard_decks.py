@@ -4,7 +4,7 @@
 
 These are *baselines*, not the decks anyone plays: one mono-colored deck per color, built by a fixed recipe from the cards the card file
 marks Standard-legal and the engine plays completely (`report.unsupported_lines` empty), so that a Standard deck has something to play
-against by default. They are only as current as the card file's legality data (a card's `standard_legal` comes from Scryfall when the file
+against by default. They are only as current as the card file's legality data (a card's `legal` formats come from Scryfall when the file
 was made), and `gauntlet --check` checks every saved deck against the deck rules and the engine again.
 
 The recipe, per color C: 24 basic lands of C; 36 spells. The creatures are those of one color C (not legendary, no second face), with
@@ -43,7 +43,7 @@ def creature_score(card: Card) -> float:
 
 def candidates(cards: list[Card], color: str) -> tuple[list[Card], list[Card]]:
     """(creatures, removal spells) of one color that fit the recipe, best first."""
-    playable = [c for c in cards if c.standard_legal and not is_land(c) and set(c.colors) == {color} and "Legendary" not in c.type_line
+    playable = [c for c in cards if c.legal_in("standard") and not is_land(c) and set(c.colors) == {color} and "Legendary" not in c.type_line
                 and "//" not in c.name and not unsupported_lines(c)]
     creatures = [c for c in playable if "Creature" in c.type_line and 1 <= c.cmc <= 5 and (c.power or "").isdigit() and int(c.power) >= 1]
     removal = [c for c in playable if ("Instant" in c.type_line or "Sorcery" in c.type_line) and REMOVAL.search(c.oracle_text)]

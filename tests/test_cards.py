@@ -85,8 +85,8 @@ class CardTests(unittest.TestCase):
     def test_from_scryfall_reads_commander_fields(self):
         card = Card.from_scryfall(BOLT)
         self.assertEqual(card.color_identity, ("R",))
-        self.assertTrue(card.commander_legal)
-        self.assertFalse(Card.from_scryfall({**BOLT, "legalities": {"commander": "banned"}}).commander_legal)
+        self.assertTrue(card.legal_in("commander"))
+        self.assertFalse(Card.from_scryfall({**BOLT, "legalities": {"commander": "banned"}}).legal_in("commander"))
 
     def test_round_trips_through_dict(self):
         card = Card.from_scryfall(BOLT)
@@ -142,7 +142,7 @@ class CachedSourceTests(unittest.TestCase):
 class CachedSourceFormatTests(unittest.TestCase):
     """A cache file saved before Card gained a field must be fetched again, not read with that field's default (#373)."""
 
-    OLD_BOLT = {key: value for key, value in Card.from_scryfall(BOLT).to_dict().items() if key != "standard_legal"}  # as saved by an older version
+    OLD_BOLT = {key: value for key, value in Card.from_scryfall(BOLT).to_dict().items() if key != "legal"}  # as saved by an older version
 
     def fetch(self, contents):
         """Look up Lightning Bolt through a cache file holding `contents`; return the card, the number of requests, and the file afterwards."""
@@ -165,13 +165,13 @@ class CachedSourceFormatTests(unittest.TestCase):
     def test_the_old_bare_mapping_is_fetched_again(self):
         card, requests, saved = self.fetch({"lightning bolt": self.OLD_BOLT})
         self.assertEqual(requests, 1)
-        self.assertFalse(card.standard_legal)  # the old entry would have read as legal: its file never said
+        self.assertFalse(card.legal_in("standard"))  # the old entry would have read as legal: its file never said
         self.assertEqual(saved["format"], CARD_FORMAT)
 
     def test_a_file_in_another_format_is_fetched_again(self):
         for other in (CARD_FORMAT - 1, CARD_FORMAT + 1, 0):
             card, requests, saved = self.fetch({"format": other, "cards": {"lightning bolt": self.OLD_BOLT}})
-            self.assertEqual((requests, card.standard_legal, saved["format"]), (1, False, CARD_FORMAT), other)
+            self.assertEqual((requests, card.legal_in("standard"), saved["format"]), (1, False, CARD_FORMAT), other)
 
     def test_a_damaged_cards_entry_is_read_as_empty(self):
         _, requests, _ = self.fetch({"format": CARD_FORMAT, "cards": ["not", "a", "mapping"]})
