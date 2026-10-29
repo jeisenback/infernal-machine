@@ -2900,9 +2900,10 @@ class Game:
                 return options
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
         lesser = self._source_now() if kind.endswith(" with lesser power") else None  # Mentor
+        power_limit = re.search(r" with power (\d+) or less$", kind)  # Escape Tunnel: the creature's power now, counters and pumps included
         wanted = parse_filter(re.sub(r"mana value x\b", lambda m: "mana value %d" % (
             self.x_value if self.resolving_item is not None else self.targeting_x),
-            kind.removesuffix(" that attacked this turn").removesuffix(" with lesser power")))
+            kind.removesuffix(" that attacked this turn").removesuffix(" with lesser power")[:power_limit.start() if power_limit else None]))
         controller = wanted.controller
         for seat in self.live_seats():
             if (controller == "opponent" and seat is caster) or (controller == "you" and seat is not caster):
@@ -2917,6 +2918,8 @@ class Game:
                 if attacked and permanent.attacked_turn != self.turn:
                     continue
                 if kind.endswith(" with lesser power") and (lesser is None or self.power(permanent) >= self.power(lesser)):
+                    continue
+                if power_limit is not None and self.power(permanent) > int(power_limit[1]):
                     continue
                 if not self._in_state(permanent, wanted.state):
                     continue

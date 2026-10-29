@@ -1366,7 +1366,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker|creature or enchantment|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that player controls)?"
-                   r"(?: with mana value (?:\d+ or (?:less|greater)|X))?)")
+                   r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with power \d+ or less)?)")
 
 
 _COPY_TOKEN = re.compile(

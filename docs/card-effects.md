@@ -738,6 +738,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     crewed Vehicle's), and gets N +1/+1 counters; when it dies or is exiled it returns to the battlefield tapped as a land again
     (`Permanent.earthbent`, `RETURN_WHEN_EXILED`). "Earthbend X, where X is ..." and "then earthbend N" in the middle of a sentence
     are not read yet.
+  - "Target creature with power 2 or less" (Escape Tunnel, Ragged Playmate): a target kind may end in "with power N or less";
+    the creature's power as the target is chosen counts (`Game.target_options`), counters and pumps included, so a 2/2 with a
+    +1/+1 counter is not a legal target, and the ability has none if nothing qualifies (CR 115.5).
   - Conditional dual lands (`mana_lines`): "{T}: Add {C}." with "{T}: Add {W} or {U}. Activate only if this land entered this turn or
     if you control a basic land." (Gleaming Bastion, Hidden Lair, Dark Fortress, Gathering Place, Training Compound) read as the
     Verge lands do, one line per condition, so the colors come only while the condition holds; "A or if B" is a `Condition` with

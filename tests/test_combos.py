@@ -8,6 +8,7 @@ import os
 import tempfile
 import unittest
 import urllib.error
+from unittest import mock
 from pathlib import Path
 
 from infernal_machine.analyze import PARTS, analyze_deck, format_analysis
@@ -64,6 +65,24 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(body["commanders"], [{"card": BOSS.name, "quantity": 1}])
         by_name = {entry["card"]: entry["quantity"] for entry in body["main"]}
         self.assertEqual((by_name["Thassa's Oracle"], by_name["Forest"]), (1, 38))
+
+    def test_a_reader_during_a_save_sees_the_old_file_whole(self):
+        # Another process (a bot looking its deck up while the tests run) may read the cache as it is rewritten: the new file is
+        # written beside it and renamed over it, so the old one stays complete until the new one is, and no partial file is left.
+        SpellbookSource(http=FakeHttp(), cache_path=self.path).find(oracle_deck())
+        seen = []
+        dump = json.dump
+
+        def dump_and_peek(data, f, *args, **kwargs):
+            with open(self.path, encoding="utf-8") as current:
+                seen.append(sorted(json.load(current)["decks"]))
+            dump(data, f, *args, **kwargs)
+
+        with mock.patch("infernal_machine.combos.json.dump", dump_and_peek):
+            SpellbookSource(http=FakeHttp(), cache_path=self.path).find(commander_deck(ORACLE))
+        self.assertEqual(seen, [[deck_key(oracle_deck())]])
+        self.assertEqual(sorted(os.listdir(os.path.dirname(self.path))), ["combos.json"])
+        self.assertEqual(len(SpellbookSource(http=FakeHttp(fail=True), cache_path=self.path)._load()), 2)
 
     def test_the_answer_is_read_into_combos(self):
         report = SpellbookSource(http=FakeHttp(), cache_path=self.path).find(oracle_deck())
