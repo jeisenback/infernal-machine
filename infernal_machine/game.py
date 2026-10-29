@@ -31,7 +31,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -131,6 +131,7 @@ DECLINE = "Don't"
 CHOOSE_COLOR_PROMPT = PromptKind("choose_color", "Choose a color for ")  # followed by the card's name; white, blue, black, red, green
 KAROO_PROMPT = PromptKind("karoo", "Return a land or sacrifice ")  # followed by the card's name; the last option is SACRIFICE_IT
 SACRIFICE_IT = "Sacrifice it"
+CHOOSE_LAND_TYPE_PROMPT = PromptKind("choose_land_type", "Choose a basic land type for ")  # followed by the land's name; Plains, Island, Swamp, Mountain, Forest
 CHOOSE_TYPE_PROMPT = PromptKind("choose_type", "Choose a creature type for ")  # followed by the card's name; options are the types, most common first
 _PRIMES = frozenset({2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97})
 CLONE_PROMPT = PromptKind("clone", "Choose what to copy for ")  # followed by the card's name; the last option is NOT_A_COPY
@@ -5613,6 +5614,13 @@ class Game:
                 permanent.real_card = permanent.real_card or permanent.card
                 permanent.card = dataclasses.replace(permanent.card, type_line=f"{head.strip()} \u2014 {tail.strip()} {permanent.chosen_type}"
                                                      if dash else f"{head.strip()} \u2014 {permanent.chosen_type}")
+        if chooses_basic_land_type(permanent.card):  # Multiversal Passage: it is the chosen type and nothing else (CR 305.7), so it
+            types = {"Plains": "W", "Island": "U", "Swamp": "B", "Mountain": "R", "Forest": "G"}  # taps for that color (CR 305.6)
+            chosen = list(types)[seat.player.choose(CHOOSE_LAND_TYPE_PROMPT(permanent.card.name), list(types))]
+            permanent.chosen_type = chosen
+            permanent.real_card = permanent.real_card or permanent.card  # it leaves the battlefield as the printed card
+            permanent.card = dataclasses.replace(permanent.card, type_line=f"{permanent.card.type_line.partition(chr(0x2014))[0].strip()} \u2014 {chosen}",
+                                                 produced_mana=(types[chosen],))
         if chooses_color(permanent.card):
             names = {"White": "W", "Blue": "U", "Black": "B", "Red": "R", "Green": "G"}
             names = {name: letter for name, letter in names.items() if letter != color_choice_excludes(permanent.card)}

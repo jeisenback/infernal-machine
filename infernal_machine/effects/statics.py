@@ -457,8 +457,22 @@ def is_choose_type_line(line: str) -> bool:
 _CHOSEN_SELF = re.compile(r"This (?:creature|artifact|enchantment|land) is the chosen type in addition to its other types\.")
 
 
+_CHOOSE_BASIC_TYPE = re.compile(rf"As this land enters, choose a basic land type\.(?: Then you may pay {_N_FIXED} life\. If you don't, it enters tapped\.)?")
+_CHOSEN_LAND_SELF = re.compile(r"This land is the chosen type\.")  # Multiversal Passage: that type alone, so it taps for its color (CR 305.6)
+
+
+@lru_cache(maxsize=None)
+def chooses_basic_land_type(card: Card) -> bool:
+    """Multiversal Passage: "As this land enters, choose a basic land type." (the shock clause after it is the enters-tapped rule's)."""
+    return any(_CHOOSE_BASIC_TYPE.fullmatch(line) for line in rules_lines(card))
+
+
+def is_choose_basic_type_line(line: str) -> bool:
+    return _CHOOSE_BASIC_TYPE.fullmatch(line) is not None
+
+
 def is_chosen_self_line(line: str) -> bool:
-    return _CHOSEN_SELF.fullmatch(line) is not None
+    return _CHOSEN_SELF.fullmatch(line) is not None or _CHOSEN_LAND_SELF.fullmatch(line) is not None
 
 
 @lru_cache(maxsize=None)
@@ -1366,6 +1380,8 @@ _ENTERS_TAPPED = [
      lambda m: EntersTapped("reveal", types=(m[1].capitalize(), m[2].capitalize()))),
     (re.compile(rf"As {_SELF} enters, you may pay {_N_FIXED} life\. If you don't, it enters tapped\.", re.I),
      lambda m: EntersTapped("shock", life=_number(m[1]))),
+    (re.compile(rf"As this land enters, choose a basic land type\. Then you may pay {_N_FIXED} life\. If you don't, it enters tapped\.", re.I),
+     lambda m: EntersTapped("shock", life=_number(m[1]))),  # Multiversal Passage: the choice is chooses_basic_land_type's
     (re.compile(rf"{_SELF} enters tapped unless you control an? ({_LAND_TYPE})\.", re.I),
      lambda m: EntersTapped("unless_control", types=(m[1].capitalize(),))),
     (re.compile(rf"{_SELF} enters tapped unless you control a planeswalker\.", re.I),
