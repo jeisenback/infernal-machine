@@ -70,6 +70,7 @@ from infernal_machine.coverage import (  # noqa: E402
     analyze_decks,
     baseline_of,
     compare_baseline,
+    deck_share,
 )
 
 SEARCH = "legal:{format} game:paper -t:token -is:funny"  # Scryfall's search for the cards legal in a format
@@ -175,6 +176,15 @@ def render_decks(result: dict, top: int = 15) -> str:
     waiting = [p for p in result["next"] if not p["unlocks"]]
     if waiting and not shown:
         out.append("No single piece of work makes a card playable: every unplayable card needs two or more.")
+    if result.get("weighted"):  # the same order with each deck weighed by its metagame share (#565)
+        weights = ", ".join(f"{name} {weight:g}" for name, weight in result["weights"].items())
+        out += ["", "### The same, weighted by metagame share", "",
+                f"Each deck's cards weigh the share its first line names (a deck without one weighs 1): {weights}.", "",
+                "| # | Piece of work | Share unlocked | Some of the cards | The wording |", "|---|---|---|---|---|"]
+        for i, pick in enumerate([p for p in result["weighted"] if p["unlocks"]][:top], 1):
+            example = pick["example"].replace("|", "/")[:70]
+            family = pick["family"].replace("|", "/")
+            out.append(f"| {i} | {family[:60]} | {pick['unlocks']:g} | {', '.join(pick['cards'][:3])} | {example} |")
     if result["by_kind"]:
         out += ["", "### By kind of text (a card counts under each kind it has)", ""]
         out += [f"- {kind}: {n}" for kind, n in result["by_kind"][:8]]
@@ -281,14 +291,21 @@ def main(argv: list[str]) -> int:
 
         source = BulkSource(args.bulk)
         decks = {}
+        shares: dict[str, float | None] = {}
         for path in args.decks:
             try:
                 with open(path, encoding="utf-8") as f:
-                    decks[os.path.splitext(os.path.basename(path))[0]] = load_deck(f.read(), source)
+                    text = f.read()
+                name = os.path.splitext(os.path.basename(path))[0]
+                decks[name] = load_deck(text, source)
+                shares[name] = deck_share(text)
             except (OSError, ValueError, LookupError) as error:  # a deck that can't be read must never look like a deck with nothing wrong
                 print(f"cannot read the deck {path}: {error}", file=sys.stderr)
                 return 2
-        result = analyze_decks(decks)
+        # The Standard lists name their archetype's metagame share on their first line (#565); the Commander lists have none and keep
+        # the count-based order alone.
+        weights = {name: share or 1.0 for name, share in shares.items()} if any(shares.values()) else None
+        result = analyze_decks(decks, weights)
         print(render_decks(result, args.top))
         if args.json:
             with open(args.json, "w") as f:

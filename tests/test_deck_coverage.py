@@ -101,6 +101,62 @@ class AnalyzeDecksTests(unittest.TestCase):
         self.assertIn("Odd Moon Newt", audit.render_decks(result))
 
 
+HEADER = "// Standard: Dimir Midrange, 10.6% of MTGGoldfish's paper Standard metagame on 2026-10-28. MTGGoldfish deck 7996136.\n"
+
+
+class ShareWeightedTests(unittest.TestCase):
+    """The Standard lists' ranking weighted by each archetype's metagame share, read from the list's first line (#565)."""
+
+    def decks(self):
+        return {"big": deck((FOREST, 10), (MOON_A, 1)), "small": deck((FOREST, 10), (ODD, 3))}
+
+    def test_the_share_is_read_from_the_first_line(self):
+        self.assertEqual(coverage.deck_share(HEADER + "4 Cub\n"), 10.6)
+        self.assertEqual(coverage.deck_share("// Standard: Boros Dwarves, 1% of the metagame.\n4 Cub\n"), 1.0)
+        self.assertIsNone(coverage.deck_share("Commander\n1 Boss\n\nDeck\n4 Cub\n"))
+        self.assertIsNone(coverage.deck_share("// a note with 50% in it on the second line? no:\n// 50% of nothing\n"))
+
+    def test_the_weighted_order_puts_the_played_deck_first_and_the_count_order_stays(self):
+        plain = coverage.analyze_decks(self.decks())
+        result = coverage.analyze_decks(self.decks(), {"big": 10.0, "small": 1.0})
+        self.assertEqual(result["next"][0]["cards"], ["Odd Toad"], "three copies outrank one by count")
+        self.assertEqual([p["family"] for p in result["next"]], [p["family"] for p in plain["next"]])
+        self.assertEqual((result["total"], result["playable"]), (plain["total"], plain["playable"]))
+        self.assertEqual(result["weighted"][0]["cards"], ["Moon Cat"], "one copy in a 10% deck outranks three in a 1% deck")
+        self.assertEqual([p["unlocks"] for p in result["weighted"]], [10.0, 3.0])
+        self.assertNotIn("weighted", plain)
+
+    def test_a_deck_without_a_share_weighs_one(self):
+        result = coverage.analyze_decks(self.decks(), {"big": 2.0})
+        self.assertEqual([(p["cards"], p["unlocks"]) for p in result["weighted"]], [(["Odd Toad"], 3.0), (["Moon Cat"], 2.0)])
+
+    def test_the_report_names_the_weights_beside_the_second_table(self):
+        text = audit.render_decks(coverage.analyze_decks(self.decks(), {"big": 10.6, "small": 1.0}))
+        count_table, _, share_table = text.partition("### The same, weighted by metagame share")
+        self.assertIn("| 1 | Other: Gather the quuxes from the nearest bog. | 3 |", count_table)
+        self.assertIn("(a deck without one weighs 1): big 10.6, small 1.", share_table)
+        self.assertIn("| 1 | Other: Whenever the moon is full, frobnicate the widget. | 10.6 | Moon Cat |", share_table)
+        self.assertNotIn("weighted by metagame share", audit.render_decks(coverage.analyze_decks(self.decks())))
+
+    def test_the_tool_weighs_the_lists_that_name_a_share_and_only_those(self):
+        with tempfile.TemporaryDirectory() as d:
+            bulk = os.path.join(d, "bulk.json")
+            with open(bulk, "w", encoding="utf-8") as f:
+                json.dump({"format": BulkSource.FORMAT, "cards": {c.name: c.to_dict() for c in (FOREST, MOON_A, ODD)}}, f)
+            big, small = os.path.join(d, "big.txt"), os.path.join(d, "small.txt")
+            Path(big).write_text(HEADER + "10 Forest\n1 Moon Cat\n", encoding="utf-8")
+            Path(small).write_text("10 Forest\n3 Odd Toad\n", encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(audit.main(["--decks", big, small, "--bulk", bulk]), 0)
+            self.assertIn("big 10.6, small 1.", out.getvalue())
+            self.assertIn("| 1 | Other: Whenever the moon is full, frobnicate the widget. | 10.6 | Moon Cat |", out.getvalue())
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(audit.main(["--decks", small, "--bulk", bulk]), 0)
+            self.assertNotIn("weighted by metagame share", out.getvalue(), "a list without a share keeps the count order alone")
+
+
 class GoldenReportTests(unittest.TestCase):
     """The whole `--decks` report for a fixed tiny deck, word for word (#474): moving the analysis into infernal_machine.coverage
     must not change a character of it."""
