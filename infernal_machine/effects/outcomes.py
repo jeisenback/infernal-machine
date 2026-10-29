@@ -1709,10 +1709,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"target (player|opponent) loses that much life\.", re.I), lambda m: TargetLoseLife("X", m[1].lower())),
     (re.compile(r"each opponent loses that much life\.", re.I), lambda m: OpponentsLoseLife("X")),
     (re.compile(r"you gain (?:that much life|life equal to that damage)\.", re.I), lambda m: GainLife("X")),
-    (re.compile(rf"return (another |up to one )?target {_PERMANENT_KIND} to its owner's hand\.", re.I),
+    (re.compile(rf"return (another |up to one |up to one other )?target {_PERMANENT_KIND} to its owner's hand\.", re.I),
      # "Return another target ..." can be neither the source (a trigger's) nor the spell's earlier target (Rushing River).
-     lambda m: ReturnToHand(m[2].lower(), (m[1] or "").lower() == "another ", (m[1] or "").lower() == "up to one ",
-                            distinct=(m[1] or "").lower() == "another ")),
+     lambda m: ReturnToHand(m[2].lower(), "other" in (m[1] or "").lower(), (m[1] or "").lower().startswith("up to one"),
+                            distinct="other" in (m[1] or "").lower())),
     (re.compile(rf"return {_UP_TO} target {_PLURAL_KIND} to their owners' hands\.", re.I), lambda m: _up_to(ReturnToHand, m)),
     (re.compile(rf"return (five|six|seven) target {_PLURAL_KIND} to their owners' hands\.", re.I),  # Aether Gale: exactly that many
      lambda m: [ReturnToHand(_PLURAL_KINDS[m[2].lower()] + _suffix(m[3]), distinct=n > 0) for n in range(_number(m[1]))]),
@@ -2742,6 +2742,7 @@ _CONDITIONS = [
     (re.compile(r"(?:it|that creature) has greater power or toughness than (?:this creature|CARDNAME)"), lambda m: Condition("subject_greater")),
     (re.compile(rf"{_SELF} isn't renowned"), lambda m: Condition("not_renowned")),
     (re.compile(r"this spell was foretold"), lambda m: Condition("foretold")),
+    (re.compile(rf"\{{([WUBRG])\}}\{{([WUBRG])\}} was spent to cast (?:it|{_SELF})"), lambda m: Condition("mana_spent_colors", what=m[1] + m[2])),  # Deceit
     (re.compile(r"you didn't cast a spell this turn"), lambda m: Condition("no_spell_cast_turn")),
     (re.compile(r"there are four or more card types among cards in your graveyard"), lambda m: Condition("delirium")),
     (re.compile(r"each player has (\d+) or less life"), lambda m: Condition("each_life_at_most", int(m[1]))),

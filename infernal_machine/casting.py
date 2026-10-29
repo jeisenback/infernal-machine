@@ -141,7 +141,7 @@ class Caster:
                          foretold=graveyard is not None and graveyard.word == "Foretell", from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
-                         bestowed=bool(alternative and alternative.bestow), mana_spent=spent, cant_be_countered=no_counter,
+                         bestowed=bool(alternative and alternative.bestow), mana_spent=spent, mana_types_spent=tapped.spent, cant_be_countered=no_counter,
                          dashed=bool(alternative and alternative.dash), warped=bool(alternative and alternative.warp), whole=whole, face_down=face_down,
                          from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone), phyrexian_life=tapped.phyrexian_life)
         self.game.stack.append(item)
