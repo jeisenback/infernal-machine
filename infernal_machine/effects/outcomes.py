@@ -1636,6 +1636,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
     (re.compile(r"when you do, if (.+?), (.+)\.", re.I), _when_you_do_if),  # Earthbender Ascension
     (re.compile(r"if (this spell was foretold), (.+)\.", re.I), _then_if),
+    (re.compile(r"if (the discarded card wasn't a land card), (.+)\.", re.I), _then_if),  # Grab the Prize
     (re.compile(r"if (X is \d+ or more), (?!double the number)(.+)\.", re.I), _then_if),
     (re.compile(rf"if X is {_N} or more, double the number of ([+\-\u2212]1/[+\-\u2212]1) counters on any number of other target "
                 r"creatures\.", re.I), lambda m: DoubleCountersOnTargets(_counter_name(m[2]), "creature", int(m[1]))),
@@ -2746,6 +2747,7 @@ _CONDITIONS = [
     (re.compile(r"(?:it|that creature) has greater power or toughness than (?:this creature|CARDNAME)"), lambda m: Condition("subject_greater")),
     (re.compile(rf"{_SELF} isn't renowned"), lambda m: Condition("not_renowned")),
     (re.compile(r"this spell was foretold"), lambda m: Condition("foretold")),
+    (re.compile(r"the discarded card wasn't a land card"), lambda m: Condition("discarded_nonland")),
     (re.compile(rf"\{{([WUBRG])\}}\{{([WUBRG])\}} was spent to cast (?:it|{_SELF})"), lambda m: Condition("mana_spent_colors", what=m[1] + m[2])),  # Deceit
     (re.compile(r"you didn't cast a spell this turn"), lambda m: Condition("no_spell_cast_turn")),
     (re.compile(r"there are four or more card types among cards in your graveyard"), lambda m: Condition("delirium")),
