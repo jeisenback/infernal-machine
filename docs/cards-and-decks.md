@@ -109,6 +109,7 @@ The same checks, with each format's own numbers, through `formats.deck_problems(
 | Brawl | 60 | 25 (30 with more than two players) | 21 | Standard | legendary creature **or planeswalker** |
 | Duel Commander | 100 | 20 | **15** | Duel Commander (its own banned list) | as Commander |
 | Oathbreaker | 60 | 20 | **none** | Oathbreaker (its own banned list) | any planeswalker, plus a signature spell |
+| Pauper Commander | 100 | **30** | **16** | Pauper Commander (printed at common; its own banned list) | an uncommon creature, vehicle or spacecraft, legendary or not |
 
 A deck says which format it is played in with `Deck.format` (`formats.with_format(deck, "brawl")`, or `--format NAME` with any name in
 `formats.FORMATS` on `matchup`, `compare`, `impact` and `analyze`). One that does not is Commander if it has a commander and Standard if it does not:
@@ -128,6 +129,17 @@ cast, and back to the command zone instead of the graveyard, exile, hand or libr
 controls their Oathbreaker (a permanent of that name), at the timing its type gives. There is no commander damage: nothing is recorded and the
 seats are told no limit. The bot casts the Oathbreaker first like a commander, and the signature spell like any other spell, so it holds
 a signature removal spell for a creature worth it.
+
+**Pauper Commander** (`--format paupercommander`, `pauper_commander.py`), by PDH Home Base's rules: "The commander must be an
+uncommon creature, vehicle, or spacecraft and does not need to be legendary", the 99 "must be commons", 30 starting life and 16
+commander damage, and a card counts at every rarity it was printed at in paper or on MTGO (not Arena). Scryfall's `paupercommander`
+legality covers the 99 and the ban list (Mystic Remora, Rhystic Study, and the cards banned from every format). Whether a card was ever
+printed at uncommon is not in the card file, which keeps one printing per card, so the commander is checked against Scryfall's search
+for the creatures, vehicles, spacecraft and Backgrounds with an uncommon printing in paper or on MTGO, kept in
+`.cache/paupercommander_commanders.json` for a week with the search it answers (about 5,960 names; one fetch takes under a minute).
+The format is "a variation of the original Commander format", so Commander's pairs carry over with both cards uncommon: two partners,
+or a "Choose a Background" creature with a Background (Abdel Adrian with Acolyte of Bahamut); a Background never leads alone. When the
+list can't be fetched, the deck check says so instead of guessing. House rules (`--allow`) can let any card lead.
 
 ### Companions
 
@@ -229,5 +241,5 @@ again the next time a card is needed, rather than loaded with the new field's de
 Standard and no card a Game Changer). Nothing is lost but one round of lookups; offline play works from the files that are current.
 `examples/demo_cards.json` is a hand-made cache of this kind that ships with the repository for offline games.
 
-A third file, `.cache/combos.json`, is not about cards: it keeps Commander Spellbook's answer for each deck `analyze` or
+`.cache/paupercommander_commanders.json` (see Pauper Commander above) is a list of names, refreshed weekly the same way. Another file, `.cache/combos.json`, is not about cards: it keeps Commander Spellbook's answer for each deck `analyze` or
 `brackets --combos` asked about (see [Combos](simulation.md#combos)), so a repeat run is offline. It too is safe to delete.
