@@ -135,10 +135,11 @@ uncommon creature, vehicle, or spacecraft and does not need to be legendary", th
 commander damage, and a card counts at every rarity it was printed at in paper or on MTGO (not Arena). Scryfall's `paupercommander`
 legality covers the 99 and the ban list (Mystic Remora, Rhystic Study, and the cards banned from every format). Whether a card was ever
 printed at uncommon is not in the card file, which keeps one printing per card, so the commander is checked against Scryfall's search
-for the creatures, vehicles and spacecraft with an uncommon printing in paper or on MTGO, kept in `.cache/paupercommander_commanders.json`
-for a week (about 5,900 names; one fetch takes under a minute). A Background is not a creature, so it does not lead even beside a "Choose
-a Background" commander; two uncommon creatures with partner do. When the list can't be fetched, the deck check says so instead of
-guessing. House rules (`--allow`) can let any card lead.
+for the creatures, vehicles, spacecraft and Backgrounds with an uncommon printing in paper or on MTGO, kept in
+`.cache/paupercommander_commanders.json` for a week with the search it answers (about 5,960 names; one fetch takes under a minute).
+The format is "a variation of the original Commander format", so Commander's pairs carry over with both cards uncommon: two partners,
+or a "Choose a Background" creature with a Background (Abdel Adrian with Acolyte of Bahamut); a Background never leads alone. When the
+list can't be fetched, the deck check says so instead of guessing. House rules (`--allow`) can let any card lead.
 
 ### Companions
 

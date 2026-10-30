@@ -63,12 +63,13 @@ def copy_limit(card: Card, default: int = 1) -> int | None:
 
 
 def deck_problems(deck: Deck, size: int = DECK_SIZE, legality: str = "commander", label: str = "Commander", planeswalkers: bool = False,
-                  allow: frozenset[str] = frozenset(), lead: Callable[[Card], bool] | None = None) -> list[str]:
+                  allow: frozenset[str] = frozenset(), lead: Callable[[Card, bool], bool] | None = None) -> list[str]:
     """Return every rule of a commander format the deck breaks; an empty list means it's legal. The defaults are Commander's (100 cards,
     legal in Commander); `formats.py` passes Brawl's and Duel Commander's: the size, which legality a card must have (`commander`,
     `standard` or `duel`), the name for the messages and whether a legendary planeswalker can lead the deck. `lead`, when given, is
-    the format's own test of a commander (Pauper Commander: an uncommon creature, vehicle or spacecraft), which then stands in for
-    "a legendary creature" and for the legality of the commanders; the 99 are still held to `legality`."""
+    the format's own test of a commander, told whether the card is one of a pair (Pauper Commander: an uncommon creature, vehicle or
+    spacecraft, or in a pair an uncommon Background), which then stands in for "a legendary creature" and for the legality of the
+    commanders; the 99 are still held to `legality`."""
     problems: list[str] = []
     commanders = deck.commanders
     cards = commanders + deck.main
@@ -77,7 +78,7 @@ def deck_problems(deck: Deck, size: int = DECK_SIZE, legality: str = "commander"
         problems.append(f"Deck has {len(cards)} cards including commanders; needs exactly {size}")
 
     if len(commanders) == 1:
-        if not (lead(commanders[0]) if lead else can_be_commander(commanders[0], planeswalkers)):
+        if not (lead(commanders[0], False) if lead else can_be_commander(commanders[0], planeswalkers)):
             problems.append(f"{commanders[0].name} can't be your commander")
     elif len(commanders) == 2:
         a, b = commanders
@@ -85,7 +86,7 @@ def deck_problems(deck: Deck, size: int = DECK_SIZE, legality: str = "commander"
             problems.append(f"{a.name} and {b.name} can't be commanders together")
         else:
             problems += [f"{c.name} can't be your commander" for c in commanders
-                         if not (lead(c) if lead else _pair_member_ok(c, planeswalkers))]
+                         if not (lead(c, True) if lead else _pair_member_ok(c, planeswalkers))]
     else:
         problems.append(f"Deck has {len(commanders)} commanders; needs 1, or 2 that can pair")
 

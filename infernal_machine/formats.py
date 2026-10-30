@@ -140,10 +140,11 @@ def deck_problems(deck: Deck, fmt: Format, house: HouseRules = NO_HOUSE_RULES) -
         try:
             uncommon = uncommon_commanders()
         except (OSError, ValueError) as error:
-            return (commander_problems(deck, fmt.min_deck, fmt.legality, fmt.label, allow=allow, lead=lambda card: True)
+            return (commander_problems(deck, fmt.min_deck, fmt.legality, fmt.label, allow=allow, lead=lambda card, paired: True)
                     + [f"Can't check the commander: Scryfall's list of uncommon creatures could not be fetched ({error})"])
         return (commander_problems(deck, fmt.min_deck, fmt.legality, fmt.label, allow=allow,
-                                   lead=lambda card: card.name in allow or (can_lead(card, uncommon) and fmt.legality not in card.banned))
+                                   lead=lambda card, paired: card.name in allow
+                                   or (can_lead(card, uncommon, paired) and fmt.legality not in card.banned))
                 + companion_problems(deck, fmt.min_deck, True, fmt.legality, fmt.label, allow))
     if fmt.commander:  # (a companion is outside the 100 cards)
         return (commander_problems(deck, fmt.min_deck, fmt.legality, fmt.label, planeswalkers=fmt.name == "brawl", allow=allow)

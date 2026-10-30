@@ -12,7 +12,7 @@ from infernal_machine import formats
 from infernal_machine.cards import Card, Deck
 from infernal_machine.formats import PAUPER_COMMANDER, HouseRules, deck_problems
 from infernal_machine.game import Game
-from infernal_machine.pauper_commander import can_lead, uncommon_commanders
+from infernal_machine.pauper_commander import SEARCH, can_lead, uncommon_commanders
 from infernal_machine.tune import candidate_problem
 from tests.helpers import ScriptedPlayer
 
@@ -62,6 +62,13 @@ class LeadTests(unittest.TestCase):
         self.assertFalse(can_lead(AURA, UNCOMMON), "an uncommon, but not a creature, vehicle or spacecraft")
         self.assertFalse(can_lead(LEGEND, UNCOMMON), "a legendary creature, but rare")
 
+    def test_an_uncommon_background_joins_a_pair_and_does_not_lead_alone(self):
+        background = card("Uncommon Background", "Legendary Enchantment — Background")
+        self.assertTrue(can_lead(background, UNCOMMON | {"Uncommon Background"}, paired=True))
+        self.assertFalse(can_lead(background, UNCOMMON | {"Uncommon Background"}), "alone it can't lead")
+        self.assertFalse(can_lead(background, UNCOMMON, paired=True), "a Background never printed at uncommon")
+        self.assertFalse(can_lead(AURA, UNCOMMON, paired=True), "only a Background joins that way")
+
 
 @mock.patch.object(formats, "uncommon_commanders", lambda: UNCOMMON)
 class DeckTests(unittest.TestCase):
@@ -82,7 +89,7 @@ class DeckTests(unittest.TestCase):
         self.assertIn("Red Common: 2 copies, limit is 1",
                       deck_problems(pdh(extra=[dataclasses.replace(RED_COMMON, color_identity=("G",))] * 2), PAUPER_COMMANDER))
 
-    def test_two_uncommon_partners_lead_together_and_a_background_does_not(self):
+    def test_two_uncommon_partners_lead_together_and_so_do_a_creature_and_an_uncommon_background(self):
         one = dataclasses.replace(LEADER, name="Uncommon Elf", oracle_text="Partner")
         two = dataclasses.replace(LEADER, name="Uncommon Ranger", oracle_text="Partner")
         deck = Deck([one, two], [FOREST] * 98, [], format="paupercommander")
@@ -92,8 +99,13 @@ class DeckTests(unittest.TestCase):
         background = card("Uncommon Background", "Legendary Enchantment — Background", legal=("commander",))
         deck = Deck([chooser, background], [FOREST] * 98, [], format="paupercommander")
         with mock.patch.object(formats, "uncommon_commanders", lambda: UNCOMMON | {"Uncommon Background"}):
-            self.assertEqual(deck_problems(deck, PAUPER_COMMANDER), ["Uncommon Background can't be your commander"],
-                             "the rules name a creature, vehicle or spacecraft")
+            self.assertEqual(deck_problems(deck, PAUPER_COMMANDER), [], "Commander's pairs carry over, both uncommon")
+        rare = card("Rare Background", "Legendary Enchantment — Background", legal=("commander",))
+        deck = Deck([chooser, rare], [FOREST] * 98, [], format="paupercommander")
+        self.assertEqual(deck_problems(deck, PAUPER_COMMANDER), ["Rare Background can't be your commander"])
+        alone = Deck([background], [FOREST] * 99, [], format="paupercommander")
+        with mock.patch.object(formats, "uncommon_commanders", lambda: UNCOMMON | {"Uncommon Background"}):
+            self.assertEqual(deck_problems(alone, PAUPER_COMMANDER), ["Uncommon Background can't be your commander"])
 
     def test_house_rules_can_let_a_rare_lead(self):
         self.assertEqual(deck_problems(pdh(LEGEND), PAUPER_COMMANDER, HouseRules(frozenset({"Rare Legend"}))), [])
@@ -132,9 +144,17 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(names, frozenset({"Uncommon Elf", "Uncommon Wagon"}))
         self.assertIn("r%3Auncommon", asked[0])
         self.assertIn("t%3Avehicle", asked[0])
+        self.assertIn("t%3Abackground", asked[0])
         with open(self.path, encoding="utf-8") as f:
-            self.assertEqual(json.load(f), ["Uncommon Elf", "Uncommon Wagon"])
+            self.assertEqual(json.load(f), {"search": SEARCH, "names": ["Uncommon Elf", "Uncommon Wagon"]})
         self.assertEqual(uncommon_commanders(self.path, http=lambda request: self.fail("a fresh file is read, not fetched")), names)
+
+    def test_a_file_from_another_search_is_fetched_again(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(["Old Elf"], f)  # as the list was saved before Backgrounds joined the search
+        page = {"data": [{"name": "Uncommon Elf"}], "next_page": None}
+        with mock.patch("infernal_machine.pauper_commander.time.sleep"):
+            self.assertEqual(uncommon_commanders(self.path, http=lambda request: page), frozenset({"Uncommon Elf"}))
 
     def test_a_search_scryfall_ignored_part_of_is_an_error_and_nothing_is_saved(self):
         page = {"data": [{"name": "Everything"}], "next_page": None, "warnings": ["Invalid expression ignored"]}
