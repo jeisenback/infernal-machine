@@ -120,6 +120,8 @@ declare("opponent_sacrifice_creature", re.compile(r"Whenever an opponent sacrifi
 declare("second_draw", re.compile(r"Whenever you draw your second card each turn, (.+)", re.I),
         to="you", happens="drew", accepts=fact("second"))
 declare("combat_damage_to_player", re.compile(rf"When(?:ever)? {_SELF} deals combat damage to a player, (.+)", re.I), maybe_player=True)
+declare("combat_damage_to_player_or_walker", re.compile(rf"When(?:ever)? {_SELF} deals combat damage to a player or planeswalker, (.+)", re.I),
+        maybe_player=True)  # Psychic Frog
 declare("upkeep", re.compile(r"At the beginning of your upkeep, (.+)", re.I))
 declare("end_step", re.compile(r"At the beginning of your end step, (.+)", re.I))
 declare("each_upkeep", re.compile(r"At the beginning of each upkeep, (.+)", re.I))

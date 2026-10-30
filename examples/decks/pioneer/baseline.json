@@ -4,7 +4,6 @@
    "cards": 60,
    "unplayable": [
     "Faerie Miscreant",
-    "Fatal Push",
     "Floodpits Drowner",
     "Kaito, Bane of Nightmares",
     "Mockingbird",
@@ -16,7 +15,6 @@
   "golgari_midrange": {
    "cards": 61,
    "unplayable": [
-    "Fatal Push",
     "Graveyard Trespasser // Graveyard Glutton",
     "Restless Cottage",
     "Unholy Annex // Ritual Chamber"

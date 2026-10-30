@@ -7,7 +7,6 @@
     "Leyline Binding",
     "Murktide Regent",
     "Phelia, Exuberant Shepherd",
-    "Quantum Riddler",
     "Stifle",
     "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
     "Terminus"
@@ -41,8 +40,7 @@
     "Overlord of the Balemurk",
     "Phelia, Exuberant Shepherd",
     "Pre-War Formalwear",
-    "Recruiter of the Guard",
-    "Solitude"
+    "Recruiter of the Guard"
    ]
   },
   "dimir_tempo": {
@@ -50,7 +48,6 @@
    "unplayable": [
     "Bilbo, Thief in the Night",
     "Daze",
-    "Fatal Push",
     "Kaito, Bane of Nightmares",
     "Mishra's Bauble",
     "Moonshadow",

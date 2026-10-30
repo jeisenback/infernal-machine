@@ -821,6 +821,24 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - The card discarded to cast a spell (`tests/test_discarded_card.py`): the cards an additional cost discards are kept in
     `StackItem.discarded`, and "If the discarded card wasn't a land card, ..." (`Condition("discarded_nonland")`) reads them as the
     spell resolves (Grab the Prize). A copy of the spell has no discarded card. Not understood: other questions about what was discarded.
+  - Combat damage to a player or planeswalker (`tests/test_combat_damage_player_or_walker.py`): "Whenever this creature deals combat
+    damage to a player or planeswalker, ..." is the event `combat_damage_to_player_or_walker`, set off by combat damage to a player and
+    to a planeswalker, with "that player" the player or the planeswalker's controller (Psychic Frog and 13 more).
+  - Revolt (`tests/test_revolt.py`): `Seat.permanent_left_turn` is the last turn a permanent (a token too) left the battlefield under
+    that player's control, and "a permanent left the battlefield under your control this turn" is `Condition("revolt")`. Fatal Push:
+    "Destroy target creature if it has mana value 2 or less." targets any creature and checks its mana value as it resolves
+    (`Destroy.if_mana_value`); "Revolt — Destroy that creature if it has mana value 4 or less instead if ..." is folded into it by a
+    `Follow` row (`instead_mana_value`, `instead_if`).
+  - Evoke paid by exiling a card (`tests/test_evoke_by_exiling.py`): "Evoke—Exile a white card from your hand." is an evoke cost with
+    no mana (`AlternativeCost(evoke=True, exile_color=...)`): another card of that color is exiled from the hand, and the creature is
+    sacrificed when it enters (Solitude, Grief). Solitude's "exile up to one other target creature. That creature's controller gains
+    life equal to its power." is read like Swords to Plowshares. Not understood: Fury's divided damage, Subtlety and Endurance.
+  - Drawing one more (`tests/test_draw_plus_one.py`): Quantum Riddler's "As long as you have one or fewer cards in hand, if you would
+    draw one or more cards, you draw that many cards plus one instead." (`Replacements.draw_plus_one_at_most`) adds one to each draw
+    instruction (not to each card) while the hand is that small, once for each such permanent, before any doubling.
+  - Paradoxical Outcome (`tests/test_return_any_number.py`): "Return any number of target nonland, nontoken permanents you control to
+    their owners' hands." is `ReturnAnyNumber`, and "Draw a card for each card returned to your hand this way." is folded into it by a
+    `Follow` row; a card that goes to another owner's hand is not counted.
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

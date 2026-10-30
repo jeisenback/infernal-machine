@@ -740,6 +740,7 @@ class Replacements:
     manufactor: bool = False  # Academy Manufactor: a Clue, Food or Treasure token becomes one of each
     graveyard_self: bool = False  # this one is exiled instead of going to a graveyard (a Disturb back)
     draw_double: tuple[str, ...] = ()  # "always", "extra" (not the draw step's first card) or "empty" (no cards in hand): a draw is two cards
+    draw_plus_one_at_most: int | None = None  # Quantum Riddler: with this many cards in hand or fewer, a draw of N cards is N + 1
     life_gain_factor_low: int = 1  # how many times as much life its controller gains while they have 5 or less life (Phial of Galadriel)
     graveyard_shuffle: bool = False  # this one is revealed and shuffled into its owner's library instead (CR 614.1)
     die_exile: str | None = None  # "opponent": their creatures are exiled instead of dying (Liesa); "self": this one is
@@ -761,6 +762,8 @@ def replacement_effects(card: Card) -> Replacements:
             found.setdefault("graveyard", "opponent")
         elif line == _REPLACE_SELF_GRAVEYARD:
             found["graveyard_self"] = True
+        elif m := _DRAW_PLUS_ONE.fullmatch(line):
+            found["draw_plus_one_at_most"] = _number(m[1])
         elif line in (_DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY):
             found["draw_double"] = (*found.get("draw_double", ()), {_DOUBLE_DRAW: "always", _DOUBLE_DRAW_EXTRA: "extra"}.get(line, "empty"))
         elif line == _DOUBLE_LIFE_LOW:
@@ -890,6 +893,10 @@ _DOUBLE_DRAW = "If you would draw a card, draw two cards instead."  # Thought Re
 _DOUBLE_DRAW_EMPTY = "If you would draw a card while you have no cards in hand, draw two cards instead."  # Phial of Galadriel
 
 
+_DRAW_PLUS_ONE = re.compile(rf"As long as you have {_N_FIXED} or fewer cards in hand, if you would draw one or more cards, you draw that many "
+                            r"cards plus one instead\.")  # Quantum Riddler
+
+
 _DOUBLE_LIFE_LOW = "If you would gain life while you have 5 or less life, you gain twice that much life instead."  # Phial of Galadriel
 
 
@@ -936,7 +943,7 @@ def enters_by_discarding_land(card: Card) -> bool:
 
 
 def is_replacement_line(line: str) -> bool:
-    return (line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (_DRAW_PLUS_ONE.fullmatch(line) is not None or line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _SQUIRRELS, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
                      _HALVE_OPPONENTS_PUT, _PROLIFERATE_TWICE)
