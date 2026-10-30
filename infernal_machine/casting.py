@@ -219,6 +219,8 @@ class Caster:
                 return []
             if graveyard.requires and not any(parse_filter(graveyard.requires).matches(p.card) for p in seat.battlefield):
                 return []  # Gravecrawler: only while its caster controls a Zombie
+            if graveyard.sacrifices and sum(g._permanent_matches(graveyard.sacrifice, p.card) for p in seat.battlefield) < graveyard.sacrifices:
+                return []  # "Flashback\u2014Sacrifice a Mountain."
             return [None] if others >= graveyard.exile and graveyard.life <= seat.life and self._payment(seat, paying) is not None else []
         return [way for way in [None, *alternative_costs(card)]
                 if not (way and way.warp and not from_hand)  # warp is a way to cast from the hand only
@@ -358,6 +360,11 @@ class Caster:
             self.game._left_graveyard(seat)
         if graveyard and graveyard.life:  # "Flashback\u2014{1}{U}, Pay 3 life."
             self.game.change_life(seat, -graveyard.life)
+        sacrifice, sacrifices = (graveyard.sacrifice, graveyard.sacrifices) if graveyard else ("", 0)
+        for _ in range(sacrifices):  # "Flashback\u2014Sacrifice three creatures."
+            options = [p for p in seat.battlefield if g._permanent_matches(sacrifice, p.card)]
+            choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT(card.name), [self.game.label(p) for p in options])]
+            self.game._leave_together([(choice, "sacrificed")])
         if graveyard and graveyard.discard_land:  # Retrace
             lands = [c for c in seat.hand if is_land(c)]
             discarded = lands[seat.player.choose(g.DISCARD_PROMPT, [c.name for c in lands])]
