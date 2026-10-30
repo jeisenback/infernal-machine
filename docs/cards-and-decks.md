@@ -21,6 +21,9 @@ deck = load_deck(open("deck.txt").read(), source)  # deck.commanders, deck.main,
   [Oracle Cards bulk file](https://scryfall.com/docs/api/bulk-data) (~25 MB gzipped, ~35,000 cards) once, saves a
   slim copy, and refreshes it after a week (keeping the old copy if Scryfall is unreachable). Everything after
   that is offline. The server uses it with `--bulk .cache/oracle_bulk.json`.
+  It finds a card by the names deck sites also write: in any case, without its accents (`Lorien Revealed` is
+  `Lórien Revealed`) and a split or room card with one slash (`Wear/Tear` is `Wear // Tear`); a form two cards would
+  share is not guessed, and the exact name always wins.
 - `parse_decklist` reads Arena/MTGO/Moxfield text: `Commander` / `Deck` / `Sideboard`
   headers, `1 Sol Ring (CMM) 400`, and Moxfield's `*CMDR*` and `*F*` tags.
 
