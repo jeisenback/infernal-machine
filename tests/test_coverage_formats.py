@@ -1,5 +1,6 @@
 """The coverage audit for a format other than Commander (#521): Scryfall's search for the format, and the numbers without EDHREC's rank."""
 
+import contextlib
 import importlib.util
 import io
 import json
@@ -74,6 +75,29 @@ class FetchPoolTests(unittest.TestCase):
         self.assertEqual(len(urls), 1)
         self.assertIn("legal%3Astandard", urls[0])
         self.assertNotIn("commander", urls[0])
+
+    def test_a_format_scryfall_does_not_know_is_an_error_and_nothing_is_saved(self):
+        # Scryfall's answer to `legal:nosuchformat`: the term ignored, with a warning, and every paper card returned.
+        answer = {"data": POOL, "next_page": None, "total_cards": len(POOL),
+                  "warnings": ["Invalid expression \u201clegal:nosuchformat\u201d was ignored. Unknown game format \u201cnosuchformat\u201d"]}
+        saved = mock.mock_open()
+        with mock.patch.object(audit.urllib.request, "urlopen", lambda request, timeout: io.StringIO(json.dumps(answer))), \
+                mock.patch.object(audit, "open", saved, create=True), mock.patch.object(audit.os, "makedirs"):
+            with self.assertRaises(ValueError) as caught:
+                audit.fetch_pool("/nonexistent/nosuchformat_pool.json", format="nosuchformat")
+            self.assertIn("Unknown game format", str(caught.exception))
+            saved.assert_not_called()
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(audit.main(["--format", "nosuchformat", "--pool", "/nonexistent/nosuchformat_pool.json"]), 2)
+            self.assertIn("Scryfall did not search for the 'nosuchformat' format", err.getvalue())
+            saved.assert_not_called()
+
+    def test_a_known_format_with_no_warning_is_fetched(self):
+        answer = {"data": POOL, "next_page": None, "total_cards": len(POOL)}
+        with mock.patch.object(audit.urllib.request, "urlopen", lambda request, timeout: io.StringIO(json.dumps(answer))), \
+                mock.patch.object(audit, "open", mock.mock_open(), create=True), mock.patch.object(audit.os, "makedirs"):
+            self.assertEqual(audit.fetch_pool("/nonexistent/pauper_pool.json", format="pauper"), POOL)
 
 
 if __name__ == "__main__":

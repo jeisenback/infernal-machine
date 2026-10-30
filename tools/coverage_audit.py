@@ -77,7 +77,9 @@ SEARCH = "legal:{format} game:paper -t:token -is:funny"  # Scryfall's search for
 
 
 def fetch_pool(path: str, max_age_days: float = 7.0, pause: float = 0.11, format: str = "commander") -> list[dict]:
-    """The paper cards legal in `format` as Scryfall's JSON, from `path` if it is fresh, else from the search API."""
+    """The paper cards legal in `format` as Scryfall's JSON, from `path` if it is fresh, else from the search API. Raises ValueError,
+    saving nothing, when Scryfall ignored part of the search: it does that with a format name it doesn't know (`legal:nosuchformat`)
+    and returns every paper card instead, which would read as that format's pool."""
     if os.path.exists(path) and time.time() - os.path.getmtime(path) < max_age_days * 86400:
         with open(path) as f:
             return json.load(f)
@@ -94,6 +96,8 @@ def fetch_pool(path: str, max_age_days: float = 7.0, pause: float = 0.11, format
                 if attempt == 3:
                     raise
                 time.sleep(2 ** attempt)
+        if page.get("warnings"):
+            raise ValueError(f"Scryfall did not search for the {format!r} format: {' '.join(page['warnings'])}")
         cards += page["data"]
         url = page.get("next_page")
         time.sleep(pause)  # Scryfall asks for at most ten requests a second
@@ -320,7 +324,11 @@ def main(argv: list[str]) -> int:
             print("\n" + render_baseline(comparison, result))
             return 1 if comparison["regressed"] or comparison["missing_decks"] else 0
         return 0
-    pool = fetch_pool(args.pool or f".cache/{args.format}_pool.json", format=args.format)
+    try:
+        pool = fetch_pool(args.pool or f".cache/{args.format}_pool.json", format=args.format)
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 2
     result = analyze(pool, args.workers, popularity=args.format == "commander")  # EDHREC's rank is Commander's play data
     if args.mechanism:
         print(render_mechanism(result, args.mechanism, args.top))
