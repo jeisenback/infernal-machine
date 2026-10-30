@@ -11,6 +11,7 @@ from ...prompts import PromptKind
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
+    from .base import Condition
 
 
 @dataclass(frozen=True)
@@ -21,10 +22,25 @@ class Destroy:
     optional_target: bool = False  # "destroy up to two target ...": each target may be left out
     distinct: bool = False  # ... and may not repeat an earlier target of the same effect
     if_color: str = ""  # Pyroblast: "Destroy target permanent if it's blue." (checked as it resolves)
+    if_mana_value: int | None = None  # Fatal Push: "Destroy target creature if it has mana value 2 or less." (checked as it resolves) ...
+    instead_mana_value: int | None = None  # ... "Revolt \u2014 Destroy that creature if it has mana value 4 or less instead if ..."
+    instead_if: "Condition | None" = None  # ... "a permanent left the battlefield under your control this turn."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None and (not self.if_color or self.if_color in target.card.colors):
+        if target is None or (self.if_color and self.if_color not in target.card.colors):
+            return
+        most = self.if_mana_value
+        if self.instead_if is not None and game.condition_holds(self.instead_if, controller, game.resolving_source):
+            most = self.instead_mana_value
+        if most is None or target.card.cmc <= most:
             game.destroy(target, self.no_regen)
+
+
+@dataclass(frozen=True)
+class _InsteadManaValue:
+    """ "Revolt \u2014 Destroy that creature if it has mana value 4 or less instead if ..." after a Destroy (see _CONDITIONAL)."""
+    most: int
+    condition: "Condition"
 
 
 @dataclass(frozen=True)

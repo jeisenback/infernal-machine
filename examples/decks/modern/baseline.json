@@ -21,7 +21,6 @@
     "Narset, Parter of Veils",
     "Orim's Chant",
     "Prismatic Ending",
-    "Solitude",
     "Teferi, Time Raveler",
     "Theorist's Sanctum",
     "Wrath of the Skies"
@@ -45,7 +44,6 @@
    "unplayable": [
     "Leyline Binding",
     "Leyline of the Guildpact",
-    "Quantum Riddler",
     "Scion of Draco",
     "Stubborn Denial",
     "Territorial Kavu",
@@ -90,15 +88,11 @@
    "cards": 60,
    "unplayable": [
     "Consign to Memory",
-    "Fatal Push",
     "Ketramose, the New Dawn",
     "March of Otherworldly Light",
     "Prismatic Ending",
-    "Psychic Frog",
-    "Quantum Riddler",
     "Relic of Progenitus",
-    "River of Tears",
-    "Solitude"
+    "River of Tears"
    ]
   },
   "goryos_vengeance": {
@@ -109,9 +103,6 @@
     "Faithful Mending",
     "Goryo's Vengeance",
     "March of Otherworldly Light",
-    "Psychic Frog",
-    "Quantum Riddler",
-    "Solitude",
     "Winternight Stories",
     "Wrath of the Skies"
    ]
@@ -136,8 +127,6 @@
     "Guide of Souls",
     "Ocelot Pride",
     "Phelia, Exuberant Shepherd",
-    "Quantum Riddler",
-    "Solitude",
     "Starfield Shepherd"
    ]
   }

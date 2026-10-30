@@ -387,6 +387,28 @@ class PhaseOut:
 
 
 @dataclass(frozen=True)
+class ReturnAnyNumber:
+    """Paradoxical Outcome: "Return any number of target nonland, nontoken permanents you control to their owners' hands." and, with
+    `draw`, "Draw a card for each card returned to your hand this way." (a card that goes to another owner's hand is not counted)."""
+    target: str
+    draw: bool = False
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        before = len(controller.hand)
+        game.return_all_to_hand([p for p in target or [] if game.on_battlefield(p)])
+        if self.draw:
+            game.draw(controller, len(controller.hand) - before)
+
+
+@dataclass(frozen=True)
+class _DrawPerReturned:
+    """ "Draw a card for each card returned to your hand this way." after ReturnAnyNumber (see _CONDITIONAL)."""
+
+
+@dataclass(frozen=True)
 class ReturnToHand:
     """Bounce: "Return target nonland permanent you don't control to its owner's hand." """
     target: str

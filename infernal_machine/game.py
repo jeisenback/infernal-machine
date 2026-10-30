@@ -523,6 +523,7 @@ class Seat:
     modified_died_turn: int | None = None  # the last turn a modified creature died under this player's control
     citys_blessing: bool = False  # Ascend: ten permanents, for the rest of the game
     graveyard_left_turn: int | None = None  # the last turn a card left this player's graveyard
+    permanent_left_turn: int | None = None  # the last turn a permanent left the battlefield under this player's control (Revolt)
     cast_log: list[tuple[int, Card]] = field(default_factory=list)  # (turn, spell) for every spell cast
     drew_from_empty: bool = False
     speed: int = 0  # Start your engines!: 0 (none), 1 to 4 (max speed)
@@ -2543,6 +2544,8 @@ class Game:
             return source is not None and any(a.attached_to is source and "Equipment" in a.card.type_line for s in self.seats for a in s.battlefield)
         if kind == "foretold":  # the spell resolving was cast from exile for its foretell cost
             return self.resolving_item is not None and self.resolving_item.foretold
+        if kind == "revolt":  # a permanent left the battlefield under your control this turn
+            return seat.permanent_left_turn == self.turn
         if kind == "discarded_nonland":  # Grab the Prize: the card discarded to cast it wasn't a land card
             return self.resolving_item is not None and any(not is_land(c) for c in self.resolving_item.discarded)
         if kind == "no_spells_last_turn":  # the old werewolves: nobody cast a spell in the previous turn
@@ -3035,6 +3038,9 @@ class Game:
     # --- things effects do ---------------------------------------------------
 
     def draw(self, seat: Seat, count: int, announce: bool = True) -> None:
+        if count > 0:  # Quantum Riddler: "you draw that many cards plus one instead", once for each (CR 614.5)
+            count += sum(1 for p in seat.battlefield if not self.loses_abilities(p)
+                         and (most := replacement_effects(p.card).draw_plus_one_at_most) is not None and len(seat.hand) <= most)
         for _ in range(count):
             for _ in range(self._cards_per_draw(seat)):
                 if not self._draw_one(seat, announce):
@@ -3204,6 +3210,7 @@ class Game:
                 self.give_poison(target, toxic, by=controller)  # Toxic N: that many poison counters in addition to the damage
             if combat and controller and source is not None:  # (a controller means there is a source)
                 self.trigger("combat_damage_to_player", source, controller, player=target, x=amount)
+                self.trigger("combat_damage_to_player_or_walker", source, controller, player=target, x=amount)
                 if target is self.monarch and controller is not target:  # CR 725.2
                     self.become_monarch(controller)
                 if target is self.initiative and controller is not target:  # CR 726.2
@@ -3241,6 +3248,8 @@ class Game:
                     target.deathtouched = True
             if target.loyalty is not None:
                 target.loyalty -= amount
+            if combat and amount > 0 and controller is not None and source is not None and "Planeswalker" in target.card.type_line:
+                self.trigger("combat_damage_to_player_or_walker", source, controller, player=self.controller_of(target), x=amount)
             self.broadcast({"event": "damage", "card": target.card.name, "amount": amount,
                             "source": source.card.name if source else None})
             if amount > 0 and "Creature" in target.card.type_line:  # Enrage (CR 120.2): any damage dealt to it, however much
@@ -5927,6 +5936,7 @@ class Game:
         for permanent, _ in leaving:
             owner = _checked(permanent.last_controller)
             owner.battlefield = [p for p in owner.battlefield if p is not permanent]
+            owner.permanent_left_turn = self.turn
         left = {id(permanent) for permanent, _ in leaving}  # an attacker that leaves is removed from combat
         self.combat.attacks = [a for a in self.combat.attacks if id(a.attacker) not in left]
         gone = [(permanent, _checked(permanent.last_controller)) for permanent, _ in leaving]

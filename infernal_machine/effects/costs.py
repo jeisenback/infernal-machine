@@ -463,6 +463,7 @@ def is_cumulative_upkeep_line(line: str) -> bool:
 
 
 _EVOKE = re.compile(r"Evoke ((?:\{[^}]+\})+)")
+_EVOKE_PITCH = re.compile(rf"Evoke\u2014Exile an? ({_COLOR_NAMES}) card from your hand\.")  # Solitude, Grief
 
 
 _DASH = re.compile(r"Dash ((?:\{[^}]+\})+)")
@@ -492,6 +493,9 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
     for line in rules_lines(card):
         if m := _EVOKE.fullmatch(line):
             costs.append(AlternativeCost(f"Evoke {m[1]}", mana_cost=m[1], evoke=True))
+            continue
+        if m := _EVOKE_PITCH.fullmatch(line):  # no mana: the card exiled from the hand is the whole cost
+            costs.append(AlternativeCost(f"Evoke: exile a {m[1]} card", evoke=True, exile_color=_COLOR_LETTER[m[1]]))
             continue
         if m := _DASH.fullmatch(line):
             costs.append(AlternativeCost(f"Dash {m[1]}", mana_cost=m[1], dash=True))
@@ -696,7 +700,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
-                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
+                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
 

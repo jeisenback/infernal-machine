@@ -189,6 +189,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     CHOOSE_TYPE_PROMPT,
     CannotRegenerate,
     Destroy,
+    _InsteadManaValue,
     DestroyAll,
     DestroyAllOfChosenType,
     DestroyUpToX,
@@ -257,6 +258,8 @@ from .families.exile_and_return import (  # noqa: F401
     ReturnSpellToHand,
     ReturnThisFromGraveyard,
     ReturnToHand,
+    ReturnAnyNumber,
+    _DrawPerReturned,
     ReturnTransformed,
     ReturnWhenItDiesThisTurn,
     ReturnWithCounter,
@@ -1519,6 +1522,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Counter("spell", if_color=_COLOR_LETTER[m[1].lower()])),
     (re.compile(r"destroy target permanent if it's (white|blue|black|red|green)\.", re.I),
      lambda m: Destroy("permanent", if_color=_COLOR_LETTER[m[1].lower()])),
+    (re.compile(r"destroy target creature if it has mana value (\d+) or less\.", re.I), lambda m: Destroy("creature", if_mana_value=int(m[1]))),
+    (re.compile(r"(?:revolt \u2014 )?destroy that creature if it has mana value (\d+) or less instead if (.+)\.", re.I),  # Fatal Push
+     lambda m: _InsteadManaValue(int(m[1]), c) if (c := _condition(m[2])) else None),
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|white|blue|black|red|green) )?spell"
                 rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
@@ -1656,10 +1662,15 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"destroy up to X target artifacts and/or enchantments\.", re.I),
      lambda m: DestroyUpToX("artifact or enchantment")),
     (re.compile(r"choose any number of target creatures you control\.", re.I), lambda m: _ChooseAnyNumber("creature you control")),
+    (re.compile(r"return any number of target (nonland, nontoken permanent)s you control to their owners' hands\.", re.I),
+     lambda m: ReturnAnyNumber(f"{m[1]} you control")),  # Paradoxical Outcome
+    (re.compile(r"draw a card for each card returned to your hand this way\.", re.I), lambda m: _DrawPerReturned()),
     (re.compile(r"for each of them, create a token that's a copy of that creature, except it has haste\.", re.I),
      lambda m: _CopyEachWithHaste()),
     (re.compile(r"exile those tokens at the beginning of the next end step\.", re.I), lambda m: _ExileThoseTokens()),
     (re.compile(rf"exile up to one target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower(), optional_target=True)),
+    (re.compile(rf"exile up to one other target {_PERMANENT_KIND}\.", re.I),  # Solitude
+     lambda m: Exile(m[1].lower(), another=True, optional_target=True)),
     (re.compile(r"exile target ((?:noncreature|creature|instant or sorcery|artifact|enchantment) )?spell\.", re.I),
      lambda m: Counter(f"{m[1].lower()}spell" if m[1] else "spell", exile=True)),
     (re.compile(r"if that spell is countered this way, exile it instead of putting it into its owner's graveyard\.", re.I),
@@ -2360,7 +2371,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _OthersBecomeCopies(bool(m[1]))),
     (re.compile(r'(?i:create) (.+)\.("?)'), lambda m: _create(m, follows=False)),
     (re.compile(r'(?i:(?:its|that creature\'s) controller creates) (.+)\.("?)'), lambda m: _create(m, follows=True)),
-    (re.compile(r"its controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
+    (re.compile(r"(?:its|that creature's) controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
     (re.compile(r"that player may search their library for a land card with a basic land type, put it onto the battlefield, "
                 r"then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand(tapped=False, typed=True)),  # Boseiju
     (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
@@ -2748,6 +2759,7 @@ _CONDITIONS = [
     (re.compile(rf"{_SELF} isn't renowned"), lambda m: Condition("not_renowned")),
     (re.compile(r"this spell was foretold"), lambda m: Condition("foretold")),
     (re.compile(r"the discarded card wasn't a land card"), lambda m: Condition("discarded_nonland")),
+    (re.compile(r"a permanent left the battlefield under your control this turn"), lambda m: Condition("revolt")),  # Revolt (an ability word, CR 207.2c)
     (re.compile(rf"\{{([WUBRG])\}}\{{([WUBRG])\}} was spent to cast (?:it|{_SELF})"), lambda m: Condition("mana_spent_colors", what=m[1] + m[2])),  # Deceit
     (re.compile(r"you didn't cast a spell this turn"), lambda m: Condition("no_spell_cast_turn")),
     (re.compile(r"there are four or more card types among cards in your graveyard"), lambda m: Condition("delirium")),
@@ -2865,6 +2877,9 @@ _CONDITIONAL = Follows(
     Follow(_UntapThoseLands, RevealLands, set_fields(untap_if=lambda m: m.condition)),
     Follow(_UntapThatLand, FetchBasicLand, set_fields(untap_if=lambda m: m.condition)),
     Follow(_ManaForEachDestroyed, DestroyAll, set_fields(mana_each=lambda m: m.options)),
+    Follow(_DrawPerReturned, ReturnAnyNumber, set_fields(draw=lambda m: True)),
+    Follow(_InsteadManaValue, Destroy, set_fields(instead_mana_value=lambda m: m.most, instead_if=lambda m: m.condition),
+           fits=lambda previous, marker: previous.if_mana_value is not None),
     Follow(_PutFromAmongThem, Mill, set_fields(put=lambda m: m.kind)),
     Follow(_ThatAlsoGains, Pump, lambda previous, marker: dataclasses.replace(
         previous, modifier=dataclasses.replace(previous.modifier, keywords=previous.modifier.keywords | marker.keywords))),
