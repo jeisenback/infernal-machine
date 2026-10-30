@@ -109,8 +109,9 @@ def candidate_problem(deck: Deck, card: Card, house: HouseRules = NO_HOUSE_RULES
     identity = {color for c in deck.commanders for color in c.color_identity}
     if set(card.color_identity) - identity:
         return f"outside the commander's color identity ({''.join(sorted(set(card.color_identity) - identity))})"
-    if not card.legal_in("commander") and not house.permits(card, COMMANDER):
-        return "not legal in Commander"
+    fmt = FORMATS.get(deck.format, COMMANDER)  # Commander, or the commander format the deck names (Brawl, Pauper Commander, ...)
+    if not card.legal_in(fmt.legality) and not house.permits(card, fmt):
+        return f"not legal in {fmt.label}"
     limit = copy_limit(card)
     if limit is not None and in_deck >= limit:
         return "already in the deck" if limit == 1 else f"already at the limit of {limit}"

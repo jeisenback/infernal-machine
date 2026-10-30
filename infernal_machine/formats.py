@@ -17,6 +17,7 @@ from .cards import Card, Deck
 from .commander import copy_limit, deck_problems as commander_problems
 from .companion import companion_problems
 from .oathbreaker import deck_problems as oathbreaker_problems
+from .pauper_commander import can_lead, uncommon_commanders
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,10 @@ DUEL_COMMANDER = Format("duel", life=20, min_deck=100, sideboard=0, copy_limit=1
 OATHBREAKER = Format("oathbreaker", life=20, min_deck=60, sideboard=0, copy_limit=1, commander=True, commander_damage=None, legality="oathbreaker")
 PIONEER, MODERN, LEGACY, VINTAGE, PAUPER = (  # Standard's rules (CR 100.2a), each with its own pool of legal cards
     dataclasses.replace(STANDARD, name=name, legality=name) for name in ("pioneer", "modern", "legacy", "vintage", "pauper"))
-FORMATS = {fmt.name: fmt for fmt in (COMMANDER, STANDARD, BRAWL, DUEL_COMMANDER, OATHBREAKER, PIONEER, MODERN, LEGACY, VINTAGE, PAUPER)}
+PAUPER_COMMANDER = Format("paupercommander", life=30, min_deck=100, sideboard=0, copy_limit=1, commander=True, commander_damage=16,
+                          legality="paupercommander", title="Pauper Commander")  # PDH Home Base's rules (pauper_commander.py)
+FORMATS = {fmt.name: fmt for fmt in (COMMANDER, STANDARD, BRAWL, DUEL_COMMANDER, OATHBREAKER, PIONEER, MODERN, LEGACY, VINTAGE, PAUPER,
+                                     PAUPER_COMMANDER)}
 
 
 def with_format(deck: Deck, name: str | None) -> Deck:
@@ -132,6 +136,15 @@ def deck_problems(deck: Deck, fmt: Format, house: HouseRules = NO_HOUSE_RULES) -
     allow = frozenset(card.name for card in _every_card(deck) if house.permits(card, fmt))
     if fmt.name == "oathbreaker":
         return oathbreaker_problems(deck, fmt.min_deck, fmt.legality, fmt.label, allow)
+    if fmt is PAUPER_COMMANDER:  # an uncommon creature, vehicle or spacecraft leads; the 99 are commons
+        try:
+            uncommon = uncommon_commanders()
+        except (OSError, ValueError) as error:
+            return (commander_problems(deck, fmt.min_deck, fmt.legality, fmt.label, allow=allow, lead=lambda card: True)
+                    + [f"Can't check the commander: Scryfall's list of uncommon creatures could not be fetched ({error})"])
+        return (commander_problems(deck, fmt.min_deck, fmt.legality, fmt.label, allow=allow,
+                                   lead=lambda card: card.name in allow or (can_lead(card, uncommon) and fmt.legality not in card.banned))
+                + companion_problems(deck, fmt.min_deck, True, fmt.legality, fmt.label, allow))
     if fmt.commander:  # (a companion is outside the 100 cards)
         return (commander_problems(deck, fmt.min_deck, fmt.legality, fmt.label, planeswalkers=fmt.name == "brawl", allow=allow)
                 + companion_problems(deck, fmt.min_deck, True, fmt.legality, fmt.label, allow))
