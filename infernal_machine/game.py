@@ -393,6 +393,7 @@ class StackItem:
     gift: "Seat | None" = None  # the opponent promised a gift as it was cast
     owner: "Seat | None" = None  # whose card it is when that is not the caster (cast from another player's exile: Plargg and Nassari, Etali)
     foretold: bool = False  # cast from exile after being foretold ("If this spell was foretold")
+    discarded: tuple[Card, ...] = ()  # the cards discarded to pay its additional cost (Grab the Prize: "the discarded card")
 
     @property
     def physical(self) -> Card:
@@ -2542,6 +2543,8 @@ class Game:
             return source is not None and any(a.attached_to is source and "Equipment" in a.card.type_line for s in self.seats for a in s.battlefield)
         if kind == "foretold":  # the spell resolving was cast from exile for its foretell cost
             return self.resolving_item is not None and self.resolving_item.foretold
+        if kind == "discarded_nonland":  # Grab the Prize: the card discarded to cast it wasn't a land card
+            return self.resolving_item is not None and any(not is_land(c) for c in self.resolving_item.discarded)
         if kind == "no_spells_last_turn":  # the old werewolves: nobody cast a spell in the previous turn
             return not any(turn == self.turn - 1 for other in self.seats for turn, _ in other.cast_log)
         if kind == "two_spells_last_turn":  # ... or one player cast two or more

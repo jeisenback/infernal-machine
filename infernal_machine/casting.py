@@ -135,10 +135,10 @@ class Caster:
         zone.remove(whole or card)
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
-        self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back, picked)
+        discarded = self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back, picked)
         sacrificed = self.game._sacrifice_for_copies(seat, card)
         item = g.StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, additional_paid=additional_paid, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
-                         foretold=graveyard is not None and graveyard.word == "Foretell", from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
+                         foretold=graveyard is not None and graveyard.word == "Foretell", discarded=discarded, from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, mana_types_spent=tapped.spent, cant_be_countered=no_counter,
@@ -346,8 +346,9 @@ class Caster:
 
     def _pay_extras(self, seat: g.Seat, card: Card, alternative: AlternativeCost | None,
                     graveyard: GraveyardCast | None = None, x: int = 0, kicked: int = 0, bought_back: bool = False,
-                    picked: tuple = ()) -> None:
-        """Pay the non-mana costs of casting `card`, which has already left its zone."""
+                    picked: tuple = ()) -> tuple[Card, ...]:
+        """Pay the non-mana costs of casting `card`, which has already left its zone. Returns the cards its additional costs
+        discarded."""
         for _ in range(graveyard.exile if graveyard else 0):  # Escape: exile other cards from the graveyard
             exiled = seat.graveyard[seat.player.choose(g.ESCAPE_PROMPT, [c.name for c in seat.graveyard])]
             seat.graveyard.remove(exiled)
@@ -370,9 +371,11 @@ class Caster:
             self.game.broadcast({"event": "exiled_from_hand", "seat": seat.index, "card": exiled.name})
             self.game._move_card(seat, exiled, "exile")
         extras = [c for c in self._extra_costs(card, kicked, bought_back) if not c.options] + list(picked)
+        paid: list[Card] = []
         for extra in extras:
             if extra.discard:
                 discarded = seat.hand[seat.player.choose(g.DISCARD_PROMPT, [c.name for c in seat.hand])]
+                paid.append(discarded)
                 seat.hand.remove(discarded)
                 self.game.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
                 self.game._discard_into_zone(seat, discarded)
@@ -386,6 +389,7 @@ class Caster:
                 + (x if any(c.life_x for c in additional_costs(card)) else 0))
         if life:
             self.game.change_life(seat, -life)
+        return tuple(paid)
 
     def _max_x(self, seat: g.Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str = "") -> int:
         x = 0
