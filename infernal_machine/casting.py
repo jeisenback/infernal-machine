@@ -280,8 +280,9 @@ class Caster:
             reduction += max((self.game.power(p) for p in seat.battlefield if "Creature" in p.card.type_line), default=0)
         if own := self_cost_reduction(card):  # "This spell costs {1} less to cast for each creature on the battlefield."
             amount, what = own
-            counted = (sum(has_type(p.card, "creature") for s in self.game.live_seats() for p in s.battlefield)
-                       if what == "creature" else sum(g._card_matches(what, c) for c in seat.graveyard))
+            counted = (sum(has_type(p.card, "creature") for s in self.game.live_seats() for p in s.battlefield) if what == "creature"
+                       else self.game.basic_land_types(seat) if what == "basic land type"  # Domain
+                       else sum(g._card_matches(what, c) for c in seat.graveyard))
             reduction += amount * counted
         return reduction
 
