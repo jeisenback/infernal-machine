@@ -259,6 +259,8 @@ from .families.exile_and_return import (  # noqa: F401
     ReturnThisFromGraveyard,
     ReturnToHand,
     ReturnAnyNumber,
+    MayCastFromGraveyard,
+    _ExileCastThisWay,
     _DrawPerReturned,
     ReturnTransformed,
     ReturnWhenItDiesThisTurn,
@@ -291,6 +293,7 @@ from .families.library_and_hand import (  # noqa: F401
     ImprintFromHand,
     Impulse,
     LookAtHand,
+    LookAtTopOfLibrary,
     LookAtTop,
     LookPutAttachment,
     LookPutPermanents,
@@ -350,6 +353,7 @@ from .families.library_and_hand import (  # noqa: F401
 from .families.life_and_damage import (  # noqa: F401
     Annihilate,
     Damage,
+    _InsteadDamage,
     DamageFromSubject,
     DamageEach,
     DamageTargetsController,
@@ -1523,6 +1527,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"destroy target permanent if it's (white|blue|black|red|green)\.", re.I),
      lambda m: Destroy("permanent", if_color=_COLOR_LETTER[m[1].lower()])),
     (re.compile(r"destroy target creature if it has mana value (\d+) or less\.", re.I), lambda m: Destroy("creature", if_mana_value=int(m[1]))),
+    (re.compile(r"(?:[A-Z][a-z]+ \u2014 )?CARDNAME deals (\d+) damage instead if (.+)\.", re.I),  # Galvanic Blast (Metalcraft)
+     lambda m: _InsteadDamage(int(m[1]), c) if (c := _condition(m[2])) else None),
     (re.compile(r"(?:revolt \u2014 )?destroy that creature if it has mana value (\d+) or less instead if (.+)\.", re.I),  # Fatal Push
      lambda m: _InsteadManaValue(int(m[1]), c) if (c := _condition(m[2])) else None),
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|white|blue|black|red|green) )?spell"
@@ -1633,6 +1639,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"add ((?:\{[WUBRGC]\})+), then add (\{[WUBRGC]\}) for each card named CARDNAME in each graveyard\.", re.I),
      lambda m: AddMana(tuple(frozenset(s) for s in re.findall(r"[WUBRGC]", m[1].upper())), per_named=frozenset(re.findall(r"[WUBRGC]", m[2].upper())))),
     (re.compile(r"look at target (player|opponent)'s hand\.", re.I), lambda m: LookAtHand(m[1].lower())),
+    (re.compile(r"look at the top card of target (player|opponent)'s library\.", re.I), lambda m: LookAtTopOfLibrary(m[1].lower())),
     (re.compile(r"put your commander into your hand from the command zone\.", re.I), lambda m: CommanderToHand()),
     (re.compile(r"put (?:CARDNAME|this card) onto the battlefield from the command zone\.", re.I), lambda m: PutThisFromCommandZone()),
     (re.compile(r"exile (?:it|that token) at the beginning of the next end step\.", re.I), lambda m: _ExileTokenAtEnd()),
@@ -1665,6 +1672,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return any number of target (nonland, nontoken permanent)s you control to their owners' hands\.", re.I),
      lambda m: ReturnAnyNumber(f"{m[1]} you control")),  # Paradoxical Outcome
     (re.compile(r"draw a card for each card returned to your hand this way\.", re.I), lambda m: _DrawPerReturned()),
+    (re.compile(r"(?:you may )?cast an? ((?:artifact|creature|enchantment|instant|sorcery)(?:,? (?:or )?(?:artifact|creature|enchantment|instant|"
+                r"sorcery))*) spell from your graveyard\.", re.I),  # Bilbo, Thief in the Night
+     lambda m: MayCastFromGraveyard(tuple(k.capitalize() for k in re.split(r",? (?:or )?", m[1].lower())))),
+    (re.compile(r"if an instant or sorcery spell cast this way would be put into your graveyard, exile it instead\.", re.I),
+     lambda m: _ExileCastThisWay()),
     (re.compile(r"for each of them, create a token that's a copy of that creature, except it has haste\.", re.I),
      lambda m: _CopyEachWithHaste()),
     (re.compile(r"exile those tokens at the beginning of the next end step\.", re.I), lambda m: _ExileThoseTokens()),
@@ -1841,7 +1853,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you may shuffle\.", re.I), lambda m: _MayShuffle()),
     (re.compile(rf"draw {_N_FIXED} cards, then put {_N_FIXED} cards from your hand on top of your library in any order\.", re.I),
      lambda m: DrawThenPutBack(_number(m[1]), _number(m[2]))),
-    (re.compile(rf"look at the top (?:{_N} cards?|card) of your library\.", re.I),
+    (re.compile(rf"(?:look at|reveal) the top (?:{_N} cards?|card) of your library\.", re.I),  # Malevolent Rumble reveals them
      lambda m: LookAtTop(_count(m[1] or "one"))),
     (re.compile(rf"put {_N_FIXED} of (?:them|those cards) into your hand(?: and (?:the rest|the other) (on the bottom of your library"
                 r"(?: in (?:any|a random) order)?|into your graveyard))?\.", re.I),
@@ -1850,10 +1862,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _InsteadTake(c, _number(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(rf"you may reveal an? {_SEARCH_TYPE} from among them and put (?:it|that card) into your hand\.", re.I),
      lambda m: TakeFromTop(_card_kind(m[1]))),
+    (re.compile(r"you may put an? (permanent|creature or land|creature or enchantment) card from among them into your hand\.", re.I),
+     lambda m: TakeFromTop(m[1].lower())),  # Malevolent Rumble, Grisly Salvage, Commune with the Gods
     (re.compile(rf"you may put an? {_SEARCH_TYPE} from among them onto the battlefield\.", re.I),
      lambda m: TakeFromTop(_card_kind(m[1]), "battlefield")),  # Ureni of the Unwritten
     (re.compile(r"put the rest on the bottom of your library in (?:a random|any) order\.", re.I),
      lambda m: RestOnBottom()),
+    (re.compile(r"put the rest into your graveyard\.", re.I), lambda m: RestOnBottom("graveyard")),
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
@@ -2654,6 +2669,7 @@ def _merge_impulse(effects: list) -> list | None:
                 kicked = i < len(effects) and isinstance(effects[i], KickedInstead)  # need the rest-on-the-bottom sentence (Consult the
                 if not (i + kicked < len(effects) and isinstance(effects[i + kicked], RestOnBottom)):  # Star Charts: after its kicked clause)
                     return None
+                take = dataclasses.replace(take, rest=effects[i + kicked].to)
                 del effects[i + kicked]
             merged.append(Impulse(effect.count, take.card_type, take.to, take.take, take.rest or "bottom"))
             continue
@@ -2878,6 +2894,9 @@ _CONDITIONAL = Follows(
     Follow(_UntapThatLand, FetchBasicLand, set_fields(untap_if=lambda m: m.condition)),
     Follow(_ManaForEachDestroyed, DestroyAll, set_fields(mana_each=lambda m: m.options)),
     Follow(_DrawPerReturned, ReturnAnyNumber, set_fields(draw=lambda m: True)),
+    Follow(_ExileCastThisWay, MayCastFromGraveyard, set_fields(exile_after=lambda m: True)),
+    Follow(_InsteadDamage, Damage, set_fields(instead=lambda m: m.amount, instead_if=lambda m: m.condition),
+           fits=lambda previous, marker: previous.instead_if is None),
     Follow(_InsteadManaValue, Destroy, set_fields(instead_mana_value=lambda m: m.most, instead_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.if_mana_value is not None),
     Follow(_PutFromAmongThem, Mill, set_fields(put=lambda m: m.kind)),

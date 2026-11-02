@@ -3,7 +3,6 @@
   "beanstalk_control_non_yorion": {
    "cards": 60,
    "unplayable": [
-    "Daze",
     "Leyline Binding",
     "Murktide Regent",
     "Phelia, Exuberant Shepherd",
@@ -46,10 +45,7 @@
   "dimir_tempo": {
    "cards": 60,
    "unplayable": [
-    "Bilbo, Thief in the Night",
-    "Daze",
     "Kaito, Bane of Nightmares",
-    "Mishra's Bauble",
     "Moonshadow",
     "Nethergoyf",
     "Snuff Out"
@@ -58,7 +54,6 @@
   "doomsday": {
    "cards": 60,
    "unplayable": [
-    "Daze",
     "Doomsday",
     "Edge of Autumn",
     "Murktide Regent",
@@ -84,12 +79,9 @@
    "cards": 60,
    "unplayable": [
     "Cori-Steel Cutter",
-    "Daze",
     "Dragon's Rage Channeler",
-    "Mishra's Bauble",
     "Murktide Regent",
     "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
-    "Unholy Heat",
     "Urza's Bauble"
    ]
   },
@@ -100,7 +92,6 @@
     "Dark Depths",
     "Grafdigger's Cage",
     "Karakas",
-    "Malevolent Rumble",
     "Maze of Ith",
     "Pithing Needle",
     "Sphere of Resistance",

@@ -12,6 +12,7 @@ from ..targets import (DEAD_SOURCE, MassFilter, PLAYER, PREVIOUS_TARGET, SOURCE,
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
+    from .base import Condition
 
 
 @dataclass(frozen=True)
@@ -58,10 +59,21 @@ class Damage:
     target: str
     optional_target: bool = False  # one point of "4 damage divided as you choose among any number of targets"
     distinct: bool = False  # "... to each of up to two targets": the second can't be the first again
+    instead: int = 0  # Galvanic Blast: "Metalcraft \u2014 CARDNAME deals 4 damage instead if you control three or more artifacts." ...
+    instead_if: "Condition | None" = None  # ... checked as it resolves
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.damage(target, game.amount(self.amount), source=game.resolving_source)  # CR 120.3: the ability's source deals it
+            amount = self.instead if self.instead_if is not None and game.condition_holds(self.instead_if, controller, game.resolving_source) \
+                else game.amount(self.amount)
+            game.damage(target, amount, source=game.resolving_source)  # CR 120.3: the ability's source deals it
+
+
+@dataclass(frozen=True)
+class _InsteadDamage:
+    """ "Metalcraft \u2014 CARDNAME deals 4 damage instead if you control three or more artifacts." after a Damage (see _CONDITIONAL)."""
+    amount: int
+    condition: "Condition"
 
 
 @dataclass(frozen=True)

@@ -547,6 +547,16 @@ class LookAtHand:
 
 
 @dataclass(frozen=True)
+class LookAtTopOfLibrary:
+    """Mishra's Bauble: "Look at the top card of target player's library." Only its controller learns anything."""
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target.library:
+            controller.player.notify({"event": "library_top", "seat": target.index, "cards": [target.library[0].name]})
+
+
+@dataclass(frozen=True)
 class ShuffleThisSpell:
     """Green Sun's Zenith: "Shuffle CARDNAME into its owner's library." once it has resolved."""
 
@@ -609,7 +619,9 @@ class TakeFromTop:
 
 @dataclass(frozen=True)
 class RestOnBottom:
-    """ "Put the rest on the bottom of your library in a random order." """
+    """ "Put the rest on the bottom of your library in a random order." or, with `to` "graveyard", "Put the rest into your graveyard."
+    (Malevolent Rumble)."""
+    to: str = "bottom"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         raise NotImplementedError("a lone put-the-rest is never built")

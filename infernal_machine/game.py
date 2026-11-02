@@ -128,6 +128,8 @@ FACE_DOWN_DISGUISED = dataclasses.replace(FACE_DOWN, oracle_text="Ward {2}")  # 
 PUT_FROM_HAND_PROMPT = PromptKind("put_from_hand", "Put a card from your hand onto the battlefield: ")
 RETURN_CHOSEN_PROMPT = PromptKind("return_chosen", "Return which card from your graveyard? ")
 DECLINE = "Don't"
+GRAVEYARD_CAST_PROMPT = PromptKind("graveyard_cast", "Cast which spell from your graveyard? ")  # Bilbo
+DECLINE_CAST = "Don't cast"
 CHOOSE_COLOR_PROMPT = PromptKind("choose_color", "Choose a color for ")  # followed by the card's name; white, blue, black, red, green
 KAROO_PROMPT = PromptKind("karoo", "Return a land or sacrifice ")  # followed by the card's name; the last option is SACRIFICE_IT
 SACRIFICE_IT = "Sacrifice it"
@@ -163,6 +165,7 @@ NO_EXPLOIT = "Don't sacrifice a creature"
 PAIR_PROMPT = PromptKind("pair", "Soulbond: pair ")  # followed by the creature's name
 NO_PAIR = "Don't pair"
 SACRIFICE_COST_PROMPT = PromptKind("sacrifice_cost", "Choose what to sacrifice for ")  # followed by the spell's name
+RETURN_COST_PROMPT = PromptKind("return_cost", "Choose what to return to its owner's hand for ")  # Daze; followed by the spell's name
 BLIGHT_PROMPT = PromptKind("blight", "Choose a creature to blight for ")  # followed by the spell's name; options are your creatures
 DISCARD_COST_PROMPT = PromptKind("discard_cost", "Choose a card to discard for ")  # followed by the ability's source
 EXILE_COST_PROMPT = PromptKind("exile_cost", "Choose a card to exile from your graveyard for ")  # followed by the ability's source
@@ -1708,6 +1711,22 @@ class Game:
     def cast_free(self, seat: Seat, card: Card) -> None:
         """Cast `card` from `seat`'s hand without paying its mana cost (it stays in hand if it has no legal target)."""
         self._cast(seat, card, seat.hand, free=True)
+
+    def may_cast_from_graveyard(self, seat: Seat, kinds: tuple[str, ...], exile_after: bool) -> None:
+        """Bilbo: `seat` may cast a spell of one of `kinds` from their graveyard now, paying its mana cost (CR 608.2g: timing is
+        ignored while an ability resolves). With `exile_after`, an instant or sorcery cast this way is exiled instead of going back."""
+        options = []
+        for card in _unique([c for c in seat.graveyard if any(kind in c.type_line for kind in kinds)]):
+            way = GraveyardCast("From the graveyard", card.mana_cost,
+                                exile_after=exile_after and ("Instant" in card.type_line or "Sorcery" in card.type_line))
+            if self._cast_ways(seat, card, False, way):
+                options.append((card, way))
+        if not options:
+            return
+        pick = seat.player.choose(GRAVEYARD_CAST_PROMPT, [c.name for c, _ in options] + [DECLINE_CAST])
+        if pick < len(options):
+            card, way = options[pick]
+            self._cast(seat, card, seat.graveyard, graveyard=way)
 
     def cast_copy_free(self, seat: Seat, card: Card) -> None:
         """Cast a copy of `card` without paying its mana cost (Surge to Victory); the copy stops existing afterwards."""
