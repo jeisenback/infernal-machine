@@ -41,12 +41,10 @@
   "domain_zoo": {
    "cards": 60,
    "unplayable": [
-    "Leyline Binding",
     "Leyline of the Guildpact",
     "Scion of Draco",
     "Stubborn Denial",
-    "Territorial Kavu",
-    "Tribal Flames"
+    "Territorial Kavu"
    ]
   },
   "eldrazi": {
@@ -61,8 +59,7 @@
     "Kozilek's Command",
     "Shifting Woodland",
     "Soul-Guide Lantern",
-    "Ugin's Labyrinth",
-    "Vexing Bauble"
+    "Ugin's Labyrinth"
    ]
   },
   "eldrazi_ramp": {
@@ -77,8 +74,7 @@
     "Kozilek's Command",
     "Shifting Woodland",
     "Soul-Guide Lantern",
-    "Ugin's Labyrinth",
-    "Vexing Bauble"
+    "Ugin's Labyrinth"
    ]
   },
   "esper_blink": {
@@ -95,7 +91,6 @@
   "goryos_vengeance": {
    "cards": 60,
    "unplayable": [
-    "Atraxa, Grand Unifier",
     "Consign to Memory",
     "Faithful Mending",
     "Goryo's Vengeance",

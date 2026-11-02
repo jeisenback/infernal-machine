@@ -45,6 +45,17 @@ class Counter:
 
 
 @dataclass(frozen=True)
+class CounterTriggeringSpell:
+    """Vexing Bauble: "Whenever a player casts a spell, if no mana was spent to cast it, counter that spell." The spell that set the
+    trigger off is `carried`."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        spell = game.resolving_item.carried if game.resolving_item is not None else None
+        if spell is not None and spell in game.stack and not cant_be_countered(spell.card) and not game.uncounterable(spell):
+            game.counter(spell)
+
+
+@dataclass(frozen=True)
 class ChangeTarget:
     """Deflection: "Change the target of target spell with a single target." (Divert: "... unless that spell's controller pays {2}.")
     You choose the new target, which must be another legal one for that spell or ability."""

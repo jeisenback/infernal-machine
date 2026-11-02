@@ -417,6 +417,7 @@ from .families.spells_and_misc import (  # noqa: F401
     PutThisFromCommandZone,
     Conditional,
     Counter,
+    CounterTriggeringSpell,
     CreateDelayedTrigger,
     DefineX,
     DoubleXOfTriggeringSpell,
@@ -1066,6 +1067,7 @@ _AMOUNTS = [
     (re.compile(r"the sacrificed creature's power", re.I), lambda m: Amount("sacrificed_power")),
     (re.compile(r"your devotion to (white|blue|black|red|green)", re.I), lambda m: Amount("devotion", _COLOR_LETTER[m[1].lower()])),
     (re.compile(r"the tapped creature's power", re.I), lambda m: Amount("tapped_power")),
+    (re.compile(r"the number of basic land types among lands you control", re.I), lambda m: Amount("basic_land_types")),  # Domain
     (re.compile(r"(?:the number of )?Auras? you controlled that was attached to it", re.I), lambda m: Amount("auras_on_subject")),
     (re.compile(r"(?:the number of )?Auras? you control that's attached to a creature", re.I),
      lambda m: Amount("auras_on_creatures")),
@@ -1376,7 +1378,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|non(?:white|blue|black|red|green|artifact|legendary) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
-                   r"|creature or planeswalker|creature or enchantment|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that player controls)?"
+                   r"|creature or planeswalker|creature or enchantment|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that player controls)?"
                    r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with power \d+ or less)?)")
 
 
@@ -1534,6 +1536,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|white|blue|black|red|green) )?spell"
                 rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
+    (re.compile(r"counter that spell\.", re.I), lambda m: CounterTriggeringSpell()),  # Vexing Bauble
     (re.compile(r"change the target of target (spell|spell or ability|activated ability) with a single target"
                 rf"( unless that spell's controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: ChangeTarget(f"{m[1].lower()} with a single target", unless=m[3] or "")),
@@ -1864,6 +1867,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: TakeFromTop(_card_kind(m[1]))),
     (re.compile(r"you may put an? (permanent|creature or land|creature or enchantment) card from among them into your hand\.", re.I),
      lambda m: TakeFromTop(m[1].lower())),  # Malevolent Rumble, Grisly Salvage, Commune with the Gods
+    (re.compile(r"for each card type, you may put a card of that type from among the revealed cards into your hand\.", re.I),
+     lambda m: TakeFromTop("each card type", rest=None)),  # Atraxa, Grand Unifier
+    (re.compile(r"you may reveal a (noncreature, nonland) card from among them and put it into your hand\.", re.I),
+     lambda m: TakeFromTop(m[1].lower())),  # Thundertrap Trainer
     (re.compile(rf"you may put an? {_SEARCH_TYPE} from among them onto the battlefield\.", re.I),
      lambda m: TakeFromTop(_card_kind(m[1]), "battlefield")),  # Ureni of the Unwritten
     (re.compile(r"put the rest on the bottom of your library in (?:a random|any) order\.", re.I),
@@ -2775,7 +2782,8 @@ _CONDITIONS = [
     (re.compile(rf"{_SELF} isn't renowned"), lambda m: Condition("not_renowned")),
     (re.compile(r"this spell was foretold"), lambda m: Condition("foretold")),
     (re.compile(r"the discarded card wasn't a land card"), lambda m: Condition("discarded_nonland")),
-    (re.compile(r"a permanent left the battlefield under your control this turn"), lambda m: Condition("revolt")),  # Revolt (an ability word, CR 207.2c)
+    (re.compile(r"a permanent left the battlefield under your control this turn"), lambda m: Condition("revolt")),
+    (re.compile(r"no mana was spent to cast it"), lambda m: Condition("no_mana_spent")),  # Vexing Bauble: the spell that set it off  # Revolt (an ability word, CR 207.2c)
     (re.compile(rf"\{{([WUBRG])\}}\{{([WUBRG])\}} was spent to cast (?:it|{_SELF})"), lambda m: Condition("mana_spent_colors", what=m[1] + m[2])),  # Deceit
     (re.compile(r"you didn't cast a spell this turn"), lambda m: Condition("no_spell_cast_turn")),
     (re.compile(r"there are four or more card types among cards in your graveyard"), lambda m: Condition("delirium")),
@@ -2823,7 +2831,7 @@ def _condition(text: str) -> Condition | None:
     return None
 
 
-_SPELL_MASTERY = re.compile(r"^Spell mastery \u2014 ")  # the condition stays in the sentence; the ability word is only a label
+_SPELL_MASTERY = re.compile(r"^(?:Spell mastery|Domain) \u2014 ")  # the condition stays in the sentence; an ability word is only a label (CR 207.2c)
 
 
 _SPELL_COLORS = re.compile(r"the number of colors that spell is", re.I)  # Mana Cannons

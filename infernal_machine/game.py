@@ -128,6 +128,8 @@ FACE_DOWN_DISGUISED = dataclasses.replace(FACE_DOWN, oracle_text="Ward {2}")  # 
 PUT_FROM_HAND_PROMPT = PromptKind("put_from_hand", "Put a card from your hand onto the battlefield: ")
 RETURN_CHOSEN_PROMPT = PromptKind("return_chosen", "Return which card from your graveyard? ")
 DECLINE = "Don't"
+EACH_CARD_TYPE = "each card type"  # a look's card type: one card of each type may be taken (Atraxa, Grand Unifier)
+CARD_TYPES = ("artifact", "battle", "creature", "enchantment", "instant", "land", "planeswalker", "sorcery")  # CR 205.2a
 GRAVEYARD_CAST_PROMPT = PromptKind("graveyard_cast", "Cast which spell from your graveyard? ")  # Bilbo
 DECLINE_CAST = "Don't cast"
 CHOOSE_COLOR_PROMPT = PromptKind("choose_color", "Choose a color for ")  # followed by the card's name; white, blue, black, red, green
@@ -1712,6 +1714,11 @@ class Game:
         """Cast `card` from `seat`'s hand without paying its mana cost (it stays in hand if it has no legal target)."""
         self._cast(seat, card, seat.hand, free=True)
 
+    def basic_land_types(self, seat: Seat) -> int:
+        """Domain: how many of the five basic land types are among the lands `seat` controls (CR 205.3i)."""
+        return sum(any(basic in p.card.type_line.partition("\u2014")[2].split() for p in seat.battlefield if is_land(p.card))
+                   for basic in ("Plains", "Island", "Swamp", "Mountain", "Forest"))
+
     def may_cast_from_graveyard(self, seat: Seat, kinds: tuple[str, ...], exile_after: bool) -> None:
         """Bilbo: `seat` may cast a spell of one of `kinds` from their graveyard now, paying its mana cost (CR 608.2g: timing is
         ignored while an ability resolves). With `exile_after`, an instant or sorcery cast this way is exiled instead of going back."""
@@ -2296,7 +2303,7 @@ class Game:
                             "ability": _shown(ability.text, item.card), "declined": True})
             return
         condition = getattr(ability, "condition", None)
-        if condition and not self.condition_holds(condition, seat, item.source, item.x, item.player, item.subject):  # checked again on resolution (CR 603.4)
+        if condition and not self.condition_holds(condition, seat, item.source, item.x, item.player, item.subject, item.carried):  # checked again on resolution (CR 603.4)
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": _shown(ability.text, item.card), "condition_false": True})
             return
@@ -2322,6 +2329,8 @@ class Game:
             return self.deaths_count if self.deaths_turn == self.turn else 0
         if kind == "creatures_entered":  # nontoken creatures that entered under your control this turn
             return controller.creatures_entered if controller.creatures_entered_turn == self.turn else 0
+        if kind == "basic_land_types":  # Domain
+            return self.basic_land_types(controller)
         if kind == "devotion":  # Gray Merchant of Asphodel: every {B} (hybrid and Phyrexian too) in the mana costs of your permanents
             return sum(len(re.findall(rf"\{{[^}}]*{amount.what}[^}}]*\}}", p.card.mana_cost)) for p in controller.battlefield)
         if kind == "sacrificed_power":  # the creature sacrificed to pay this ability's cost
@@ -2504,7 +2513,7 @@ class Game:
 
     def _queue(self, ability: TriggeredAbility, permanent: Permanent, controller: Seat, x: int = 0,
                subject: Permanent | None = None, player: Seat | None = None, spell: "StackItem | Card | tuple | None" = None) -> None:
-        if ability.condition and not self.condition_holds(ability.condition, controller, permanent, x, player, subject):
+        if ability.condition and not self.condition_holds(ability.condition, controller, permanent, x, player, subject, spell):
             return
         if ability.once_per_turn:  # "This ability triggers only once each turn."
             if permanent.triggered_turn.get(ability.text) == self.turn:
@@ -2540,7 +2549,7 @@ class Game:
                 self._queue(delayed.ability, delayed.watcher, delayed.controller, 0, creature, defender)
 
     def condition_holds(self, condition: Condition, seat: Seat, source: Permanent | None = None, x: int = 0,
-                        player: Seat | None = None, subject: Permanent | None = None) -> bool:
+                        player: Seat | None = None, subject: Permanent | None = None, spell: Any = None) -> bool:
         """Whether an intervening "if" clause is true for `seat`, the ability's controller, and `source`. `x` is the
         number the event carried (how many attackers went at the controller, for "two or more of those creatures");
         `player` is the player the trigger is about ("that player"); `subject` the permanent it is about ("that creature")."""
@@ -2563,6 +2572,8 @@ class Game:
             return source is not None and any(a.attached_to is source and "Equipment" in a.card.type_line for s in self.seats for a in s.battlefield)
         if kind == "foretold":  # the spell resolving was cast from exile for its foretell cost
             return self.resolving_item is not None and self.resolving_item.foretold
+        if kind == "no_mana_spent":  # Vexing Bauble: the spell that set the trigger off was cast without spending mana
+            return isinstance(spell, StackItem) and spell.mana_spent == 0
         if kind == "revolt":  # a permanent left the battlefield under your control this turn
             return seat.permanent_left_turn == self.turn
         if kind == "discarded_nonland":  # Grab the Prize: the card discarded to cast it wasn't a land card
@@ -5073,13 +5084,18 @@ class Game:
         top = seat.library[:count]
         del seat.library[:len(top)]
         taken: list[Card] = []
-        for _ in range(take):
-            matches = _unique([c for c in top if card_type is None or _card_matches(card_type, c)])
+        each_type = card_type == EACH_CARD_TYPE  # Atraxa: "For each card type, you may put a card of that type ... into your hand."
+        for kind in CARD_TYPES if each_type else [card_type] * take:
+            matches = _unique([c for c in top if kind is None or _card_matches(kind, c)])
             if not matches:
+                if each_type:
+                    continue
                 break
-            options = [c.name for c in matches] + ([NONE_TAKEN] if card_type else [])
+            options = [c.name for c in matches] + ([NONE_TAKEN] if kind else [])
             choice = seat.player.choose(LOOK_PROMPT, options) if len(options) > 1 else 0
             if choice >= len(matches):
+                if each_type:
+                    continue
                 break
             card = matches[choice]
             top.remove(card)

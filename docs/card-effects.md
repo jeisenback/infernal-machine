@@ -855,6 +855,20 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     may cast an artifact, instant, or sorcery spell from your graveyard" (`MayCastFromGraveyard`, `Game.may_cast_from_graveyard`) offers
     the cards of those types you can pay for now, timing ignored (CR 608.2g); "If an instant or sorcery spell cast this way would be put
     into your graveyard, exile it instead." is folded into it.
+  - Karakas (`tests/test_return_legendary_creature.py`): "legendary creature" is a target kind, so "{T}: Return target legendary creature
+    to its owner's hand." is read.
+  - Thundertrap Trainer (`tests/test_take_noncreature_nonland.py`): "You may reveal a noncreature, nonland card from among them and put it
+    into your hand." takes from a look like the other kinds.
+  - Domain (`tests/test_domain.py`): `Game.basic_land_types` counts the basic land types among the lands a player controls (CR 205.3i; a
+    dual land counts both of its types), as the amount "the number of basic land types among lands you control" (Tribal Flames, Briar
+    Hydra, Exploding Borders) and in "This spell costs {1} less to cast for each basic land type among lands you control." (Leyline
+    Binding). The "Domain —" label in front of a spell's sentence is dropped, like "Spell mastery —" (an ability word, CR 207.2c).
+  - Countering free spells (`tests/test_counter_free_spells.py`): Vexing Bauble's "Whenever a player casts a spell, if no mana was spent
+    to cast it, counter that spell." is a cast watcher with `Condition("no_mana_spent")`, which `Game.condition_holds` checks against the
+    spell that set it off (its new `spell` argument, the trigger's `carried` spell as it resolves), and `CounterTriggeringSpell`.
+  - Atraxa, Grand Unifier (`tests/test_take_each_card_type.py`): "For each card type, you may put a card of that type from among the
+    revealed cards into your hand." is an `Impulse` of card type `EACH_CARD_TYPE`: `Game.look_at_top` offers each of the eight card types
+    in turn (CR 205.2a), and a card of two types is taken for one of them.
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

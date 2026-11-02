@@ -3,7 +3,6 @@
   "beanstalk_control_non_yorion": {
    "cards": 60,
    "unplayable": [
-    "Leyline Binding",
     "Murktide Regent",
     "Phelia, Exuberant Shepherd",
     "Stifle",
@@ -19,7 +18,6 @@
     "Galvanic Discharge",
     "Guide of Souls",
     "Hexing Squelcher",
-    "Karakas",
     "Lazotep Quarry",
     "Ocelot Pride",
     "Phlage, Titan of Fire's Fury",
@@ -33,7 +31,6 @@
     "Aether Vial",
     "Cloak and Dagger, Entwined",
     "Emperor of Bones",
-    "Karakas",
     "Lich's Relic",
     "Lion Sash",
     "Overlord of the Balemurk",
@@ -91,7 +88,6 @@
     "Blast Zone",
     "Dark Depths",
     "Grafdigger's Cage",
-    "Karakas",
     "Maze of Ith",
     "Pithing Needle",
     "Sphere of Resistance",
@@ -116,7 +112,6 @@
   "sneak_and_show": {
    "cards": 60,
    "unplayable": [
-    "Atraxa, Grand Unifier",
     "City of Traitors",
     "Emrakul, the Aeons Torn",
     "Raph & Mikey, Troublemakers",
