@@ -225,6 +225,22 @@ class MayCastFromHandFree:
 FREE_CAST_PROMPT = PromptKind("free_cast", "Cast which spell without paying its mana cost? ")
 
 
+@dataclass(frozen=True)
+class MayCastFromGraveyard:
+    """Bilbo, Thief in the Night: "you may cast an artifact, instant, or sorcery spell from your graveyard." Its mana cost is paid. With
+    `exile_after`: "If an instant or sorcery spell cast this way would be put into your graveyard, exile it instead." """
+    kinds: tuple[str, ...]
+    exile_after: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.may_cast_from_graveyard(controller, self.kinds, self.exile_after)
+
+
+@dataclass(frozen=True)
+class _ExileCastThisWay:
+    """ "If an instant or sorcery spell cast this way would be put into your graveyard, exile it instead." after MayCastFromGraveyard."""
+
+
 DECLINE = "Don't cast"
 
 

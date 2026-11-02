@@ -16,7 +16,6 @@
     "Armadillo Cloak",
     "Benevolent Blessing",
     "Ethereal Armor",
-    "Malevolent Rumble",
     "Spirit Link"
    ]
   },
@@ -45,7 +44,6 @@
    "cards": 60,
    "unplayable": [
     "Black Mage's Rod",
-    "Galvanic Blast",
     "Ichor Wellspring",
     "Reckoner's Bargain",
     "Refurbished Familiar",
@@ -64,7 +62,6 @@
   "mono_red_rally": {
    "cards": 60,
    "unplayable": [
-    "Galvanic Blast",
     "Gingerbrute",
     "Inventor's Axe"
    ]

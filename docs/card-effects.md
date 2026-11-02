@@ -839,6 +839,22 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Paradoxical Outcome (`tests/test_return_any_number.py`): "Return any number of target nonland, nontoken permanents you control to
     their owners' hands." is `ReturnAnyNumber`, and "Draw a card for each card returned to your hand this way." is folded into it by a
     `Follow` row; a card that goes to another owner's hand is not counted.
+  - Returning lands instead of paying (`tests/test_return_instead_of_paying.py`): "You may return an Island you control to its owner's
+    hand rather than pay this spell's mana cost." is an alternative cost (`AlternativeCost.returns`, `return_count`): with one, two or
+    three Islands (Daze, Gush, Ensnare, Thwart, Tidal Bore), offered only while you control that many.
+  - Damage instead (`tests/test_damage_instead.py`): "CARDNAME deals 4 damage instead if <condition>." after a damage sentence, with or
+    without an ability word (Metalcraft, Delirium, Hellbent), is folded into the `Damage` before it (`instead`, `instead_if`) and checked
+    as it resolves (Galvanic Blast, Unholy Heat, Cackling Flames, Firecannon Blast, Thermal Blast).
+  - Mishra's Bauble (`tests/test_look_at_library_top.py`): "Look at the top card of target player's library." (`LookAtTopOfLibrary`) tells
+    only its controller the card; the delayed draw was already read.
+  - Reveal and take (`tests/test_reveal_take_rest_to_graveyard.py`): "Reveal the top four cards of your library." is read like "Look at
+    ...", "You may put a permanent (creature or land, creature or enchantment) card from among them into your hand." takes one, and "Put
+    the rest into your graveyard." (`RestOnBottom("graveyard")`) completes the `Impulse` (Malevolent Rumble, Grisly Salvage, Commune with
+    the Gods, Scout the Borders). Not understood: "a creature card and/or a land card" (two cards).
+  - Casting from the graveyard as an ability resolves (`tests/test_cast_from_graveyard_on_attack.py`): Bilbo, Thief in the Night's "you
+    may cast an artifact, instant, or sorcery spell from your graveyard" (`MayCastFromGraveyard`, `Game.may_cast_from_graveyard`) offers
+    the cards of those types you can pay for now, timing ignored (CR 608.2g); "If an instant or sorcery spell cast this way would be put
+    into your graveyard, exile it instead." is folded into it.
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

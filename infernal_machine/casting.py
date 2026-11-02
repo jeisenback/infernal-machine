@@ -344,6 +344,8 @@ class Caster:
             return False
         if alternative.not_your_turn and self.game.active == seat.index:
             return False
+        if alternative.return_count and sum(g._permanent_matches(alternative.returns, p.card) for p in seat.battlefield) < alternative.return_count:
+            return False  # Daze: an Island to return
         return not alternative.exile_color or any(alternative.exile_color in c.colors for c in others)
 
     def _pay_extras(self, seat: g.Seat, card: Card, alternative: AlternativeCost | None,
@@ -371,6 +373,10 @@ class Caster:
             seat.hand.remove(discarded)
             self.game.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
             self.game._move_card(seat, discarded, "graveyard")
+        returns, return_count = (alternative.returns, alternative.return_count) if alternative else ("", 0)
+        for _ in range(return_count):  # Daze: "return an Island you control to its owner's hand"
+            options = [p for p in seat.battlefield if g._permanent_matches(returns, p.card)]
+            self.game.return_to_hand(options[seat.player.choose(g.RETURN_COST_PROMPT(card.name), [self.game.label(p) for p in options])])
         if alternative and alternative.exile_color:
             options = [c for c in seat.hand if alternative.exile_color in c.colors]
             exiled = options[seat.player.choose(g.PITCH_PROMPT, [c.name for c in options])]

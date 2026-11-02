@@ -3,9 +3,6 @@
   "dimir_lurrus_control": {
    "cards": 60,
    "unplayable": [
-    "Bilbo, Thief in the Night",
-    "Daze",
-    "Gush",
     "Vexing Bauble"
    ]
   },
@@ -27,7 +24,6 @@
   "esper_lurrus_control": {
    "cards": 60,
    "unplayable": [
-    "Bilbo, Thief in the Night",
     "Karakas",
     "Prismatic Ending",
     "Vexing Bauble"

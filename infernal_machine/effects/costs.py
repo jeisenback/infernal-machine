@@ -85,6 +85,8 @@ class AlternativeCost:
     bestow: bool = False  # cast as an Aura spell with enchant creature
     dash: bool = False  # the creature has haste and returns to its owner's hand at the next end step (Ragavan)
     warp: bool = False  # exiled at the next end step, and castable from exile on a later turn
+    returns: str = ""  # Daze: return a permanent of this kind ("Island") you control to its owner's hand ...
+    return_count: int = 0  # ... this many of them (Gush: two)
 
 
 @dataclass(frozen=True)
@@ -124,6 +126,10 @@ _FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast thi
 
 _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N_FIXED} life and )?exile an? ({_COLOR_NAMES}) card "
                     r"from your hand rather than pay this spell's mana cost\.")
+
+
+_RETURN_INSTEAD = re.compile(rf"You may return {_N_FIXED} ((?-i:[A-Z][a-z]+?))s? you control to (?:its|their) owner's hand rather than pay this "
+                             r"spell's mana cost\.")  # Daze, Gush
 
 
 _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
@@ -516,6 +522,9 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
             life = _number(m[2]) if m[2] else 0
             text = f"Pay {life} life and exile a {m[3]} card" if life else f"Exile a {m[3]} card"
             costs.append(AlternativeCost(text, not_your_turn=bool(m[1]), life=life, exile_color=_COLOR_LETTER[m[3]]))
+        elif m := _RETURN_INSTEAD.fullmatch(line):
+            count = _number(m[1])
+            costs.append(AlternativeCost(f"Return {m[1]} {m[2]}{'s' if count > 1 else ''}", returns=m[2], return_count=count))
     return costs
 
 
@@ -699,7 +708,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _RETURN_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
