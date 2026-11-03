@@ -352,6 +352,7 @@ PROTECTION_CHOSEN = "protection from the chosen color"  # Flickering Ward: Game.
 
 
 CANT_BE_BLOCKED = "can't be blocked"
+ONLY_BLOCKED_BY = "only blocked by "  # + a blocker test ("keyword:haste", "type:Wall"): "can't be blocked this turn except by ..."
 
 
 MUST_ATTACK = "attacks each combat if able"

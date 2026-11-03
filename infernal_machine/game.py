@@ -2010,6 +2010,7 @@ class Game:
         if ability.mana_cost and cost_of(ability.mana_cost).x:  # Unbound Flourishing
             self.happened("activate_x", seat, spell=item)
         self.happened("activated", seat, subject=permanent, spell=item)
+        self._valiant(item)
         self._check_ward(item)
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
@@ -2887,6 +2888,7 @@ class Game:
             self.stack.append(item)
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
                             "ability": _shown(trigger.ability.text, trigger.source), "targets": labels})
+            self._valiant(item)
             self._check_ward(item)
 
     # --- targets -------------------------------------------------------------
@@ -4721,6 +4723,15 @@ class Game:
         if not item.ability and not item.is_copy:
             self._move_card(item.home, item.physical, "hand")
 
+    def _valiant(self, item: StackItem) -> None:
+        """Valiant: "Whenever this creature becomes the target of a spell or ability you control for the first time each turn", which
+        `item` (a spell or ability just put on the stack) may be."""
+        for target in {id(t): t for chosen in item.targets for t in (chosen if isinstance(chosen, list) else [chosen])}.values():
+            if isinstance(target, Permanent) and self.controller_of(target) is item.controller \
+                    and target.triggered_turn.get("valiant") != self.turn:
+                target.triggered_turn["valiant"] = self.turn
+                self.trigger("valiant", target, item.controller)
+
     def _check_ward(self, item: StackItem) -> None:
         """Whenever a permanent with ward becomes the target of an opponent's spell or ability, a ward trigger
         goes on the stack above it (CR 702.21a)."""
@@ -5628,6 +5639,12 @@ class Game:
         self._discard_into_zone(victim, card)
         self._discarded(victim, card)
 
+    def flip_coin(self, seat: Seat) -> bool:
+        """`seat` flips a coin (CR 705): whether they won."""
+        won = self.rng.random() < 0.5
+        self.broadcast({"event": "coin_flip", "seat": seat.index, "won": won})
+        return won
+
     def mill(self, seat: Seat, count: int) -> list[Card]:
         """Put the top `count` cards of the library into the graveyard (fewer if there aren't that many); the cards milled."""
         milled = [seat.library.pop(0) for _ in range(min(count, len(seat.library)))]
@@ -6141,6 +6158,10 @@ class Game:
                        source: Permanent | None = None) -> int:
         """A triggered ability of `source` triggers once, plus once more for each Harmonic Prodigy (another one) when `source` is a
         Shaman or Wizard, plus what _trigger_times_entering adds."""
+        if event in ("enters", "enters_untapped", "permanent_enters") and entering is not None and any(
+                key.startswith("no_enter_triggers:") and any(kind in entering.type_line for kind in key.partition(":")[2].split(","))
+                for _, _, key in self._static_rules()):
+            return 0  # Torpor Orb, Doorkeeper Thrull: the entering is an event (CR 603.2) that these abilities say triggers nothing
         times = self._trigger_times_entering(controller, event, entering, cause)
         if source is not None and {"Shaman", "Wizard"} & set(self.subtypes(source)):
             times += sum(replacement_effects(p.card).extra_trigger == "wizard" for p in controller.battlefield if p is not source)

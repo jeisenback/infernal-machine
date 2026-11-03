@@ -301,6 +301,30 @@ class Conditional:
 
 
 @dataclass(frozen=True)
+class FlipCoin:
+    """ "Flip a coin." (CR 705) and, folded in, "If you lose the flip, this artifact deals 3 damage to you." (Mana Crypt): `then` happens
+    when the flip is won (`on_win`) or lost."""
+    then: Any = None
+    on_win: bool = True
+
+    @property
+    def binds(self) -> str | None:
+        return found if self.then is not None and (found := binding(self.then)) in (SOURCE, SUBJECT, PLAYER) else None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        won = game.flip_coin(controller)
+        if self.then is not None and won == self.on_win:
+            self.then.resolve(game, controller, target)
+
+
+@dataclass(frozen=True)
+class _IfFlip:
+    """ "If you win the flip, ..." / "If you lose the flip, ..." after "Flip a coin." (see _CONDITIONAL)."""
+    on_win: bool
+    effect: Any
+
+
+@dataclass(frozen=True)
 class _IfYouDo:
     """ "If you do, <effect>." after an effect that can be declined or fail (see _merge_conditional)."""
     effect: Any

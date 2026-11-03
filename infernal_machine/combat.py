@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .characteristics import Modifier, source_qualities
-from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, Annihilate, TriggeredAbility, attack_tax_per_counter, attack_taxes,
+from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, ONLY_BLOCKED_BY, Annihilate, TriggeredAbility, attack_tax_per_counter, attack_taxes,
                       combat_restrictions)
 from .mana import Cost, cost_of
 from .prompts import PromptKind
@@ -380,6 +380,9 @@ class Combat:
             return False
         if self._evades(blocker, attacker):
             return False
+        if any(k.startswith(ONLY_BLOCKED_BY) and not self._passes(blocker, k.removeprefix(ONLY_BLOCKED_BY))
+               for m in self.game.modifiers(attacker) for k in m.keywords):
+            return False  # Gingerbrute: "can't be blocked this turn except by creatures with haste"
         for r in combat_restrictions(attacker.card):  # "can't be blocked by creatures with power 2 or less", "... except by black creatures"
             if (r.kind == "not_blocked_by" and self._passes(blocker, r.what)) \
                     or (r.kind == "only_blocked_by" and not self._passes(blocker, r.what)):

@@ -903,6 +903,19 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Keywords by color (`tests/test_keyword_by_color.py`): Scion of Draco's "Each creature you control has vigilance if it's white,
     hexproof if it's blue, ..." is a buff for each color (`StaticBuff.color`); its "{2} less for each basic land type" is Domain's
     reduction.
+  - Two targets, two amounts (`tests/test_two_target_damage.py`): Reckless Rage's "deals 4 damage to target creature you don't control
+    and 2 damage to target creature you control".
+  - Coin flips (`tests/test_coin_flip.py`): "Flip a coin." (`FlipCoin`, `Game.flip_coin`, CR 705) with "If you win the flip, ..." or
+    "If you lose the flip, ..." folded in (Mana Crypt); an outcome with a target is not read, since its target would be chosen before
+    the flip.
+  - Blocked only by some (`tests/test_blocked_only_by.py`): "This creature can't be blocked this turn except by creatures with haste."
+    (Gingerbrute; also defender, flying, and Walls) is the keyword `only blocked by keyword:haste` until end of turn, checked like the
+    static "can't be blocked except by ..." restrictions.
+  - Entering triggers nothing (`tests/test_enter_triggers_suppressed.py`): "Creatures entering don't cause abilities to trigger." (Torpor
+    Orb) and "Artifacts and creatures entering ..." (Doorkeeper Thrull) are the rules static `no_enter_triggers`: the enters triggers of
+    those, and every watcher's, trigger no times (`Game._trigger_times`).
+  - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
+    each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

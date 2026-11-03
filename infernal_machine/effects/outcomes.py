@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 from .common import (
     CANT_BE_BLOCKED,
+    ONLY_BLOCKED_BY,
     CANT_BLOCK,
     _ANY_N,
     _CHANGE,
@@ -419,6 +420,8 @@ from .families.spells_and_misc import (  # noqa: F401
     CommanderToHand,
     PutThisFromCommandZone,
     Conditional,
+    FlipCoin,
+    _IfFlip,
     Counter,
     CounterTriggeringSpell,
     CreateDelayedTrigger,
@@ -1256,6 +1259,13 @@ def _damage_each(m: re.Match) -> DamageEach | None:
     return DamageEach(_count(m[1]), creatures, players, _mass_filter(None, None, m[3]))
 
 
+def _if_flip(m: re.Match) -> Any:
+    inner = _parse([m[2][:1].upper() + m[2][1:] + "."])
+    if not inner or len(inner) != 1 or target_kind(inner[0]):  # the targets would be chosen before the coin is flipped
+        return None
+    return _IfFlip(m[1].lower() == "win", inner[0])
+
+
 def _if_you_do(m: re.Match) -> Any:
     inner = _parse([m[1][:1].upper() + m[1][1:] + "."])
     if inner and len(inner) > 1 and all(isinstance(e, (Draw, CreateTokens)) for e in inner):  # "draw a card and create a Treasure token"
@@ -1523,6 +1533,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N} damage to each of up to two target creatures and/or planeswalkers\.", re.I),  # Volcanic Salvo
      lambda m: [Damage(_count(m[1]), "creature or planeswalker", optional_target=True),
                 Damage(_count(m[1]), "creature or planeswalker", optional_target=True, distinct=True)]),
+    (re.compile(rf"{_SELF} deals (\d+) damage to target (creature you don't control) and (\d+) damage to target (creature you control)\.", re.I),
+     lambda m: [Damage(int(m[1]), m[2].lower()), Damage(int(m[3]), m[4].lower())]),  # Reckless Rage: two targets, two amounts
     (re.compile(rf"{_SELF} deals (\d+) damage divided as you choose among any number of targets\.", re.I),
      lambda m: [Damage(1, "any", optional_target=n > 0) for n in range(int(m[1]))]),  # a point at a time
     (re.compile(rf"tap (two|three) target {_PLURAL_KIND}\.", re.I),
@@ -1674,6 +1686,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Destroy(f"{m[1].lower()} with mana value x or less", optional_target=True)),
     (re.compile(rf"exile {_N_FIXED} cards from your graveyard\.", re.I), lambda m: ExileOwnGraveyard(_number(m[1]))),
     (re.compile(r"if you do, discard a card unless this creature entered this turn\.", re.I), lambda m: DiscardUnlessSourceEntered()),
+    (re.compile(r"flip a coin\.", re.I), lambda m: FlipCoin()),
+    (re.compile(r"if you (win|lose) the flip, (.+)\.", re.I), _if_flip),  # Mana Crypt
     (re.compile(r"if you do, (.+)\.", re.I), _if_you_do),
     (re.compile(r'if an? (creature) card is exiled this way, (create .+?)(\."?)', re.I), _if_exiled),
     (re.compile(rf"return (?:CARDNAME|this card) from your graveyard to the battlefield( tapped)?\.", re.I),
@@ -2336,6 +2350,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [Pump(Modifier(keywords=frozenset({CANT_BLOCK})), _PLURAL_KINDS[m[1].lower()] + _suffix(m[2])),
                 Pump(Modifier(keywords=frozenset({CANT_BLOCK})), _PLURAL_KINDS[m[1].lower()] + _suffix(m[2]),
                      optional_target=True, distinct=True)]),
+    (re.compile(rf"{_SELF} can't be blocked this turn except by (?:creatures with (haste|defender|flying)|(Walls))\.", re.I),
+     lambda m: PumpSource(Modifier(keywords=frozenset({ONLY_BLOCKED_BY + ("keyword:" + m[1].lower() if m[1] else "type:Wall")})))),
     (re.compile(rf"{_SELF} can't be blocked this turn\.", re.I),
      lambda m: PumpSource(Modifier(keywords=frozenset({CANT_BE_BLOCKED})))),
     (re.compile(rf"(?i:each other creature that's attacking one of your opponents) {_CHANGE}"),
@@ -2923,6 +2939,7 @@ _CONDITIONAL = Follows(
     Follow(_UntapThatLand, FetchBasicLand, set_fields(untap_if=lambda m: m.condition)),
     Follow(_ManaForEachDestroyed, DestroyAll, set_fields(mana_each=lambda m: m.options)),
     Follow(_DrawPerReturned, ReturnAnyNumber, set_fields(draw=lambda m: True)),
+    Follow(_IfFlip, FlipCoin, lambda previous, marker: FlipCoin(marker.effect, marker.on_win), fits=lambda previous, marker: previous.then is None),
     Follow(_DrawIfYouControlledIt, ReturnToHand, set_fields(draw_if_yours=lambda m: True)),
     Follow(_ExileCastThisWay, MayCastFromGraveyard, set_fields(exile_after=lambda m: True)),
     Follow(_InsteadDamage, Damage, set_fields(instead=lambda m: m.amount, instead_if=lambda m: m.condition),
