@@ -259,6 +259,7 @@ from .families.exile_and_return import (  # noqa: F401
     ReturnThisFromGraveyard,
     ReturnToHand,
     ReturnAnyNumber,
+    _DrawIfYouControlledIt,
     MayCastFromGraveyard,
     _ExileCastThisWay,
     _DrawPerReturned,
@@ -274,6 +275,7 @@ from .families.exile_and_return import (  # noqa: F401
 from .families.library_and_hand import (  # noqa: F401
     BASIC_LAND_TYPES,
     GreatestPowerMayDraw,
+    DiscardUnlessSourceEntered,
     Cascade,
     DanceWithCalamity,
     DelayedDraw,
@@ -323,6 +325,7 @@ from .families.library_and_hand import (  # noqa: F401
     SearchLibrary,
     SearchMany,
     ShuffleIntoLibrary,
+    ShuffleSourceAndTarget,
     ShuffleRevealCast,
     ShuffleThisSpell,
     SurgeToVictory,
@@ -1665,6 +1668,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"destroy up to one target (artifact or enchantment) with mana value X or less\.", re.I),
      lambda m: Destroy(f"{m[1].lower()} with mana value x or less", optional_target=True)),
     (re.compile(rf"exile {_N_FIXED} cards from your graveyard\.", re.I), lambda m: ExileOwnGraveyard(_number(m[1]))),
+    (re.compile(r"if you do, discard a card unless this creature entered this turn\.", re.I), lambda m: DiscardUnlessSourceEntered()),
     (re.compile(r"if you do, (.+)\.", re.I), _if_you_do),
     (re.compile(r'if an? (creature) card is exiled this way, (create .+?)(\."?)', re.I), _if_exiled),
     (re.compile(rf"return (?:CARDNAME|this card) from your graveyard to the battlefield( tapped)?\.", re.I),
@@ -1681,6 +1685,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return any number of target (nonland, nontoken permanent)s you control to their owners' hands\.", re.I),
      lambda m: ReturnAnyNumber(f"{m[1]} you control")),  # Paradoxical Outcome
     (re.compile(r"draw a card for each card returned to your hand this way\.", re.I), lambda m: _DrawPerReturned()),
+    (re.compile(r"if you controlled that permanent, draw a card\.", re.I), lambda m: _DrawIfYouControlledIt()),  # Boomerang Basics
     (re.compile(r"(?:you may )?cast an? ((?:artifact|creature|enchantment|instant|sorcery)(?:,? (?:or )?(?:artifact|creature|enchantment|instant|"
                 r"sorcery))*) spell from your graveyard\.", re.I),  # Bilbo, Thief in the Night
      lambda m: MayCastFromGraveyard(tuple(k.capitalize() for k in re.split(r",? (?:or )?", m[1].lower())))),
@@ -1784,6 +1789,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal (?:it|that card), )?(?:put (?:it|that card) into your hand, "
                 r"then shuffle|then shuffle and put (?:it|that card|the card) on top(?: of your library)?)\.", re.I),
      lambda m: SearchLibrary(_card_kind(m[1]), "hand" if "into your hand" in m[0] else "top", "reveal" in m[0].lower())),
+    (re.compile(r"search your library for an? (basic (?:land|Plains|Island|Swamp|Mountain|Forest)) card or an? ((?-i:[A-Z][a-z]+)|creature) card"
+                r"(?: with mana value (\d+) or less)?, reveal it, put it into your hand, then shuffle\.", re.I),  # Starfield Shepherd, Gatecreeper Vine
+     lambda m: SearchLibrary(f"{m[1].lower()} or {m[2].lower()}" + (f"|mv<={m[3]}" if m[3] else ""), "hand", True)),  # (a land's mana value is 0)
     (re.compile(r"search your library for a card with the same mana value as (?:this card|CARDNAME), reveal it, put it into your hand, then shuffle\.", re.I),
      lambda m: SearchLibrary("card|mv=self", "hand", True)),  # Transmute
     (re.compile(r"search your library for an? ((?:legendary )?(?:permanent|creature)) card with mana value less than CARDNAME's power, "
@@ -2003,6 +2011,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: EachSacrificesThenReturn(m[1].lower())),
     (re.compile(r"move any number of ([+\-\u2212]1/[+\-\u2212]1) counters from (?:this creature|CARDNAME) onto other creatures\.", re.I),
      lambda m: MoveCountersToOthers(_counter_name(m[1]))),
+    (re.compile(r"shuffle (?:this creature|CARDNAME) and target (creature with a stun counter on it) into their owners' libraries\.", re.I),
+     lambda m: ShuffleSourceAndTarget(m[1].lower())),  # Floodpits Drowner
     (re.compile(rf"target player shuffles up to {_N_FIXED} target cards from their graveyard into their library\.", re.I),
      lambda m: ShuffleIntoLibrary(max_targets=_number(m[1]))),
     (re.compile(r"level \d", re.I), lambda m: LevelUp()),
@@ -2908,6 +2918,7 @@ _CONDITIONAL = Follows(
     Follow(_UntapThatLand, FetchBasicLand, set_fields(untap_if=lambda m: m.condition)),
     Follow(_ManaForEachDestroyed, DestroyAll, set_fields(mana_each=lambda m: m.options)),
     Follow(_DrawPerReturned, ReturnAnyNumber, set_fields(draw=lambda m: True)),
+    Follow(_DrawIfYouControlledIt, ReturnToHand, set_fields(draw_if_yours=lambda m: True)),
     Follow(_ExileCastThisWay, MayCastFromGraveyard, set_fields(exile_after=lambda m: True)),
     Follow(_InsteadDamage, Damage, set_fields(instead=lambda m: m.amount, instead_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.instead_if is None),

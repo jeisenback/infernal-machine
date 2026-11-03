@@ -268,6 +268,8 @@ _RULES_STATICS = [
     (re.compile(r"You can't cast (creature|noncreature) spells\.", re.I), "no_cast_kind"),
     (re.compile(r"Activated abilities of (artifacts|creatures|artifacts and creatures|artifacts, creatures, and planeswalkers) can't be activated\.", re.I),
      "lock"),  # Stony Silence; Clarion Conqueror: the types, as "lock:Artifact,Creature,Planeswalker"
+    (re.compile(r"Each opponent can't draw more than one card each turn\.", re.I), "draw_limit:opponents"),  # Narset, Parter of Veils
+    (re.compile(r"Each player can't draw more than one card each turn\.", re.I), "draw_limit:each"),
     (re.compile(r"Creature spells you control can't be countered\.", re.I), "uncounterable:creature"),
     (re.compile(r"Spells you control can't be countered\.", re.I), "uncounterable:spell"),
     (re.compile(r"You may cast (spells|creature spells|sorcery spells|Spirit spells) as though they had flash\.", re.I), "flash"),
@@ -293,7 +295,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     """What a permanent's static rules-changing abilities do, as keys: "opp_no_cast:turn" / ":combat" (its controller's opponents
     can't cast spells during its controller's turn / during combat), "opp_lock:Artifact,Creature,Enchantment" (on its controller's
     turn their abilities of those can't be activated), "one_spell:each" / ":you" (one spell a turn), "no_cast_kind:creature" /
-    ":noncreature" (its controller can't cast those), "lock:Artifact" / "lock:Artifact,Creature,Planeswalker" (nobody can activate abilities of those), "uncounterable:spell"
+    ":noncreature" (its controller can't cast those), "lock:Artifact" / "lock:Artifact,Creature,Planeswalker" (nobody can activate abilities of those), "draw_limit:opponents" / ":each"
+    (its controller's opponents, or every player, can't draw more than one card each turn), "uncounterable:spell"
     / ":creature" (its controller's), "flash:spell" / ":creature" / ":sorcery" / ":Spirit" (its controller may cast those at instant
     speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic),
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),

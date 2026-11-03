@@ -880,6 +880,18 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - "You may sacrifice another ..." (`tests/test_may_sacrifice_another.py`): The Sackville-Bagginses' "you may sacrifice another creature or
     artifact. If you do, draw a card and create a Treasure token." is `MaySacrificeThen` with `another` (the source is not offered) and two
     effects after "If you do"; "When The Sackville-Bagginses enter" (a plural name) is read as entering.
+  - Draw limits (`tests/test_draw_limit.py`): "Each opponent can't draw more than one card each turn." (Narset, Parter of Veils) and "Each
+    player can't draw ..." are the rule keys `draw_limit:opponents` and `draw_limit:each`: a second draw in a turn draws nothing.
+  - Moon-Circuit Hacker (`tests/test_discard_unless_entered.py`): "If you do, discard a card unless this creature entered this turn." after
+    its optional draw (`DiscardUnlessSourceEntered`, by the creature's `entered_turn`).
+  - Boomerang Basics (`tests/test_bounce_draw_if_yours.py`): "If you controlled that permanent, draw a card." is folded into the
+    `ReturnToHand` before it (`draw_if_yours`; Geistwave too).
+  - Searching for one of two kinds (`tests/test_search_either_kind.py`): "search your library for a basic Plains card or a creature card
+    with mana value 1 or less, reveal it, put it into your hand, then shuffle." (Starfield Shepherd) and "a basic land card or a Gate
+    card" (Gatecreeper Vine, Spinewoods Armadillo) search for either kind.
+  - Floodpits Drowner (`tests/test_shuffle_stunned.py`): a target kind may end in "with a <kind> counter on it", and "Shuffle this creature
+    and target creature with a stun counter on it into their owners' libraries." is `ShuffleSourceAndTarget`
+    (`Game.shuffle_permanents_into_libraries`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

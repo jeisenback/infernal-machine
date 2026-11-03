@@ -431,6 +431,7 @@ class ReturnToHand:
     another: bool = False  # "Return another target creature ...": not the source itself
     optional_target: bool = False  # "Return up to one target creature ...": the target may be left out
     distinct: bool = False  # "Return up to two target creatures ...": the second can't be the first again
+    draw_if_yours: bool = False  # Boomerang Basics: "If you controlled that permanent, draw a card."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is None:
@@ -438,7 +439,15 @@ class ReturnToHand:
         if hasattr(target, "physical"):  # Sink into Stupor: a spell on the stack
             ReturnSpellToHand().resolve(game, controller, target)
         else:
+            yours = game.controller_of(target) is controller
             game.return_to_hand(target)
+            if self.draw_if_yours and yours:
+                game.draw(controller, 1)
+
+
+@dataclass(frozen=True)
+class _DrawIfYouControlledIt:
+    """ "If you controlled that permanent, draw a card." after a ReturnToHand (see _CONDITIONAL)."""
 
 
 @dataclass(frozen=True)

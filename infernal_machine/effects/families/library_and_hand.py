@@ -421,6 +421,16 @@ class ShuffleIntoLibrary:
 
 
 @dataclass(frozen=True)
+class ShuffleSourceAndTarget:
+    """Floodpits Drowner: "Shuffle this creature and target creature with a stun counter on it into their owners' libraries." (With its
+    target no longer legal the ability does nothing at all, CR 608.2b, so the creature stays too.)"""
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.shuffle_permanents_into_libraries([p for p in (game.resolving_source, target) if p is not None])
+
+
+@dataclass(frozen=True)
 class MillThenExileRandomPlay:
     """Advanced Reconstruction: "Mill a card, then exile a card from your graveyard at random. You may play the exiled card this
     turn." (one template across two sentences)"""
@@ -730,6 +740,17 @@ class Mill:
 class _PutFromAmongThem:
     """ "Then put a creature card from among them onto the battlefield." after a Mill (see _merge_conditional)."""
     kind: str
+
+
+@dataclass(frozen=True)
+class DiscardUnlessSourceEntered:
+    """Moon-Circuit Hacker: "... you may draw a card. If you do, discard a card unless this creature entered this turn." (the "you may"
+    is the trigger's own, so "if you do" is always true by now)."""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None or target.entered_turn != game.turn:
+            game.discard(controller, 1)
 
 
 @dataclass(frozen=True)
