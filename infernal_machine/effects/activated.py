@@ -96,6 +96,7 @@ class ActivatedAbility:
     exile_from_graveyard: bool = False  # "Exile this card from your graveyard": activated from the graveyard, the card is exiled as a cost
     exile_source: bool = False  # "Exile this artifact": the source is exiled as a cost (Perpetual Timepiece)
     bounce_source: bool = False  # "Return CARDNAME to its owner's hand": likewise (Rootha)
+    bounce_other: str = ""  # "Return a Forest you control to its owner's hand": a permanent of this kind (Quirion Ranger)
     tap_creatures: int = 0  # "Tap two untapped creatures you control": other creatures than the source (Harmonized Trio)
     life_identity: bool = False  # "Pay life equal to the number of colors in your commanders' color identity" (War Room)
     from_graveyard: bool = False  # the ability works from the graveyard ("Return this card from your graveyard ...")
@@ -181,6 +182,7 @@ _EXILE_FROM_GRAVEYARD = re.compile(r"Exile (?:CARDNAME|this card) from your grav
 _EXILE_SELF = re.compile(r"Exile (?:CARDNAME|this (?:artifact|creature|permanent|enchantment|land))")
 
 
+_BOUNCE_OTHER = re.compile(r"Return an? (land|creature|artifact|(?-i:[A-Z][a-z]+)) you control to its owner's hand")
 _BOUNCE_SELF = re.compile(r"Return (?:CARDNAME|this (?:artifact|creature|permanent|enchantment|land)) to its owner's hand")
 
 
@@ -292,6 +294,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["exile_source"] = True
         elif _BOUNCE_SELF.fullmatch(part):
             fields["bounce_source"] = True
+        elif m := _BOUNCE_OTHER.fullmatch(part):
+            fields["bounce_other"] = m[1]
         elif m := _EXILE_COST.fullmatch(part):
             fields.update(exile_graveyard=_NUMBER[m[1]], exile_graveyard_kind=m[2] or "")
         elif m := _REMOVE_COUNTER_COST.fullmatch(part):

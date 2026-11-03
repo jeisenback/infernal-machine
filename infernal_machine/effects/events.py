@@ -176,6 +176,7 @@ declare("any_sacrifice", re.compile(r"Whenever a player sacrifices a permanent, 
 declare("other_sacrifice", re.compile(r"Whenever a player sacrifices another permanent, (.+)", re.I))
 declare("host_dies", re.compile(r"When(?:ever)? (?:enchanted|equipped) creature dies, (.+)", re.I), host_gone=True)
 declare("host_combat_damage", re.compile(r"Whenever (?:enchanted|equipped) creature deals combat damage to a player, (.+)", re.I), about_creature=True, about_player=True)
+declare("host_damage", re.compile(r"Whenever (?:enchanted|equipped) creature deals damage, (.+)", re.I))  # Spirit Link: x is the damage
 declare("host_damage_opponent", re.compile(r"Whenever (?:enchanted|equipped) creature deals damage to an opponent, (.+)", re.I),
         about_creature=True, about_player=True)  # Curiosity: any damage, to an opponent of the Aura's controller
 declare("host_combat_damage_opponent", re.compile(r"Whenever (?:enchanted|equipped) creature deals combat damage to an opponent, (.+)", re.I),

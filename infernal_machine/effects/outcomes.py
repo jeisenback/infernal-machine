@@ -422,6 +422,8 @@ from .families.spells_and_misc import (  # noqa: F401
     Conditional,
     FlipCoin,
     _IfFlip,
+    IfElse,
+    _Otherwise,
     Counter,
     CounterTriggeringSpell,
     CreateDelayedTrigger,
@@ -1288,6 +1290,20 @@ def _then_if(m: re.Match) -> Any:
     return Conditional(condition, inner[0])
 
 
+def _untargeted(text: str) -> tuple | None:
+    """The effects of one sentence (a capital and a period added), if it reads and has no target."""
+    inner = _parse([text[:1].upper() + text[1:] + "."])
+    return tuple(inner) if inner and not any(target_kind(e) for e in inner) else None
+
+
+def _if_else(m: re.Match) -> Any:
+    return IfElse(condition, then) if (condition := _condition(m[1])) and (then := _untargeted(m[2])) else None
+
+
+def _otherwise(m: re.Match) -> Any:
+    return _Otherwise(effects) if (effects := _untargeted(m[1])) else None
+
+
 def _is_known_ability(text: str) -> bool:
     """Whether a quoted ability is one we understand (the same test a token's own quoted ability has to pass)."""
     return _token(f'a 1/1 colorless Test creature token with "{text}"') is not None
@@ -1559,7 +1575,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _InsteadDamage(int(m[1]), c) if (c := _condition(m[2])) else None),
     (re.compile(r"(?:revolt \u2014 )?destroy that creature if it has mana value (\d+) or less instead if (.+)\.", re.I),  # Fatal Push
      lambda m: _InsteadManaValue(int(m[1]), c) if (c := _condition(m[2])) else None),
-    (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|white|blue|black|red|green) )?spell"
+    (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|instant|sorcery|white|blue|black|red|green) )?spell"
                 rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
     (re.compile(r"counter that spell\.", re.I), lambda m: CounterTriggeringSpell()),  # Vexing Bauble
@@ -2440,6 +2456,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: FetchBasicLand()),
     (re.compile(r"search your library for a basic land card, put it onto the battlefield, then shuffle\.", re.I),
      lambda m: FetchBasicLand(tapped=False)),
+    (re.compile(r"if (you control an? (?-i:[A-Z])\w+), (?!.*\binstead\.$)(.+)\.", re.I), _if_else),  # Unholy Annex
+    (re.compile(r"otherwise, (.+)\.", re.I), _otherwise),
 ]
 
 
@@ -2939,6 +2957,7 @@ _CONDITIONAL = Follows(
     Follow(_UntapThatLand, FetchBasicLand, set_fields(untap_if=lambda m: m.condition)),
     Follow(_ManaForEachDestroyed, DestroyAll, set_fields(mana_each=lambda m: m.options)),
     Follow(_DrawPerReturned, ReturnAnyNumber, set_fields(draw=lambda m: True)),
+    Follow(_Otherwise, IfElse, set_fields(otherwise=lambda m: m.effects)),
     Follow(_IfFlip, FlipCoin, lambda previous, marker: FlipCoin(marker.effect, marker.on_win), fits=lambda previous, marker: previous.then is None),
     Follow(_DrawIfYouControlledIt, ReturnToHand, set_fields(draw_if_yours=lambda m: True)),
     Follow(_ExileCastThisWay, MayCastFromGraveyard, set_fields(exile_after=lambda m: True)),

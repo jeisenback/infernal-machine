@@ -301,6 +301,24 @@ class Conditional:
 
 
 @dataclass(frozen=True)
+class IfElse:
+    """ "If you control a Demon, each opponent loses 2 life and you gain 2 life." and, folded in, "Otherwise, you lose 2 life." (Unholy
+    Annex): `then` if the condition holds as it resolves, else `otherwise`. Neither has a target."""
+    condition: "Condition"
+    then: tuple
+    otherwise: tuple = ()
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for effect in self.then if game.condition_holds(self.condition, controller, game.resolving_source) else self.otherwise:
+            effect.resolve(game, controller, target)
+
+
+@dataclass(frozen=True)
+class _Otherwise:
+    effects: tuple
+
+
+@dataclass(frozen=True)
 class FlipCoin:
     """ "Flip a coin." (CR 705) and, folded in, "If you lose the flip, this artifact deals 3 damage to you." (Mana Crypt): `then` happens
     when the flip is won (`on_win`) or lost."""

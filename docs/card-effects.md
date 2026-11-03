@@ -914,6 +914,16 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Entering triggers nothing (`tests/test_enter_triggers_suppressed.py`): "Creatures entering don't cause abilities to trigger." (Torpor
     Orb) and "Artifacts and creatures entering ..." (Doorkeeper Thrull) are the rules static `no_enter_triggers`: the enters triggers of
     those, and every watcher's, trigger no times (`Game._trigger_times`).
+  - Nonbasic lands enter tapped (`tests/test_popular_pass2.py`): Archon of Emeria's "Nonbasic lands your opponents control enter
+    tapped." is the rules static `enter_tapped:opp:nonbasic land`.
+  - Counter an instant (`tests/test_counter_instant.py`): "Counter target instant spell." (Dispel; "sorcery" too).
+  - If and otherwise (`tests/test_if_else.py`): "If you control a Demon, each opponent loses 2 life and you gain 2 life. Otherwise, you
+    lose 2 life." (Unholy Annex) is an `IfElse`, the "Otherwise, ..." sentence folded in by a Follow row; neither part may have a
+    target, and an "Otherwise" with no "If" before it is not read.
+  - Damage from what an Aura enchants (`tests/test_host_damage_life.py`): "Whenever enchanted creature deals damage, you gain that much
+    life." (Spirit Link, Armadillo Cloak) is the event `host_damage`, with the damage as its X.
+  - Return a permanent as a cost (`tests/test_return_cost.py`): "Return a Forest you control to its owner's hand: ..." (Quirion Ranger,
+    Scryb Ranger; "a land" for Meloku) is `ActivatedAbility.bounce_other`, offered only while you control one.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
