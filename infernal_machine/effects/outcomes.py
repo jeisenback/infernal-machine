@@ -95,6 +95,7 @@ from .families.combat_and_pump import (  # noqa: F401
     TapThat,
     TargetPrepared,
     Transform,
+    RevealTopTransform,
     UNTAP_LANDS_PROMPT,
     Unattach,
     Untap,
@@ -358,6 +359,7 @@ from .families.life_and_damage import (  # noqa: F401
     Annihilate,
     Damage,
     _InsteadDamage,
+    _NoLifeGainForDamaged,
     DamageFromSubject,
     DamageEach,
     DamageTargetsController,
@@ -1536,6 +1538,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: AddMana((frozenset("WUBRG"),) * _ANY_N[m[1].lower()])),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
 
+    (re.compile(r"it deals that much damage to any other target\.", re.I), lambda m: Damage("X", "any", another=True)),  # Screaming Nemesis
+    (re.compile(r"if a player is dealt damage this way, they can't gain life for the rest of the game\.", re.I),
+     lambda m: _NoLifeGainForDamaged()),
     (re.compile(r"it deals that much damage to any target that isn't an? ([A-Z][a-z]+)\.", re.I),  # Wrathful Raptors
      lambda m: DamageFromSubject("X", f"any non-{m[1].lower()}")),
     (re.compile(rf"{_SELF} deals {_N} damage to you\.", re.I), lambda m: DamageToYou(_count(m[1]))),
@@ -2150,6 +2155,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutAttackingFromHand(tuple(re.findall(r"[A-Z][a-z]+", m[1])))),
     (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
     (re.compile(rf"transform {_SELF}\.", re.I), lambda m: Transform()),
+    (re.compile(r"look at the top card of your library\. you may reveal that card\. if an instant or sorcery card is revealed this way, "
+                r"transform this creature\.", re.I), lambda m: RevealTopTransform()),  # Delver of Secrets
     (re.compile(rf"exile {_SELF}, then return it to the battlefield transformed under your control\.", re.I), lambda m: ReturnTransformed()),
     (re.compile(rf"return it to the battlefield( tapped)? and transformed under (?:its owner's|your) control\.", re.I),
      lambda m: ReturnTransformed(dies=True, tapped=m[1] is not None)),
@@ -2957,6 +2964,7 @@ _CONDITIONAL = Follows(
     Follow(_UntapThatLand, FetchBasicLand, set_fields(untap_if=lambda m: m.condition)),
     Follow(_ManaForEachDestroyed, DestroyAll, set_fields(mana_each=lambda m: m.options)),
     Follow(_DrawPerReturned, ReturnAnyNumber, set_fields(draw=lambda m: True)),
+    Follow(_NoLifeGainForDamaged, Damage, set_fields(no_life_gain=lambda m: True)),
     Follow(_Otherwise, IfElse, set_fields(otherwise=lambda m: m.effects)),
     Follow(_IfFlip, FlipCoin, lambda previous, marker: FlipCoin(marker.effect, marker.on_win), fits=lambda previous, marker: previous.then is None),
     Follow(_DrawIfYouControlledIt, ReturnToHand, set_fields(draw_if_yours=lambda m: True)),

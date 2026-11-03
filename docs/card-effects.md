@@ -924,6 +924,16 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life." (Spirit Link, Armadillo Cloak) is the event `host_damage`, with the damage as its X.
   - Return a permanent as a cost (`tests/test_return_cost.py`): "Return a Forest you control to its owner's hand: ..." (Quirion Ranger,
     Scryb Ranger; "a land" for Meloku) is `ActivatedAbility.bounce_other`, offered only while you control one.
+  - Chalice of the Void (`tests/test_chalice.py`): "Whenever a player casts a spell with mana value equal to the number of charge
+    counters on this artifact, counter that spell." is a cast watch with the qualifier `mv_is_charge`.
+  - Auras that count enchantments (`tests/test_aura_per_enchantment.py`): "Enchanted creature gets +1/+1 for each enchantment you control
+    and has first strike." (Ethereal Armor) and "... +2/+2 for each other enchantment on the battlefield." (Ancestral Mask: every
+    player's, not the Aura itself).
+  - Delver of Secrets (`tests/test_delver.py`): "Look at the top card of your library. You may reveal that card. If an instant or sorcery
+    card is revealed this way, transform this creature." is one effect (`RevealTopTransform`); such a card is always revealed.
+  - Screaming Nemesis (`tests/test_screaming_nemesis.py`): "it deals that much damage to any other target" is a `Damage` of the X the
+    "is dealt damage" trigger carries, `another` so not to itself; "If a player is dealt damage this way, they can't gain life for the
+    rest of the game." sets `Seat.no_life_gain`.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

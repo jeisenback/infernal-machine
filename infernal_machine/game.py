@@ -516,6 +516,7 @@ class Seat:
     drawn_cards: list = field(default_factory=list)  # the cards it drew that turn (Sylvan Library)
     protected: bool = False  # protection from everything until its next turn begins (The One Ring)
     life_locked: bool = False  # its life total can't change until its next turn begins (Teferi's Protection)
+    no_life_gain: bool = False  # it can't gain life for the rest of the game (Screaming Nemesis)
     extra_lands: int = 0  # additional lands this player may play on `extra_lands_turn` (Explore)
     extra_lands_turn: int | None = None
     rebounding: list[tuple[Card, int]] = field(default_factory=list)  # cards exiled by rebound, and the turn they were: cast at the next upkeep
@@ -2781,6 +2782,9 @@ class Game:
                 if watch.qualifier == "targets_modified":  # a cast of a spell that targets a modified permanent you control
                     if not self._targets_modified(spell, watcher_seat):
                         continue
+                elif watch.qualifier == "mv_is_charge":  # Chalice of the Void
+                    if card.cmc != watcher.counters.get("charge", 0):
+                        continue
                 elif watch.qualifier == "targets_only_source":  # Mirrorwing Dragon: the spell targets only the watcher
                     flat = [t for target in (spell.targets if isinstance(spell, StackItem) else [])
                             for t in (target if isinstance(target, list) else [target])]
@@ -3177,6 +3181,8 @@ class Game:
     def change_life(self, seat: Seat, amount: int) -> None:
         if seat.life_locked:  # Teferi's Protection: no life is gained or lost
             return
+        if amount > 0 and seat.no_life_gain:  # Screaming Nemesis
+            return
         if amount > 0:  # Pest Rescuer: "you gain that much life plus 1 instead"; then The Wind Crystal: "twice that much"
             amount += sum(replacement_effects(p.card).life_gain_plus for p in seat.battlefield)
             amount *= self._factor(seat, "life_gain_factor")
@@ -3303,7 +3309,7 @@ class Game:
             self.broadcast({"event": "damage", "card": target.card.name, "amount": amount,
                             "source": source.card.name if source else None})
             if amount > 0 and "Creature" in target.card.type_line:  # Enrage (CR 120.2): any damage dealt to it, however much
-                self.trigger("damaged", target, _checked(self.controller_of(target)), subject=source)
+                self.trigger("damaged", target, _checked(self.controller_of(target)), subject=source, x=amount)  # x: "that much damage"
                 if "Dinosaur" in target.card.type_line:  # Wrathful Raptors
                     owner = _checked(self.controller_of(target))
                     for watcher in list(owner.battlefield):
@@ -4130,7 +4136,7 @@ class Game:
         if not creature:
             return mods
         for attachment in self._board_view().attached.get(id(permanent), ()):  # Equipment and Auras attached to it
-            mods.extend(self._chosen_protection(self._scaled(buff.modifier, buff.per, permanent, controller), attachment)
+            mods.extend(self._chosen_protection(self._scaled(buff.modifier, buff.per, permanent, controller, attachment), attachment)
                         for buff in attached_abilities(attachment.card))
         return mods
 
@@ -4161,6 +4167,8 @@ class Game:
             count = len(self.colors_among(controller))
         elif what == "source_counters":  # Door of Destinies: for each charge counter on the permanent that gives the bonus
             count = source.counters.get(kind, 0) if source is not None else 0
+        elif what == "others_anywhere":  # Ancestral Mask: "for each other enchantment on the battlefield"
+            count = sum(has_type(p.card, kind) for s in self.seats for p in s.battlefield if p is not source)
         elif what == "auras_on_it":
             count = sum(1 for s in self.seats for p in s.battlefield
                         if p.attached_to is permanent and "Aura" in p.card.type_line)

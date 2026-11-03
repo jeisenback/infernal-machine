@@ -152,6 +152,8 @@ _WHOLE_LINE = re.compile(
     r"[Rr]eveal the top (?:two|three|four|five|six|seven|eight|\d+) cards of your library\. Put all [A-Za-z]+(?: creature)? cards"
     r"(?: with mana value \d+ or less)? (?:revealed this way|from among them) (?:into your hand|onto the battlefield) and the rest on the "
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
+    r"|[Ll]ook at the top card of your library\. You may reveal that card\. If an instant or sorcery card is revealed this way, transform "
+    r"this creature\."  # Delver of Secrets
     r"|Choose two target creature cards in your graveyard\. Sacrifice a creature\. If you do, return the chosen cards to the battlefield tapped\."  # Victimize
     r"|Search your library for up to X basic land cards, where X is the greatest power among creatures you control\. Put those cards "
     r"onto the battlefield tapped, then shuffle\."  # Traverse the Outlands

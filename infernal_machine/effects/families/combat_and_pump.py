@@ -612,6 +612,19 @@ class Transform:
 
 
 @dataclass(frozen=True)
+class RevealTopTransform:
+    """Delver of Secrets: "Look at the top card of your library. You may reveal that card. If an instant or sorcery card is revealed this
+    way, transform this creature." Such a card is always revealed: nothing else happens if it is."""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        top = controller.library[0] if controller.library else None
+        if target is not None and top is not None and ("Instant" in top.type_line or "Sorcery" in top.type_line):
+            game.broadcast({"event": "revealed", "seat": controller.index, "card": top.name})
+            game.transform(target)
+
+
+@dataclass(frozen=True)
 class NinjutsuEnter:
     """The effect of Ninjutsu: "Put this card onto the battlefield from your hand tapped and attacking." (the game fills in whom)"""
 
