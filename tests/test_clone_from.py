@@ -20,6 +20,10 @@ MOCKINGBIRD = real("Mockingbird", "{X}{U}", "Creature — Bird Bard",
                    "Flying\nYou may have Mockingbird enter the battlefield as a copy of any creature on the battlefield with mana value less "
                    "than or equal to the amount of mana spent to cast Mockingbird, except it's a Bird in addition to its other types and it "
                    "has flying.", "1", "1")
+MOCKINGBIRD_NOW = real("Mockingbird", "{X}{U}", "Creature \u2014 Bird Bard",  # today's Oracle wording: "this creature", not its name
+                       "Flying\nYou may have this creature enter as a copy of any creature on the battlefield with mana value less than or "
+                       "equal to the amount of mana spent to cast this creature, except it's a Bird in addition to its other types and it has "
+                       "flying.", "1", "1")
 EFFIGY = real("Machine God's Effigy", "{4}", "Artifact",
               "You may have Machine God's Effigy enter as a copy of any creature on the battlefield, except it's an artifact and it has "
               "\"{T}: Add {U}.\" (It's not a creature.)\n{T}: Add {U}.")
@@ -90,7 +94,7 @@ def offered(card, mine=(), theirs=(), graveyards=((), ()), x=None):
 
 class ParseTests(unittest.TestCase):
     def test_the_cards_are_fully_playable(self):
-        for card in (BODY_DOUBLE, PROTEGE, MOCKINGBIRD, EFFIGY, MORITTE, SPARK_DOUBLE, ECHOING_DEEPS):
+        for card in (BODY_DOUBLE, PROTEGE, MOCKINGBIRD, MOCKINGBIRD_NOW, EFFIGY, MORITTE, SPARK_DOUBLE, ECHOING_DEEPS):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
     def test_a_granted_ability_the_engine_does_not_understand_leaves_the_line_unsupported(self):
@@ -120,6 +124,10 @@ class WhereToCopyFromTests(unittest.TestCase):
         copy = entered(a, "Big Thing")
         self.assertEqual(copy.card.type_line, "Creature — Beast Bird")
         self.assertTrue(game.has_keyword(copy, "flying"))
+
+    def test_mockingbird_today_s_wording_has_the_same_cap(self):
+        self.assertEqual(offered(MOCKINGBIRD_NOW, mine=[BEAR], theirs=[BIG], x=1), ["Bear 2/2"])
+        self.assertEqual(sorted(offered(MOCKINGBIRD_NOW, mine=[BEAR], theirs=[BIG], x=3)), ["Bear 2/2", "Big Thing 4/4"])
 
     def test_echoing_deeps_enters_tapped_as_a_cave_copy_of_a_land_card_in_a_graveyard(self):
         game, a, _ = enter(ECHOING_DEEPS, graveyards=([], [CAVE]), wanted="Test Cave")

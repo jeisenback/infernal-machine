@@ -117,7 +117,7 @@ _WHO = rf"(?:({_SELF}) or another|(another)|an?)"
 _TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
 
 
-_PERMANENT_WATCH = rf"(enchanted creature|legendary creature|nontoken creature|nontoken artifact|nontoken {_TRIBE}|creature token|(?:white|blue|black|red|green) creature|token|creature or artifact|creature|land|artifact|enchantment|permanent|{_TRIBE})"
+_PERMANENT_WATCH = rf"(enchanted creature|legendary creature|nontoken creature|nontoken artifact|nontoken {_TRIBE}|creature token|(?:white|blue|black|red|green|colorless) creature|token|creature or artifact|creature|land|artifact|enchantment|permanent|{_TRIBE})"
 
 
 _WATCHES = {
@@ -131,7 +131,7 @@ _WATCHES = {
     "permanent_to_graveyard": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? is put into (?:a|(your)) "
                                          r"graveyard from the battlefield, (.+)", re.I),
     "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:(an?|another)|(?:your|their) (first|second|third)) "
-                       r"((?:white|blue|black|red|green) spell|multicolored spell"
+                       r"((?:white|blue|black|red|green) spell|multicolored spell|colorless spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
                        r"|permanent spell with a mana cost that contains \{X\}|instant or sorcery spell with \{X\} in its mana cost"

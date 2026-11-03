@@ -40,8 +40,6 @@
   "lurrus_breach": {
    "cards": 60,
    "unplayable": [
-    "Flame of Anor",
-    "Hexing Squelcher",
     "Mana Crypt",
     "Merchant Scroll",
     "Snapcaster Mage",
@@ -55,7 +53,6 @@
     "Chain of Vapor",
     "Dark Confidant",
     "Dress Down",
-    "Flame of Anor",
     "Forth Eorlingas!",
     "Mana Crypt",
     "Merchant Scroll",
@@ -106,7 +103,6 @@
    "unplayable": [
     "Chalice of the Void",
     "City of Traitors",
-    "Glaring Fleshraker",
     "Karn, the Great Creator",
     "Mana Crypt",
     "Memory Jar",

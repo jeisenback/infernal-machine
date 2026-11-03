@@ -290,7 +290,7 @@ _WARD_MANA = r"(?:\{\d+\}|\{[WUBRGC]\})+"
 PROTECTION = re.compile(_PROT, re.I)  # "protection from red", "protection from red and from blue"
 
 
-_KW = rf"(?:{_PROT}|ward {_WARD_MANA}|annihilator \d+|[a-z]+(?: [a-z]+)?)"  # one keyword
+_KW = rf"(?:{_PROT}|ward {_WARD_MANA}|ward\u2014pay \d+ life|annihilator \d+|[a-z]+(?: [a-z]+)?)"  # one keyword ("ward\u2014pay 2 life": Hexing Squelcher)
 
 
 def _protection_keywords(text: str) -> frozenset[str]:

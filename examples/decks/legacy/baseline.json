@@ -17,7 +17,6 @@
     "Amped Raptor",
     "Galvanic Discharge",
     "Guide of Souls",
-    "Hexing Squelcher",
     "Lazotep Quarry",
     "Ocelot Pride",
     "Phlage, Titan of Fire's Fury",
@@ -64,7 +63,6 @@
     "City of Traitors",
     "Eldrazi Linebreaker",
     "Eye of Ugin",
-    "Glaring Fleshraker",
     "It That Heralds the End",
     "Kozilek's Command",
     "Reality Smasher",
@@ -98,7 +96,6 @@
   "mystic_forge_combo": {
    "cards": 60,
    "unplayable": [
-    "Glaring Fleshraker",
     "Karn, the Great Creator",
     "Kozilek's Command",
     "Pithing Needle",

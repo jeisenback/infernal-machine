@@ -116,6 +116,8 @@ class Modal:
     modes: tuple[tuple, ...]  # the effects of each mode
     texts: tuple[str, ...]
     commander_both: bool = False  # "If you control a commander as you cast this spell, you may choose both instead."
+    more_if_control: str = ""  # Flame of Anor: "If you control a Wizard as you cast this spell, you may choose two instead." ...
+    more_max: int = 0  # ... how many may be chosen then
     optional: bool = False  # "you may choose two": the controller may choose none
     repeat: bool = False  # "You may choose the same mode more than once." (a Confluence): `max` picks, each mode any number of times
     costs: tuple[int, ...] = ()  # pawprint modes (a Season): what each mode costs of the `max` pawprints to spend
