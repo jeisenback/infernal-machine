@@ -7,7 +7,6 @@
   "dredge": {
    "cards": 60,
    "unplayable": [
-    "Chalice of the Void",
     "Creeping Chill",
     "Golgari Grave-Troll",
     "Hollow One",
@@ -94,7 +93,6 @@
   "raker_shops": {
    "cards": 60,
    "unplayable": [
-    "Chalice of the Void",
     "City of Traitors",
     "Karn, the Great Creator",
     "Memory Jar",

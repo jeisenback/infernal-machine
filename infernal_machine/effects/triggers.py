@@ -84,7 +84,8 @@ class Watch:
     from_hand: bool = False  # "... from your hand"
     not_starting_deck: bool = False  # "a spell that isn't from your starting deck": a conjured card
     from_zone: str = ""  # "graveyard" ("from your graveyard", "from their graveyard") or "not_hand" ("from anywhere other than your hand")
-    qualifier: str = ""  # "with power 4 or greater" ("power>=4"), "with flying" ("flying"), "with a +1/+1 counter on it" ("counter:+1/+1")
+    qualifier: str = ""  # "with power 4 or greater" ("power>=4"), "with flying" ("flying"), "with a +1/+1 counter on it" ("counter:+1/+1"),
+    # for casts "mv_is_charge" ("with mana value equal to the number of charge counters on this artifact")
     expend: int = 0  # "Whenever you expend 4": the total mana spent on spells this turn that it waits for
     batch: bool = False  # "Whenever one or more creatures die": once for everything that happens at the same time
     chosen: bool = False  # "of the chosen type": only what is of the creature type the watcher chose as it entered
@@ -250,6 +251,9 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     if " that targets only this creature" in line:  # Mirrorwing Dragon: about the spell's targets
         line = line.replace(" that targets only this creature", "")
         qualifier = "targets_only_source"
+    if " with mana value equal to the number of charge counters on this artifact" in line:  # Chalice of the Void
+        line = line.replace(" with mana value equal to the number of charge counters on this artifact", "")
+        qualifier = "mv_is_charge"
     if " that targets a modified permanent you control" in line:  # Pearl-Ear: about the spell's targets
         line = line.replace(" that targets a modified permanent you control", "")
         qualifier = "targets_modified"
@@ -571,7 +575,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?(?:you may pay (?:\{[^}]+\})+\. If you do, )?copy (it|that spell)(?: for each [^.]*)?\.", rest,
                             re.I) is not None  # Codie: "it" is the spell cast (Mirari: after a payment; Thousand-Year Storm: so many times)
-    copies_spell = copies_spell or re.fullmatch(r"if no mana was spent to cast it, counter that spell\.", rest, re.I) is not None  # Vexing Bauble
+    copies_spell = copies_spell or re.fullmatch(r"(?:if no mana was spent to cast it, )?counter that spell\.", rest, re.I) is not None  # Vexing Bauble, Chalice
     effects, optional, once, condition = _trigger_body(rest)
     if effects is None:
         return None, False, False, None

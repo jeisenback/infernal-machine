@@ -61,12 +61,21 @@ class Damage:
     distinct: bool = False  # "... to each of up to two targets": the second can't be the first again
     instead: int = 0  # Galvanic Blast: "Metalcraft \u2014 CARDNAME deals 4 damage instead if you control three or more artifacts." ...
     instead_if: "Condition | None" = None  # ... checked as it resolves
+    another: bool = False  # "any other target": not the source itself (Screaming Nemesis)
+    no_life_gain: bool = False  # "If a player is dealt damage this way, they can't gain life for the rest of the game."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             amount = self.instead if self.instead_if is not None and game.condition_holds(self.instead_if, controller, game.resolving_source) \
                 else game.amount(self.amount)
             game.damage(target, amount, source=game.resolving_source)  # CR 120.3: the ability's source deals it
+            if self.no_life_gain and target in game.seats:
+                target.no_life_gain = True
+
+
+@dataclass(frozen=True)
+class _NoLifeGainForDamaged:
+    """ "If a player is dealt damage this way, they can't gain life for the rest of the game." after a Damage (see _CONDITIONAL)."""
 
 
 @dataclass(frozen=True)

@@ -4,16 +4,13 @@
    "cards": 60,
    "unplayable": [
     "Deem Inferior",
-    "Delver of Secrets // Insectile Aberration",
     "Sleep of the Dead"
    ]
   },
   "bogles": {
    "cards": 60,
    "unplayable": [
-    "Ancestral Mask",
-    "Benevolent Blessing",
-    "Ethereal Armor"
+    "Benevolent Blessing"
    ]
   },
   "dimir_faeries": {
