@@ -80,14 +80,12 @@
     "Lair of the Hydra",
     "Leyline of the Guildpact",
     "Old-Growth Troll",
-    "Storm the Festival",
     "Sunken Citadel"
    ]
   },
   "selesnya_company": {
    "cards": 60,
    "unplayable": [
-    "Collected Company",
     "Elspeth, Storm Slayer",
     "March of Otherworldly Light",
     "Professor of Symbology",

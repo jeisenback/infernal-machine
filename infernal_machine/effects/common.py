@@ -152,6 +152,7 @@ _WHOLE_LINE = re.compile(
     r"[Rr]eveal the top (?:two|three|four|five|six|seven|eight|\d+) cards of your library\. Put all [A-Za-z]+(?: creature)? cards"
     r"(?: with mana value \d+ or less)? (?:revealed this way|from among them) (?:into your hand|onto the battlefield) and the rest on the "
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
+    r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
     r"|[Ll]ook at the top card of your library\. You may reveal that card\. If an instant or sorcery card is revealed this way, transform "
     r"this creature\."  # Delver of Secrets
     r"|Choose two target creature cards in your graveyard\. Sacrifice a creature\. If you do, return the chosen cards to the battlefield tapped\."  # Victimize
@@ -169,6 +170,9 @@ _WHOLE_LINE = re.compile(
     r"|Shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. .*"
     r"|Exile the top (?:eight|seven|six|five) cards of your library\. You may cast an Aura spell from among them without paying its "
     r"mana cost\. Then put the rest on the bottom of your library in a random order\."
+    r"|Look at the top (?:seven|six|five) cards of your library\. (?:You may put|Put) up to (?:two|three) (?:creature|permanent|noncreature, "
+    r"nonland permanent) cards with mana value \d+ or less from among them onto the battlefield\. Put the rest on the bottom of your "
+    r"library in (?:any|a random) order\."  # Collected Company, Storm the Festival, United Battlefront
     r"|Look at the top (?:seven|six|five) cards of your library\. Put any number of nonland permanent cards with total mana value "
     r"\d+ or less from among them onto the battlefield\. Put the rest on the bottom of your library in a random order\."
     r"|Each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a nonland "

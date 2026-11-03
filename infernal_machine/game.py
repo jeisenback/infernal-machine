@@ -200,6 +200,7 @@ SEARCH_LAND_PROMPT = PromptKind("search_land", "Choose a land to put onto the ba
 SEARCH_LAND_HAND_PROMPT = PromptKind("search_land_hand", "Choose a land to put into your hand")
 SCRY_PROMPT = PromptKind("scry", "Scry: ")  # followed by the card's name; options are KEEP_ON_TOP and PUT_ON_BOTTOM
 SURVEIL_PROMPT = PromptKind("surveil", "Surveil: ")  # options are KEEP_ON_TOP and PUT_IN_GRAVEYARD
+EXPLORE_PROMPT = PromptKind("explore", "Explore: ")  # followed by the nonland card's name; options are KEEP_ON_TOP and PUT_IN_GRAVEYARD
 ORDER_TOP_PROMPT = PromptKind("order_top", "Put on top next")  # options are card names; asked while two or more cards stay on top
 PUT_ATTACHMENT_PROMPT = PromptKind("put_attachment", "Put an Aura or Equipment onto the battlefield")  # options are card names, then NONE_TAKEN
 EQUIP_PROMPT = PromptKind("equip", "Attach it to which creature? ")  # followed by the Equipment's name; the last option leaves it unattached
@@ -224,6 +225,8 @@ MAY_PAY_PROMPT = PromptKind("may_pay", "Pay the cost for ")  # followed by the s
 DRAW_UP_TO_PROMPT = PromptKind("draw_up_to", "How many cards do you draw? ")
 SACRIFICE_DRAW_PROMPT = PromptKind("sacrifice_draw", "Sacrifice a permanent to draw cards? ")
 LOOT_PROMPT = PromptKind("loot", "Discard a card to draw a card? ")
+DISCARD_OR_SACRIFICE_PROMPT = PromptKind("discard_or_sacrifice", "Discard a card or sacrifice a land to draw? ")  # Highway Robbery
+DISCARD_A_CARD, SACRIFICE_A_LAND, DO_NEITHER = "Discard a card", "Sacrifice a land", "Neither"
 PUT_ATTACKING_PROMPT = PromptKind("put_attacking", "Put which creature card onto the battlefield attacking? ")
 SHUFFLE_PROMPT = PromptKind("shuffle", "Shuffle your library? ")
 DEVOUR_PROMPT = PromptKind("devour", "Devour: sacrifice which creature to ")  # followed by the creature's name; the last option is DEVOUR_DONE
@@ -4680,10 +4683,11 @@ class Game:
                 if (new == "night" and face == "day") or (new == "day" and face == "night"):
                     self.transform(permanent, by_day_night=True)
 
-    def flicker(self, target: Permanent, controller: Seat, when: str, to: str, under_owner: bool, transformed: bool = False) -> None:
+    def flicker(self, target: Permanent, controller: Seat, when: str, to: str, under_owner: bool, transformed: bool = False,
+                counters: int = 0) -> None:
         """Exile `target`, then return it to the battlefield (or its owner's hand) right away (`when` is "now") or as the
         next end step begins ("end_step"). A token is gone for good; it comes back under `controller`'s control if
-        the card says "under your control", otherwise under its owner's."""
+        the card says "under your control", otherwise under its owner's, with `counters` +1/+1 counters (Daydream)."""
         owner = self.owner_of(target)
         card, before = target.transformed_from or target.card, len(owner.exile)
         self.exile(target)
@@ -4698,7 +4702,7 @@ class Game:
                 owner.hand.append(card)
                 self.broadcast({"event": "returned_from_exile", "seat": owner.index, "card": card.name, "to": "hand"})
             else:
-                self._return_from_exile(owner if under_owner else controller, card, owner, transformed)
+                self._return_from_exile(owner if under_owner else controller, card, owner, transformed, counters)
 
         if when == "now":
             bring_back()
@@ -4706,7 +4710,7 @@ class Game:
             fire_turn = self.turn + 1 if self.step in ("end", "cleanup") else self.turn
             self.at_end_step.append((fire_turn, bring_back))
 
-    def _return_from_exile(self, seat: Seat, card: Card, owner: Seat | None = None, transformed: bool = False) -> None:
+    def _return_from_exile(self, seat: Seat, card: Card, owner: Seat | None = None, transformed: bool = False, counters: int = 0) -> None:
         """A card exiled "until" comes back as a new permanent under its owner's control."""
         holder = owner or seat  # the exile zone it is in belongs to its owner, who may not be the one it returns to
         if seat.lost or card not in holder.exile:
@@ -4714,7 +4718,7 @@ class Game:
         holder.exile.remove(card)
         self.broadcast({"event": "returned_from_exile", "seat": seat.index, "card": card.name})
         self._enter(seat, self._transformed_permanent(card, holder) if transformed and card.flip is not None
-                    else Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=holder))
+                    else Permanent(card, sick=True, loyalty=_starting_loyalty(card), owner=holder, extra_counters=counters))
 
     def exile_graveyard(self, seat: Seat) -> None:
         cards, seat.graveyard = seat.graveyard, []
@@ -5392,6 +5396,30 @@ class Game:
         seat.library += top
         self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
 
+    def look_and_put_up_to(self, seat: Seat, count: int, up_to: int, kind: str, mv_max: int) -> None:
+        """Collected Company: look at the top `count` cards; put up to `up_to` cards of `kind` with mana value `mv_max` or less from
+        among them onto the battlefield; the rest go to the bottom in a random order."""
+        top = seat.library[:count]
+        del seat.library[:len(top)]
+        for _ in range(up_to):
+            options = _unique([c for c in top if c.cmc <= mv_max and _card_matches(kind, c)
+                               and ("Aura" not in c.type_line or self._can_put_attachment(seat, c))])
+            if not options:
+                break
+            choice = seat.player.choose(PUT_PERMANENT_PROMPT(f" (mana value {mv_max} or less)"), [c.name for c in options] + [NONE_TAKEN])
+            if choice >= len(options):
+                break
+            card = options[choice]
+            top.remove(card)
+            if "Aura" in card.type_line:
+                self.put_attachment_onto_battlefield(seat, card)
+            else:
+                self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": False})
+                self._enter(seat, Permanent(card, sick=True, loyalty=_starting_loyalty(card)))
+        self.rng.shuffle(top)
+        seat.library += top
+        self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
+
     def exile_until_nonland_and_cast(self, seat: Seat, casts: int) -> None:
         """Plargg and Nassari: each player exiles cards from the top of their library until they exile a nonland card; an
         opponent of `seat` chooses one of those nonland cards; `seat` may cast up to `casts` spells from among the others
@@ -5537,6 +5565,34 @@ class Game:
             self._move_card(seat, card, "graveyard")
         if top:  # surveil 0 is no surveil event either
             self.happened("surveilled", seat)
+
+    def explore(self, seat: Seat, creature: Permanent) -> None:
+        """`creature` explores (CR 701.44a): `seat` reveals the top card of their library; a land card goes into their hand, anything else
+        (or no card) puts a +1/+1 counter on the creature, and a nonland card may then go into the graveyard."""
+        top = seat.library[0] if seat.library else None
+        if top is not None:
+            self.broadcast({"event": "revealed", "seat": seat.index, "card": top.name})
+        if top is not None and "Land" in top.type_line:
+            seat.library.pop(0)
+            seat.hand.append(top)
+            return
+        self.put_counters(creature, "+1/+1", 1, seat)
+        if top is not None and seat.player.choose(EXPLORE_PROMPT(top.name), [KEEP_ON_TOP, PUT_IN_GRAVEYARD]) == 1:
+            seat.library.pop(0)
+            self._move_card(seat, top, "graveyard")
+
+    def may_discard_or_sacrifice_land_to_draw(self, seat: Seat, draw: int) -> None:
+        """Highway Robbery: "You may discard a card or sacrifice a land. If you do, draw two cards." """
+        options = ([DISCARD_A_CARD] if seat.hand else []) + ([SACRIFICE_A_LAND] if any("Land" in p.card.type_line for p in seat.battlefield)
+                                                              else []) + [DO_NEITHER]
+        choice = options[seat.player.choose(DISCARD_OR_SACRIFICE_PROMPT, options)]
+        if choice == DISCARD_A_CARD:
+            self.discard(seat, 1)
+        elif choice == SACRIFICE_A_LAND:
+            self.sacrifice(seat, "land")
+        else:
+            return
+        self.draw(seat, draw)
 
     def may_loot(self, seat: Seat, draw: int = 1, mill: int = 0) -> None:
         """ "You may discard a card. If you do, draw a card." (and maybe then mill some)"""
