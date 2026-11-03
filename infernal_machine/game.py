@@ -1200,6 +1200,8 @@ class Game:
             return False
         if ability.remove_counter and source is not None and source.counters.get(ability.remove_counter, 0) < ability.remove_count:
             return False
+        if ability.bounce_other and not any(_permanent_matches(ability.bounce_other, p.card) for p in seat.battlefield):
+            return False
         return not ability.tap_creatures or len(self._crew_candidates(seat, source, ability.tap_legendary, ability.tap_type)) >= ability.tap_creatures
 
     def _exile_cost_choices(self, seat: Seat, ability: ActivatedAbility) -> list[Card]:
@@ -1287,6 +1289,9 @@ class Game:
             member = options[seat.player.choose(CREW_PROMPT(name), [self.label(p) for p in options])]
             self.cost_tapped_power += self.power(member)
             self.tap(member)
+        if ability.bounce_other:  # Quirion Ranger: "Return a Forest you control to its owner's hand"
+            options = [p for p in seat.battlefield if _permanent_matches(ability.bounce_other, p.card)]
+            self.return_to_hand(options[seat.player.choose(RETURN_COST_PROMPT(name), [self.label(p) for p in options])])
         if ability.discard_hand:  # Lion's Eye Diamond
             for card in list(seat.hand):
                 seat.hand.remove(card)
@@ -3308,6 +3313,10 @@ class Game:
             self._remembered(source, {"damage"} | ({f"combat_{victim}"} if combat else set()), amount, target if isinstance(target, Seat) else None)
         if controller and source is not None and self.has_keyword(source, "lifelink"):
             self.change_life(controller, amount)
+        if source is not None and amount > 0:  # Spirit Link: "Whenever enchanted creature deals damage, you gain that much life."
+            for holder in self.live_seats():
+                for attachment in [p for p in holder.battlefield if p.attached_to is source]:
+                    self.trigger("host_damage", attachment, holder, source, x=amount)
 
     def _damage_modifiers(self, target: Seat | Permanent, source: Permanent | None, combat: bool) -> list[tuple[Permanent, DamageModifier]]:
         """The replacement effects that double, triple or add to this damage (CR 614.1): "If a source you control would deal damage to

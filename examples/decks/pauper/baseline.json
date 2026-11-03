@@ -5,7 +5,6 @@
    "unplayable": [
     "Deem Inferior",
     "Delver of Secrets // Insectile Aberration",
-    "Dispel",
     "Sleep of the Dead"
    ]
   },
@@ -13,16 +12,13 @@
    "cards": 60,
    "unplayable": [
     "Ancestral Mask",
-    "Armadillo Cloak",
     "Benevolent Blessing",
-    "Ethereal Armor",
-    "Spirit Link"
+    "Ethereal Armor"
    ]
   },
   "dimir_faeries": {
    "cards": 60,
    "unplayable": [
-    "Dispel",
     "Extract a Confession",
     "Spellstutter Sprite"
    ]
@@ -34,7 +30,6 @@
     "Lead the Stampede",
     "Masked Vandal",
     "Nyxborn Hydra",
-    "Quirion Ranger",
     "Winding Way"
    ]
   },
@@ -86,7 +81,6 @@
     "Mesmeric Fiend",
     "Nyxborn Hydra",
     "Overgrown Battlement",
-    "Quirion Ranger",
     "Wall of Roots",
     "Winding Way"
    ]

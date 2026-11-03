@@ -7,7 +7,7 @@ from infernal_machine.cards import Card
 from infernal_machine.effects import mana_bonus, mana_condition, mana_lines
 from infernal_machine.game import ACTIVATE, ACTIVATE_HAND, CAST, PLAY_LAND, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, lands, OGRE, real, run_stack, script, table3
+from tests.helpers import BEAR, lands, OGRE, RAINBOW, real, run_stack, script, table3
 
 VERGE = real("Blazemire Verge", "", "Land", "{T}: Add {B}.\n{T}: Add {R}. Activate only if you control a Swamp or a Mountain.")
 SPIRE = real("Spire of Industry", "", "Land", "{T}: Add {C}.\n{T}, Pay 1 life: Add one mana of any color. Activate only if you control an artifact.")
@@ -129,6 +129,8 @@ class SpiritGuideTests(unittest.TestCase):
 
 AUTHORITY = real("Authority of the Consuls", "{W}", "Enchantment", "Creatures your opponents control enter tapped.\n"
                  "Whenever a creature an opponent controls enters, you gain 1 life.")
+ARCHON = real("Archon of Emeria", "{2}{W}", "Creature — Archon", "Flying\nEach player can't cast more than one spell each turn.\n"
+              "Nonbasic lands your opponents control enter tapped.", "2", "3")
 OBEDIENCE = real("Blind Obedience", "{1}{W}", "Enchantment", "Extort\nArtifacts and creatures your opponents control enter tapped.")
 CLOCK = real("Unwinding Clock", "{2}", "Artifact", "Untap all artifacts you control during each other player's untap step.")
 WATERSKIN = real("Bender's Waterskin", "{3}", "Artifact", "Untap this artifact during each other player's untap step.\n{T}: Add one mana of any color.")
@@ -144,7 +146,7 @@ class EnterTappedTests(unittest.TestCase):
         return game, entering
 
     def test_parse(self):
-        for card in (AUTHORITY, OBEDIENCE, CLOCK, WATERSKIN):
+        for card in (AUTHORITY, OBEDIENCE, CLOCK, WATERSKIN, ARCHON):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
     def test_an_opponents_creature_enters_tapped(self):
@@ -157,6 +159,11 @@ class EnterTappedTests(unittest.TestCase):
         self.assertTrue(self.enter(OBEDIENCE, ROCK)[1].tapped)
         self.assertTrue(self.enter(OBEDIENCE, BEAR)[1].tapped)
         self.assertFalse(self.enter(OBEDIENCE, SWAMP)[1].tapped)
+
+    def test_archon_taps_nonbasic_lands_only(self):
+        self.assertTrue(self.enter(ARCHON, RAINBOW)[1].tapped)
+        self.assertFalse(self.enter(ARCHON, SWAMP)[1].tapped)
+        self.assertFalse(self.enter(ARCHON, BEAR)[1].tapped)
 
     def test_your_own_creatures_enter_untapped(self):
         game, _ = table3()

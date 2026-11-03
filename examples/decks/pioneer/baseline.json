@@ -5,16 +5,14 @@
    "unplayable": [
     "Faerie Miscreant",
     "Kaito, Bane of Nightmares",
-    "Nowhere to Run",
-    "Unholy Annex // Ritual Chamber"
+    "Nowhere to Run"
    ]
   },
   "golgari_midrange": {
    "cards": 61,
    "unplayable": [
     "Graveyard Trespasser // Graveyard Glutton",
-    "Restless Cottage",
-    "Unholy Annex // Ritual Chamber"
+    "Restless Cottage"
    ]
   },
   "izzet_aggro": {
@@ -91,7 +89,6 @@
   "selesnya_company": {
    "cards": 60,
    "unplayable": [
-    "Archon of Emeria",
     "Collected Company",
     "Elspeth, Storm Slayer",
     "March of Otherworldly Light",
