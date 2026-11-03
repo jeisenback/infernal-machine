@@ -1720,6 +1720,10 @@ class Game:
         return sum(any(basic in p.card.type_line.partition("\u2014")[2].split() for p in seat.battlefield if is_land(p.card))
                    for basic in ("Plains", "Island", "Swamp", "Mountain", "Forest"))
 
+    def shuffle_permanents_into_libraries(self, permanents: list[Permanent]) -> None:
+        """Floodpits Drowner: these permanents are shuffled into their owners' libraries (a token just stops existing)."""
+        self._leave_together([(p, "shuffled") for p in permanents if self.on_battlefield(p)], destination=SHUFFLED)
+
     def may_cast_from_graveyard(self, seat: Seat, kinds: tuple[str, ...], exile_after: bool) -> None:
         """Bilbo: `seat` may cast a spell of one of `kinds` from their graveyard now, paying its mana cost (CR 608.2g: timing is
         ignored while an ability resolves). With `exile_after`, an instant or sorcery cast this way is exiled instead of going back."""
@@ -2935,6 +2939,9 @@ class Game:
             that_player = self.resolving_item.player if self.resolving_item is not None else self.targeting_player
             if that_player is None:
                 return options
+        counter_needed = re.search(r" with an? (\S+) counter on it$", kind)  # Floodpits Drowner: "creature with a stun counter on it"
+        if counter_needed:
+            kind = kind[:counter_needed.start()]
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
         lesser = self._source_now() if kind.endswith(" with lesser power") else None  # Mentor
         power_limit = re.search(r" with power (\d+) or less$", kind)  # Escape Tunnel: the creature's power now, counters and pumps included
@@ -2953,6 +2960,8 @@ class Game:
                 if controller == "own" and (permanent.owner or seat) is not caster:
                     continue
                 if attacked and permanent.attacked_turn != self.turn:
+                    continue
+                if counter_needed and not permanent.counters.get(counter_needed[1]):
                     continue
                 if kind.endswith(" with lesser power") and (lesser is None or self.power(permanent) >= self.power(lesser)):
                     continue
@@ -3091,6 +3100,9 @@ class Game:
 
     def _draw_one(self, seat: Seat, announce: bool) -> bool:
         """One card drawn (or dredged); False if the draw ended the player's drawing because the library was empty."""
+        if seat.drawn_turn == self.turn and seat.drawn_cards and any(
+                key == "draw_limit:each" or (key == "draw_limit:opponents" and owner is not seat) for owner, _, key in self._static_rules()):
+            return False  # Narset, Parter of Veils: no second card this turn (and so nothing to replace with dredge)
         if self._dredge(seat):
             return True
         if not seat.library:

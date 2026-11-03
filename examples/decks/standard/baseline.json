@@ -22,7 +22,6 @@
     "Nurturing Pixie",
     "Practiced Offense",
     "Sage of the Skies",
-    "Starfield Shepherd",
     "Steamcore Scholar"
    ]
   },
@@ -59,7 +58,6 @@
   "dimir_midrange": {
    "cards": 60,
    "unplayable": [
-    "Floodpits Drowner",
     "Kaito, Bane of Nightmares",
     "Shoot the Sheriff",
     "Soulstone Sanctuary",
@@ -101,7 +99,6 @@
   "jeskai_artifacts": {
    "cards": 60,
    "unplayable": [
-    "Boomerang Basics",
     "Braided Net // Braided Quipu",
     "Clay-Fired Bricks // Cosmium Kiln",
     "Cryogen Relic",
