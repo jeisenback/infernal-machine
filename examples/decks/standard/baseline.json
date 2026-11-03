@@ -7,7 +7,6 @@
     "Get Lost",
     "Petrified Hamlet",
     "Pinnacle Starcage",
-    "Restless Anchorage",
     "Settle the Wreckage",
     "The Theorist, Jace Beleren",
     "Wan Shi Tong, Librarian"
@@ -16,7 +15,6 @@
   "azorius_momo": {
    "cards": 60,
    "unplayable": [
-    "Daydream",
     "Guiding Hydra",
     "Nurturing Pixie",
     "Practiced Offense",
@@ -60,7 +58,6 @@
     "Kaito, Bane of Nightmares",
     "Shoot the Sheriff",
     "Soulstone Sanctuary",
-    "Spyglass Siren",
     "The Theorist, Jace Beleren",
     "The Wondrous Wasp",
     "Tishana's Tidebinder",
@@ -107,8 +104,7 @@
     "Simulacrum Synthesizer",
     "Spring-Loaded Sawblades // Bladewheel Chariot",
     "The Irencrag",
-    "The Mind Stone",
-    "United Battlefront"
+    "The Mind Stone"
    ]
   },
   "jeskai_control": {

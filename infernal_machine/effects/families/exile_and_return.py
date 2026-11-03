@@ -45,10 +45,11 @@ class Flicker:
     to: str = "battlefield"
     under_owner: bool = True
     another: bool = False
+    counters: int = 0  # Daydream: "... with a +1/+1 counter on it"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.flicker(target, controller, self.when, self.to, self.under_owner)
+            game.flicker(target, controller, self.when, self.to, self.under_owner, counters=self.counters)
 
 
 @dataclass(frozen=True)

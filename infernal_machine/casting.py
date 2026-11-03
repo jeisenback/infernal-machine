@@ -378,9 +378,13 @@ class Caster:
             self.game.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
             self.game._move_card(seat, discarded, "graveyard")
         returns, return_count = (alternative.returns, alternative.return_count) if alternative else ("", 0)
-        for _ in range(return_count):  # Daze: "return an Island you control to its owner's hand"
+        for _ in range(return_count):  # Daze: "return an Island you control to its owner's hand"; Fireblast: "sacrifice two Mountains"
             options = [p for p in seat.battlefield if g._permanent_matches(returns, p.card)]
-            self.game.return_to_hand(options[seat.player.choose(g.RETURN_COST_PROMPT(card.name), [self.game.label(p) for p in options])])
+            if alternative and alternative.sacrificed:
+                choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT(card.name), [self.game.label(p) for p in options])]
+                self.game._leave_together([(choice, "sacrificed")])
+            else:
+                self.game.return_to_hand(options[seat.player.choose(g.RETURN_COST_PROMPT(card.name), [self.game.label(p) for p in options])])
         if alternative and alternative.exile_color:
             options = [c for c in seat.hand if alternative.exile_color in c.colors]
             exiled = options[seat.player.choose(g.PITCH_PROMPT, [c.name for c in options])]

@@ -537,6 +537,16 @@ class Untap:
             game.untap(target)
 
 
+@dataclass(frozen=True)
+class Explore:
+    """ "Target creature you control explores." (CR 701.44; the Map token's ability)"""
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.explore(controller, target)
+
+
 UNTAP_LANDS_PROMPT = PromptKind("untap_lands", "Untap which land? ")
 
 

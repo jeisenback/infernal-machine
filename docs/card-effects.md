@@ -934,6 +934,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Screaming Nemesis (`tests/test_screaming_nemesis.py`): "it deals that much damage to any other target" is a `Damage` of the X the
     "is dealt damage" trigger carries, `another` so not to itself; "If a player is dealt damage this way, they can't gain life for the
     rest of the game." sets `Seat.no_life_gain`.
+  - Look and put up to two (`tests/test_look_put_up_to.py`): "Look at the top six cards of your library. Put up to two creature cards with
+    mana value 3 or less from among them onto the battlefield. Put the rest on the bottom ..." (Collected Company; "permanent" for Storm
+    the Festival, "noncreature, nonland permanent" for United Battlefront) is `LookPutUpTo` (`Game.look_and_put_up_to`).
+  - Sacrifice instead of paying (`tests/test_return_instead_of_paying.py`): "You may sacrifice two Mountains rather than pay this spell's
+    mana cost." (Fireblast) is Daze's alternative cost with `sacrificed`.
+  - Explore and the Map token (`tests/test_explore.py`): "Target creature you control explores." (CR 701.44, `Game.explore`: a land
+    goes to the hand; otherwise a +1/+1 counter, and the card may go to the graveyard) and "create a Map token" (Spyglass Siren).
+  - Blink with a counter (`tests/test_daydream.py`): "... then return that card to the battlefield under its owner's control with a
+    +1/+1 counter on it." (Daydream: `Flicker.counters`).
+  - Discard or sacrifice a land (`tests/test_discard_or_sacrifice_land.py`): "You may discard a card or sacrifice a land. If you do, draw
+    two cards." (Highway Robbery); only what can be paid is offered.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

@@ -102,6 +102,15 @@ class YouAndTargetDraw:
 
 
 @dataclass(frozen=True)
+class MayDiscardOrSacrificeLandThenDraw:
+    """Highway Robbery: "You may discard a card or sacrifice a land. If you do, draw two cards." """
+    draw: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.may_discard_or_sacrifice_land_to_draw(controller, self.draw)
+
+
+@dataclass(frozen=True)
 class MayDiscardThenDraw:
     """ "You may discard a card. If you do, draw a card." (Quintorius: "... draw two cards, then mill a card.")"""
     draw: int = 1
@@ -685,6 +694,20 @@ class LookPutPermanents:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.look_and_put_permanents(controller, self.count, self.total_mv)
+
+
+@dataclass(frozen=True)
+class LookPutUpTo:
+    """Collected Company: "Look at the top six cards of your library. Put up to two creature cards with mana value 3 or less from among
+    them onto the battlefield. Put the rest on the bottom of your library in any order." (also "permanent", "noncreature, nonland
+    permanent")."""
+    count: int
+    up_to: int
+    kind: str
+    mv_max: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.look_and_put_up_to(controller, self.count, self.up_to, self.kind, self.mv_max)
 
 
 @dataclass(frozen=True)

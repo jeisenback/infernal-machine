@@ -95,6 +95,7 @@ from .families.combat_and_pump import (  # noqa: F401
     TapThat,
     TargetPrepared,
     Transform,
+    Explore,
     RevealTopTransform,
     UNTAP_LANDS_PROMPT,
     Unattach,
@@ -301,8 +302,10 @@ from .families.library_and_hand import (  # noqa: F401
     LookAtTop,
     LookPutAttachment,
     LookPutPermanents,
+    LookPutUpTo,
     LookTopTakeChosen,
     MayDiscardThenDraw,
+    MayDiscardOrSacrificeLandThenDraw,
     MayRemoveCounterThenDraw,
     MaySacrificeThenDraw,
     Mill,
@@ -871,11 +874,15 @@ LANDER = Card(name="Lander", type_line="Token Artifact \u2014 Lander",  # Biotec
               oracle_text="{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.")
 
 
+MAP = Card(name="Map", type_line="Token Artifact \u2014 Map",  # Spyglass Siren
+           oracle_text="{1}, {T}, Sacrifice this token: Target creature you control explores. Activate only as a sorcery.")
+
+
 HEARTWOOD = Card(name="Heartwood", type_line="Token Artifact — Heartwood", oracle_text="{T}: Add {R} or {G}.",
                  colors=("R", "G"))
 
 
-_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "blood": BLOOD, "heartwood": HEARTWOOD, "lander": LANDER}
+_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "blood": BLOOD, "heartwood": HEARTWOOD, "lander": LANDER, "map": MAP}
 
 
 _COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
@@ -894,7 +901,7 @@ _CREATURE_TOKEN = re.compile(
 )
 
 
-_NAMED_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) (Treasure|Clue|Food|Blood|Heartwood|Lander) tokens?")
+_NAMED_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) (Treasure|Clue|Food|Blood|Heartwood|Lander|Map) tokens?")
 
 
 def _attacker_token(spec: str) -> "AttackerCreatesAttackingToken | None":
@@ -1644,6 +1651,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"exile the top {_N_FIXED} cards of your library\. You may cast an Aura spell from among them without paying its mana "
                 r"cost\. Then put the rest on the bottom of your library in a random order\.", re.I),
      lambda m: ExileTopCastAura(_number(m[1]))),
+    (re.compile(rf"look at the top {_N_FIXED} cards of your library\. (?:You may put|Put) up to {_N_FIXED} (creature|permanent|noncreature, "
+                r"nonland permanent) cards with mana value (\d+) or less from among them onto the battlefield\. Put the rest on the bottom "
+                r"of your library in (?:any|a random) order\.", re.I),
+     lambda m: LookPutUpTo(_number(m[1]), _number(m[2]), m[3].lower(), int(m[4]))),  # Collected Company
     (re.compile(rf"look at the top {_N_FIXED} cards of your library\. Put any number of nonland permanent cards with total mana value "
                 r"(\d+) or less from among them onto the battlefield\. Put the rest on the bottom of your library in a random order\.",
                 re.I), lambda m: LookPutPermanents(_number(m[1]), int(m[2]))),
@@ -1744,8 +1755,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"at the beginning of your next main phase, add an amount of \{C\} equal to that spell's mana value\.", re.I),
      lambda m: _DelayedMana()),
     (re.compile(rf"exile (another )?target {_PERMANENT_KIND}, then return (?:it|that card) to the battlefield under "
-                r"(your|its owner's) control\.", re.I),
-     lambda m: Flicker(m[2].lower(), under_owner=m[3].lower() != "your", another=bool(m[1]))),
+                r"(your|its owner's) control( with a \+1/\+1 counter on it)?\.", re.I),
+     lambda m: Flicker(m[2].lower(), under_owner=m[3].lower() != "your", another=bool(m[1]), counters=1 if m[4] else 0)),  # Daydream
     (re.compile(r"return (?:it|that card) to the battlefield under (your|its owner's) control at the beginning of the "
                 r"next end step\.", re.I), lambda m: ReturnLater("battlefield", m[1].lower() != "your")),
     (re.compile(r"return (?:it|that card) to its owner's hand at the beginning of the next end step\.", re.I),
@@ -2081,6 +2092,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
      lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
     (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
+    (re.compile(r"target (creature you control) explores\.", re.I), lambda m: Explore(m[1].lower())),  # the Map token
+    (re.compile(rf"you may discard a card or sacrifice a land\. If you do, draw {_N_FIXED} cards?\.", re.I),
+     lambda m: MayDiscardOrSacrificeLandThenDraw(_number(m[1]))),  # Highway Robbery
     (re.compile(rf"untap target {_PERMANENT_KIND} and gain control of it until end of turn\.", re.I),
      lambda m: [GainControl(m[1].lower(), until_end_of_turn=True), UntapThat()]),
     (re.compile(r"that creature gains haste until end of turn\.", re.I),
