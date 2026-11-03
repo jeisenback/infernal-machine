@@ -869,6 +869,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Atraxa, Grand Unifier (`tests/test_take_each_card_type.py`): "For each card type, you may put a card of that type from among the
     revealed cards into your hand." is an `Impulse` of card type `EACH_CARD_TYPE`: `Game.look_at_top` offers each of the eight card types
     in turn (CR 205.2a), and a card of two types is taken for one of them.
+  - Lander tokens and "scry and create" (`tests/test_lander_and_scry_tokens.py`): "Create a Lander token" makes `LANDER`, an artifact with
+    "{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle." (Biotech
+    Specialist and about 20 more), and "scry 1 and create a Treasure token" is split like "draw a card and create ..." (Greedy Freebooter).
+  - Paying life instead (`tests/test_pay_life_instead.py`): "If you control a Swamp, you may pay 4 life rather than pay this spell's mana
+    cost." is an alternative cost (`AlternativeCost.life`, `requires`) offered only while you control that kind of permanent (Snuff Out).
+  - Activation locks (`tests/test_activation_lock.py`): "Activated abilities of artifacts, creatures, and planeswalkers can't be activated."
+    (Clarion Conqueror) is the rule key `lock:Artifact,Creature,Planeswalker`, like Stony Silence's `lock:Artifact`; it stops mana abilities
+    of those too (a Treasure, a mana creature) but not a land's or an enchantment's.
+  - "You may sacrifice another ..." (`tests/test_may_sacrifice_another.py`): The Sackville-Bagginses' "you may sacrifice another creature or
+    artifact. If you do, draw a card and create a Treasure token." is `MaySacrificeThen` with `another` (the source is not offered) and two
+    effects after "If you do"; "When The Sackville-Bagginses enter" (a plural name) is read as entering.
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

@@ -74,7 +74,7 @@ def heard_on(occurrence: str) -> tuple[Event, ...]:
     return tuple(_HEARD.get(occurrence, ()))
 
 
-declare("enters", re.compile(rf"When(?:ever)? {_SELF} enters(?: the battlefield)?, (.+)", re.I))
+declare("enters", re.compile(rf"When(?:ever)? {_SELF} enters?(?: the battlefield)?, (.+)", re.I))  # "enter": The Sackville-Bagginses
 declare("targeted", re.compile(rf"When(?:ever)? {_SELF} becomes the target of an? (?:spell|spell or ability), (.+)", re.I))
 declare("cast_self", re.compile(r"When you cast this spell, (.+)", re.I))  # goes on the stack above the spell (Game._cast)
 declare("dies", re.compile(rf"When(?:ever)? {_SELF} dies, (.+)", re.I))

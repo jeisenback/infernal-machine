@@ -1411,13 +1411,14 @@ class Game:
         return frozenset(mana)
 
     def _ability_barred(self, permanent: Permanent) -> bool:
-        """Whether a static ability stops the abilities of `permanent` being activated: Stony Silence (artifacts), Grand Abolisher
+        """Whether a static ability stops the abilities of `permanent` being activated: Stony Silence (artifacts), Clarion Conqueror
+        (artifacts, creatures and planeswalkers), Grand Abolisher
         (an opponent's artifacts, creatures and enchantments, on its controller's turn). A land's mana ability is not stopped by the
         second."""
         controller = self.controller_of(permanent)
         for owner, _, key in self._static_rules():
-            if key == "lock:Artifact" and "Artifact" in permanent.card.type_line:
-                return True
+            if key.startswith("lock:") and any(t in permanent.card.type_line for t in key.removeprefix("lock:").split(",")):
+                return True  # Stony Silence; Clarion Conqueror: artifacts, creatures and planeswalkers
             if key.startswith("opp_lock:") and owner is not controller and self.seats[self.active] is owner \
                     and any(t in permanent.card.type_line for t in key.removeprefix("opp_lock:").split(",")):
                 return True
@@ -3992,13 +3993,14 @@ class Game:
         self._leave_together([(options[pick], "sacrificed")])
         self.trigger("exploits", source, seat, subject=options[pick])
 
-    def sacrifice(self, seat: Seat, kind: str = "creature", count: int | None = 1, greatest: bool = False) -> list[Permanent]:
+    def sacrifice(self, seat: Seat, kind: str = "creature", count: int | None = 1, greatest: bool = False,
+                  exclude: Permanent | None = None) -> list[Permanent]:
         """`seat` chooses `count` of its permanents of `kind` (a creature, artifact, land, ...) and sacrifices them
         (all of them if `count` is None); with `greatest`, only a creature with the greatest power among its creatures
         can be chosen. No targeting, so hexproof and indestructible don't help. Returns what was sacrificed."""
         state = kind.split(" ")[0] if kind.split(" ")[0] in ("attacking", "tapped", "untapped") else ""
         base = kind.removeprefix(state + " ") if state else kind
-        options = [p for p in seat.battlefield if _permanent_matches(base, p.card) and self._in_state(p, state)]
+        options = [p for p in seat.battlefield if _permanent_matches(base, p.card) and self._in_state(p, state) and p is not exclude]
         if count is None:
             self._leave_together([(p, "sacrificed") for p in options])
             return options
@@ -5503,11 +5505,11 @@ class Game:
             if mill:
                 self.mill(seat, mill)
 
-    def may_sacrifice(self, seat: Seat, kind: str) -> bool:
-        """ "You may sacrifice a permanent." Whether they did (they need one to sacrifice, and to want to)."""
-        if any(_permanent_matches(kind, p.card) for p in seat.battlefield) \
+    def may_sacrifice(self, seat: Seat, kind: str, exclude: Permanent | None = None) -> bool:
+        """ "You may sacrifice a permanent." Whether they did (they need one to sacrifice, and to want to). `exclude`: "another", not this."""
+        if any(_permanent_matches(kind, p.card) and p is not exclude for p in seat.battlefield) \
                 and seat.player.choose(SACRIFICE_DRAW_PROMPT, YES_NO) == 0:
-            self.sacrifice(seat, kind, 1)
+            self.sacrifice(seat, kind, 1, exclude=exclude)
             return True
         return False
 

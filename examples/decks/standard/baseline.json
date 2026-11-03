@@ -29,7 +29,6 @@
   "boros_dragons": {
    "cards": 60,
    "unplayable": [
-    "Clarion Conqueror",
     "Magda, the Hoardmaster",
     "Magmatic Hellkite",
     "Sarkhan, Dragon Ascendant",
@@ -134,15 +133,12 @@
   "jund_sacrifice": {
    "cards": 60,
    "unplayable": [
-    "Biotech Specialist",
     "Gene Pollinator",
-    "Greedy Freebooter",
     "Lively Dirge",
     "Mutagen Man, Living Ooze",
     "Obsessive Pursuit",
     "Rottenmouth Viper",
     "The Misty Mountains Cold",
-    "The Sackville-Bagginses",
     "Wolverine, Fierce Fighter"
    ]
   },
