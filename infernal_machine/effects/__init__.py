@@ -24,6 +24,7 @@ from .events import EVENTS, heard_on  # noqa: F401
 from .common import (  # noqa: F401
     CANT_ATTACK,
     CANT_BE_BLOCKED,
+    ONLY_BLOCKED_BY,
     CANT_BLOCK,
     MUST_ATTACK,
     PROTECTION,

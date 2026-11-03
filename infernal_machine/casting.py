@@ -206,6 +206,7 @@ class Caster:
         for target in (t for chosen in item.targets for t in (chosen if isinstance(chosen, list) else [chosen])):
             if isinstance(target, g.Permanent) and self.game.on_battlefield(target):  # "Whenever this creature becomes the target of a spell"
                 self.game.trigger("targeted", target, self.game.controller(target))
+        self.game._valiant(item)
         self.game._check_ward(item)
 
     def _cast_ways(self, seat: g.Seat, card: Card, from_command_zone: bool,

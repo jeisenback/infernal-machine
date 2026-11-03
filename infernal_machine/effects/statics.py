@@ -282,6 +282,8 @@ _RULES_STATICS = [
     (re.compile(rf"Untap (?:{_SELF}|this artifact) during each other player's untap step\.", re.I), "untap_others:self"),  # Bender's Waterskin
     (re.compile(r"(Creatures|Artifacts and creatures) your opponents control enter tapped\.", re.I), "enter_tapped:opp"),  # Authority of the Consuls
     (re.compile(r"You may look at the top card of your library any time\.", re.I), "look_top"),  # information only: nothing changes
+    (re.compile(r"(Creatures|Artifacts and creatures) entering(?: the battlefield)? don't cause abilities to trigger\.", re.I),
+     "no_enter_triggers"),  # Torpor Orb; Doorkeeper Thrull: "no_enter_triggers:Artifact,Creature"
     (re.compile(r"Umbra armor", re.I), "umbra_armor"),  # Auras: an enchanted creature that would be destroyed is saved by one
     (re.compile(rf"{_SELF} doesn't untap during your untap step\.", re.I), "no_untap"),  # Basalt Monolith, Mana Vault
 ]
@@ -301,7 +303,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic),
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
     "no_untap" (it stays tapped through its controller's untap step), "umbra_armor" (an Aura that saves what it enchants from being destroyed), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
-    alone), "enter_tapped:opp:creature" / ":artifact,creature" (those its controller's opponents control enter tapped), "look_top" (its controller may look at their top card: no
+    alone), "enter_tapped:opp:creature" / ":artifact,creature" (those its controller's opponents control enter tapped), "no_enter_triggers:Creature" /
+    ":Artifact,Creature" (those entering trigger no abilities), "look_top" (its controller may look at their top card: no
     change to the game, and no player here uses it)."""
     found = []
     for line in rules_lines(card):
@@ -317,6 +320,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
                     key = f"land_type:{_LAND_TYPE_MANA[m[1].lower()]}"
                 elif key == "enter_tapped:opp":
                     key += ":creature" if m[1].lower() == "creatures" else ":artifact,creature"
+                elif key == "no_enter_triggers":
+                    key += ":Creature" if m[1].lower() == "creatures" else ":Artifact,Creature"
                 elif key == "extra_land":  # Azusa: two additional lands, which is two more land drops
                     key = "|".join(["extra_land"] * {"an": 1, "two": 2, "three": 3}[m[1].lower()])
                 found.extend(key.split("|"))

@@ -144,8 +144,9 @@ def build(card: Card, ability: ActivatedAbility) -> Setup:
     return Setup(game, mine, source, fodder, lands, hand, graveyard, mine.life)
 
 
-def unpaid(setup: Setup, ability: ActivatedAbility) -> str | None:
-    """Which part of the cost is still unpaid after the activation resolved, or None."""
+def unpaid(setup: Setup, ability: ActivatedAbility, life_paid: int) -> str | None:
+    """Which part of the cost is still unpaid after the activation resolved, or None. `life_paid` is read as the ability goes on the
+    stack, before what it does (Tavern Swindler's flip gains life)."""
     mine = setup.mine
     on_battlefield = lambda p: any(p is q for q in mine.battlefield)  # noqa: E731
     if ability.sacrifice_other:
@@ -162,7 +163,7 @@ def unpaid(setup: Setup, ability: ActivatedAbility) -> str | None:
         return "remove counters"
     if ability.tap_creatures and sum(p.tapped for p in setup.fodder) < ability.tap_creatures:
         return "tap creatures"
-    if ability.life and mine.life > setup.life - ability.life:
+    if ability.life and life_paid < ability.life:
         return "pay life"
     if ability.mana_cost and "{X}" not in ability.mana_cost and not any(p.tapped or not on_battlefield(p) for p in setup.lands):
         return "pay mana"
@@ -185,9 +186,10 @@ def try_ability(card: Card, ability: ActivatedAbility) -> tuple[str, str]:
     if action is None:
         return "not offered", ""
     setup.game._perform(setup.mine, action)
+    life_paid = setup.life - setup.mine.life
     run_stack(setup.game)
     setup.game._check_state()
-    problem = unpaid(setup, ability)
+    problem = unpaid(setup, ability, life_paid)
     return ("unpaid", problem) if problem else ("paid", "")
 
 

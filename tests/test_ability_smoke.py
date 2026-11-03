@@ -23,6 +23,8 @@ PATRIARCH = real("Cabal Patriarch", "{2}{B}{B}", "Creature — Human Wizard",
 SPIKE = real("Spike Feeder", "{3}{G}", "Creature — Spike", "This creature enters with two +1/+1 counters on it.\n{2}, Remove a +1/+1 counter "
              "from this creature: Put a +1/+1 counter on target creature.\nRemove a +1/+1 counter from this creature: You gain 2 life.", "0", "0",
              colors=("G",))
+SWINDLER = real("Tavern Swindler", "{1}{B}", "Creature — Human Rogue", "{T}, Pay 3 life: Flip a coin. If you win the flip, you gain 6 life.",
+                "2", "2")
 RESERVOIR = real("Aetherflux Reservoir", "{4}", "Artifact", "Pay 50 life: Aetherflux Reservoir deals 50 damage to any target.")
 FAMILIAR = real("Cauldron Familiar", "{B}", "Creature — Cat", "When this creature enters, each opponent loses 1 life and you gain 1 life.\n"
                 "Sacrifice a Food: Return this card from your graveyard to the battlefield.", "1", "1", colors=("B",))
@@ -98,6 +100,12 @@ class TryAbilityTests(unittest.TestCase):
     def test_paying_life(self):
         self.assertEqual(self.outcome(RESERVOIR), ("paid", ""))
 
+    def test_life_paid_is_read_before_the_ability_gains_life(self):
+        original = ability_smoke.Game.flip_coin
+        ability_smoke.Game.flip_coin = lambda self, seat: True  # the flip is won: 6 life comes back
+        self.addCleanup(setattr, ability_smoke.Game, "flip_coin", original)
+        self.assertEqual(self.outcome(SWINDLER), ("paid", ""))
+
     def test_a_graveyard_ability_that_sacrifices_a_food_is_paid(self):
         self.assertEqual(self.outcome(FAMILIAR), ("paid", ""))
 
@@ -113,7 +121,7 @@ class UnpaidTests(unittest.TestCase):
 
     def unpaid(self, card, index=0):
         ability = abilities(card)[index]
-        return ability_smoke.unpaid(ability_smoke.build(card, ability), ability)
+        return ability_smoke.unpaid(ability_smoke.build(card, ability), ability, 0)
 
     def test_each_kind_of_cost_left_alone_is_unpaid(self):
         self.assertIn("sacrifice (0 of 2 sacrificed)", self.unpaid(WARRENS))
@@ -128,7 +136,7 @@ class UnpaidTests(unittest.TestCase):
         ability = abilities(SPIKE)[0]
         setup = ability_smoke.build(SPIKE, ability)
         setup.source.counters.clear()  # (the counters are gone, so only the {2} is left unpaid)
-        self.assertEqual(ability_smoke.unpaid(setup, ability), "pay mana")
+        self.assertEqual(ability_smoke.unpaid(setup, ability, 0), "pay mana")
 
 
 class UntriedTests(unittest.TestCase):
