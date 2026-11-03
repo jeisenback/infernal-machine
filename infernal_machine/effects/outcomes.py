@@ -852,11 +852,15 @@ SQUIRREL = Card(name="Squirrel", type_line="Token Creature \u2014 Squirrel", col
 OCTOPUS = Card(name="Octopus", type_line="Token Creature \u2014 Octopus", colors=("U",), power="8", toughness="8")
 
 
+LANDER = Card(name="Lander", type_line="Token Artifact \u2014 Lander",  # Biotech Specialist
+              oracle_text="{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.")
+
+
 HEARTWOOD = Card(name="Heartwood", type_line="Token Artifact — Heartwood", oracle_text="{T}: Add {R} or {G}.",
                  colors=("R", "G"))
 
 
-_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "blood": BLOOD, "heartwood": HEARTWOOD}
+_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "blood": BLOOD, "heartwood": HEARTWOOD, "lander": LANDER}
 
 
 _COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
@@ -875,7 +879,7 @@ _CREATURE_TOKEN = re.compile(
 )
 
 
-_NAMED_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) (Treasure|Clue|Food|Blood|Heartwood) tokens?")
+_NAMED_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) (Treasure|Clue|Food|Blood|Heartwood|Lander) tokens?")
 
 
 def _attacker_token(spec: str) -> "AttackerCreatesAttackingToken | None":
@@ -1127,7 +1131,7 @@ def _mass_kind(m: re.Match) -> str:
     return _MASS_KINDS[m[1].lower()] + (m[2] or "").replace(" your opponents control", " an opponent controls")
 
 
-_SACRIFICE_KIND = (r"(attacking creature|tapped creature|untapped creature|nontoken creature|creature or planeswalker|creature|artifact or enchantment|nontoken artifact|food|treasure|clue|artifact"
+_SACRIFICE_KIND = (r"(attacking creature|tapped creature|untapped creature|nontoken creature|creature or planeswalker|creature or artifact|creature|artifact or enchantment|nontoken artifact|food|treasure|clue|artifact"
                    r"|enchantment|land|nonland permanent|permanent)")
 
 
@@ -1246,6 +1250,8 @@ def _damage_each(m: re.Match) -> DamageEach | None:
 
 def _if_you_do(m: re.Match) -> Any:
     inner = _parse([m[1][:1].upper() + m[1][1:] + "."])
+    if inner and len(inner) > 1 and all(isinstance(e, (Draw, CreateTokens)) for e in inner):  # "draw a card and create a Treasure token"
+        return _IfYouDo(tuple(inner))
     return _IfYouDo(inner[0]) if inner and len(inner) == 1 and isinstance(inner[0], (BecomePrepared, SearchForLands)) else None
 
 
@@ -1726,7 +1732,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"you and target opponent each draw {_N} cards?\.", re.I), lambda m: YouAndTargetDraw(_count(m[1]))),
     (re.compile(rf"each player loses {_N} life\.", re.I), lambda m: EachPlayerLosesLife(_count(m[1]))),
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
-    (re.compile(rf"you may sacrifice an? {_SACRIFICE_KIND}\.", re.I), lambda m: _MaySacrifice(m[1].lower())),
+    (re.compile(rf"you may sacrifice (an?|another) {_SACRIFICE_KIND}\.", re.I), lambda m: _MaySacrifice(m[2].lower(), m[1].lower() == "another")),
     (re.compile(rf"you may remove an? {_COUNTER} from (?:it|{_SELF})\.", re.I), lambda m: _MayRemoveCounter(_counter_name(m[1]))),
     (re.compile(rf"if you do, draw {_N_FIXED} cards?(?:, then mill {_N_FIXED} cards?)?\.", re.I),
      lambda m: _IfYouDoDraw(_number(m[1]), _number(m[2]) if m[2] else 0)),
@@ -2484,8 +2490,8 @@ def _clauses(sentence: str) -> list[str]:
     if m := re.fullmatch(r"(Create .+? tokens?(?: with [a-z, ]+)?), then populate\.", sentence, re.I):  # Horncaller's Chant
         return [m[1] + ".", "Populate."]
     sentence = re.sub(r"^You (draw|create) ", lambda m: m[1].capitalize() + " ", sentence)
-    if m := re.fullmatch(rf"(Draw {_N} cards?) and ((?:create|remove) .+)\.", sentence):  # Big Score, Seize the Spoils, Midnight Oil
-        return [m[1] + ".", m[3][:1].upper() + m[3][1:] + "."]
+    if m := re.fullmatch(rf"(Draw {_N} cards?|Scry {_N}) and ((?:create|remove) .+)\.", sentence):  # Big Score, Midnight Oil; Greedy Freebooter scries
+        return [m[1] + ".", m[4][:1].upper() + m[4][1:] + "."]
     if m := re.fullmatch(rf"(.+) and you ({_YOUR_ACTION})\.", sentence, re.I):
         return _clauses(m[1] + ".") + [_you_do(m[2])]
     if m := re.fullmatch(rf"(?:You )?(gain {_N} life) and (put .+ counters? on .+)\.", sentence):  # Dina, Essence Brewer
@@ -2569,10 +2575,10 @@ def _merge_loot(effects: list) -> list | None:
             continue
         if isinstance(effects[i], _MaySacrifice):
             if i + 1 < len(effects) and isinstance(effects[i + 1], _IfYouDo):  # Springbloom Druid
-                merged.append(MaySacrificeThen(effects[i].kind, effects[i + 1].effect))
+                merged.append(MaySacrificeThen(effects[i].kind, effects[i + 1].effect, effects[i].another))
                 i += 2
                 continue
-            if not (i + 1 < len(effects) and isinstance(effects[i + 1], _IfYouDoDraw)):
+            if not (i + 1 < len(effects) and isinstance(effects[i + 1], _IfYouDoDraw)) or effects[i].another:
                 return None
             merged.append(MaySacrificeThenDraw(effects[i].kind, effects[i + 1].draw))
             i += 2
@@ -2934,6 +2940,6 @@ _CONDITIONAL = Follows(
     # Lorehold Archivist's spell, The Scarab God: "Exile target creature card from a graveyard. Create a token that's a copy of it."
     Follow(CopySubjectToken, ExileFromGraveyard, lambda previous, marker: dataclasses.replace(previous, copy_token=True, copy_changes=marker.changes),
            strict=False, fits=lambda previous, marker: marker.count == 1 and not (marker.haste or marker.sacrifice_at_end or marker.exile_at_end)),
-    Follow(_IfYouDo, ExileOwnGraveyard, set_fields(then=lambda m: m.effect)),
+    Follow(_IfYouDo, ExileOwnGraveyard, set_fields(then=lambda m: m.effect), fits=lambda previous, marker: not isinstance(marker.effect, tuple)),
     Follow(_IfExiledThen, ExileFromGraveyard, set_fields(if_type=lambda m: m.card_type, then=lambda m: m.effect)),
 )

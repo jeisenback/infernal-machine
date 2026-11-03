@@ -345,6 +345,8 @@ class Caster:
             return False
         if alternative.not_your_turn and self.game.active == seat.index:
             return False
+        if alternative.requires and not any(g._permanent_matches(alternative.requires, p.card) for p in seat.battlefield):
+            return False  # Snuff Out: "If you control a Swamp"
         if alternative.return_count and sum(g._permanent_matches(alternative.returns, p.card) for p in seat.battlefield) < alternative.return_count:
             return False  # Daze: an Island to return
         return not alternative.exile_color or any(alternative.exile_color in c.colors for c in others)

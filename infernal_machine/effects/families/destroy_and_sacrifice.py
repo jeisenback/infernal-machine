@@ -45,19 +45,24 @@ class _InsteadManaValue:
 
 @dataclass(frozen=True)
 class MaySacrificeThen:
-    """Springbloom Druid: "You may sacrifice a land. If you do, search your library for up to two basic land cards, ..." """
+    """Springbloom Druid: "You may sacrifice a land. If you do, search your library for up to two basic land cards, ..." The Sackville-
+    Bagginses: "you may sacrifice another creature or artifact. If you do, draw a card and create a Treasure token." (`then` is a tuple
+    of effects; "another" is not the source itself)."""
     kind: str
     then: Any
+    another: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.may_sacrifice(controller, self.kind):
-            self.then.resolve(game, controller, target)
+        if game.may_sacrifice(controller, self.kind, exclude=game.resolving_source if self.another else None):
+            for effect in self.then if isinstance(self.then, tuple) else (self.then,):
+                effect.resolve(game, controller, target)
 
 
 @dataclass(frozen=True)
 class _MaySacrifice:
     """Half of "You may sacrifice a permanent. If you do, draw two cards." (see _merge_loot)."""
     kind: str
+    another: bool = False  # "you may sacrifice another creature": not the source itself
 
 
 CHOOSE_TYPE_PROMPT = PromptKind("choose_a_type", "Choose a type")  # options: the types that can be chosen (Season of Gathering)
