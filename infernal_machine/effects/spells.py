@@ -6,8 +6,8 @@ import dataclasses
 
 from ..cards import Card
 
-from .common import _split_sentences, rules_lines
-from .outcomes import _MODAL_COMMANDER, _MODAL_HEADER, _MODAL_PAWPRINTS, _MODAL_REPEAT, _SPELL_MASTERY, _parse, _parse_modal, _parse_pawprint_modal, _parse_spree
+from .common import _number, _split_sentences, rules_lines
+from .outcomes import _MODAL_COMMANDER, _MODAL_HEADER, _MODAL_IF_CONTROL, _MODAL_PAWPRINTS, _MODAL_REPEAT, _SPELL_MASTERY, _parse, _parse_modal, _parse_pawprint_modal, _parse_spree
 from .activated import _ACTIVATED, _channel_body, _cost_fields
 from .costs import is_casting_cost_line
 from .statics import is_replacement_line
@@ -29,6 +29,9 @@ def spell_effects(card: Card) -> list | None:
     if lines and _MODAL_COMMANDER.fullmatch(lines[0]):
         modal = _parse_modal("one", lines[1:])
         return [dataclasses.replace(modal[0], commander_both=True)] if modal else None
+    if lines and (m := _MODAL_IF_CONTROL.fullmatch(lines[0])):
+        modal = _parse_modal("one", lines[1:])
+        return [dataclasses.replace(modal[0], more_if_control=m[1], more_max=_number(m[2]))] if modal else None
     return _parse(_split_sentences("\n".join(_SPELL_MASTERY.sub("", line) for line in lines)))
 
 

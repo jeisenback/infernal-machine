@@ -4738,8 +4738,9 @@ class Game:
 
     def ward_of(self, permanent: Permanent) -> str | None:
         """The ward cost the permanent has: its own, or one a static ability gives it ("Creatures you control have ward {1}")."""
-        return ward_cost(permanent.card) or next((keyword.removeprefix("ward ") for modifier in self.modifiers(permanent)
-                                                  for keyword in modifier.keywords if keyword.startswith("ward ")), None)
+        return ward_cost(permanent.card) or next((keyword.removeprefix("ward ") if keyword.startswith("ward ") else keyword[5:].capitalize()
+                                                  for modifier in self.modifiers(permanent) for keyword in modifier.keywords
+                                                  if keyword.startswith(("ward ", "ward\u2014"))), None)  # "ward\u2014pay 2 life": "Pay 2 life"
 
     def _ward_payment(self, payer: Seat, fields: dict) -> Payment | None:
         """The permanents to tap for a ward cost's mana (none if it has no mana), or None if it can't be paid."""

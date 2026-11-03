@@ -480,6 +480,8 @@ class Caster:
         entwine, escalate = (entwine_cost(card), escalate_cost(card)) if casting else (None, None)
         if modal.commander_both and any(p.card.name in (p.owner or seat).commander_names for p in seat.battlefield):
             modal = dataclasses.replace(modal, max=len(modal.modes))  # "if you control a commander ... you may choose both"
+        if modal.more_if_control and any(g._permanent_matches(modal.more_if_control, p.card) for p in seat.battlefield):
+            modal = dataclasses.replace(modal, max=modal.more_max)  # Flame of Anor: "If you control a Wizard ..., you may choose two"
         if (entwine and len(available) == len(modal.modes) > 1
                 and self._payment(seat, card, from_command_zone, extra=entwine) is not None
                 and seat.player.choose(g.ENTWINE_PROMPT(card.name), g.YES_NO) == 0):

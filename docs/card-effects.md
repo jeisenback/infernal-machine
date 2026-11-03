@@ -892,6 +892,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Floodpits Drowner (`tests/test_shuffle_stunned.py`): a target kind may end in "with a <kind> counter on it", and "Shuffle this creature
     and target creature with a stun counter on it into their owners' libraries." is `ShuffleSourceAndTarget`
     (`Game.shuffle_permanents_into_libraries`).
+  - Mockingbird's current wording (`tests/test_clone_from.py`): "the amount of mana spent to cast this creature" is read like "... to cast
+    CARDNAME".
+  - Granted life ward (`tests/test_granted_ward.py`): Hexing Squelcher's "Other creatures you control have "Ward—Pay 2 life."" is the
+    keyword `ward—pay 2 life`, whose cost `Game.ward_of` gives as "Pay 2 life".
+  - Colorless watches (`tests/test_colorless_watch.py`): "Whenever you cast a colorless spell" and "Whenever another colorless creature you
+    control enters" (Glaring Fleshraker).
+  - Modes by what you control (`tests/test_modal_if_you_control.py`): "Choose one. If you control a Wizard as you cast this spell, you may
+    choose two instead." (Flame of Anor; `Modal.more_if_control`, `more_max`).
+  - Keywords by color (`tests/test_keyword_by_color.py`): Scion of Draco's "Each creature you control has vigilance if it's white,
+    hexproof if it's blue, ..." is a buff for each color (`StaticBuff.color`); its "{2} less for each basic land type" is Domain's
+    reduction.
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

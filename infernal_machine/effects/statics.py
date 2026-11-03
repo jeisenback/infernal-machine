@@ -582,11 +582,25 @@ def _who_subtype(who: re.Match) -> str | None:
     return "|".join(kinds) or None
 
 
+_KEYWORD_BY_COLOR = re.compile(r"Each creature you control has ([a-z ]+) if it's (white|blue|black|red|green)(?:, ([a-z ]+) if it's "
+                               r"(white|blue|black|red|green))*,? and ([a-z ]+) if it's (white|blue|black|red|green)\.")  # Scion of Draco
+_KEYWORD_IF_COLOR = re.compile(r"(?:, (?:and )?|has |and )([a-z ]+) if it's (white|blue|black|red|green)")
+_COLOR_LETTERS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+
+
+_GRANTED_WARD_LIFE = re.compile(r'have "Ward\u2014Pay (\d+) life\."$')  # the quoted ability ends the sentence
+
+
 @lru_cache(maxsize=None)
 def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
     buffs = []
     for line in rules_lines(card):
         bare = _ABILITY_WORD.sub("", line)  # "Threshold — ": the word names the condition but changes nothing
+        if _KEYWORD_BY_COLOR.fullmatch(bare):  # one keyword for each color: a buff for each, limited to creatures of that color
+            buffs += [StaticBuff(Modifier(keywords=frozenset({keyword})), False, None, line, color=_COLOR_LETTERS[color])
+                      for keyword, color in _KEYWORD_IF_COLOR.findall(bare)]
+            continue
+        bare = _GRANTED_WARD_LIFE.sub(lambda m: f"have ward\u2014pay {m[1]} life.", bare)  # Hexing Squelcher: the granted ward, as a keyword
         sentence, condition = bare, None
         if split := _conditional(bare):
             sentence, text = split
@@ -962,7 +976,7 @@ _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)?( tapped)?
 _CLONE_KIND = r"(?:nonland permanent|permanent|[A-Za-z]+(?: or [A-Za-z]+)?)"
 
 
-_CLONE_SOURCE = re.compile(rf"any ({_CLONE_KIND}) on the battlefield(?P<spent> with mana value less than or equal to the amount of mana spent to cast CARDNAME)?"
+_CLONE_SOURCE = re.compile(rf"any ({_CLONE_KIND}) on the battlefield(?P<spent> with mana value less than or equal to the amount of mana spent to cast (?:CARDNAME|this creature))?"
                            rf"|any ({_CLONE_KIND}) card in a graveyard|any (permanent) that entered this turn"
                            rf"|(an?|another) ({_CLONE_KIND}) (you control|an opponent controls)(?: with power (\d+) or greater)?")
 

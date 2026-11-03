@@ -598,9 +598,14 @@ def _parse_spree(lines: list[str]) -> list | None:
 _MODAL_COMMANDER = re.compile(r"Choose one\. If you control a commander as you cast this spell, you may choose both instead\.")
 
 
+_MODAL_IF_CONTROL = re.compile(rf"Choose one\. If you control an? ((?-i:[A-Z][a-z]+)) as you cast this spell, you may choose {_N_FIXED} "
+                               r"instead\.")  # Flame of Anor
+
+
 def is_modal_header(line: str) -> bool:
     return (line == "Spree" or _MODAL_HEADER.fullmatch(line) is not None or _MODAL_REPEAT.fullmatch(line) is not None
-            or _MODAL_PAWPRINTS.fullmatch(line) is not None or _MODAL_COMMANDER.fullmatch(line) is not None)
+            or _MODAL_PAWPRINTS.fullmatch(line) is not None or _MODAL_COMMANDER.fullmatch(line) is not None
+            or _MODAL_IF_CONTROL.fullmatch(line) is not None)
 
 
 def mode_text(line: str) -> str:
