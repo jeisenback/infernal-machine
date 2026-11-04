@@ -70,6 +70,7 @@ class Filter:
     state: str = ""  # "tapped", "untapped", "attacking" or "attacking or blocking": for the caller to check
     mana_value: tuple[str, int] | None = None  # ("<=", 3), (">=", 5), ("=", 2) or ("<", 2)
     power_at_most: int | None = None  # "creature card with power 2 or less"
+    toughness_at_most: int | None = None  # "creature card with toughness 2 or less" (Recruiter of the Guard)
     keyword: str = ""  # "creature spell with flying": a keyword printed on the card (Momo, Friendly Flier)
 
     def matches(self, card) -> bool:
@@ -84,6 +85,10 @@ class Filter:
         if self.power_at_most is not None:
             power = card.power
             if power is None or not power.lstrip("-").isdigit() or int(power) > self.power_at_most:
+                return False
+        if self.toughness_at_most is not None:
+            toughness = card.toughness
+            if toughness is None or not toughness.lstrip("-").isdigit() or int(toughness) > self.toughness_at_most:
                 return False
         return any(alternative.matches(card) for alternative in self.alternatives)
 
@@ -107,7 +112,7 @@ def _has_printed_keyword(card, keyword: str) -> bool:
 
 _MANA_VALUE = re.compile(r" with mana value (\d+)(?: (or less|or greater))?$")
 _POWER = re.compile(r" with power (\d+) or less$")
-_BAR_VALUE = re.compile(r"\|(mv|p)(<=|>=|=|<)(\d+)$")
+_BAR_VALUE = re.compile(r"\|(mv|p|t)(<=|>=|=|<)(\d+)$")
 _SPLIT = re.compile(r",? or |, | and ")
 
 
@@ -116,12 +121,14 @@ def parse_filter(text: str) -> Filter:
     """The filter a kind of card or permanent names. Words it does not know are creature types or other subtypes."""
     text = text.strip().lower()
     mana_value = None
-    power_at_most = None
-    if m := _BAR_VALUE.search(text):  # the search kinds: "creature|mv<=3", "creature|p<=2"
+    power_at_most = toughness_at_most = None
+    if m := _BAR_VALUE.search(text):  # the search kinds: "creature|mv<=3", "creature|p<=2", "creature|t<=2"
         if m[1] == "mv":
             mana_value = (m[2], int(m[3]))
-        else:
+        elif m[1] == "p":
             power_at_most = int(m[3])
+        else:
+            toughness_at_most = int(m[3])
         text = text[:m.start()]
     if m := _MANA_VALUE.search(text):
         mana_value = ({"or less": "<=", "or greater": ">="}.get(m[2], "="), int(m[1]))
@@ -142,7 +149,7 @@ def parse_filter(text: str) -> Filter:
         if text.startswith(word + " "):
             state, text = word, text.removeprefix(word + " ")
             break
-    return Filter(_alternatives(text), controller, state, mana_value, power_at_most, keyword)
+    return Filter(_alternatives(text), controller, state, mana_value, power_at_most, toughness_at_most, keyword)
 
 
 def _alternatives(text: str) -> tuple[Alternative, ...]:

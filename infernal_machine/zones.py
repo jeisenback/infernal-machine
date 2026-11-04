@@ -22,6 +22,8 @@ PLAY_EXILE = "Play land from exile: "
 CAST_PERMIT = "Cast from graveyard (permission): "  # Gisa and Geralf, Lurrus: once each turn, a kind of spell, for its mana cost
 PLAY_TOP = "Play land from the top of your library: "  # Courser of Kruphix, Future Sight
 CAST_TOP = "Cast from the top of your library: "  # Future Sight, Mystic Forge, Realmwalker
+PLAY_MILLED = "Play milled land: "  # Tablet of Discovery: "Mill a card. You may play that card this turn."
+CAST_MILLED = "Cast milled card: "
 PLOT = "Plot: "  # followed by the card's name: pay its plot cost and exile it from the hand, at sorcery speed
 CAST_PLOTTED = "Cast plotted: "  # followed by the card's name: cast from exile as a sorcery on a later turn, without paying its mana cost
 
@@ -236,8 +238,37 @@ class Plotted(ZonePlay):
         return True
 
 
-GRAVEYARD, PARAGON, PERMITS, EXILE, LIBRARY, PLOTTED = Graveyard(), Paragon(), Permits(), Exile(), Library(), Plotted()
-ZONE_PLAYS: tuple[ZonePlay, ...] = (GRAVEYARD, PARAGON, PERMITS, EXILE, LIBRARY, PLOTTED)
+class Milled(ZonePlay):
+    """Tablet of Discovery, Ark of Hunger: "Mill a card. You may play that card this turn." (`Seat.graveyard_play`)."""
+    land_prefix, cast_prefix = PLAY_MILLED, CAST_MILLED
+
+    def offers(self, game, seat, sorcery_timing):
+        actions = []
+        for card in g._unique(game._milled_playable(seat)):
+            if is_land(card):
+                if sorcery_timing and seat.lands_played < game._land_drops(seat):
+                    actions.append(PLAY_MILLED + card.name)
+            elif _timely(game, seat, card, sorcery_timing) and game._can_cast(seat, card, from_hand=False):
+                actions.append(CAST_MILLED + card.name)
+        return actions
+
+    def perform(self, game, seat, action):
+        if action.startswith(PLAY_MILLED):
+            card = game._use_milled(seat, action.removeprefix(PLAY_MILLED))
+            seat.graveyard.remove(card)
+            game._left_graveyard(seat, [card])
+            game._enter(seat, g.Permanent(card, sick=True))
+            seat.lands_played += 1
+            game.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "graveyard"})
+        elif action.startswith(CAST_MILLED):
+            game._cast(seat, game._use_milled(seat, action.removeprefix(CAST_MILLED)), seat.graveyard)
+        else:
+            return False
+        return True
+
+
+GRAVEYARD, PARAGON, PERMITS, EXILE, LIBRARY, PLOTTED, MILLED = Graveyard(), Paragon(), Permits(), Exile(), Library(), Plotted(), Milled()
+ZONE_PLAYS: tuple[ZonePlay, ...] = (GRAVEYARD, PARAGON, PERMITS, EXILE, LIBRARY, PLOTTED, MILLED)
 LAND_PREFIXES = tuple(z.land_prefix for z in ZONE_PLAYS if z.land_prefix)
 CAST_PREFIXES = tuple(z.cast_prefix for z in ZONE_PLAYS)
 

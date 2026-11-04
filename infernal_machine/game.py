@@ -27,7 +27,7 @@ from . import characteristics
 from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
 from . import casting
-from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
+from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, MILLED, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
@@ -467,6 +467,7 @@ class Seat:
     hand: list[Card] = field(default_factory=list)
     _battlefield: list = field(default_factory=_Tracked, init=False, repr=False)
     exile_play: list[tuple[Card, int]] = field(default_factory=list)  # exiled cards its owner may play, and the last turn they can
+    graveyard_play: list[tuple[Card, int]] = field(default_factory=list)  # milled cards it may play from the graveyard, and the turn (Tablet of Discovery)
     borrowed: list[tuple[Card, "Seat"]] = field(default_factory=list)  # cards in this exile that belong to other players (Ragavan), and whose
     undercity_room: str | None = None  # where this player's venture marker is, if they are in the Undercity
     mana_pool: list[frozenset[str]] = field(default_factory=list)  # mana added by rituals, gone at the end of the step
@@ -1087,6 +1088,7 @@ class Game:
         actions += EXILE.offers(self, seat, sorcery_timing)
         actions += LIBRARY.offers(self, seat, sorcery_timing)
         actions += PLOTTED.offers(self, seat, sorcery_timing)
+        actions += MILLED.offers(self, seat, sorcery_timing)
         for spell in _unique([p.card.prepare for p in seat.battlefield if p.prepared and p.card.prepare]):
             if (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, spell)) and self._can_cast(seat, spell):
                 actions.append(CAST_PREPARED + spell.name)
@@ -1769,6 +1771,16 @@ class Game:
     def _used_paragon(self, seat: Seat, card: Card) -> None:
         seat.paragon_turn = self.turn
         seat.paragon_marked = [card]
+
+    def _milled_playable(self, seat: Seat) -> list[Card]:
+        """The cards in `seat`'s graveyard it may play this turn because they were milled so (Tablet of Discovery)."""
+        return [c for c, turn in seat.graveyard_play if turn == self.turn and any(x is c for x in seat.graveyard)]
+
+    def _use_milled(self, seat: Seat, name: str) -> Card:
+        """The milled card named `name` is played: its permission is used up."""
+        card = next(c for c in self._milled_playable(seat) if c.name == name)
+        seat.graveyard_play = [(c, turn) for c, turn in seat.graveyard_play if c is not card]
+        return card
 
     def _used_exile_permission(self, seat: Seat, card: Card) -> None:
         seat.exile_play = [(c, until) for c, until in seat.exile_play if c != card] + \
@@ -2600,6 +2612,9 @@ class Game:
             return self.resolving_item is not None and self.resolving_item.foretold
         if kind == "no_mana_spent":  # Vexing Bauble: the spell that set the trigger off was cast without spending mana
             return isinstance(spell, StackItem) and spell.mana_spent == 0
+        if kind == "no_colored_mana_spent":  # Void Mirror: none of the mana spent on the spell that set it off was colored (a mana that
+            # could have been colored is counted so: its player would have made it so)
+            return isinstance(spell, StackItem) and not any(types & set("WUBRG") for types in spell.mana_types_spent)
         if kind == "revolt":  # a permanent left the battlefield under your control this turn
             return seat.permanent_left_turn == self.turn
         if kind == "discarded_nonland":  # Grab the Prize: the card discarded to cast it wasn't a land card
@@ -3154,7 +3169,9 @@ class Game:
                 seat.draw_turn, seat.draw_count = self.turn, 0
             seat.draw_count += 1
             self.happened("drew", seat, *(["extra"] if not self._draw_step_draw else []),
-                          *(["second"] if seat.draw_count == 2 else []))
+                          *(["second"] if seat.draw_count == 2 else []), *(["third"] if seat.draw_count == 3 else []))
+            if seat.draw_count == 3:
+                self._graveyard_returns(seat, "third_draw")  # Sneaky Snacker
         return True
 
     def _dredge(self, seat: Seat) -> bool:

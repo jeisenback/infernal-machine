@@ -43,19 +43,19 @@ class Follows:
 
     def step(self, merged: list, effect: Any) -> bool | None:
         """Fold `effect` into the last of `merged` if one of the rows is about it: True if it was folded, False if the line must be
-        rejected, None if no row is about it (the caller goes on with it)."""
+        rejected, None if no row is about it (the caller goes on with it). Several rows may be about one marker (PlayExiled after an
+        ExileTop or a Mill): the first that fits folds it, and it is rejected only if none fits and one of them is strict."""
+        previous = merged[-1] if merged else None
+        strict = None
         for row in self.rows:
             if not row.applies(effect):
                 continue
-            previous = merged[-1] if merged else None
             if previous is not None and isinstance(previous, row.after) and (row.fits is None or row.fits(previous, effect)):
                 if row.make is not None:
                     merged[-1] = row.make(previous, effect)
                 return True
-            if row.strict:
-                return False
-            return None
-        return None
+            strict = strict or row.strict
+        return False if strict else None
 
     def __call__(self, effects: list) -> list | None:
         merged: list = []

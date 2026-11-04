@@ -771,6 +771,7 @@ class Mill:
     who: str  # "you", "each opponent" or "each player"
     put: str = ""  # Vastlands Scavenger: "Then put a creature card from among them onto the battlefield." (the card kind)
     put_to: str = "battlefield"  # Free the Fae: "... from among the milled cards into your hand." ("hand")
+    play_this_turn: bool = False  # Tablet of Discovery: "You may play that card this turn."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for seat in game.turn_order_from_active():
@@ -778,6 +779,8 @@ class Mill:
                 milled = game.mill(seat, game.amount(self.count))
                 if self.put:
                     game.return_chosen_from(seat, milled, self.put, self.put_to)
+                if self.play_this_turn:
+                    seat.graveyard_play += [(card, game.turn) for card in milled]
 
 
 @dataclass(frozen=True)

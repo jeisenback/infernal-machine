@@ -124,6 +124,8 @@ declare("opponent_search", re.compile(r"Whenever an opponent searches their libr
 declare("opponent_sacrifice_creature", re.compile(r"Whenever an opponent sacrifices a creature, (.+)", re.I))
 declare("second_draw", re.compile(r"Whenever you draw your second card each turn, (.+)", re.I),
         to="you", happens="drew", accepts=fact("second"))
+declare("third_draw", re.compile(r"When you draw your third card in a turn, (.+)", re.I),
+        to="you", happens="drew", accepts=fact("third"))  # Sneaky Snacker, which hears it from the graveyard (Game.draw)
 declare("combat_damage_to_player", re.compile(rf"When(?:ever)? {_SELF} deals combat damage to a player, (.+)", re.I), maybe_player=True)
 declare("combat_damage_to_player_or_walker", re.compile(rf"When(?:ever)? {_SELF} deals combat damage to a player or planeswalker, (.+)", re.I),
         maybe_player=True)  # Psychic Frog
