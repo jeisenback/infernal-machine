@@ -263,6 +263,7 @@ from .families.exile_and_return import (  # noqa: F401
     ReturnSelfToHand,
     ReturnSpellToHand,
     ReturnThisFromGraveyard,
+    ExileThisFromGraveyardThen,
     ReturnToHand,
     ReturnAnyNumber,
     _DrawIfYouControlledIt,
@@ -310,6 +311,7 @@ from .families.library_and_hand import (  # noqa: F401
     MayDiscardThenDraw,
     MayDiscardOrSacrificeLandThenDraw,
     EachPutsFromHand,
+    DiscardUnless,
     MayRemoveCounterThenDraw,
     MaySacrificeThenDraw,
     Mill,
@@ -1598,6 +1600,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|instant|sorcery|white|blue|black|red|green) )?spell"
                 rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
+    (re.compile(r"counter target spell with mana value X or less, where X is the number of ((?-i:[A-Z][a-z]+))s you control\.", re.I),
+     lambda m: Counter(f"spell with mana value at most your {m[1]}s")),  # Spellstutter Sprite: X is checked again as it resolves
     (re.compile(r"counter that spell\.", re.I), lambda m: CounterTriggeringSpell()),  # Vexing Bauble
     (re.compile(r"change the target of target (spell|spell or ability|activated ability) with a single target"
                 rf"( unless that spell's controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
@@ -2118,6 +2122,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ChooseTypeRevealTop((m[1].lower(), m[2].lower()), _number(m[3]))),  # Winding Way
     (re.compile(r"you may exile a (creature) card from your graveyard\. If you do, (exile target artifact or enchantment an opponent controls\.)",
                 re.I), lambda m: MayExileFromGraveyardThen(m[1].lower(), Exile("artifact or enchantment an opponent controls"))),  # Masked Vandal
+    (re.compile(rf"(?:then )?discard {_N_FIXED} cards unless you discard (an? [^.]+?)\.", re.I),  # Thirst for Knowledge, Steamcore Scholar
+     lambda m: DiscardUnless(_number(m[1]), tuple(re.sub(r"^an? ", "", part).replace(" card", "") for part in m[2].split(" or a ")))),
     (re.compile(rf"you may discard a card or sacrifice a land\. If you do, draw {_N_FIXED} cards?\.", re.I),
      lambda m: MayDiscardOrSacrificeLandThenDraw(_number(m[1]))),  # Highway Robbery
     (re.compile(rf"untap target {_PERMANENT_KIND} and gain control of it until end of turn\.", re.I),

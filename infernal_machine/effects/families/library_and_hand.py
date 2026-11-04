@@ -102,6 +102,17 @@ class YouAndTargetDraw:
 
 
 @dataclass(frozen=True)
+class DiscardUnless:
+    """Thirst for Knowledge: "Then discard two cards unless you discard an artifact card." (Steamcore Scholar: "... an instant or sorcery
+    card or a creature card with flying."): one card of one of `kinds`, or `count` cards."""
+    count: int
+    kinds: tuple[str, ...]
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.discard_unless(controller, self.count, self.kinds)
+
+
+@dataclass(frozen=True)
 class EachPutsFromHand:
     """Show and Tell: "Each player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield." """
     kind: str
