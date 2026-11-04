@@ -1699,6 +1699,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: CopyNextSpell(per_commander_cast=True)),
     (re.compile(rf"(?:then )?put an? {_CARD_TYPE} from among them onto the battlefield\.", re.I),
      lambda m: _PutFromAmongThem(_card_kind(m[1]))),
+    (re.compile(r"(?:then )?put an (instant, sorcery, or Faerie) card from among the milled cards into your hand\.", re.I),
+     lambda m: _PutFromAmongThem("instant or sorcery or Faerie", "hand")),  # Free the Fae
     (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),
     (re.compile(rf"it gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ItGains(_keyword_list(m[1]))),
     (re.compile(rf"that creature also gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ThatAlsoGains(_keyword_list(m[1]))),
@@ -1938,6 +1940,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: TakeFromTop(None, take=_number(m[1]), rest=None if m[2] is None else "graveyard" if m[2].startswith("into") else "bottom")),
     (re.compile(rf"if (.+), instead put {_N_FIXED} of them into your hand and the rest on the bottom of your library in any order\.", re.I),
      lambda m: _InsteadTake(c, _number(m[2])) if (c := _condition(m[1])) else None),
+    (re.compile(r"put each of those cards into your hand instead if (.+)\.", re.I),  # Accumulate Wisdom: every card looked at
+     lambda m: _InsteadTake(c, 0) if (c := _condition(m[1])) else None),
     (re.compile(rf"you may reveal an? {_SEARCH_TYPE} from among them and put (?:it|that card) into your hand\.", re.I),
      lambda m: TakeFromTop(_card_kind(m[1]))),
     (re.compile(r"you may put an? (permanent|creature or land|creature or enchantment) card from among them into your hand\.", re.I),
@@ -2411,6 +2415,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [Pump(_modifier(m, 1), "creature"), Pump(_modifier(m, 1), "creature", optional_target=True, distinct=True)]),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} gets? {_PT_X}(?: and gains? {_KEYWORDS})? until end of turn\."),
      lambda m: _pump_x(m[2], m[3], m[4], m[5], m[1].lower(), m[6])),
+    (re.compile(rf"(?i:target) {_PERMANENT_KIND} gains? {_KEYWORDS} and gets? {_PT_X} until end of turn\."),  # Eldrazi Linebreaker
+     lambda m: _pump_x(m[3], m[4], m[5], m[6], m[1].lower(), m[2])),
     (re.compile(rf"(?i:target) (creature(?: an opponent controls| you control)?) (?i:becomes) an? (\d+)/(\d+)"
                 rf"(?: (?:white|blue|black|red|green|colorless))?(?: [A-Z][\w'-]*)*(?: creature)?(?: with {_KEYWORDS})?"
                 r" until end of turn\."),
@@ -2899,7 +2905,7 @@ _CONDITIONS = [
      lambda m: Condition("graveyard_at_least", _number(m[1] or m[2]), "card")),
     (re.compile(r"an opponent was dealt noncombat damage this turn"), lambda m: Condition("opponent_dealt_noncombat_damage")),
     (re.compile(r"an opponent lost life this turn"), lambda m: Condition("opponent_lost_life")),  # Fireglass Mentor
-    (re.compile(rf"there are {_N_FIXED} or more ([a-z]+(?: and/or [a-z]+)?) cards in your graveyard"),
+    (re.compile(rf"there are {_N_FIXED} or more ([a-z]+(?: and/or [a-z]+)?|Lesson) cards in your graveyard"),  # Accumulate Wisdom: Lessons
      lambda m: Condition("graveyard_at_least", _number(m[1]), m[2].replace(" and/or ", " or "))),
     (re.compile(rf"a player has {_N_FIXED} or fewer cards in hand"), lambda m: Condition("any_hand_at_most", _number(m[1]))),
     (re.compile(r"an opponent has more cards in hand than you"), lambda m: Condition("opponent_more_cards")),
@@ -2983,7 +2989,8 @@ _COPY_SENTENCES = (CopyToken, CopySubjectToken, CopyHostToken, CopySelfToken, Co
 
 _CONDITIONAL = Follows(
     Follow(_InsteadDraw, Draw, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition)),
-    Follow(_InsteadTake, Impulse, set_fields(more=lambda m: m.count, more_if=lambda m: m.condition),
+    Follow(_InsteadTake, Impulse, lambda previous, marker: dataclasses.replace(previous, more=marker.count or previous.count,
+                                                                               more_if=marker.condition),
            fits=lambda previous, marker: previous.card_type is None and previous.rest == "bottom"),
     Follow(_InsteadMana, AddMana, set_fields(more=lambda m: m.units, more_if=lambda m: m.condition)),
     Follow(_StunPerNonlandDiscard, Discard, lambda previous, marker: DiscardThenStun(previous.count, marker.kind),
@@ -3003,7 +3010,7 @@ _CONDITIONAL = Follows(
            fits=lambda previous, marker: previous.instead_if is None),
     Follow(_InsteadManaValue, Destroy, set_fields(instead_mana_value=lambda m: m.most, instead_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.if_mana_value is not None),
-    Follow(_PutFromAmongThem, Mill, set_fields(put=lambda m: m.kind)),
+    Follow(_PutFromAmongThem, Mill, set_fields(put=lambda m: m.kind, put_to=lambda m: m.to)),
     Follow(_ThatAlsoGains, Pump, lambda previous, marker: dataclasses.replace(
         previous, modifier=dataclasses.replace(previous.modifier, keywords=previous.modifier.keywords | marker.keywords))),
     Follow(_TheyGain, (PutCountersOnEach, PutCountersOnEachUpToX), set_fields(grant=lambda m: m.keywords)),

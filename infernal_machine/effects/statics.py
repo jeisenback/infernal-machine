@@ -284,6 +284,8 @@ _RULES_STATICS = [
     (re.compile(r"You may look at the top card of your library any time\.", re.I), "look_top"),  # information only: nothing changes
     (re.compile(r"(Creatures|Artifacts and creatures) entering(?: the battlefield)? don't cause abilities to trigger\.", re.I),
      "no_enter_triggers"),  # Torpor Orb; Doorkeeper Thrull: "no_enter_triggers:Artifact,Creature"
+    (re.compile(r"If a source you control would deal noncombat damage to a creature an opponent controls, put that many -1/-1 counters "
+                r"on that creature instead\.", re.I), "noncombat_wither"),  # Soul-Scar Mage
     (re.compile(r"Umbra armor", re.I), "umbra_armor"),  # Auras: an enchanted creature that would be destroyed is saved by one
     (re.compile(rf"{_SELF} doesn't untap during your untap step\.", re.I), "no_untap"),  # Basalt Monolith, Mana Vault
 ]
@@ -304,7 +306,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
     "no_untap" (it stays tapped through its controller's untap step), "umbra_armor" (an Aura that saves what it enchants from being destroyed), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
     alone), "enter_tapped:opp:creature" / ":artifact,creature" / ":nonbasic land" (those its controller's opponents control enter tapped), "no_enter_triggers:Creature" /
-    ":Artifact,Creature" (those entering trigger no abilities), "look_top" (its controller may look at their top card: no
+    ":Artifact,Creature" (those entering trigger no abilities), "noncombat_wither" (its controller's noncombat damage to an opponent's
+    creature is -1/-1 counters instead), "look_top" (its controller may look at their top card: no
     change to the game, and no player here uses it)."""
     found = []
     for line in rules_lines(card):

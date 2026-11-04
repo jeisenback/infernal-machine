@@ -967,6 +967,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     triggers from the graveyard as Squee's upkeep one does (`Game._graveyard_returns`).
   - Jeskai Revelation (`tests/test_jeskai_revelation.py`): "Return target spell or permanent to its owner's hand." (Sink into Stupor's
     template).
+  - "gains haste and gets +X/+0 until end of turn" (`tests/test_eldrazi_linebreaker.py`): the X pump with the keyword first (Eldrazi
+    Linebreaker).
+  - Soul-Scar Mage (`tests/test_soul_scar_mage.py`): "If a source you control would deal noncombat damage to a creature an opponent
+    controls, put that many -1/-1 counters on that creature instead." is the rules static `noncombat_wither`; a spell's damage counts
+    as its controller's.
+  - Hollow One (`tests/test_hollow_one.py`): "This spell costs {2} less to cast for each card you've cycled or discarded this turn."
+    counts `Seat.discards_turn`, kept by `Game._count_discard` for a discard (`Game._discarded`) and a cycle.
+  - Free the Fae (`tests/test_free_the_fae.py`): "Mill four cards. Then put an instant, sorcery, or Faerie card from among the milled cards
+    into your hand." is a `Mill` with `put` and `put_to` "hand"; only the milled cards count.
+  - Accumulate Wisdom (`tests/test_accumulate_wisdom.py`): "Put each of those cards into your hand instead if there are three or more
+    Lesson cards in your graveyard." takes every card looked at (`_InsteadTake` with count 0).
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
