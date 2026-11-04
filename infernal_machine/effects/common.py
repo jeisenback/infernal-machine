@@ -394,3 +394,6 @@ def colors_spent(spent: tuple[frozenset[str], ...]) -> int:
                     return True
         return False
     return sum(place(i, set()) for i in range(len(spent)))
+
+
+FROM_LIBRARY = re.compile(r"When (?:CARDNAME|this card) is put into your graveyard from your library, (.+)", re.I)  # Narcomoeba, Creeping Chill

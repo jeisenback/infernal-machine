@@ -988,6 +988,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     revealed this way into your hand and the rest into your graveyard." (`ChooseTypeRevealTop`).
   - "When this artifact enters or is put into a graveyard from the battlefield" (`tests/test_ichor_wellspring.py`, Ichor Wellspring): one
     more of a permanent's own events that a line can name together.
+  - From the library to the graveyard (`tests/test_from_library_to_graveyard.py`): "When this card is put into your graveyard from your
+    library, you may put it onto the battlefield." (Narcomoeba) and "..., you may exile it. If you do, ..." (Creeping Chill, a sorcery whose
+    ability works from the graveyard) are the event `library_to_graveyard`, set off by a mill or a surveil (`Game._from_library_to_graveyard`).
+  - Class levels (`tests/test_class_level_trigger.py`): "When this Class becomes level 2, ..." (Stormchaser's Talent) is the event
+    `class_level_2` (and `class_level_3`), set off by `Game.class_level_up`.
+  - Spellstutter Sprite (`tests/test_spellstutter.py`): "counter target spell with mana value X or less, where X is the number of Faeries you
+    control" is the target kind "spell with mana value at most your Faeries": the count when targets are chosen, and again as it resolves.
+  - Discard unless (`tests/test_discard_unless.py`): "Then discard two cards unless you discard an artifact card." (Thirst for Knowledge;
+    "an instant or sorcery card or a creature card with flying", Steamcore Scholar): the first card discarded decides (`Game.discard_unless`).
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

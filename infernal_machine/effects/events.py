@@ -78,6 +78,9 @@ declare("enters", re.compile(rf"When(?:ever)? {_SELF} enters?(?: the battlefield
 declare("targeted", re.compile(rf"When(?:ever)? {_SELF} becomes the target of an? (?:spell|spell or ability), (.+)", re.I))
 declare("valiant", re.compile(rf"Whenever {_SELF} becomes the target of a spell or ability you control for the first time each turn, (.+)",
                               re.I))  # Game._valiant
+declare("library_to_graveyard", re.compile(r"When (?:CARDNAME|this card) is put into your graveyard from your library, (.+)", re.I))  # Narcomoeba
+declare("class_level_2", re.compile(r"When this Class becomes level 2, (.+)", re.I))  # Game.class_level_up
+declare("class_level_3", re.compile(r"When this Class becomes level 3, (.+)", re.I))
 declare("cast_self", re.compile(r"When you cast this spell, (.+)", re.I))  # goes on the stack above the spell (Game._cast)
 declare("dies", re.compile(rf"When(?:ever)? {_SELF} dies, (.+)", re.I))
 declare("attacks", re.compile(rf"Whenever {_SELF} attacks, (.+)", re.I))

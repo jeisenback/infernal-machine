@@ -733,6 +733,21 @@ class PayToReturnSelf:
 
 
 @dataclass(frozen=True)
+class ExileThisFromGraveyardThen:
+    """Creeping Chill: "When this card is put into your graveyard from your library, you may exile it. If you do, ..." (the "may" is the
+    trigger's): `then` happens only if the card was still there to exile."""
+    then: tuple
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        card = item.card if item is not None else None
+        if card is not None and any(c is card for c in controller.graveyard):
+            game.exile_card_from_graveyard(controller, card, False)
+            for effect in self.then:
+                effect.resolve(game, controller, target)
+
+
+@dataclass(frozen=True)
 class ReturnThisFromGraveyard:
     """Teacher's Pest: "{B}{G}: Return this card from your graveyard to the battlefield tapped." It works from the
     graveyard, so the game offers it there (ActivatedAbility.from_graveyard). Squee's upkeep trigger returns it to the hand."""

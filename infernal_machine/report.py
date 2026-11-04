@@ -102,6 +102,8 @@ def unsupported_lines(card: Card) -> list[str]:
             continue  # a companion the deck check knows (companion.py)
         if is_casting_cost_line(line) or (spell and is_hand_ability_line(line) and line in abilities):
             continue  # Magma Opus: a spell with an ability that works from the hand
+        if spell and line in {t.text for t in triggered_abilities(card) if t.event == "library_to_graveyard"}:
+            continue  # Creeping Chill: a spell's ability that works from the graveyard
         if spell and (is_modal_header(line) or line_effects(mode_text(line)) is not None or whole_spell):
             continue  # a sentence of the spell, or the "Choose one —" line, or one of its modes, or a line only the whole spell reads
         if not spell and (line in abilities or is_mana_ability(line) or is_enters_with_counters(line)

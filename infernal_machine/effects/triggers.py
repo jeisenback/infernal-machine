@@ -13,7 +13,10 @@ from ..characteristics import Modifier
 from .common import _SELF, _rules_text, _split_sentences, rules_lines
 from .events import EVENTS
 from .targets import CONTEXT_BINDINGS, DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind
+from .common import FROM_LIBRARY
 from .outcomes import (
+    ExileThisFromGraveyardThen,
+    ReturnThisFromGraveyard,
     _condition,
     _CONTRACT_BODY,
     _MODAL_DIFFERENT,
@@ -662,10 +665,26 @@ def remembered_ability(sentence: str) -> tuple[TriggeredAbility, frozenset[str]]
     return TriggeredAbility("remembered", tuple(effects), optional, sentence, once_per_turn=once, condition=condition), kinds
 
 
+_FROM_LIBRARY = FROM_LIBRARY
+
+
+def _from_library(bare: str, text: str) -> list[TriggeredAbility] | None:
+    """Narcomoeba: "When this card is put into your graveyard from your library, you may put it onto the battlefield." and Creeping
+    Chill's "you may exile it. If you do, ...": "it" is the card, in the graveyard."""
+    body = _FROM_LIBRARY.fullmatch(bare)[1]  # type: ignore[index]
+    if body == "you may put it onto the battlefield.":
+        return [TriggeredAbility("library_to_graveyard", (ReturnThisFromGraveyard(),), True, text)]
+    if (m := re.fullmatch(r"you may exile (?:it|CARDNAME)\. If you do, (.+)", body)) and (inner := _parse(_split_sentences(m[1][:1].upper() + m[1][1:]))):
+        return [TriggeredAbility("library_to_graveyard", (ExileThisFromGraveyardThen(tuple(inner)),), True, text)]
+    return None
+
+
 def _trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
     """The triggered abilities one line (or one half of a compound line) is: [] if it is not a trigger, None if it is
     one that isn't fully understood."""
     bare = _ABILITY_WORD.sub("", line)  # patterns read the line without "Council's dilemma — "; its text stays whole
+    if _FROM_LIBRARY.fullmatch(bare):
+        return _from_library(bare, text)
     if watched := _watch_triggers(line):
         found = []
         for event, watch, rest in watched:

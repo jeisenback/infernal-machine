@@ -226,6 +226,7 @@ MAY_PAY_PROMPT = PromptKind("may_pay", "Pay the cost for ")  # followed by the s
 DRAW_UP_TO_PROMPT = PromptKind("draw_up_to", "How many cards do you draw? ")
 SACRIFICE_DRAW_PROMPT = PromptKind("sacrifice_draw", "Sacrifice a permanent to draw cards? ")
 LOOT_PROMPT = PromptKind("loot", "Discard a card to draw a card? ")
+DISCARD_UNLESS_PROMPT = PromptKind("discard_unless", "Discard a card (one of the named kind is enough)")  # options are the hand's cards
 DISCARD_OR_SACRIFICE_PROMPT = PromptKind("discard_or_sacrifice", "Discard a card or sacrifice a land to draw? ")  # Highway Robbery
 DISCARD_A_CARD, SACRIFICE_A_LAND, DO_NEITHER = "Discard a card", "Sacrifice a land", "Neither"
 PUT_ATTACKING_PROMPT = PromptKind("put_attacking", "Put which creature card onto the battlefield attacking? ")
@@ -2917,6 +2918,8 @@ class Game:
         """Legal targets of `kind` for a spell or ability `caster` controls, as (label, object). `colors` are the
         colors of the source: a permanent with protection from one of them can't be chosen."""
         options: list[tuple[str, Any]] = []
+        if m := re.fullmatch(r"spell with mana value at most your (\w+)s", kind):  # Spellstutter Sprite: X is how many Faeries you control
+            kind = f"spell with mana value {self.count_yours(caster, m[1])} or less"
         if kind.startswith("spell or ") and kind not in STACK_TARGET_KINDS:  # Sink into Stupor: a spell or a permanent
             rest = kind.removeprefix("spell or ")
             return (self.target_options("spell you don't control" if "an opponent controls" in rest else "spell", caster, colors)
@@ -4080,6 +4083,10 @@ class Game:
         return sacrificed
 
     # --- characteristics -----------------------------------------------------
+
+    def count_yours(self, seat: Seat, kind: str) -> int:
+        """How many permanents of `kind` ("Faerie") `seat` controls."""
+        return sum(_permanent_matches(kind, p.card) for p in seat.battlefield)
 
     def subtypes(self, permanent: Permanent) -> list[str]:
         """Its creature types: the printed ones, plus those an Aura gives it ("is an Angel in addition")."""
@@ -5266,6 +5273,8 @@ class Game:
         permanent.card = class_view(permanent.real_card, permanent.level)
         self.broadcast({"event": "class_level", "seat": self.controller(permanent).index, "card": permanent.real_card.name,
                         "level": permanent.level})
+        if permanent.level in (2, 3):  # Stormchaser's Talent: "When this Class becomes level 2, ..."
+            self.trigger("class_level_2" if permanent.level == 2 else "class_level_3", permanent, self.controller(permanent))
 
     def put_exiled_with_into_graveyard(self, seat: Seat, source: Permanent) -> Card | None:
         """Currency Converter: a card exiled with `source` (the player chooses) goes to its owner's graveyard; returns it."""
@@ -5592,6 +5601,7 @@ class Game:
         self.broadcast({"event": "surveil", "seat": seat.index, "count": len(top), "graveyard": [c.name for c in binned]})
         for card in binned:
             self._move_card(seat, card, "graveyard")
+        self._from_library_to_graveyard(seat, binned)
         if top:  # surveil 0 is no surveil event either
             self.happened("surveilled", seat)
 
@@ -5609,6 +5619,19 @@ class Game:
         if top is not None and seat.player.choose(EXPLORE_PROMPT(top.name), [KEEP_ON_TOP, PUT_IN_GRAVEYARD]) == 1:
             seat.library.pop(0)
             self._move_card(seat, top, "graveyard")
+
+    def discard_unless(self, seat: Seat, count: int, kinds: tuple[str, ...]) -> None:
+        """ "Discard two cards unless you discard an artifact card.": the first card discarded is chosen; if it is of one of `kinds`, that
+        is all, otherwise `count` - 1 more are discarded."""
+        if not seat.hand:
+            return
+        first = seat.hand[seat.player.choose(DISCARD_UNLESS_PROMPT, [c.name for c in seat.hand])]
+        seat.hand.remove(first)
+        self.broadcast({"event": "discard", "seat": seat.index, "card": first.name})
+        self._discard_into_zone(seat, first)
+        self._discarded(seat, first)
+        if not any(_card_matches(kind, first) for kind in kinds):
+            self.discard(seat, count - 1)
 
     def may_discard_or_sacrifice_land_to_draw(self, seat: Seat, draw: int) -> None:
         """Highway Robbery: "You may discard a card or sacrifice a land. If you do, draw two cards." """
@@ -5767,7 +5790,15 @@ class Game:
         self.broadcast({"event": "milled", "seat": seat.index, "cards": [c.name for c in milled]})
         for card in milled:
             self._move_card(seat, card, "graveyard")
+        self._from_library_to_graveyard(seat, milled)
         return milled
+
+    def _from_library_to_graveyard(self, seat: Seat, cards: list[Card]) -> None:
+        """Cards just put into `seat`'s graveyard from their library: "When this card is put into your graveyard from your library"
+        (Narcomoeba, Creeping Chill) triggers from the graveyard."""
+        for card in cards:
+            if any(c is card for c in seat.graveyard):
+                self.trigger("library_to_graveyard", Permanent(card), seat)
 
     def return_chosen_from(self, seat: Seat, among: list[Card], kind: str, to: str) -> None:
         """"Put a creature card from among them onto the battlefield.": one of `among` that is still in the graveyard."""

@@ -19,8 +19,7 @@
    "cards": 60,
    "unplayable": [
     "Academic Dispute",
-    "Monstrous Rage",
-    "Stormchaser's Talent"
+    "Monstrous Rage"
    ]
   },
   "izzet_phoenix": {
@@ -37,8 +36,7 @@
     "Academic Dispute",
     "Den of the Bugbear",
     "Hearth Elemental // Stoke Genius",
-    "Monstrous Rage",
-    "Stormchaser's Talent"
+    "Monstrous Rage"
    ]
   },
   "jund_artifact_sacrifice": {
