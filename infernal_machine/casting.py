@@ -362,6 +362,9 @@ class Caster:
             return False  # Snuff Out: "If you control a Swamp"
         if alternative.no_lands_in_hand and any("Land" in c.type_line for c in others):
             return False  # Land Grant: "If you have no land cards in hand"
+        if alternative.opponent_spells and not any(sum(turn == self.game.turn for turn, _ in o.cast_log) >= alternative.opponent_spells
+                                                    for o in self.game.opponents(seat)):
+            return False  # Mindbreak Trap: "If an opponent cast three or more spells this turn"
         if alternative.return_count and sum(g._permanent_matches(alternative.returns, p.card) for p in seat.battlefield) < alternative.return_count:
             return False  # Daze: an Island to return
         return not alternative.exile_color or any(alternative.exile_color in c.colors for c in others)

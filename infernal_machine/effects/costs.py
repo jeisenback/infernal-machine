@@ -90,6 +90,7 @@ class AlternativeCost:
     return_count: int = 0  # ... this many of them (Gush: two)
     sacrificed: bool = False  # Fireblast: those permanents are sacrificed instead of returned
     no_lands_in_hand: bool = False  # Land Grant: "If you have no land cards in hand, you may reveal your hand ..." (free)
+    opponent_spells: int = 0  # Mindbreak Trap: "If an opponent cast three or more spells this turn, you may pay {0} ..." (free)
 
 
 @dataclass(frozen=True)
@@ -142,6 +143,10 @@ _SACRIFICE_INSTEAD = re.compile(rf"You may sacrifice {_N_FIXED} ((?-i:[A-Z][a-z]
 
 
 _REVEAL_HAND_INSTEAD = re.compile(r"If you have no land cards in hand, you may reveal your hand rather than pay this spell's mana cost\.")  # Land Grant
+
+
+_TRAP_INSTEAD = re.compile(rf"If an opponent cast {_N_FIXED} or more spells this turn, you may pay \{{0\}} rather than pay this spell's mana "
+                           r"cost\.")  # Mindbreak Trap
 
 
 _ADDITIONAL = re.compile(rf"As an additional cost to cast this spell, (?:sacrifice an? (creature|artifact|land|artifact or "
@@ -542,6 +547,8 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
             costs.append(AlternativeCost(f"Return {m[1]} {m[2]}{'s' if count > 1 else ''}", returns=m[2], return_count=count))
         elif _REVEAL_HAND_INSTEAD.fullmatch(line):
             costs.append(AlternativeCost("Reveal your hand", no_lands_in_hand=True))
+        elif m := _TRAP_INSTEAD.fullmatch(line):
+            costs.append(AlternativeCost("Pay {0}", opponent_spells=_number(m[1])))
         elif m := _SACRIFICE_INSTEAD.fullmatch(line):
             count = _number(m[1])
             costs.append(AlternativeCost(f"Sacrifice {m[1]} {m[2]}{'s' if count > 1 else ''}", returns=m[2], return_count=count,
@@ -745,7 +752,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)

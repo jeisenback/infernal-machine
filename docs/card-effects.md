@@ -1046,6 +1046,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     creature card onto the battlefield leave it where it is. "Players can't cast spells from graveyards or libraries." is `cage_cast`
     (`Game.casts_from_graveyards_barred`): flashback, escape, disturb, Serra Paragon, graveyard permits, the top of the library, milled
     cards and effects that cast from a graveyard; lands are still played.
+  - Mindbreak Trap (`tests/test_mindbreak_trap.py`): "If an opponent cast three or more spells this turn, you may pay {0} rather than pay
+    this spell's mana cost." is an `AlternativeCost` with `opponent_spells`; "Exile any number of target spells." is `ExileSpells`
+    (`Game.exile_spell`: not a counter, so a spell that can't be countered is exiled too).
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
