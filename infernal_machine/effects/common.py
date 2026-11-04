@@ -153,6 +153,7 @@ _WHOLE_LINE = re.compile(
     r"(?: with mana value \d+ or less)? (?:revealed this way|from among them) (?:into your hand|onto the battlefield) and the rest on the "
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
+    r"|You may behold an? [A-Z][a-z]+\. If you do, untap that land\."  # Elven Passage
     r"|Choose creature or land\. Reveal the top (?:four|five|\d+) cards of your library\. Put all cards of the chosen type revealed this way "
     r"into your hand and the rest into your graveyard\."  # Winding Way
     r"|[Yy]ou may exile an? (?:black )?creature card(?: other than this card)? from your graveyard\. If you do, [^.]+\."

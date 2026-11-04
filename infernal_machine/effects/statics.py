@@ -563,6 +563,7 @@ _MUST_ATTACK = re.compile(rf"{_SELF} attacks each combat if able\.", re.I)
 
 
 _SELF_STATIC = re.compile(rf"{_SELF} (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS})\.", re.I)
+_SELF_STATIC_MUST_ATTACK = re.compile(rf"{_SELF} (?:gets {_PT}, has {_KEYWORDS}|has {_KEYWORDS}), and attacks each combat if able\.", re.I)
 
 
 _AS_LONG_AS_FIRST = re.compile(r"As long as (.+?), (.+\.)")
@@ -656,6 +657,10 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             buffs.append(StaticBuff(Modifier(0, 0, frozenset({MUST_ATTACK})), False, None, line, self_only=True, condition=condition))
         elif condition and (m := _SELF_STATIC.fullmatch(sentence)):  # unconditional ones would just be printed text
             buffs.append(StaticBuff(_modifier(m, 1), False, None, line, self_only=True, condition=condition))
+        elif condition and (m := _SELF_STATIC_MUST_ATTACK.fullmatch(sentence)):  # Dragon's Rage Channeler
+            modifier = _modifier(m, 1)
+            buffs.append(StaticBuff(dataclasses.replace(modifier, keywords=modifier.keywords | {MUST_ATTACK}), False, None, line,
+                                    self_only=True, condition=condition))
     return tuple(buffs)
 
 

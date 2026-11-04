@@ -97,10 +97,15 @@ class Pump:
     target: str
     optional_target: bool = False  # "One or two target creatures each get ...": the second may be left out
     distinct: bool = False
+    more_keywords: frozenset[str] = frozenset()  # Violent Urge: "Delirium — If ..., that creature gains double strike until end of turn."
+    more_if: Condition | None = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.modify_until_end_of_turn(target, self.modifier)
+            modifier = self.modifier
+            if self.more_if is not None and game.condition_holds(self.more_if, controller):
+                modifier = dataclasses.replace(modifier, keywords=modifier.keywords | self.more_keywords)
+            game.modify_until_end_of_turn(target, modifier)
             if game.resolving_item is not None and game.resolving_item.carried is None:
                 game.resolving_item.carried = target  # "It fights ...": the creature just pumped
 
@@ -522,6 +527,30 @@ class UntapCreatures:
         for permanent in controller.battlefield:
             if "Creature" in permanent.card.type_line and (self.which == "yours" or permanent.attacked_turn == game.turn):
                 game.untap(permanent)
+
+
+UNTAP_CREATURE_PROMPT = PromptKind("untap_creature", "Untap which creature? ")
+
+
+@dataclass(frozen=True)
+class UntapACreature:
+    """White Plume Adventurer: "Untap a creature you control." (you choose, not a target); with `all_if`, "If you've completed a dungeon,
+    untap all creatures you control instead." (see _CONDITIONAL)."""
+    all_if: Condition | None = None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if self.all_if is not None and game.condition_holds(self.all_if, controller):
+            UntapCreatures("yours").resolve(game, controller, target)
+            return
+        tapped = [p for p in controller.battlefield if p.tapped and "Creature" in p.card.type_line]
+        if tapped:
+            game.untap(tapped[controller.player.choose(UNTAP_CREATURE_PROMPT, [game.label(p) for p in tapped])])
+
+
+@dataclass(frozen=True)
+class _InsteadUntapAll:
+    """ "If you've completed a dungeon, untap all creatures you control instead." after UntapACreature."""
+    condition: Condition
 
 
 @dataclass(frozen=True)
