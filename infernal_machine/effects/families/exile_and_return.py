@@ -108,13 +108,15 @@ class MayExileFromGraveyardThen:
     controls." The target is chosen as the ability goes on the stack; `then` happens only if a card was exiled."""
     kind: str
     then: Any
+    other: bool = False  # Ichorid: "other than this card"
 
     @property
     def target(self) -> str | None:
         return target_kind(self.then)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if game.may_exile_from_graveyard(controller, self.kind):
+        item = game.resolving_item
+        if game.may_exile_from_graveyard(controller, self.kind, item.card if self.other and item is not None else None):
             self.then.resolve(game, controller, target)
 
 

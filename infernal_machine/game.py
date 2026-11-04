@@ -2329,6 +2329,8 @@ class Game:
 
     def evaluate(self, amount: Amount, controller: Seat) -> int:
         """Work out an amount that depends on the game, for the resolving spell or ability."""
+        if amount.plus:  # "2 plus the number of ..."
+            return amount.plus + self.evaluate(dataclasses.replace(amount, plus=0), controller)
         source, kind = self.resolving_source, amount.kind
         this_turn = [card for turn, card in controller.cast_log if turn == self.turn]
         if kind == "source_power":
@@ -2636,6 +2638,9 @@ class Game:
         if kind == "instant_and_sorcery_in_graveyard":  # Flow State
             types = {t for c in seat.graveyard for t in ("Instant", "Sorcery") if t in c.type_line}
             return types == {"Instant", "Sorcery"}
+        if kind == "another_named":  # Faerie Miscreant: "if you control another creature named CARDNAME"
+            return source is not None and any(p is not source and p.card.name == source.card.name and "Creature" in p.card.type_line
+                                              for p in seat.battlefield)
         if kind == "in_graveyard":  # Anger: "As long as this card is in your graveyard"
             return source is not None and any(c is source.card for c in seat.graveyard)
         if kind == "has_exiled_with":  # Currency Converter, Quintorius: "a card exiled with this"
@@ -5654,9 +5659,9 @@ class Game:
             if mill:
                 self.mill(seat, mill)
 
-    def may_exile_from_graveyard(self, seat: Seat, kind: str) -> bool:
-        """ "You may exile a creature card from your graveyard." Whether one was exiled (Masked Vandal)."""
-        options = _unique([c for c in seat.graveyard if _card_matches(kind, c)])
+    def may_exile_from_graveyard(self, seat: Seat, kind: str, other_than: Card | None = None) -> bool:
+        """ "You may exile a creature card from your graveyard." Whether one was exiled (Masked Vandal; Ichorid: "other than this card")."""
+        options = _unique([c for c in seat.graveyard if _card_matches(kind, c) and c is not other_than])
         if not options:
             return False
         choice = seat.player.choose(EXILE_COST_PROMPT("an exile from your graveyard"), [c.name for c in options] + [NONE_TAKEN])
@@ -5764,9 +5769,9 @@ class Game:
             seat.exile.remove(card)
             self._move_card(seat, card, "graveyard")
 
-    def reveal_and_discard(self, chooser: Seat, victim: Seat, excluded: tuple[str, ...], max_mv: int | None) -> None:
+    def reveal_and_discard(self, chooser: Seat, victim: Seat, excluded: tuple[str, ...], max_mv: int | None, exile: bool = False) -> None:
         """Thoughtseize: `victim` reveals their hand and `chooser` picks a card from it that isn't one of the
-        `excluded` types (and costs at most `max_mv`); the victim discards it."""
+        `excluded` types (and costs at most `max_mv`); the victim discards it, or it is exiled (Thought-Knot Seer)."""
         self.broadcast({"event": "revealed_hand", "seat": victim.index, "cards": [c.name for c in victim.hand]})
         eligible = _unique([c for c in victim.hand if not any(t.capitalize() in c.type_line for t in excluded)
                             and (max_mv is None or c.cmc <= max_mv)])
@@ -5774,6 +5779,10 @@ class Game:
             return
         card = eligible[chooser.player.choose(CHOOSE_DISCARD_PROMPT, [c.name for c in eligible])]
         victim.hand.remove(card)
+        if exile:
+            self.broadcast({"event": "exiled_from_hand", "seat": victim.index, "card": card.name})
+            self._move_card(victim, card, "exile")
+            return
         self.broadcast({"event": "discard", "seat": victim.index, "card": card.name})
         self._discard_into_zone(victim, card)
         self._discarded(victim, card)
@@ -5906,7 +5915,8 @@ class Game:
         "of combat on your turn" for Arclight Phoenix) trigger."""
         for card in list(seat.graveyard):
             for ability in triggered_abilities(card):
-                if ability.event == event and any(isinstance(e, ReturnThisFromGraveyard) for e in ability.effects):
+                if ability.event == event and any(isinstance(e, ReturnThisFromGraveyard) or isinstance(getattr(e, "then", None), ReturnThisFromGraveyard)
+                                                  for e in ability.effects):  # Ichorid: after "you may exile ... If you do,"
                     self._queue(ability, Permanent(card), seat)
 
     def _soulbond(self, seat: Seat, entering: Permanent) -> None:

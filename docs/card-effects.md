@@ -997,6 +997,16 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     control" is the target kind "spell with mana value at most your Faeries": the count when targets are chosen, and again as it resolves.
   - Discard unless (`tests/test_discard_unless.py`): "Then discard two cards unless you discard an artifact card." (Thirst for Knowledge;
     "an instant or sorcery card or a creature card with flying", Steamcore Scholar): the first card discarded decides (`Game.discard_unless`).
+  - Another named (`tests/test_another_named.py`): "if you control another creature named CARDNAME" (Faerie Miscreant) is the condition
+    `another_named`: another creature you control with this one's name.
+  - Thought-Knot Seer (`tests/test_thought_knot_seer.py`): "target opponent reveals their hand. You choose a nonland card from it and exile
+    that card." is a `TargetChooseDiscard` with `exile`: the chosen card goes to exile, not the graveyard, and is not a discard.
+  - Refurbished Familiar (`tests/test_refurbished_familiar.py`): "each opponent discards a card. For each opponent who can't, you draw a
+    card." is a `Discard` with `draw_per_unable`: an opponent with an empty hand gives you a card.
+  - Ichorid (`tests/test_ichorid.py`): "you may exile a black creature card other than this card from your graveyard. If you do, return this
+    card to the battlefield." is a `MayExileFromGraveyardThen` with `other` around `ReturnThisFromGraveyard`, heard from the graveyard.
+  - Combustion Technique (`tests/test_combustion_technique.py`): "deals damage equal to 2 plus the number of Lesson cards in your graveyard"
+    is an `Amount` with `plus`.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

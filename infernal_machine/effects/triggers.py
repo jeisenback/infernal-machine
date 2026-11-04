@@ -488,7 +488,7 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
     rest = rest.removesuffix(_TRIGGERS_ONCE)
     rest = _MAY_HAVE.sub(lambda m: f"you may {m[1]} {_THIRD_PERSON[m[2].lower()]} ", rest, count=1)  # "you may have this creature deal 1 damage ..."
     optional = rest.lower().startswith("you may ")
-    if optional and re.match(r"you may (?:(?:discard|sacrifice|remove) [^.]*|exile a creature card from your graveyard)\. If you do, ", rest, re.I):
+    if optional and re.match(r"you may (?:(?:discard|sacrifice|remove) [^.]*|exile an? (?:black )?creature card(?: other than this card)? from your graveyard)\. If you do, ", rest, re.I):
         optional = False  # "you may discard a card. If you do, draw a card" is one effect that asks for itself (see _merge_loot)
     else:
         rest = rest[len("you may "):] if optional else rest

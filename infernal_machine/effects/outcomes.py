@@ -288,6 +288,7 @@ from .families.library_and_hand import (  # noqa: F401
     DelayedDraw,
     Discard,
     DiscardChosen,
+    ExileChosen,
     DiscardHandsDrawGreatest,
     Draw,
     DrawThenPutBack,
@@ -311,6 +312,7 @@ from .families.library_and_hand import (  # noqa: F401
     MayDiscardThenDraw,
     MayDiscardOrSacrificeLandThenDraw,
     EachPutsFromHand,
+    _DrawPerUnable,
     DiscardUnless,
     MayRemoveCounterThenDraw,
     MaySacrificeThenDraw,
@@ -1307,6 +1309,13 @@ def _then_if(m: re.Match) -> Any:
     return Conditional(condition, inner[0])
 
 
+def _may_exile_then(m: re.Match) -> Any:
+    """ "You may exile a creature card from your graveyard. If you do, <one effect>." (Masked Vandal: a target; Ichorid: "other than this
+    card", then "return this card to the battlefield")."""
+    inner = _parse([m[3][:1].upper() + m[3][1:]])
+    return MayExileFromGraveyardThen(m[1].lower(), inner[0], other=bool(m[2])) if inner and len(inner) == 1 else None
+
+
 def _untargeted(text: str) -> tuple | None:
     """The effects of one sentence (a capital and a period added), if it reads and has no target."""
     inner = _parse([text[:1].upper() + text[1:] + "."])
@@ -1624,6 +1633,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"its controller gains (\d+) life\.", re.I), lambda m: TargetControllerGainsLife(int(m[1]))),
     (re.compile(r"you may play an additional land this turn\.", re.I), lambda m: ExtraLandDrop()),
     (re.compile(r"your opponents can't cast (noncreature )?spells this turn\.", re.I), lambda m: OpponentsCantCast("noncreature" if m[1] else "")),
+    (re.compile(rf"{_SELF} deals damage equal to (\d+) plus the number of ((?-i:[A-Z][a-z]+)|[a-z]+) cards in your graveyard to target "
+                r"(creature)\.", re.I),
+     lambda m: [DefineX(Amount("graveyard", m[2], plus=int(m[1]))), Damage("X", m[3].lower())]),  # Combustion Technique
+    (re.compile(r"for each opponent who can't, you draw a card\.", re.I), lambda m: _DrawPerUnable()),  # Refurbished Familiar
     (re.compile(r"target player can't cast spells this turn\.", re.I), lambda m: TargetCantCast()),  # Orim's Chant
     (re.compile(r"each player may put an (artifact, creature, enchantment, or land) card from their hand onto the battlefield\.", re.I),
      lambda m: EachPutsFromHand("artifact or creature or enchantment or land")),  # Show and Tell
@@ -2120,8 +2133,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"choose (creature) or (land)\. reveal the top {_N_FIXED} cards of your library\. put all cards of the chosen type revealed "
                 r"this way into your hand and the rest into your graveyard\.", re.I),
      lambda m: ChooseTypeRevealTop((m[1].lower(), m[2].lower()), _number(m[3]))),  # Winding Way
-    (re.compile(r"you may exile a (creature) card from your graveyard\. If you do, (exile target artifact or enchantment an opponent controls\.)",
-                re.I), lambda m: MayExileFromGraveyardThen(m[1].lower(), Exile("artifact or enchantment an opponent controls"))),  # Masked Vandal
+    (re.compile(r"you may exile an? ((?:black )?creature) card( other than this card)? from your graveyard\. If you do, (.+)", re.I),
+     _may_exile_then),  # Masked Vandal, Ichorid
+    (re.compile(r"return this card to the battlefield\.", re.I), lambda m: ReturnThisFromGraveyard()),  # Ichorid, from the graveyard
     (re.compile(rf"(?:then )?discard {_N_FIXED} cards unless you discard (an? [^.]+?)\.", re.I),  # Thirst for Knowledge, Steamcore Scholar
      lambda m: DiscardUnless(_number(m[1]), tuple(re.sub(r"^an? ", "", part).replace(" card", "") for part in m[2].split(" or a ")))),
     (re.compile(rf"you may discard a card or sacrifice a land\. If you do, draw {_N_FIXED} cards?\.", re.I),
@@ -2311,6 +2325,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ChooseFromHand(tuple(w.strip(",") for w in m[1].lower().replace("non", "").split()) if m[1] else (),
                               int(m[2] or m[3]) if m[2] or m[3] else None)),
     (re.compile(r"that player discards that card\.", re.I), lambda m: DiscardChosen()),
+    (re.compile(r"you choose a nonland card from it and exile that card\.", re.I), lambda m: [ChooseFromHand(("land",), None), ExileChosen()]),
     (re.compile(rf"each (opponent|player) mills {_N} cards?\.", re.I),
      lambda m: Mill(_count(m[2]), "each " + m[1].lower())),
     (re.compile(rf"target (player|opponent) mills {_N} cards?\.", re.I),
@@ -2646,13 +2661,13 @@ def _merge_hand_discard(effects: list) -> list | None:
         effect = effects[i]
         if isinstance(effect, RevealHand):
             if not (i + 2 < len(effects) and isinstance(effects[i + 1], ChooseFromHand)
-                    and isinstance(effects[i + 2], DiscardChosen)):
+                    and isinstance(effects[i + 2], (DiscardChosen, ExileChosen))):
                 return None
             choose = effects[i + 1]
-            merged.append(TargetChooseDiscard(effect.target, choose.excluded, choose.max_mv))
+            merged.append(TargetChooseDiscard(effect.target, choose.excluded, choose.max_mv, isinstance(effects[i + 2], ExileChosen)))
             i += 3
             continue
-        if isinstance(effect, (ChooseFromHand, DiscardChosen)):
+        if isinstance(effect, (ChooseFromHand, DiscardChosen, ExileChosen)):
             return None
         merged.append(effect)
         i += 1
@@ -2851,6 +2866,7 @@ _CONDITIONS = [
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
     (re.compile(rf"X is {_N_FIXED} or more"), lambda m: Condition("x_at_least", _number(m[1]))),
     (re.compile(r"this card is in your graveyard"), lambda m: Condition("in_graveyard")),
+    (re.compile(r"you control another creature named CARDNAME"), lambda m: Condition("another_named")),  # Faerie Miscreant
     (re.compile(r"there is an instant card and a sorcery card in your graveyard"), lambda m: Condition("instant_and_sorcery_in_graveyard")),  # Flow State
     (re.compile(r"that player controls more lands than you"), lambda m: Condition("player_more_lands")),
     (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),
@@ -3015,6 +3031,7 @@ _CONDITIONAL = Follows(
     Follow(_ManaForEachDestroyed, DestroyAll, set_fields(mana_each=lambda m: m.options)),
     Follow(_DrawPerReturned, ReturnAnyNumber, set_fields(draw=lambda m: True)),
     Follow(_NoLifeGainForDamaged, Damage, set_fields(no_life_gain=lambda m: True)),
+    Follow(_DrawPerUnable, Discard, set_fields(draw_per_unable=lambda m: True), fits=lambda previous, marker: previous.who == "each opponent"),
     Follow(_Otherwise, IfElse, set_fields(otherwise=lambda m: m.effects)),
     Follow(_IfFlip, FlipCoin, lambda previous, marker: FlipCoin(marker.effect, marker.on_win), fits=lambda previous, marker: previous.then is None),
     Follow(_DrawIfYouControlledIt, ReturnToHand, set_fields(draw_if_yours=lambda m: True)),
