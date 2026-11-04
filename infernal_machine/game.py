@@ -521,6 +521,7 @@ class Seat:
     protected: bool = False  # protection from everything until its next turn begins (The One Ring)
     life_locked: bool = False  # its life total can't change until its next turn begins (Teferi's Protection)
     no_life_gain: bool = False  # it can't gain life for the rest of the game (Screaming Nemesis)
+    discards_turn: tuple[int, int] = (0, 0)  # (the turn, how many cards it cycled or discarded that turn): Hollow One
     extra_lands: int = 0  # additional lands this player may play on `extra_lands_turn` (Explore)
     extra_lands_turn: int | None = None
     rebounding: list[tuple[Card, int]] = field(default_factory=list)  # cards exiled by rebound, and the turn they were: cast at the next upkeep
@@ -1826,6 +1827,7 @@ class Game:
         self.broadcast({"event": "discard", "seat": seat.index, "card": card.name, "reason": "cycling"})
         self._move_card(seat, card, "graveyard")
         self.stack.append(StackItem(card, seat, list(effects), [], ability))
+        self._count_discard(seat)
         self.happened("cycled", seat)
         self.broadcast({"event": "activate", "seat": seat.index, "card": card.name, "ability": _shown(ability.text, card),
                         "targets": [], "tapped": [p.card.name for p in tapped]})
@@ -2517,9 +2519,15 @@ class Game:
     def _discarded(self, seat: Seat, card: Card | None = None, together: bool = False) -> None:
         """`seat` discarded a card: "Whenever you discard a card" and "Whenever an opponent discards a card". Cards
         discarded `together` set off "one or more nonland cards" once, which the caller reports (_discarded_nonland)."""
+        self._count_discard(seat)
         self.happened("discarded", seat, spell=card)
         if not together and card is not None:
             self._discarded_nonland(seat, [card])
+
+    def _count_discard(self, seat: Seat) -> None:
+        """One more card cycled or discarded by `seat` this turn (Hollow One)."""
+        turn, count = seat.discards_turn
+        seat.discards_turn = (self.turn, count + 1 if turn == self.turn else 1)
 
     def _discarded_nonland(self, seat: Seat, cards: list[Card]) -> None:
         """"Whenever you discard one or more nonland cards": once, carrying the nonland cards among those discarded."""
@@ -3235,6 +3243,10 @@ class Game:
         controller = self.controller_of(source) if source else None
         infect = source is not None and self.has_keyword(source, "infect")  # to a player: poison counters; to a creature: wither
         wither = infect or (source is not None and self.has_keyword(source, "wither"))
+        if not wither and not combat and isinstance(target, Permanent) and "Creature" in target.card.type_line:
+            dealer = controller or (self.resolving_item.controller if self.resolving_item is not None else None)
+            wither = dealer is not None and self.controller_of(target) is not dealer and any(
+                key == "noncombat_wither" and owner is dealer for owner, _, key in self._static_rules())  # Soul-Scar Mage
         if isinstance(target, Seat) and combat and target.combat_shield_turn == self.turn:  # Inkshield
             self.broadcast({"event": "damage_prevented", "seat": target.index, "amount": amount})
             if target.combat_shield_token is not None and amount > 0:

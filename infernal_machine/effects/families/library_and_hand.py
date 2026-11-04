@@ -482,7 +482,7 @@ class _InsteadTake:
     """Flow State: "If there is an instant card and a sorcery card in your graveyard, instead put two of them into your hand and the
     rest on the bottom of your library in any order." (folded into the Impulse before it, see _merge_conditional)"""
     condition: "Condition"
-    count: int
+    count: int  # 0: every card looked at (Accumulate Wisdom: "Put each of those cards into your hand instead if ...")
 
 
 @dataclass(frozen=True)
@@ -759,19 +759,21 @@ class Mill:
     count: int | str
     who: str  # "you", "each opponent" or "each player"
     put: str = ""  # Vastlands Scavenger: "Then put a creature card from among them onto the battlefield." (the card kind)
+    put_to: str = "battlefield"  # Free the Fae: "... from among the milled cards into your hand." ("hand")
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for seat in game.turn_order_from_active():
             if self.who == "each player" or (self.who == "you") == (seat is controller):
                 milled = game.mill(seat, game.amount(self.count))
                 if self.put:
-                    game.return_chosen_from(seat, milled, self.put, "battlefield")
+                    game.return_chosen_from(seat, milled, self.put, self.put_to)
 
 
 @dataclass(frozen=True)
 class _PutFromAmongThem:
     """ "Then put a creature card from among them onto the battlefield." after a Mill (see _merge_conditional)."""
     kind: str
+    to: str = "battlefield"
 
 
 @dataclass(frozen=True)

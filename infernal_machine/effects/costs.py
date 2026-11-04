@@ -755,7 +755,8 @@ def x_spell_discount(card: Card) -> bool:
 
 
 _PER_REDUCTION = re.compile(r"(?:Domain \u2014 )?This spell costs \{(\d+)\} less to cast for each "
-                            r"(creature on the battlefield|instant and sorcery card in your graveyard|basic land type among lands you control)\.")
+                            r"(creature on the battlefield|instant and sorcery card in your graveyard|basic land type among lands you control"
+                            r"|card you've cycled or discarded this turn)\.")  # Hollow One
 
 
 @lru_cache(maxsize=None)
@@ -764,7 +765,8 @@ def self_cost_reduction(card: Card) -> tuple[int, str] | None:
     what is counted: "creature" on the battlefield or "instant or sorcery" card in your graveyard)."""
     for line in rules_lines(card):
         if m := _PER_REDUCTION.fullmatch(line):
-            return int(m[1]), "creature" if m[2].startswith("creature") else "basic land type" if m[2].startswith("basic") else "instant or sorcery"
+            return int(m[1]), ("creature" if m[2].startswith("creature") else "basic land type" if m[2].startswith("basic")
+                               else "cycled or discarded" if m[2].startswith("card you've") else "instant or sorcery")
     return None
 
 
