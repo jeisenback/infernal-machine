@@ -62,6 +62,8 @@ class Graveyard(ZonePlay):
 
     def offers(self, game, seat, sorcery_timing):
         actions = []
+        if game.casts_from_graveyards_barred():  # Grafdigger's Cage (lands are still played: not cast)
+            return actions
         for card in g._unique(seat.graveyard):
             for cast in graveyard_casts(card)[:1]:
                 if not is_land(card) and _timely(game, seat, card, sorcery_timing) and game._can_cast(seat, card, graveyard=cast):
@@ -102,7 +104,7 @@ class Paragon(ZonePlay):
             if is_land(card):
                 if sorcery_timing and seat.lands_played < game._land_drops(seat):
                     actions.append(PLAY_PARAGON + card.name)
-            elif _timely(game, seat, card, sorcery_timing) and game._can_cast(seat, card):
+            elif _timely(game, seat, card, sorcery_timing) and not game.casts_from_graveyards_barred() and game._can_cast(seat, card):
                 actions.append(CAST_PARAGON + card.name)
         return actions
 
@@ -143,7 +145,7 @@ class Permits(ZonePlay):
 
     def offers(self, game, seat, sorcery_timing):
         return [CAST_PERMIT + card.name for card in g._unique(seat.graveyard)
-                if self._grants(game, seat, card) and _timely(game, seat, card, sorcery_timing) and game._can_cast(seat, card, from_hand=False)]
+                if not game.casts_from_graveyards_barred() and self._grants(game, seat, card) and _timely(game, seat, card, sorcery_timing) and game._can_cast(seat, card, from_hand=False)]
 
     def perform(self, game, seat, action):
         if not action.startswith(CAST_PERMIT):
@@ -194,7 +196,7 @@ class Library(ZonePlay):
             return []
         if is_land(top):
             return [PLAY_TOP + top.name] if sorcery_timing and seat.lands_played < game._land_drops(seat) else []
-        if _timely(game, seat, top, sorcery_timing) and game._can_cast(seat, top, from_hand=False):
+        if _timely(game, seat, top, sorcery_timing) and not game.casts_from_graveyards_barred() and game._can_cast(seat, top, from_hand=False):
             return [CAST_TOP + top.name]
         return []
 
@@ -248,7 +250,7 @@ class Milled(ZonePlay):
             if is_land(card):
                 if sorcery_timing and seat.lands_played < game._land_drops(seat):
                     actions.append(PLAY_MILLED + card.name)
-            elif _timely(game, seat, card, sorcery_timing) and game._can_cast(seat, card, from_hand=False):
+            elif _timely(game, seat, card, sorcery_timing) and not game.casts_from_graveyards_barred() and game._can_cast(seat, card, from_hand=False):
                 actions.append(CAST_MILLED + card.name)
         return actions
 

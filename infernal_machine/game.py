@@ -1068,7 +1068,7 @@ class Game:
             actions += [FORETELL + c.name for c in _unique(seat.hand)
                         if foretell_of(c) and self._payment(seat, dataclasses.replace(c, mana_cost=FORETELL_COST)) is not None]
         for card in _unique(seat.graveyard):  # Disturb: cast the back face from the graveyard; it is exiled if it would go back
-            if (cost := disturb_of(card)) and card.flip is not None \
+            if (cost := disturb_of(card)) and card.flip is not None and not self.casts_from_graveyards_barred() \
                     and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, card.flip)) \
                     and self._can_cast(seat, card.flip, graveyard=GraveyardCast("Disturb", cost)):
                 actions.append(CAST_DISTURB + card.name)
@@ -1088,7 +1088,7 @@ class Game:
                 if (cost := eternalize_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None \
                         and (seat.hand or not eternalize_discards(card)):
                     actions.append(ETERNALIZE + card.name)
-                if (cost := unearth_cost(card)) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
+                if (cost := unearth_cost(card)) and not self.caged(card) and self._payment(seat, dataclasses.replace(card, mana_cost=cost)) is not None:
                     actions.append(UNEARTH + card.name)
         actions += EXILE.offers(self, seat, sorcery_timing)
         actions += LIBRARY.offers(self, seat, sorcery_timing)
@@ -1751,7 +1751,7 @@ class Game:
         """Bilbo: `seat` may cast a spell of one of `kinds` from their graveyard now, paying its mana cost (CR 608.2g: timing is
         ignored while an ability resolves). With `exile_after`, an instant or sorcery cast this way is exiled instead of going back."""
         options = []
-        for card in _unique([c for c in seat.graveyard if any(kind in c.type_line for kind in kinds)]):
+        for card in _unique([c for c in seat.graveyard if any(kind in c.type_line for kind in kinds) and not self.casts_from_graveyards_barred()]):
             way = GraveyardCast("From the graveyard", card.mana_cost,
                                 exile_after=exile_after and ("Instant" in card.type_line or "Sorcery" in card.type_line))
             if self._cast_ways(seat, card, False, way):
@@ -3662,6 +3662,8 @@ class Game:
         seat, card = target.seat, target.card
         if card not in seat.graveyard:
             return
+        if to not in ("hand", "library_top", "library_bottom") and self.caged(card):  # Grafdigger's Cage: it stays in the graveyard
+            return
         seat.graveyard.remove(card)
         self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": card.name, "to": to})
         self._left_graveyard(seat, [card])
@@ -4056,7 +4058,8 @@ class Game:
             card_type = card_type.replace("mv<power", f"mv<{max(power, 0)}")
         excluded = {self.resolving_item.card.name} if not_self and self.resolving_item is not None else set()
         for _ in range(count):
-            matches = _unique([c for c in seat.library if _card_matches(card_type, c) and c.name not in excluded])
+            matches = _unique([c for c in seat.library if _card_matches(card_type, c) and c.name not in excluded
+                               and not (to == "battlefield" and self.caged(c))])  # Grafdigger's Cage: it couldn't enter
             if not matches:
                 break
             options = [c.name for c in matches] + ([DONE] if count > 1 else [])
@@ -4401,7 +4404,7 @@ class Game:
         if dead.card in seat.exile:  # an earthbent land that was exiled
             seat.exile.remove(dead.card)
             self.broadcast({"event": "returned_from_exile", "seat": seat.index, "card": dead.card.name})
-        elif dead.card in seat.graveyard:
+        elif dead.card in seat.graveyard and not self.caged(dead.card):  # (Grafdigger's Cage: persist and undying fail)
             seat.graveyard.remove(dead.card)
             self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": dead.card.name, "to": "battlefield"})
             self._left_graveyard(seat, [dead.card])
@@ -5209,7 +5212,8 @@ class Game:
         taken: list[Card] = []
         each_type = card_type == EACH_CARD_TYPE  # Atraxa: "For each card type, you may put a card of that type ... into your hand."
         for kind in CARD_TYPES if each_type else [card_type] * take:
-            matches = _unique([c for c in top if kind is None or _card_matches(kind, c)])
+            matches = _unique([c for c in top if (kind is None or _card_matches(kind, c))
+                               and not (to == "battlefield" and self.caged(c))])  # Grafdigger's Cage
             if not matches:
                 if each_type:
                     continue
@@ -5455,7 +5459,7 @@ class Game:
         del seat.library[:len(top)]
         left = total_mv
         while True:
-            options = _unique([c for c in top if "Land" not in c.type_line and c.cmc <= left
+            options = _unique([c for c in top if "Land" not in c.type_line and c.cmc <= left and not self.caged(c)  # (Grafdigger's Cage)
                                and _card_matches("permanent", c) and ("Aura" not in c.type_line or self._can_put_attachment(seat, c))])
             if not options:
                 break
@@ -5480,7 +5484,7 @@ class Game:
         top = seat.library[:count]
         del seat.library[:len(top)]
         for _ in range(up_to):
-            options = _unique([c for c in top if c.cmc <= mv_max and _card_matches(kind, c)
+            options = _unique([c for c in top if c.cmc <= mv_max and _card_matches(kind, c) and not self.caged(c)  # (Grafdigger's Cage)
                                and ("Aura" not in c.type_line or self._can_put_attachment(seat, c))])
             if not options:
                 break
@@ -5987,6 +5991,14 @@ class Game:
         seen += [c for c in [*(p.card for s in self.live_seats() for p in s.battlefield), *seat.graveyard] if c not in seen]
         options = list(dict.fromkeys(c.name for c in sorted(seen, key=rank)))
         return options[seat.player.choose(CHOOSE_NAME_PROMPT(card.name), options)] if options else None
+
+    def caged(self, card: Card) -> bool:
+        """Grafdigger's Cage: `card`, a creature card in a graveyard or library, can't enter the battlefield from there (it stays put)."""
+        return "Creature" in card.type_line and any(key == "cage_enter" for _, _, key in self._static_rules())
+
+    def casts_from_graveyards_barred(self) -> bool:
+        """Grafdigger's Cage: "Players can't cast spells from graveyards or libraries." """
+        return any(key == "cage_cast" for _, _, key in self._static_rules())
 
     def name_locked(self, card: Card) -> bool:
         """Pithing Needle: a permanent on the battlefield chose `card`'s name, so its activated abilities that aren't mana abilities can't

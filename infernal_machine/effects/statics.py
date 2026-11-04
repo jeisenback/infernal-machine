@@ -290,6 +290,8 @@ _RULES_STATICS = [
     (re.compile(rf"{_SELF} doesn't untap during your untap step\.", re.I), "no_untap"),  # Basalt Monolith, Mana Vault
     (re.compile(r"Activated abilities of sources with the chosen name can't be activated unless they're mana abilities\.", re.I),
      "name_lock"),  # Pithing Needle, Disruptor Flute: the name its permanent chose as it entered
+    (re.compile(r"Creature cards in graveyards and libraries can't enter the battlefield\.", re.I), "cage_enter"),  # Grafdigger's Cage
+    (re.compile(r"Players can't cast spells from graveyards or libraries\.", re.I), "cage_cast"),
 ]
 
 
@@ -306,7 +308,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     / ":creature" (its controller's), "flash:spell" / ":creature" / ":sorcery" / ":Spirit" (its controller may cast those at instant
     speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic),
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
-    "no_untap" (it stays tapped through its controller's untap step), "name_lock" (nobody can activate the non-mana abilities of sources
+    "no_untap" (it stays tapped through its controller's untap step), "cage_enter" / "cage_cast" (Grafdigger's Cage: no creature card
+    enters the battlefield from a graveyard or library, and no spell is cast from one), "name_lock" (nobody can activate the non-mana abilities of sources
     with the name the permanent chose), "umbra_armor" (an Aura that saves what it enchants from being destroyed), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
     alone), "enter_tapped:opp:creature" / ":artifact,creature" / ":nonbasic land" (those its controller's opponents control enter tapped), "no_enter_triggers:Creature" /
     ":Artifact,Creature" (those entering trigger no abilities), "noncombat_wither" (its controller's noncombat damage to an opponent's
