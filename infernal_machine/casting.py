@@ -16,7 +16,7 @@ from .cards import Card, has_keyword
 from .characteristics import source_qualities
 from .effects import (AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
                       Scry, TriggeredAbility, NOTHING_MORE, additional_costs, additional_paid_effects, affinity_for, alternative_costs, buyback_cost, buyback_other_cost,
-                      chosen_cost_reductions, conditional_cost_reduction, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
+                      chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest_power, reduced_by_total_power,
                       replicate_cost, restricted_mana, self_cost_reduction, storm_kind, strive_cost, target_kind, triggered_abilities,
@@ -247,7 +247,15 @@ class Caster:
             cost = cost + cost_of(kicker)
         if extra:  # entwine, or escalate for each mode beyond the first
             cost = cost + cost_of(extra)
+        cost = cost.plus_generic(self.cost_increase(seat, card))  # CR 601.2f: increases are added before reductions apply
         return cost.with_x(x).reduced(self.cost_reduction(seat, card) + delve)
+
+    def cost_increase(self, seat: g.Seat, card: Card) -> int:
+        """How much more generic mana `card` costs `seat`: Sphere of Resistance's "Spells cost {1} more to cast.", Thalia's
+        "Noncreature spells ...", "Spells your opponents cast ..." on any player's permanents."""
+        return sum(amount for owner in self.game.live_seats() for p in owner.battlefield if not self.game.loses_abilities(p)
+                   for kind, opponents, amount in cost_increases(p.card)
+                   if (not opponents or owner is not seat) and g._spell_matches(kind, card))
 
     def cost_reduction(self, seat: g.Seat, card: Card) -> int:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""

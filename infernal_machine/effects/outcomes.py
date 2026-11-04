@@ -307,6 +307,7 @@ from .families.library_and_hand import (  # noqa: F401
     LookTopTakeChosen,
     MayDiscardThenDraw,
     MayDiscardOrSacrificeLandThenDraw,
+    EachPutsFromHand,
     MayRemoveCounterThenDraw,
     MaySacrificeThenDraw,
     Mill,
@@ -512,6 +513,8 @@ from .families.turns_and_control import (  # noqa: F401
     ExtraTurn,
     GainControl,
     OpponentsCantCast,
+    TargetCantCast,
+    NoAttacksThisTurn,
     SylvanLibrary,
     TakeInitiative,
     TargetExtraTurn,
@@ -1608,13 +1611,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"change a target of target spell or ability to (this creature)\.", re.I),
      lambda m: ChangeTarget("spell or ability", to="this", lone=False)),  # Spellskite
     (re.compile(r"you may choose new targets for target spell or ability\.", re.I), lambda m: ChangeTarget("spell or ability", every=True)),
-    (re.compile(r"return target (spell or nonland permanent an opponent controls) to its owner's hand\.", re.I),
-     lambda m: ReturnToHand(m[1].lower())),  # Sink into Stupor
+    (re.compile(r"return target (spell or nonland permanent an opponent controls|spell or permanent) to its owner's hand\.", re.I),
+     lambda m: ReturnToHand(m[1].lower())),  # Sink into Stupor, Jeskai Revelation
     (re.compile(r"return target spell( you don't control)? to its owner's hand\.", re.I),
      lambda m: ReturnSpellToHand("spell you don't control" if m[1] else "spell")),
     (re.compile(r"its controller gains (\d+) life\.", re.I), lambda m: TargetControllerGainsLife(int(m[1]))),
     (re.compile(r"you may play an additional land this turn\.", re.I), lambda m: ExtraLandDrop()),
     (re.compile(r"your opponents can't cast (noncreature )?spells this turn\.", re.I), lambda m: OpponentsCantCast("noncreature" if m[1] else "")),
+    (re.compile(r"target player can't cast spells this turn\.", re.I), lambda m: TargetCantCast()),  # Orim's Chant
+    (re.compile(r"each player may put an (artifact, creature, enchantment, or land) card from their hand onto the battlefield\.", re.I),
+     lambda m: EachPutsFromHand("artifact or creature or enchantment or land")),  # Show and Tell
+    (re.compile(r"creatures can't attack this turn\.", re.I), lambda m: NoAttacksThisTurn()),
     (re.compile(r"search your library for a card, put that card into your graveyard, then shuffle\.", re.I),
      lambda m: SearchLibrary("card", "graveyard", False)),
     (re.compile(r"each player draws a card, then discards a card\.", re.I), lambda m: EachDrawsThenDiscards()),
@@ -2832,6 +2839,8 @@ _CONDITIONS = [
     (re.compile(rf"that creature has power {_N_FIXED} or greater"), lambda m: Condition("target_power_at_least", _number(m[1]))),
     (re.compile(r"you've cast an? (instant or sorcery spell|creature spell|noncreature spell|spell) this turn"),
      lambda m: Condition("cast_this_turn", what=m[1])),
+    (re.compile(rf"you've cast {_N_FIXED} or more (instant and sorcery spells|spells) this turn"),  # Arclight Phoenix
+     lambda m: Condition("cast_this_turn", _number(m[1]), m[2].replace(" spells", " spell").replace("spells", "spell"))),
     (re.compile(rf"you control {_N_FIXED} or more (white|blue|black|red|green) permanents"),
      lambda m: Condition("control_color_at_least", _number(m[1]), m[2])),
     (re.compile(rf"you control {_N_FIXED} or more ([A-Za-z]+)"),

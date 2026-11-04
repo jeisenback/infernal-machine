@@ -695,6 +695,16 @@ def chosen_cost_reductions(card: Card) -> list[tuple[bool, bool, int]]:
             for line in rules_lines(card) if (m := _CHOSEN_REDUCTION.fullmatch(line))]
 
 
+_INCREASE = re.compile(r"(Noncreature spells|Creature spells|Spells)( your opponents cast)? cost \{(\d+)\} more to cast\.")  # Sphere of Resistance
+
+
+def cost_increases(card: Card) -> list[tuple[str, bool, int]]:
+    """A permanent's "Spells cost {1} more to cast." (Sphere of Resistance; "Noncreature spells ...", "... your opponents cast ..."):
+    (the kind of spell, only its controller's opponents' spells, how much)."""
+    return [(m[1].lower().removesuffix(" spells").removesuffix("spells") or "spell", m[2] is not None, int(m[3]))
+            for line in rules_lines(card) if (m := _INCREASE.fullmatch(line))]
+
+
 def cost_reductions(card: Card) -> list[tuple[str, int]]:
     """Static "Green spells you cast cost {1} less to cast." abilities (Medallions): (what kind of spell, how much).
     The kind is a color letter, a card type ("creature", "noncreature", "instant and sorcery") or "spell"."""
@@ -821,6 +831,7 @@ def first_spell_reductions(card: Card) -> list[tuple[str, int, bool]]:
 
 
 def is_cost_reduction_line(line: str) -> bool:
-    return any(p.fullmatch(line) for p in (_REDUCTION, _TWO_COLOR_REDUCTION, _PER_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY, _NON_HAND_REDUCTION)) \
+    return any(p.fullmatch(line) for p in (_REDUCTION, _TWO_COLOR_REDUCTION, _PER_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY, _NON_HAND_REDUCTION,
+                                           _INCREASE)) \
         or (m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None \
         or (m := _FIRST_SPELL_REDUCTION.fullmatch(line)) is not None and not any(word in m[1] for word in _FIRST_SPELL_UNREAD)

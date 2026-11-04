@@ -79,6 +79,24 @@ class OpponentsCantCast:
 
 
 @dataclass(frozen=True)
+class TargetCantCast:
+    """Orim's Chant: "Target player can't cast spells this turn." """
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.cast_barred = (game.turn, "")
+
+
+@dataclass(frozen=True)
+class NoAttacksThisTurn:
+    """Orim's Chant, kicked: "Creatures can't attack this turn." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.no_attacks_turn = game.turn
+
+
+@dataclass(frozen=True)
 class ExtraTurn:
     """ "Take an extra turn after this one." """
 

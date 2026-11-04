@@ -368,7 +368,7 @@ class Combat:
         return self.game.has_keyword(permanent, keyword)
 
     def _can_attack(self, permanent: Permanent) -> bool:
-        return ("Creature" in permanent.card.type_line and not permanent.tapped
+        return ("Creature" in permanent.card.type_line and not permanent.tapped and self.game.no_attacks_turn != self.game.turn
                 and not (permanent.sick and not self._has(permanent, "haste"))
                 and not (self._has(permanent, "defender") and permanent.defender_ok_turn != self.game.turn)
                 and not self._has(permanent, CANT_ATTACK))

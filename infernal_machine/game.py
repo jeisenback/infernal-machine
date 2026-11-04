@@ -205,6 +205,7 @@ ORDER_TOP_PROMPT = PromptKind("order_top", "Put on top next")  # options are car
 PUT_ATTACHMENT_PROMPT = PromptKind("put_attachment", "Put an Aura or Equipment onto the battlefield")  # options are card names, then NONE_TAKEN
 EQUIP_PROMPT = PromptKind("equip", "Attach it to which creature? ")  # followed by the Equipment's name; the last option leaves it unattached
 CAST_FREE_PROMPT = PromptKind("cast_free", "Cast an Aura spell from among the exiled cards without paying its mana cost")  # then NONE_TAKEN
+SHOW_AND_TELL_PROMPT = PromptKind("show_and_tell", "Put a card from your hand onto the battlefield")  # Show and Tell; then NONE_TAKEN
 PUT_PERMANENT_PROMPT = PromptKind("put_permanent", "Put a nonland permanent card onto the battlefield")  # then NONE_TAKEN to stop
 SET_ASIDE_PROMPT = PromptKind("set_aside", "Choose a nonland card exiled this way; it can't be cast")
 CAST_FREE_EXILED_PROMPT = PromptKind("cast_free_exiled", "Cast a spell from among the other exiled cards without paying its mana cost")  # then NONE_TAKEN
@@ -654,6 +655,7 @@ class Game:
         self.delayed: list[DelayedTrigger] = []  # "Until end of turn, whenever ..." abilities that are set up (CR 603.7)
         self._view: _BoardView | None = None  # see _board_view
         self.extra_turns: list[int] = []  # seats that take an extra turn next; the last one asked for goes first
+        self.no_attacks_turn = -1  # Orim's Chant, kicked: "Creatures can't attack this turn."
         self._plan: list[str] = list(STEPS)  # the steps of the current turn, extended by extra combat phases
         self._plan_index = 0
         self.regular = 0  # the seat whose regular turn it is (or was, during an extra turn)
@@ -871,10 +873,7 @@ class Game:
             for permanent in list(seat.battlefield) + list(seat.emblems):
                 self.trigger("upkeep" if self.step == "upkeep" else "end_step", permanent, seat)
             if self.step == "upkeep":  # Squee: a card that returns itself from the graveyard at the beginning of your upkeep
-                for card in list(seat.graveyard):
-                    for ability in triggered_abilities(card):
-                        if ability.event == "upkeep" and any(isinstance(e, ReturnThisFromGraveyard) for e in ability.effects):
-                            self._queue(ability, Permanent(card), seat)
+                self._graveyard_returns(seat, "upkeep")
             for other in self.live_seats():  # "At the beginning of each upkeep / end step"
                 for permanent in list(other.battlefield):
                     self.trigger("each_upkeep" if self.step == "upkeep" else "each_end_step", permanent, other)
@@ -900,6 +899,7 @@ class Game:
             self.combat = Combat(self)
             for permanent in list(seat.battlefield):
                 self.trigger("combat", permanent, seat)
+            self._graveyard_returns(seat, "combat")  # Arclight Phoenix
             for holder in self.live_seats():  # "At the beginning of each combat": whoever's turn it is
                 for permanent in list(holder.battlefield):
                     self.trigger("each_combat", permanent, holder)
@@ -2692,8 +2692,8 @@ class Game:
         if kind == "opponent_more_creatures":  # Emeritus of Truce
             creatures = lambda s: sum("Creature" in p.card.type_line for p in s.battlefield)
             return any(creatures(o) > creatures(seat) for o in self.opponents(seat))
-        if kind == "cast_this_turn":
-            return any(turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in seat.cast_log)
+        if kind == "cast_this_turn":  # "if you've cast a creature spell this turn"; with a count, that many (Arclight Phoenix)
+            return sum(turn == self.turn and _watch_type_matches(condition.what, c) for turn, c in seat.cast_log) >= max(condition.count, 1)
         if kind == "no_counter":  # "if it had no -1/-1 counters on it": what it had when it left
             return source is None or source.counters.get(condition.what, 0) == 0
         if kind == "opponent_lost_life":
@@ -3678,6 +3678,23 @@ class Game:
         """A card taken from the library (or revealed from its top) enters under `seat`'s control, and everyone is told."""
         self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": False})
         self._enter(seat, Permanent(card, sick=True, owner=seat, loyalty=_starting_loyalty(card)))
+
+    def each_puts_from_hand(self, kind: str) -> None:
+        """Show and Tell: "Each player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield."
+        Each player chooses in turn order, then the chosen cards enter at the same time (CR 101.4)."""
+        chosen: list[tuple[Seat, Card]] = []
+        for seat in self.turn_order_from_active():
+            options = _unique([c for c in seat.hand if _card_matches(kind, c)
+                               and ("Aura" not in c.type_line or self._can_put_attachment(seat, c))])
+            if options and (choice := seat.player.choose(SHOW_AND_TELL_PROMPT, [c.name for c in options] + [NONE_TAKEN])) < len(options):
+                chosen.append((seat, options[choice]))
+        for seat, card in chosen:
+            seat.hand.remove(card)
+        for seat, card in chosen:
+            if "Aura" in card.type_line:
+                self.put_attachment_onto_battlefield(seat, card)
+            else:
+                self.put_onto_battlefield(seat, card)
 
     def three_way_split(self, seat: Seat, count: int, play: bool) -> None:
         """Expressive Iteration: look at the top `count` cards; one to your hand, one to the bottom of your library, one
@@ -5826,6 +5843,14 @@ class Game:
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
         if "Creature" in permanent.card.type_line:
             self._soulbond(seat, permanent)
+
+    def _graveyard_returns(self, seat: Seat, event: str) -> None:
+        """The cards in `seat`'s graveyard whose `event` ability returns them from there ("At the beginning of your upkeep" for Squee,
+        "of combat on your turn" for Arclight Phoenix) trigger."""
+        for card in list(seat.graveyard):
+            for ability in triggered_abilities(card):
+                if ability.event == event and any(isinstance(e, ReturnThisFromGraveyard) for e in ability.effects):
+                    self._queue(ability, Permanent(card), seat)
 
     def _soulbond(self, seat: Seat, entering: Permanent) -> None:
         """Soulbond (CR 702.95): when it enters, a soulbond creature may pair with another unpaired creature, and when another creature

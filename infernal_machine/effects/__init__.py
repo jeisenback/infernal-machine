@@ -345,6 +345,7 @@ from .costs import (  # noqa: F401
     conditional_cost_reduction,
     copies_per_sacrifice,
     cost_reductions,
+    cost_increases,
     cumulative_upkeep,
     first_spell_reductions,
     cycling,
