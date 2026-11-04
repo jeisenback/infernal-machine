@@ -763,6 +763,8 @@ def x_spell_discount(card: Card) -> bool:
 _PER_REDUCTION = re.compile(r"(?:Domain \u2014 )?This spell costs \{(\d+)\} less to cast for each "
                             r"(creature on the battlefield|instant and sorcery card in your graveyard|basic land type among lands you control"
                             r"|card you've cycled or discarded this turn)\.")  # Hollow One
+_ADVENTURE_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, where X is the number of cards in your graveyard that are instant "
+                                  r"cards, sorcery cards, and/or have an Adventure\.")  # Hearth Elemental
 
 
 @lru_cache(maxsize=None)
@@ -773,6 +775,8 @@ def self_cost_reduction(card: Card) -> tuple[int, str] | None:
         if m := _PER_REDUCTION.fullmatch(line):
             return int(m[1]), ("creature" if m[2].startswith("creature") else "basic land type" if m[2].startswith("basic")
                                else "cycled or discarded" if m[2].startswith("card you've") else "instant or sorcery")
+        if _ADVENTURE_REDUCTION.fullmatch(line):
+            return 1, "instant, sorcery or Adventure"
     return None
 
 
@@ -839,7 +843,7 @@ def first_spell_reductions(card: Card) -> list[tuple[str, int, bool]]:
 
 
 def is_cost_reduction_line(line: str) -> bool:
-    return any(p.fullmatch(line) for p in (_REDUCTION, _TWO_COLOR_REDUCTION, _PER_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY, _NON_HAND_REDUCTION,
-                                           _INCREASE)) \
+    return any(p.fullmatch(line) for p in (_REDUCTION, _TWO_COLOR_REDUCTION, _PER_REDUCTION, _ADVENTURE_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY,
+                                           _NON_HAND_REDUCTION, _INCREASE)) \
         or (m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None \
         or (m := _FIRST_SPELL_REDUCTION.fullmatch(line)) is not None and not any(word in m[1] for word in _FIRST_SPELL_UNREAD)

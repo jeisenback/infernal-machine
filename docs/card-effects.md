@@ -1017,6 +1017,16 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     the event `third_draw`, heard from the graveyard (`Game.draw`).
   - Tablet of Discovery, Ark of Hunger (`tests/test_tablet_of_discovery.py`): "Mill a card. You may play that card this turn." is a `Mill`
     with `play_this_turn`: the milled card may be played from the graveyard this turn (`Seat.graveyard_play`, the zone play `Milled`), once.
+  - Dark Confidant (`tests/test_dark_confidant.py`): "reveal the top card of your library and put that card into your hand. You lose life
+    equal to its mana value." is a `RevealTopToHand` with `lose_life` (not a draw).
+  - Pinnacle Emissary (`tests/test_pinnacle_emissary.py`): a token's quoted combat restriction ("This token can block only creatures with
+    flying.") is an ability a token may have.
+  - Weapons Manufacturing (`tests/test_weapons_manufacturing.py`): "create a colorless artifact token named Munitions with "..."" is a
+    noncreature named token with its quoted ability; the "it" inside the quote is the token's, not the trigger's subject.
+  - Hearth Elemental (`tests/test_hearth_elemental.py`): "This spell costs {X} less to cast, where X is the number of cards in your graveyard
+    that are instant cards, sorcery cards, and/or have an Adventure."
+  - Magmatic Hellkite (`tests/test_magmatic_hellkite.py`): "Its controller searches their library for a basic land card, puts it onto the
+    battlefield tapped with a stun counter on it, then shuffles." is a `TargetControllerMayFetchBasicLand` that is not optional, with `stun`.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

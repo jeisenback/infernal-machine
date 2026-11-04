@@ -518,7 +518,7 @@ _PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creat
                      r"|\btap up to one target creature and goad it\b|\btap (?:[^.]*? )?target [^.]*? and put \w+ stun counters? on it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bthat player copies that spell for each other creature they control that the spell could target\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it\b", re.I)
 
 
-_TOKEN_HAS = re.compile(r'(?:It has|They have) "[^"]*"\.?')
+_TOKEN_HAS = re.compile(r'(?:It has|They have|with) "[^"]*"\.?')  # a token's own ability: its "it" is the token (Weapons Manufacturing)
 
 
 _AURAS_ON_IT = re.compile(r"that was attached to it", re.I)  # Hateful Eidolon: "it" is only the creature that died

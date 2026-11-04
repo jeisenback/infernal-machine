@@ -4876,8 +4876,9 @@ class Game:
         self.counter(item)
 
     def fetch_basic_land(self, seat: Seat, optional: bool = False, untap_if: "Condition | None" = None,
-                         tapped: bool = True, subtypes: tuple[str, ...] | None = None) -> None:
-        """Search for a basic land card; with `subtypes`, for any land card with one of those land types (Boseiju)."""
+                         tapped: bool = True, subtypes: tuple[str, ...] | None = None, stun: bool = False) -> None:
+        """Search for a basic land card; with `subtypes`, for any land card with one of those land types (Boseiju); with `stun`, it
+        enters with a stun counter on it (Magmatic Hellkite)."""
         if optional and seat.player.choose(SEARCH_OPTIONAL_PROMPT, YES_NO) != 0:
             return
         basics = _unique([c for c in seat.library if (_is_searched_land(c, subtypes) if subtypes
@@ -4886,7 +4887,7 @@ class Game:
             choice = basics[seat.player.choose(SEARCH_PROMPT, [c.name for c in basics])]
             seat.library.remove(choice)
             self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": choice.name, "tapped": tapped})
-            land = Permanent(choice, tapped=tapped)
+            land = Permanent(choice, tapped=tapped, counters={"stun": 1} if stun else {})
             self._enter(seat, land)
             if untap_if and self.condition_holds(untap_if, seat, self.resolving_source):
                 land.tapped = False
