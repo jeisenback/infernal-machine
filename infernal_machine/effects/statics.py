@@ -288,6 +288,8 @@ _RULES_STATICS = [
                 r"on that creature instead\.", re.I), "noncombat_wither"),  # Soul-Scar Mage
     (re.compile(r"Umbra armor", re.I), "umbra_armor"),  # Auras: an enchanted creature that would be destroyed is saved by one
     (re.compile(rf"{_SELF} doesn't untap during your untap step\.", re.I), "no_untap"),  # Basalt Monolith, Mana Vault
+    (re.compile(r"Activated abilities of sources with the chosen name can't be activated unless they're mana abilities\.", re.I),
+     "name_lock"),  # Pithing Needle, Disruptor Flute: the name its permanent chose as it entered
 ]
 
 
@@ -304,7 +306,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     / ":creature" (its controller's), "flash:spell" / ":creature" / ":sorcery" / ":Spirit" (its controller may cast those at instant
     speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic),
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
-    "no_untap" (it stays tapped through its controller's untap step), "umbra_armor" (an Aura that saves what it enchants from being destroyed), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
+    "no_untap" (it stays tapped through its controller's untap step), "name_lock" (nobody can activate the non-mana abilities of sources
+    with the name the permanent chose), "umbra_armor" (an Aura that saves what it enchants from being destroyed), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
     alone), "enter_tapped:opp:creature" / ":artifact,creature" / ":nonbasic land" (those its controller's opponents control enter tapped), "no_enter_triggers:Creature" /
     ":Artifact,Creature" (those entering trigger no abilities), "noncombat_wither" (its controller's noncombat damage to an opponent's
     creature is -1/-1 counters instead), "look_top" (its controller may look at their top card: no
@@ -1462,6 +1465,19 @@ _ENTERS_TAPPED = [
 
 
 _CHOOSE_COLOR = re.compile(rf"(?:{_SELF} enters tapped\. )?As (?:it|{_SELF}) enters, choose a color(?: other than (white|blue|black|red|green))?\.", re.I)
+
+
+_CHOOSE_NAME = re.compile(rf"As {_SELF} enters, choose a card name\.", re.I)  # Pithing Needle, Disruptor Flute
+
+
+@lru_cache(maxsize=None)
+def chooses_card_name(card: Card) -> bool:
+    """Pithing Needle: "As this artifact enters, choose a card name." (the name is kept on the permanent)."""
+    return any(_CHOOSE_NAME.fullmatch(line) for line in rules_lines(card))
+
+
+def is_choose_name_line(line: str) -> bool:
+    return _CHOOSE_NAME.fullmatch(line) is not None
 
 
 @lru_cache(maxsize=None)

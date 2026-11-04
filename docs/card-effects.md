@@ -1036,6 +1036,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     creatures you control instead." is an `UntapACreature` with `all_if` (the condition `completed_dungeon`, `Seat.dungeons_completed`).
   - Elven Passage (`tests/test_elven_passage.py`): "You may behold an Elf. If you do, untap that land." is the condition `behold`: an Elf you
     control or an Elf card in your hand.
+  - Choose a card name (`tests/test_chosen_name.py`): "As this artifact enters, choose a card name." keeps the name on the permanent
+    (`Permanent.chosen_name`, asked with `CHOOSE_NAME_PROMPT` among the cards in view, an opponent's permanent with an activated ability
+    first). Pithing Needle's "Activated abilities of sources with the chosen name can't be activated unless they're mana abilities." is the
+    rules static `name_lock` (`Game.name_locked`: on the battlefield, cycling and hand abilities, and abilities from the graveyard);
+    Disruptor Flute's "Spells with the chosen name cost {3} more to cast." is a cost increase of kind "chosen name".
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
