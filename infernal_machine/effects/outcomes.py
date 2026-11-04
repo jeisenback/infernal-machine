@@ -427,6 +427,7 @@ from .families.mana import (  # noqa: F401
 )
 from .families.spells_and_misc import (  # noqa: F401
     GetEmblem,
+    ExileSpells,
     CHANGE_TARGET_PROMPT,
     COMMANDER_HAND_PROMPT,
     ChangeTarget,
@@ -1776,6 +1777,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"destroy up to X target artifacts and/or enchantments\.", re.I),
      lambda m: DestroyUpToX("artifact or enchantment")),
     (re.compile(r"choose any number of target creatures you control\.", re.I), lambda m: _ChooseAnyNumber("creature you control")),
+    (re.compile(r"exile any number of target spells\.", re.I), lambda m: ExileSpells()),  # Mindbreak Trap
     (re.compile(r"return any number of target (nonland, nontoken permanent)s you control to their owners' hands\.", re.I),
      lambda m: ReturnAnyNumber(f"{m[1]} you control")),  # Paradoxical Outcome
     (re.compile(r"draw a card for each card returned to your hand this way\.", re.I), lambda m: _DrawPerReturned()),

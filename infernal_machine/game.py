@@ -4813,6 +4813,14 @@ class Game:
         if not item.ability and not item.is_copy:  # countering an ability doesn't touch its source; a copy just ends
             self._move_card(item.home, item.physical, "exile" if exile or item.exile_after else "graveyard")
 
+    def exile_spell(self, item: StackItem) -> None:
+        """Mindbreak Trap: the spell leaves the stack for exile, so it never resolves (a copy just stops existing). A target that left the
+        stack is dropped before this (CR 608.2b)."""
+        self.stack.remove(item)
+        self.broadcast({"event": "exiled_spell", "seat": item.controller.index, "card": item.card.name})
+        if not item.is_copy:
+            self._move_card(item.home, item.physical, "exile")
+
     def return_spell_to_hand(self, item: StackItem) -> None:
         """Narset's Reversal: the spell leaves the stack for its owner's hand, so it never resolves (a copy just stops existing)."""
         if item not in self.stack:

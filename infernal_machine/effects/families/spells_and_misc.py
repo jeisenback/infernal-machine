@@ -45,6 +45,19 @@ class Counter:
 
 
 @dataclass(frozen=True)
+class ExileSpells:
+    """Mindbreak Trap: "Exile any number of target spells." (not a counter: a spell that can't be countered is exiled all the same)."""
+    target: str = "spell"
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for item in target or []:
+            game.exile_spell(item)
+
+
+@dataclass(frozen=True)
 class CounterTriggeringSpell:
     """Vexing Bauble: "Whenever a player casts a spell, if no mana was spent to cast it, counter that spell." The spell that set the
     trigger off is `carried`."""
