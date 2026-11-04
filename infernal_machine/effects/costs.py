@@ -704,11 +704,16 @@ def chosen_cost_reductions(card: Card) -> list[tuple[bool, bool, int]]:
 _INCREASE = re.compile(r"(Noncreature spells|Creature spells|Spells)( your opponents cast)? cost \{(\d+)\} more to cast\.")  # Sphere of Resistance
 
 
+_NAME_INCREASE = re.compile(r"Spells with the chosen name cost \{(\d+)\} more to cast\.")  # Disruptor Flute
+
+
 def cost_increases(card: Card) -> list[tuple[str, bool, int]]:
     """A permanent's "Spells cost {1} more to cast." (Sphere of Resistance; "Noncreature spells ...", "... your opponents cast ..."):
-    (the kind of spell, only its controller's opponents' spells, how much)."""
+    (the kind of spell, only its controller's opponents' spells, how much). Disruptor Flute's kind is "chosen name": the name its
+    permanent chose."""
     return [(m[1].lower().removesuffix(" spells").removesuffix("spells") or "spell", m[2] is not None, int(m[3]))
-            for line in rules_lines(card) if (m := _INCREASE.fullmatch(line))]
+            for line in rules_lines(card) if (m := _INCREASE.fullmatch(line))] \
+        + [("chosen name", False, int(m[1])) for line in rules_lines(card) if (m := _NAME_INCREASE.fullmatch(line))]
 
 
 def cost_reductions(card: Card) -> list[tuple[str, int]]:
@@ -844,6 +849,6 @@ def first_spell_reductions(card: Card) -> list[tuple[str, int, bool]]:
 
 def is_cost_reduction_line(line: str) -> bool:
     return any(p.fullmatch(line) for p in (_REDUCTION, _TWO_COLOR_REDUCTION, _PER_REDUCTION, _ADVENTURE_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY,
-                                           _NON_HAND_REDUCTION, _INCREASE)) \
+                                           _NON_HAND_REDUCTION, _INCREASE, _NAME_INCREASE)) \
         or (m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None \
         or (m := _FIRST_SPELL_REDUCTION.fullmatch(line)) is not None and not any(word in m[1] for word in _FIRST_SPELL_UNREAD)

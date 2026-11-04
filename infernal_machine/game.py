@@ -31,7 +31,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -136,6 +136,7 @@ CHOOSE_COLOR_PROMPT = PromptKind("choose_color", "Choose a color for ")  # follo
 KAROO_PROMPT = PromptKind("karoo", "Return a land or sacrifice ")  # followed by the card's name; the last option is SACRIFICE_IT
 SACRIFICE_IT = "Sacrifice it"
 CHOOSE_LAND_TYPE_PROMPT = PromptKind("choose_land_type", "Choose a basic land type for ")  # followed by the land's name; Plains, Island, Swamp, Mountain, Forest
+CHOOSE_NAME_PROMPT = PromptKind("choose_name", "Choose a card name for ")  # followed by the card's name; options are the names in view
 CHOOSE_TYPE_PROMPT = PromptKind("choose_type", "Choose a creature type for ")  # followed by the card's name; options are the types, most common first
 _PRIMES = frozenset({2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97})
 CLONE_PROMPT = PromptKind("clone", "Choose what to copy for ")  # followed by the card's name; the last option is NOT_A_COPY
@@ -326,6 +327,7 @@ class Permanent:
     earthbent: bool = False  # a land earthbent into a creature for good: `original` is the land, and it returns tapped when it dies or is exiled
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     chosen_color: str | None = None  # "As this enters, choose a color." (a color letter)
+    chosen_name: str | None = None  # "As this artifact enters, choose a card name." (Pithing Needle)
     manifested: bool = False  # a face-down 2/2 whose real card is `real_card`; a creature card can be turned face up
     bestowed_from: "Card | None" = None  # a bestowed Aura: the creature card it goes back to when its creature leaves
     must_attack: "Seat | None" = None  # an Encore token: it attacks this player this turn if able
@@ -1099,6 +1101,8 @@ class Game:
         if sorcery_timing and seat.companion is not None and not seat.companion_used and self._pay_cost(seat, cost_of(COMPANION_COST)) is not None:
             actions.append(COMPANION + seat.companion.name)
         for card in _unique(seat.hand):
+            if self.name_locked(card):  # Pithing Needle: cycling and channel are activated abilities too
+                continue
             if (found := cycling(card)) and self._can_cycle(seat, found[1], found[3]):
                 actions.append(CYCLE + card.name)
             for ability in hand_abilities(card)[:1]:
@@ -1107,7 +1111,7 @@ class Game:
                     actions.append(ACTIVATE_HAND + card.name)
         for card in _unique(seat.graveyard):
             for ability in activated_abilities(card):
-                if ability.from_graveyard and (sorcery_timing or not ability.sorcery_speed) \
+                if ability.from_graveyard and not self.name_locked(card) and (sorcery_timing or not ability.sorcery_speed) \
                         and not (ability.condition and not self.condition_holds(ability.condition, seat, None)) \
                         and self._zone_ability_payable(seat, ability) \
                         and self._graveyard_targets_exist(seat, card, ability):
@@ -1427,11 +1431,13 @@ class Game:
                 mana.add(key.removeprefix("land_type:"))
         return frozenset(mana)
 
-    def _ability_barred(self, permanent: Permanent) -> bool:
+    def _ability_barred(self, permanent: Permanent, mana: bool = False) -> bool:
         """Whether a static ability stops the abilities of `permanent` being activated: Stony Silence (artifacts), Clarion Conqueror
         (artifacts, creatures and planeswalkers), Grand Abolisher
-        (an opponent's artifacts, creatures and enchantments, on its controller's turn). A land's mana ability is not stopped by the
-        second."""
+        (an opponent's artifacts, creatures and enchantments, on its controller's turn), Pithing Needle (the chosen name, unless
+        `mana`: a mana ability). A land's mana ability is not stopped by the second."""
+        if not mana and self.name_locked(permanent.card):
+            return True
         controller = self.controller_of(permanent)
         for owner, _, key in self._static_rules():
             if key.startswith("lock:") and any(t in permanent.card.type_line for t in key.removeprefix("lock:").split(",")):
@@ -5904,6 +5910,8 @@ class Game:
             permanent.real_card = permanent.real_card or permanent.card  # it leaves the battlefield as the printed card
             permanent.card = dataclasses.replace(permanent.card, type_line=f"{permanent.card.type_line.partition(chr(0x2014))[0].strip()} \u2014 {chosen}",
                                                  produced_mana=(types[chosen],))
+        if chooses_card_name(permanent.card):
+            permanent.chosen_name = self._choose_card_name(seat, permanent.card)
         if chooses_color(permanent.card):
             names = {"White": "W", "Blue": "U", "Black": "B", "Red": "R", "Green": "G"}
             names = {name: letter for name, letter in names.items() if letter != color_choice_excludes(permanent.card)}
@@ -5967,6 +5975,23 @@ class Game:
         if pick < len(options):
             holder.paired, options[pick].paired = options[pick], holder
             self.broadcast({"event": "paired", "card": holder.card.name, "with": options[pick].card.name})
+
+    def _choose_card_name(self, seat: Seat, card: Card) -> str | None:
+        """The card name `seat` names as `card` enters (Pithing Needle): one of the cards in view, those of its opponents' permanents with
+        an activated ability that isn't a mana ability first. None if no card is in view."""
+        def rank(c: Card) -> int:
+            if any(c is p.card for o in self.opponents(seat) for p in o.battlefield):
+                return 0 if activated_abilities(c) else 1  # (mana abilities are not among them)
+            return 2
+        seen = [c for o in self.opponents(seat) for c in [*(p.card for p in o.battlefield), *o.graveyard, *o.exile, *o.command_zone]]
+        seen += [c for c in [*(p.card for s in self.live_seats() for p in s.battlefield), *seat.graveyard] if c not in seen]
+        options = list(dict.fromkeys(c.name for c in sorted(seen, key=rank)))
+        return options[seat.player.choose(CHOOSE_NAME_PROMPT(card.name), options)] if options else None
+
+    def name_locked(self, card: Card) -> bool:
+        """Pithing Needle: a permanent on the battlefield chose `card`'s name, so its activated abilities that aren't mana abilities can't
+        be activated, wherever it is."""
+        return any(key == "name_lock" and p.chosen_name == card.name for _, p, key in self._static_rules())
 
     def _choose_creature_type(self, seat: Seat, card: Card) -> str:
         """The creature type `seat` names as `card` enters: one of those in its cards, the most common first."""

@@ -124,7 +124,7 @@ class ManaPayer:
         for permanent in seat.battlefield:
             if permanent.tapped or permanent is exclude or self.game.loses_abilities(permanent):
                 continue
-            if not is_land(permanent.card) and self.game._ability_barred(permanent):
+            if not is_land(permanent.card) and self.game._ability_barred(permanent, mana=True):
                 continue  # Stony Silence, Grand Abolisher: its mana ability can't be activated either
             card = permanent.card
             if grants and not is_land(card) and (given := tuple(line for kind, line in grants if kind in card.type_line)):

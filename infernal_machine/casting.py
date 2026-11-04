@@ -255,7 +255,8 @@ class Caster:
         "Noncreature spells ...", "Spells your opponents cast ..." on any player's permanents."""
         return sum(amount for owner in self.game.live_seats() for p in owner.battlefield if not self.game.loses_abilities(p)
                    for kind, opponents, amount in cost_increases(p.card)
-                   if (not opponents or owner is not seat) and g._spell_matches(kind, card))
+                   if (not opponents or owner is not seat)
+                   and (p.chosen_name == card.name if kind == "chosen name" else g._spell_matches(kind, card)))  # Disruptor Flute
 
     def cost_reduction(self, seat: g.Seat, card: Card) -> int:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""
