@@ -955,6 +955,18 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     library." (Noxious Revival), any player's graveyard.
   - "Red spells and white spells you cast cost {1} less to cast." (Thornscape Familiar, `tests/test_creature_triggers.py`): Goblin
     Anarchomancer's reduction, once for a spell of both colors.
+  - Spell taxes (`tests/test_spell_taxes.py`): "Spells cost {1} more to cast." (Sphere of Resistance), "Noncreature spells ..." (Thalia,
+    Guardian of Thraben; Thorn of Amethyst) and "Spells your opponents cast ..." (Grand Arbiter Augustin IV) are `cost_increases`, added
+    to the total cost before reductions (CR 601.2f), whichever player controls them.
+  - Orim's Chant (`tests/test_orims_chant.py`): "Target player can't cast spells this turn." (`TargetCantCast`, Silence's `cast_barred`)
+    and, kicked, "Creatures can't attack this turn." (`Game.no_attacks_turn`).
+  - Show and Tell (`tests/test_show_and_tell.py`): each player in turn order chooses an artifact, creature, enchantment or land card from
+    their hand; then they all enter at once (`Game.each_puts_from_hand`).
+  - Arclight Phoenix (`tests/test_arclight_phoenix.py`): "if you've cast three or more instant and sorcery spells this turn" (the
+    `cast_this_turn` condition with a count), and "At the beginning of combat on your turn, ... return this card from your graveyard"
+    triggers from the graveyard as Squee's upkeep one does (`Game._graveyard_returns`).
+  - Jeskai Revelation (`tests/test_jeskai_revelation.py`): "Return target spell or permanent to its owner's hand." (Sink into Stupor's
+    template).
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

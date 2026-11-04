@@ -26,7 +26,6 @@
   "izzet_phoenix": {
    "cards": 60,
    "unplayable": [
-    "Arclight Phoenix",
     "Fiery Impulse",
     "Flashback",
     "Picklock Prankster // Free the Fae",
@@ -88,8 +87,7 @@
    "unplayable": [
     "Elspeth, Storm Slayer",
     "March of Otherworldly Light",
-    "Professor of Symbology",
-    "Thalia, Guardian of Thraben"
+    "Professor of Symbology"
    ]
   }
  }

@@ -102,6 +102,15 @@ class YouAndTargetDraw:
 
 
 @dataclass(frozen=True)
+class EachPutsFromHand:
+    """Show and Tell: "Each player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield." """
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.each_puts_from_hand(self.kind)
+
+
+@dataclass(frozen=True)
 class MayDiscardOrSacrificeLandThenDraw:
     """Highway Robbery: "You may discard a card or sacrifice a land. If you do, draw two cards." """
     draw: int
