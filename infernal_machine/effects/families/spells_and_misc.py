@@ -267,6 +267,13 @@ class _ItGains:
 
 
 @dataclass(frozen=True)
+class _ThatGainsIf:
+    """ "If <condition>, that creature gains double strike until end of turn." after a Pump (Violent Urge's delirium)."""
+    keywords: frozenset[str]
+    condition: Any
+
+
+@dataclass(frozen=True)
 class _ThatAlsoGains:
     """ "That creature also gains indestructible until end of turn.": the creature a pump just gave +2/+2 (see _merge_three_way)."""
     keywords: frozenset[str]

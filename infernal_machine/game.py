@@ -390,6 +390,7 @@ class StackItem:
     escaped: bool = False  # cast for its escape cost
     bestowed: bool = False  # cast for its bestow cost: an Aura spell that may resolve as a creature
     sacrificed_power: int = 0  # for an ability: the power of the creature sacrificed to pay for it
+    sacrificed_toughness: int = 0  # ... and its toughness (Witch's Oven)
     tapped_power: int = 0  # for an ability: the power of the creature tapped to pay for it (Station)
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
     cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
@@ -470,6 +471,7 @@ class Seat:
     graveyard_play: list[tuple[Card, int]] = field(default_factory=list)  # milled cards it may play from the graveyard, and the turn (Tablet of Discovery)
     borrowed: list[tuple[Card, "Seat"]] = field(default_factory=list)  # cards in this exile that belong to other players (Ragavan), and whose
     undercity_room: str | None = None  # where this player's venture marker is, if they are in the Undercity
+    dungeons_completed: int = 0  # White Plume Adventurer: "If you've completed a dungeon"
     mana_pool: list[frozenset[str]] = field(default_factory=list)  # mana added by rituals, gone at the end of the step
     _graveyard: list = field(default_factory=_Tracked, init=False, repr=False)
     exile: list[Card] = field(default_factory=list)
@@ -681,6 +683,7 @@ class Game:
         self.targeting_card: Card | None = None  # the card in a graveyard whose ability is having its targets chosen ("another target card")
         self.targeting_max: int | None = None  # how many targets "any number of target ..." may have (Strive: what the mana pays for)
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
+        self.cost_sacrificed_toughness = 0  # ... and its toughness
         self.cost_tapped_power = 0  # the power of what the ability being activated tapped as a cost (Station)
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
@@ -1335,6 +1338,7 @@ class Game:
             options = [p for p in self._sacrifice_choices(seat, source, ability) if p not in chosen]
             chosen.append(options[seat.player.choose(SACRIFICE_COST_PROMPT(name), [self.label(p) for p in options])])
         self.cost_sacrificed_power = sum(self.power(p) for p in chosen)
+        self.cost_sacrificed_toughness = sum(self.toughness(p) or 0 for p in chosen)
         if chosen:
             self._leave_together([(p, "sacrificed") for p in chosen])
 
@@ -2026,7 +2030,8 @@ class Game:
             self._leave_battlefield(permanent, "exiled" if ability.exile_source else "returned",
                                     destination="exile" if ability.exile_source else "hand")
         item = StackItem(permanent.card, seat, effects, targets, ability, permanent, x=x,
-                         sacrificed_power=self.cost_sacrificed_power, tapped_power=self.cost_tapped_power)
+                         sacrificed_power=self.cost_sacrificed_power, sacrificed_toughness=self.cost_sacrificed_toughness,
+                         tapped_power=self.cost_tapped_power)
         self.stack.append(item)
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
@@ -2653,6 +2658,12 @@ class Game:
         if kind == "instant_and_sorcery_in_graveyard":  # Flow State
             types = {t for c in seat.graveyard for t in ("Instant", "Sorcery") if t in c.type_line}
             return types == {"Instant", "Sorcery"}
+        if kind == "sacrificed_toughness_at_least":  # Witch's Oven: "If the sacrificed creature's toughness was 4 or greater"
+            return self.resolving_item is not None and self.resolving_item.sacrificed_toughness >= condition.count
+        if kind == "behold":  # Elven Passage: "behold an Elf": choose an Elf you control or reveal an Elf card from your hand
+            return any(condition.what in c.type_line.split() for c in [p.card for p in seat.battlefield] + seat.hand)
+        if kind == "completed_dungeon":  # White Plume Adventurer: "If you've completed a dungeon"
+            return seat.dungeons_completed > 0
         if kind == "another_named":  # Faerie Miscreant: "if you control another creature named CARDNAME"
             return source is not None and any(p is not source and p.card.name == source.card.name and "Creature" in p.card.type_line
                                               for p in seat.battlefield)
@@ -5560,6 +5571,7 @@ class Game:
         options: tuple[str, ...] = ROOMS[room].leads_to if room else (START,)
         if not options:
             self.broadcast({"event": "dungeon_completed", "seat": seat.index, "dungeon": "Undercity"})
+            seat.dungeons_completed += 1
             options = (START,)
         entered = options[seat.player.choose(VENTURE_PROMPT, list(options)) if len(options) > 1 else 0]
         seat.undercity_room = entered
@@ -6031,7 +6043,8 @@ class Game:
                                                                source_qualities(item.card))):
                 targets = chosen[0]
             self.stack.append(StackItem(item.card, controller, item.effects, targets, item.ability, item.source, x=item.x,
-                                        sacrificed_power=item.sacrificed_power, tapped_power=item.tapped_power))
+                                        sacrificed_power=item.sacrificed_power, sacrificed_toughness=item.sacrificed_toughness,
+                                        tapped_power=item.tapped_power))
             self.broadcast({"event": "copied_ability", "seat": controller.index, "card": item.card.name})
 
     def copy_spell_for_each_other_creature(self, item: StackItem, caster: Seat, source: Permanent) -> None:

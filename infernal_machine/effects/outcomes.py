@@ -49,6 +49,8 @@ from .families.base import (  # noqa: F401
 )
 from .families.combat_and_pump import (  # noqa: F401
     Animate,
+    UntapACreature,
+    _InsteadUntapAll,
     Earthbend,
     Attach,
     AttachAura,
@@ -473,6 +475,7 @@ from .families.spells_and_misc import (  # noqa: F401
     _KickedInsteadTail,
     _MayRemoveCounter,
     _ThatAlsoGains,
+    _ThatGainsIf,
     _TheyGain,
     _TheyGainHaste,
     _TokenAttacksThisCombat,
@@ -1728,6 +1731,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),
     (re.compile(rf"it gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ItGains(_keyword_list(m[1]))),
     (re.compile(rf"that creature also gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ThatAlsoGains(_keyword_list(m[1]))),
+    (re.compile(rf"if (.+?), that creature gains {_KEYWORDS} until end of turn\.", re.I),  # Violent Urge
+     lambda m: _ThatGainsIf(_keyword_list(m[2]), c) if (c := _condition(m[1])) else None),
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
     (re.compile(rf"if (.+), draw {_N_FIXED} cards instead\.", re.I),
      lambda m: _InsteadDraw(c, _number(m[2])) if (c := _condition(m[1])) else None),
@@ -1740,9 +1745,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"put your commander into your hand from the command zone\.", re.I), lambda m: CommanderToHand()),
     (re.compile(r"put (?:CARDNAME|this card) onto the battlefield from the command zone\.", re.I), lambda m: PutThisFromCommandZone()),
     (re.compile(r"exile (?:it|that token) at the beginning of the next end step\.", re.I), lambda m: _ExileTokenAtEnd()),
-    (re.compile(rf"if (.+), create {_N} of those tokens instead\.", re.I),
+    (re.compile(rf"if (.+), create {_N} (?:of those|Food) tokens instead\.", re.I),
      lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
+    (re.compile(r"you may behold an? ((?-i:[A-Z][a-z]+))\. If you do, untap that land\.", re.I),  # Elven Passage: beholding costs nothing
+     lambda m: _UntapThatLand(Condition("behold", what=m[1]))),
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
     (re.compile(r"when you do, if (.+?), (.+)\.", re.I), _when_you_do_if),  # Earthbender Ascension
     (re.compile(r"if (this spell was foretold), (.+)\.", re.I), _then_if),
@@ -1909,6 +1916,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"then shuffle\.", re.I),
      lambda m: SearchForLands(2, (), 2, True, False, share_type=True)),  # Myriad Landscape
     (re.compile(rf"untap up to {_NUM} lands\.", re.I), lambda m: UntapLands(_number(m[1]))),
+    (re.compile(r"untap a creature you control\.", re.I), lambda m: UntapACreature()),  # White Plume Adventurer
+    (re.compile(r"if (.+), untap all creatures you control instead\.", re.I),
+     lambda m: _InsteadUntapAll(c) if (c := _condition(m[1])) else None),
     (re.compile(r"you gain protection from everything until your next turn\.", re.I), lambda m: PlayerProtection()),
     (re.compile(r"(?:this (?:Saga|creature|artifact|enchantment|land)|CARDNAME) gains \"(.+)\"\.?", re.I),  # the ability stays: a Saga's chapter
      lambda m: GainsAbility(line) if _is_known_ability(line := m[1].replace("'", '"')) else None),
@@ -2929,6 +2939,8 @@ _CONDITIONS = [
     (re.compile(rf"\{{([WUBRG])\}}\{{([WUBRG])\}} was spent to cast (?:it|{_SELF})"), lambda m: Condition("mana_spent_colors", what=m[1] + m[2])),  # Deceit
     (re.compile(r"you didn't cast a spell this turn"), lambda m: Condition("no_spell_cast_turn")),
     (re.compile(r"there are four or more card types among cards in your graveyard"), lambda m: Condition("delirium")),
+    (re.compile(r"the sacrificed creature's toughness was (\d+) or greater"), lambda m: Condition("sacrificed_toughness_at_least", int(m[1]))),  # Witch's Oven
+    (re.compile(r"you've completed a dungeon"), lambda m: Condition("completed_dungeon")),  # White Plume Adventurer
     (re.compile(r"each player has (\d+) or less life"), lambda m: Condition("each_life_at_most", int(m[1]))),
     (re.compile(rf"{_SELF} is equipped"), lambda m: Condition("source_equipped")),
     (re.compile(r"no spells were cast last turn"), lambda m: Condition("no_spells_last_turn")),
@@ -2973,7 +2985,7 @@ def _condition(text: str) -> Condition | None:
     return None
 
 
-_SPELL_MASTERY = re.compile(r"^(?:Spell mastery|Domain) \u2014 ")  # the condition stays in the sentence; an ability word is only a label (CR 207.2c)
+_SPELL_MASTERY = re.compile(r"^(?:Spell mastery|Domain|Delirium) \u2014 ")  # the condition stays in the sentence; an ability word is only a label (CR 207.2c)
 
 
 _SPELL_COLORS = re.compile(r"the number of colors that spell is", re.I)  # Mana Cannons
@@ -3061,6 +3073,8 @@ _CONDITIONAL = Follows(
     Follow(LoseLifeEqualToManaValue, RevealTopToHand, set_fields(lose_life=lambda m: True), strict=False),  # Dark Confidant
     Follow(_ThatAlsoGains, Pump, lambda previous, marker: dataclasses.replace(
         previous, modifier=dataclasses.replace(previous.modifier, keywords=previous.modifier.keywords | marker.keywords))),
+    Follow(_ThatGainsIf, Pump, set_fields(more_keywords=lambda m: m.keywords, more_if=lambda m: m.condition)),
+    Follow(_InsteadUntapAll, UntapACreature, set_fields(all_if=lambda m: m.condition)),
     Follow(_TheyGain, (PutCountersOnEach, PutCountersOnEachUpToX), set_fields(grant=lambda m: m.keywords)),
     Follow(_RecallAttachment, CreateTokens, lambda previous, marker: CreateTokenWithGraveyardAttachment(previous.token),
            fits=lambda previous, marker: previous.count == 1),

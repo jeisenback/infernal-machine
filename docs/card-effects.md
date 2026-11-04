@@ -1027,6 +1027,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     that are instant cards, sorcery cards, and/or have an Adventure."
   - Magmatic Hellkite (`tests/test_magmatic_hellkite.py`): "Its controller searches their library for a basic land card, puts it onto the
     battlefield tapped with a stun counter on it, then shuffles." is a `TargetControllerMayFetchBasicLand` that is not optional, with `stun`.
+  - Delirium (`tests/test_delirium.py`): Dragon's Rage Channeler's "this creature gets +2/+2, has flying, and attacks each combat if able" as
+    long as there are four or more card types in your graveyard; Violent Urge's "Delirium — If ..., that creature gains double strike until
+    end of turn." is a `Pump` with `more_keywords` and `more_if` (the ability word is only a label).
+  - Witch's Oven (`tests/test_witchs_oven.py`): "If the sacrificed creature's toughness was 4 or greater, create two Food tokens instead."
+    is the condition `sacrificed_toughness_at_least` (the toughness of what the ability's cost sacrificed).
+  - White Plume Adventurer (`tests/test_white_plume_adventurer.py`): "untap a creature you control. If you've completed a dungeon, untap all
+    creatures you control instead." is an `UntapACreature` with `all_if` (the condition `completed_dungeon`, `Seat.dungeons_completed`).
+  - Elven Passage (`tests/test_elven_passage.py`): "You may behold an Elf. If you do, untap that land." is the condition `behold`: an Elf you
+    control or an Elf card in your hand.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
