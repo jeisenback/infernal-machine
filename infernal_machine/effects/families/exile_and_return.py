@@ -524,6 +524,7 @@ class ExileFromGraveyard:
     then: Any = None  # ... and what happens then
     copy_token: bool = False  # Lorehold Archivist's spell: "Create a token that's a copy of it."
     copy_changes: Any = None  # The Scarab God: "..., except it's a 4/4 black Zombie." (a CopyChanges)
+    optional_target: bool = False  # Restless Cottage: "exile up to one target card from a graveyard"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is None or not game.exile_from_graveyard(target):

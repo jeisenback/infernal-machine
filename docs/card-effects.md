@@ -1007,6 +1007,16 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     card to the battlefield." is a `MayExileFromGraveyardThen` with `other` around `ReturnThisFromGraveyard`, heard from the graveyard.
   - Combustion Technique (`tests/test_combustion_technique.py`): "deals damage equal to 2 plus the number of Lesson cards in your graveyard"
     is an `Amount` with `plus`.
+  - Recruiter of the Guard (`tests/test_recruiter_of_the_guard.py`): "a creature card with toughness 2 or less" is the search kind
+    `creature|t<=2`, beside Imperial Recruiter's power (`|p<=2`).
+  - Void Mirror (`tests/test_void_mirror.py`): "if no colored mana was spent to cast it, counter that spell." is the condition
+    `no_colored_mana_spent`; a mana that could have been colored (a painland's) counts as colored.
+  - Restless Cottage (`tests/test_restless_cottage.py`): "create a Food token and exile up to one target card from a graveyard." is two
+    effects; the exile may have no target (`ExileFromGraveyard.optional_target`), and the Food is made anyway.
+  - Sneaky Snacker (`tests/test_sneaky_snacker.py`): "When you draw your third card in a turn, return this card from your graveyard ..." is
+    the event `third_draw`, heard from the graveyard (`Game.draw`).
+  - Tablet of Discovery, Ark of Hunger (`tests/test_tablet_of_discovery.py`): "Mill a card. You may play that card this turn." is a `Mill`
+    with `play_this_turn`: the milled card may be played from the graveyard this turn (`Seat.graveyard_play`, the zone play `Milled`), once.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

@@ -1866,6 +1866,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "library_bottom" if m[2].lower() == "the bottom" else "library_top")),
     (re.compile(rf"exile target {_CARD_TYPE} from a graveyard\.", re.I),
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"))),
+    (re.compile(rf"exile up to one target {_CARD_TYPE} from a graveyard\.", re.I),  # Restless Cottage
+     lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"), optional_target=True)),
     (re.compile(rf"exile target {_CARD_TYPE} from your graveyard\.", re.I),
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "yours"))),
     (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal (?:it|that card), )?(?:put (?:it|that card) into your hand, "
@@ -2616,6 +2618,10 @@ def _clauses(sentence: str) -> list[str]:
         return [_you_do(m[1]), m[3][:1].upper() + m[3][1:] + "."]
     if m := re.fullmatch(rf"(?:you )?(?P<first>{_YOUR_ACTION}) and (?P<second>{_YOUR_ACTION})\.", sentence, re.I):
         return [_you_do(m["first"]), _you_do(m["second"])]
+    if m := re.fullmatch(r"(Create an? [A-Z][a-z]+ token) and (exile .+)\.", sentence):  # Restless Cottage: "create a Food token and exile ..."
+        first, second = m[1] + ".", m[2][:1].upper() + m[2][1:] + "."
+        if _template(first) is not None and _template(second) is not None:
+            return [first, second]
     if m := re.fullmatch(r"(.+?), then (.+)\.", sentence):  # "Mill three cards, then return a creature card ..."
         first, second = m[1] + ".", m[2][:1].upper() + m[2][1:] + "."
         if _template(first) is not None and _template(second) is not None:
@@ -2910,7 +2916,8 @@ _CONDITIONS = [
     (re.compile(r"this spell was foretold"), lambda m: Condition("foretold")),
     (re.compile(r"the discarded card wasn't a land card"), lambda m: Condition("discarded_nonland")),
     (re.compile(r"a permanent left the battlefield under your control this turn"), lambda m: Condition("revolt")),
-    (re.compile(r"no mana was spent to cast it"), lambda m: Condition("no_mana_spent")),  # Vexing Bauble: the spell that set it off  # Revolt (an ability word, CR 207.2c)
+    (re.compile(r"no mana was spent to cast it"), lambda m: Condition("no_mana_spent")),
+    (re.compile(r"no colored mana was spent to cast it"), lambda m: Condition("no_colored_mana_spent")),  # Void Mirror  # Vexing Bauble: the spell that set it off  # Revolt (an ability word, CR 207.2c)
     (re.compile(rf"\{{([WUBRG])\}}\{{([WUBRG])\}} was spent to cast (?:it|{_SELF})"), lambda m: Condition("mana_spent_colors", what=m[1] + m[2])),  # Deceit
     (re.compile(r"you didn't cast a spell this turn"), lambda m: Condition("no_spell_cast_turn")),
     (re.compile(r"there are four or more card types among cards in your graveyard"), lambda m: Condition("delirium")),
@@ -3005,11 +3012,13 @@ _merge_control = Follows(
 
 
 # Counter + "exile it instead" is one Counter(exile); Exile + "return it at the beginning of the next end step" is one Flicker; ExileTop +
-# "you may play it" is one ExileTop(play). A leftover second half isn't understood.
+# "you may play it" is one ExileTop(play), and Mill + "you may play that card this turn" one Mill(play_this_turn). A leftover second half
+# isn't understood.
 _merge_exile = Follows(
     Follow(ExileInstead, Counter, set_fields(exile=lambda m: True)),
     Follow(ReturnLater, Exile, lambda previous, marker: Flicker(previous.target, "end_step", marker.to, marker.under_owner, previous.another)),
     Follow(PlayExiled, ExileTop, set_fields(play=lambda m: m.until), fits=lambda previous, marker: not previous.play),
+    Follow(PlayExiled, Mill, set_fields(play_this_turn=lambda m: True)),  # Tablet of Discovery: "Mill a card. You may play that card this turn."
     Follow(_ChooseOneOfThem, ExileTop, set_fields(choose_one=lambda m: True), fits=lambda previous, marker: previous.count != 1 and not previous.play))
 
 

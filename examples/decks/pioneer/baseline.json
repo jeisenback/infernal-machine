@@ -10,8 +10,7 @@
   "golgari_midrange": {
    "cards": 61,
    "unplayable": [
-    "Graveyard Trespasser // Graveyard Glutton",
-    "Restless Cottage"
+    "Graveyard Trespasser // Graveyard Glutton"
    ]
   },
   "izzet_aggro": {

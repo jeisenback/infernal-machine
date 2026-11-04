@@ -579,7 +579,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?(?:you may pay (?:\{[^}]+\})+\. If you do, )?copy (it|that spell)(?: for each [^.]*)?\.", rest,
                             re.I) is not None  # Codie: "it" is the spell cast (Mirari: after a payment; Thousand-Year Storm: so many times)
-    copies_spell = copies_spell or re.fullmatch(r"(?:if no mana was spent to cast it, )?counter that spell\.", rest, re.I) is not None  # Vexing Bauble, Chalice
+    copies_spell = copies_spell or re.fullmatch(r"(?:if no (?:colored )?mana was spent to cast it, )?counter that spell\.", rest, re.I) is not None  # Vexing Bauble, Void Mirror, Chalice
     effects, optional, once, condition = _trigger_body(rest)
     if effects is None:
         return None, False, False, None
