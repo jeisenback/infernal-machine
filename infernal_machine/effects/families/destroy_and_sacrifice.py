@@ -69,6 +69,25 @@ CHOOSE_TYPE_PROMPT = PromptKind("choose_a_type", "Choose a type")  # options: th
 
 
 @dataclass(frozen=True)
+class ChooseTypeRevealTop:
+    """Winding Way: "Choose creature or land. Reveal the top four cards of your library. Put all cards of the chosen type revealed this
+    way into your hand and the rest into your graveyard." """
+    kinds: tuple[str, ...]
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        kind = self.kinds[controller.player.choose(CHOOSE_TYPE_PROMPT, [k.capitalize() for k in self.kinds])]
+        revealed = controller.library[:self.count]
+        del controller.library[:len(revealed)]
+        game.broadcast({"event": "revealed", "seat": controller.index, "cards": [c.name for c in revealed]})
+        for card in revealed:
+            if kind.capitalize() in card.type_line:
+                controller.hand.append(card)
+            else:
+                game._move_card(controller, card, "graveyard")
+
+
+@dataclass(frozen=True)
 class DestroyAllOfChosenType:
     """Season of Gathering: "Choose artifact or enchantment. Destroy all permanents of the chosen type." """
     kinds: tuple[str, ...]  # what can be chosen
