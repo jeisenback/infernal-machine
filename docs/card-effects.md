@@ -945,6 +945,16 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     +1/+1 counter on it." (Daydream: `Flicker.counters`).
   - Discard or sacrifice a land (`tests/test_discard_or_sacrifice_land.py`): "You may discard a card or sacrifice a land. If you do, draw
     two cards." (Highway Robbery); only what can be paid is offered.
+  - Converge (`tests/test_converge.py`): "Converge — Exile target nonland permanent if its mana value is less than or equal to the number of
+    colors of mana spent to cast this spell." (Prismatic Ending: `ExileIfConverge`). The colors spent are counted from the spell's
+    `mana_types_spent`, each mana as one color it could be (`colors_spent`, a matching).
+  - More kinds of look-and-take (`tests/test_impulse_kinds.py`): "You may reveal a colorless card from among them ..." (Ancient Stirrings;
+    a land is colorless) and "You may reveal any number of creature cards from among them and put the revealed cards into your hand."
+    (Lead the Stampede).
+  - A graveyard card on top of its library (`tests/test_card_to_library_top.py`): "Put target card from a graveyard on top of its owner's
+    library." (Noxious Revival), any player's graveyard.
+  - "Red spells and white spells you cast cost {1} less to cast." (Thornscape Familiar, `tests/test_creature_triggers.py`): Goblin
+    Anarchomancer's reduction, once for a spell of both colors.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

@@ -17,6 +17,7 @@ WELCOMING = real("Welcoming Vampire", "{2}{W}", "Creature — Vampire",
                  "Flying\nWhenever one or more other creatures you control with power 2 or less enter, draw a card. This ability triggers only once each turn.",
                  "2", "3")
 ANARCHOMANCER = real("Goblin Anarchomancer", "{R}{G}", "Creature — Goblin Shaman", "Each spell you cast that's red or green costs {1} less to cast.", "2", "2")
+FAMILIAR = real("Thornscape Familiar", "{1}{G}", "Creature — Insect", "Red spells and white spells you cast cost {1} less to cast.", "2", "1")
 AVENGER = real("Avenger of Zendikar", "{5}{G}{G}", "Creature — Elemental",
                "When this creature enters, create a 0/1 green Plant creature token for each land you control.\n"
                "Landfall — Whenever a land you control enters, you may put a +1/+1 counter on each Plant creature you control.", "5", "5")
@@ -148,6 +149,14 @@ class CostTests(unittest.TestCase):
         red, green = real("Red", "{2}{R}", "Sorcery", "", colors=("R",)), real("Green", "{2}{G}", "Sorcery", "", colors=("G",))
         both, blue = real("Both", "{R}{G}", "Sorcery", "", colors=("R", "G")), real("Blue", "{2}{U}", "Sorcery", "", colors=("U",))
         self.assertEqual([game.cost_reduction(a, x) for x in (red, green, both, blue)], [1, 1, 1, 0])
+
+    def test_red_spells_and_white_spells_cost_one_less(self):
+        game, a, b, c = board()
+        a.battlefield = [Permanent(FAMILIAR)]
+        red, white = real("Red", "{2}{R}", "Sorcery", "", colors=("R",)), real("White", "{2}{W}", "Sorcery", "", colors=("W",))
+        both, green = real("Both", "{R}{W}", "Sorcery", "", colors=("R", "W")), real("Green", "{2}{G}", "Sorcery", "", colors=("G",))
+        self.assertEqual([game.cost_reduction(a, x) for x in (red, white, both, green)], [1, 1, 1, 0])
+        self.assertEqual([game.cost_reduction(b, x) for x in (red, white)], [0, 0])  # only its controller's spells
 
 
 class LandfallTests(unittest.TestCase):
@@ -418,7 +427,7 @@ class SmallRuleTests(unittest.TestCase):
 
 class CardsTests(unittest.TestCase):
     def test_the_cards_are_fully_playable(self):
-        cards = (AZUSA, MUSE, ARBOR, WELCOMING, ANARCHOMANCER, AVENGER, PROVISIONER, SCUTE, BATS, BOWMASTERS, PLAGUECRAFTER, MARAUDER, SHEOLDRED, MANIAC,
+        cards = (AZUSA, MUSE, ARBOR, WELCOMING, ANARCHOMANCER, FAMILIAR, AVENGER, PROVISIONER, SCUTE, BATS, BOWMASTERS, PLAGUECRAFTER, MARAUDER, SHEOLDRED, MANIAC,
                  LOTHO, TRACKER)
         self.assertEqual({c.name: unsupported_lines(c) for c in cards if unsupported_lines(c)}, {})
 

@@ -12,7 +12,6 @@
     "Hollow One",
     "Ichorid",
     "Narcomoeba",
-    "Noxious Revival",
     "Prized Amalgam",
     "Serum Powder",
     "Stinkweed Imp"
@@ -20,9 +19,7 @@
   },
   "esper_lurrus_control": {
    "cards": 60,
-   "unplayable": [
-    "Prismatic Ending"
-   ]
+   "unplayable": []
   },
   "jewel_shops": {
    "cards": 60,

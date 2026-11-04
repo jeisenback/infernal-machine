@@ -331,7 +331,8 @@ def encore_cost(card: Card) -> str | None:
 _ESCAPE = re.compile(r"Escape\u2014((?:\{[^}]+\})+), Exile (a|one|two|three|four|five|six) other cards? from your graveyard\.")
 
 
-_TWO_COLOR_REDUCTION = re.compile(rf"Each spell you cast that's ({_COLOR_NAMES}) or ({_COLOR_NAMES}) costs \{{(\d+)\}} less to cast\.", re.I)
+_TWO_COLOR_REDUCTION = re.compile(rf"(?:Each spell you cast that's ({_COLOR_NAMES}) or ({_COLOR_NAMES}) costs|({_COLOR_NAMES}) spells and "
+                                  rf"({_COLOR_NAMES}) spells you cast cost) \{{(\d+)\}} less to cast\.", re.I)  # Thornscape Familiar: the second
 
 
 _REDUCTION = re.compile(rf"(?:((?:(?:{_COLOR_NAMES}) )?creature|{_COLOR_NAMES}|artifact|enchantment|noncreature|instant and sorcery|Aura and Equipment|Aura"
@@ -700,7 +701,8 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
     found = []
     for line in rules_lines(card):
         if m := _TWO_COLOR_REDUCTION.fullmatch(line):  # Goblin Anarchomancer: red or green spells
-            found.append((f"{_COLOR_LETTER[m[1].lower()]}|{_COLOR_LETTER[m[2].lower()]}", int(m[3])))  # one reduction, however many colors
+            first, second = (m[1], m[2]) if m[1] else (m[3], m[4])
+            found.append((f"{_COLOR_LETTER[first.lower()]}|{_COLOR_LETTER[second.lower()]}", int(m[5])))  # one reduction, however many colors
         elif m := _REDUCTION.fullmatch(line):
             kind = (m[1] or "spell").lower()
             found.append(("targets a creature" if m[2] else _COLOR_LETTER.get(kind, kind), int(m[3])))  # ("red creature", "goblin": a filter)

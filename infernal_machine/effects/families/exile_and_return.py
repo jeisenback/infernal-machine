@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
 from ...cards import Card
-from ..common import Quantity
+from ..common import Quantity, colors_spent
 from ..targets import (DEAD_SOURCE, DEAD_SUBJECT, MassFilter, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, binding)
 from .copying import copy_of
 from .base import Condition
@@ -99,6 +99,18 @@ class Exile:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
+            game.exile_noting(target, game.resolving_source)
+
+
+@dataclass(frozen=True)
+class ExileIfConverge:
+    """Prismatic Ending: "Converge \u2014 Exile target nonland permanent if its mana value is less than or equal to the number of colors
+    of mana spent to cast this spell." """
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if target is not None and item is not None and target.card.cmc <= colors_spent(item.mana_types_spent):
             game.exile_noting(target, game.resolving_source)
 
 
