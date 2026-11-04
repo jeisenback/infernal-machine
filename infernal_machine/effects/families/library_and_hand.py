@@ -340,7 +340,7 @@ class RevealTopPutAll:
         revealed = [controller.library.pop(0) for _ in range(min(self.count, len(controller.library)))]
         game.broadcast({"event": "revealed_top", "seat": controller.index, "cards": [c.name for c in revealed]})
         for card in revealed:
-            if not _card_matches_kind(self.kind, card):
+            if not _card_matches_kind(self.kind, card) or (self.to == "battlefield" and game.caged(card)):  # (Grafdigger's Cage)
                 controller.library.append(card)
             elif self.to == "battlefield":
                 game.put_onto_battlefield(controller, card)

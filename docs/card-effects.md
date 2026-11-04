@@ -1041,6 +1041,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     first). Pithing Needle's "Activated abilities of sources with the chosen name can't be activated unless they're mana abilities." is the
     rules static `name_lock` (`Game.name_locked`: on the battlefield, cycling and hand abilities, and abilities from the graveyard);
     Disruptor Flute's "Spells with the chosen name cost {3} more to cast." is a cost increase of kind "chosen name".
+  - Grafdigger's Cage (`tests/test_grafdiggers_cage.py`): "Creature cards in graveyards and libraries can't enter the battlefield." is the
+    rules static `cage_enter` (`Game.caged`): reanimation, persist and undying, unearth, searches and look-at-the-top effects that put a
+    creature card onto the battlefield leave it where it is. "Players can't cast spells from graveyards or libraries." is `cage_cast`
+    (`Game.casts_from_graveyards_barred`): flashback, escape, disturb, Serra Paragon, graveyard permits, the top of the library, milled
+    cards and effects that cast from a graveyard; lands are still played.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
