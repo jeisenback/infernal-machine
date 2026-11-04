@@ -18,7 +18,6 @@
     "March of Otherworldly Light",
     "Monumental Henge",
     "Orim's Chant",
-    "Prismatic Ending",
     "Teferi, Time Raveler",
     "Theorist's Sanctum",
     "Wrath of the Skies"
@@ -48,7 +47,6 @@
   "eldrazi": {
    "cards": 60,
    "unplayable": [
-    "Ancient Stirrings",
     "Basking Broodscale",
     "Blade of the Bloodchief",
     "Devourer of Destiny",
@@ -62,7 +60,6 @@
   "eldrazi_ramp": {
    "cards": 60,
    "unplayable": [
-    "Ancient Stirrings",
     "Basking Broodscale",
     "Blade of the Bloodchief",
     "Devourer of Destiny",
@@ -80,7 +77,6 @@
     "Consign to Memory",
     "Ketramose, the New Dawn",
     "March of Otherworldly Light",
-    "Prismatic Ending",
     "Relic of Progenitus",
     "River of Tears"
    ]

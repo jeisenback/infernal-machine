@@ -236,6 +236,7 @@ from .families.exile_and_return import (  # noqa: F401
     ExileX,
     FREE_CAST_PROMPT,
     Flicker,
+    ExileIfConverge,
     GiveBack,
     MayCastFromHandFree,
     PayToReturnSelf,
@@ -1585,6 +1586,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"destroy target creature if it has mana value (\d+) or less\.", re.I), lambda m: Destroy("creature", if_mana_value=int(m[1]))),
     (re.compile(r"(?:[A-Z][a-z]+ \u2014 )?CARDNAME deals (\d+) damage instead if (.+)\.", re.I),  # Galvanic Blast (Metalcraft)
      lambda m: _InsteadDamage(int(m[1]), c) if (c := _condition(m[2])) else None),
+    (re.compile(r"(?:converge \u2014 )?exile target (nonland permanent) if its mana value is less than or equal to the number of colors "
+                r"of mana spent to cast this spell\.", re.I), lambda m: ExileIfConverge(m[1].lower())),  # Prismatic Ending
     (re.compile(r"(?:revolt \u2014 )?destroy that creature if it has mana value (\d+) or less instead if (.+)\.", re.I),  # Fatal Push
      lambda m: _InsteadManaValue(int(m[1]), c) if (c := _condition(m[2])) else None),
     (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|instant|sorcery|white|blue|black|red|green) )?spell"
@@ -1934,8 +1937,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: TakeFromTop(m[1].lower())),  # Malevolent Rumble, Grisly Salvage, Commune with the Gods
     (re.compile(r"for each card type, you may put a card of that type from among the revealed cards into your hand\.", re.I),
      lambda m: TakeFromTop("each card type", rest=None)),  # Atraxa, Grand Unifier
-    (re.compile(r"you may reveal a (noncreature, nonland) card from among them and put it into your hand\.", re.I),
-     lambda m: TakeFromTop(m[1].lower())),  # Thundertrap Trainer
+    (re.compile(r"you may reveal a (noncreature, nonland|colorless) card from among them and put it into your hand\.", re.I),
+     lambda m: TakeFromTop(m[1].lower())),  # Thundertrap Trainer, Ancient Stirrings
+    (re.compile(r"you may reveal any number of (creature) cards from among them and put the revealed cards into your hand\.", re.I),
+     lambda m: TakeFromTop(m[1].lower(), take="all")),  # Lead the Stampede: as many as were looked at
     (re.compile(rf"you may put an? {_SEARCH_TYPE} from among them onto the battlefield\.", re.I),
      lambda m: TakeFromTop(_card_kind(m[1]), "battlefield")),  # Ureni of the Unwritten
     (re.compile(r"put the rest on the bottom of your library in (?:a random|any) order\.", re.I),
@@ -1944,6 +1949,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
+    (re.compile(r"put target card from a graveyard on top of its owner's library\.", re.I),
+     lambda m: ReturnFromGraveyard("graveyard:card:any", "library_top")),  # Noxious Revival
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
     (_RETURN_UP_TO_DAMAGE, lambda m: ReturnFromGraveyard("graveyard:creature|mv<=x:yours", "battlefield")),  # Venerable Warsinger
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
@@ -2754,7 +2761,7 @@ def _merge_impulse(effects: list) -> list | None:
                     return None
                 take = dataclasses.replace(take, rest=effects[i + kicked].to)
                 del effects[i + kicked]
-            merged.append(Impulse(effect.count, take.card_type, take.to, take.take, take.rest or "bottom"))
+            merged.append(Impulse(effect.count, take.card_type, take.to, effect.count if take.take == "all" else take.take, take.rest or "bottom"))
             continue
         if isinstance(effect, (LookAtTop, TakeFromTop, RestOnBottom)):
             return None

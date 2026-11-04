@@ -374,3 +374,19 @@ _THRESHOLD = re.compile(r"(\d+)\+ \| (.+)")
 
 
 _ANY_N = {"two": 2, "three": 3, "four": 4, "five": 5}
+
+
+def colors_spent(spent: tuple[frozenset[str], ...]) -> int:
+    """Converge: how many colors of mana were spent, each mana counted as one color it could be (CR 702.110: the most that its types
+    allow, a matching of mana to colors)."""
+    owner: dict[str, int] = {}  # color -> the mana counted as it
+
+    def place(i: int, seen: set[str]) -> bool:
+        for color in spent[i] & set("WUBRG"):
+            if color not in seen:
+                seen.add(color)
+                if color not in owner or place(owner[color], seen):
+                    owner[color] = i
+                    return True
+        return False
+    return sum(place(i, set()) for i in range(len(spent)))
