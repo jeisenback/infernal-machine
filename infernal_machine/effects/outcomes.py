@@ -363,6 +363,7 @@ from .families.library_and_hand import (  # noqa: F401
     _MayDiscard,
     _MayShuffle,
     _PutFromAmongThem,
+    RevealTopToHand,
     _SplitTop,
     _card_matches_kind,
 )
@@ -912,6 +913,7 @@ _CREATURE_TOKEN = re.compile(
 
 
 _NAMED_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) (Treasure|Clue|Food|Blood|Heartwood|Lander|Map) tokens?")
+_NAMED_ARTIFACT_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) colorless artifact tokens? named ([A-Z][\w'-]*) with \"(.+)\"")  # Weapons Manufacturing's Munitions
 
 
 def _attacker_token(spec: str) -> "AttackerCreatesAttackingToken | None":
@@ -925,6 +927,9 @@ def _token(spec: str) -> tuple[Quantity, Card] | None:
         return None  # a second step ("..., then populate") isn't part of the token; _clauses splits it off
     if m := _NAMED_TOKEN.fullmatch(spec):
         return _count(m[1]), _NAMED_TOKENS[m[2].lower()]
+    if m := _NAMED_ARTIFACT_TOKEN.fullmatch(spec):
+        card = Card(name=m[2], type_line=f"Token Artifact — {m[2]}", oracle_text=m[3])
+        return (_count(m[1]), card) if _is_ability(card, m[3]) else None
     m = _CREATURE_TOKEN.fullmatch(spec)
     if not m:
         return None
@@ -950,11 +955,11 @@ def _is_ability(card: Card, line: str) -> bool:
     """Whether `line` of `card`'s rules text is an ability we understand."""
     from .activated import activated_abilities  # the readers of abilities read effects with this module
     from .mana import is_mana_ability
-    from .statics import static_abilities
+    from .statics import is_combat_restriction_line, static_abilities
     from .triggers import triggered_abilities
 
     known = {a.text for a in (*triggered_abilities(card), *activated_abilities(card), *static_abilities(card))}
-    return line in known or is_mana_ability(line)
+    return line in known or is_mana_ability(line) or is_combat_restriction_line(line)  # Pinnacle Emissary's Drone: "can block only ..."
 
 
 _ANIMATED = (r"(\d+)/(\d+)(?: ((?:white|blue|black|red|green)(?:(?:,? and |, )(?:white|blue|black|red|green))*))?"
@@ -1919,6 +1924,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchLibrary(m[1].lower() + ("|mv<=x" if m[2] else ""), "battlefield", False)),  # Chord of Calling, Natural Order
     (re.compile(r"search your library for a card, put that card into your hand, discard a card at random, then shuffle\.", re.I),
      lambda m: [SearchLibrary("card", "hand", False), Discard(1, "you", True)]),  # Gamble
+    (re.compile(r"reveal the top card of your library and put that card into your hand\.", re.I), lambda m: RevealTopToHand()),  # Dark Confidant
     (re.compile(r"you lose life equal to (?:its|that card's|that permanent's|that spell's) mana value\.", re.I), lambda m: LoseLifeEqualToManaValue()),
     (re.compile(rf"you lose {_N} life\.", re.I), lambda m: LoseLife(_count(m[1]))),
     (re.compile(r"search your library for up to two basic land cards, reveal those cards, put one onto the battlefield "
@@ -2522,6 +2528,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand(tapped=False, typed=True)),  # Boseiju
     (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
                 r"battlefield( tapped)?, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand(tapped=bool(m[1]))),
+    (re.compile(r"its controller searches their library for a basic land card, puts it onto the battlefield tapped with a stun counter "
+                r"on it, then shuffles\.", re.I), lambda m: TargetControllerMayFetchBasicLand(optional=False, stun=True)),  # Magmatic Hellkite
     (re.compile(r"search your library for a basic land card, put (?:it|that card) onto the battlefield tapped, "
                 r"then shuffle\.", re.I),
      lambda m: FetchBasicLand()),
@@ -3050,6 +3058,7 @@ _CONDITIONAL = Follows(
     Follow(_InsteadManaValue, Destroy, set_fields(instead_mana_value=lambda m: m.most, instead_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.if_mana_value is not None),
     Follow(_PutFromAmongThem, Mill, set_fields(put=lambda m: m.kind, put_to=lambda m: m.to)),
+    Follow(LoseLifeEqualToManaValue, RevealTopToHand, set_fields(lose_life=lambda m: True), strict=False),  # Dark Confidant
     Follow(_ThatAlsoGains, Pump, lambda previous, marker: dataclasses.replace(
         previous, modifier=dataclasses.replace(previous.modifier, keywords=previous.modifier.keywords | marker.keywords))),
     Follow(_TheyGain, (PutCountersOnEach, PutCountersOnEachUpToX), set_fields(grant=lambda m: m.keywords)),

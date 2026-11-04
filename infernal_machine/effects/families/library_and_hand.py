@@ -231,12 +231,14 @@ class TargetControllerMayFetchBasicLand:
     (Assassin's Trophy puts it onto the battlefield untapped)"""
     tapped: bool = True
     typed: bool = False  # Boseiju: "a land card with a basic land type" (a dual land counts)
+    optional: bool = True  # Magmatic Hellkite: "Its controller searches ..." (no "may")
+    stun: bool = False  # ... "puts it onto the battlefield tapped with a stun counter on it"
     binds = PREVIOUS_TARGET
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.last_controller is not None:
-            game.fetch_basic_land(target.last_controller, optional=True, tapped=self.tapped,
-                                  subtypes=BASIC_LAND_TYPES if self.typed else None)
+            game.fetch_basic_land(target.last_controller, optional=self.optional, tapped=self.tapped,
+                                  subtypes=BASIC_LAND_TYPES if self.typed else None, stun=self.stun)
 
 
 EXILE_DISCARDED_PROMPT = PromptKind("exile_discarded", "Exile which discarded card from your graveyard?")
@@ -344,6 +346,22 @@ class RevealTopPutAll:
                 game.put_onto_battlefield(controller, card)
             else:
                 controller.hand.append(card)
+
+
+@dataclass(frozen=True)
+class RevealTopToHand:
+    """Dark Confidant: "Reveal the top card of your library and put that card into your hand." (not a draw); with `lose_life`, "You lose
+    life equal to its mana value." after it (see _CONDITIONAL)."""
+    lose_life: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if not controller.library:
+            return
+        card = controller.library.pop(0)
+        game.broadcast({"event": "revealed_top", "seat": controller.index, "cards": [card.name]})
+        controller.hand.append(card)
+        if self.lose_life:
+            game.change_life(controller, -int(card.cmc))
 
 
 def _card_matches_kind(kind: str, card: Card) -> bool:

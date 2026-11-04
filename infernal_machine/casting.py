@@ -292,6 +292,8 @@ class Caster:
             counted = (sum(has_type(p.card, "creature") for s in self.game.live_seats() for p in s.battlefield) if what == "creature"
                        else self.game.basic_land_types(seat) if what == "basic land type"  # Domain
                        else (seat.discards_turn[1] if seat.discards_turn[0] == self.game.turn else 0) if what == "cycled or discarded"
+                       else sum(any(t in c.type_line for t in ("Instant", "Sorcery")) or (c.alternate is not None and "Adventure" in c.alternate.type_line)
+                                for c in seat.graveyard) if what == "instant, sorcery or Adventure"  # Hearth Elemental
                        else sum(g._card_matches(what, c) for c in seat.graveyard))
             reduction += amount * counted
         return reduction
