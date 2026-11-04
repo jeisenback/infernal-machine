@@ -357,6 +357,8 @@ class Caster:
             return False
         if alternative.requires and not any(g._permanent_matches(alternative.requires, p.card) for p in seat.battlefield):
             return False  # Snuff Out: "If you control a Swamp"
+        if alternative.no_lands_in_hand and any("Land" in c.type_line for c in others):
+            return False  # Land Grant: "If you have no land cards in hand"
         if alternative.return_count and sum(g._permanent_matches(alternative.returns, p.card) for p in seat.battlefield) < alternative.return_count:
             return False  # Daze: an Island to return
         return not alternative.exile_color or any(alternative.exile_color in c.colors for c in others)
@@ -394,6 +396,8 @@ class Caster:
                 self.game._leave_together([(choice, "sacrificed")])
             else:
                 self.game.return_to_hand(options[seat.player.choose(g.RETURN_COST_PROMPT(card.name), [self.game.label(p) for p in options])])
+        if alternative and alternative.no_lands_in_hand:  # Land Grant: the hand is revealed
+            self.game.broadcast({"event": "revealed_hand", "seat": seat.index, "cards": [c.name for c in seat.hand]})
         if alternative and alternative.exile_color:
             options = [c for c in seat.hand if alternative.exile_color in c.colors]
             exiled = options[seat.player.choose(g.PITCH_PROMPT, [c.name for c in options])]

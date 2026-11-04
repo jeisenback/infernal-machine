@@ -199,6 +199,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     DestroyX,
     EachSacrifices,
     MaySacrificeThen,
+    ChooseTypeRevealTop,
     Regenerate,
     RegenerateEach,
     RegenerateSource,
@@ -237,6 +238,7 @@ from .families.exile_and_return import (  # noqa: F401
     FREE_CAST_PROMPT,
     Flicker,
     ExileIfConverge,
+    MayExileFromGraveyardThen,
     GiveBack,
     MayCastFromHandFree,
     PayToReturnSelf,
@@ -2111,6 +2113,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
     (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
     (re.compile(r"target (creature you control) explores\.", re.I), lambda m: Explore(m[1].lower())),  # the Map token
+    (re.compile(rf"choose (creature) or (land)\. reveal the top {_N_FIXED} cards of your library\. put all cards of the chosen type revealed "
+                r"this way into your hand and the rest into your graveyard\.", re.I),
+     lambda m: ChooseTypeRevealTop((m[1].lower(), m[2].lower()), _number(m[3]))),  # Winding Way
+    (re.compile(r"you may exile a (creature) card from your graveyard\. If you do, (exile target artifact or enchantment an opponent controls\.)",
+                re.I), lambda m: MayExileFromGraveyardThen(m[1].lower(), Exile("artifact or enchantment an opponent controls"))),  # Masked Vandal
     (re.compile(rf"you may discard a card or sacrifice a land\. If you do, draw {_N_FIXED} cards?\.", re.I),
      lambda m: MayDiscardOrSacrificeLandThenDraw(_number(m[1]))),  # Highway Robbery
     (re.compile(rf"untap target {_PERMANENT_KIND} and gain control of it until end of turn\.", re.I),

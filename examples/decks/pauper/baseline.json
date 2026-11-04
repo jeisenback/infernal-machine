@@ -22,18 +22,12 @@
   },
   "elves": {
    "cards": 60,
-   "unplayable": [
-    "Land Grant",
-    "Masked Vandal",
-    "Nyxborn Hydra",
-    "Winding Way"
-   ]
+   "unplayable": []
   },
   "grixis_affinity": {
    "cards": 60,
    "unplayable": [
     "Black Mage's Rod",
-    "Ichor Wellspring",
     "Reckoner's Bargain",
     "Refurbished Familiar",
     "Sewer-veillance Cam"
@@ -67,14 +61,10 @@
    "cards": 60,
    "unplayable": [
     "Balustrade Spy",
-    "Land Grant",
     "Lotleth Giant",
-    "Masked Vandal",
     "Mesmeric Fiend",
-    "Nyxborn Hydra",
     "Overgrown Battlement",
-    "Wall of Roots",
-    "Winding Way"
+    "Wall of Roots"
    ]
   },
   "tron": {

@@ -153,6 +153,10 @@ _WHOLE_LINE = re.compile(
     r"(?: with mana value \d+ or less)? (?:revealed this way|from among them) (?:into your hand|onto the battlefield) and the rest on the "
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
+    r"|Choose creature or land\. Reveal the top (?:four|five|\d+) cards of your library\. Put all cards of the chosen type revealed this way "
+    r"into your hand and the rest into your graveyard\."  # Winding Way
+    r"|[Yy]ou may exile a creature card from your graveyard\. If you do, exile target artifact or enchantment an opponent controls\."
+    # Masked Vandal
     r"|[Ll]ook at the top card of your library\. You may reveal that card\. If an instant or sorcery card is revealed this way, transform "
     r"this creature\."  # Delver of Secrets
     r"|Choose two target creature cards in your graveyard\. Sacrifice a creature\. If you do, return the chosen cards to the battlefield tapped\."  # Victimize

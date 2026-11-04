@@ -524,7 +524,8 @@ _PER = {"artifact you control": ("permanent", "artifact"), "creature you control
         "land you control": ("permanent", "land"), "artifact and/or enchantment you control": ("permanent", "artifact or enchantment"),
         "color among permanents you control": ("colors", ""),  # Faeburrow Elder
         "enchantment you control": ("permanent", "enchantment"),  # Ethereal Armor
-        "other enchantment on the battlefield": ("others_anywhere", "enchantment")}  # Ancestral Mask: every player's, not the Aura itself
+        "other enchantment on the battlefield": ("others_anywhere", "enchantment"),
+        "+1/+1 counter on this Aura": ("source_counters", "+1/+1")}  # Nyxborn Hydra, bestowed  # Ancestral Mask: every player's, not the Aura itself
 
 
 _PER_LOWER = {k.lower(): v for k, v in _PER.items()}

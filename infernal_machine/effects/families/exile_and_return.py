@@ -8,7 +8,7 @@ from typing import Any, TYPE_CHECKING
 
 from ...cards import Card
 from ..common import Quantity, colors_spent
-from ..targets import (DEAD_SOURCE, DEAD_SUBJECT, MassFilter, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, binding)
+from ..targets import (DEAD_SOURCE, DEAD_SUBJECT, MassFilter, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, binding, target_kind)
 from .copying import copy_of
 from .base import Condition
 from ...prompts import PromptKind
@@ -100,6 +100,22 @@ class Exile:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.exile_noting(target, game.resolving_source)
+
+
+@dataclass(frozen=True)
+class MayExileFromGraveyardThen:
+    """Masked Vandal: "You may exile a creature card from your graveyard. If you do, exile target artifact or enchantment an opponent
+    controls." The target is chosen as the ability goes on the stack; `then` happens only if a card was exiled."""
+    kind: str
+    then: Any
+
+    @property
+    def target(self) -> str | None:
+        return target_kind(self.then)
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.may_exile_from_graveyard(controller, self.kind):
+            self.then.resolve(game, controller, target)
 
 
 @dataclass(frozen=True)

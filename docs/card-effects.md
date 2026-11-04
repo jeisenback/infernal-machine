@@ -978,6 +978,16 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     into your hand." is a `Mill` with `put` and `put_to` "hand"; only the milled cards count.
   - Accumulate Wisdom (`tests/test_accumulate_wisdom.py`): "Put each of those cards into your hand instead if there are three or more
     Lesson cards in your graveyard." takes every card looked at (`_InsteadTake` with count 0).
+  - Nyxborn Hydra, bestowed (`tests/test_aura_per_enchantment.py`): "Enchanted creature gets +1/+1 for each +1/+1 counter on this Aura and
+    has reach and trample." counts the counters on the Aura itself.
+  - Land Grant (`tests/test_land_grant.py`): "If you have no land cards in hand, you may reveal your hand rather than pay this spell's mana
+    cost." is a free alternative cost (`AlternativeCost.no_lands_in_hand`), offered only with no land card among the others in hand.
+  - Masked Vandal (`tests/test_masked_vandal.py`): "you may exile a creature card from your graveyard. If you do, exile target artifact or
+    enchantment an opponent controls." is `MayExileFromGraveyardThen`; the target is chosen as the trigger goes on the stack.
+  - Winding Way (`tests/test_winding_way.py`): "Choose creature or land. Reveal the top four cards ... Put all cards of the chosen type
+    revealed this way into your hand and the rest into your graveyard." (`ChooseTypeRevealTop`).
+  - "When this artifact enters or is put into a graveyard from the battlefield" (`tests/test_ichor_wellspring.py`, Ichor Wellspring): one
+    more of a permanent's own events that a line can name together.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

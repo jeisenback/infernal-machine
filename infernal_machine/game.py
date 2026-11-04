@@ -5631,6 +5631,20 @@ class Game:
             if mill:
                 self.mill(seat, mill)
 
+    def may_exile_from_graveyard(self, seat: Seat, kind: str) -> bool:
+        """ "You may exile a creature card from your graveyard." Whether one was exiled (Masked Vandal)."""
+        options = _unique([c for c in seat.graveyard if _card_matches(kind, c)])
+        if not options:
+            return False
+        choice = seat.player.choose(EXILE_COST_PROMPT("an exile from your graveyard"), [c.name for c in options] + [NONE_TAKEN])
+        if choice >= len(options):
+            return False
+        seat.graveyard.remove(options[choice])
+        self.broadcast({"event": "left_graveyard", "seat": seat.index, "card": options[choice].name, "to": "exile"})
+        self._move_card(seat, options[choice], "exile")
+        self._left_graveyard(seat, [options[choice]])
+        return True
+
     def may_sacrifice(self, seat: Seat, kind: str, exclude: Permanent | None = None) -> bool:
         """ "You may sacrifice a permanent." Whether they did (they need one to sacrifice, and to want to). `exclude`: "another", not this."""
         if any(_permanent_matches(kind, p.card) and p is not exclude for p in seat.battlefield) \
