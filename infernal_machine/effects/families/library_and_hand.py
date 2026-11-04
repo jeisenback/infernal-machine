@@ -804,11 +804,21 @@ class Discard:
     count: int | str | None
     who: str  # "you", "each opponent" or "each player"
     random: bool = False  # "at random"
+    draw_per_unable: bool = False  # Refurbished Familiar: "For each opponent who can't, you draw a card."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        unable = 0
         for seat in game.turn_order_from_active():
             if self.who == "each player" or (self.who == "you") == (seat is controller):
+                unable += not seat.hand
                 game.discard(seat, None if self.count is None else game.amount(self.count), self.random)
+        if self.draw_per_unable and unable:
+            game.draw(controller, unable)
+
+
+@dataclass(frozen=True)
+class _DrawPerUnable:
+    """ "For each opponent who can't, you draw a card." after an each-opponent Discard (see _CONDITIONAL)."""
 
 
 @dataclass(frozen=True)
@@ -888,15 +898,25 @@ class DiscardChosen:
 
 
 @dataclass(frozen=True)
+class ExileChosen:
+    """ "... and exile that card." (Thought-Knot Seer), in place of "That player discards that card." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone exile of the chosen card is never built")
+
+
+@dataclass(frozen=True)
 class TargetChooseDiscard:
-    """Thoughtseize, Duress, Inquisition of Kozilek: look at their hand and make them discard a card you choose."""
+    """Thoughtseize, Duress, Inquisition of Kozilek: look at their hand and make them discard a card you choose (Thought-Knot Seer: exile
+    it, `exile`)."""
     target: str  # "player" or "opponent"
     excluded: tuple[str, ...]
     max_mv: int | None
+    exile: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.reveal_and_discard(controller, target, self.excluded, self.max_mv)
+            game.reveal_and_discard(controller, target, self.excluded, self.max_mv, self.exile)
 
 
 @dataclass(frozen=True)
