@@ -915,7 +915,7 @@ class Game:
                 self.trigger("first_main", permanent, seat)
         elif self.step == "beginning_of_combat":
             self.combat = Combat(self)
-            for permanent in list(seat.battlefield):
+            for permanent in list(seat.battlefield) + list(seat.emblems):  # Tezzeret, Cruel Captain's emblem
                 self.trigger("combat", permanent, seat)
             self._graveyard_returns(seat, "combat")  # Arclight Phoenix
             for holder in self.live_seats():  # "At the beginning of each combat": whoever's turn it is
@@ -1272,6 +1272,13 @@ class Game:
         if on_your_turn:
             permanent.until_end_of_turn.append(Modifier(0, 0, on_your_turn, your_turn=True))
         self.broadcast({"event": "became_creature", "card": permanent.card.name, "power": power, "toughness": toughness})
+
+    def become_creature_for_good(self, permanent: Permanent, power: int, toughness: int, subtype: str) -> None:
+        """Tezzeret, Cruel Captain's emblem: "If it's not a creature, it becomes a 0/0 Robot artifact creature." With no duration it is
+        for good: `animate`, then the card it was is forgotten so the cleanup step keeps it."""
+        base = (permanent.original or permanent.card).type_line.partition("\u2014")[2].split()
+        self.animate(permanent, power, toughness, (), " ".join(base + [subtype]), True, frozenset())
+        permanent.original = None
 
     def animate_until_next_turn(self, controller: Seat, permanent: Permanent) -> None:
         """Karn, the Great Creator's +1: until `controller`'s next turn the noncreature artifact is an artifact creature with power and

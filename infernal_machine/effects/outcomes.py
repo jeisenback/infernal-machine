@@ -481,6 +481,8 @@ from .families.spells_and_misc import (  # noqa: F401
     _ItHas,
     _KickedInsteadTail,
     _MayRemoveCounter,
+    _ArtifactCreatureGetsCounter,
+    _BecomesIfNotCreature,
     _ThatAlsoGains,
     _ThatGainsIf,
     _TheyGain,
@@ -1719,6 +1721,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield\. If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\.",
                 re.I), lambda m: RevealUntilAura()),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
+    (re.compile(r"if it's an artifact creature, put a \+1/\+1 counter on it\.", re.I), lambda m: _ArtifactCreatureGetsCounter()),  # Tezzeret
+    (re.compile(r"if it's not a creature, it becomes an? (\d+)/(\d+) ([A-Z][a-z]+) artifact creature\.", re.I),
+     lambda m: _BecomesIfNotCreature(int(m[1]), int(m[2]), m[3])),  # Tezzeret, Cruel Captain's emblem
     (re.compile(r"until your next turn, up to one target noncreature artifact becomes an artifact creature with power and toughness each "
                 r"equal to its mana value\.", re.I), lambda m: AnimateByManaValue()),  # Karn, the Great Creator
     (re.compile(r"you may reveal an artifact card you own from outside the game or choose a face-up artifact card you own in exile\. "
@@ -3095,6 +3100,8 @@ _CONDITIONAL = Follows(
         previous, modifier=dataclasses.replace(previous.modifier, keywords=previous.modifier.keywords | marker.keywords))),
     Follow(_ThatGainsIf, Pump, set_fields(more_keywords=lambda m: m.keywords, more_if=lambda m: m.condition)),
     Follow(_InsteadUntapAll, UntapACreature, set_fields(all_if=lambda m: m.condition)),
+    Follow(_ArtifactCreatureGetsCounter, Untap, set_fields(counter_if_artifact_creature=lambda m: True)),  # Tezzeret, Cruel Captain
+    Follow(_BecomesIfNotCreature, PutCounters, set_fields(becomes=lambda m: (m.power, m.toughness, m.subtype))),  # ... and his emblem
     Follow(_TheyGain, (PutCountersOnEach, PutCountersOnEachUpToX), set_fields(grant=lambda m: m.keywords)),
     Follow(_RecallAttachment, CreateTokens, lambda previous, marker: CreateTokenWithGraveyardAttachment(previous.token),
            fits=lambda previous, marker: previous.count == 1),
