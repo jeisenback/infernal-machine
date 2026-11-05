@@ -304,6 +304,47 @@ class Attach:
 
 
 @dataclass(frozen=True)
+class ChooseEquipmentToAttach:
+    """Thorin, Mountain-king: "attach any number of target Equipment you control" (AttachChosenEquipment, after it, names the creature)."""
+    target: str = "Equipment you control"
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.carried = list(target or [])
+
+
+@dataclass(frozen=True)
+class AttachChosenEquipment:
+    """Thorin, Mountain-king: "... to target creature you control. When one or more Equipment become attached to that creature this way,
+    that creature deals damage equal to its power to up to one target creature." (a reflexive trigger, CR 603.12, about that creature)."""
+    target: str = "creature you control"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        chosen = game.resolving_item.carried if game.resolving_item is not None else None
+        if target is None or not chosen:  # (an Equipment gone by now is no longer among the targets, CR 608.2b)
+            return
+        for equipment in chosen:
+            game.attach(equipment, target)
+        game.reflexive_trigger(controller, (SubjectDamagesTargetByPower(),), None, "that creature deals damage equal to its power to "
+                               "up to one target creature", subject=target)
+
+
+@dataclass(frozen=True)
+class SubjectDamagesTargetByPower:
+    """ "that creature deals damage equal to its power to up to one target creature": the creature the trigger is about."""
+    target: str = "creature"
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        creature = game.resolving_item.subject if game.resolving_item is not None else None
+        if target is not None and creature is not None:  # gone: its last known power (CR 608.2h)
+            game.damage(target, game.power(creature), source=creature)
+
+
+@dataclass(frozen=True)
 class Unattach:
     """Reconfigure's second ability: unattach this Equipment, which makes it a creature again."""
     binds = SOURCE

@@ -1267,11 +1267,17 @@ def keeps_its_protection_aura(card: Card) -> bool:
     return any(_ATTACHED_CHOSEN_PROTECTION.fullmatch(line) for line in rules_lines(card))
 
 
+_ATTACHED_PER_OWN_COUNTER = re.compile(r"(?:Enchanted|Equipped) creature gets \+X/\+0, where X is the number of ([a-z]+) counters on this "
+                                       r"(?:Equipment|Aura)\.")  # Chainsaw
+
+
 @lru_cache(maxsize=None)
 def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
     buffs = []
     for line in rules_lines(card):
-        if m := _ATTACHED.fullmatch(line):
+        if m := _ATTACHED_PER_OWN_COUNTER.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(1, 0), line, per=("source_counters", m[1])))
+        elif m := _ATTACHED.fullmatch(line):
             if "can't attack or block" in line:
                 modifier = Modifier(keywords=frozenset({CANT_ATTACK, CANT_BLOCK}))
             else:
@@ -1497,6 +1503,36 @@ def your_turn_creature(card: Card) -> tuple[int, int, str, str] | None:
 
 def is_your_turn_creature_line(line: str) -> bool:
     return _YOUR_TURN_CREATURE.fullmatch(line) is not None
+
+
+_EQUIP_TARGET_DISCOUNT = re.compile(rf"Equip abilities you activate that target {_SELF} cost \{{(\d+)\}} less to activate\.", re.I)  # Dwarven Mauler
+
+
+_FREE_FIRST_EQUIP = ("As long as you have an enduring story, you may pay {0} rather than pay the equip cost of the first equip ability you "
+                     "activate each turn.")  # Kili the Resourceful
+
+
+@lru_cache(maxsize=None)
+def equip_target_discount(card: Card) -> int:
+    """Dwarven Mauler: how much less the equip abilities that target it cost."""
+    return sum(int(m[1]) for line in rules_lines(card) if (m := _EQUIP_TARGET_DISCOUNT.fullmatch(line)))
+
+
+@lru_cache(maxsize=None)
+def free_first_equip(card: Card) -> bool:
+    """Kili the Resourceful: with an enduring story, the first equip ability its controller activates each turn costs {0}."""
+    return _FREE_FIRST_EQUIP in rules_lines(card)
+
+
+@lru_cache(maxsize=None)
+def storied(card: Card) -> bool:
+    """Storied: "If you control three or more artifacts, legendaries, and/or Sagas, you have an enduring story for the rest of the game."
+    (its reminder text)."""
+    return "Storied" in rules_lines(card)
+
+
+def is_equip_rules_line(line: str) -> bool:
+    return _EQUIP_TARGET_DISCOUNT.fullmatch(line) is not None or line in (_FREE_FIRST_EQUIP, "Storied")
 
 
 _CHOOSE_NAME = re.compile(rf"As {_SELF} enters, choose a card name\.", re.I)  # Pithing Needle, Disruptor Flute

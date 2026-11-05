@@ -122,7 +122,7 @@ _WHO = rf"(?:({_SELF}) or another|(another)|an?)"
 _TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
 
 
-_PERMANENT_WATCH = rf"(enchanted creature|legendary creature|nontoken creature|nontoken artifact|nontoken {_TRIBE}|creature token|(?:white|blue|black|red|green|colorless) creature|token|creature or artifact|creature|land|artifact|enchantment|permanent|{_TRIBE})"
+_PERMANENT_WATCH = rf"(enchanted creature|legendary creature|nontoken creature|nontoken artifact|nontoken {_TRIBE}|creature token|(?:white|blue|black|red|green|colorless) creature|token|creature or artifact|creature|land|artifact|enchantment|permanent|{_TRIBE} or {_TRIBE}|{_TRIBE})"  # "Dwarf or Equipment": Kili
 
 
 _WATCHES = {

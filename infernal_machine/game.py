@@ -31,7 +31,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -508,6 +508,8 @@ class Seat:
     plotted: list = field(default_factory=list)  # (turn, card) for each plotted card in exile (it can be cast free from the next turn on)
     signature: str | None = None  # an Oathbreaker's signature spell, which starts in the command zone and is cast only while its owner controls the Oathbreaker
     sideboard: list = field(default_factory=list)  # cards outside the game: "an artifact card you own from outside the game" (Karn, the Great Creator)
+    enduring_story: bool = False  # Storied: three or more artifacts, legendaries and/or Sagas once, with a storied permanent; for good
+    equip_turn: int | None = None  # the last turn this player activated an equip ability (Kili: only the first each turn is free)
     companion: Card | None = None  # kept outside the game: for {3}, once, at sorcery timing, it goes into the hand (CR 702.139)
     companion_used: bool = False
     player_counters: dict[str, int] = field(default_factory=dict)  # counters on the player: poison, energy, ...
@@ -1396,14 +1398,31 @@ class Game:
             self._leave_together([(p, "sacrificed") for p in chosen])
 
     def _ability_payment(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility,
-                         x: int = 0) -> Payment | None:
+                         x: int = 0, target: Permanent | None = None) -> Payment | None:
         cost = (cost_of(ability.mana_cost) if ability.mana_cost else Cost()).with_x(x)
+        if ability.discount_each:  # The Lonely Mountain: "costs {1} less to activate for each Equipment you control"
+            cost = cost.reduced(sum(_permanent_matches(ability.discount_each, p.card) for p in seat.battlefield))
+        if ability.equip:
+            cost = Cost() if self._free_equip(seat) else cost.reduced(self._equip_discount(seat, ability, target))
         # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
         self.payer._spending_x = "{X}" in ability.mana_cost
         try:
             return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice or ability.exile_source else None)
         finally:
             self.payer._spending_x = False
+
+    def _free_equip(self, seat: Seat) -> bool:
+        """Kili the Resourceful: with an enduring story, the first equip ability activated this turn costs {0}."""
+        return seat.enduring_story and seat.equip_turn != self.turn and any(
+            free_first_equip(p.card) and not self.loses_abilities(p) for p in seat.battlefield)
+
+    def _equip_discount(self, seat: Seat, ability: ActivatedAbility, target: Permanent | None) -> int:
+        """How much less an equip ability costs for `target` (Dwarven Mauler's own discount; Dragonfire Blade's, one for each of its
+        colors); without a target yet, for the creature it would cost least for."""
+        if target is None:
+            return max((self._equip_discount(seat, ability, p) for p in seat.battlefield if "Creature" in p.card.type_line), default=0)
+        own = 0 if self.loses_abilities(target) else equip_target_discount(target.card)
+        return own + (len(target.card.colors) if ability.discount_target_colors else 0)
 
     def _mana_spent_matches(self, seat: Seat, source: Permanent, card: Card, from_command_zone: bool, tapped) -> bool:
         """Whether `source`'s "When that mana is spent to cast ..." rider applies to casting `card`. A Study Hall
@@ -2063,8 +2082,14 @@ class Game:
         effects = list(ability.effects)
         if effects and isinstance(effects[0], Modal):
             effects, _ = self._choose_modes(seat, permanent.card, effects[0], source=permanent)
-        targets, labels = _checked(self._choose_targets(seat, effects, permanent.card.name, permanent,
-                                                        source_qualities(permanent.card)))
+        if ability.equip:  # what it costs depends on the creature (Dwarven Mauler, Dragonfire Blade): only those it can be paid for
+            options = [o for o in self.target_options(target_kind(effects[0]) or "creature you control", seat, source_qualities(permanent.card))
+                       if self._ability_payment(seat, permanent, ability, 0, o[1]) is not None]
+            pick = seat.player.choose(TARGET_PROMPT(permanent.card.name), [label for label, _ in options])
+            targets, labels = [options[pick][1]], [options[pick][0]]
+        else:
+            targets, labels = _checked(self._choose_targets(seat, effects, permanent.card.name, permanent,
+                                                            source_qualities(permanent.card)))
         x = 0
         if ability.mana_cost and cost_of(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then paid
             most = 0
@@ -2075,8 +2100,11 @@ class Game:
         if ability.sacrifice_x:  # "Sacrifice X Squirrels": X is as many as the player chooses to sacrifice
             most = min(len(self._sacrifice_choices(seat, permanent, ability)), MAX_X)
             sacrificed = x = seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in range(most + 1)])
-        tapped = _checked(self._ability_payment(seat, permanent, ability, x))
+        target = targets[0] if ability.equip and targets and isinstance(targets[0], Permanent) else None
+        tapped = _checked(self._ability_payment(seat, permanent, ability, x, target))
         self._spend_mana(seat, tapped)
+        if ability.equip:
+            seat.equip_turn = self.turn
         if ability.tap:
             self.tap(permanent)
         if life := self._life_cost(seat, ability):
@@ -2626,11 +2654,13 @@ class Game:
             permanent.triggered_turn[ability.text] = self.turn
         self.pending.append(PendingTrigger(ability, permanent, controller, x, subject, player, spell=spell))
 
-    def reflexive_trigger(self, controller: Seat, effects: tuple, condition: Condition | None, text: str) -> None:
+    def reflexive_trigger(self, controller: Seat, effects: tuple, condition: Condition | None, text: str,
+                          subject: Permanent | None = None) -> None:
         """"When you do, ...": a reflexive trigger (CR 603.12) of the ability resolving now, queued for its source like any trigger, so
         it chooses its targets as it goes on the stack; with no legal target it is removed (CR 603.3d), the effect before it done."""
         if self.resolving_source is not None:
-            self._queue(TriggeredAbility("reflexive", effects, False, text, condition=condition), self.resolving_source, controller)
+            self._queue(TriggeredAbility("reflexive", effects, False, text, condition=condition), self.resolving_source, controller,
+                        subject=subject)  # Thorin: "that creature"
 
     def add_delayed(self, ability: TriggeredAbility, item: "StackItem", controller: Seat, next_turn: bool = False,
                     only: Permanent | None = None, when: frozenset = frozenset()) -> None:
@@ -2841,6 +2871,8 @@ class Game:
             return any(len(s.hand) <= condition.count for s in self.live_seats())
         if kind == "opponent_more_cards":
             return any(len(o.hand) > len(seat.hand) for o in self.opponents(seat))
+        if kind == "control_another":  # Dain's Company: "as long as you control another Dwarf"
+            return any(has_type(p.card, condition.what) for p in seat.battlefield if p is not source)
         if kind == "control_none_token":  # Pest Rescuer: "you don't control a Pest creature token"
             return not any(_is_token(p.card) and "Creature" in p.card.type_line and has_type(p.card, condition.what)
                            for p in seat.battlefield)
@@ -3089,6 +3121,8 @@ class Game:
                     continue
                 if self.has_keyword(permanent, "hexproof") and seat is not caster:
                     continue
+                if "monocolored" in colors and self.has_keyword(permanent, "hexproof from monocolored") and seat is not caster:
+                    continue  # Dragonfire Blade
                 if self.protected_from(permanent, colors):
                     continue
                 options.append((self.label(permanent), permanent))
@@ -6541,6 +6575,11 @@ class Game:
                         and any(has_keyword(p.card, "ascend") for p in seat.battlefield)):
                     seat.citys_blessing = True
                     self.broadcast({"event": "citys_blessing", "seat": seat.index})
+                if (not seat.enduring_story and any(storied(p.card) for p in seat.battlefield)
+                        and sum("Artifact" in p.card.type_line or "Legendary" in p.card.type_line or "Saga" in p.card.type_line
+                                for p in seat.battlefield) >= 3):
+                    seat.enduring_story = True  # Storied: "for the rest of the game"
+                    self.broadcast({"event": "enduring_story", "seat": seat.index})
                 reason = ("opponent_won" if any(o.wins_game for o in self.seats if o is not seat)
                           else "life" if seat.life <= 0
                           else "empty_library" if seat.drew_from_empty
