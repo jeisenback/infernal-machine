@@ -30,15 +30,7 @@
   },
   "boros_dwarves": {
    "cards": 60,
-   "unplayable": [
-    "Chainsaw",
-    "Dragonfire Blade",
-    "Dwarven Mauler",
-    "D\u00e1in's Company",
-    "K\u00edli the Resourceful",
-    "The Lonely Mountain",
-    "Thorin, Mountain-king"
-   ]
+   "unplayable": []
   },
   "dimir_excruciator": {
    "cards": 60,

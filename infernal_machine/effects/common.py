@@ -156,6 +156,8 @@ _WHOLE_LINE = re.compile(
     r"|You may behold an? [A-Z][a-z]+\. If you do, untap that land\."  # Elven Passage
     r"|[Cc]hoose target opponent\. If they lost life this turn, they reveal their hand, you choose a nonland card from it, and they "
     r"discard that card\. Otherwise, they discard a card\."  # Thought-Stalker Warlock
+    r"|[Aa]ttach any number of target Equipment you control to target creature you control\. When one or more Equipment become "
+    r"attached to that creature this way, that creature deals damage equal to its power to up to one target creature\."  # Thorin
     r"|You may reveal an artifact card you own from outside the game or choose a face-up artifact card you own in exile\. Put that card "
     r"into your hand\."  # Karn, the Great Creator
     r"|Choose creature or land\. Reveal the top (?:four|five|\d+) cards of your library\. Put all cards of the chosen type revealed this way "
@@ -305,7 +307,7 @@ _WARD_MANA = r"(?:\{\d+\}|\{[WUBRGC]\})+"
 PROTECTION = re.compile(_PROT, re.I)  # "protection from red", "protection from red and from blue"
 
 
-_KW = rf"(?:{_PROT}|ward {_WARD_MANA}|ward\u2014pay \d+ life|annihilator \d+|[a-z]+(?: [a-z]+)?)"  # one keyword ("ward\u2014pay 2 life": Hexing Squelcher)
+_KW = rf"(?:{_PROT}|ward {_WARD_MANA}|ward\u2014pay \d+ life|annihilator \d+|hexproof from (?:monocolored|white|blue|black|red|green)|[a-z]+(?: [a-z]+)?)"  # one keyword ("ward\u2014pay 2 life": Hexing Squelcher)
 
 
 def _protection_keywords(text: str) -> frozenset[str]:

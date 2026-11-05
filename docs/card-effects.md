@@ -1095,6 +1095,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     spell (`spell_effects`).
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
+  - Standard's Dwarves and Equipment (`tests/test_dwarf_equipment.py`): an equip ability (`ActivatedAbility.equip`) costs what its target
+    makes it cost: Dwarven Mauler's "Equip abilities you activate that target this creature cost {2} less" (`equip_target_discount`),
+    Dragonfire Blade's {1} less for each color of the creature (`discount_target_colors`); only creatures it can be paid for are offered,
+    and it is legal when the cheapest one can be. Storied gives an enduring story (`Seat.enduring_story`, checked with the state-based
+    actions) and Kili makes the first equip each turn free with one (`Seat.equip_turn`). "hexproof from monocolored" is a keyword the
+    targeting reads. Thorin attaches the Equipment it targets to the creature it targets, then a reflexive trigger about that creature
+    deals damage equal to its power. "This ability costs {1} less to activate for each Equipment you control" works on the battlefield
+    too (The Lonely Mountain); "as long as you control another Dwarf" is the condition `control_another`; "a Dwarf or Equipment card" and
+    "another Dwarf or Equipment you control" are kinds; Chainsaw's "+X/+0, where X is the number of rev counters on this Equipment".
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a
