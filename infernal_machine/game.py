@@ -31,7 +31,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -828,6 +828,7 @@ class Game:
                     self.untap(permanent)
                 permanent.sick = False
                 permanent.until_next_turn = []
+                self._your_turn_creature(permanent)
             for other in self.live_seats():  # goad lasts until the goader's next turn
                 for permanent in other.battlefield:
                     if permanent.goaded_by is seat:
@@ -1265,6 +1266,15 @@ class Game:
         if on_your_turn:
             permanent.until_end_of_turn.append(Modifier(0, 0, on_your_turn, your_turn=True))
         self.broadcast({"event": "became_creature", "card": permanent.card.name, "power": power, "toughness": toughness})
+
+    def _your_turn_creature(self, permanent: Permanent) -> None:
+        """Kaito, Bane of Nightmares: on its controller's turn it is a 3/4 Ninja creature with hexproof, a planeswalker still
+        (CR 306.8: damage dealt to it is marked and removes loyalty). The cleanup step reverts it. The "as long as he has loyalty
+        counters" clause is left out: a planeswalker without loyalty is put into the graveyard at once (CR 704.5i)."""
+        if (animation := your_turn_creature(permanent.card)) is not None:
+            power, toughness, subtype, keyword = animation
+            base = (permanent.original or permanent.card).type_line.partition("\u2014")[2].split()
+            self.animate(permanent, power, toughness, (), " ".join(base + [subtype]), False, frozenset({keyword}))
 
     def earthbend(self, land: Permanent, count: int) -> None:
         """Earthbend N (its reminder text): the land becomes a 0/0 creature with haste that's still a land, for good (not until
@@ -2414,6 +2424,8 @@ class Game:
             return int(max((c.cmc for c in this_turn if _watch_type_matches(amount.what, c)), default=0))
         if kind == "opponents":
             return len(self.opponents(controller))
+        if kind == "opponents_lost_life":
+            return sum(o.life_lost_turn == self.turn for o in self.opponents(controller))
         if kind == "spell_colors":  # Mana Cannons: the spell that set off this trigger
             spell = self.resolving_item.carried if self.resolving_item is not None else None
             return len(spell.card.colors) if isinstance(spell, StackItem) else 0
@@ -5951,6 +5963,8 @@ class Game:
             permanent.tapped = True  # Authority of the Consuls, Blind Obedience
         if saga_chapters(permanent.card):  # a Saga arrives with a lore counter, which triggers chapter I
             permanent.counters["lore"] = permanent.counters.get("lore", 0) + 1
+        if seat.index == self.active:  # Kaito entering on its controller's turn (cast, or ninjutsu): a creature already
+            self._your_turn_creature(permanent)
         seat.battlefield.append(permanent)
         if self.board_limit is not None and sum(len(s.battlefield) for s in self.seats) > self.board_limit:
             raise BoardLimitReached(self.board_limit)

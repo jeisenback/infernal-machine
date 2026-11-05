@@ -1138,6 +1138,7 @@ _AMOUNTS = [
      lambda m: Amount("greatest_power", m[1][:-1])),  # "creatures", "other creatures", "non-Human creatures", "Giants"
     (re.compile(r"the greatest mana value among instant and sorcery spells you've cast this turn", re.I),
      lambda m: Amount("greatest_mana_value_cast", "instant or sorcery spell")),
+    (re.compile(r"opponent who lost life this turn", re.I), lambda m: Amount("opponents_lost_life")),  # Kaito, Bane of Nightmares
     (re.compile(r"opponents?", re.I), lambda m: Amount("opponents")),
     (re.compile(r"the amount of mana spent to cast that spell", re.I), lambda m: Amount("mana_spent")),
     (re.compile(r"that spell's mana value", re.I), lambda m: Amount("spell_mana_value")),

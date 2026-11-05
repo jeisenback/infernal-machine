@@ -1483,6 +1483,21 @@ _ENTERS_TAPPED = [
 _CHOOSE_COLOR = re.compile(rf"(?:{_SELF} enters tapped\. )?As (?:it|{_SELF}) enters, choose a color(?: other than (white|blue|black|red|green))?\.", re.I)
 
 
+_YOUR_TURN_CREATURE = re.compile(rf"During your turn, as long as {_SELF} has one or more loyalty counters on (?:him|her|it), (?:he|she|it)'s a "
+                                 r"(\d+)/(\d+) ([A-Z][a-z]+) creature and has ([a-z]+)\.")  # Kaito, Bane of Nightmares
+
+
+@lru_cache(maxsize=None)
+def your_turn_creature(card: Card) -> tuple[int, int, str, str] | None:
+    """Kaito, Bane of Nightmares: "During your turn, as long as Kaito has one or more loyalty counters on him, he's a 3/4 Ninja
+    creature and has hexproof." gives (3, 4, "Ninja", "hexproof")."""
+    return next(((int(m[1]), int(m[2]), m[3], m[4]) for line in rules_lines(card) if (m := _YOUR_TURN_CREATURE.fullmatch(line))), None)
+
+
+def is_your_turn_creature_line(line: str) -> bool:
+    return _YOUR_TURN_CREATURE.fullmatch(line) is not None
+
+
 _CHOOSE_NAME = re.compile(rf"As {_SELF} enters, choose a card name\.", re.I)  # Pithing Needle, Disruptor Flute
 
 
