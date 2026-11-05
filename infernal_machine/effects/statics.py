@@ -304,6 +304,7 @@ _RULES_STATICS = [
      "spell_count_tax"),  # Damping Sphere
     (re.compile(r"Players can't gain life\.", re.I), "no_life_gain"),  # Sunspine Lynx, Erebos
     (re.compile(r"Each opponent can cast spells only any time they could cast a sorcery\.", re.I), "opp_sorcery_speed"),  # Teferi, Time Raveler
+    (re.compile(r"Activated abilities of artifact tokens you control cost \{1\} less to activate\.", re.I), "token_ability_discount"),  # Mutagen Man
 ]
 
 
@@ -322,7 +323,7 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
     "no_untap" (it stays tapped through its controller's untap step), "damp_lands" (a land tapped for two or more mana makes one {C}),
     "spell_count_tax" (a spell costs {1} more for each other spell its caster cast this turn), "no_life_gain" (nobody gains life), "opp_sorcery_speed" (its
-    controller's opponents cast spells only at sorcery speed), "cage_enter" / "cage_cast" (Grafdigger's Cage: no creature card
+    controller's opponents cast spells only at sorcery speed), "token_ability_discount" (the activated abilities of its controller's artifact tokens cost {1} less), "cage_enter" / "cage_cast" (Grafdigger's Cage: no creature card
     enters the battlefield from a graveyard or library, and no spell is cast from one), "name_lock" (nobody can activate the non-mana abilities of sources
     with the name the permanent chose), "umbra_armor" (an Aura that saves what it enchants from being destroyed), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
     alone), "enter_tapped:opp:creature" / ":artifact,creature" / ":nonbasic land" (those its controller's opponents control enter tapped), "no_enter_triggers:Creature" /
@@ -1005,8 +1006,18 @@ def enters_by_discarding_land(card: Card) -> bool:
     return any(line == _ENTERS_BY_DISCARD for line in rules_lines(card))
 
 
+_HEALS_FIRST = re.compile(rf"If damage would be dealt to {_SELF}, instead that damage is dealt, but all other damage already dealt to "
+                          r"(?:him|her|it) is healed\.", re.I)  # Wolverine, Fierce Fighter
+
+
+@lru_cache(maxsize=None)
+def heals_before_damage(card: Card) -> bool:
+    """Wolverine, Fierce Fighter: damage dealt to it first heals the damage already marked on it."""
+    return any(_HEALS_FIRST.fullmatch(line) for line in rules_lines(card))
+
+
 def is_replacement_line(line: str) -> bool:
-    return (_DRAW_PLUS_ONE.fullmatch(line) is not None or line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (_HEALS_FIRST.fullmatch(line) is not None or _DRAW_PLUS_ONE.fullmatch(line) is not None or line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _ENTER_PER_OPPONENT_LOSS, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _SQUIRRELS, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
                      _HALVE_OPPONENTS_PUT, _PROLIFERATE_TWICE)

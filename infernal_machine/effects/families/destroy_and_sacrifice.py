@@ -12,6 +12,7 @@ from ...prompts import PromptKind
 if TYPE_CHECKING:
     from ...game import Game, Seat
     from .base import Condition
+    from ...cards import Card
 
 
 @dataclass(frozen=True)
@@ -189,6 +190,21 @@ class SacrificeSelf:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game._leave_battlefield(target, "sacrificed")
+
+
+@dataclass(frozen=True)
+class SacrificeSelfThenCreate:
+    """The Misty Mountains Cold: "Then if you control four or more Treasures, sacrifice this Saga. If you do, create a 6/6 red Dragon
+    creature token with flying." """
+    condition: "Condition"
+    token: "Card"
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None or not game.condition_holds(self.condition, controller, target):
+            return
+        game._leave_battlefield(target, "sacrificed")
+        game.create_tokens(controller, self.token, 1)
 
 
 @dataclass(frozen=True)

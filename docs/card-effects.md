@@ -1111,6 +1111,18 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     deals damage equal to its power. "This ability costs {1} less to activate for each Equipment you control" works on the battlefield
     too (The Lonely Mountain); "as long as you control another Dwarf" is the condition `control_another`; "a Dwarf or Equipment card" and
     "another Dwarf or Equipment you control" are kinds; Chainsaw's "+X/+0, where X is the number of rev counters on this Equipment".
+  - Standard's Jund Sacrifice deck (`tests/test_jund_sacrifice.py`): Gene Pollinator's "Tap an untapped permanent you control" is a
+    cost like Springleaf Drum's; Wolverine "fights up to one other target creature", and damage dealt to him first heals what was
+    already dealt (`heals_before_damage`, not while he has lost his abilities). Mutagen tokens are named tokens; "Activated abilities
+    of artifact tokens you control cost {1} less to activate" is the rules static `token_ability_discount`. The Misty Mountains Cold's
+    "Then if you control four or more Treasures, sacrifice this Saga. If you do, create ..." is `SacrificeSelfThenCreate`. Lively
+    Dirge's Spree modes: the Entomb search, and `ReturnUpToTotalManaValue` (the cards are chosen one by one under what is left of the
+    total, then return together). "When this enchantment enters and at the beginning of your upkeep, ..." is two triggers; "the number
+    of permanents you've sacrificed this turn" counts every sacrifice (`Seat.sacrificed`), and "If X is three or more, that creature
+    gains lifelink" rides on the counters (`grant_at_least`). Rottenmouth Viper: its caster picks how many nonland permanents to
+    sacrifice among the numbers that pay for the rest (a Treasure spent on mana can't also be sacrificed; it is offered only if one
+    does), and `PunishPerCounter` asks each opponent, for each blight counter it had, to lose 4 life, sacrifice or discard
+    (`Game.punish`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

@@ -744,6 +744,16 @@ _SACRIFICE_FOR_COPIES = re.compile(r"As an additional cost to cast this spell, y
                                    r"this spell for each creature sacrificed this way\.")
 
 
+_SACRIFICE_DISCOUNT = re.compile(r"As an additional cost to cast this spell, you may sacrifice any number of (nonland permanents|creatures|artifacts)\. "
+                                 r"This spell costs \{1\} less to cast for each (?:permanent|creature|artifact) sacrificed this way\.")
+
+
+@lru_cache(maxsize=None)
+def sacrifice_discount(card: Card) -> str | None:
+    """Rottenmouth Viper: the kind of permanent ("nonland permanent") its caster may sacrifice any number of, {1} less for each."""
+    return next((m[1].removesuffix("s") for line in rules_lines(card) if (m := _SACRIFICE_DISCOUNT.fullmatch(line))), None)
+
+
 @lru_cache(maxsize=None)
 def copies_per_sacrifice(card: Card) -> bool:
     """Plumb the Forbidden: you may sacrifice creatures as you cast it, and it is copied for each."""
@@ -752,7 +762,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
