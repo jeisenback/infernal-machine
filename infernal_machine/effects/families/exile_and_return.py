@@ -478,6 +478,20 @@ class _DrawPerReturned:
 
 
 @dataclass(frozen=True)
+class ReturnPerOpponent:
+    """The Theorist, Jace Beleren: "For each opponent, return up to one target artifact or creature that player controls to its
+    owner's hand." The targets are one list, a permanent (or none) for each opponent in turn order."""
+    target: str = "artifact or creature"
+    per_player = "opponent"
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for permanent in target or []:
+            game.return_to_hand(permanent)
+
+
+@dataclass(frozen=True)
 class ReturnToHand:
     """Bounce: "Return target nonland permanent you don't control to its owner's hand." """
     target: str

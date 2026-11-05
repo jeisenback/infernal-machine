@@ -580,6 +580,8 @@ class Caster:
             if getattr(effect, "per_player", False):  # "for each player, ... up to one target creature that player controls"
                 picked = []
                 for owner in self.game.turn_order_from_active():
+                    if owner is seat and effect.per_player == "opponent":
+                        continue  # The Theorist, Jace Beleren: "For each opponent, ..."
                     pool = [o for o in self.game.target_options(kind, seat, colors) if self.game.controller_of(o[1]) is owner]
                     if pool:
                         pick = seat.player.choose(g.TARGET_PROMPT(source_name), [o[0] for o in pool] + [g.NO_TARGET])
