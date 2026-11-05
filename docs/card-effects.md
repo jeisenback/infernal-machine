@@ -1070,6 +1070,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     counters on him, he's a 3/4 Ninja creature and has hexproof." is `your_turn_creature`: at its controller's untap step, or as it
     enters on their turn, `Game.animate` makes it a 3/4 Ninja creature with hexproof that is still a planeswalker, and the cleanup step
     reverts it; "draw a card for each opponent who lost life this turn" is the amount `opponents_lost_life`.
+  - Karn, the Great Creator (`tests/test_karn_the_great_creator.py`): "Activated abilities of artifacts your opponents control can't be
+    activated." is the rules static `lock_opp:Artifact` (`_ability_barred`, mana abilities too); the +1 is `AnimateByManaValue`
+    (`Game.animate_until_next_turn`: `Permanent.animated_until` keeps it a creature through the cleanup step until its controller's next
+    untap step); the −2 is `WishArtifact` (`Game.wish_artifact`): an artifact card from `Seat.sideboard` (outside the game) or a
+    face-up one from exile (not a foretold card), or nothing.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

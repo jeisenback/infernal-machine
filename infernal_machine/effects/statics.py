@@ -273,6 +273,7 @@ _RULES_STATICS = [
     (re.compile(r"You can't cast (creature|noncreature) spells\.", re.I), "no_cast_kind"),
     (re.compile(r"Activated abilities of (artifacts|creatures|artifacts and creatures|artifacts, creatures, and planeswalkers) can't be activated\.", re.I),
      "lock"),  # Stony Silence; Clarion Conqueror: the types, as "lock:Artifact,Creature,Planeswalker"
+    (re.compile(r"Activated abilities of artifacts your opponents control can't be activated\.", re.I), "lock_opp:Artifact"),  # Karn, the Great Creator
     (re.compile(r"Each opponent can't draw more than one card each turn\.", re.I), "draw_limit:opponents"),  # Narset, Parter of Veils
     (re.compile(r"Each player can't draw more than one card each turn\.", re.I), "draw_limit:each"),
     (re.compile(r"Creature spells you control can't be countered\.", re.I), "uncounterable:creature"),
@@ -314,7 +315,7 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     """What a permanent's static rules-changing abilities do, as keys: "opp_no_cast:turn" / ":combat" (its controller's opponents
     can't cast spells during its controller's turn / during combat), "opp_lock:Artifact,Creature,Enchantment" (on its controller's
     turn their abilities of those can't be activated), "one_spell:each" / ":you" (one spell a turn), "no_cast_kind:creature" /
-    ":noncreature" (its controller can't cast those), "lock:Artifact" / "lock:Artifact,Creature,Planeswalker" (nobody can activate abilities of those), "draw_limit:opponents" / ":each"
+    ":noncreature" (its controller can't cast those), "lock:Artifact" / "lock:Artifact,Creature,Planeswalker" (nobody can activate abilities of those), "lock_opp:Artifact" (its controller's opponents can't activate the abilities of their artifacts), "draw_limit:opponents" / ":each"
     (its controller's opponents, or every player, can't draw more than one card each turn), "uncounterable:spell"
     / ":creature" (its controller's), "flash:spell" / ":creature" / ":sorcery" / ":Spirit" (its controller may cast those at instant
     speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic),

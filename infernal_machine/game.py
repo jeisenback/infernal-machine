@@ -136,6 +136,7 @@ CHOOSE_COLOR_PROMPT = PromptKind("choose_color", "Choose a color for ")  # follo
 KAROO_PROMPT = PromptKind("karoo", "Return a land or sacrifice ")  # followed by the card's name; the last option is SACRIFICE_IT
 SACRIFICE_IT = "Sacrifice it"
 CHOOSE_LAND_TYPE_PROMPT = PromptKind("choose_land_type", "Choose a basic land type for ")  # followed by the land's name; Plains, Island, Swamp, Mountain, Forest
+WISH_PROMPT = PromptKind("wish", "Put into your hand for ")  # followed by the source's name; options: "<card> (outside the game)", "<card> (exile)", "Nothing"
 CHOOSE_NAME_PROMPT = PromptKind("choose_name", "Choose a card name for ")  # followed by the card's name; options are the names in view
 CHOOSE_TYPE_PROMPT = PromptKind("choose_type", "Choose a creature type for ")  # followed by the card's name; options are the types, most common first
 _PRIMES = frozenset({2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97})
@@ -325,6 +326,7 @@ class Permanent:
     cast: bool = False  # it came from a spell that was cast ("When it enters, if you cast it")
     mana_types_spent: tuple[frozenset[str], ...] = ()  # the types each mana spent to cast it could be (Deceit: "if {U}{U} was spent to cast it")
     returns_when_dies: int = 0  # Malakir Rebirth: the turn it gained "When this creature dies, return it to the battlefield tapped"
+    animated_until: int | None = None  # Karn, the Great Creator: animated "until your next turn", the index of the seat whose turn ends it
     earthbent: bool = False  # a land earthbent into a creature for good: `original` is the land, and it returns tapped when it dies or is exiled
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     chosen_color: str | None = None  # "As this enters, choose a color." (a color letter)
@@ -505,6 +507,7 @@ class Seat:
     foretold: list = field(default_factory=list)  # (turn, card) for each foretold card in exile (it can be cast from the next turn on)
     plotted: list = field(default_factory=list)  # (turn, card) for each plotted card in exile (it can be cast free from the next turn on)
     signature: str | None = None  # an Oathbreaker's signature spell, which starts in the command zone and is cast only while its owner controls the Oathbreaker
+    sideboard: list = field(default_factory=list)  # cards outside the game: "an artifact card you own from outside the game" (Karn, the Great Creator)
     companion: Card | None = None  # kept outside the game: for {3}, once, at sorcery timing, it goes into the hand (CR 702.139)
     companion_used: bool = False
     player_counters: dict[str, int] = field(default_factory=dict)  # counters on the player: poison, energy, ...
@@ -651,6 +654,7 @@ class Game:
                 color_identity=frozenset(color for c in deck.commanders for color in c.color_identity),
                 conjurable=dict(deck.conjured),
                 companion=deck.companion,
+                sideboard=list(deck.sideboard),
             )
             for i, (player, deck) in enumerate(seats)
         ]
@@ -833,6 +837,8 @@ class Game:
                 for permanent in other.battlefield:
                     if permanent.goaded_by is seat:
                         permanent.goaded_by = None
+                    if permanent.animated_until == seat.index:  # Karn, the Great Creator's +1: "until your next turn"
+                        permanent.card, permanent.original, permanent.animated_until = _checked(permanent.original), None, None
             for other in self.live_seats():  # Seedborn Muse: everything untaps in each other player's untap step
                 if other is not seat:
                     for source in other.battlefield:
@@ -948,7 +954,7 @@ class Game:
                     permanent.deathtouched = False
                     permanent.until_end_of_turn = []  # CR 514.2
                     permanent.regeneration = 0
-                    if permanent.original is not None and not permanent.earthbent:  # a Vehicle's crew lasts until end of turn
+                    if permanent.original is not None and not permanent.earthbent and permanent.animated_until is None:  # a Vehicle's crew lasts until end of turn
                         permanent.card, permanent.original = permanent.original, None
             for permanent in [p for s in self.live_seats() for p in s.battlefield]:  # control "until end of turn" ends
                 if permanent.control_eot:
@@ -1267,6 +1273,29 @@ class Game:
             permanent.until_end_of_turn.append(Modifier(0, 0, on_your_turn, your_turn=True))
         self.broadcast({"event": "became_creature", "card": permanent.card.name, "power": power, "toughness": toughness})
 
+    def animate_until_next_turn(self, controller: Seat, permanent: Permanent) -> None:
+        """Karn, the Great Creator's +1: until `controller`'s next turn the noncreature artifact is an artifact creature with power and
+        toughness each equal to its mana value (it reverts in that player's untap step, not in the cleanup step)."""
+        value = int(permanent.card.cmc)
+        self.animate(permanent, value, value, (), (permanent.original or permanent.card).type_line.partition("\u2014")[2].strip(), True, frozenset())
+        permanent.animated_until = controller.index
+
+    def wish_artifact(self, seat: Seat, source: str) -> None:
+        """Karn, the Great Creator's −2: "You may reveal an artifact card you own from outside the game or choose a face-up artifact
+        card you own in exile. Put that card into your hand." Outside the game is the sideboard; a foretold card is face down."""
+        face_down = [card for _, card in seat.foretold]
+        options = [(seat.sideboard, card, f"{card.name} (outside the game)") for card in seat.sideboard if "Artifact" in card.type_line] + \
+            [(seat.exile, card, f"{card.name} (exile)") for card in seat.exile
+             if "Artifact" in card.type_line and not any(card is c for c in face_down)]
+        if not options:
+            return
+        i = seat.player.choose(WISH_PROMPT(source), [label for _, _, label in options] + ["Nothing"])
+        if i < len(options):
+            zone, card, _ = options[i]
+            zone.remove(card)
+            seat.hand.append(card)
+            self.broadcast({"event": "returned_to_hand", "seat": seat.index, "card": card.name, "from": "sideboard" if zone is seat.sideboard else "exile"})
+
     def _your_turn_creature(self, permanent: Permanent) -> None:
         """Kaito, Bane of Nightmares: on its controller's turn it is a 3/4 Ninja creature with hexproof, a planeswalker still
         (CR 306.8: damage dealt to it is marked and removes loyalty). The cleanup step reverts it. The "as long as he has loyalty
@@ -1449,7 +1478,7 @@ class Game:
 
     def _ability_barred(self, permanent: Permanent, mana: bool = False) -> bool:
         """Whether a static ability stops the abilities of `permanent` being activated: Stony Silence (artifacts), Clarion Conqueror
-        (artifacts, creatures and planeswalkers), Grand Abolisher
+        (artifacts, creatures and planeswalkers), Karn, the Great Creator (an opponent's artifacts), Grand Abolisher
         (an opponent's artifacts, creatures and enchantments, on its controller's turn), Pithing Needle (the chosen name, unless
         `mana`: a mana ability). A land's mana ability is not stopped by the second."""
         if not mana and self.name_locked(permanent.card):
@@ -1458,6 +1487,8 @@ class Game:
         for owner, _, key in self._static_rules():
             if key.startswith("lock:") and any(t in permanent.card.type_line for t in key.removeprefix("lock:").split(",")):
                 return True  # Stony Silence; Clarion Conqueror: artifacts, creatures and planeswalkers
+            if key.startswith("lock_opp:") and owner is not controller and any(t in permanent.card.type_line for t in key.removeprefix("lock_opp:").split(",")):
+                return True  # Karn, the Great Creator: its controller's opponents' artifacts, on every turn
             if key.startswith("opp_lock:") and owner is not controller and self.seats[self.active] is owner \
                     and any(t in permanent.card.type_line for t in key.removeprefix("opp_lock:").split(",")):
                 return True

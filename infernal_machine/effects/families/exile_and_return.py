@@ -18,6 +18,15 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class WishArtifact:
+    """Karn, the Great Creator: "You may reveal an artifact card you own from outside the game or choose a face-up artifact card you
+    own in exile. Put that card into your hand." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.wish_artifact(controller, game.resolving_source.card.name if game.resolving_source else "")
+
+
+@dataclass(frozen=True)
 class ExileTargetIfDies:
     """ "If that creature would die this turn, exile it instead." (Lava Coil, Bleed Dry): the target the spell just dealt with."""
     binds = PREVIOUS_TARGET
