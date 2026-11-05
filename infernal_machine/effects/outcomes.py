@@ -217,6 +217,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     _SacrificeThemLater,
 )
 from .families.exile_and_return import (  # noqa: F401
+    ReturnPerOpponent,
     WishArtifact,
     ExileUpToXFromGraveyards,
     CastExiledWithFree,
@@ -2093,6 +2094,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ExileWithTimeCounters(_number(m[1]))),
     (re.compile(rf"target player puts an? {_COUNTER} on each creature they control\.", re.I),
      lambda m: TargetPutsCountersOnEach(_counter_name(m[1]))),
+    (re.compile(r"for each opponent, return up to one target artifact or creature that player controls to its owner's hand\.", re.I),
+     lambda m: ReturnPerOpponent()),  # The Theorist, Jace Beleren
     (re.compile(rf"for each player, put an? {_COUNTER} on up to one target creature that player controls\.", re.I),
      lambda m: PutCounterPerPlayer(_counter_name(m[1]))),
     (re.compile(r"each player puts a vow counter on a creature they control and sacrifices the rest\. Each of those creatures "

@@ -172,7 +172,7 @@ declare("scry_or_surveil", re.compile(r"Whenever you scry or surveil, (.+)", re.
 declare("scry", re.compile(r"Whenever you scry, (.+)", re.I), to="you", happens="scried")
 declare("surveil", re.compile(r"Whenever you surveil, (.+)", re.I), to="you", happens="surveilled")
 declare("draw_step", re.compile(r"At the beginning of your draw step, (.+)", re.I), to="you", happens="draw_step")
-declare("other_draw_step", re.compile(r"At the beginning of each other player's draw step, (.+)", re.I),
+declare("other_draw_step", re.compile(r"At the beginning of each (?:other player's|opponent's) draw step, (.+)", re.I),
         to="opponents", happens="draw_step", about_player=True)
 declare("opponent_upkeep", re.compile(r"At the beginning of each opponent's upkeep, (.+)", re.I), about_player=True)
 declare("opponent_end_step", re.compile(r"At the beginning of (?:each|an) opponent's end step, (.+)", re.I), about_player=True)

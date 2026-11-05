@@ -1079,6 +1079,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     into the `Untap` before it (`counter_if_artifact_creature`); in his emblem, "If it's not a creature, it becomes a 0/0 Robot artifact
     creature." folds into the `PutCounters` before it (`becomes`, `Game.become_creature_for_good`, keeping its own subtypes). An
     emblem's "At the beginning of combat on your turn" triggers, as a permanent's does.
+  - The Theorist, Jace Beleren (`tests/test_the_theorist_jace_beleren.py`): "At the beginning of each opponent's draw step" is the event
+    `other_draw_step`; "For each opponent, return up to one target artifact or creature that player controls to its owner's hand." is
+    `ReturnPerOpponent`, a target (or none) for each opponent in turn order (`per_player = "opponent"`, which leaves out the caster).
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
