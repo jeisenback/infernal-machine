@@ -220,6 +220,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     _SacrificeThemLater,
 )
 from .families.exile_and_return import (  # noqa: F401
+    ExileAttackers,
     ReturnPerOpponent,
     WishArtifact,
     ExileUpToXFromGraveyards,
@@ -487,6 +488,7 @@ from .families.spells_and_misc import (  # noqa: F401
     _MayRemoveCounter,
     _ArtifactCreatureGetsCounter,
     _BecomesIfNotCreature,
+    NextSpellUncounterable,
     _ThatAlsoGains,
     _ThatGainsIf,
     _TheyGain,
@@ -980,13 +982,13 @@ def _is_ability(card: Card, line: str) -> bool:
 
 _ANIMATED = (r"(\d+)/(\d+)(?: ((?:white|blue|black|red|green)(?:(?:,? and |, )(?:white|blue|black|red|green))*))?"
              r"(?: ((?:[A-Z][\w'-]*)(?: [A-Z][\w'-]*)*))?( artifact)? creature(?: with (all creature types|"
-             + _KEYWORDS_BARE + r"))?"
+             + _KEYWORDS_BARE + r"(?: and all creature types)?))?"
              r"(?: with \"During your turn, this creature has (" + _KEYWORDS_BARE + r")(?=\.\"))?")
 
 
 def _animate(m: re.Match, target: str | None, offset: int = 0) -> Animate:
     power, toughness, colors, subtypes, artifact, keywords, on_your_turn = m.group(*range(offset + 1, offset + 8))
-    keywords = None if keywords == "all creature types" else keywords
+    keywords = None if keywords == "all creature types" else keywords and keywords.removesuffix(" and all creature types")
     return Animate(int(power), int(toughness), tuple(_COLOR_WORDS[c] for c in re.findall(_COLOR, colors or "")),
                    subtypes or "", artifact is not None, _keyword_list(keywords) if keywords else frozenset(),
                    target, on_source=target is None,
@@ -1462,6 +1464,7 @@ def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] =
 
 
 _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
+                   r"|creature, enchantment, or planeswalker|non-outlaw creature"  # Get Lost; Shoot the Sheriff
                    r"|monocolored permanent|(?:white|blue|black|red|green) permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact|legendary) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
@@ -1525,7 +1528,8 @@ def _up_to(cls: type, m: re.Match, **fixed: Any) -> list:
     return [cls(kind, optional_target=True, distinct=n > 0, **fixed) for n in range(_number(m[1]))]
 
 
-_DAMAGE_KIND = (r"(any target|target attacking or blocking creature|target creature an opponent controls|target creature|target player|target opponent|target creature or planeswalker"
+_DAMAGE_KIND = (r"(any target|target attacking or blocking creature|target creature an opponent controls|target creature with(?:out)? flying"
+                r"|target creature|target player|target opponent|target creature or planeswalker"
                 r"|target player or planeswalker)")
 
 
@@ -1870,7 +1874,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you gain life equal to the life lost this way\.", re.I), lambda m: _GainLifeLost()),
     (re.compile(r"each player may discard their hand and draw (seven) cards\.", re.I),
      lambda m: EachMayWheel(_number(m[1]))),
-    (re.compile(r"(?:you may )?tap or untap target (creature|permanent)\.", re.I), lambda m: TapOrUntap(m[1].lower())),  # Derevi: permanent
+    (re.compile(r"(?:you may )?tap or untap target (creature|permanent)\.", re.I), lambda m: TapOrUntap(m[1].lower())),
+    (re.compile(r"tap up to one target creature\.", re.I), lambda m: Tap("creature", optional_target=True)),  # Vibrant Outburst
+    (re.compile(r"the next spell you cast this turn can't be countered\.", re.I), lambda m: NextSpellUncounterable()),  # Mistrise Village
+    (re.compile(r"exile all attacking creatures target player controls\. That player may search their library for that many basic land "
+                r"cards, put those cards onto the battlefield tapped, then shuffle\.", re.I), lambda m: ExileAttackers()),  # Settle the Wreckage  # Derevi: permanent
     (re.compile(rf"target (player|opponent) gains {_N} life\.", re.I), lambda m: TargetGainLife(_count(m[2]), m[1].lower())),
     (re.compile(rf"target (player|opponent) loses {_N} life\.", re.I), lambda m: TargetLoseLife(_count(m[2]), m[1].lower())),
     # Sanguine Bond, Exquisite Blood: "that much" is the life the trigger's event carried, which the game keeps as X
@@ -2519,6 +2527,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                                  _counter_name(m[2]), m[4].lower(), same_controller=bool(m[5]))]),
     (re.compile(rf"(?:Until end of turn, )(?:CARDNAME|this land) becomes an? {_ANIMATED}\.\"?"), lambda m: _animate(m, None)),
     (re.compile(rf"(?i:CARDNAME|this land) becomes an? {_ANIMATED} (?i:until end of turn)\.\"?"), lambda m: _animate(m, None)),
+    (re.compile(rf"(?i:CARDNAME|this land) becomes an? {_ANIMATED}\."), lambda m: dataclasses.replace(_animate(m, None), for_good=True)),  # Soulstone Sanctuary
+    (re.compile(r"If (?:CARDNAME|this land) isn't a creature, it becomes a (\d+)/(\d+) ([A-Z][a-z]+) creature with \"([^\"]+\.)\""),
+     lambda m: Animate(int(m[1]), int(m[2]), (), m[3], False, frozenset(), on_source=True, for_good=True, grant=m[4],
+                       unless_creature=True)),  # Great Hall of the Biblioplex
     (re.compile(rf"(?i:target) (land you control) becomes an? {_ANIMATED} (?i:until end of turn)\.\"?"),
      lambda m: _animate(m, m[1].lower(), 1)),
     (re.compile(r"it's still an? (land|artifact)\.", re.I), lambda m: StillALand()),
@@ -2570,14 +2582,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:its|that creature's) controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
     (re.compile(r"that player may search their library for a land card with a basic land type, put it onto the battlefield, "
                 r"then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand(tapped=False, typed=True)),  # Boseiju
-    (re.compile(r"its controller may search their library for a basic land card, put (?:it|that card) onto the "
+    (re.compile(r"(?:its|that land's) controller may search their library for a basic land card, put (?:it|that card) onto the "
                 r"battlefield( tapped)?, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand(tapped=bool(m[1]))),
     (re.compile(r"its controller searches their library for a basic land card, puts it onto the battlefield tapped with a stun counter "
                 r"on it, then shuffles\.", re.I), lambda m: TargetControllerMayFetchBasicLand(optional=False, stun=True)),  # Magmatic Hellkite
     (re.compile(r"search your library for a basic land card, put (?:it|that card) onto the battlefield tapped, "
                 r"then shuffle\.", re.I),
      lambda m: FetchBasicLand()),
-    (re.compile(r"search your library for a basic land card, put it onto the battlefield, then shuffle\.", re.I),
+    (re.compile(r"(?:you may )?search your library for a basic land card, put it onto the battlefield, then shuffle\.", re.I),  # "you may": Demolition Field
      lambda m: FetchBasicLand(tapped=False)),
     (re.compile(r"if (you control an? (?-i:[A-Z])\w+), (?!.*\binstead\.$)(.+)\.", re.I), _if_else),  # Unholy Annex
     (re.compile(r"otherwise, (.+)\.", re.I), _otherwise),

@@ -124,6 +124,8 @@ class Caster:
         self.game._spend_mana(seat, tapped)
         no_counter = any((limited := restricted_mana(p.card)) is not None and limited.uncounterable
                          and self.game._restricted_mana_ok(p, limited, paying) for p in tapped)
+        if seat.next_uncounterable_turn == self.game.turn:  # Mistrise Village: "The next spell you cast this turn can't be countered."
+            no_counter, seat.next_uncounterable_turn = True, None
         spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
         delved: list[Card] = []
         for _ in range(delve):

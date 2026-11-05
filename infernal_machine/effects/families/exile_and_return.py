@@ -492,6 +492,17 @@ class ReturnPerOpponent:
 
 
 @dataclass(frozen=True)
+class ExileAttackers:
+    """Settle the Wreckage: "Exile all attacking creatures target player controls. That player may search their library for that many
+    basic land cards, put those cards onto the battlefield tapped, then shuffle." """
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_attackers(target)
+
+
+@dataclass(frozen=True)
 class ReturnToHand:
     """Bounce: "Return target nonland permanent you don't control to its owner's hand." """
     target: str

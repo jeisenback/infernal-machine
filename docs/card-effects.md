@@ -797,6 +797,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     given out one at a time as it resolves, so any split works, and nothing is targeted; a creature with hexproof or protection from the
     source is left out. Not understood: -2/-1 counters, "Vehicles and/or creatures", a "where X is" clause, and a second sentence
     on the same line (Glint Weaver, Undercity Upheaval).
+  - Standard's removal and lands (`tests/test_standard_removal_and_lands.py`): the target kinds "creature, enchantment, or planeswalker"
+    (Get Lost), "creature without flying" / "with flying" (Charring Bite: the creature's keywords now, granted ones included) and
+    "non-outlaw creature" (Shoot the Sheriff: not an Assassin, Mercenary, Pirate, Rogue or Warlock); "Tap up to one target creature.";
+    Settle the Wreckage is `ExileAttackers`; a land that "becomes a 3/3 creature with vigilance and all creature types" with no
+    duration stays one (`Animate.for_good`, `Game.animate_for_good`: its keywords and quoted ability are written on its card), and
+    Great Hall of the Biblioplex's "If this land isn't a creature, it becomes a 2/4 Wizard creature with "...""; Mistrise Village's
+    "The next spell you cast this turn can't be countered." (`Seat.next_uncounterable_turn`); Demolition Field's searches.
   - Ninjutsu and Commander ninjutsu (`tests/test_ninjutsu.py`): `Ninjutsu {cost}` is the action `Ninjutsu: <card>`, offered to the
     active player once blockers are declared (`declare_blockers`) when they have an unblocked attacker (one that is neither blocked nor
     stays blocked) and the mana; Commander ninjutsu also from the command zone. Paying returns the attacker to its owner's hand and puts

@@ -154,6 +154,8 @@ _WHOLE_LINE = re.compile(
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
     r"|You may behold an? [A-Z][a-z]+\. If you do, untap that land\."  # Elven Passage
+    r"|Exile all attacking creatures target player controls\. That player may search their library for that many basic land cards, "
+    r"put those cards onto the battlefield tapped, then shuffle\."  # Settle the Wreckage
     r"|[Aa]ttach any number of target Equipment you control to target creature you control\. When one or more Equipment become "
     r"attached to that creature this way, that creature deals damage equal to its power to up to one target creature\."  # Thorin
     r"|You may reveal an artifact card you own from outside the game or choose a face-up artifact card you own in exile\. Put that card "

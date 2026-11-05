@@ -56,13 +56,20 @@ class Animate:
     target: str | None = None
     on_source: bool = False  # it is about the ability's source, not a chosen target
     on_your_turn: frozenset[str] = frozenset()  # keywords it has only during its controller's turn (Restless Spire)
+    for_good: bool = False  # Soulstone Sanctuary: no "until end of turn", so it stays a creature
+    grant: str = ""  # Great Hall of the Biblioplex: a quoted ability it gains
+    unless_creature: bool = False  # Great Hall: "If this land isn't a creature, ..."
 
     @property
     def binds(self) -> str | None:
         return SOURCE if self.on_source else None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
+        if target is None or (self.unless_creature and "Creature" in target.card.type_line):
+            return
+        if self.for_good:
+            game.animate_for_good(target, self.power, self.toughness, self.colors, self.subtypes, self.keywords, self.grant)
+        else:
             game.animate(target, self.power, self.toughness, self.colors, self.subtypes, self.artifact, self.keywords,
                          self.on_your_turn)
 

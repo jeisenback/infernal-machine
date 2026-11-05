@@ -4,10 +4,8 @@
    "cards": 60,
    "unplayable": [
     "Captain Marvel, Earth's Protector",
-    "Get Lost",
     "Petrified Hamlet",
     "Pinnacle Starcage",
-    "Settle the Wreckage",
     "Wan Shi Tong, Librarian"
    ]
   },
@@ -24,8 +22,7 @@
    "cards": 60,
    "unplayable": [
     "Magda, the Hoardmaster",
-    "Sarkhan, Dragon Ascendant",
-    "Twinmaw Stormbrood // Charring Bite"
+    "Sarkhan, Dragon Ascendant"
    ]
   },
   "boros_dwarves": {
@@ -44,8 +41,6 @@
   "dimir_midrange": {
    "cards": 60,
    "unplayable": [
-    "Shoot the Sheriff",
-    "Soulstone Sanctuary",
     "The Wondrous Wasp",
     "Tishana's Tidebinder",
     "Wan Shi Tong, Librarian",
@@ -65,7 +60,6 @@
    "cards": 60,
    "unplayable": [
     "Secret Identity",
-    "Vibrant Outburst",
     "Wild Ride"
    ]
   },
@@ -98,8 +92,6 @@
     "Ajani Unrelenting",
     "Chandra, Torch of Defiance",
     "Flashback",
-    "Great Hall of the Biblioplex",
-    "Mistrise Village",
     "Ral, Crackling Wit"
    ]
   },
@@ -118,7 +110,6 @@
   "mono_green_landfall": {
    "cards": 60,
    "unplayable": [
-    "Demolition Field",
     "Keen-Eyed Curator",
     "Pit of Offerings",
     "Sapling Nursery"
