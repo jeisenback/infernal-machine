@@ -292,6 +292,13 @@ class _ArtifactCreatureGetsCounter:
 
 
 @dataclass(frozen=True)
+class _GainsIfXAtLeast:
+    """ "If X is three or more, that creature gains lifelink until end of turn." after PutCounters with X counters (Obsessive Pursuit)."""
+    keywords: frozenset[str]
+    least: int
+
+
+@dataclass(frozen=True)
 class _BecomesIfNotCreature:
     """ "If it's not a creature, it becomes a 0/0 Robot artifact creature." after a PutCounters (Tezzeret, Cruel Captain's emblem)."""
     power: int

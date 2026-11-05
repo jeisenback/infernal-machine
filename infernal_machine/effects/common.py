@@ -255,7 +255,8 @@ _WHOLE_LINE = re.compile(
     r"|Each player sacrifices an? (?:creature or planeswalker|nontoken creature) of their choice\. Each player who can't discards a card\."
     r"|Look at the top card of your library\. If it's an? (?:creature )?card of the chosen type, you may reveal it and put it into "
     r"your hand\."
-    r"|Tap enchanted creature\. It becomes unprepared\.", re.I)
+    r"|Tap enchanted creature\. It becomes unprepared\."
+    r"|Then if you control [a-z]+ or more [A-Z][a-z]+s, sacrifice this Saga\. If you do, create [^.]+\.", re.I)
 
 
 def _split_sentences(text: str) -> list[str]:

@@ -213,6 +213,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     SacrificeAll,
     SacrificeCreature,
     SacrificeSelf,
+    SacrificeSelfThenCreate,
     SacrificeUnlessPay,
     TargetSacrifices,
     TragicArrogance,
@@ -267,6 +268,7 @@ from .families.exile_and_return import (  # noqa: F401
     ReturnDeadToBattlefield,
     ReturnExiledToGraveyard,
     ReturnFromGraveyard,
+    ReturnUpToTotalManaValue,
     ReturnLater,
     ReturnOwnLand,
     ReturnSelfAsEnchantment,
@@ -399,6 +401,7 @@ from .families.life_and_damage import (  # noqa: F401
     LifeLocked,
     LoseAllButOneLife,
     LoseLife,
+    PunishPerCounter,
     OpponentsLoseLife,
     PlayerLosesLife,
     PoisonShrinksOpponentsCreatures,
@@ -493,6 +496,7 @@ from .families.spells_and_misc import (  # noqa: F401
     NextSpellUncounterable,
     _ThatAlsoGains,
     _ThatGainsIf,
+    _GainsIfXAtLeast,
     _TheyGain,
     _TheyGainHaste,
     _TokenAttacksThisCombat,
@@ -909,11 +913,15 @@ MAP = Card(name="Map", type_line="Token Artifact \u2014 Map",  # Spyglass Siren
            oracle_text="{1}, {T}, Sacrifice this token: Target creature you control explores. Activate only as a sorcery.")
 
 
+MUTAGEN = Card(name="Mutagen", type_line="Token Artifact \u2014 Mutagen",  # Mutagen Man, Living Ooze
+               oracle_text="{1}, {T}, Sacrifice this token: Put a +1/+1 counter on target creature. Activate only as a sorcery.")
+
+
 HEARTWOOD = Card(name="Heartwood", type_line="Token Artifact — Heartwood", oracle_text="{T}: Add {R} or {G}.",
                  colors=("R", "G"))
 
 
-_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "blood": BLOOD, "heartwood": HEARTWOOD, "lander": LANDER, "map": MAP}
+_NAMED_TOKENS = {"treasure": TREASURE, "clue": CLUE, "food": FOOD, "blood": BLOOD, "heartwood": HEARTWOOD, "lander": LANDER, "map": MAP, "mutagen": MUTAGEN}
 
 
 _COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
@@ -932,7 +940,7 @@ _CREATURE_TOKEN = re.compile(
 )
 
 
-_NAMED_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) (Treasure|Clue|Food|Blood|Heartwood|Lander|Map) tokens?")
+_NAMED_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) (Treasure|Clue|Food|Blood|Heartwood|Lander|Map|Mutagen) tokens?")
 _NAMED_ARTIFACT_TOKEN = re.compile(rf"(?i:{_TOKEN_COUNT}) colorless artifact tokens? named ([A-Z][\w'-]*) with \"(.+)\"")  # Weapons Manufacturing's Munitions
 
 
@@ -1141,7 +1149,8 @@ _AMOUNTS = [
     (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
     (re.compile(r"(?:the number of )?((?-i:[A-Z][a-z]+)) on the battlefield", re.I), lambda m: Amount("on_battlefield", _singular(m[1]))),  # a creature type
     (re.compile(r"(?:the number of )?creatures? that died under your control this turn", re.I), lambda m: Amount("creatures_died")),
-    (re.compile(r"(?:the number of )?creatures? that died this turn", re.I), lambda m: Amount("all_creatures_died")),  # Mahadi: whoever controlled them
+    (re.compile(r"(?:the number of )?creatures? that died this turn", re.I), lambda m: Amount("all_creatures_died")),
+    (re.compile(r"the number of permanents you've sacrificed this turn", re.I), lambda m: Amount("sacrificed")),  # Obsessive Pursuit  # Mahadi: whoever controlled them
     (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
     (re.compile(r"the amount of life you lost this turn", re.I), lambda m: Amount("life_lost")),
     (re.compile(r"half your life total, rounded (down|up)", re.I), lambda m: Amount("half_life", m[1].lower())),
@@ -1671,7 +1680,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"each player may put an (artifact, creature, enchantment, or land) card from their hand onto the battlefield\.", re.I),
      lambda m: EachPutsFromHand("artifact or creature or enchantment or land")),  # Show and Tell
     (re.compile(r"creatures can't attack this turn\.", re.I), lambda m: NoAttacksThisTurn()),
-    (re.compile(r"search your library for a card, put that card into your graveyard, then shuffle\.", re.I),
+    (re.compile(r"(?:then )?for each ([a-z]+) counter on (?:it|this creature), each opponent loses (\d+) life unless that player sacrifices an? "
+                r"(nonland permanent|creature|permanent) of their choice or discards a card\.", re.I),
+     lambda m: PunishPerCounter(m[1].lower(), int(m[2]), m[3].lower())),  # Rottenmouth Viper
+    (re.compile(r"return up to (two|three) (creature|permanent) cards with total mana value (\d+) or less from your graveyard to the "
+                r"battlefield\.", re.I), lambda m: ReturnUpToTotalManaValue(_number(m[1]), m[2].lower(), int(m[3]))),  # Lively Dirge
+    (re.compile(r"search your library for a card, put (?:that card|it) into your graveyard, then shuffle\.", re.I),  # "it": Lively Dirge
      lambda m: SearchLibrary("card", "graveyard", False)),
     (re.compile(r"each player draws a card, then discards a card\.", re.I), lambda m: EachDrawsThenDiscards()),
     (re.compile(rf"tap (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Tap(m[2].lower(), bool(m[1]))),
@@ -1763,6 +1777,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),
     (re.compile(rf"it gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ItGains(_keyword_list(m[1]))),
     (re.compile(rf"that creature also gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ThatAlsoGains(_keyword_list(m[1]))),
+    (re.compile(rf"if X is (two|three|four|five) or more, that creature gains {_KEYWORDS} until end of turn\.", re.I),  # Obsessive Pursuit
+     lambda m: _GainsIfXAtLeast(_keyword_list(m[2]), _number(m[1]))),
     (re.compile(rf"if (.+?), that creature gains {_KEYWORDS} until end of turn\.", re.I),  # Violent Urge
      lambda m: _ThatGainsIf(_keyword_list(m[2]), c) if (c := _condition(m[1])) else None),
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
@@ -1780,6 +1796,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile (?:it|that token) at the beginning of the next end step\.", re.I), lambda m: _ExileTokenAtEnd()),
     (re.compile(rf"if (.+), create {_N} (?:of those|Food) tokens instead\.", re.I),
      lambda m: _InsteadTokens(c, _count(m[2])) if (c := _condition(m[1])) else None),
+    (re.compile(r"then if (.+), sacrifice this saga\. if you do, create (an? .+ token[^.]*)\.", re.I),  # The Misty Mountains Cold
+     lambda m: SacrificeSelfThenCreate(c, t[1]) if (c := _condition(m[1])) and (t := _token(m[2])) and t[0] == 1 else None),
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
     (re.compile(r"you may behold an? ((?-i:[A-Z][a-z]+))\. If you do, untap that land\.", re.I),  # Elven Passage: beholding costs nothing
      lambda m: _UntapThatLand(Condition("behold", what=m[1]))),
@@ -2254,8 +2272,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"target creature you control deals damage equal to its power to each other creature and each opponent\.", re.I),
      lambda m: [FightFirst("creature you control"), PowerDamageToEachOther()]),
     # "It fights ...": the creature the sentence before it targeted (Primal Might, Epic Confrontation), or, with none, the source (Agatha's Champion)
-    (re.compile(rf"(then )?(?:it|that creature|this creature) fights (up to one )?target {_FIGHTER}\.", re.I),
-     lambda m: Fight(m[3].lower(), optional_target=bool(m[2]), follows=True, then=bool(m[1]))),
+    (re.compile(rf"(then )?(?:it|he|she|that creature|this creature) fights (up to one )?(other )?target {_FIGHTER}\.", re.I),
+     lambda m: Fight(m[4].lower(), optional_target=bool(m[2]), follows=True, then=bool(m[1]), another=bool(m[3]))),  # "he ... other": Wolverine
     (re.compile(r"target player draws X cards plus an additional card for each time they've cast a commander from the command zone "
                 r"this game\.", re.I), lambda m: TargetDrawXPlusCasts()),
     (re.compile(r"add \{([WUBRGC])\} or \{([WUBRGC])\} for each permanent destroyed this way\.", re.I),
@@ -3134,6 +3152,7 @@ _CONDITIONAL = Follows(
     Follow(_ThatGainsIf, Pump, set_fields(more_keywords=lambda m: m.keywords, more_if=lambda m: m.condition)),
     Follow(_InsteadUntapAll, UntapACreature, set_fields(all_if=lambda m: m.condition)),
     Follow(_ArtifactCreatureGetsCounter, Untap, set_fields(counter_if_artifact_creature=lambda m: True)),  # Tezzeret, Cruel Captain
+    Follow(_GainsIfXAtLeast, PutCounters, set_fields(grant=lambda m: m.keywords, grant_at_least=lambda m: m.least)),  # Obsessive Pursuit
     Follow(_BecomesIfNotCreature, PutCounters, set_fields(becomes=lambda m: (m.power, m.toughness, m.subtype))),  # ... and his emblem
     Follow(_TheyGain, (PutCountersOnEach, PutCountersOnEachUpToX), set_fields(grant=lambda m: m.keywords)),
     Follow(_RecallAttachment, CreateTokens, lambda previous, marker: CreateTokenWithGraveyardAttachment(previous.token),

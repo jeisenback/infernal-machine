@@ -24,13 +24,15 @@ class PutCounters:
     distinct: bool = False  # ... and may not repeat an earlier target of the same effect
     grant: frozenset[str] = frozenset()  # Pack a Punch: "It gains trample until end of turn." (it is the creature that got them)
     becomes: tuple[int, int, str] | None = None  # Tezzeret's emblem: "If it's not a creature, it becomes a 0/0 Robot artifact creature."
+    grant_at_least: int = 0  # Obsessive Pursuit: "If X is three or more, that creature gains lifelink ...": `grant` only for that many
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.put_counters(target, self.counter, game.amount(self.count))
+            count = game.amount(self.count)
+            game.put_counters(target, self.counter, count)
             if self.becomes is not None and "Creature" not in target.card.type_line:
                 game.become_creature_for_good(target, *self.becomes)
-            if self.grant:
+            if self.grant and count >= self.grant_at_least:
                 game.modify_until_end_of_turn(target, Modifier(keywords=self.grant))
             if game.resolving_item is not None and game.resolving_item.carried is None:
                 game.resolving_item.carried = target  # "Then it fights ...": the creature that got the counters

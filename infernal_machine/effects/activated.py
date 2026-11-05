@@ -173,7 +173,7 @@ _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
 _EXILE_FROM_HAND = re.compile(r"Exile (?:CARDNAME|this card) from your hand")
 
 
-_TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) untapped (legendary )?(creatures?|(?-i:[A-Z][a-z]+)s?) you control")
+_TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) untapped (legendary )?(creatures?|permanents?|(?-i:[A-Z][a-z]+)s?) you control")  # "permanent": Gene Pollinator
 
 
 _DISCARD_HAND = re.compile(r"Discard your hand")
@@ -290,7 +290,7 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["tap_creatures"] = _NUMBER[m[1]]
             fields["tap_legendary"] = m[2] is not None
             if not m[3].startswith("creature"):
-                fields["tap_type"] = m[3].removesuffix("s")  # "Tap an untapped Vampire you control"
+                fields["tap_type"] = m[3].removesuffix("s")  # "Tap an untapped Vampire you control"; "permanent": any (Gene Pollinator)
         elif _DISCARD_HAND.fullmatch(part):
             fields["discard_hand"] = True  # Lion's Eye Diamond
         elif _EXILE_SELF.fullmatch(part):

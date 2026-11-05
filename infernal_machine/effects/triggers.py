@@ -611,6 +611,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
 
 
 _COMPOUND_TRIGGER = re.compile(r"(When|Whenever) ([^,]+?) and whenever ([^,]+), (.+)")
+_COMPOUND_STEP_TRIGGER = re.compile(r"(When|Whenever) ([^,]+?) and at the beginning of ([^,]+), (.+)")  # Obsessive Pursuit
 
 
 _UNBOUND_COPY = re.compile(r"Whenever you cast an instant or sorcery spell or activate an ability, if that spell's mana cost or that "
@@ -619,8 +620,8 @@ _UNBOUND_COPY = re.compile(r"Whenever you cast an instant or sorcery spell or ac
 
 
 def _split_compound_trigger(line: str) -> list[tuple[str, str]]:
-    """ "When this creature enters and whenever one or more tokens you control enter, <effect>" is two triggers with the same
-    effect; each is read as a line of its own, as (line to read, the card's own line)."""
+    """ "When this creature enters and whenever one or more tokens you control enter, <effect>" (or "... and at the beginning of your
+    upkeep, <effect>") is two triggers with the same effect; each is read as a line of its own, as (line to read, the card's own line)."""
     if _UNBOUND_COPY.fullmatch(line):  # Unbound Flourishing: one sentence for a spell and for an ability
         return [("Whenever you cast an instant or sorcery spell with {X} in its mana cost, copy that spell. You may choose new targets "
                  "for the copy.", line),
@@ -628,6 +629,8 @@ def _split_compound_trigger(line: str) -> list[tuple[str, str]]:
                  "the copy.", line)]
     if m := _COMPOUND_TRIGGER.fullmatch(line):
         return [(f"{m[1]} {m[2]}, {m[4]}", line), (f"Whenever {m[3]}, {m[4]}", line)]
+    if m := _COMPOUND_STEP_TRIGGER.fullmatch(line):
+        return [(f"{m[1]} {m[2]}, {m[4]}", line), (f"At the beginning of {m[3]}, {m[4]}", line)]
     return [(line, line)]
 
 

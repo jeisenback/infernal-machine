@@ -31,7 +31,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, heals_before_damage, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -212,6 +212,8 @@ PUT_PERMANENT_PROMPT = PromptKind("put_permanent", "Put a nonland permanent card
 SET_ASIDE_PROMPT = PromptKind("set_aside", "Choose a nonland card exiled this way; it can't be cast")
 CAST_FREE_EXILED_PROMPT = PromptKind("cast_free_exiled", "Cast a spell from among the other exiled cards without paying its mana cost")  # then NONE_TAKEN
 CHOOSE_EXILED_WITH_PROMPT = PromptKind("choose_exiled_with", "Choose a card exiled with this permanent")
+PUNISHER_PROMPT = PromptKind("punisher", "Lose life, sacrifice or discard for ")  # Rottenmouth Viper; followed by the source's name
+SACRIFICE_DISCOUNT_PROMPT = PromptKind("sacrifice_discount", "Sacrifice how many permanents, {1} less each, to cast ")  # Rottenmouth Viper; followed by the spell's name; options are "0", "1", ...
 SACRIFICE_COPIES_PROMPT = PromptKind("sacrifice_copies", "Sacrifice how many creatures to copy ")  # followed by the spell's name; options are "0", "1", ...
 LOOK_PROMPT = PromptKind("look", "Take a card from the top of your library")  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
@@ -516,6 +518,8 @@ class Seat:
     player_counters: dict[str, int] = field(default_factory=dict)  # counters on the player: poison, energy, ...
     died_turn: int | None = None  # the turn `died` counts for
     died: int = 0  # creatures that died under this player's control that turn
+    sacrificed: int = 0  # Obsessive Pursuit: the permanents this player sacrificed on `sacrificed_turn`
+    sacrificed_turn: int | None = None
     creatures_entered_turn: int | None = None  # the turn `creatures_entered` counts for
     creatures_entered: int = 0  # nontoken creatures that entered under this player's control that turn
     land_entered_turn: int | None = None  # the last turn a land entered the battlefield under this player's control
@@ -1248,6 +1252,8 @@ class Game:
     def _crew_candidates(self, seat: Seat, vehicle: Permanent | None, legendary: bool = False, kind: str = "") -> list[Permanent]:
         """The untapped creatures that could crew `vehicle` (summoning sickness doesn't matter, CR 702.122); only legendary
         ones, for Relic of Legends."""
+        if kind == "permanent":  # Gene Pollinator: "Tap an untapped permanent you control"
+            return [p for p in seat.battlefield if p is not vehicle and not p.tapped]
         return [p for p in seat.battlefield if p is not vehicle and not p.tapped and "Creature" in p.card.type_line
                 and (not legendary or "Legendary" in p.card.type_line) and (not kind or kind in p.card.type_line.partition("\u2014")[2].split())]
 
@@ -1428,6 +1434,8 @@ class Game:
             cost = cost.reduced(sum(_permanent_matches(ability.discount_each, p.card) for p in seat.battlefield))
         if ability.equip:
             cost = Cost() if self._free_equip(seat) else cost.reduced(self._equip_discount(seat, ability, target))
+        if _is_token(permanent.card) and "Artifact" in permanent.card.type_line:  # Mutagen Man
+            cost = cost.reduced(sum(owner is seat and key == "token_ability_discount" for owner, _, key in self._static_rules()))
         # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
         self.payer._spending_x = "{X}" in ability.mana_cost
         try:
@@ -2474,6 +2482,8 @@ class Game:
             return subject.last_auras.get(controller.index, 0) if subject is not None else 0
         if kind == "creatures_died":  # creatures that died under your control this turn
             return controller.died if controller.died_turn == self.turn else 0
+        if kind == "sacrificed":  # Obsessive Pursuit: the permanents you've sacrificed this turn
+            return controller.sacrificed if controller.sacrificed_turn == self.turn else 0
         if kind == "all_creatures_died":  # creatures that died this turn, under anyone's control
             return self.deaths_count if self.deaths_turn == self.turn else 0
         if kind == "creatures_entered":  # nontoken creatures that entered under your control this turn
@@ -3478,6 +3488,8 @@ class Game:
                 if wither and amount > 0:
                     self.put_counters(target, MINUS, amount)  # CR 702.80, 702.90: -1/-1 counters, not marked damage
                 else:
+                    if amount > 0 and heals_before_damage(target.card) and not self.loses_abilities(target):
+                        target.damage, target.deathtouched = 0, False  # Wolverine: the damage already dealt to him is healed
                     target.damage += amount
                 if source and self.has_keyword(source, "deathtouch"):
                     target.deathtouched = True
@@ -4820,6 +4832,24 @@ class Game:
             if pick < len(options):
                 self.return_from_graveyard(GraveyardTarget(options[pick], seat), seat, to, tapped)
 
+    def return_up_to_total_mana_value(self, seat: Seat, count: int, kind: str, total: int) -> None:
+        """Lively Dirge: return up to `count` cards of `kind` with total mana value `total` or less from `seat`'s graveyard to the
+        battlefield. The cards are chosen first and return together."""
+        chosen: list[Card] = []
+        remaining, left = list(seat.graveyard), total
+        while len(chosen) < count:
+            options = [c for c in _unique(remaining) if _card_matches(kind, c) and c.cmc <= left]
+            if not options:
+                break
+            pick = seat.player.choose(RETURN_CARD_PROMPT(f"{kind} (mana value {left} or less left)"), [c.name for c in options] + [NONE_TAKEN])
+            if pick >= len(options):
+                break
+            chosen.append(options[pick])
+            remaining.remove(options[pick])
+            left -= int(options[pick].cmc)
+        for card in chosen:
+            self.return_from_graveyard(GraveyardTarget(card, seat), seat, "battlefield")
+
     def exile_noting(self, target: Permanent, source: Permanent | None) -> None:
         """Exile `target` and remember the card on `source` ("the exiled card's owner ..."). Tokens are not remembered."""
         owner = self.owner_of(target)
@@ -5897,6 +5927,21 @@ class Game:
         if pick < 2:
             target.tapped = pick == 0
 
+    def punish(self, seat: Seat, life: int, kind: str, source: str) -> None:
+        """Rottenmouth Viper: `seat` loses `life` life unless it sacrifices a `kind` of its choice or discards a card."""
+        options = [f"Lose {life} life"]
+        if any(_permanent_matches(kind, p.card) for p in seat.battlefield):
+            options.append(f"Sacrifice a {kind}")
+        if seat.hand:
+            options.append("Discard a card")
+        choice = options[seat.player.choose(PUNISHER_PROMPT(source), options)]
+        if choice.startswith("Sacrifice"):
+            self.sacrifice(seat, kind)
+        elif choice.startswith("Discard"):
+            self.discard(seat, 1)
+        else:
+            self.change_life(seat, -life)
+
     def discard(self, seat: Seat, count: int | None, random: bool = False) -> list[Card]:
         """Discard `count` cards (the whole hand if None); the player chooses which unless it says "at random". Returns them."""
         discarded = []
@@ -6405,6 +6450,9 @@ class Game:
             if reason != "sacrificed":
                 continue
             controller = _checked(permanent.last_controller)
+            if controller.sacrificed_turn != self.turn:
+                controller.sacrificed, controller.sacrificed_turn = 0, self.turn
+            controller.sacrificed += 1
             for watcher, watcher_seat in everyone:
                 if watcher_seat is controller and "Creature" in permanent.card.type_line:
                     self.trigger("sacrifice_creature", watcher, controller)

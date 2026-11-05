@@ -19,7 +19,7 @@ from .effects import (AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demo
                       chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest_power, reduced_by_total_power,
-                      replicate_cost, restricted_mana, self_cost_reduction, storm_kind, strive_cost, target_kind, triggered_abilities,
+                      replicate_cost, restricted_mana, sacrifice_discount, self_cost_reduction, storm_kind, strive_cost, target_kind, triggered_abilities,
                       x_limited_by_players, x_spell_discount)
 from .filters import has_type, parse_filter
 from .mana import Cost, cost_of, parse_cost
@@ -118,7 +118,11 @@ class Caster:
         if alternative is None and not graveyard and has_keyword(card, "delve"):  # exile as few cards as will do
             delve = next(k for k in range(self.game._delve_max(seat, paying) + 1)
                          if self._payment(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=k) is not None)
-        cost = g._checked(self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve))
+        sacrificing = self._choose_sacrifice_discount(seat, card, paying, from_command_zone, x, alternative, kickers, extra, delve)
+        if sacrificing is None:  # no number of sacrifices pays for it after all
+            self.game.broadcast({"event": "cant_cast", "seat": seat.index, "card": card.name})
+            return
+        cost = g._checked(self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve + sacrificing))
         with self.game._paying_for(seat, paying):
             tapped = g._checked(self.game._pay_cost(seat, cost))
         self.game._spend_mana(seat, tapped)
@@ -142,6 +146,11 @@ class Caster:
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
         discarded = self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back, picked)
+        kind = sacrifice_discount(card)
+        for _ in range(sacrificing):  # Rottenmouth Viper: the permanents chosen to make it cheaper
+            options = [p for p in seat.battlefield if g._permanent_matches(g._checked(kind), p.card)]
+            choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT(card.name), [self.game.label(p) for p in options])]
+            self.game._leave_together([(choice, "sacrificed")])
         sacrificed = self.game._sacrifice_for_copies(seat, card)
         item = g.StackItem(card, seat, effects, targets, x=x, delved=tuple(delved), kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, additional_paid=additional_paid, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
                          foretold=graveyard is not None and graveyard.word == "Foretell", discarded=discarded, from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
@@ -233,8 +242,41 @@ class Caster:
                 if not (way and way.warp and not from_hand)  # warp is a way to cast from the hand only
                 and self._can_pay_extras(seat, card, way, afford=lambda extra, way=way: self._payment(
                     seat, card, from_command_zone, alternative=way, extra=extra,
-                    delve=self.game._delve_max(seat, card) if way is None else 0))
+                    delve=self.game._delve_max(seat, card) + self._sacrifice_discount_max(seat, card) if way is None else 0))
+                and not (way is None and sacrifice_discount(card)
+                         and not self._sacrifice_discounts(seat, card, from_command_zone, delve=self.game._delve_max(seat, card)))
                 and not (way and way.bestow and not self.game.target_options("creature", seat, source_qualities(card)))]
+
+    @staticmethod
+    def _sacrifice_discount_max(seat: g.Seat, card: Card) -> int:
+        """Rottenmouth Viper: how many permanents `seat` could sacrifice to cast `card` for {1} less each."""
+        kind = sacrifice_discount(card)
+        return sum(g._permanent_matches(kind, p.card) for p in seat.battlefield) if kind else 0
+
+    def _sacrifice_discounts(self, seat: g.Seat, card: Card, from_command_zone: bool = False, x: int = 0, kickers: tuple[str, ...] = (),
+                             extra: str = "", delve: int = 0) -> list[int]:
+        """Rottenmouth Viper: the numbers of permanents `seat` can sacrifice and pay the rest of `card`'s cost with, counting only the
+        permanents left once a Treasure that pays for the mana is gone."""
+        kind = g._checked(sacrifice_discount(card))
+        payable = []
+        for n in range(self._sacrifice_discount_max(seat, card) + 1):
+            payment = self._payment(seat, card, from_command_zone, x, None, kickers, extra, delve=delve + n)
+            if payment is not None and sum(g._permanent_matches(kind, p.card) for p in seat.battlefield
+                                           if id(p) not in self._sacrificed_for_mana(payment)) >= n:
+                payable.append(n)
+        return payable
+
+    def _choose_sacrifice_discount(self, seat: g.Seat, card: Card, paying: Card, from_command_zone: bool, x: int,
+                                   alternative: AlternativeCost | None, kickers: tuple[str, ...], extra: str, delve: int) -> int | None:
+        """Rottenmouth Viper: "you may sacrifice any number of nonland permanents. This spell costs {1} less to cast for each permanent
+        sacrificed this way." The caster picks among the numbers it can pay for, with the permanents left once a Treasure that pays
+        for the mana is gone (CR 601.2b, 601.2f). 0 for a spell without it; None if no number will do."""
+        if sacrifice_discount(card) is None or alternative is not None:
+            return 0
+        payable = self._sacrifice_discounts(seat, paying, from_command_zone, x, kickers, extra, delve)
+        if len(payable) <= 1:
+            return payable[0] if payable else None
+        return payable[seat.player.choose(g.SACRIFICE_DISCOUNT_PROMPT(card.name), [str(n) for n in payable])]
 
     def _cast_cost(self, seat: g.Seat, card: Card, from_command_zone: bool = False, x: int = 0,
                    alternative: AlternativeCost | None = None, kickers: tuple[str, ...] = (), extra: str = "",

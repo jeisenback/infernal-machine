@@ -538,6 +538,17 @@ class ReturnAllToHand:
 
 
 @dataclass(frozen=True)
+class ReturnUpToTotalManaValue:
+    """Lively Dirge: "Return up to two creature cards with total mana value 4 or less from your graveyard to the battlefield." """
+    count: int
+    kind: str
+    total: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.return_up_to_total_mana_value(controller, self.count, self.kind, self.total)
+
+
+@dataclass(frozen=True)
 class ReturnFromGraveyard:
     """ "Return target creature card from your graveyard to your hand / to the battlefield." """
     target: str  # "graveyard:<card type>:<yours|any>"

@@ -421,6 +421,24 @@ class LoseLife:
 
 
 @dataclass(frozen=True)
+class PunishPerCounter:
+    """Rottenmouth Viper: "Then for each blight counter on it, each opponent loses 4 life unless that player sacrifices a nonland
+    permanent of their choice or discards a card." """
+    counter: str
+    life: int
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        source = game.resolving_source  # if it has left the battlefield, the counters it last had (CR 608.2h)
+        if source is None:
+            return
+        for _ in range(source.counters.get(self.counter, 0)):
+            for seat in game.turn_order_from_active():
+                if seat is not controller:
+                    game.punish(seat, self.life, self.kind, source.card.name)
+
+
+@dataclass(frozen=True)
 class TargetControllerGainsLife:
     """Nature's Claim: "Its controller gains 4 life." """
     amount: int
