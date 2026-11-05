@@ -288,6 +288,8 @@ from .statics import (  # noqa: F401
     is_cda_line,
     is_choose_color_line,
     is_choose_name_line,
+    is_your_turn_creature_line,
+    your_turn_creature,
     is_choose_type_line,
     is_choose_basic_type_line,
     is_chosen_self_line,

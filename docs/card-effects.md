@@ -1066,6 +1066,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     the rules static `opp_sorcery_speed` (`_cast_barred`: their own main phase with an empty stack, CR 307.1); "+1: Until your next turn,
     you may cast sorcery spells as though they had flash." is `GrantSorceryFlash` (`Seat.sorcery_flash`, cleared at its controller's untap
     step); the −3 targets "artifact, creature, or enchantment".
+  - Kaito, Bane of Nightmares (`tests/test_kaito_bane_of_nightmares.py`): "During your turn, as long as Kaito has one or more loyalty
+    counters on him, he's a 3/4 Ninja creature and has hexproof." is `your_turn_creature`: at its controller's untap step, or as it
+    enters on their turn, `Game.animate` makes it a 3/4 Ninja creature with hexproof that is still a planeswalker, and the cleanup step
+    reverts it; "draw a card for each opponent who lost life this turn" is the amount `opponents_lost_life`.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
