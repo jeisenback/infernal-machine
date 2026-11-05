@@ -37,7 +37,6 @@
    "unplayable": [
     "Deadly Cover-Up",
     "Doomsday Excruciator",
-    "Intimidation Tactics",
     "Winternight Stories"
    ]
   },
@@ -126,15 +125,7 @@
   },
   "rakdos_lizards": {
    "cards": 60,
-   "unplayable": [
-    "Gev, Scaled Scorch",
-    "Hired Claw",
-    "Ingris Stingerquill",
-    "Master of Barbs",
-    "Rockface Village",
-    "Stinging Vitriol",
-    "Thought-Stalker Warlock"
-   ]
+   "unplayable": []
   },
   "selesnya_landfall": {
    "cards": 60,

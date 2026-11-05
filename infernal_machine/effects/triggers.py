@@ -15,6 +15,7 @@ from .events import EVENTS
 from .targets import CONTEXT_BINDINGS, DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind
 from .common import FROM_LIBRARY
 from .outcomes import (
+    SubjectDamagesEachOpponent,
     ExileThisFromGraveyardThen,
     ReturnThisFromGraveyard,
     _condition,
@@ -527,6 +528,9 @@ _AURAS_ON_IT = re.compile(r"that was attached to it", re.I)  # Hateful Eidolon: 
 _HENGE_BODY = "put a +1/+1 counter on it and draw a card."
 
 
+_SUBJECT_DAMAGES_EACH = re.compile(r"that creature deals (\d+) damage to each opponent\.", re.I)  # Ingris Stingerquill: the attacker deals it
+
+
 _SELF_THEN_IT = re.compile(r"((?:this (?:creature|artifact|enchantment|permanent|land|planeswalker|equipment|vehicle|aura|saga|battle)|CARDNAME)\b[^.]*\.) It\b")  # "Put a +1/+1 counter on this creature. It gains flying.": the "It" is that creature, not the permanent that set the trigger off
 _STILL_A_LAND = re.compile(r"It's still an? (?:land|artifact)\.|as though it didn't have defender")  # the "it" of these is the ability's own creature
 
@@ -540,6 +544,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
         return [ContractAttack()], False, False, None
     if subject_ok and rest == _HENGE_BODY:  # The Great Henge: a counter on the creature, and a card for you
         return [OnSubject(PutCountersOnSource(1, "+1/+1")), Draw(1)], False, False, None
+    if subject_ok and (m := _SUBJECT_DAMAGES_EACH.fullmatch(rest)):
+        return [SubjectDamagesEachOpponent(int(m[1]))], False, False, None
     if subject_ok and not player_ok and re.search(r"\bits controller (loses|gains|draws|discards|mills)\b", rest, re.I):
         # "Whenever enchanted creature attacks, its controller loses 2 life and you gain 2 life."
         rewritten = re.sub(r"\bits controller (loses|gains|draws|discards|mills)\b", r"target player \1", rest, flags=re.I)

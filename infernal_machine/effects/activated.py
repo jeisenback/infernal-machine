@@ -213,7 +213,7 @@ _YOUR_TURN_ONCE = "Activate only during your turn and only once each turn."  # S
 _INSTANT_ONLY = "Activate only as an instant."  # what every ability without a timing restriction is already
 
 
-_ACTIVATE_ONLY_IF = re.compile(r"Activate only (as a sorcery and only )?if (.+)\.")
+_ACTIVATE_ONLY_IF = re.compile(r"Activate only (as a sorcery and only )?if (.+?)( and only once each turn)?\.")  # Hired Claw: once
 
 
 @lru_cache(maxsize=None)
@@ -342,7 +342,8 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
         if m := _ACTIVATE_ONLY_IF.fullmatch(sentence):
             if (condition := _condition(m[2])) is None:
                 return None
-            fields.update(condition=condition, sorcery_speed=fields.get("sorcery_speed", False) or bool(m[1]))
+            fields.update(condition=condition, sorcery_speed=fields.get("sorcery_speed", False) or bool(m[1]),
+                          once_per_turn=fields.get("once_per_turn", False) or bool(m[3]))
             sentences.remove(sentence)
     effects = _parse(sentences)
     if not effects:

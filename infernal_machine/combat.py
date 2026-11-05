@@ -131,6 +131,8 @@ class Combat:
                         self.game.trigger("enchanted_attack", permanent, holder)
             for permanent in list(seat.battlefield):
                 self.game.trigger("creatures_attack", permanent, seat)
+            self.game.happened("tribe_attack", seat, *{kind.lower() for a in self.attacks
+                                                       for kind in a.attacker.card.type_line.partition("\u2014")[2].split()})
             if len(self.attacks) == 1:  # "Whenever you attack with a creature alone"; "Whenever this creature attacks alone"
                 self.game.happened("attack_alone", seat, subject=self.attacks[0].attacker)
                 self.game.trigger("attacks_alone", self.attacks[0].attacker, seat)
