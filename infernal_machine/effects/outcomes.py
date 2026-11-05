@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    GrantSorceryFlash,
     Animate,
     UntapACreature,
     _InsteadUntapAll,
@@ -1454,7 +1455,8 @@ def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] =
 _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
                    r"|monocolored permanent|(?:white|blue|black|red|green) permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact|legendary) creature|noncreature artifact or noncreature enchantment"
-                   r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker|creature|artifact"
+                   r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
+                   r"|artifact, creature, or enchantment|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker|creature or enchantment|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that player controls)?"
                    r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with power \d+ or less)?)")
@@ -1738,6 +1740,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"if (.+?), that creature gains {_KEYWORDS} until end of turn\.", re.I),  # Violent Urge
      lambda m: _ThatGainsIf(_keyword_list(m[2]), c) if (c := _condition(m[1])) else None),
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
+    (re.compile(r"until your next turn, you may cast sorcery spells as though they had flash\.", re.I), lambda m: GrantSorceryFlash()),
     (re.compile(rf"if (.+), draw {_N_FIXED} cards instead\.", re.I),
      lambda m: _InsteadDraw(c, _number(m[2])) if (c := _condition(m[1])) else None),
     (re.compile(r"(?:Threshold \u2014 )?add ((?:\{[WUBRGC]\})+) instead if (there are seven or more cards in your graveyard)\.", re.I),

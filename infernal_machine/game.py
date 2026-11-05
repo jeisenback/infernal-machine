@@ -527,6 +527,7 @@ class Seat:
     drawn_turn: int | None = None  # the turn `drawn_cards` are from
     drawn_cards: list = field(default_factory=list)  # the cards it drew that turn (Sylvan Library)
     protected: bool = False  # protection from everything until its next turn begins (The One Ring)
+    sorcery_flash: bool = False  # it may cast sorceries as though they had flash until its next turn begins (Teferi, Time Raveler)
     life_locked: bool = False  # its life total can't change until its next turn begins (Teferi's Protection)
     no_life_gain: bool = False  # it can't gain life for the rest of the game (Screaming Nemesis)
     discards_turn: tuple[int, int] = (0, 0)  # (the turn, how many cards it cycled or discarded that turn): Hollow One
@@ -812,7 +813,7 @@ class Game:
     def _turn_based_actions(self, seat: Seat) -> None:
         if self.step == "untap":
             self._update_day_night()
-            seat.protected = seat.life_locked = False  # "until your next turn"
+            seat.protected = seat.life_locked = seat.sorcery_flash = False  # "until your next turn"
             self.combat = Combat(self)
             seat.battlefield += seat.phased_out  # they phase in first, then untap with everything else
             seat.phased_out = []
@@ -1391,7 +1392,7 @@ class Game:
     def _instant_speed(self, seat: Seat, card: Card) -> bool:
         """Whether `seat` may cast `card` at instant speed: an instant, flash, or a permanent that lets it ("You may cast creature
         spells as though they had flash")."""
-        if _instant_speed(card):
+        if _instant_speed(card) or (seat.sorcery_flash and "Sorcery" in card.type_line):  # Teferi, Time Raveler's +1
             return True
         return any(owner is seat and key.startswith("flash:") and _flash_covers(key.removeprefix("flash:"), card)
                    for owner, _, key in self._static_rules())
@@ -1407,6 +1408,9 @@ class Game:
                 return True
             if key == "opp_no_cast:combat" and owner is not seat and self.step in COMBAT_STEPS:
                 return True
+            if key == "opp_sorcery_speed" and owner is not seat \
+                    and not (seat.index == self.active and self.step in ("main1", "main2") and not self.stack):
+                return True  # Teferi, Time Raveler: only when they could cast a sorcery (CR 307.1)
             if key == "one_spell:each" and casts >= 1 or key == "one_spell:you" and owner is seat and casts >= 1:
                 return True
             if owner is seat and key.startswith("no_cast_kind:") and ("Creature" in card.type_line) == (key.endswith(":creature")):

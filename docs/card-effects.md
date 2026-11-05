@@ -1062,6 +1062,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     sorcery card exiled with it" counts the cards its delve exiled (`StackItem.delved`); "Whenever an instant or sorcery card leaves your
     graveyard" is the event `instant_sorcery_left_graveyard`, once for each such card, heard when cards are delved, exiled to escape or
     as a cost, and when a spell is cast from the graveyard.
+  - Teferi, Time Raveler (`tests/test_teferi_time_raveler.py`): "Each opponent can cast spells only any time they could cast a sorcery." is
+    the rules static `opp_sorcery_speed` (`_cast_barred`: their own main phase with an empty stack, CR 307.1); "+1: Until your next turn,
+    you may cast sorcery spells as though they had flash." is `GrantSorceryFlash` (`Seat.sorcery_flash`, cleared at its controller's untap
+    step); the −3 targets "artifact, creature, or enchantment".
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

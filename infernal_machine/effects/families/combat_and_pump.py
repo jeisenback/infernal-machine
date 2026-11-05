@@ -26,6 +26,14 @@ class GrantFlash:
 
 
 @dataclass(frozen=True)
+class GrantSorceryFlash:
+    """Teferi, Time Raveler: "Until your next turn, you may cast sorcery spells as though they had flash." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.sorcery_flash = True
+
+
+@dataclass(frozen=True)
 class TapOrUntap:
     """ "You may tap or untap target creature." """
     target: str = "creature"
