@@ -914,45 +914,6 @@ class EachDraw:
 
 
 @dataclass(frozen=True)
-class RevealHand:
-    """ "Target opponent reveals their hand." Only ever the start of a TargetChooseDiscard (see _merge_hand_discard)."""
-    target: str
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone reveal of a hand is never built")
-
-
-@dataclass(frozen=True)
-class DiscardChosen:
-    """ "That player discards that card." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone discard of the chosen card is never built")
-
-
-@dataclass(frozen=True)
-class ExileChosen:
-    """ "... and exile that card." (Thought-Knot Seer), in place of "That player discards that card." """
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        raise NotImplementedError("a lone exile of the chosen card is never built")
-
-
-@dataclass(frozen=True)
-class TargetChooseDiscard:
-    """Thoughtseize, Duress, Inquisition of Kozilek: look at their hand and make them discard a card you choose (Thought-Knot Seer: exile
-    it, `exile`)."""
-    target: str  # "player" or "opponent"
-    excluded: tuple[str, ...]
-    max_mv: int | None
-    exile: bool = False
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
-            game.reveal_and_discard(controller, target, self.excluded, self.max_mv, self.exile)
-
-
-@dataclass(frozen=True)
 class TargetMill:
     """ "Target player (or opponent) mills three cards." """
     count: int | str

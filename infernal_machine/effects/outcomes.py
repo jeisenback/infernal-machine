@@ -299,8 +299,6 @@ from .families.library_and_hand import (  # noqa: F401
     DanceWithCalamity,
     DelayedDraw,
     Discard,
-    DiscardChosen,
-    ExileChosen,
     DiscardHandsDrawGreatest,
     Draw,
     DrawThenPutBack,
@@ -338,7 +336,6 @@ from .families.library_and_hand import (  # noqa: F401
     PutFromHand,
     PutSourceOnLibraryTop,
     RestOnBottom,
-    RevealHand,
     RevealLands,
     RevealTop,
     RevealTopPutAll,
@@ -356,7 +353,6 @@ from .families.library_and_hand import (  # noqa: F401
     SurgeToVictory,
     Surveil,
     TakeFromTop,
-    TargetChooseDiscard,
     TargetControllerMayFetchBasicLand,
     TargetDiscard,
     TargetDraw,
@@ -380,6 +376,7 @@ from .families.library_and_hand import (  # noqa: F401
     _card_matches_kind,
 )
 from .families.life_and_damage import (  # noqa: F401
+    SubjectDamagesEachOpponent,
     Annihilate,
     DamageEachPlayerPerNonbasic,
     Damage,
@@ -437,6 +434,11 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    DiscardByLifeLoss,
+    DiscardChosen,
+    ExileChosen,
+    RevealHand,
+    TargetChooseDiscard,
     GetEmblem,
     ExileSpells,
     CHANGE_TARGET_PROMPT,
@@ -1470,7 +1472,8 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
                    r"|artifact, creature, or enchantment|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
-                   r"|creature or planeswalker|creature or enchantment|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that player controls)?"
+                   r"|creature or planeswalker|creature or enchantment|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?:, (?-i:[A-Z][a-z]+))*,? or (?-i:[A-Z][a-z]+)(?= you control)"
+                   r"|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that player controls)?"
                    r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with power \d+ or less)?)")
 
 
@@ -2379,12 +2382,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _StunPerNonlandDiscard(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2]))),  # Seasoned Cryomancer
     (re.compile(rf"discard {_N} cards?, then draw {_N} cards?\.", re.I),
      lambda m: [Discard(_count(m[1]), "you"), Draw(_count(m[2]))]),
-    (re.compile(r"target (player|opponent) reveals their hand\.", re.I), lambda m: RevealHand(m[1].lower())),
+    (re.compile(r"(?:target (player|opponent)|that player) reveals their hand\.", re.I), lambda m: RevealHand(m[1] and m[1].lower())),
     (re.compile(r"you choose an? ((?:non[a-z]+(?:, non[a-z]+)*) )?card(?: with mana value (\d+) or less)? from it"
                 r"(?: with mana value (\d+) or less)?\.", re.I),
      lambda m: ChooseFromHand(tuple(w.strip(",") for w in m[1].lower().replace("non", "").split()) if m[1] else (),
                               int(m[2] or m[3]) if m[2] or m[3] else None)),
-    (re.compile(r"that player discards that card\.", re.I), lambda m: DiscardChosen()),
+    (re.compile(r"choose target opponent\. If they lost life this turn, they reveal their hand, you choose a nonland card from it, and "
+                r"they discard that card\. Otherwise, they discard a card\.", re.I), lambda m: DiscardByLifeLoss()),  # Thought-Stalker Warlock
+    (re.compile(r"you choose an artifact or creature card from it\.", re.I),
+     lambda m: ChooseFromHand((), None, ("artifact", "creature"))),  # Intimidation Tactics
+    (re.compile(r"(?:that player discards|they discard) that card\.", re.I), lambda m: DiscardChosen()),  # "They": Stinging Vitriol
+    (re.compile(r"exile that card\.", re.I), lambda m: ExileChosen()),  # Intimidation Tactics (only after a choice from a hand)
     (re.compile(r"you choose a nonland card from it and exile that card\.", re.I), lambda m: [ChooseFromHand(("land",), None), ExileChosen()]),
     (re.compile(rf"each (opponent|player) mills {_N} cards?\.", re.I),
      lambda m: Mill(_count(m[2]), "each " + m[1].lower())),
@@ -2733,8 +2741,11 @@ def _merge_hand_discard(effects: list) -> list | None:
             if not (i + 2 < len(effects) and isinstance(effects[i + 1], ChooseFromHand)
                     and isinstance(effects[i + 2], (DiscardChosen, ExileChosen))):
                 return None
+            if effect.target is None and not (merged and target_kind(merged[-1]) in ("player", "opponent")):
+                return None  # "That player reveals their hand." needs the player the effect before it targeted
             choose = effects[i + 1]
-            merged.append(TargetChooseDiscard(effect.target, choose.excluded, choose.max_mv, isinstance(effects[i + 2], ExileChosen)))
+            merged.append(TargetChooseDiscard(effect.target, choose.excluded, choose.max_mv, isinstance(effects[i + 2], ExileChosen),
+                                              choose.only))
             i += 3
             continue
         if isinstance(effect, (ChooseFromHand, DiscardChosen, ExileChosen)):

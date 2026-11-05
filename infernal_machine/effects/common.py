@@ -156,6 +156,8 @@ _WHOLE_LINE = re.compile(
     r"|You may behold an? [A-Z][a-z]+\. If you do, untap that land\."  # Elven Passage
     r"|Exile all attacking creatures target player controls\. That player may search their library for that many basic land cards, "
     r"put those cards onto the battlefield tapped, then shuffle\."  # Settle the Wreckage
+    r"|[Cc]hoose target opponent\. If they lost life this turn, they reveal their hand, you choose a nonland card from it, and they "
+    r"discard that card\. Otherwise, they discard a card\."  # Thought-Stalker Warlock
     r"|[Aa]ttach any number of target Equipment you control to target creature you control\. When one or more Equipment become "
     r"attached to that creature this way, that creature deals damage equal to its power to up to one target creature\."  # Thorin
     r"|You may reveal an artifact card you own from outside the game or choose a face-up artifact card you own in exile\. Put that card "

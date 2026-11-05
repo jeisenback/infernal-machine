@@ -473,9 +473,70 @@ class ChooseFromHand:
     """ "You choose a nonland card (with mana value 3 or less) from it." """
     excluded: tuple[str, ...]  # card types it can't be, lowercase
     max_mv: int | None
+    only: tuple[str, ...] = ()  # "an artifact or creature card": the types it must have one of, lowercase
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         raise NotImplementedError("a lone choice from a hand is never built")
+
+
+@dataclass(frozen=True)
+class RevealHand:
+    """ "Target opponent reveals their hand." (or "That player reveals their hand.", after an effect that targeted them: `target`
+    None). Only ever the start of a TargetChooseDiscard (see _merge_hand_discard)."""
+    target: str | None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone reveal of a hand is never built")
+
+
+@dataclass(frozen=True)
+class DiscardByLifeLoss:
+    """Thought-Stalker Warlock: "choose target opponent. If they lost life this turn, they reveal their hand, you choose a nonland card
+    from it, and they discard that card. Otherwise, they discard a card." """
+    target: str = "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        if target.life_lost_turn == game.turn:
+            game.reveal_and_discard(controller, target, ("land",), None)
+        else:
+            game.discard(target, 1)
+
+
+@dataclass(frozen=True)
+class DiscardChosen:
+    """ "That player discards that card." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone discard of the chosen card is never built")
+
+
+@dataclass(frozen=True)
+class ExileChosen:
+    """ "... and exile that card." (Thought-Knot Seer), in place of "That player discards that card." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        raise NotImplementedError("a lone exile of the chosen card is never built")
+
+
+@dataclass(frozen=True)
+class TargetChooseDiscard:
+    """Thoughtseize, Duress, Inquisition of Kozilek: look at their hand and make them discard a card you choose (Thought-Knot Seer: exile
+    it, `exile`)."""
+    target: str | None  # "player" or "opponent"; None: the player the effect before it targeted (Stinging Vitriol)
+    excluded: tuple[str, ...]
+    max_mv: int | None
+    exile: bool = False
+    only: tuple[str, ...] = ()  # Intimidation Tactics: "an artifact or creature card", lowercase
+
+    @property
+    def binds(self) -> str | None:
+        return PREVIOUS_TARGET if self.target is None else None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.reveal_and_discard(controller, target, self.excluded, self.max_mv, self.exile, self.only)
 
 
 @dataclass(frozen=True)
