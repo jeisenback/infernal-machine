@@ -302,6 +302,7 @@ _RULES_STATICS = [
     (re.compile(r"Each spell a player casts costs \{1\} more to cast for each other spell that player has cast this turn\.", re.I),
      "spell_count_tax"),  # Damping Sphere
     (re.compile(r"Players can't gain life\.", re.I), "no_life_gain"),  # Sunspine Lynx, Erebos
+    (re.compile(r"Each opponent can cast spells only any time they could cast a sorcery\.", re.I), "opp_sorcery_speed"),  # Teferi, Time Raveler
 ]
 
 
@@ -319,7 +320,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     speed), "land_type:B" (every land taps for that color: Urborg), "land_type:all_yours" (its controller's lands tap for any basic),
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
     "no_untap" (it stays tapped through its controller's untap step), "damp_lands" (a land tapped for two or more mana makes one {C}),
-    "spell_count_tax" (a spell costs {1} more for each other spell its caster cast this turn), "no_life_gain" (nobody gains life), "cage_enter" / "cage_cast" (Grafdigger's Cage: no creature card
+    "spell_count_tax" (a spell costs {1} more for each other spell its caster cast this turn), "no_life_gain" (nobody gains life), "opp_sorcery_speed" (its
+    controller's opponents cast spells only at sorcery speed), "cage_enter" / "cage_cast" (Grafdigger's Cage: no creature card
     enters the battlefield from a graveyard or library, and no spell is cast from one), "name_lock" (nobody can activate the non-mana abilities of sources
     with the name the permanent chose), "umbra_armor" (an Aura that saves what it enchants from being destroyed), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
     alone), "enter_tapped:opp:creature" / ":artifact,creature" / ":nonbasic land" (those its controller's opponents control enter tapped), "no_enter_triggers:Creature" /
