@@ -48,6 +48,9 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    SubjectDamagesTargetByPower,
+    AttachChosenEquipment,
+    ChooseEquipmentToAttach,
     AnimateByManaValue,
     GrantSorceryFlash,
     Animate,
@@ -1722,6 +1725,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield\. If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\.",
                 re.I), lambda m: RevealUntilAura()),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
+    (re.compile(r"attach any number of target Equipment you control to target creature you control\. When one or more Equipment become "
+                r"attached to that creature this way, that creature deals damage equal to its power to up to one target creature\.", re.I),
+     lambda m: [ChooseEquipmentToAttach(), AttachChosenEquipment()]),  # Thorin, Mountain-king
     (re.compile(r"if it's an artifact creature, put a \+1/\+1 counter on it\.", re.I), lambda m: _ArtifactCreatureGetsCounter()),  # Tezzeret
     (re.compile(r"if it's not a creature, it becomes an? (\d+)/(\d+) ([A-Z][a-z]+) artifact creature\.", re.I),
      lambda m: _BecomesIfNotCreature(int(m[1]), int(m[2]), m[3])),  # Tezzeret, Cruel Captain's emblem
@@ -2919,6 +2925,7 @@ _CONDITIONS = [
     (re.compile(rf"X is {_N_FIXED} or more"), lambda m: Condition("x_at_least", _number(m[1]))),
     (re.compile(r"this card is in your graveyard"), lambda m: Condition("in_graveyard")),
     (re.compile(r"you control another creature named CARDNAME"), lambda m: Condition("another_named")),  # Faerie Miscreant
+    (re.compile(r"you control another ((?-i:[A-Z][a-z]+))"), lambda m: Condition("control_another", 1, m[1])),  # Dain's Company: a Dwarf
     (re.compile(r"there is an instant card and a sorcery card in your graveyard"), lambda m: Condition("instant_and_sorcery_in_graveyard")),  # Flow State
     (re.compile(r"that player controls more lands than you"), lambda m: Condition("player_more_lands")),
     (re.compile(r"an opponent controls more creatures than you"), lambda m: Condition("opponent_more_creatures")),

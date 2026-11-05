@@ -31,7 +31,8 @@ from .outcomes import (
 from .mana import is_mana_ability
 
 
-_EQUIP = re.compile(r"Equip (legendary creature )?((?:\{\d+\}|\{[WUBRGC]\})+)")
+_EQUIP = re.compile(r"Equip (legendary creature )?((?:\{\d+\}|\{[WUBRGC]\})+)"
+                    r"(\. This ability costs \{1\} less to activate for each color of the creature it targets\.)?")  # Dragonfire Blade
 
 
 _EQUIP_OTHER = re.compile(r"Equip\u2014(.+)\.")
@@ -63,7 +64,7 @@ def is_reconfigure_line(line: str) -> bool:
 def equip_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
     """Every "Equip {2}" and "Equip legendary creature {1}" line (Brotherhood Regalia has both)."""
     return tuple(ActivatedAbility(line, (Attach("legendary creature you control" if m[1] else "creature you control"),),
-                                  mana_cost=m[2], sorcery_speed=True)
+                                  mana_cost=m[2], sorcery_speed=True, equip=True, discount_target_colors=bool(m[3]))
                  for line in rules_lines(card) if (m := _EQUIP.fullmatch(line)))
 
 
@@ -105,6 +106,8 @@ class ActivatedAbility:
     tap_type: str = ""  # ... or of this creature type (Chosen of Markov)
     discard_hand: bool = False  # "Discard your hand" (Lion's Eye Diamond)
     discount_each: str = ""  # "This ability costs {1} less to activate for each legendary creature you control": that kind
+    equip: bool = False  # an equip ability: Dwarven Mauler and Kili change what it costs
+    discount_target_colors: bool = False  # Dragonfire Blade: "This ability costs {1} less to activate for each color of the creature it targets."
 
 
 _CREW = re.compile(r"Crew (\d+)")
@@ -128,7 +131,7 @@ _COST_ABILITY_WORD = re.compile(r"^[A-Z][a-z]+ \u2014 (?=\{)")
 _CHANNEL = re.compile(r"Channel \u2014 (.+)")
 
 
-_ACTIVATION_DISCOUNT = re.compile(r" This ability costs \{1\} less to activate for each ([a-z ]+) you control\.")
+_ACTIVATION_DISCOUNT = re.compile(r" This ability costs \{1\} less to activate for each ([A-Za-z ]+) you control\.")  # Boseiju; The Lonely Mountain
 
 
 def _channel_body(line: str) -> tuple[str, str]:
@@ -137,7 +140,7 @@ def _channel_body(line: str) -> tuple[str, str]:
     if m := _CHANNEL.fullmatch(line):
         line = m[1]
     if m := _ACTIVATION_DISCOUNT.search(line):
-        return line[:m.start()], m[1]
+        return line[:m.start()] + line[m.end():], m[1].lower()
     return line, ""
 
 
