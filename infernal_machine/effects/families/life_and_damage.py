@@ -364,6 +364,18 @@ class DamageEach:
 
 
 @dataclass(frozen=True)
+class SubjectDamagesEachOpponent:
+    """Ingris Stingerquill: "Whenever a creature you control attacks, that creature deals 1 damage to each opponent." """
+    amount: int
+    binds = SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            for seat in game.opponents(controller):
+                game.damage(seat, self.amount, source=target)
+
+
+@dataclass(frozen=True)
 class GivePoison:
     """Prologue to Phyresis: "Each opponent gets a poison counter." / Ichor Rats: "each player gets a poison counter." (CR 122.1f)"""
     who: str  # "opponent" or "player"

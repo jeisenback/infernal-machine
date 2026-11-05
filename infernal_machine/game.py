@@ -698,6 +698,7 @@ class Game:
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
         self.resolving_damaged: list[Permanent] = []  # the creatures the spell or ability resolving now has dealt damage to
+        self.resolving_heard: set[int] = set()  # the seats whose "one or more opponents are dealt noncombat damage" it already set off
         self.resolving_target: Any = None  # the last target chosen for it, which "that creature" in a condition means
         self.resolving_colors: frozenset[str] = frozenset()  # its colors (for protection from damage)
         self.fog_turn: int | None = None  # the turn all combat damage is prevented (Fog)
@@ -1302,6 +1303,17 @@ class Game:
             zone.remove(card)
             seat.hand.append(card)
             self.broadcast({"event": "returned_to_hand", "seat": seat.index, "card": card.name, "from": "sideboard" if zone is seat.sideboard else "exile"})
+
+    def _opponent_dealt_noncombat_damage(self, victim: Seat) -> None:
+        """Master of Barbs: "Whenever one or more opponents are dealt noncombat damage, ...": once for each spell or ability, however
+        many of its controller's opponents it dealt damage to."""
+        for watcher in self.opponents(victim):
+            if self.resolving_item is not None:
+                if watcher.index in self.resolving_heard:
+                    continue
+                self.resolving_heard.add(watcher.index)
+            for permanent in list(watcher.battlefield):
+                self.trigger("opponents_noncombat_damage", permanent, watcher)
 
     def _your_turn_creature(self, permanent: Permanent) -> None:
         """Kaito, Bane of Nightmares: on its controller's turn it is a 3/4 Ninja creature with hexproof, a planeswalker still
@@ -2495,7 +2507,7 @@ class Game:
         """Do a spell's or ability's effects; False if it fizzled because every target was gone (CR 608.2b)."""
         self.x_value, self.resolving_source = item.x, item.source
         self.resolving_item, self.resolving_colors = item, source_qualities(item.card)
-        self.resolving_damaged = []
+        self.resolving_damaged, self.resolving_heard = [], set()
         try:
             return self._apply_effects_now(item)
         finally:
@@ -3371,6 +3383,8 @@ class Game:
                 for lookout in (source, source.paired):
                     self.trigger("paired_damage_opponent", lookout, controller, source, player=target)
             dealer = controller or (self.resolving_item.controller if self.resolving_item is not None else None)  # a spell's damage has no permanent
+            if amount > 0 and not combat:
+                self._opponent_dealt_noncombat_damage(target)
             if amount > 0 and not combat and dealer is not None and dealer is not target:  # Niv-Mizzet, Visionary
                 for permanent in list(dealer.battlefield):
                     self.trigger("ally_noncombat_damage", permanent, dealer, subject=source, x=amount)
@@ -5876,11 +5890,14 @@ class Game:
             seat.exile.remove(card)
             self._move_card(seat, card, "graveyard")
 
-    def reveal_and_discard(self, chooser: Seat, victim: Seat, excluded: tuple[str, ...], max_mv: int | None, exile: bool = False) -> None:
+    def reveal_and_discard(self, chooser: Seat, victim: Seat, excluded: tuple[str, ...], max_mv: int | None, exile: bool = False,
+                           only: tuple[str, ...] = ()) -> None:
         """Thoughtseize: `victim` reveals their hand and `chooser` picks a card from it that isn't one of the
-        `excluded` types (and costs at most `max_mv`); the victim discards it, or it is exiled (Thought-Knot Seer)."""
+        `excluded` types (is one of the `only` types, if any) and costs at most `max_mv`; the victim discards it, or it is exiled
+        (Thought-Knot Seer)."""
         self.broadcast({"event": "revealed_hand", "seat": victim.index, "cards": [c.name for c in victim.hand]})
         eligible = _unique([c for c in victim.hand if not any(t.capitalize() in c.type_line for t in excluded)
+                            and (not only or any(t.capitalize() in c.type_line for t in only))
                             and (max_mv is None or c.cmc <= max_mv)])
         if not eligible:
             return
@@ -5954,6 +5971,11 @@ class Game:
                 if p.chosen_type is not None and p.chosen_type in kinds)
             if not counters["+1/+1"]:
                 del counters["+1/+1"]
+        if "Creature" in permanent.card.type_line and (per_loss := sum(replacement_effects(p.card).enter_counters_per_opponent_loss
+                                                                        for p in seat.battlefield)):
+            losers = sum(o.life_lost_turn == self.turn for o in self.opponents(seat))  # Gev, Scaled Scorch
+            if losers:
+                counters["+1/+1"] = counters.get("+1/+1", 0) + per_loss * losers
         if "Creature" in permanent.card.type_line and not _is_token(permanent.card) and seat.died_turn == self.turn:
             bonus = sum(replacement_effects(p.card).enter_counters_per_death for p in seat.battlefield) * seat.died
             if bonus:  # Gorma, the Gullet

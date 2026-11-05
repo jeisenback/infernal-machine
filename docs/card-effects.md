@@ -1082,6 +1082,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - The Theorist, Jace Beleren (`tests/test_the_theorist_jace_beleren.py`): "At the beginning of each opponent's draw step" is the event
     `other_draw_step`; "For each opponent, return up to one target artifact or creature that player controls to its owner's hand." is
     `ReturnPerOpponent`, a target (or none) for each opponent in turn order (`per_player = "opponent"`, which leaves out the caster).
+  - Standard's Lizards (`tests/test_lizard_payoffs.py`): "Whenever you attack with one or more Lizards" is the event `tribe_attack`
+    (the attackers' subtypes as facts, `attacked_with_tribe`); "Activate only if ... and only once each turn." sets `once_per_turn` beside
+    the condition; "Whenever one or more opponents are dealt noncombat damage" is the event `opponents_noncombat_damage`, set off once for
+    each spell or ability however many opponents it hits (`Game.resolving_heard`); Gev's "Other creatures you control enter with an
+    additional +1/+1 counter on them for each opponent who lost life this turn." is `Replacements.enter_counters_per_opponent_loss`;
+    Ingris's "that creature deals 1 damage to each opponent." is `SubjectDamagesEachOpponent` (the attacker is the source); a target
+    kind may list creature types ("Lizard, Mouse, Otter, or Raccoon you control").
+  - Taking a card from a revealed hand (`tests/test_reveal_and_choose.py`): "That player reveals their hand." follows an effect that
+    targeted a player (Stinging Vitriol, `TargetChooseDiscard` with no target of its own); "You choose an artifact or creature card from
+    it. Exile that card." (`only`); Thought-Stalker Warlock is `DiscardByLifeLoss`. A spell's "Cycling {N}" line is not a step of the
+    spell (`spell_effects`).
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

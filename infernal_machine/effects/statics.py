@@ -760,6 +760,10 @@ _ENTER_PER_DEATH = ("Nontoken creatures you control enter with an additional +1/
                     "died under your control this turn.")
 
 
+_ENTER_PER_OPPONENT_LOSS = ("Other creatures you control enter with an additional +1/+1 counter on them for each opponent who lost "
+                            "life this turn.")  # Gev, Scaled Scorch
+
+
 _PLUS_ONE_PERMANENTS = ("If one or more +1/+1 counters would be put on a permanent you control, that many plus one "
                         "+1/+1 counters are put on that permanent instead.")
 
@@ -785,6 +789,7 @@ class Replacements:
     plus_one: int = 0  # extra +1/+1 counters on its controller's creatures
     plus_one_others: int = 0  # the same, but not on the permanent itself (Benevolent Hydra)
     enter_counters_per_death: int = 0  # Gorma: nontoken creatures enter with that many extra counters per death this turn
+    enter_counters_per_opponent_loss: int = 0  # Gev: other creatures enter with that many extra counters per opponent who lost life
     plus_one_permanents: int = 0  # the same on any permanent you control (Kami of Whispered Hopes)
     plus_one_artifacts: int = 0  # the same on an artifact or creature you control (Ozolith, the Shattered Spire)
     opponent_loss_factor: int = 1  # Bloodletter of Aclazotz: opponents lose that many times as much life during its controller's turn
@@ -852,6 +857,8 @@ def replacement_effects(card: Card) -> Replacements:
             found["plus_one"] = found.get("plus_one", 0) + 1
         elif line == _ENTER_PER_DEATH:
             found["enter_counters_per_death"] = found.get("enter_counters_per_death", 0) + 1
+        elif line == _ENTER_PER_OPPONENT_LOSS:
+            found["enter_counters_per_opponent_loss"] = found.get("enter_counters_per_opponent_loss", 0) + 1
         elif line == _PLUS_ONE_PERMANENTS:
             found["plus_one_permanents"] = found.get("plus_one_permanents", 0) + 1
         elif line == _PLUS_ONE_ARTIFACTS:
@@ -1000,7 +1007,7 @@ def enters_by_discarding_land(card: Card) -> bool:
 
 def is_replacement_line(line: str) -> bool:
     return (_DRAW_PLUS_ONE.fullmatch(line) is not None or line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
-                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _LIFE_GAIN_PLUS_ONE,
+                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _ENTER_PER_OPPONENT_LOSS, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _SQUIRRELS, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
                      _HALVE_OPPONENTS_PUT, _PROLIFERATE_TWICE)
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None or _damage_modifier(line) is not None)

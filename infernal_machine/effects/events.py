@@ -30,6 +30,15 @@ def fact(name: str) -> Accepts:
     return lambda hearer, subject, facts: name in facts
 
 
+_TRIBE_ATTACK = re.compile(r"Whenever you attack with one or more ((?-i:[A-Z][a-z]+))s, ", re.I)
+
+
+def attacked_with_tribe(hearer: Any, subject: Any, facts: tuple[str, ...]) -> bool:
+    """Hired Claw: "Whenever you attack with one or more Lizards": the attackers (`facts`: their subtypes) include the type it names."""
+    found = _TRIBE_ATTACK.search(hearer.card.oracle_text)
+    return found is not None and found[1].lower() in facts
+
+
 def about_artifact(hearer: Any, subject: Any, facts: tuple[str, ...]) -> bool:
     """The subject is an artifact ("Whenever you activate an ability of an artifact")."""
     return subject is not None and "Artifact" in subject.card.type_line
@@ -155,6 +164,9 @@ declare("conjure", re.compile(r"Whenever you conjure one or more cards, (.+)", r
 declare("proliferate", re.compile(r"Whenever you proliferate, (.+)", re.I), to="you")
 declare("enchanted_attack", re.compile(r"Whenever one or more creatures that are enchanted by an Aura you control attack, (.+)", re.I))
 declare("creatures_attack", re.compile(r"Whenever (?:one or more creatures you control attack|you attack), (.+)", re.I))
+declare("tribe_attack", re.compile(r"Whenever you attack with one or more (?-i:[A-Z][a-z]+)s, (.+)", re.I), to="you",
+        accepts=attacked_with_tribe)  # Hired Claw
+declare("opponents_noncombat_damage", re.compile(r"Whenever one or more opponents are dealt noncombat damage, (.+)", re.I))  # Master of Barbs
 declare("opponent_attacks", re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I), about_player=True)
 declare("activate_x", re.compile(r"Whenever you activate an ability with \{X\} in its activation cost, (.+)", re.I), to="you")
 # Rings of Brighthearth and kin: any activated ability that isn't a mana ability, which the game raises as "activated" (the ability is `spell`)
