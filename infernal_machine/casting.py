@@ -122,7 +122,19 @@ class Caster:
         if sacrificing is None:  # no number of sacrifices pays for it after all
             self.game.broadcast({"event": "cant_cast", "seat": seat.index, "card": card.name})
             return
-        cost = g._checked(self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra, delve=delve + sacrificing))
+        harmonizer, harmonized = None, 0
+        if graveyard and graveyard.harmonize:  # tap a creature to pay {X} less, X being its power
+            options = self._harmonize_options(seat, paying)
+            if len(options) > 1:
+                labels = [g.HARMONIZE_NONE if p is None else self.game.label(p) for p in options]
+                harmonizer = options[seat.player.choose(g.HARMONIZE_PROMPT(card.name), labels)]
+            elif options:
+                harmonizer = options[0]
+            if harmonizer is not None:
+                harmonized = max(0, self.game.power(harmonizer))
+                self.game.tap(harmonizer)
+        cost = g._checked(self._cast_cost(seat, paying, from_command_zone, x, alternative, kickers, extra,
+                                          delve=delve + sacrificing + harmonized))
         with self.game._paying_for(seat, paying):
             tapped = g._checked(self.game._pay_cost(seat, cost))
         self.game._spend_mana(seat, tapped)
@@ -221,7 +233,7 @@ class Caster:
         for target in (t for chosen in item.targets for t in (chosen if isinstance(chosen, list) else [chosen])):
             if isinstance(target, g.Permanent) and self.game.on_battlefield(target):  # "Whenever this creature becomes the target of a spell"
                 self.game.trigger("targeted", target, self.game.controller(target))
-        self.game._valiant(item)
+        self.game._targets_chosen(item)
         self.game._check_ward(item)
 
     def _cast_ways(self, seat: g.Seat, card: Card, from_command_zone: bool,
@@ -237,7 +249,9 @@ class Caster:
                 return []  # Gravecrawler: only while its caster controls a Zombie
             if graveyard.sacrifices and sum(g._permanent_matches(graveyard.sacrifice, p.card) for p in seat.battlefield) < graveyard.sacrifices:
                 return []  # "Flashback\u2014Sacrifice a Mountain."
-            return [None] if others >= graveyard.exile and graveyard.life <= seat.life and self._payment(seat, paying) is not None else []
+            payable = (self._harmonize_options(seat, paying) if graveyard.harmonize
+                       else [None] if self._payment(seat, paying) is not None else [])
+            return [None] if others >= graveyard.exile and graveyard.life <= seat.life and payable else []
         return [way for way in [None, *alternative_costs(card)]
                 if not (way and way.warp and not from_hand)  # warp is a way to cast from the hand only
                 and self._can_pay_extras(seat, card, way, afford=lambda extra, way=way: self._payment(
@@ -246,6 +260,19 @@ class Caster:
                 and not (way is None and sacrifice_discount(card)
                          and not self._sacrifice_discounts(seat, card, from_command_zone, delve=self.game._delve_max(seat, card)))
                 and not (way and way.bestow and not self.game.target_options("creature", seat, source_qualities(card)))]
+
+    def _harmonize_options(self, seat: g.Seat, card: Card) -> list:
+        """Harmonize: the untapped creatures `seat` could tap to pay {X} less for `card` (X: its power; summoning sickness doesn't
+        matter) that leave the rest payable, after None (tap none) if the full cost can be paid."""
+        options: list = [None] if self._payment(seat, card) is not None else []
+        base = g._checked(self._cast_cost(seat, card))
+        for creature in seat.battlefield:
+            if creature.tapped or "Creature" not in creature.card.type_line:
+                continue
+            with self.game._paying_for(seat, card):
+                if self.game._pay_cost(seat, base.reduced(max(0, self.game.power(creature))), exclude=creature) is not None:
+                    options.append(creature)
+        return options
 
     @staticmethod
     def _sacrifice_discount_max(seat: g.Seat, card: Card) -> int:

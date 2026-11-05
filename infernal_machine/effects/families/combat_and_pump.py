@@ -194,6 +194,20 @@ class PumpSource:
 
 
 @dataclass(frozen=True)
+class BecomesTypeUntilEndOfTurn:
+    """Sarkhan, Dragon Ascendant: "Until end of turn, Sarkhan becomes a Dragon in addition to his other types and gains flying." """
+    subtype: str
+    keywords: frozenset[str] = frozenset()
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.add_subtype_until_end_of_turn(target, self.subtype)
+            if self.keywords:
+                game.modify_until_end_of_turn(target, Modifier(keywords=self.keywords))
+
+
+@dataclass(frozen=True)
 class PumpSourceX:
     """ "This creature gets +X/+0 until end of turn." (X from "where X is ..."): multiples of X, like PumpX."""
     power: int

@@ -212,6 +212,8 @@ PUT_PERMANENT_PROMPT = PromptKind("put_permanent", "Put a nonland permanent card
 SET_ASIDE_PROMPT = PromptKind("set_aside", "Choose a nonland card exiled this way; it can't be cast")
 CAST_FREE_EXILED_PROMPT = PromptKind("cast_free_exiled", "Cast a spell from among the other exiled cards without paying its mana cost")  # then NONE_TAKEN
 CHOOSE_EXILED_WITH_PROMPT = PromptKind("choose_exiled_with", "Choose a card exiled with this permanent")
+HARMONIZE_PROMPT = PromptKind("harmonize", "Tap a creature to pay less for ")  # followed by the spell's name; options are creatures, then HARMONIZE_NONE
+HARMONIZE_NONE = "Tap none"
 PUNISHER_PROMPT = PromptKind("punisher", "Lose life, sacrifice or discard for ")  # Rottenmouth Viper; followed by the source's name
 SACRIFICE_DISCOUNT_PROMPT = PromptKind("sacrifice_discount", "Sacrifice how many permanents, {1} less each, to cast ")  # Rottenmouth Viper; followed by the spell's name; options are "0", "1", ...
 SACRIFICE_COPIES_PROMPT = PromptKind("sacrifice_copies", "Sacrifice how many creatures to copy ")  # followed by the spell's name; options are "0", "1", ...
@@ -1284,6 +1286,14 @@ class Game:
             permanent.until_end_of_turn.append(Modifier(0, 0, on_your_turn, your_turn=True))
         self.broadcast({"event": "became_creature", "card": permanent.card.name, "power": power, "toughness": toughness})
 
+    def add_subtype_until_end_of_turn(self, permanent: Permanent, subtype: str) -> None:
+        """Sarkhan, Dragon Ascendant: "Until end of turn, Sarkhan becomes a Dragon in addition to his other types." The card it was
+        comes back in the cleanup step, as an animated land's does."""
+        card = permanent.card
+        head, dash, tail = card.type_line.partition(" \u2014 ")
+        permanent.original = permanent.original or card
+        permanent.card = dataclasses.replace(card, type_line=f"{head} \u2014 {tail} {subtype}" if dash else f"{head} \u2014 {subtype}")
+
     def animate_for_good(self, permanent: Permanent, power: int, toughness: int, colors: tuple[str, ...], subtypes: str,
                          keywords: frozenset[str], grant: str = "") -> None:
         """Soulstone Sanctuary, Great Hall of the Biblioplex: "This land becomes a 3/3 creature with vigilance ..." with no duration: it
@@ -2160,7 +2170,7 @@ class Game:
         if ability.mana_cost and cost_of(ability.mana_cost).x:  # Unbound Flourishing
             self.happened("activate_x", seat, spell=item)
         self.happened("activated", seat, subject=permanent, spell=item)
-        self._valiant(item)
+        self._targets_chosen(item)
         self._check_ward(item)
         if ability.sacrifice:
             self._leave_battlefield(permanent, "sacrificed")
@@ -3076,7 +3086,7 @@ class Game:
             self.stack.append(item)
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
                             "ability": _shown(trigger.ability.text, trigger.source), "targets": labels})
-            self._valiant(item)
+            self._targets_chosen(item)
             self._check_ward(item)
 
     # --- targets -------------------------------------------------------------
@@ -4992,6 +5002,16 @@ class Game:
         self.broadcast({"event": "returned_spell", "seat": item.controller.index, "card": item.card.name})
         if not item.ability and not item.is_copy:
             self._move_card(item.home, item.physical, "hand")
+
+    def _targets_chosen(self, item: StackItem) -> None:
+        """`item` (a spell or ability) was just put on the stack with its targets: valiant, and a crime."""
+        self._valiant(item)
+        targets = [t for chosen in item.targets for t in (chosen if isinstance(chosen, list) else [chosen])]
+        opponents = {id(seat) for seat in self.opponents(item.controller)}
+        if any(id(t) in opponents or (isinstance(t, Permanent) and id(self.controller_of(t)) in opponents)
+               or (isinstance(t, GraveyardTarget) and id(t.seat) in opponents) or (isinstance(t, StackItem) and id(t.controller) in opponents)
+               for t in targets):  # committing a crime: targeting an opponent, anything they control or a card in their graveyard
+            self.happened("commit_crime", item.controller)
 
     def _valiant(self, item: StackItem) -> None:
         """Valiant: "Whenever this creature becomes the target of a spell or ability you control for the first time each turn", which

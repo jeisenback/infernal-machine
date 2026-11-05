@@ -87,6 +87,8 @@ declare("enters", re.compile(rf"When(?:ever)? {_SELF} enters?(?: the battlefield
 declare("targeted", re.compile(rf"When(?:ever)? {_SELF} becomes the target of an? (?:spell|spell or ability), (.+)", re.I))
 declare("valiant", re.compile(rf"Whenever {_SELF} becomes the target of a spell or ability you control for the first time each turn, (.+)",
                               re.I))  # Game._valiant
+declare("commit_crime", re.compile(r"Whenever you commit a crime, (.+)", re.I), to="you")  # Game._targets_chosen: an opponent, what they
+# control or a card in their graveyard was targeted
 declare("library_to_graveyard", re.compile(r"When (?:CARDNAME|this card) is put into your graveyard from your library, (.+)", re.I))  # Narcomoeba
 declare("class_level_2", re.compile(r"When this Class becomes level 2, (.+)", re.I))  # Game.class_level_up
 declare("class_level_3", re.compile(r"When this Class becomes level 3, (.+)", re.I))

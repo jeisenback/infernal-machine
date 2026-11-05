@@ -1131,6 +1131,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Maduin, with a finality counter (`TransformIfCastFromGraveyard`, done as the spell leaves the stack); its chapters are "Reveal the
     top card of your library. If it's a permanent card, put it into your hand." (`RevealTopToHand.only`) and "Other creatures you
     control get +2/+2 ..." (`PumpEach.other`).
+  - Harmonize and Standard's Dragons (`tests/test_harmonize_and_dragons.py`): "Harmonize {cost}" is a way to cast the card from the
+    graveyard, then exile it (`GraveyardCast.harmonize`); its caster may tap one untapped creature they control (summoning sickness
+    doesn't matter) to pay {X} less, X being its power, and is offered only creatures that leave the rest payable without them. "Whenever
+    you commit a crime" (`commit_crime`) is heard when a spell or ability its player controls targets an opponent, a permanent or spell
+    they control, or a card in their graveyard (`Game._targets_chosen`). "Until end of turn, target creature you control becomes a Hero
+    with base power and toughness 3/4 and gains flying and vigilance." keeps the creature's types (Secret Identity). Sarkhan, Dragon
+    Ascendant beholds a Dragon for a Treasure, and "becomes a Dragon in addition to his other types" until end of turn
+    (`BecomesTypeUntilEndOfTurn`, undone in the cleanup step).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a
