@@ -63,7 +63,7 @@ _ENTERS_PER_KICK = re.compile(rf"{_SELF} enters with an? {_COUNTER} on it for ea
 
 
 def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, bloodthirsty: bool = False,
-                         raided: bool = False) -> dict[str, int | str]:
+                         raided: bool = False, delved_spells: int = 0) -> dict[str, int | str]:
     """Counters from "This creature enters with N (or X) +1/+1 counters on it.", plus, when `kicked` (the number
     of times), "If this creature was kicked, it enters with N +1/+1 counters on it." and multikicker's
     "... enters with a +1/+1 counter on it for each time it was kicked."; and, when `bloodthirsty`, "If an opponent
@@ -100,7 +100,12 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, blo
         elif kicked and (m := _ENTERS_PER_KICK.fullmatch(line)):
             name = _counter_name(m[1])
             add(name, kicked)
+        elif delved_spells and _ENTERS_PER_DELVED.fullmatch(line):  # Murktide Regent
+            add("+1/+1", delved_spells)
     return counters
+
+
+_ENTERS_PER_DELVED = re.compile(r"This creature enters with a \+1/\+1 counter on it for each instant and sorcery card exiled with it\.")
 
 
 def is_enters_with_counters(line: str) -> bool:
@@ -109,7 +114,7 @@ def is_enters_with_counters(line: str) -> bool:
     if r := _IF_ATTACKED.search(line):
         line = _ABILITY_WORD.sub("", line[:r.start()] + ".")
     return (_ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None
-            or _ESCAPES_WITH.fullmatch(line) is not None)
+            or _ESCAPES_WITH.fullmatch(line) is not None or _ENTERS_PER_DELVED.fullmatch(line) is not None)
 
 
 @lru_cache(maxsize=None)

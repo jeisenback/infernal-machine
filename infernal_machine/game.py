@@ -318,6 +318,7 @@ class Permanent:
     must_block_what: "Permanent | None" = None  # ... that creature in particular ("blocks this creature this turn if able")
     vow_of: "Seat | None" = None  # Promise of Loyalty: while it has a vow counter it can't attack this player
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
+    delved_spells: int = 0  # the instant and sorcery cards its delve exiled (Murktide Regent)
     turn_up_cost: "MorphCost | None" = None  # Morph, Megamorph, Disguise: what it costs to turn it face up (a manifested card pays its own mana cost)
     megamorph: bool = False  # it gets a +1/+1 counter when it is turned face up
     doors: tuple[str, ...] = ()  # a Room: the names of its unlocked doors (its `card` reads as only those; the whole card is `real_card`)
@@ -390,6 +391,7 @@ class StackItem:
     player: "Seat | None" = None  # for a watching trigger: the player whose action set it off ("that player")
     suspend_after: int = 0  # "Exile it with N time counters on it" once it has resolved
     escaped: bool = False  # cast for its escape cost
+    delved: tuple[Card, ...] = ()  # the cards its delve exiled (Murktide Regent)
     bestowed: bool = False  # cast for its bestow cost: an Aura spell that may resolve as a creature
     sacrificed_power: int = 0  # for an ability: the power of the creature sacrificed to pay for it
     sacrificed_toughness: int = 0  # ... and its toughness (Witch's Oven)
@@ -2179,7 +2181,7 @@ class Game:
             if door is not None:
                 card = room_view(whole, (door.name,))
             entering = Permanent(card, sick=True, loyalty=self._entering_loyalty(card, item), kicked=item.kicked, kickers=item.kickers,
-                                 escaped=item.escaped, cast=not item.is_copy, doors=(door.name,) if door else (),
+                                 escaped=item.escaped, delved_spells=sum(_is_instant_or_sorcery(c) for c in item.delved), cast=not item.is_copy, doors=(door.name,) if door else (),
                                  transformed_from=whole if whole.flip is card else None,
                                  real_card=whole if door else None, owner=item.owner,
                                  extra_counters=item.rider_counters * seat.commander_casts.get(card.name, 0),
@@ -4037,6 +4039,9 @@ class Game:
         knows them (Spirit of Resilience copies one); a cost paid by exiling cards does not say."""
         seat.graveyard_left_turn = self.turn
         self.happened("graveyard_leave", seat, spell=tuple(cards))
+        for card in cards:
+            if _is_instant_or_sorcery(card):  # Murktide Regent: one trigger for each such card
+                self.happened("instant_sorcery_left_graveyard", seat, spell=card)
 
     def _exiled_from_library_or_graveyard(self, seat: Seat) -> None:
         """One or more of `seat`'s cards were just put into exile from its library and/or graveyard, as one event (Laelia)."""
@@ -5883,7 +5888,7 @@ class Game:
         counters = {counter: (x if count == "X" else 2 * x if count == "2X" else int(count))
                     for counter, count in enters_with_counters(permanent.card, permanent.kicked, permanent.escaped, any(
                         o.damage_taken_turn == self.turn for o in self.opponents(seat)),
-                        seat.attackers_turn == self.turn and seat.most_attackers > 0).items()}  # Raid
+                        seat.attackers_turn == self.turn and seat.most_attackers > 0, permanent.delved_spells).items()}  # Raid
         if permanent.extra_counters:  # Opal Palace: mana spent on the commander
             counters["+1/+1"] = counters.get("+1/+1", 0) + permanent.extra_counters
         if extra_when_copy and permanent.real_card is not None and "Creature" in permanent.card.type_line:
@@ -6665,6 +6670,10 @@ def _instant_speed(card: Card) -> bool:
 def _permanent_matches(kind: str, card: Card) -> bool:
     """Whether a permanent's card is of `kind` ("creature", "nonland permanent", "black creature", "Elf", ...): see filters.py."""
     return parse_filter(kind).matches(card)
+
+
+def _is_instant_or_sorcery(card: Card) -> bool:
+    return "Instant" in card.type_line or "Sorcery" in card.type_line
 
 
 def _take(cards: list[Card], name: str) -> Card:
