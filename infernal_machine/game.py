@@ -3234,7 +3234,7 @@ class Game:
     def change_life(self, seat: Seat, amount: int) -> None:
         if seat.life_locked:  # Teferi's Protection: no life is gained or lost
             return
-        if amount > 0 and seat.no_life_gain:  # Screaming Nemesis
+        if amount > 0 and (seat.no_life_gain or self.has_rule("no_life_gain")):  # Screaming Nemesis; Sunspine Lynx: "Players can't gain life."
             return
         if amount > 0:  # Pest Rescuer: "you gain that much life plus 1 instead"; then The Wind Crystal: "twice that much"
             amount += sum(replacement_effects(p.card).life_gain_plus for p in seat.battlefield)
@@ -5999,6 +5999,10 @@ class Game:
         seen += [c for c in [*(p.card for s in self.live_seats() for p in s.battlefield), *seat.graveyard] if c not in seen]
         options = list(dict.fromkeys(c.name for c in sorted(seen, key=rank)))
         return options[seat.player.choose(CHOOSE_NAME_PROMPT(card.name), options)] if options else None
+
+    def has_rule(self, key: str) -> bool:
+        """Whether a permanent on the battlefield has the rules static `key` (see rules_statics)."""
+        return any(k == key for _, _, k in self._static_rules())
 
     def caged(self, card: Card) -> bool:
         """Grafdigger's Cage: `card`, a creature card in a graveyard or library, can't enter the battlefield from there (it stays put)."""

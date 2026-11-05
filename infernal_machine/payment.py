@@ -121,6 +121,13 @@ class ManaPayer:
         pooled = [ManaSource(None, unit) for unit in seat.mana_pool]
         foods = sum(has_type(p.card, "food") for p in seat.battlefield)  # Gilded Goose: one Food per use
         grants = [g for p in seat.battlefield if not self.game.loses_abilities(p) for g in group_mana_grants(p.card)]
+        damped = self.game.has_rule("damp_lands")
+
+        def own(permanent, units: list) -> list:
+            """Damping Sphere: a land tapped for two or more mana produces {C} instead (mana an Aura adds besides is not the land's)."""
+            return [ManaSource(permanent, frozenset("C"), units[0].pain, units[0].damage)] \
+                if damped and len(units) > 1 and is_land(permanent.card) else units
+
         for permanent in seat.battlefield:
             if permanent.tapped or permanent is exclude or self.game.loses_abilities(permanent):
                 continue
@@ -134,8 +141,8 @@ class ManaPayer:
                 continue  # "Activate only if you control five or more lands."
             if (per := mana_per_count(card)) is not None:  # Gaea's Cradle: as much as you control
                 if not per[0] and not self.game.summoning_sick(seat, permanent):
-                    lands.extend(ManaSource(permanent, frozenset(per[1]))
-                                 for _ in range(sum(has_type(p.card, per[2]) for p in seat.battlefield)))
+                    lands.extend(own(permanent, [ManaSource(permanent, frozenset(per[1]))
+                                                 for _ in range(sum(has_type(p.card, per[2]) for p in seat.battlefield))]))
                 if not per[0] or mana_ability(card, seat.color_identity) is None:
                     continue  # (Cabal Coffers has only the ability that costs mana; Evendo's plain {T}: Add {G} is read below)
             if is_land(card):
@@ -166,18 +173,19 @@ class ManaPayer:
                          if a.attached_to is permanent for mana in additional_land_mana(a.card, a.chosen_color)]  # Wild Growth, Utopia Sprawl
                 if seat.extra_mountain_mana_turn == self.game.turn and "Mountain" in card.type_line:  # Molten Tide
                     extra.append(ManaSource(permanent, frozenset("R"), pain, damage))
-                if (bonus := mana_bonus(card)) is not None and all(any(p.card.name == name for p in seat.battlefield) for name in bonus[0]):
-                    lands.extend([ManaSource(permanent, frozenset("C"), pain, damage) for _ in range(bonus[1])] + extra)
+                if (bonus := mana_bonus(card)) is not None and all(any(name in p.card.type_line.partition("\u2014")[2] for p in seat.battlefield)
+                                                                   for name in bonus[0]):  # an Urza's Mine is a land type, not a name
+                    lands.extend(own(permanent, [ManaSource(permanent, frozenset("C"), pain, damage) for _ in range(bonus[1])]) + extra)
                     continue  # the Urza lands: more mana with the other two
                 if (lines := mana_lines(card)) is not None:  # a Verge land: each color has its own line and condition
                     types = frozenset().union(*(t for t, condition in lines if condition is None or self.game.condition_holds(condition, seat, permanent)))
                     lands.extend(([ManaSource(permanent, types, pain, damage)] if types else []) + extra)
                     continue
                 if units := land_mana_units(card):  # a bounceland or Ancient Tomb makes several mana in one tap
-                    lands.extend([ManaSource(permanent, mana, pain, damage) for mana in units] + extra)
+                    lands.extend(own(permanent, [ManaSource(permanent, mana, pain, damage) for mana in units]) + extra)
                     continue
                 if len(gifted) > 1:  # more mana than the land's own single one
-                    lands.extend([ManaSource(permanent, mana, pain, damage) for mana in gifted] + extra)
+                    lands.extend(own(permanent, [ManaSource(permanent, mana, pain, damage) for mana in gifted]) + extra)
                     continue
                 # Command Tower makes only the colors of your commander, whatever the card data lists.
                 types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
