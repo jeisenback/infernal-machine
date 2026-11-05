@@ -580,10 +580,13 @@ class Untap:
     another: bool = False
     optional_target: bool = False  # "Untap up to two target lands"
     distinct: bool = False
+    counter_if_artifact_creature: bool = False  # Tezzeret, Cruel Captain: "If it's an artifact creature, put a +1/+1 counter on it."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.untap(target)
+            if self.counter_if_artifact_creature and "Artifact" in target.card.type_line and "Creature" in target.card.type_line:
+                game.put_counters(target, "+1/+1", 1)
 
 
 @dataclass(frozen=True)

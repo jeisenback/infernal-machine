@@ -287,6 +287,19 @@ class _ThatGainsIf:
 
 
 @dataclass(frozen=True)
+class _ArtifactCreatureGetsCounter:
+    """ "If it's an artifact creature, put a +1/+1 counter on it." after an Untap (Tezzeret, Cruel Captain)."""
+
+
+@dataclass(frozen=True)
+class _BecomesIfNotCreature:
+    """ "If it's not a creature, it becomes a 0/0 Robot artifact creature." after a PutCounters (Tezzeret, Cruel Captain's emblem)."""
+    power: int
+    toughness: int
+    subtype: str
+
+
+@dataclass(frozen=True)
 class _ThatAlsoGains:
     """ "That creature also gains indestructible until end of turn.": the creature a pump just gave +2/+2 (see _merge_three_way)."""
     keywords: frozenset[str]

@@ -1075,6 +1075,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (`Game.animate_until_next_turn`: `Permanent.animated_until` keeps it a creature through the cleanup step until its controller's next
     untap step); the −2 is `WishArtifact` (`Game.wish_artifact`): an artifact card from `Seat.sideboard` (outside the game) or a
     face-up one from exile (not a foretold card), or nothing.
+  - Tezzeret, Cruel Captain (`tests/test_tezzeret_cruel_captain.py`): "If it's an artifact creature, put a +1/+1 counter on it." folds
+    into the `Untap` before it (`counter_if_artifact_creature`); in his emblem, "If it's not a creature, it becomes a 0/0 Robot artifact
+    creature." folds into the `PutCounters` before it (`becomes`, `Game.become_creature_for_good`, keeping its own subtypes). An
+    emblem's "At the beginning of combat on your turn" triggers, as a permanent's does.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
