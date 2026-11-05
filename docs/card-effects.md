@@ -1123,6 +1123,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     sacrifice among the numbers that pay for the rest (a Treasure spent on mana can't also be sacrificed; it is offered only if one
     does), and `PunishPerCounter` asks each opponent, for each blight counter it had, to lose 4 life, sacrifice or discard
     (`Game.punish`).
+  - Standard's landfall decks (`tests/test_standard_landfall.py`): "Affinity for Forests" counts a land type (Sapling Nursery), and
+    "Treefolk and Forests you control gain indestructible until end of turn" reaches every permanent of either type
+    (`KindsGainUntilEndOfTurn`). Keen-Eyed Curator's condition counts the card types among the cards still exiled with it
+    (`exiled_with_types`). Pit of Offerings exiles up to three target cards from graveyards (`ExileUpToNFromGraveyards`) and taps for
+    {C} or a color of the cards still exiled with it. Esper Origins cast from a graveyard comes back on its back face, Summon: Esper
+    Maduin, with a finality counter (`TransformIfCastFromGraveyard`, done as the spell leaves the stack); its chapters are "Reveal the
+    top card of your library. If it's a permanent card, put it into your hand." (`RevealTopToHand.only`) and "Other creatures you
+    control get +2/+2 ..." (`PumpEach.other`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

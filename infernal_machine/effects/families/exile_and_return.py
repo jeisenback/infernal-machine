@@ -125,6 +125,20 @@ class ExileUpToXFromGraveyards:
 
 
 @dataclass(frozen=True)
+class ExileUpToNFromGraveyards:
+    """Pit of Offerings: "Exile up to three target cards from graveyards." The targets are one list."""
+    max_targets: int
+    target: str = "graveyard:card:any"
+    any_number = True
+    multi_target = True
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for card in target or []:
+            game.exile_from_graveyard(card)
+
+
+@dataclass(frozen=True)
 class MayExileFromGraveyardThen:
     """Masked Vandal: "You may exile a creature card from your graveyard. If you do, exile target artifact or enchantment an opponent
     controls." The target is chosen as the ability goes on the stack; `then` happens only if a card was exiled."""

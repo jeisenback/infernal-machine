@@ -50,8 +50,8 @@ _ADD_COMBO = re.compile(_TAP + r"(two|three) mana in any combination of (\{[WUBR
 _ADD_AMONG = re.compile(_TAP + r"one mana of any color among legendary creatures and planeswalkers you control\." + _IF_TAIL)
 
 
-# Chrome Mox: the colors of the card exiled with it.
-_ADD_IMPRINTED = re.compile(_TAP + r"one mana of any of the exiled card's colors\." + _IF_TAIL)
+# Chrome Mox: the colors of the card exiled with it (Pit of Offerings: of the cards).
+_ADD_IMPRINTED = re.compile(_TAP + r"one mana of any of the exiled (?:card's|cards') colors\." + _IF_TAIL)  # "cards'": Pit of Offerings
 
 
 @lru_cache(maxsize=None)

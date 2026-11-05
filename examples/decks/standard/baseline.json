@@ -100,11 +100,7 @@
   },
   "mono_green_landfall": {
    "cards": 60,
-   "unplayable": [
-    "Keen-Eyed Curator",
-    "Pit of Offerings",
-    "Sapling Nursery"
-   ]
+   "unplayable": []
   },
   "rakdos_lizards": {
    "cards": 60,
@@ -112,10 +108,7 @@
   },
   "selesnya_landfall": {
    "cards": 60,
-   "unplayable": [
-    "Esper Origins // Summon: Esper Maduin",
-    "Sapling Nursery"
-   ]
+   "unplayable": []
   }
  }
 }
