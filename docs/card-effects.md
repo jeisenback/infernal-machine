@@ -1056,6 +1056,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "Players can't gain life." is `no_life_gain`; the Lynx's "it deals damage to each player equal to the number of nonbasic lands that
     player controls" is `DamageEachPlayerPerNonbasic`. The Urza lands look for the land types Urza's Mine, Power-Plant and Tower, not
     the card names.
+  - Kozilek's Command, Murktide Regent (`tests/test_kozileks_command_murktide.py`): the Command's modes "Target player scries X, then draws a
+    card." (`TargetScriesThenDraws`), "Exile target creature with mana value X or less." (the target kind `creature|mv<=x`) and "Exile up
+    to X target cards from graveyards." (`ExileUpToXFromGraveyards`). Murktide's "enters with a +1/+1 counter on it for each instant and
+    sorcery card exiled with it" counts the cards its delve exiled (`StackItem.delved`); "Whenever an instant or sorcery card leaves your
+    graveyard" is the event `instant_sorcery_left_graveyard`, once for each such card, heard when cards are delved, exiled to escape or
+    as a cost, and when a spell is cast from the graveyard.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,

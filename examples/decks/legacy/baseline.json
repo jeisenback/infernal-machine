@@ -3,7 +3,6 @@
   "beanstalk_control_non_yorion": {
    "cards": 60,
    "unplayable": [
-    "Murktide Regent",
     "Phelia, Exuberant Shepherd",
     "Stifle",
     "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
@@ -50,7 +49,6 @@
    "unplayable": [
     "Doomsday",
     "Edge of Autumn",
-    "Murktide Regent",
     "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
     "Thassa's Oracle"
    ]
@@ -61,7 +59,6 @@
     "City of Traitors",
     "Eye of Ugin",
     "It That Heralds the End",
-    "Kozilek's Command",
     "Reality Smasher"
    ]
   },
@@ -69,7 +66,6 @@
    "cards": 60,
    "unplayable": [
     "Cori-Steel Cutter",
-    "Murktide Regent",
     "Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar",
     "Urza's Bauble"
    ]
@@ -89,7 +85,6 @@
    "cards": 60,
    "unplayable": [
     "Karn, the Great Creator",
-    "Kozilek's Command",
     "Planar Nexus",
     "Tezzeret, Cruel Captain",
     "Ugin, Eye of the Storms",

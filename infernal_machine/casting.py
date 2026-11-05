@@ -125,19 +125,23 @@ class Caster:
         no_counter = any((limited := restricted_mana(p.card)) is not None and limited.uncounterable
                          and self.game._restricted_mana_ok(p, limited, paying) for p in tapped)
         spent = cost.generic + len(cost.colored) + len(cost.twobrid) + len(cost.phyrexian)  # "mana spent to cast it"
+        delved: list[Card] = []
         for _ in range(delve):
             exiled = seat.graveyard[seat.player.choose(g.DELVE_PROMPT(card.name), [c.name for c in seat.graveyard])]
             seat.graveyard.remove(exiled)
             self.game.broadcast({"event": "left_graveyard", "seat": seat.index, "card": exiled.name, "to": "exile"})
             self.game._move_card(seat, exiled, "exile")
+            delved.append(exiled)
         if delve:
-            self.game._left_graveyard(seat)
+            self.game._left_graveyard(seat, delved)
         zone.remove(whole or card)
+        if zone is seat.graveyard:  # cast from the graveyard (flashback, escape ...): the card left it
+            self.game._left_graveyard(seat, [whole or card])
         if prepared is not None:  # a copy of the spell is cast, and the creature is no longer prepared
             prepared.prepared = False
         discarded = self._pay_extras(seat, card, alternative, graveyard, x, kicked, bought_back, picked)
         sacrificed = self.game._sacrifice_for_copies(seat, card)
-        item = g.StackItem(card, seat, effects, targets, x=x, kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, additional_paid=additional_paid, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
+        item = g.StackItem(card, seat, effects, targets, x=x, delved=tuple(delved), kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, additional_paid=additional_paid, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
                          foretold=graveyard is not None and graveyard.word == "Foretell", discarded=discarded, from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
@@ -376,13 +380,15 @@ class Caster:
                     picked: tuple = ()) -> tuple[Card, ...]:
         """Pay the non-mana costs of casting `card`, which has already left its zone. Returns the cards its additional costs
         discarded."""
+        escaped: list[Card] = []
         for _ in range(graveyard.exile if graveyard else 0):  # Escape: exile other cards from the graveyard
             exiled = seat.graveyard[seat.player.choose(g.ESCAPE_PROMPT, [c.name for c in seat.graveyard])]
             seat.graveyard.remove(exiled)
             self.game.broadcast({"event": "left_graveyard", "seat": seat.index, "card": exiled.name, "to": "exile"})
             self.game._move_card(seat, exiled, "exile")
-        if graveyard and graveyard.exile:
-            self.game._left_graveyard(seat)
+            escaped.append(exiled)
+        if escaped:
+            self.game._left_graveyard(seat, escaped)
         if graveyard and graveyard.life:  # "Flashback\u2014{1}{U}, Pay 3 life."
             self.game.change_life(seat, -graveyard.life)
         sacrifice, sacrifices = (graveyard.sacrifice, graveyard.sacrifices) if graveyard else ("", 0)

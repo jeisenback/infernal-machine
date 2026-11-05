@@ -177,6 +177,8 @@ declare("other_draw_step", re.compile(r"At the beginning of each other player's 
 declare("opponent_upkeep", re.compile(r"At the beginning of each opponent's upkeep, (.+)", re.I), about_player=True)
 declare("opponent_end_step", re.compile(r"At the beginning of (?:each|an) opponent's end step, (.+)", re.I), about_player=True)
 declare("graveyard_leave", re.compile(r"Whenever one or more cards leave your graveyard, (.+)", re.I), to="you")
+declare("instant_sorcery_left_graveyard", re.compile(r"Whenever an instant or sorcery card leaves your graveyard, (.+)", re.I),
+        to="you")  # Murktide Regent: once for each such card (Game._left_graveyard)
 declare("any_sacrifice", re.compile(r"Whenever a player sacrifices a permanent, (.+)", re.I))
 declare("other_sacrifice", re.compile(r"Whenever a player sacrifices another permanent, (.+)", re.I))
 declare("host_dies", re.compile(r"When(?:ever)? (?:enchanted|equipped) creature dies, (.+)", re.I), host_gone=True)

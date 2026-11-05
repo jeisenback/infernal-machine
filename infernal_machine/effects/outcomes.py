@@ -215,6 +215,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     _SacrificeThemLater,
 )
 from .families.exile_and_return import (  # noqa: F401
+    ExileUpToXFromGraveyards,
     CastExiledWithFree,
     DECLINE,
     EachSacrificesThenReturn,
@@ -282,6 +283,7 @@ from .families.exile_and_return import (  # noqa: F401
     _PlayTheExiledCard,
 )
 from .families.library_and_hand import (  # noqa: F401
+    TargetScriesThenDraws,
     BASIC_LAND_TYPES,
     GreatestPowerMayDraw,
     DiscardUnlessSourceEntered,
@@ -1779,6 +1781,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: DestroyUpToX("artifact or enchantment")),
     (re.compile(r"choose any number of target creatures you control\.", re.I), lambda m: _ChooseAnyNumber("creature you control")),
     (re.compile(r"exile any number of target spells\.", re.I), lambda m: ExileSpells()),  # Mindbreak Trap
+    (re.compile(rf"target player scries {_N}, then draws a card\.", re.I), lambda m: TargetScriesThenDraws(_count(m[1]))),  # Kozilek's Command
+    (re.compile(r"exile target creature with mana value X or less\.", re.I), lambda m: Exile("creature|mv<=x")),
+    (re.compile(r"exile up to X target cards from graveyards\.", re.I), lambda m: ExileUpToXFromGraveyards()),
     (re.compile(rf"(?:it|{_SELF}) deals damage to each player equal to the number of nonbasic lands that player controls\.", re.I),
      lambda m: DamageEachPlayerPerNonbasic()),  # Sunspine Lynx
     (re.compile(r"return any number of target (nonland, nontoken permanent)s you control to their owners' hands\.", re.I),

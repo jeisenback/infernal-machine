@@ -559,6 +559,18 @@ class Scry:
 
 
 @dataclass(frozen=True)
+class TargetScriesThenDraws:
+    """Kozilek's Command: "Target player scries X, then draws a card." """
+    count: int | str
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.scry(target, game.amount(self.count))
+            game.draw(target, 1)
+
+
+@dataclass(frozen=True)
 class RevealLands:
     """Animist's Awakening: "Reveal the top X cards of your library. Put all land cards from among them onto the battlefield tapped
     and the rest on the bottom of your library in a random order." Open the Way (`until_lands`): "Reveal cards from the top of your
