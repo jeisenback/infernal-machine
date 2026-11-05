@@ -163,6 +163,17 @@ class ZimonesHypothesis:
 
 
 @dataclass(frozen=True)
+class TransformIfCastFromGraveyard:
+    """Esper Origins: "If this spell was cast from a graveyard, exile it, then put it onto the battlefield transformed under its
+    owner's control with a finality counter on it." It happens as the spell leaves the stack (Game._finish_spell)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if item is not None and item.from_graveyard:
+            item.transform_after = True
+
+
+@dataclass(frozen=True)
 class ModifiedGainHexproof:
     """Silkguard: "Auras, Equipment, and modified creatures you control gain hexproof until end of turn." (Counters,
     Equipment and your Auras on a creature are modifications.)"""

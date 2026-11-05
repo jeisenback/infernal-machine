@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    KindsGainUntilEndOfTurn,
     SubjectDamagesTargetByPower,
     AttachChosenEquipment,
     ChooseEquipmentToAttach,
@@ -225,6 +226,7 @@ from .families.exile_and_return import (  # noqa: F401
     ReturnPerOpponent,
     WishArtifact,
     ExileUpToXFromGraveyards,
+    ExileUpToNFromGraveyards,
     CastExiledWithFree,
     DECLINE,
     EachSacrificesThenReturn,
@@ -474,6 +476,7 @@ from .families.spells_and_misc import (  # noqa: F401
     MayPayLoot,
     Modal,
     ModifiedGainHexproof,
+    TransformIfCastFromGraveyard,
     NewTargetMustBe,
     NewTargets,
     OnPlayer,
@@ -1685,6 +1688,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PunishPerCounter(m[1].lower(), int(m[2]), m[3].lower())),  # Rottenmouth Viper
     (re.compile(r"return up to (two|three) (creature|permanent) cards with total mana value (\d+) or less from your graveyard to the "
                 r"battlefield\.", re.I), lambda m: ReturnUpToTotalManaValue(_number(m[1]), m[2].lower(), int(m[3]))),  # Lively Dirge
+    (re.compile(r"if this spell was cast from a graveyard, exile it, then put it onto the battlefield transformed under its owner's "
+                r"control with a finality counter on it\.", re.I), lambda m: TransformIfCastFromGraveyard()),  # Esper Origins
+    (re.compile(r"reveal the top card of your library\. If it's an? (permanent|creature|land|nonland) card, put it into your hand\.", re.I),
+     lambda m: RevealTopToHand(only=m[1].lower())),  # Summon: Esper Maduin
     (re.compile(r"search your library for a card, put (?:that card|it) into your graveyard, then shuffle\.", re.I),  # "it": Lively Dirge
      lambda m: SearchLibrary("card", "graveyard", False)),
     (re.compile(r"each player draws a card, then discards a card\.", re.I), lambda m: EachDrawsThenDiscards()),
@@ -1831,6 +1838,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target player scries {_N}, then draws a card\.", re.I), lambda m: TargetScriesThenDraws(_count(m[1]))),  # Kozilek's Command
     (re.compile(r"exile target creature with mana value X or less\.", re.I), lambda m: Exile("creature|mv<=x")),
     (re.compile(r"exile up to X target cards from graveyards\.", re.I), lambda m: ExileUpToXFromGraveyards()),
+    (re.compile(r"exile up to (two|three|four) target cards from graveyards\.", re.I),
+     lambda m: ExileUpToNFromGraveyards(_number(m[1]))),  # Pit of Offerings
     (re.compile(rf"(?:it|{_SELF}) deals damage to each player equal to the number of nonbasic lands that player controls\.", re.I),
      lambda m: DamageEachPlayerPerNonbasic()),  # Sunspine Lynx
     (re.compile(r"return any number of target (nonland, nontoken permanent)s you control to their owners' hands\.", re.I),
@@ -2138,6 +2147,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: VowCounters()),
     (re.compile(rf"put an? {_COUNTER} on each of up to X target creatures( you control)?\.", re.I),
      lambda m: PutCountersOnEachUpToX(_counter_name(m[1]), "creature you control" if m[2] else "creature")),
+    (re.compile(rf"((?-i:[A-Z][a-z]+)) and ((?-i:[A-Z][a-z]+)) you control gain {_KEYWORDS} until end of turn\.", re.I),  # Sapling Nursery
+     lambda m: KindsGainUntilEndOfTurn(f"{_singular(m[1])} or {_singular(m[2])}", _keyword_list(m[3]))),
     (re.compile(r"Auras, Equipment, and modified creatures you control gain hexproof until end of turn\.", re.I),
      lambda m: ModifiedGainHexproof()),
     (re.compile(r"move all counters from target (nonland permanent you control) onto another target (nonland permanent you control)\.",
@@ -2581,6 +2592,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:{_SELF}) gets? {_PT_X} until end of turn\."),
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
+    (re.compile(rf"(?i:other creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), other=True)),  # Summon: Esper Maduin
     (re.compile(rf"((?-i:[A-Z][a-z]+))s you control {_CHANGE}"), lambda m: PumpEach(_modifier(m, 2), subtype=m[1])),
     (re.compile(rf"(?i:non)-((?-i:[A-Z][a-z]+)) creatures you control {_CHANGE}"),
      lambda m: PumpEach(_modifier(m, 2), subtype="non-" + m[1])),  # Return of the Wildspeaker
@@ -3015,6 +3027,8 @@ _CONDITIONS = [
     (re.compile(rf"\{{([WUBRG])\}}\{{([WUBRG])\}} was spent to cast (?:it|{_SELF})"), lambda m: Condition("mana_spent_colors", what=m[1] + m[2])),  # Deceit
     (re.compile(r"you didn't cast a spell this turn"), lambda m: Condition("no_spell_cast_turn")),
     (re.compile(r"there are four or more card types among cards in your graveyard"), lambda m: Condition("delirium")),
+    (re.compile(r"there are (two|three|four|five) or more card types among cards exiled with (?:this creature|CARDNAME)"),
+     lambda m: Condition("exiled_with_types", count=_number(m[1]))),  # Keen-Eyed Curator
     (re.compile(r"the sacrificed creature's toughness was (\d+) or greater"), lambda m: Condition("sacrificed_toughness_at_least", int(m[1]))),  # Witch's Oven
     (re.compile(r"you've completed a dungeon"), lambda m: Condition("completed_dungeon")),  # White Plume Adventurer
     (re.compile(r"each player has (\d+) or less life"), lambda m: Condition("each_life_at_most", int(m[1]))),

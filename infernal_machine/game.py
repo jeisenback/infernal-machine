@@ -389,6 +389,7 @@ class StackItem:
     rider_counters: int = 0  # Opal Palace: how many of its mana was spent on this commander
     from_graveyard: bool = False  # cast from a graveyard (flashback and the like): Sevinne's Reclamation asks
     bottom_after: bool = False  # Quintorius: put on the bottom of its owner's library instead of into the graveyard
+    transform_after: bool = False  # Esper Origins: onto the battlefield transformed, with a finality counter, instead of into a zone
     is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
     subject: "Permanent | None" = None  # for a watching trigger: the permanent that set it off ("on it")
@@ -2334,6 +2335,12 @@ class Game:
         """A resolved instant or sorcery goes to its graveyard; exiled after flashback; or, cast with Quintorius, to the bottom of
         its owner's library. One that was bought back returns to its owner's hand, but only if it resolved."""
         card, home = item.physical, item.home
+        if item.transform_after:  # Esper Origins: exiled, then back with its back face up
+            self.broadcast({"event": "put_onto_battlefield", "seat": home.index, "card": _checked(card.flip).name, "tapped": False})
+            permanent = self._transformed_permanent(card, home)
+            permanent.counters["finality"] = 1
+            self._enter(home, permanent)
+            return
         if item.bought_back and resolved:
             self.broadcast({"event": "buyback", "seat": item.controller.index, "card": item.card.name})
             self._move_card(home, card, "hand")
@@ -2732,9 +2739,10 @@ class Game:
         if kind == "no_spell_cast_turn":
             return not any(turn == self.turn for turn, _ in seat.cast_log)
         if kind == "delirium":  # four or more card types among the cards in the graveyard
-            types = {t for c in seat.graveyard for t in ("Artifact", "Battle", "Creature", "Enchantment", "Instant", "Kindred", "Land", "Planeswalker", "Sorcery")
-                     if t in c.type_line.partition("\u2014")[0]}
-            return len(types) >= 4
+            return _card_type_count(seat.graveyard) >= 4
+        if kind == "exiled_with_types":  # Keen-Eyed Curator: card types among the cards still exiled with it
+            return source is not None and _card_type_count(
+                [card for owner, card in source.exiled_with if any(c is card for c in owner.exile)]) >= condition.count
         if kind == "each_life_at_most":  # Cryptolith Fragment: every player has that much life or less
             return all(s.life <= condition.count for s in self.live_seats())
         if kind == "source_equipped":
@@ -6863,6 +6871,12 @@ def _instant_speed(card: Card) -> bool:
 def _permanent_matches(kind: str, card: Card) -> bool:
     """Whether a permanent's card is of `kind` ("creature", "nonland permanent", "black creature", "Elf", ...): see filters.py."""
     return parse_filter(kind).matches(card)
+
+
+def _card_type_count(cards: list[Card]) -> int:
+    """How many card types there are among `cards` (CR 205.2a; Kindred counts, as for delirium)."""
+    return len({t for c in cards for t in ("Artifact", "Battle", "Creature", "Enchantment", "Instant", "Kindred", "Land", "Planeswalker",
+                                         "Sorcery") if t in c.type_line.partition("\u2014")[0]})
 
 
 def _is_instant_or_sorcery(card: Card) -> bool:

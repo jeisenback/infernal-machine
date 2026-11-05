@@ -353,13 +353,16 @@ class RevealTopToHand:
     """Dark Confidant: "Reveal the top card of your library and put that card into your hand." (not a draw); with `lose_life`, "You lose
     life equal to its mana value." after it (see _CONDITIONAL)."""
     lose_life: bool = False
+    only: str = ""  # Summon: Esper Maduin: "If it's a permanent card, put it into your hand." (otherwise it stays on top)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if not controller.library:
             return
-        card = controller.library.pop(0)
+        card = controller.library[0]
         game.broadcast({"event": "revealed_top", "seat": controller.index, "cards": [card.name]})
-        controller.hand.append(card)
+        if self.only and not _card_matches_kind(self.only, card):
+            return
+        controller.hand.append(controller.library.pop(0))
         if self.lose_life:
             game.change_life(controller, -int(card.cmc))
 

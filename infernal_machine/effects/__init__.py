@@ -166,6 +166,7 @@ from .outcomes import (  # noqa: F401
     Proliferate,
     Pump,
     PumpEach,
+    KindsGainUntilEndOfTurn,
     PumpEachX,
     PumpX,
     PutAttackingFromHand,

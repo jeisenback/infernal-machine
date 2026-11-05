@@ -408,7 +408,7 @@ _DEVOUR = re.compile(r"Devour (\d+)")
 _REPLICATE = re.compile(r"Replicate ((?:\{[^}]+\})+)")
 
 
-_AFFINITY = re.compile(r"Affinity for ([a-z]+?)s?")
+_AFFINITY = re.compile(r"Affinity for ([A-Za-z]+?)s?")  # "Forests": Sapling Nursery
 
 
 _STORM_LIKE = re.compile(r"(Storm|Gravestorm)")

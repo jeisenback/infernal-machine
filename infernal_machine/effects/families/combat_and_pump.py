@@ -214,15 +214,32 @@ class PumpEach:
     opponents: bool = False
     everyone: bool = False  # "All creatures get -2/-2 until end of turn."
     subtype: str = ""  # "Spirits you control gain double strike and vigilance until end of turn." ("non-Human": all but those)
+    other: bool = False  # Summon: Esper Maduin: "Other creatures you control ...": not its source
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         seats = game.live_seats() if self.everyone else game.opponents(controller) if self.opponents else [controller]
         for seat in seats:
             for permanent in list(seat.battlefield):
                 kinds = permanent.card.type_line.partition("\u2014")[2].split()
+                if self.other and permanent is game.resolving_source:
+                    continue
                 if "Creature" in permanent.card.type_line and (
                         not self.subtype or (self.subtype.removeprefix("non-") in kinds) != self.subtype.startswith("non-")):
                     game.modify_until_end_of_turn(permanent, self.modifier)
+
+
+@dataclass(frozen=True)
+class KindsGainUntilEndOfTurn:
+    """Sapling Nursery: "Treefolk and Forests you control gain indestructible until end of turn." (`kind`: "Treefolk or Forest",
+    any permanent of those types, a land as well as a creature)"""
+    kind: str
+    keywords: frozenset[str]
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        from ...filters import has_type
+        for permanent in list(controller.battlefield):
+            if has_type(permanent.card, self.kind):
+                game.modify_until_end_of_turn(permanent, Modifier(keywords=self.keywords))
 
 
 @dataclass(frozen=True)
