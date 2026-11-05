@@ -37,6 +37,10 @@ class JeskaiRevelationTests(unittest.TestCase):
     def test_the_card_is_understood(self):
         self.assertEqual(unsupported_lines(REVELATION), [])
 
+    def test_damage_to_the_creature_it_just_returned_is_not_dealt(self):
+        game, a, b = cast(["Bear", "Bear"])  # the same creature for both targets: it is in its owner's hand by the damage
+        self.assertEqual((b.hand, b.life, len(a.hand)), ([BEAR], 40, 2))
+
     def test_it_bounces_a_permanent_and_does_the_rest(self):
         game, a, b = cast(["Bear", "Player: B"])
         self.assertEqual(b.hand, [BEAR])

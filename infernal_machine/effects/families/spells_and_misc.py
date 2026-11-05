@@ -300,6 +300,14 @@ class _BecomesIfNotCreature:
 
 
 @dataclass(frozen=True)
+class NextSpellUncounterable:
+    """Mistrise Village: "The next spell you cast this turn can't be countered." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.next_uncounterable_turn = game.turn
+
+
+@dataclass(frozen=True)
 class _ThatAlsoGains:
     """ "That creature also gains indestructible until end of turn.": the creature a pump just gave +2/+2 (see _merge_three_way)."""
     keywords: frozenset[str]

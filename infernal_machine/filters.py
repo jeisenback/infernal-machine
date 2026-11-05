@@ -46,7 +46,7 @@ class Alternative:
             return False
         if any(word not in words for word in self.needs) or any(word in words for word in self.lacks):
             return False
-        if any(word in subtypes for word in self.lacks_subtype):
+        if any(word in subtypes or (word == "outlaw" and subtypes & _OUTLAWS) for word in self.lacks_subtype):
             return False
         if self.colors and not any(color in card.colors for color in self.colors):
             return False
@@ -114,6 +114,9 @@ _MANA_VALUE = re.compile(r" with mana value (\d+)(?: (or less|or greater))?$")
 _POWER = re.compile(r" with power (\d+) or less$")
 _BAR_VALUE = re.compile(r"\|(mv|p|t)(<=|>=|=|<)(\d+)$")
 _SPLIT = re.compile(r",? or |, | and ")
+
+
+_OUTLAWS = frozenset({"assassin", "mercenary", "pirate", "rogue", "warlock"})  # Shoot the Sheriff: "non-outlaw" (its reminder text)
 
 
 @lru_cache(maxsize=None)

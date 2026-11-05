@@ -508,6 +508,7 @@ class Seat:
     plotted: list = field(default_factory=list)  # (turn, card) for each plotted card in exile (it can be cast free from the next turn on)
     signature: str | None = None  # an Oathbreaker's signature spell, which starts in the command zone and is cast only while its owner controls the Oathbreaker
     sideboard: list = field(default_factory=list)  # cards outside the game: "an artifact card you own from outside the game" (Karn, the Great Creator)
+    next_uncounterable_turn: int | None = None  # Mistrise Village: the turn in which the next spell this player casts can't be countered
     enduring_story: bool = False  # Storied: three or more artifacts, legendaries and/or Sagas once, with a storied permanent; for good
     equip_turn: int | None = None  # the last turn this player activated an equip ability (Kili: only the first each turn is free)
     companion: Card | None = None  # kept outside the game: for {3}, once, at sorcery timing, it goes into the hand (CR 702.139)
@@ -1275,6 +1276,17 @@ class Game:
         if on_your_turn:
             permanent.until_end_of_turn.append(Modifier(0, 0, on_your_turn, your_turn=True))
         self.broadcast({"event": "became_creature", "card": permanent.card.name, "power": power, "toughness": toughness})
+
+    def animate_for_good(self, permanent: Permanent, power: int, toughness: int, colors: tuple[str, ...], subtypes: str,
+                         keywords: frozenset[str], grant: str = "") -> None:
+        """Soulstone Sanctuary, Great Hall of the Biblioplex: "This land becomes a 3/3 creature with vigilance ..." with no duration: it
+        stays a creature (the card it was is forgotten, so the cleanup step keeps it), and its keywords and quoted ability are written
+        on it."""
+        self.animate(permanent, power, toughness, colors, subtypes, False, frozenset())
+        permanent.original = None
+        lines = [keyword.capitalize() for keyword in sorted(keywords)] + ([grant] if grant else [])
+        if lines:
+            permanent.card = dataclasses.replace(permanent.card, oracle_text="\n".join([permanent.card.oracle_text, *lines]).strip())
 
     def become_creature_for_good(self, permanent: Permanent, power: int, toughness: int, subtype: str) -> None:
         """Tezzeret, Cruel Captain's emblem: "If it's not a creature, it becomes a 0/0 Robot artifact creature." With no duration it is
@@ -3104,6 +3116,8 @@ class Game:
         counter_needed = re.search(r" with an? (\S+) counter on it$", kind)  # Floodpits Drowner: "creature with a stun counter on it"
         if counter_needed:
             kind = kind[:counter_needed.start()]
+        flying = None if not kind.endswith(" flying") else not kind.endswith(" without flying")  # Charring Bite: "creature without flying"
+        kind = re.sub(r" with(?:out)? flying$", "", kind)
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
         lesser = self._source_now() if kind.endswith(" with lesser power") else None  # Mentor
         power_limit = re.search(r" with power (\d+) or less$", kind)  # Escape Tunnel: the creature's power now, counters and pumps included
@@ -3122,6 +3136,8 @@ class Game:
                 if controller == "own" and (permanent.owner or seat) is not caster:
                     continue
                 if attacked and permanent.attacked_turn != self.turn:
+                    continue
+                if flying is not None and self.has_keyword(permanent, "flying") != flying:
                     continue
                 if counter_needed and not permanent.counters.get(counter_needed[1]):
                     continue
@@ -3371,6 +3387,8 @@ class Game:
 
     def damage(self, target: Seat | Permanent, amount: int, source: Permanent | None = None,
                combat: bool = False) -> None:
+        if isinstance(target, Permanent) and not self.on_battlefield(target):
+            return  # Jeskai Revelation returned it to its owner's hand before dealing the damage: nothing is dealt
         colors = source_qualities(source.card) if source is not None else self.resolving_colors
         if isinstance(target, Permanent) and self.protected_from(target, colors):
             self.broadcast({"event": "damage_prevented", "card": target.card.name, "amount": amount})
@@ -5009,6 +5027,16 @@ class Game:
             self.broadcast({"event": "ward_paid", "seat": payer.index, "card": ward.card.name, "cost": cost_text})
             return
         self.counter(item)
+
+    def exile_attackers(self, victim: Seat) -> None:
+        """Settle the Wreckage: "Exile all attacking creatures target player controls. That player may search their library for that many
+        basic land cards, put those cards onto the battlefield tapped, then shuffle." """
+        attackers = [a.attacker for a in self.combat.attacks if a.controller is victim]
+        for creature in attackers:
+            self.exile(creature)
+        if attackers and victim.player.choose(SEARCH_OPTIONAL_PROMPT, YES_NO) == 0:
+            for _ in attackers:
+                self.fetch_basic_land(victim)
 
     def fetch_basic_land(self, seat: Seat, optional: bool = False, untap_if: "Condition | None" = None,
                          tapped: bool = True, subtypes: tuple[str, ...] | None = None, stun: bool = False) -> None:
