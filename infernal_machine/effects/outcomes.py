@@ -371,6 +371,7 @@ from .families.library_and_hand import (  # noqa: F401
 )
 from .families.life_and_damage import (  # noqa: F401
     Annihilate,
+    DamageEachPlayerPerNonbasic,
     Damage,
     _InsteadDamage,
     _NoLifeGainForDamaged,
@@ -1778,6 +1779,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: DestroyUpToX("artifact or enchantment")),
     (re.compile(r"choose any number of target creatures you control\.", re.I), lambda m: _ChooseAnyNumber("creature you control")),
     (re.compile(r"exile any number of target spells\.", re.I), lambda m: ExileSpells()),  # Mindbreak Trap
+    (re.compile(rf"(?:it|{_SELF}) deals damage to each player equal to the number of nonbasic lands that player controls\.", re.I),
+     lambda m: DamageEachPlayerPerNonbasic()),  # Sunspine Lynx
     (re.compile(r"return any number of target (nonland, nontoken permanent)s you control to their owners' hands\.", re.I),
      lambda m: ReturnAnyNumber(f"{m[1]} you control")),  # Paradoxical Outcome
     (re.compile(r"draw a card for each card returned to your hand this way\.", re.I), lambda m: _DrawPerReturned()),

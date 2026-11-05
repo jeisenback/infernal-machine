@@ -332,6 +332,16 @@ class GainLifeItLost:
 
 
 @dataclass(frozen=True)
+class DamageEachPlayerPerNonbasic:
+    """Sunspine Lynx: "it deals damage to each player equal to the number of nonbasic lands that player controls." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            game.damage(seat, sum("Land" in p.card.type_line and "Basic" not in p.card.type_line for p in seat.battlefield),
+                        source=game.resolving_source)
+
+
+@dataclass(frozen=True)
 class DamageEach:
     """ "This spell deals 2 damage to each creature (and each player)." Nothing is targeted."""
     amount: int | str

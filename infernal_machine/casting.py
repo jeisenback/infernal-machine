@@ -253,10 +253,12 @@ class Caster:
     def cost_increase(self, seat: g.Seat, card: Card) -> int:
         """How much more generic mana `card` costs `seat`: Sphere of Resistance's "Spells cost {1} more to cast.", Thalia's
         "Noncreature spells ...", "Spells your opponents cast ..." on any player's permanents."""
-        return sum(amount for owner in self.game.live_seats() for p in owner.battlefield if not self.game.loses_abilities(p)
-                   for kind, opponents, amount in cost_increases(p.card)
-                   if (not opponents or owner is not seat)
-                   and (p.chosen_name == card.name if kind == "chosen name" else g._spell_matches(kind, card)))  # Disruptor Flute
+        spells_this_turn = sum(turn == self.game.turn for turn, _ in seat.cast_log)  # (the spell being cast is not in the log yet)
+        taxes = sum(spells_this_turn for _, _, key in self.game._static_rules() if key == "spell_count_tax")  # Damping Sphere
+        return taxes + sum(amount for owner in self.game.live_seats() for p in owner.battlefield if not self.game.loses_abilities(p)
+                           for kind, opponents, amount in cost_increases(p.card)
+                           if (not opponents or owner is not seat)
+                           and (p.chosen_name == card.name if kind == "chosen name" else g._spell_matches(kind, card)))  # Disruptor Flute
 
     def cost_reduction(self, seat: g.Seat, card: Card) -> int:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""

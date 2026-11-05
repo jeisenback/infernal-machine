@@ -1049,6 +1049,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Mindbreak Trap (`tests/test_mindbreak_trap.py`): "If an opponent cast three or more spells this turn, you may pay {0} rather than pay
     this spell's mana cost." is an `AlternativeCost` with `opponent_spells`; "Exile any number of target spells." is `ExileSpells`
     (`Game.exile_spell`: not a counter, so a spell that can't be countered is exiled too).
+  - Damping Sphere, Sunspine Lynx (`tests/test_damping_sphere_sunspine_lynx.py`): "If a land is tapped for two or more mana, it produces {C}
+    instead of any other type and amount." is the rules static `damp_lands` (`own` in `payment.py`: Ancient Tomb, a bounceland, Gaea's
+    Cradle, the Urza lands and a land an Aura gives "{T}: Add {G}{G}" each make one {C}; a creature that makes several is not a land).
+    "Each spell a player casts costs {1} more to cast for each other spell that player has cast this turn." is `spell_count_tax`.
+    "Players can't gain life." is `no_life_gain`; the Lynx's "it deals damage to each player equal to the number of nonbasic lands that
+    player controls" is `DamageEachPlayerPerNonbasic`. The Urza lands look for the land types Urza's Mine, Power-Plant and Tower, not
+    the card names.
   - Valiant (`tests/test_valiant.py`): "Whenever this creature becomes the target of a spell or ability you control for the first time
     each turn" is the event `valiant`, set off by a spell cast, an ability activated or a trigger put on the stack (`Game._valiant`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
