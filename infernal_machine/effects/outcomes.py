@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    BecomesTypeUntilEndOfTurn,
     KindsGainUntilEndOfTurn,
     SubjectDamagesTargetByPower,
     AttachChosenEquipment,
@@ -1808,6 +1809,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"then if (.+), untap that land\.", re.I), lambda m: _UntapThatLand(c) if (c := _condition(m[1])) else None),
     (re.compile(r"you may behold an? ((?-i:[A-Z][a-z]+))\. If you do, untap that land\.", re.I),  # Elven Passage: beholding costs nothing
      lambda m: _UntapThatLand(Condition("behold", what=m[1]))),
+    (re.compile(r"(?:you may )?behold an? ((?-i:[A-Z][a-z]+))\. If you do, (create an? (?:Treasure|Clue|Food|Blood|Map) token\.)", re.I),
+     lambda m: Conditional(Condition("behold", what=m[1]), e) if (e := _template(m[2])) is not None else None),  # Sarkhan, Dragon Ascendant
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
     (re.compile(r"when you do, if (.+?), (.+)\.", re.I), _when_you_do_if),  # Earthbender Ascension
     (re.compile(r"if (this spell was foretold), (.+)\.", re.I), _then_if),
@@ -2546,6 +2549,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 rf"(?: (?:white|blue|black|red|green|colorless))?(?: [A-Z][\w'-]*)*(?: creature)?(?: with {_KEYWORDS})?"
                 r" until end of turn\."),
      lambda m: Pump(Modifier(0, 0, _keyword_list(m[4]) if m[4] else frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
+    (re.compile(rf"(?:until end of turn, )?target (creature(?: an opponent controls| you control)?) becomes an? (?-i:[A-Z][\w'-]*) with base "
+                rf"power and toughness (\d+)/(\d+) and gains {_KEYWORDS}(?: until end of turn)?\.", re.I),  # Secret Identity (its new type is not kept)
+     lambda m: Pump(Modifier(0, 0, _keyword_list(m[4]), (int(m[2]), int(m[3]))), m[1].lower())),
     (re.compile(rf"target (creature(?: an opponent controls| you control)?) has base power and toughness (\d+)/(\d+)"
                 r" until end of turn\.", re.I),
      lambda m: Pump(Modifier(0, 0, frozenset(), (int(m[2]), int(m[3]))), m[1].lower())),
@@ -2586,6 +2592,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: DoubleCounters(_counter_name(m[1]))),
     (re.compile(r'(each opponent|each player) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
     (re.compile(r'target (player|opponent) creates (.+)\.("?)', re.I), lambda m: _create_for_others(m)),
+    (re.compile(rf"(?i:until end of turn, )(?i:{_SELF}) becomes an? ((?-i:[A-Z][a-z]+)) in addition to (?:its|his|her) other types"
+                rf"(?: and gains {_KEYWORDS})?\.", re.I),
+     lambda m: BecomesTypeUntilEndOfTurn(m[1], _keyword_list(m[2]) if m[2] else frozenset())),  # Sarkhan, Dragon Ascendant
     (re.compile(rf"(?i:{_SELF}) {_CHANGE}"), lambda m: PumpSource(_modifier(m, 1))),
     (re.compile(rf"(?i:{_SELF}) gets {_PT} until end of turn and can't be blocked this turn\."),  # Nimrodel Watcher
      lambda m: PumpSource(Modifier(_signed(m[1]), _signed(m[2]), frozenset({CANT_BE_BLOCKED})))),

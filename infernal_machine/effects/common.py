@@ -153,7 +153,7 @@ _WHOLE_LINE = re.compile(
     r"(?: with mana value \d+ or less)? (?:revealed this way|from among them) (?:into your hand|onto the battlefield) and the rest on the "
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
-    r"|You may behold an? [A-Z][a-z]+\. If you do, untap that land\."  # Elven Passage
+    r"|(?:You may )?behold an? [A-Z][a-z]+\. If you do, (?:untap that land|create an? [A-Z][a-z]+ token)\."  # Elven Passage; Sarkhan
     r"|Exile all attacking creatures target player controls\. That player may search their library for that many basic land cards, "
     r"put those cards onto the battlefield tapped, then shuffle\."  # Settle the Wreckage
     r"|[Cc]hoose target opponent\. If they lost life this turn, they reveal their hand, you choose a nonland card from it, and they "

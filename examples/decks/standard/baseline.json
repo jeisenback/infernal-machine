@@ -20,10 +20,7 @@
   },
   "boros_dragons": {
    "cards": 60,
-   "unplayable": [
-    "Magda, the Hoardmaster",
-    "Sarkhan, Dragon Ascendant"
-   ]
+   "unplayable": []
   },
   "boros_dwarves": {
    "cards": 60,
@@ -33,8 +30,7 @@
    "cards": 60,
    "unplayable": [
     "Deadly Cover-Up",
-    "Doomsday Excruciator",
-    "Winternight Stories"
+    "Doomsday Excruciator"
    ]
   },
   "dimir_midrange": {
@@ -51,16 +47,12 @@
    "unplayable": [
     "Deadly Cover-Up",
     "Overlord of the Balemurk",
-    "Uldaros Theorix",
-    "Winternight Stories"
+    "Uldaros Theorix"
    ]
   },
   "izzet_prowess": {
    "cards": 60,
-   "unplayable": [
-    "Secret Identity",
-    "Wild Ride"
-   ]
+   "unplayable": []
   },
   "izzet_spellementals": {
    "cards": 60,
