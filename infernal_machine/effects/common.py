@@ -154,6 +154,8 @@ _WHOLE_LINE = re.compile(
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
     r"|You may behold an? [A-Z][a-z]+\. If you do, untap that land\."  # Elven Passage
+    r"|You may reveal an artifact card you own from outside the game or choose a face-up artifact card you own in exile\. Put that card "
+    r"into your hand\."  # Karn, the Great Creator
     r"|Choose creature or land\. Reveal the top (?:four|five|\d+) cards of your library\. Put all cards of the chosen type revealed this way "
     r"into your hand and the rest into your graveyard\."  # Winding Way
     r"|[Yy]ou may exile an? (?:black )?creature card(?: other than this card)? from your graveyard\. If you do, [^.]+\."

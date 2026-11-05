@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    AnimateByManaValue,
     GrantSorceryFlash,
     Animate,
     UntapACreature,
@@ -216,6 +217,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     _SacrificeThemLater,
 )
 from .families.exile_and_return import (  # noqa: F401
+    WishArtifact,
     ExileUpToXFromGraveyards,
     CastExiledWithFree,
     DECLINE,
@@ -1717,6 +1719,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield\. If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\.",
                 re.I), lambda m: RevealUntilAura()),
     (re.compile(r"tap up to one target creature and goad it\.", re.I), lambda m: TapAndGoad()),
+    (re.compile(r"until your next turn, up to one target noncreature artifact becomes an artifact creature with power and toughness each "
+                r"equal to its mana value\.", re.I), lambda m: AnimateByManaValue()),  # Karn, the Great Creator
+    (re.compile(r"you may reveal an artifact card you own from outside the game or choose a face-up artifact card you own in exile\. "
+                r"put that card into your hand\.", re.I), lambda m: WishArtifact()),  # Karn, the Great Creator
     (re.compile(r"attach (?:this Aura|CARDNAME) to it\.", re.I), lambda m: AttachThisToSubject()),
     (re.compile(r"if that enchantment is an Aura, you may attach it to the token\.", re.I), lambda m: _AttachItToToken()),
     (re.compile(rf"put {_N} ([+\-\u2212]1/[+\-\u2212]1) counters? on it and attach (?:this Equipment|CARDNAME) to it\.", re.I),

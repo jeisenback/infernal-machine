@@ -68,6 +68,18 @@ class Animate:
 
 
 @dataclass(frozen=True)
+class AnimateByManaValue:
+    """Karn, the Great Creator: "Until your next turn, up to one target noncreature artifact becomes an artifact creature with power and
+    toughness each equal to its mana value." """
+    target: str = "noncreature artifact"
+    optional_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.animate_until_next_turn(controller, target)
+
+
+@dataclass(frozen=True)
 class Earthbend:
     """ "Earthbend 2.": target land you control becomes a 0/0 creature with haste that's still a land, gets that many +1/+1
     counters, and comes back to the battlefield tapped when it dies or is exiled (the keyword action's reminder text)."""
