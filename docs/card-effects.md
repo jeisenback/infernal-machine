@@ -1171,6 +1171,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     to its mana cost." (Flashback, Snapcaster Mage) records the card for the turn (`Seat.flashback_granted`, read by
     `Game.graveyard_casts_for`). Ral, Crackling Wit's emblem "Instant and sorcery spells you cast have storm." is the rules static
     `grant_storm`.
+  - Standard's Izzet Spellementals deck (`tests/test_standard_izzet_spellementals.py`): Get Out's "Counter target creature or enchantment
+    spell." and "Return one or two target creatures and/or enchantments you own to your hand." Sunderflock costs {X} less, "where X is the
+    greatest mana value among Elementals you control" (`reduced_by_greatest`, The Great Henge's power reduction generalized), and "return
+    all non-Elemental creatures to their owners' hands". Hydro-Man, Fluid Felon: "if Hydro-Man is a creature, he gets +1/+1" (the condition
+    `source_is_creature`), and "Until your next turn, he becomes a land and gains "{T}: Add {U}."" (`Game.become_land_until_next_turn`:
+    a Legendary Land with its abilities and that mana ability, which reverts in its controller's untap step like Karn's animation).
   - Standard's Azorius Control deck (`tests/test_standard_azorius_control.py`): "Power-up — {cost}: ..." is an activated ability that can
     be activated only once and costs its source's mana cost less if that entered this turn (`ActivatedAbility.power_up`; `Cost.minus`
     takes each colored symbol from the same color, else from the generic part, CR 601.2f). "Put a +1/+1 counter and an indestructible

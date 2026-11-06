@@ -34,11 +34,7 @@
   },
   "izzet_spellementals": {
    "cards": 60,
-   "unplayable": [
-    "Get Out",
-    "Hydro-Man, Fluid Felon",
-    "Sunderflock"
-   ]
+   "unplayable": []
   },
   "jeskai_artifacts": {
    "cards": 60,

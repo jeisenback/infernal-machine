@@ -835,7 +835,8 @@ _IF_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast if (.+)\.")
 _POWER_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, where X is the total power of creatures you control\.")
 
 
-_GREATEST_POWER_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, where X is the greatest power among creatures you control\.")
+_GREATEST_POWER_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, where X is the greatest (power|mana value) among "
+                                       r"(creatures|(?-i:[A-Z][a-z]+)s) you control\.")  # The Great Henge; Sunderflock: "among Elementals"
 
 
 _GRANTED_AFFINITY = re.compile(r"(Enchantment|Aura) spells you cast have affinity for Auras\.")  # Pearl-Ear, Imperial Advisor
@@ -857,9 +858,11 @@ def reduced_by_total_power(card: Card) -> bool:
 
 
 @lru_cache(maxsize=None)
-def reduced_by_greatest_power(card: Card) -> bool:
-    """The Great Henge: "This spell costs {X} less to cast, where X is the greatest power among creatures you control." """
-    return any(_GREATEST_POWER_REDUCTION.fullmatch(line) for line in rules_lines(card))
+def reduced_by_greatest(card: Card) -> tuple[str, str] | None:
+    """The Great Henge: "This spell costs {X} less to cast, where X is the greatest power among creatures you control." Sunderflock:
+    "... the greatest mana value among Elementals you control." (the stat, "power" or "mana value", and the kind counted)"""
+    return next(((m[1], "creature" if m[2] == "creatures" else m[2].removesuffix("s")) for line in rules_lines(card)
+                 if (m := _GREATEST_POWER_REDUCTION.fullmatch(line))), None)
 
 
 @lru_cache(maxsize=None)
