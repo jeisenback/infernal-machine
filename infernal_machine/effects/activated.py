@@ -12,6 +12,7 @@ from ..cards import Card
 
 from .common import _COUNTER, _N, _N_FIXED, _SELF, _THRESHOLD, _count, _counter_name, _number, _split_sentences, rules_lines
 from .outcomes import (
+    CraftReturn,
     AddMana,
     Amount,
     Attach,
@@ -87,6 +88,7 @@ class ActivatedAbility:
     exile_graveyard: int = 0  # "Exile a card from your graveyard": how many
     exile_graveyard_kind: str = ""  # "Exile a creature card from your graveyard": of this kind ("" for any card)
     crew: int = 0  # "Crew N": tap untapped creatures you control with total power N or more
+    craft: str = ""  # "Craft with artifact": also exile another artifact you control or an artifact card from your graveyard
     reconfigure: str = ""  # "attach" (only with another creature to attach to) or "unattach" (only while attached)
     remove_counter: str = ""  # "Remove a +1/+1 counter from this creature": the kind of counter
     remove_count: int = 1  # ... and how many ("Remove three spore counters")
@@ -173,7 +175,8 @@ _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
 _EXILE_FROM_HAND = re.compile(r"Exile (?:CARDNAME|this card) from your hand")
 
 
-_TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) untapped (legendary )?(creatures?|permanents?|(?-i:[A-Z][a-z]+)s?) you control")  # "permanent": Gene Pollinator
+_CRAFT = re.compile(r"Craft with (artifact) ((?:\{[^}]+\})+)")  # Braided Net, Clay-Fired Bricks, Spring-Loaded Sawblades
+_TAP_CREATURES = re.compile(r"Tap (an?|two|three|four) (?:other )?untapped (legendary )?(creatures?|permanents?|artifacts?|(?-i:[A-Z][a-z]+)s?) you control")  # "permanent": Gene Pollinator; "other ... artifacts": Bladewheel Chariot
 
 
 _DISCARD_HAND = re.compile(r"Discard your hand")
@@ -225,6 +228,9 @@ def activated_abilities(card: Card) -> tuple[ActivatedAbility, ...]:
     for line in rules_lines(card):
         if m := _CREW.fullmatch(line):  # a Vehicle: tap creatures and it becomes an artifact creature this turn
             abilities.append(ActivatedAbility(line, (BecomeCreature(),), crew=int(m[1])))
+            continue
+        if m := _CRAFT.fullmatch(line):  # exile it and the material, then it returns transformed, as a sorcery
+            abilities.append(ActivatedAbility(line, (CraftReturn(),), mana_cost=m[2], exile_source=True, craft=m[1], sorcery_speed=True))
             continue
         if _STATION.fullmatch(line):  # Station: tap another creature, charge counters equal to its power, at sorcery speed
             abilities.append(ActivatedAbility(line, (DefineX(Amount("tapped_power")), PutCountersOnSource("X", "charge")),

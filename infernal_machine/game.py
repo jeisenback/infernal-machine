@@ -219,6 +219,7 @@ EXILE_TYPE_PROMPT = PromptKind("exile_type", "Exile a card of this type from you
 CAST_COPIES_PROMPT = PromptKind("cast_copies", "Cast one of the copies without paying its mana cost")  # Uldaros Theorix; followed by the mana value left; then NONE_TAKEN
 TEAMWORK_PROMPT = PromptKind("teamwork", "Tap a creature for teamwork for ")  # followed by the spell's name; options are creatures, then TEAMWORK_NONE
 TEAMWORK_NONE = "Don't use teamwork"
+CRAFT_PROMPT = PromptKind("craft", "Exile an artifact to craft ")  # followed by the source's name; options are permanents and graveyard cards
 HARMONIZE_PROMPT = PromptKind("harmonize", "Tap a creature to pay less for ")  # followed by the spell's name; options are creatures, then HARMONIZE_NONE
 HARMONIZE_NONE = "Tap none"
 PUNISHER_PROMPT = PromptKind("punisher", "Lose life, sacrifice or discard for ")  # Rottenmouth Viper; followed by the source's name
@@ -304,6 +305,7 @@ class Permanent:
     until_next_turn: list[Modifier] = field(default_factory=list)  # "until your next turn": ends as its controller's turn begins
     activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
     triggered_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last triggered (once-a-turn ones)
+    locked_while_tapped: bool = False  # Braided Net: its activated abilities can't be activated for as long as it remains tapped
     loses_abilities_while: "Permanent | None" = None  # The Wondrous Wasp: it has no abilities for as long as this one stays (Game.strip_while)
     last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
     last_auras: dict[int, int] = field(default_factory=dict)  # when it died: how many Auras each seat (by index) had on it
@@ -1250,7 +1252,14 @@ class Game:
             return False
         if ability.bounce_other and not any(_permanent_matches(ability.bounce_other, p.card) for p in seat.battlefield):
             return False
+        if ability.craft and not self._craft_choices(seat, source, ability.craft):
+            return False
         return not ability.tap_creatures or len(self._crew_candidates(seat, source, ability.tap_legendary, ability.tap_type)) >= ability.tap_creatures
+
+    def _craft_choices(self, seat: Seat, source: Permanent | None, kind: str) -> list:
+        """Craft with artifact: the other artifacts `seat` controls and the artifact cards in its graveyard it could exile."""
+        return [p for p in seat.battlefield if p is not source and _permanent_matches(kind, p.card)] \
+            + [c for c in _unique(seat.graveyard) if _card_matches(kind, c)]
 
     def _exile_cost_choices(self, seat: Seat, ability: ActivatedAbility) -> list[Card]:
         """The cards of `seat`'s graveyard that could be exiled to pay the ability's "Exile a creature card" cost."""
@@ -1267,8 +1276,8 @@ class Game:
     def _crew_candidates(self, seat: Seat, vehicle: Permanent | None, legendary: bool = False, kind: str = "") -> list[Permanent]:
         """The untapped creatures that could crew `vehicle` (summoning sickness doesn't matter, CR 702.122); only legendary
         ones, for Relic of Legends."""
-        if kind == "permanent":  # Gene Pollinator: "Tap an untapped permanent you control"
-            return [p for p in seat.battlefield if p is not vehicle and not p.tapped]
+        if kind in ("permanent", "artifact"):  # Gene Pollinator: "Tap an untapped permanent you control"; Bladewheel Chariot: "artifacts"
+            return [p for p in seat.battlefield if p is not vehicle and not p.tapped and (kind == "permanent" or "Artifact" in p.card.type_line)]
         return [p for p in seat.battlefield if p is not vehicle and not p.tapped and "Creature" in p.card.type_line
                 and (not legendary or "Legendary" in p.card.type_line) and (not kind or kind in p.card.type_line.partition("\u2014")[2].split())]
 
@@ -1395,6 +1404,16 @@ class Game:
         """Pay an activated ability's "Sacrifice a creature", "Discard a card" and "Exile a card from your
         graveyard" costs (CR 602.2b). `source` is None, and `name` the card's, when the ability works from a zone."""
         name = source.card.name if source is not None else name
+        if ability.craft:  # Craft: exile another artifact you control or an artifact card from your graveyard
+            options = self._craft_choices(seat, source, ability.craft)
+            material = options[seat.player.choose(CRAFT_PROMPT(name), [self.label(o) if isinstance(o, Permanent) else f"{o.name} (graveyard)"
+                                                                       for o in options])]
+            if isinstance(material, Permanent):
+                self._leave_battlefield(material, "exiled", destination="exile")
+            else:
+                seat.graveyard.remove(material)
+                self._move_card(seat, material, "exile")
+                self._left_graveyard(seat, [material])
         if ability.crew:  # tap creatures until their power adds up to the crew number
             crewed = 0
             while crewed < ability.crew:
@@ -1564,6 +1583,8 @@ class Game:
         `mana`: a mana ability). A land's mana ability is not stopped by the second."""
         if not mana and self.name_locked(permanent.card):
             return True
+        if permanent.locked_while_tapped:  # Braided Net, until it untaps (mana abilities too: they are activated abilities)
+            return True
         controller = self.controller_of(permanent)
         for owner, _, key in self._static_rules():
             if key.startswith("lock:") and any(t in permanent.card.type_line for t in key.removeprefix("lock:").split(",")):
@@ -1634,7 +1655,7 @@ class Game:
         if permanent.counters.get("stun"):
             self.remove_counters(permanent, "stun", 1)
         else:
-            permanent.tapped = False
+            permanent.tapped, permanent.locked_while_tapped = False, False
 
     def tap(self, permanent: Permanent) -> None:
         """Tap a permanent. A tapped one stays as it is; one that becomes tapped is seen by "Whenever a creature you
@@ -6754,6 +6775,9 @@ class Game:
                 return
         if zone == "library_top":
             seat.library.insert(0, card)
+            return
+        if zone == "library_third":  # Braided Quipu: "into its owner's library third from the top"
+            seat.library.insert(2, card)
             return
         if zone == SHUFFLED:  # revealed, then shuffled into its owner's library
             self.broadcast({"event": "revealed", "seat": seat.index, "card": card.name})

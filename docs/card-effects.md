@@ -1155,6 +1155,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     every card with the name of the chosen card from an opponent's graveyard is exiled from its owner's graveyard, hand and library, and
     they draw for each from the hand (`Game.exile_name_everywhere`). Uldaros Theorix: up to one nonland card of each card type is exiled
     from the graveyard (chosen as it resolves), and copies with total mana value 6 or less are cast free (`ExileEachTypeCastCopies`).
+  - Standard's Jeskai Artifacts deck, part one (`tests/test_standard_jeskai_craft.py`): "Craft with artifact {cost}" is an activated
+    ability at sorcery speed that exiles the card and another artifact you control or an artifact card from your graveyard
+    (`ActivatedAbility.craft`), then returns the card on its back face (`CraftReturn`). Braided Net taps a permanent whose activated
+    abilities can't be activated until it untaps (`Permanent.locked_while_tapped`); Braided Quipu goes third from the top of its
+    owner's library. Clay-Fired Bricks searches for a "basic Plains card"; Spring-Loaded Sawblades hits a "target tapped creature an
+    opponent controls"; Bladewheel Chariot taps "two other untapped artifacts" to become a creature. "When this artifact enters or leaves
+    the battlefield" is two triggers (Cryogen Relic), which stuns "up to one target tapped creature". Perilous Snare's Max speed ability
+    targets a "creature or Vehicle you control".
   - Standard's Dimir Midrange deck (`tests/test_standard_dimir_midrange.py`): "It loses all abilities for as long as The Wondrous Wasp
     remains on the battlefield." after a Tap, and Tishana's Tidebinder's "that permanent loses all abilities for as long as this creature
     remains on the battlefield" set `Permanent.loses_abilities_while` (`Game.strip_while`); the board view counts it stripped while

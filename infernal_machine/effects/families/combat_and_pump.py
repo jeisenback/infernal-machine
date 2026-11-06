@@ -540,12 +540,30 @@ class Tap:
     distinct: bool = False
     optional_target: bool = False
     strip_while_source: bool = False  # The Wondrous Wasp: "It loses all abilities for as long as CARDNAME remains on the battlefield."
+    lock_while_tapped: bool = False  # Braided Net: "Its activated abilities can't be activated for as long as it remains tapped."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.tap(target)
+            if self.lock_while_tapped:
+                target.locked_while_tapped = True
             if self.strip_while_source:
                 game.strip_while(target, game.resolving_source)
+
+
+@dataclass(frozen=True)
+class VehicleBecomesCreature:
+    """Bladewheel Chariot: "This Vehicle becomes an artifact creature until end of turn." (as crewing makes it)"""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.become_creature(target)
+
+
+@dataclass(frozen=True)
+class _LockedWhileTapped:
+    """ "Its activated abilities can't be activated for as long as it remains tapped." after a Tap (Braided Net)."""
 
 
 @dataclass(frozen=True)
