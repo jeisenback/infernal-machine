@@ -399,6 +399,17 @@ class GivePoison:
 
 
 @dataclass(frozen=True)
+class PlayerGetsPoison:
+    """Etali, Primal Sickness: "they get that many poison counters": the player the trigger is about, X the damage it saw."""
+    amount: Quantity
+    binds = PLAYER
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.give_poison(target, game.amount(self.amount))
+
+
+@dataclass(frozen=True)
 class PoisonShrinksOpponentsCreatures:
     """Phyresis Outbreak: "Then each creature your opponents control gets -1/-1 until end of turn for each poison counter its
     controller has." """

@@ -1180,6 +1180,18 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (`Game.learn`: a Lesson from the sideboard, or discard a card to draw a card: First Day of Class); a token with no printed size whose
     quoted "This token's power and toughness are each equal to ..." defines it, counting "instant and sorcery cards in your graveyard plus
     the number of cards with flashback you own in exile" (Seize the Storm).
+  - Casting without paying the mana cost, batch 1 (`tests/test_cast_free.py`, #655): "then you may cast a spell from your hand with mana
+    value less than or equal to that damage without paying its mana cost" (Buster Sword: the damage is the trigger's X; "less than or
+    equal to" is a cap, so `_clauses` no longer reads it as an amount); Etali, Primal Conqueror's "each player exiles cards from the top
+    of their library until they exile a nonland card. You may cast any number of spells from among the nonland cards exiled this way"
+    (`ExileUntilNonlandCast(None, set_aside=False)`) and its back face's "they get that many poison counters" (`PlayerGetsPoison`);
+    Isochron Scepter's imprint of "an instant card with mana value 2 or less" and "You may copy the exiled card. If you do, you may cast
+    the copy without paying its mana cost." (`CopyImprintedCastFree`); Mizzix's Mastery, one target or, overloaded, every instant and
+    sorcery card in your graveyard (`ExileEachThenCastCopies`); Beseech the Mirror's card exiled by the search (`Game.tutor` to
+    "exile"), cast free if bargained and its mana value is 4 or less, otherwise put into the hand (`SearchExileCastIfKicked`); Dauthi
+    Voidwalker's "instead exile it with a void counter on it" (`Replacements.void_counter`, `Game.void_exiled`) and its sacrifice
+    ability, which plays one of those cards for free as the ability resolves (`Game.play_void_card_free`; a land only with a land drop
+    left), as Quintorius's does.
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

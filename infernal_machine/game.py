@@ -718,6 +718,7 @@ class Game:
         self.at_upkeep: list[tuple[int, Callable[[], None]]] = []  # (turn made, what) to do as the next turn's upkeep begins
         self.spectators: list = []  # watchers with notify(event): they see every public event and the board, never a hand
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
+        self.void_exiled: list[Card] = []  # cards exiled with a void counter on them (Dauthi Voidwalker)
         self.at_owner_upkeep: list[tuple[Seat, int, Callable[[], None]]] = []  # (whose upkeep, the turn it was set up, what)
         self.targeting_x = 0  # the X of the spell whose targets are being chosen ("up to X target creatures")
         self.targeting_player: Seat | None = None  # the player a trigger is about while its targets are chosen ("that player controls")
@@ -3681,7 +3682,7 @@ class Game:
                 for holder in self.live_seats():  # "Whenever equipped (enchanted) creature deals combat damage to a player"
                     for attachment in list(holder.battlefield):
                         if attachment.attached_to is source:
-                            self.trigger("host_combat_damage", attachment, holder, source, player=target)
+                            self.trigger("host_combat_damage", attachment, holder, source, player=target, x=amount)
                 if controller.surge is not None and controller.surge[0] == self.turn:  # Surge to Victory
                     self._queue(TriggeredAbility("ally_combat_damage", (CastExiledCopy(controller.surge[1]),), True,
                                                  "Surge to Victory"), source, controller)
@@ -4424,11 +4425,12 @@ class Game:
         self.happened("exile_library_graveyard", seat)
 
     def tutor(self, seat: Seat, card_type: str, to: str, reveal: bool, count: int = 1, distinct: bool = False,
-              not_self: bool = False) -> None:
+              not_self: bool = False) -> list[Card]:
         """Search the library for a card of `card_type`: it goes to the hand (`to` is "hand"), to the battlefield, to the graveyard
         or to the top of the library ("top") after shuffling. Only "reveal" shows others which card. With a `count` above one, up
         to that many cards are found (Buried Alive), and the searcher may stop early; several put on top go in the order the
-        searcher chooses (Goblin Recruiter). `distinct`: "that each have different names"; `not_self`: "not named CARDNAME"."""
+        searcher chooses (Goblin Recruiter). `distinct`: "that each have different names"; `not_self`: "not named CARDNAME".
+        "exile" exiles it (Beseech the Mirror). The cards found are returned."""
         chosen: list[Card] = []
         card_type = card_type.replace("mv<=x", f"mv<={self.x_value}")  # Chord of Calling
         if "mv=self" in card_type and self.resolving_item is not None:  # Transmute: the mana value of the card that was discarded
@@ -4458,7 +4460,7 @@ class Game:
         self._searched(seat)
         if not chosen:
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
-            return
+            return chosen
         if to == "top":
             seat.library[0:0] = self._ordered(seat, chosen) if len(chosen) > 1 else chosen
         for found in chosen:
@@ -4466,11 +4468,12 @@ class Game:
                 seat.hand.append(found)
             elif to == "battlefield":
                 self._enter(seat, Permanent(found, sick=True, owner=seat))
-            elif to == "graveyard":
-                self._move_card(seat, found, "graveyard")
+            elif to in ("graveyard", "exile"):
+                self._move_card(seat, found, to)
             self.broadcast({"event": "searched", "seat": seat.index, "found": True, "to": to,
                             **({"card": found.name} if reveal else {})}, skip=seat)
             seat.player.notify({"event": "searched", "seat": seat.index, "found": True, "to": to, "card": found.name})
+        return chosen
 
     def exploit(self, source: Permanent, seat: Seat) -> None:
         """Exploit (CR 702.110): `seat` may sacrifice a creature, `source` itself among them; if it does, `source` exploited it."""
@@ -5440,9 +5443,13 @@ class Game:
             army.card = dataclasses.replace(army.card, type_line=f"{army.card.type_line} {kind}")
         self.put_counters(army, "+1/+1", count)
 
-    def imprint_from_hand(self, seat: Seat, source: Permanent) -> None:
-        """Chrome Mox: exile a nonartifact, nonland card from the hand and keep it with `source` (its colors are the mana)."""
-        options = [c for c in seat.hand if "Artifact" not in c.type_line and not is_land(c)]
+    def imprint_from_hand(self, seat: Seat, source: Permanent, instant_max_mv: int | None = None) -> None:
+        """Chrome Mox: exile a nonartifact, nonland card from the hand and keep it with `source` (its colors are the mana).
+        Isochron Scepter: an instant card with mana value `instant_max_mv` or less instead."""
+        if instant_max_mv is None:
+            options = [c for c in seat.hand if "Artifact" not in c.type_line and not is_land(c)]
+        else:
+            options = [c for c in seat.hand if "Instant" in c.type_line and c.cmc <= instant_max_mv]
         if not options:
             return
         card = options[seat.player.choose(IMPRINT_PROMPT, [c.name for c in options])]
@@ -5967,10 +5974,10 @@ class Game:
         seat.library += top
         self.broadcast({"event": "looked", "seat": seat.index, "count": len(top)}, skip=seat)
 
-    def exile_until_nonland_and_cast(self, seat: Seat, casts: int) -> None:
+    def exile_until_nonland_and_cast(self, seat: Seat, casts: int | None, set_aside: bool = True) -> None:
         """Plargg and Nassari: each player exiles cards from the top of their library until they exile a nonland card; an
-        opponent of `seat` chooses one of those nonland cards; `seat` may cast up to `casts` spells from among the others
-        without paying their mana costs. Cards not cast stay exiled."""
+        opponent of `seat` chooses one of those nonland cards (`set_aside`); `seat` may cast up to `casts` spells (None: any
+        number, Etali) from among the others without paying their mana costs. Cards not cast stay exiled."""
         found: list[tuple[Seat, Card]] = []
         for player in self.live_seats():
             while player.library:
@@ -5982,10 +5989,10 @@ class Game:
                     break
         others = list(found)
         chooser = next(iter(self.opponents(seat)), None)
-        if len(found) > 1 and chooser is not None:
+        if set_aside and len(found) > 1 and chooser is not None:
             aside = chooser.player.choose(SET_ASIDE_PROMPT, [card.name for _, card in found])
             others.pop(aside)
-        for _ in range(casts):
+        for _ in range(len(others) if casts is None else casts):
             options = [(owner, card) for owner, card in others if any(c is card for c in owner.exile)]
             if not options:
                 return
@@ -6854,6 +6861,29 @@ class Game:
                     return True
         return False
 
+    def _void_instead(self, owner: Seat) -> bool:
+        """Whether a card of `owner`'s exiled instead of going to the graveyard gets a void counter (an opponent's Dauthi Voidwalker)."""
+        return any(replacement_effects(p.card).void_counter for seat in self.live_seats() if seat is not owner for p in seat.battlefield)
+
+    def play_void_card_free(self, seat: Seat) -> None:
+        """Dauthi Voidwalker: "Choose an exiled card an opponent owns with a void counter on it. You may play it this turn without paying
+        its mana cost." It is played as the ability resolves, like Quintorius's card; a land only with a land drop left."""
+        options = [(owner, card) for owner in self.opponents(seat) for card in owner.exile if any(c is card for c in self.void_exiled)]
+        if not options:
+            return
+        pick = seat.player.choose(CHOOSE_EXILED_WITH_PROMPT, [card.name for _, card in options] + [NONE_TAKEN])
+        if pick >= len(options):
+            return
+        owner, card = options[pick]
+        self.void_exiled = [c for c in self.void_exiled if c is not card]
+        if not is_land(card):
+            self._cast(seat, card, owner.exile, free=True)
+        elif seat.lands_played < self._land_drops(seat):
+            owner.exile.remove(card)
+            self._enter(seat, Permanent(card, sick=True, owner=owner))
+            seat.lands_played += 1
+            self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
+
     def exile_all_graveyards(self) -> None:
         for seat in self.live_seats():
             cards, seat.graveyard = seat.graveyard, []
@@ -6943,6 +6973,8 @@ class Game:
             zone = SHUFFLED  # the card's own replacement effect works from every zone (CR 614.12)
         elif zone == "graveyard" and self._exiled_instead(seat):
             zone = "exile"
+            if self._void_instead(seat):  # Dauthi Voidwalker: "instead exile it with a void counter on it"
+                self.void_exiled.append(card)
         if card.name in seat.commander_names:
             if seat.player.choose(COMMAND_ZONE_PROMPT, ["Command zone", "Library" if zone == SHUFFLED else zone.capitalize()]) == 0:
                 seat.command_zone.append(card)

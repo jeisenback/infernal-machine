@@ -706,6 +706,7 @@ _REPLACE_SHUFFLE_GRAVEYARD = ("If CARDNAME would be put into a graveyard from an
 
 
 _REPLACE_OPPONENT_GRAVEYARD = "If a card would be put into an opponent's graveyard from anywhere, exile it instead."
+_REPLACE_OPPONENT_GRAVEYARD_VOID = "If a card would be put into an opponent's graveyard from anywhere, instead exile it with a void counter on it."
 
 
 _DOUBLE_TOKENS = ("If an effect would create one or more tokens under your control, it creates twice that many of "
@@ -787,6 +788,7 @@ _EXTRA_TRIGGER = re.compile(r"If (an artifact or creature|a permanent) entering(
 class Replacements:
     """What a permanent's static replacement effects do (CR 614), as the game applies them."""
     graveyard: str | None = None  # "any": cards go to exile instead of a graveyard; "opponent": only an opponent's
+    void_counter: bool = False  # Dauthi Voidwalker: those exiled instead get a void counter
     tokens: int = 1  # how many times as many tokens its controller creates
     counters: int = 1  # how many times as many counters go on its controller's permanents
     plus_one: int = 0  # extra +1/+1 counters on its controller's creatures
@@ -824,6 +826,9 @@ def replacement_effects(card: Card) -> Replacements:
             found["graveyard"] = "any"
         elif line == _REPLACE_OPPONENT_GRAVEYARD:
             found.setdefault("graveyard", "opponent")
+        elif line == _REPLACE_OPPONENT_GRAVEYARD_VOID:
+            found.setdefault("graveyard", "opponent")
+            found["void_counter"] = True
         elif line == _REPLACE_SELF_GRAVEYARD:
             found["graveyard_self"] = True
         elif m := _DRAW_PLUS_ONE.fullmatch(line):
@@ -1019,7 +1024,7 @@ def heals_before_damage(card: Card) -> bool:
 
 
 def is_replacement_line(line: str) -> bool:
-    return (_HEALS_FIRST.fullmatch(line) is not None or _DRAW_PLUS_ONE.fullmatch(line) is not None or line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (_HEALS_FIRST.fullmatch(line) is not None or _DRAW_PLUS_ONE.fullmatch(line) is not None or line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD_VOID, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _ENTER_PER_OPPONENT_LOSS, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _SQUIRRELS, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
                      _HALVE_OPPONENTS_PUT, _PROLIFERATE_TWICE)

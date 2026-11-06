@@ -267,9 +267,9 @@ class CopyTokenAttacking:
 @dataclass(frozen=True)
 class ExileThenCastCopy:
     """Renegade Bull: "Exile up to one target instant or sorcery card from your graveyard and copy it. You may cast the copy without
-    paying its mana cost." """
+    paying its mana cost." Mizzix's Mastery: "Exile target card that's an instant or sorcery ..." (one target, not "up to one")."""
     target: str = "graveyard:instant or sorcery:yours"
-    optional_target = True
+    optional_target: bool = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is None or not game.exile_from_graveyard(target):
@@ -279,6 +279,33 @@ class ExileThenCastCopy:
 
 
 CAST_COPY_PROMPT = PromptKind("cast_copy", "Cast a copy without paying its mana cost: ")  # followed by the card's name; Yes or No
+
+
+@dataclass(frozen=True)
+class ExileEachThenCastCopies:
+    """Mizzix's Mastery overloaded: "Exile each card that's an instant or sorcery from your graveyard. For each card exiled this way,
+    copy it, and you may cast the copy without paying its mana cost." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        exiled = [c for c in list(controller.graveyard) if ("Instant" in c.type_line or "Sorcery" in c.type_line)
+                  and game.exile_from_graveyard(game.graveyard_target(c, controller))]
+        for card in exiled:
+            if controller.player.choose(CAST_COPY_PROMPT(card.name), ["Yes", "No"]) == 0:
+                game.cast_copy_free(controller, card)
+
+
+@dataclass(frozen=True)
+class CopyImprintedCastFree:
+    """Isochron Scepter: "You may copy the exiled card. If you do, you may cast the copy without paying its mana cost." The card is the
+    one exiled with the source, while it is still in exile; copying it without casting does nothing, so it is one question."""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        for owner, card in list(target.exiled_with):
+            if any(c is card for c in owner.exile) and controller.player.choose(CAST_COPY_PROMPT(card.name), ["Yes", "No"]) == 0:
+                game.cast_copy_free(controller, card)
 
 
 @dataclass(frozen=True)

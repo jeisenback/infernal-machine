@@ -27,10 +27,8 @@
     "Shriekmaw",
     "Springleaf Parade",
     "Subterfuge",
-    "Sunderflock",
     "Titan of Industry",
-    "Twinflame Travelers",
-    "Vernal Sovereign"
+    "Twinflame Travelers"
    ]
   },
   "atraxa_edhrec_average": {
@@ -202,8 +200,7 @@
   "niv_mizzet_edhrec_average": {
    "cards": 100,
    "unplayable": [
-    "Baral, Chief of Compliance",
-    "Mizzix's Mastery"
+    "Baral, Chief of Compliance"
    ]
   },
   "pantlaza_edhrec_average": {
@@ -214,7 +211,6 @@
     "Bronzebeak Foragers",
     "Descendants' Path",
     "Earthshaker Dreadmaw",
-    "Etali, Primal Conqueror // Etali, Primal Sickness",
     "From the Rubble",
     "Ghalta and Mavren",
     "Ghalta, Stampede Tyrant",
