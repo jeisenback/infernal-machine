@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    AttackersDontUntapNext,
     DoesntUntapNext,
     BecomeLandUntilNextTurn,
     VehicleBecomesCreature,
@@ -399,6 +400,7 @@ from .families.library_and_hand import (  # noqa: F401
     _card_matches_kind,
 )
 from .families.life_and_damage import (  # noqa: F401
+    PreventAllCreatureDamage,
     SubjectDamagesEachOpponent,
     Annihilate,
     DamageEachPlayerPerNonbasic,
@@ -458,6 +460,8 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    EachWithNamedDraws,
+    ShuffleFromGraveyard,
     ChooseCardName,
     Harness,
     DiscardByLifeLoss,
@@ -2597,6 +2601,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"put {_N} {_COUNTER} and {_N} {_COUNTER} on {_SELF}\.", re.I),  # Captain Marvel, Quicksilver
      lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), PutCountersOnSource(_count(m[3]), _counter_name(m[4]))]),
     (re.compile(r"choose a land card name\.", re.I), lambda m: ChooseCardName("land")),  # Petrified Hamlet
+    (re.compile(r"counter target spell if its mana value is (\d+) or less\. If this spell was kicked, counter that spell if its mana "
+                r"value is (\d+) or less instead\.", re.I),
+     lambda m: Counter(if_mv_at_most=int(m[1]), kicked_mv_at_most=int(m[2]))),  # Prohibit
+    (re.compile(r"each attacking creature doesn't untap during its controller's next untap step\.", re.I),
+     lambda m: AttackersDontUntapNext()),  # Tangle
+    (re.compile(r"prevent all damage that would be dealt by creatures this turn\.", re.I), lambda m: PreventAllCreatureDamage()),  # Ethereal Haze
+    (re.compile(r"search your library for an instant card or a card with flash, reveal it, put it into your hand, then shuffle\.", re.I),
+     lambda m: SearchLibrary("instant or flash", "hand", True)),  # Mystical Teachings
+    (re.compile(r"you shuffle up to (\w+) cards from your graveyard into your library\.", re.I),
+     lambda m: ShuffleFromGraveyard(_number(m[1]))),  # Stream of Thought
+    (re.compile(r"each player who controls a permanent named CARDNAME draws a card\.", re.I), lambda m: EachWithNamedDraws()),  # Bonder's Ornament
     (re.compile(r"you get ((?:\{E\})+)\.", re.I), lambda m: GetEnergy(m[1].count("{E}"))),  # Inventor's Axe
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF} and it becomes renowned\.", re.I),  # Renown
      lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), BecomeRenowned()]),

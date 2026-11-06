@@ -261,6 +261,14 @@ class PreventAllCombatDamage:
 
 
 @dataclass(frozen=True)
+class PreventAllCreatureDamage:
+    """Ethereal Haze: "Prevent all damage that would be dealt by creatures this turn." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.creature_fog_turn = game.turn
+
+
+@dataclass(frozen=True)
 class NoPreventionThisTurn:
     """Impractical Joke: "Damage can't be prevented this turn." (shields, Fogs and the static preventions all stop working)."""
 

@@ -106,6 +106,7 @@ PERMANENT_TYPES = ("Artifact", "Battle", "Creature", "Enchantment", "Land", "Pla
 KEEP_PROMPT = PromptKind("keep", "Keep this hand?")
 OPENING_PROMPT = PromptKind("opening", "Begin the game with this on the battlefield: ")  # followed by the card's name
 BOTTOM_PROMPT = PromptKind("bottom", "Put a card on the bottom of your library")
+SHUFFLE_BACK_PROMPT = PromptKind("shuffle_back", "Choose a card from your graveyard to shuffle into your library")  # options: cards, then DONE
 SECOND_OR_BOTTOM_PROMPT = PromptKind("second_or_bottom", "Second from the top or the bottom of your library for ")  # followed by its name
 DISCARD_PROMPT = PromptKind("discard", "Discard down to hand size")
 DISCARD_CARD_PROMPT = PromptKind("discard_card", "Choose a card to discard")  # options are card names
@@ -732,6 +733,7 @@ class Game:
         self.resolving_target: Any = None  # the last target chosen for it, which "that creature" in a condition means
         self.resolving_colors: frozenset[str] = frozenset()  # its colors (for protection from damage)
         self.fog_turn: int | None = None  # the turn all combat damage is prevented (Fog)
+        self.creature_fog_turn: int | None = None  # the turn all damage creatures would deal is prevented (Ethereal Haze)
         self.no_prevention_turn: int | None = None  # the turn damage can't be prevented (Impractical Joke)
         self.shields: list[list] = []  # [what is shielded, damage still to prevent, turn]: "prevent the next 2 damage ... this turn"
 
@@ -3799,6 +3801,8 @@ class Game:
             return 0
         if combat and self.fog_turn == self.turn:
             return EVERYTHING
+        if self.creature_fog_turn == self.turn and source is not None and "Creature" in source.card.type_line:  # Ethereal Haze
+            return EVERYTHING
         if isinstance(target, Permanent):
             rules = damage_prevention(target.card) if not self.loses_abilities(target) else frozenset()
             if "self:all" in rules or ("self:combat" in rules and combat) \
@@ -5545,6 +5549,24 @@ class Game:
             self.add_mana(seat, (frozenset("C"),) * seat.delayed_mana)
             seat.delayed_mana = 0
 
+    def shuffle_from_graveyard(self, seat: Seat, count: int) -> None:
+        """Stream of Thought: `seat` shuffles up to `count` cards of its choice from its graveyard into its library."""
+        chosen: list[Card] = []
+        while len(chosen) < count:
+            options = [c for c in seat.graveyard if not any(c is x for x in chosen)]
+            if not options:
+                break
+            pick = seat.player.choose(SHUFFLE_BACK_PROMPT, [c.name for c in options] + [DONE])
+            if pick == len(options):
+                break
+            chosen.append(options[pick])
+        for card in chosen:
+            seat.graveyard = [c for c in seat.graveyard if c is not card]
+            seat.library.append(card)
+        if chosen:
+            self._left_graveyard(seat, chosen)
+        self.rng.shuffle(seat.library)
+
     def put_second_or_bottom(self, permanent: Permanent) -> None:
         """Deem Inferior: the permanent's owner chooses second from the top of their library or the bottom."""
         owner = self.owner_of(permanent)
@@ -7054,6 +7076,8 @@ def _starting_loyalty(card: Card) -> int | None:
 
 def _card_matches(kind: str, card: Card) -> bool:
     """Whether a card in a library or graveyard is of `kind`: "card", "permanent", "creature|mv<=3", "basic land", ... (filters.py)."""
+    if kind == "instant or flash":  # Mystical Teachings: "an instant card or a card with flash" (the flash is the other card's own)
+        return "Instant" in card.type_line or has_keyword(card, "flash")
     return parse_filter(kind).matches(card)
 
 

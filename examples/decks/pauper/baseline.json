@@ -51,14 +51,7 @@
   },
   "tron": {
    "cards": 60,
-   "unplayable": [
-    "Bonder's Ornament",
-    "Ethereal Haze",
-    "Mystical Teachings",
-    "Prohibit",
-    "Stream of Thought",
-    "Tangle"
-   ]
+   "unplayable": []
   }
  }
 }

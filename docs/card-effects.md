@@ -1171,6 +1171,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     to its mana cost." (Flashback, Snapcaster Mage) records the card for the turn (`Seat.flashback_granted`, read by
     `Game.graveyard_casts_for`). Ral, Crackling Wit's emblem "Instant and sorcery spells you cast have storm." is the rules static
     `grant_storm`.
+  - Pauper Tron (`tests/test_pauper_tron.py`, #646): "Each player who controls a permanent named Bonder's Ornament draws a card."
+    (`EachWithNamedDraws`); "Search your library for an instant card or a card with flash" (the kind "instant or flash", Mystical
+    Teachings); "Counter target spell if its mana value is 2 or less. If this spell was kicked, ... 4 or less instead." (`Counter.if_mv_at_most`,
+    `kicked_mv_at_most`, Prohibit); "You shuffle up to four cards from your graveyard into your library." (`Game.shuffle_from_graveyard`,
+    Stream of Thought); "Each attacking creature doesn't untap during its controller's next untap step." (Tangle); "Prevent all damage that
+    would be dealt by creatures this turn." (`Game.creature_fog_turn`, Ethereal Haze).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

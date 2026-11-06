@@ -631,6 +631,15 @@ class DoesntUntapNext:
 
 
 @dataclass(frozen=True)
+class AttackersDontUntapNext:
+    """Tangle: "Each attacking creature doesn't untap during its controller's next untap step." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for attack in game.combat.attacks:
+            attack.attacker.skips_next_untap = True
+
+
+@dataclass(frozen=True)
 class BecomeCreature:
     """Crewing a Vehicle: until end of turn it is an artifact creature."""
     binds = SOURCE
