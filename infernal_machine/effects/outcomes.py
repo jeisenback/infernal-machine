@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    _LosesAbilitiesWhileSource,
     GainChosenKeyword,
     BecomesTypeUntilEndOfTurn,
     KindsGainUntilEndOfTurn,
@@ -480,6 +481,7 @@ from .families.spells_and_misc import (  # noqa: F401
     MayPayLoot,
     Modal,
     ModifiedGainHexproof,
+    CounterAbility,
     TransformIfCastFromGraveyard,
     NewTargetMustBe,
     NewTargets,
@@ -1694,6 +1696,16 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield\.", re.I), lambda m: ReturnUpToTotalManaValue(_number(m[1]), m[2].lower(), int(m[3]))),  # Lively Dirge
     (re.compile(r"if this spell was cast from a graveyard, exile it, then put it onto the battlefield transformed under its owner's "
                 r"control with a finality counter on it\.", re.I), lambda m: TransformIfCastFromGraveyard()),  # Esper Origins
+    (re.compile(r"counter (up to one )?target activated or triggered ability\.( If an ability of an artifact, creature, or planeswalker is "
+                r"countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield\.)?", re.I),
+     lambda m: CounterAbility(strip=bool(m[2]), optional_target=bool(m[1]))),  # Tishana's Tidebinder
+    (re.compile(r"(?:then )?draw half X cards, rounded down\.", re.I), lambda m: Draw("hX")),  # Wan Shi Tong, Librarian
+    (re.compile(rf"put {_N} {_COUNTER} on (?:him|her)\.", re.I), lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),  # Wan Shi Tong
+    (re.compile(rf"put {_N} {_COUNTER} on {_SELF} and draw {_N} cards?\.", re.I),
+     lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), Draw(_count(m[3]))]),  # Wan Shi Tong
+    (re.compile(r"counter target spell unless its controller pays ((?:\{[^}]+\})+)\. Counter that spell unless its controller pays "
+                r"((?:\{[^}]+\})+) instead if this spell was cast using teamwork\.", re.I),
+     lambda m: Counter(unless=m[1], unless_teamwork=m[2])),  # We Say Thee Nay!
     (re.compile(r"copy this spell\.", re.I), lambda m: CopySpellTimes(1)),  # Sage of the Skies: a "When you cast this spell" trigger
     (re.compile(r"reveal the top card of your library\. If it's an? (permanent|creature|land|nonland) card, put it into your hand\.", re.I),
      lambda m: RevealTopToHand(only=m[1].lower())),  # Summon: Esper Maduin
@@ -1853,6 +1865,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnAnyNumber(f"{m[1]} you control")),  # Paradoxical Outcome
     (re.compile(r"draw a card for each card returned to your hand this way\.", re.I), lambda m: _DrawPerReturned()),
     (re.compile(r"if you controlled that permanent, draw a card\.", re.I), lambda m: _DrawIfYouControlledIt()),  # Boomerang Basics
+    (re.compile(rf"(?:it|that creature) loses all abilities for as long as {_SELF} remains on the battlefield\.", re.I),
+     lambda m: _LosesAbilitiesWhileSource()),  # The Wondrous Wasp
     (re.compile(rf"if a permanent was returned this way, put an? {_COUNTER} on {_SELF}\.", re.I),
      lambda m: _CounterIfReturned(_counter_name(m[1]))),  # Nurturing Pixie
     (re.compile(r"(?:you may )?cast an? ((?:artifact|creature|enchantment|instant|sorcery)(?:,? (?:or )?(?:artifact|creature|enchantment|instant|"
@@ -3178,6 +3192,7 @@ _CONDITIONAL = Follows(
     Follow(_Otherwise, IfElse, set_fields(otherwise=lambda m: m.effects)),
     Follow(_IfFlip, FlipCoin, lambda previous, marker: FlipCoin(marker.effect, marker.on_win), fits=lambda previous, marker: previous.then is None),
     Follow(_DrawIfYouControlledIt, ReturnToHand, set_fields(draw_if_yours=lambda m: True)),
+    Follow(_LosesAbilitiesWhileSource, Tap, set_fields(strip_while_source=lambda m: True)),
     Follow(_CounterIfReturned, ReturnToHand, set_fields(counter_on_source=lambda m: m.counter)),
     Follow(_ExileCastThisWay, MayCastFromGraveyard, set_fields(exile_after=lambda m: True)),
     Follow(_InsteadDamage, Damage, set_fields(instead=lambda m: m.amount, instead_if=lambda m: m.condition),

@@ -212,6 +212,8 @@ PUT_PERMANENT_PROMPT = PromptKind("put_permanent", "Put a nonland permanent card
 SET_ASIDE_PROMPT = PromptKind("set_aside", "Choose a nonland card exiled this way; it can't be cast")
 CAST_FREE_EXILED_PROMPT = PromptKind("cast_free_exiled", "Cast a spell from among the other exiled cards without paying its mana cost")  # then NONE_TAKEN
 CHOOSE_EXILED_WITH_PROMPT = PromptKind("choose_exiled_with", "Choose a card exiled with this permanent")
+TEAMWORK_PROMPT = PromptKind("teamwork", "Tap a creature for teamwork for ")  # followed by the spell's name; options are creatures, then TEAMWORK_NONE
+TEAMWORK_NONE = "Don't use teamwork"
 HARMONIZE_PROMPT = PromptKind("harmonize", "Tap a creature to pay less for ")  # followed by the spell's name; options are creatures, then HARMONIZE_NONE
 HARMONIZE_NONE = "Tap none"
 PUNISHER_PROMPT = PromptKind("punisher", "Lose life, sacrifice or discard for ")  # Rottenmouth Viper; followed by the source's name
@@ -297,6 +299,7 @@ class Permanent:
     until_next_turn: list[Modifier] = field(default_factory=list)  # "until your next turn": ends as its controller's turn begins
     activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
     triggered_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last triggered (once-a-turn ones)
+    loses_abilities_while: "Permanent | None" = None  # The Wondrous Wasp: it has no abilities for as long as this one stays (Game.strip_while)
     last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
     last_auras: dict[int, int] = field(default_factory=dict)  # when it died: how many Auras each seat (by index) had on it
     last_power: int = 0  # its power just before it left (CR 608.2h: last known information)
@@ -391,6 +394,7 @@ class StackItem:
     rider_counters: int = 0  # Opal Palace: how many of its mana was spent on this commander
     from_graveyard: bool = False  # cast from a graveyard (flashback and the like): Sevinne's Reclamation asks
     bottom_after: bool = False  # Quintorius: put on the bottom of its owner's library instead of into the graveyard
+    teamwork: bool = False  # cast using teamwork: creatures with enough total power were tapped for it
     transform_after: bool = False  # Esper Origins: onto the battlefield transformed, with a finality counter, instead of into a zone
     is_copy: bool = False  # a copy of a spell: not a card, so it vanishes instead of going to the graveyard
     evoked: bool = False  # cast for its evoke cost: it is sacrificed when it enters
@@ -3110,6 +3114,8 @@ class Game:
         if kind == "triggered ability you control":  # Strionic Resonator
             return [(f"Ability: {i.card.name} (seat {i.controller.index})", i) for i in self.stack
                     if isinstance(i.ability, TriggeredAbility) and i.controller is caster]
+        if kind == "activated or triggered ability":  # Tishana's Tidebinder (a mana ability never uses the stack)
+            return [(f"Ability: {i.card.name} (seat {i.controller.index})", i) for i in self.stack if i.ability]
         if kind == "activated or triggered ability you control":  # Lithoform Engine (a mana ability never uses the stack)
             return [(f"Ability: {i.card.name} (seat {i.controller.index})", i) for i in self.stack if i.ability and i.controller is caster]
         if kind == "instant spell, sorcery spell, activated ability, or triggered ability":  # Return the Favor
@@ -4311,7 +4317,8 @@ class Game:
                 raise AssertionError("the board view is stale: something it depends on changed without moving the epoch counter")
             return view
         # (almost no board has an Aura or Equipment that takes away abilities, Infinite Coursework; then nothing is stripped)
-        stripped = self._stripped() if any(_strips_abilities(p.card) for s in self.seats for p in s.battlefield) else set()
+        stripped = self._stripped() if any(_strips_abilities(p.card) or p.loses_abilities_while is not None
+                                           for s in self.seats for p in s.battlefield) else set()
         pairs = [(s, p) for s in self.seats for p in s.battlefield] + [(s, e) for s in self.seats for e in s.emblems] \
             + [(s, Permanent(c)) for s in self.seats for c in s.graveyard if graveyard_statics(c)]
         sources = [(owner, source, buffs) for owner, source in pairs if id(source) not in stripped and (buffs := static_abilities(source.card))]
@@ -4447,12 +4454,21 @@ class Game:
     def _stripped(self) -> set[int]:
         """`id`s of the permanents an Aura or Equipment takes every ability from (Infinite Coursework): one pass over the board
         instead of a pass per permanent."""
+        here = {id(p) for s in self.seats for p in s.battlefield}
         return {id(a.attached_to) for s in self.seats for a in s.battlefield if a.attached_to is not None
-                and any(LOSES_ALL in b.modifier.keywords for b in attached_abilities(a.card))}
+                and any(LOSES_ALL in b.modifier.keywords for b in attached_abilities(a.card))} \
+            | {id(p) for s in self.seats for p in s.battlefield if id(p.loses_abilities_while) in here}  # The Wondrous Wasp
+
+    def strip_while(self, permanent: Permanent, source: Permanent | None) -> None:
+        """The Wondrous Wasp, Tishana's Tidebinder: `permanent` "loses all abilities for as long as" `source` remains on the battlefield
+        (nothing, if the source has already left: `_stripped` only counts a source on the battlefield)."""
+        permanent.loses_abilities_while = source
+        _Epoch.n += 1  # the board view's stripped permanents change
 
     def loses_abilities(self, permanent: Permanent) -> bool:
-        """Whether an Aura or Equipment on it takes away all its abilities (Infinite Coursework). Abilities that other
-        effects give it are kept; the order effects were made in is not tracked."""
+        """Whether an Aura or Equipment on it takes away all its abilities (Infinite Coursework), or a permanent that took them for as long
+        as it remains (The Wondrous Wasp) is still on the battlefield. Abilities that other effects give it are kept; the order effects were
+        made in is not tracked."""
         return id(permanent) in self._board_view().stripped
 
     def annihilator(self, permanent: Permanent) -> int:

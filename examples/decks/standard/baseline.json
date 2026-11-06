@@ -5,8 +5,7 @@
    "unplayable": [
     "Captain Marvel, Earth's Protector",
     "Petrified Hamlet",
-    "Pinnacle Starcage",
-    "Wan Shi Tong, Librarian"
+    "Pinnacle Starcage"
    ]
   },
   "azorius_momo": {
@@ -30,12 +29,7 @@
   },
   "dimir_midrange": {
    "cards": 60,
-   "unplayable": [
-    "The Wondrous Wasp",
-    "Tishana's Tidebinder",
-    "Wan Shi Tong, Librarian",
-    "We Say Thee Nay!"
-   ]
+   "unplayable": []
   },
   "dimir_reanimator": {
    "cards": 60,

@@ -31,17 +31,37 @@ class Counter:
     exile: bool = False  # "exile it instead of putting it into its owner's graveyard"
     delayed_mana: bool = False  # Mana Drain: at your next main phase, add {C} equal to that spell's mana value
     unless: str = ""  # "unless its controller pays {2}": the cost
+    unless_teamwork: str = ""  # We Say Thee Nay!: "... pays {4} instead if this spell was cast using teamwork."
     if_color: str = ""  # Pyroblast: "Counter target spell if it's blue." (checked as it resolves)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if self.if_color and target is not None and self.if_color not in target.card.colors:
             return
         if target is not None and not cant_be_countered(target.card) and not game.uncounterable(target):
-            if self.unless and game.pays_unless(target.controller, self.unless, target.card):
+            unless = self.unless_teamwork if self.unless_teamwork and game.resolving_item is not None and game.resolving_item.teamwork \
+                else self.unless
+            if unless and game.pays_unless(target.controller, unless, target.card):
                 return
             if self.delayed_mana:
                 controller.delayed_mana += int(target.card.cmc) + target.x
             game.counter(target, self.exile)
+
+
+@dataclass(frozen=True)
+class CounterAbility:
+    """Tishana's Tidebinder: "Counter up to one target activated or triggered ability. If an ability of an artifact, creature, or
+    planeswalker is countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield." """
+    strip: bool = False
+    target: str = "activated or triggered ability"
+    optional_target: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        game.counter(target)
+        source = target.source
+        if self.strip and source is not None and any(t in source.card.type_line for t in ("Artifact", "Creature", "Planeswalker")):
+            game.strip_while(source, game.resolving_source)
 
 
 @dataclass(frozen=True)
