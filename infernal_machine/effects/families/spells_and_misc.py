@@ -703,3 +703,14 @@ class GetEmblem:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.get_emblem(controller, self.text)
+
+
+@dataclass(frozen=True)
+class Harness:
+    """The Mind Stone: "Harness The Mind Stone." Once harnessed, its \u221e ability works (Permanent.harnessed); a permanent that
+    leaves the battlefield and comes back is a new object, not harnessed."""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.harnessed = True

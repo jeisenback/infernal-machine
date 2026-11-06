@@ -122,6 +122,7 @@ from .families.combat_and_pump import (  # noqa: F401
 )
 from .families.copying import (  # noqa: F401
     BecomeCopyUntilEndOfTurn,
+    BecomeCard,
     CAST_COPY_PROMPT,
     CHOOSE_COPY_PROMPT,
     COPY_THIS_PROMPT,
@@ -238,6 +239,7 @@ from .families.exile_and_return import (  # noqa: F401
     EachSacrificesThenReturn,
     Exile,
     ExileAll,
+    PutLinkedExileIntoGraveyards,
     ExileAllGraveyards,
     ExileEnchanted,
     ExileFromGraveyard,
@@ -448,6 +450,7 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    Harness,
     DiscardByLifeLoss,
     DiscardChosen,
     ExileChosen,
@@ -1201,7 +1204,7 @@ _CONTRACT_BODY = "it gets +2/+0 until end of turn if it's attacking one of your 
 _MASS_KINDS = {"battles": "battle", "creatures": "creature", "creature tokens": "creature", "artifacts": "artifact", "enchantments": "enchantment",
                "planeswalkers": "planeswalker", "lands": "land", "nonland permanents": "nonland permanent",
                "artifacts and enchantments": "artifact or enchantment",
-               "creatures and planeswalkers": "creature or planeswalker"}
+               "creatures and planeswalkers": "creature or planeswalker", "artifacts and creatures": "artifact or creature"}
 
 
 _MASS = (r"(battles|artifacts and enchantments|creatures and planeswalkers|nonland permanents|creatures|artifacts"
@@ -1240,7 +1243,7 @@ _THAT_ARE = r"(?: that (are (?:one or more colors|colorless|multicolored|monocol
 
 
 # The same, with an optional color adjective before and "with flying" etc. after (destroy and exile only).
-_MASS_NOUN = (r"(battles|artifacts and enchantments|creatures and planeswalkers|nonland permanents|creature tokens|creatures|artifacts"
+_MASS_NOUN = (r"(battles|artifacts and enchantments|artifacts and creatures|creatures and planeswalkers|nonland permanents|creature tokens|creatures|artifacts"
               r"|enchantments|planeswalkers|lands)")
 
 
@@ -1746,7 +1749,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile enchanted creature\.", re.I), lambda m: ExileEnchanted()),
     (re.compile(r"that token gains haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
     (re.compile(r"(?:it|that token|they|those tokens) gains? haste\.", re.I), lambda m: _TokenHasHaste()),
-    (re.compile(r"sacrifice (?:it|this creature)\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."
+    (re.compile(r"sacrifice (?:it|this (?:creature|artifact))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."
     (re.compile(r"mill a card, then exile a card from your graveyard at random\. you may play the exiled card this turn\.", re.I),
      lambda m: MillThenExileRandomPlay()),
     (re.compile(r"exile (?:that card|one of them) from your graveyard\.(?: if you do, you may (?:play|cast) (?:that card|it) this turn\.)?", re.I),
@@ -1905,9 +1908,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ExileInstead()),
     (re.compile(r"at the beginning of your next main phase, add an amount of \{C\} equal to that spell's mana value\.", re.I),
      lambda m: _DelayedMana()),
-    (re.compile(rf"exile (another )?target {_PERMANENT_KIND}, then return (?:it|that card) to the battlefield under "
+    (re.compile(rf"exile (another |up to one other )?target {_PERMANENT_KIND}, then return (?:it|that card) to the battlefield under "
                 r"(your|its owner's) control( with a \+1/\+1 counter on it)?\.", re.I),
-     lambda m: Flicker(m[2].lower(), under_owner=m[3].lower() != "your", another=bool(m[1]), counters=1 if m[4] else 0)),  # Daydream
+     lambda m: Flicker(m[2].lower(), under_owner=m[3].lower() != "your", another=bool(m[1]), counters=1 if m[4] else 0,
+                       optional_target=(m[1] or "").lower() == "up to one other ")),  # Daydream, The Mind Stone
     (re.compile(r"return (?:it|that card) to the battlefield under (your|its owner's) control at the beginning of the "
                 r"next end step\.", re.I), lambda m: ReturnLater("battlefield", m[1].lower() != "your")),
     (re.compile(r"return (?:it|that card) to its owner's hand at the beginning of the next end step\.", re.I),
@@ -2044,6 +2048,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"search your library for an? ((?:green |nonland )?(?:creature|artifact)) card( with mana value X or less)?, put it onto "
                 r"the battlefield, then shuffle\.", re.I),
      lambda m: SearchLibrary(m[1].lower() + ("|mv<=x" if m[2] else ""), "battlefield", False)),  # Chord of Calling, Natural Order
+    (re.compile(r"search your library for an? (artifact|creature) card with mana value equal to 1 plus the sacrificed \1's mana value, "
+                r"put that card onto the battlefield, then shuffle\.", re.I),
+     lambda m: SearchLibrary(m[1].lower() + "|mv=sacrificed+1", "battlefield", False)),  # Repurposing Bay
     (re.compile(r"search your library for a card, put that card into your hand, discard a card at random, then shuffle\.", re.I),
      lambda m: [SearchLibrary("card", "hand", False), Discard(1, "you", True)]),  # Gamble
     (re.compile(r"reveal the top card of your library and put that card into your hand\.", re.I), lambda m: RevealTopToHand()),  # Dark Confidant
@@ -2477,6 +2484,16 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"regenerate target {_PERMANENT_KIND}\.", re.I), lambda m: Regenerate(m[1].lower())),
     (re.compile(rf"regenerate {_SELF}\.", re.I), lambda m: RegenerateSource()),
     (re.compile(r"regenerate each creature you control\.", re.I), lambda m: RegenerateEach()),
+    (re.compile(rf"harness {_SELF}\.", re.I), lambda m: Harness()),  # The Mind Stone
+    (re.compile(rf"{_SELF} becomes an? (legendary )?Equipment artifact named ([^.]+)\. If you do, it gains equip "
+                r'(\{[^}]+\}) and "(Equipped creature gets [+-]\d+/[+-]\d+)" and loses all other abilities\.', re.I),
+     lambda m: BecomeCard(Card(name=m[2], type_line=f"{'Legendary ' if m[1] else ''}Artifact — Equipment",
+                              oracle_text=f"Equip {m[3]}\n{m[4]}."))),  # The Irencrag
+    (re.compile(rf"exile all {_MASS_FILTERED} until {_SELF} leaves the battlefield\.", re.I),  # Pinnacle Starcage
+     lambda m: replace(_mass_effect(ExileAll, m), until_leaves=True)),
+    (re.compile(rf"put each card exiled with {_SELF} into its owner's graveyard, then create (an? .+ creature token) for each card put "
+                r"into a graveyard this way\.", re.I),
+     lambda m: PutLinkedExileIntoGraveyards(made[1]) if (made := _token(m[1])) else None),
     (re.compile(rf"exile all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(ExileAll, m)),
     (re.compile(rf"{_SELF} deals {_N} damage to each (creature you don't control|creature your opponents control|creature and planeswalker your opponents control"
                 rf"|creature|opponent|player)(?: {_RESTRICTION})?(?: and each (opponent|player))?\.", re.I), _damage_each),
@@ -3053,6 +3070,7 @@ _CONDITIONS = [
     (re.compile(rf"you control {_N_FIXED} or more ([A-Za-z]+)"),
      lambda m: Condition("control_at_least", _number(m[1]), _singular(m[2]))),
     (re.compile(r"your speed is 4"), lambda m: Condition("max_speed")),  # Max speed
+    (re.compile(r"CARDNAME is harnessed"), lambda m: Condition("harnessed")),  # an Infinity Stone's \u221e ability
     (re.compile(r"you control no creatures with ([a-z]+)"), lambda m: Condition("control_none_keyword", what=m[1])),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
     (re.compile(r"you don't control an? ([A-Za-z]+) creature token"), lambda m: Condition("control_none_token", what=m[1])),

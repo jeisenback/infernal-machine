@@ -158,7 +158,7 @@ _WATCHES = {
 _TRIBE_ATTACKS = re.compile(rf"Whenever an? ({_TRIBE}) you control attacks, (.+)", re.I)
 
 
-_WATCH_QUALIFIER = re.compile(r" with ((power|toughness) (\d+) or (greater|less)|flying|a \+1/\+1 counter on it|mana value (\d+) or less)"
+_WATCH_QUALIFIER = re.compile(r" with ((power|toughness) (\d+) or (greater|less)|flying|a \+1/\+1 counter on it|mana value (\d+) or (greater|less))"
                               r"(?= (?:enters|dies|leaves the battlefield|becomes tapped|attacks))")
 
 
@@ -251,7 +251,7 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     qualifier = ""
     if q := _WATCH_QUALIFIER.search(line):  # "a creature you control with power 4 or greater enters"
         qualifier = (f"{q[2]}{'>=' if q[4] == 'greater' else '<='}{q[3]}" if q[2] else "flying" if q[1] == "flying"
-                     else f"mv<={q[5]}" if q[5] else "counter:+1/+1")
+                     else f"mv{'>=' if q[6] == 'greater' else '<='}{q[5]}" if q[5] else "counter:+1/+1")
         line = line[:q.start()] + line[q.end():]
     if " that targets only this creature" in line:  # Mirrorwing Dragon: about the spell's targets
         line = line.replace(" that targets only this creature", "")
@@ -531,7 +531,7 @@ _HENGE_BODY = "put a +1/+1 counter on it and draw a card."
 _SUBJECT_DAMAGES_EACH = re.compile(r"that creature deals (\d+) damage to each opponent\.", re.I)  # Ingris Stingerquill: the attacker deals it
 
 
-_SELF_THEN_IT = re.compile(r"((?:this (?:creature|artifact|enchantment|permanent|land|planeswalker|equipment|vehicle|aura|saga|battle)|CARDNAME)\b[^.]*\.) It\b")  # "Put a +1/+1 counter on this creature. It gains flying.": the "It" is that creature, not the permanent that set the trigger off
+_SELF_THEN_IT = re.compile(r"((?:this (?:creature|artifact|enchantment|permanent|land|planeswalker|equipment|vehicle|aura|saga|battle)|CARDNAME)\b[^.]*\.) (?:If you do, it|It)\b")  # "Put a +1/+1 counter on this creature. It gains flying.": the "It" is that creature, not the permanent that set the trigger off (The Irencrag: "If you do, it gains ...")
 _STILL_A_LAND = re.compile(r"It's still an? (?:land|artifact)\.|as though it didn't have defender")  # the "it" of these is the ability's own creature
 
 
