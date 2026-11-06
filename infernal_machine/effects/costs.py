@@ -91,6 +91,7 @@ class AlternativeCost:
     sacrificed: bool = False  # Fireblast: those permanents are sacrificed instead of returned
     no_lands_in_hand: bool = False  # Land Grant: "If you have no land cards in hand, you may reveal your hand ..." (free)
     opponent_spells: int = 0  # Mindbreak Trap: "If an opponent cast three or more spells this turn, you may pay {0} ..." (free)
+    impending: int = 0  # Impending N: it enters with N time counters and isn't a creature until the last is removed
 
 
 @dataclass(frozen=True)
@@ -267,6 +268,15 @@ def morph_of(card: Card) -> tuple[str, MorphCost] | None:
         if found := _morph_line(line):
             return found
     return None
+
+
+_COLLECT_EVIDENCE = re.compile(r"As an additional cost to cast this spell, you may collect evidence (\d+)\.")  # Deadly Cover-Up
+
+
+@lru_cache(maxsize=None)
+def collect_evidence_of(card: Card) -> int:
+    """Deadly Cover-Up: N of "you may collect evidence N" (exile cards with total mana value N or more from your graveyard); 0: none."""
+    return next((int(m[1]) for line in rules_lines(card) if (m := _COLLECT_EVIDENCE.fullmatch(line))), 0)
 
 
 _HARMONIZE = re.compile(r"Harmonize ((?:\{[^}]+\})+)")  # cast from the graveyard, then exiled; a tapped creature's power pays for some
@@ -488,6 +498,7 @@ def is_cumulative_upkeep_line(line: str) -> bool:
 
 
 _EVOKE = re.compile(r"Evoke ((?:\{[^}]+\})+)")
+_IMPENDING = re.compile(r"Impending (\d+)\u2014((?:\{[^}]+\})+)")  # Overlord of the Balemurk
 _EVOKE_PITCH = re.compile(rf"Evoke\u2014Exile an? ({_COLOR_NAMES}) card from your hand\.")  # Solitude, Grief
 
 
@@ -521,6 +532,9 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
             continue
         if m := _EVOKE_PITCH.fullmatch(line):  # no mana: the card exiled from the hand is the whole cost
             costs.append(AlternativeCost(f"Evoke: exile a {m[1]} card", evoke=True, exile_color=_COLOR_LETTER[m[1]]))
+            continue
+        if m := _IMPENDING.fullmatch(line):
+            costs.append(AlternativeCost(f"Impending {m[2]}", mana_cost=m[2], impending=int(m[1])))
             continue
         if m := _DASH.fullmatch(line):
             costs.append(AlternativeCost(f"Dash {m[1]}", mana_cost=m[1], dash=True))
@@ -766,8 +780,8 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
-                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
 

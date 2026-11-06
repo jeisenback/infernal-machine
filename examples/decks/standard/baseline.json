@@ -23,10 +23,7 @@
   },
   "dimir_excruciator": {
    "cards": 60,
-   "unplayable": [
-    "Deadly Cover-Up",
-    "Doomsday Excruciator"
-   ]
+   "unplayable": []
   },
   "dimir_midrange": {
    "cards": 60,
@@ -39,11 +36,7 @@
   },
   "dimir_reanimator": {
    "cards": 60,
-   "unplayable": [
-    "Deadly Cover-Up",
-    "Overlord of the Balemurk",
-    "Uldaros Theorix"
-   ]
+   "unplayable": []
   },
   "izzet_prowess": {
    "cards": 60,

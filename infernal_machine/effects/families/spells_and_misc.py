@@ -45,6 +45,18 @@ class Counter:
 
 
 @dataclass(frozen=True)
+class ExileNameIfEvidence:
+    """Deadly Cover-Up: "If evidence was collected, exile a card from an opponent's graveyard. Then search its owner's graveyard, hand,
+    and library for any number of cards with that name and exile them. That player shuffles, then draws a card for each card exiled
+    from their hand this way." (every card with the name is exiled)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if item is not None and item.evidence:
+            game.exile_name_everywhere(controller, item.card.name)
+
+
+@dataclass(frozen=True)
 class ExileSpells:
     """Mindbreak Trap: "Exile any number of target spells." (not a counter: a spell that can't be countered is exiled all the same)."""
     target: str = "spell"

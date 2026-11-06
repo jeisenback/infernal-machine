@@ -19,7 +19,7 @@ from .effects import (AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demo
                       chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest_power, reduced_by_total_power,
-                      replicate_cost, restricted_mana, sacrifice_discount, self_cost_reduction, storm_kind, strive_cost, target_kind, triggered_abilities,
+                      replicate_cost, restricted_mana, sacrifice_discount, self_cost_reduction, collect_evidence_of, storm_kind, strive_cost, target_kind, triggered_abilities,
                       x_limited_by_players, x_spell_discount)
 from .filters import has_type, parse_filter
 from .mana import Cost, cost_of, parse_cost
@@ -164,13 +164,16 @@ class Caster:
             choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT(card.name), [self.game.label(p) for p in options])]
             self.game._leave_together([(choice, "sacrificed")])
         sacrificed = self.game._sacrifice_for_copies(seat, card)
+        evidence = self._collect_evidence(seat, card)
         item = g.StackItem(card, seat, effects, targets, x=x, delved=tuple(delved), kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, additional_paid=additional_paid, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
                          foretold=graveyard is not None and graveyard.word == "Foretell", discarded=discarded, from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, mana_types_spent=tapped.spent, cant_be_countered=no_counter,
-                         dashed=bool(alternative and alternative.dash), warped=bool(alternative and alternative.warp), whole=whole, face_down=face_down,
-                         from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone), phyrexian_life=tapped.phyrexian_life)
+                         dashed=bool(alternative and alternative.dash), warped=bool(alternative and alternative.warp),
+                         impending=alternative.impending if alternative else 0, whole=whole, face_down=face_down,
+                         from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone), phyrexian_life=tapped.phyrexian_life,
+                         evidence=evidence)
         self.game.stack.append(item)
         event = {"event": "cast", "seat": seat.index, "card": card.name,
                  "from": "prepared" if prepared else "graveyard" if graveyard else "command_zone" if from_command_zone else "hand",
@@ -260,6 +263,25 @@ class Caster:
                 and not (way is None and sacrifice_discount(card)
                          and not self._sacrifice_discounts(seat, card, from_command_zone, delve=self.game._delve_max(seat, card)))
                 and not (way and way.bestow and not self.game.target_options("creature", seat, source_qualities(card)))]
+
+    def _collect_evidence(self, seat: g.Seat, card: Card) -> bool:
+        """"You may collect evidence N": exile cards with total mana value N or more from your graveyard. Whether its caster did."""
+        needed = collect_evidence_of(card)
+        if not needed or sum(int(c.cmc) for c in seat.graveyard) < needed:
+            return False
+        chosen: list[Card] = []
+        while sum(int(c.cmc) for c in chosen) < needed:
+            options = [c for c in seat.graveyard if not any(c is d for d in chosen)]
+            pick = seat.player.choose(g.EVIDENCE_PROMPT(card.name), [c.name for c in options] + [g.EVIDENCE_NONE])
+            if pick >= len(options):
+                return False
+            chosen.append(options[pick])
+        for exiled in chosen:
+            seat.graveyard.remove(exiled)
+            self.game._move_card(seat, exiled, "exile")
+        self.game.broadcast({"event": "collected_evidence", "seat": seat.index, "cards": [c.name for c in chosen]})
+        self.game._left_graveyard(seat, chosen)
+        return True
 
     def _harmonize_options(self, seat: g.Seat, card: Card) -> list:
         """Harmonize: the untapped creatures `seat` could tap to pay {X} less for `card` (X: its power; summoning sickness doesn't
