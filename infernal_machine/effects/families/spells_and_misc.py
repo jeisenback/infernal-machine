@@ -767,3 +767,22 @@ class EachWithNamedDraws:
         for seat in game.turn_order_from_active():
             if any(p.card.name == name for p in seat.battlefield):
                 game.draw(seat, 1)
+
+
+@dataclass(frozen=True)
+class Learn:
+    """Learn: "You may reveal a Lesson card you own from outside the game and put it into your hand, or discard a card to draw a card."
+    (outside the game is the sideboard, as for Karn's wish)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.learn(controller)
+
+@dataclass(frozen=True)
+class DrawUnlessFromHand:
+    """Twinned Vision: "Draw a card. If this spell wasn't cast from your hand, draw two cards instead." """
+    count: int
+    other: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        game.draw(controller, self.count if item is not None and item.from_hand else self.other)

@@ -356,6 +356,7 @@ from .costs import (  # noqa: F401
     alternative_costs,
     bestow_aura,
     buyback_cost,
+    splice_cost,
     buyback_other_cost,
     chosen_cost_reductions,
     conditional_cost_reduction,

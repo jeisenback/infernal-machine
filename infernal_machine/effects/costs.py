@@ -293,6 +293,7 @@ _AFTERMATH = re.compile(r"Aftermath")  # the second half of a split card: cast o
 
 
 _FLASHBACK_LIFE = re.compile(r"Flashback\u2014((?:\{[^}]+\})+), Pay (\d+) life\.")  # Deep Analysis
+_FLASHBACK_DISCARD = re.compile(r"Flashback\u2014((?:\{[^}]+\})+), Discard a card\.")  # Twinned Vision
 _FLASHBACK_SACRIFICE = re.compile(rf"Flashback\u2014Sacrifice {_N_FIXED} ([A-Za-z]+?)s?\.")  # Lava Dart, Cabal Therapy, Dread Return
 
 
@@ -387,6 +388,16 @@ def kicker_other_cost(card: Card) -> AdditionalCost | None:
         if m := _KICKER_OTHER.fullmatch(line):
             return AdditionalCost(sacrifice=m[1], discard=bool(m[2]), life=_number(m[3]) if m[3] else 0)
     return None
+
+
+_SPLICE = re.compile(r"Splice onto Arcane ((?:\{[^}]+\})+)")  # Desperate Ritual (CR 702.47)
+
+
+@lru_cache(maxsize=None)
+def splice_cost(card: Card) -> str | None:
+    """The mana cost from "Splice onto Arcane {1}{R}": as you cast an Arcane spell, you may reveal this card from your hand and pay it
+    to add this card's effects to that spell (the card stays in your hand)."""
+    return next((m[1] for line in rules_lines(card) if (m := _SPLICE.fullmatch(line))), None)
 
 
 @lru_cache(maxsize=None)
@@ -588,6 +599,7 @@ class GraveyardCast:
     exile: int = 0  # other cards to exile from the graveyard (Escape)
     exile_after: bool = False  # exile it instead of putting it in the graveyard when it leaves the stack (Flashback)
     discard_land: bool = False  # Retrace: discard a land card in addition to the cost
+    discard: bool = False  # "Flashback\u2014{1}{U/R}{U/R}, Discard a card." (any card)
     life: int = 0  # "Flashback\u2014{1}{U}, Pay 3 life."
     sacrifice: str = ""  # "Flashback\u2014Sacrifice three creatures.": the kind of permanent to sacrifice ...
     sacrifices: int = 0  # ... and how many
@@ -602,6 +614,8 @@ def graveyard_casts(card: Card) -> list[GraveyardCast]:
             found.append(GraveyardCast("Flashback", m[1], exile_after=True))
         elif m := _FLASHBACK_LIFE.fullmatch(line):
             found.append(GraveyardCast("Flashback", m[1], exile_after=True, life=int(m[2])))
+        elif m := _FLASHBACK_DISCARD.fullmatch(line):
+            found.append(GraveyardCast("Flashback", m[1], exile_after=True, discard=True))
         elif m := _FLASHBACK_SACRIFICE.fullmatch(line):
             found.append(GraveyardCast("Flashback", "{0}", exile_after=True, sacrifice=m[2], sacrifices=_number(m[1])))
         elif m := _FROM_GRAVEYARD_BY_PAYING.fullmatch(line):
@@ -791,7 +805,7 @@ def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
-                                           _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
+                                           _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_DISCARD, _SPLICE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
 
 

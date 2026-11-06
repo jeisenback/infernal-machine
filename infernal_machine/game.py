@@ -107,6 +107,7 @@ KEEP_PROMPT = PromptKind("keep", "Keep this hand?")
 OPENING_PROMPT = PromptKind("opening", "Begin the game with this on the battlefield: ")  # followed by the card's name
 BOTTOM_PROMPT = PromptKind("bottom", "Put a card on the bottom of your library")
 SHUFFLE_BACK_PROMPT = PromptKind("shuffle_back", "Choose a card from your graveyard to shuffle into your library")  # options: cards, then DONE
+LEARN_PROMPT = PromptKind("learn", "Learn: a Lesson from outside the game, or discard a card to draw a card")  # options: lessons, the rummage, "Nothing"
 SECOND_OR_BOTTOM_PROMPT = PromptKind("second_or_bottom", "Second from the top or the bottom of your library for ")  # followed by its name
 DISCARD_PROMPT = PromptKind("discard", "Discard down to hand size")
 DISCARD_CARD_PROMPT = PromptKind("discard_card", "Choose a card to discard")  # options are card names
@@ -184,6 +185,7 @@ DREDGE_PROMPT = PromptKind("dredge", "Dredge instead of drawing a card? ")  # op
 SYLVAN_CHOOSE_PROMPT = PromptKind("sylvan_choose", "Choose a card you drew this turn: ")  # asked twice, for the two cards
 SYLVAN_PAY_PROMPT = PromptKind("sylvan_pay", "Pay life for it or put it on top of your library: ")  # followed by the card's name
 REBOUND_PROMPT = PromptKind("rebound", "Cast it again with rebound: ")  # followed by the card's name; options: YES_NO
+SPLICE_PROMPT = PromptKind("splice", "Splice onto the Arcane spell: ")  # followed by the spliced card's name; options: YES_NO
 KICKER_PROMPT = PromptKind("kicker", "Pay the kicker cost for ")  # followed by the spell's name; options: YES_NO
 MULTIKICKER_PROMPT = PromptKind("multikicker", "Choose how many times to kick ")  # followed by the spell's name; options are "0", "1", ...
 PITCH_PROMPT = PromptKind("pitch", "Choose a card to exile from your hand")
@@ -1366,6 +1368,20 @@ class Game:
                                              oracle_text=f"{base.oracle_text}\n{{T}}: Add {{{color}}}.", produced_mana=(color,))
         permanent.animated_until = controller.index
 
+    def learn(self, seat: Seat) -> None:
+        """Learn: `seat` may put a Lesson card from outside the game (its sideboard) into its hand, or discard a card to draw
+        a card, or do neither."""
+        lessons = [card for card in seat.sideboard if has_type(card, "Lesson")]
+        options = [f"{card.name} (outside the game)" for card in lessons] + (["Discard a card to draw a card"] if seat.hand else []) + ["Nothing"]
+        pick = seat.player.choose(LEARN_PROMPT, options)
+        if pick < len(lessons):
+            seat.sideboard.remove(lessons[pick])
+            seat.hand.append(lessons[pick])
+            self.broadcast({"event": "returned_to_hand", "seat": seat.index, "card": lessons[pick].name, "from": "sideboard"})
+        elif options[pick] == "Discard a card to draw a card":
+            self.discard(seat, 1)
+            self.draw(seat, 1)
+
     def wish_artifact(self, seat: Seat, source: str) -> None:
         """Karn, the Great Creator's −2: "You may reveal an artifact card you own from outside the game or choose a face-up artifact
         card you own in exile. Put that card into your hand." Outside the game is the sideboard; a foretold card is face down."""
@@ -2047,6 +2063,18 @@ class Game:
             self._exiled_from_library_or_graveyard(seat)
         return exiled
 
+    def leftovers_to_graveyard_at_end_step(self, seat: Seat, exiled: list[Card], token: Card) -> None:
+        """Glimpse the Impossible: as the next end step begins, the `exiled` cards still in exile go to their owner's graveyard, and
+        `seat` creates a `token` for each card put there this way."""
+        def clean_up() -> None:
+            left = [card for card in exiled if any(c is card for c in seat.exile)]
+            for card in left:
+                seat.exile = [c for c in seat.exile if c is not card]
+                self._move_card(seat, card, "graveyard")
+            if left:
+                self.create_tokens(seat, token, len(left))
+        self.at_end_step.append((self.turn + 1 if self.step in ("end", "cleanup") else self.turn, clean_up))
+
     def exile_random_from_graveyard(self, seat: Seat, play_this_turn: bool) -> None:
         """Exile a card chosen at random from the graveyard; it can be played until the turn ends."""
         if seat.graveyard:
@@ -2679,6 +2707,9 @@ class Game:
                         and not (kind_wanted != amount.what and p is self.resolving_source)), default=0)
         if kind == "graveyard":
             return sum(_card_matches(amount.what, c) for c in controller.graveyard)
+        if kind == "spells_and_exiled_flashback":  # Seize the Storm
+            return sum(any(t in c.type_line for t in ("Instant", "Sorcery")) for c in controller.graveyard) \
+                + sum(any(g.word == "Flashback" for g in graveyard_casts(c)) for c in controller.exile)
         if kind == "half_life":
             return max(0, controller.life) // 2 if amount.what == "down" else (max(0, controller.life) + 1) // 2
         if kind == "life_lost":
@@ -3047,6 +3078,8 @@ class Game:
             return seat.speed >= 4
         if kind == "harnessed":  # The Mind Stone's \u221e ability
             return source is not None and source.harnessed
+        if kind == "teamwork":  # "If this spell was cast using teamwork"
+            return self.resolving_item is not None and self.resolving_item.teamwork
         if kind == "source_is_creature":  # Hydro-Man: "if Hydro-Man is a creature"
             return source is not None and "Creature" in source.card.type_line
         if kind == "your_turn":

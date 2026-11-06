@@ -15,7 +15,7 @@ from .analysis import is_land
 from .cards import Card, has_keyword
 from .characteristics import source_qualities
 from .effects import (AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
-                      Scry, TriggeredAbility, NOTHING_MORE, additional_costs, additional_paid_effects, affinity_for, alternative_costs, buyback_cost, buyback_other_cost,
+                      Scry, TriggeredAbility, NOTHING_MORE, additional_costs, additional_paid_effects, affinity_for, alternative_costs, buyback_cost, buyback_other_cost, splice_cost,
                       chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest, reduced_by_total_power,
@@ -63,6 +63,9 @@ class Caster:
         bought_back = self._choose_buyback(seat, card, from_command_zone, kickers, extra, alternative)
         if bought_back:
             extra += buyback_cost(card) or ""
+        for spliced in self._choose_splices(seat, card, paying, from_command_zone, alternative, kickers, extra):
+            extra += g._checked(splice_cost(spliced))  # its effects follow the spell's own, and choose their targets with them
+            effects = list(effects or []) + list(g._effects(spliced) or [])
         effects = kicked_effects(effects, kicked, kickers)
         picked = self._pick_options(seat, card, alternative, kicked, bought_back, lambda mana: self._payment(
             seat, paying, from_command_zone, 0, alternative, kickers, extra + mana))
@@ -252,7 +255,7 @@ class Caster:
         if graveyard:
             paying = dataclasses.replace(card, mana_cost=graveyard.cost)
             others = len(seat.graveyard) - (card in seat.graveyard)
-            if graveyard.discard_land and not any(is_land(c) for c in seat.hand):
+            if graveyard.discard_land and not any(is_land(c) for c in seat.hand) or graveyard.discard and not seat.hand:
                 return []
             if graveyard.requires and not any(parse_filter(graveyard.requires).matches(p.card) for p in seat.battlefield):
                 return []  # Gravecrawler: only while its caster controls a Zombie
@@ -518,12 +521,16 @@ class Caster:
             options = [p for p in seat.battlefield if g._permanent_matches(sacrifice, p.card)]
             choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT(card.name), [self.game.label(p) for p in options])]
             self.game._leave_together([(choice, "sacrificed")])
-        if graveyard and graveyard.discard_land:  # Retrace
-            lands = [c for c in seat.hand if is_land(c)]
-            discarded = lands[seat.player.choose(g.DISCARD_PROMPT, [c.name for c in lands])]
+        if graveyard and (graveyard.discard_land or graveyard.discard):  # Retrace: a land card; Twinned Vision's flashback: any card
+            options = [c for c in seat.hand if is_land(c) or not graveyard.discard_land]
+            discarded = options[seat.player.choose(g.DISCARD_PROMPT, [c.name for c in options])]
             seat.hand.remove(discarded)
             self.game.broadcast({"event": "discard", "seat": seat.index, "card": discarded.name})
-            self.game._move_card(seat, discarded, "graveyard")
+            if graveyard.discard:  # a discard like any other (madness, "whenever you discard")
+                self.game._discard_into_zone(seat, discarded)
+                self.game._discarded(seat, discarded)
+            else:
+                self.game._move_card(seat, discarded, "graveyard")
         returns, return_count = (alternative.returns, alternative.return_count) if alternative else ("", 0)
         for _ in range(return_count):  # Daze: "return an Island you control to its owner's hand"; Fireblast: "sacrifice two Mountains"
             options = [p for p in seat.battlefield if g._permanent_matches(returns, p.card)]
@@ -602,6 +609,21 @@ class Caster:
         if possible(costs, 1) and seat.player.choose(g.KICKER_PROMPT(card.name), g.YES_NO) == 0:
             return 1, costs
         return 0, ()
+
+    def _choose_splices(self, seat: g.Seat, card: Card, paying: Card, from_command_zone: bool, alternative: AlternativeCost | None,
+                        kickers: tuple[str, ...], extra: str) -> list[Card]:
+        """Splice onto Arcane (CR 702.47): as an Arcane spell is cast, each other card in hand with a splice cost may be revealed and its
+        cost paid on top of everything else; the spell gets that card's effects, and the card stays in hand."""
+        if not has_type(card, "Arcane"):
+            return []
+        chosen: list[Card] = []
+        for other in [c for c in seat.hand if c is not card and splice_cost(c)]:
+            more = extra + "".join(g._checked(splice_cost(c)) for c in chosen) + g._checked(splice_cost(other))
+            if self._payment(seat, paying, from_command_zone, alternative=alternative, kickers=kickers, extra=more) is not None \
+                    and seat.player.choose(g.SPLICE_PROMPT(other.name), g.YES_NO) == 0:
+                chosen.append(other)
+                self.game.broadcast({"event": "revealed", "seat": seat.index, "card": other.name})
+        return chosen
 
     def _choose_buyback(self, seat: g.Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str,
                         alternative: AlternativeCost | None) -> bool:

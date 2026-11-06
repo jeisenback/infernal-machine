@@ -272,6 +272,9 @@ _WHOLE_LINE = re.compile(
     r"|Then if you control [a-z]+ or more [A-Z][a-z]+s, sacrifice this Saga\. If you do, create [^.]+\."
     r"|Reveal the top card of your library\. If it's an? (?:permanent|creature|land|nonland) card, put it into your hand\."
     r"|(?:You may )?remove an? \S+ counter from this creature\. If you do, put [^.]+ on each other creature you control\."
+    r'|At the beginning of the next end step, if any of those cards remain exiled, put them into your graveyard, then create [^.]+ this way\. '
+    r'Those tokens have "[^"]+"\.?'  # Glimpse the Impossible
+    r"|Draw a card\. If this spell wasn't cast from your hand, draw two cards instead\."  # Twinned Vision
     r"|Counter target spell if its mana value is \d+ or less\. If this spell was kicked, counter that spell if its mana value is \d+ or "
     r"less instead\."  # Prohibit
     r"|Each opponent sacrifices a creature of their choice\. If evidence was collected, instead [^.]+\."  # Extract a Confession

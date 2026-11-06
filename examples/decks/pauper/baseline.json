@@ -30,14 +30,7 @@
   },
   "ruby_storm": {
    "cards": 60,
-   "unplayable": [
-    "Crossover Collaboration",
-    "Desperate Ritual",
-    "First Day of Class",
-    "Glimpse the Impossible",
-    "Seize the Storm",
-    "Twinned Vision"
-   ]
+   "unplayable": []
   },
   "spy_combo": {
    "cards": 60,

@@ -1407,7 +1407,7 @@ def is_control_aura_line(line: str) -> bool:
     return line == _CONTROL_AURA
 
 
-_CDA = re.compile(r"(?:CARDNAME's|This creature's) power and toughness are each equal to (.+)\.")
+_CDA = re.compile(r"(?:CARDNAME's|This creature's|This token's) power and toughness are each equal to (.+)\.")
 
 
 @lru_cache(maxsize=None)
