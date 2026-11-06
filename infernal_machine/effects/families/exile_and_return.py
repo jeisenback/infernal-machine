@@ -322,12 +322,22 @@ class CastExiledWithFree:
 
 
 @dataclass(frozen=True)
-class MayCastFromHandFree:
-    """Rishkar's Expertise: "You may cast a spell with mana value 5 or less from your hand without paying its mana cost." """
-    max_value: int
+class PlayVoidCardFree:
+    """Dauthi Voidwalker: "Choose an exiled card an opponent owns with a void counter on it. You may play it this turn without paying its
+    mana cost." """
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        spells = [c for c in controller.hand if "Land" not in c.type_line and c.cmc <= self.max_value]
+        game.play_void_card_free(controller)
+
+
+@dataclass(frozen=True)
+class MayCastFromHandFree:
+    """Rishkar's Expertise: "You may cast a spell with mana value 5 or less from your hand without paying its mana cost." """
+    max_value: Quantity  # "X": the damage the trigger saw (Buster Sword)
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        most = game.amount(self.max_value)
+        spells = [c for c in controller.hand if "Land" not in c.type_line and c.cmc <= most]
         if not spells:
             return
         pick = controller.player.choose(FREE_CAST_PROMPT, [c.name for c in spells] + [DECLINE])
@@ -850,11 +860,32 @@ class ExileTopCastAura:
 class ExileUntilNonlandCast:
     """Plargg and Nassari: "Each player exiles cards from the top of their library until they exile a nonland card. An
     opponent chooses a nonland card exiled this way. You may cast up to two spells from among the other cards exiled this way
-    without paying their mana costs." """
-    casts: int
+    without paying their mana costs." Etali, Primal Conqueror: nobody sets one aside, and any number may be cast (`casts` None)."""
+    casts: int | None
+    set_aside: bool = True
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_until_nonland_and_cast(controller, self.casts)
+        game.exile_until_nonland_and_cast(controller, self.casts, self.set_aside)
+
+
+@dataclass(frozen=True)
+class SearchExileCastIfKicked:
+    """Beseech the Mirror: "Search your library for a card, exile it face down, then shuffle. If this spell was bargained, you may cast
+    the exiled card without paying its mana cost if that spell's mana value is 4 or less. Put the exiled card into your hand if it
+    wasn't cast this way." (bargain is read as kicker)"""
+    max_value: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        for card in game.tutor(controller, "card", "exile", reveal=False):
+            if not any(c is card for c in controller.exile):
+                continue
+            if item is not None and item.kicked and "Land" not in card.type_line and card.cmc <= self.max_value \
+                    and controller.player.choose(FREE_CAST_PROMPT, [card.name, DECLINE]) == 0:
+                game._cast(controller, card, controller.exile, free=True)
+            else:
+                controller.exile.remove(card)
+                controller.hand.append(card)
 
 
 @dataclass(frozen=True)

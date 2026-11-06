@@ -204,6 +204,15 @@ _WHOLE_LINE = re.compile(
     r"|Each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a nonland "
     r"card exiled this way\. You may cast up to (?:two|three) spells from among the other cards exiled this way without paying "
     r"their mana costs\."
+    r"|Each player exiles cards from the top of their library until they exile a nonland card\. You may cast any number of spells "
+    r"from among the nonland cards exiled this way without paying their mana costs\."
+    r"|You may copy the exiled card\. If you do, you may cast the copy without paying its mana cost\."  # Isochron Scepter
+    r"|Exile (?:target|each) card that's an instant or sorcery from your graveyard\. For each card exiled this way, copy it, and you "
+    r"may cast the copy without paying its mana cost\."  # Mizzix's Mastery
+    r"|Search your library for a card, exile it face down, then shuffle\. If this spell was kicked, you may cast the exiled card "
+    r"without paying its mana cost if that spell's mana value is \d+ or less\. Put the exiled card into your hand if it wasn't cast "
+    r"this way\."  # Beseech the Mirror
+    r"|Choose an exiled card an opponent owns with a void counter on it\. You may play it this turn without paying its mana cost\."
     r"|Return up to one target artifact, creature, or non-Aura enchantment card with mana value (\d+) or less from your graveyard to "
     r"the battlefield with a finality counter on it\. It's a 1/1 Spirit creature with flying in addition to its other types\."
     r"|Choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana cost\. If "

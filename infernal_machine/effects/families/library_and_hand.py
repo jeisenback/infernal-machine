@@ -275,12 +275,13 @@ class DanceWithCalamity:
 @dataclass(frozen=True)
 class ImprintFromHand:
     """Chrome Mox: "Imprint \u2014 When this artifact enters, you may exile a nonartifact, nonland card from your hand." The card
-    stays with the Mox, whose mana is any of its colors."""
+    stays with the Mox, whose mana is any of its colors. Isochron Scepter: "an instant card with mana value 2 or less" (`instant_max_mv`)."""
+    instant_max_mv: int | None = None
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.imprint_from_hand(controller, target)
+            game.imprint_from_hand(controller, target, self.instant_max_mv)
 
 
 @dataclass(frozen=True)

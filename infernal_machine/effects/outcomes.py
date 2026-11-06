@@ -153,6 +153,8 @@ from .families.copying import (  # noqa: F401
     CopyTriggeringSpell,
     EachOpponentGetsGoadedCopy,
     ExileDeadCopy,
+    CopyImprintedCastFree,
+    ExileEachThenCastCopies,
     ExileThenCastCopy,
     MayCopyLeftCard,
     _TwiceFromGraveyard,
@@ -265,6 +267,8 @@ from .families.exile_and_return import (  # noqa: F401
     ExileTopOfThatPlayerMayCast,
     ExileUntilLeaves,
     ExileUntilNonlandCast,
+    SearchExileCastIfKicked,
+    PlayVoidCardFree,
     ExileX,
     FREE_CAST_PROMPT,
     Flicker,
@@ -428,7 +432,7 @@ from .families.life_and_damage import (  # noqa: F401
     PunishPerCounter,
     OpponentsLoseLife,
     PlayerLosesLife,
-    PoisonShrinksOpponentsCreatures,
+    PlayerGetsPoison, PoisonShrinksOpponentsCreatures,
     PowerDamageToEachOther,
     NoPreventionThisTurn,
     PreventAllCombatDamage,
@@ -1625,6 +1629,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"draw an additional card\.", re.I), lambda m: Draw(1)),
     (re.compile(rf"(?:you )?gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
     (re.compile(r"exile a nonartifact, nonland card from your hand\.", re.I), lambda m: ImprintFromHand()),
+    (re.compile(r"exile an instant card with mana value (\d+) or less from your hand\.", re.I),
+     lambda m: ImprintFromHand(int(m[1]))),  # Isochron Scepter
+    (re.compile(r"you may copy the exiled card\. if you do, you may cast the copy without paying its mana cost\.", re.I),
+     lambda m: CopyImprintedCastFree()),  # Isochron Scepter
     (re.compile(rf"whenever {_SELF} connives|{_SELF} connives\.", re.I), lambda m: Connive()),
     (re.compile(r"exile the top card of each player's library, then you may cast any number of spells from among those cards without "
                 r"paying their mana costs\.", re.I), lambda m: ExileTopOfEachCastFree()),
@@ -1809,6 +1817,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"each player exiles cards from the top of their library until they exile a nonland card\. An opponent chooses a "
                 rf"nonland card exiled this way\. You may cast up to {_N_FIXED} spells from among the other cards exiled this way without "
                 r"paying their mana costs\.", re.I), lambda m: ExileUntilNonlandCast(_number(m[1]))),
+    (re.compile(r"each player exiles cards from the top of their library until they exile a nonland card\. You may cast any number "
+                r"of spells from among the nonland cards exiled this way without paying their mana costs\.", re.I),
+     lambda m: ExileUntilNonlandCast(None, set_aside=False)),  # Etali, Primal Conqueror
+    (re.compile(r"search your library for a card, exile it face down, then shuffle\. If this spell was kicked, you may cast the exiled "
+                r"card without paying its mana cost if that spell's mana value is (\d+) or less\. Put the exiled card into your hand if "
+                r"it wasn't cast this way\.", re.I), lambda m: SearchExileCastIfKicked(int(m[1]))),  # Beseech the Mirror (bargained)
     (re.compile(r"reveal the top X cards of your library\. Put all land cards from among them onto the battlefield tapped and the rest "
                 r"on the bottom of your library in a random order\.", re.I), lambda m: RevealLands("X")),
     (re.compile(r"reveal cards from the top of your library until you reveal X land cards\. Put those land cards onto the "
@@ -2292,6 +2306,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnFromGraveyard(f"graveyard:permanent|mv<={m[1]}:yours", "battlefield")),
     (re.compile(r"exile up to one target instant or sorcery card from your graveyard and copy it\. You may cast the copy without "
                 r"paying its mana cost\.", re.I), lambda m: ExileThenCastCopy()),
+    (re.compile(r"exile (target|each) card that's an instant or sorcery from your graveyard\. For each card exiled this way, copy it, "
+                r"and you may cast the copy without paying its mana cost\.", re.I),  # Mizzix's Mastery, overloaded or not
+     lambda m: ExileThenCastCopy(optional_target=False) if m[1].lower() == "target" else ExileEachThenCastCopies()),
     (re.compile(r"each player exiles a card from their graveyard\. When one or more nonland cards are exiled this way, put that many "
                 r"\+1/\+1 counters on target attacking creature\.", re.I), lambda m: EachExilesGraveyardCardCounters()),
     (re.compile(r"return up to one target artifact, creature, or non-Aura enchantment card with mana value (\d+) or less from your "
@@ -2302,6 +2319,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana "
                 r"cost\. If that spell would be put into a graveyard, put it on the bottom of its owner's library instead\.", re.I),
      lambda m: CastExiledWithFree()),
+    (re.compile(r"choose an exiled card an opponent owns with a void counter on it\. You may play it this turn without paying its mana "
+                r"cost\.", re.I), lambda m: PlayVoidCardFree()),  # Dauthi Voidwalker
     (re.compile(r"put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a "
                 r"Treasure token\. If it's a nonland card, create an? (.+ creature token)\.", re.I),
      lambda m: PutExiledWithIntoGraveyard(TREASURE, made[1]) if (made := _token("a " + m[1])) else None),
@@ -2354,6 +2373,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Attach(m[1].lower())),  # Mithril Coat
     (re.compile(r"you may cast a spell with mana value (\d+) or less from your hand without paying its mana cost\.", re.I),
      lambda m: MayCastFromHandFree(int(m[1]))),  # Rishkar's Expertise
+    (re.compile(r"you may cast a spell from your hand with mana value less than or equal to that damage without paying its mana cost\.", re.I),
+     lambda m: MayCastFromHandFree("X")),  # Buster Sword: X is the damage the trigger saw
     (re.compile(r"choose two target creature cards in your graveyard\. sacrifice a creature\. if you do, return the chosen cards to the "
                 r"battlefield tapped\.", re.I), lambda m: SacrificeToReturnChosen()),  # Victimize
     (re.compile(r"choose target (creature(?: you control)?)\.", re.I), lambda m: ChooseTarget(m[1].lower())),
@@ -2545,6 +2566,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 rf"|creature|opponent|player)(?: {_RESTRICTION})?(?: and each (opponent|player))?\.", re.I), _damage_each),
     (re.compile(r"(?:each (opponent|player) gets|each (opponent|player) gets) (a|one|two|three) poison counters?\.", re.I),
      lambda m: GivePoison((m[1] or m[2]).lower(), _number(m[3]))),
+    (re.compile(r"they get that many poison counters\.", re.I), lambda m: PlayerGetsPoison("X")),  # Etali, Primal Sickness: the damaged player
     (re.compile(r"then each creature your opponents control gets -1/-1 until end of turn for each poison counter its controller has\.", re.I),
      lambda m: PoisonShrinksOpponentsCreatures()),
     (re.compile(rf"each (opponent|player) sacrifices (a|an) {_SACRIFICE_KIND} of their choice and gets a poison counter\.", re.I),  # Vraska's Fall
@@ -2847,7 +2869,7 @@ def _clauses(sentence: str) -> list[str]:
         return [f"Let X be {m[2]}.", f"Create X {m[1]} tokens."] if _amount(m[2]) else [sentence]
     if m := re.fullmatch(r"(.+), where X is (.+)\.", sentence):
         return [f"Let X be {m[2]}."] + _clauses(m[1] + ".") if _amount(m[2]) else [sentence]
-    if m := re.fullmatch(r"(.+) (?:equal to|for each) (.+)\.", sentence):
+    if m := re.fullmatch(r"(.+) (?<!or )(?:equal to|for each) (.+)\.", sentence):  # "less than or equal to" is a cap, not an amount
         body, count = _times_x(m[1])
         if not (count and _amount(m[2])):
             return [sentence]
