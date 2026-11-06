@@ -263,7 +263,11 @@ _WHOLE_LINE = re.compile(
     r"any number of cards with that name and exile them\. That player shuffles, then draws a card for each card exiled from their hand "
     r"this way\."
     r"|Exile up to one target nonland card of each card type from your graveyard\. Copy those cards\. You may cast any number of spells "
-    r"with total mana value \d+ or less from among the copies without paying their mana costs\.", re.I)
+    r"with total mana value \d+ or less from among the copies without paying their mana costs\."
+    r"|Counter up to one target activated or triggered ability\. If an ability of an artifact, creature, or planeswalker is countered "
+    r"this way, that permanent loses all abilities for as long as this creature remains on the battlefield\."
+    r"|Counter target spell unless its controller pays (?:\{[^}]+\})+\. Counter that spell unless its controller pays (?:\{[^}]+\})+ "
+    r"instead if this spell was cast using teamwork\.", re.I)
 
 
 def _split_sentences(text: str) -> list[str]:

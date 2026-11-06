@@ -539,10 +539,18 @@ class Tap:
     target: str
     distinct: bool = False
     optional_target: bool = False
+    strip_while_source: bool = False  # The Wondrous Wasp: "It loses all abilities for as long as CARDNAME remains on the battlefield."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.tap(target)
+            if self.strip_while_source:
+                game.strip_while(target, game.resolving_source)
+
+
+@dataclass(frozen=True)
+class _LosesAbilitiesWhileSource:
+    """ "It loses all abilities for as long as CARDNAME remains on the battlefield." after a Tap (The Wondrous Wasp)."""
 
 
 @dataclass(frozen=True)

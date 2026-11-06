@@ -1155,6 +1155,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     every card with the name of the chosen card from an opponent's graveyard is exiled from its owner's graveyard, hand and library, and
     they draw for each from the hand (`Game.exile_name_everywhere`). Uldaros Theorix: up to one nonland card of each card type is exiled
     from the graveyard (chosen as it resolves), and copies with total mana value 6 or less are cast free (`ExileEachTypeCastCopies`).
+  - Standard's Dimir Midrange deck (`tests/test_standard_dimir_midrange.py`): "It loses all abilities for as long as The Wondrous Wasp
+    remains on the battlefield." after a Tap, and Tishana's Tidebinder's "that permanent loses all abilities for as long as this creature
+    remains on the battlefield" set `Permanent.loses_abilities_while` (`Game.strip_while`); the board view counts it stripped while
+    that source is on the battlefield. "Counter (up to one) target activated or triggered ability." is `CounterAbility`, whose target is
+    any ability on the stack. Wan Shi Tong: "put X +1/+1 counters on him. Then draw half X cards, rounded down." and "put a +1/+1 counter
+    on Wan Shi Tong and draw a card." Teamwork N (We Say Thee Nay!): after the mana is paid, its caster may tap untapped creatures with
+    total power N or more (`StackItem.teamwork`), and the counter asks {4} instead of {2} (`Counter.unless_teamwork`).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

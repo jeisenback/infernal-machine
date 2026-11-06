@@ -360,6 +360,7 @@ from .costs import (  # noqa: F401
     copies_per_sacrifice,
     sacrifice_discount,
     collect_evidence_of,
+    teamwork_of,
     cost_reductions,
     cost_increases,
     cumulative_upkeep,
