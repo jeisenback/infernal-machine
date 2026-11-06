@@ -215,6 +215,15 @@ _WHOLE_LINE = re.compile(
     r"|Choose an exiled card an opponent owns with a void counter on it\. You may play it this turn without paying its mana cost\."
     r"|That player exiles the top \w+ cards of their library\. Until end of turn, you may play those cards without paying their mana "
     r"costs\."  # Fallen Shinobi
+    r"|That player exiles the top card of their library\. If it's a nonland card, you may cast it without paying its mana cost\."
+    r"|Reveal the top card of your library\. If it's a creature card that shares a creature type with a creature you control, you may "
+    r"cast it without paying its mana cost\. If you don't cast it, put it on the bottom of your library\."  # Descendants' Path
+    r"|Exile an instant or sorcery card at random from your graveyard\. Then copy each card exiled with this enchantment\. You may cast "
+    r"any number of the copies without paying their mana costs\."  # Arcane Bombardment
+    r"|Exile cards from the top of your library until you exile cards with total mana value \d+ or greater\. You may cast any number of "
+    r"spells from among them without paying their mana costs\."  # Improvisation Capstone
+    r"|Exile the top \w+ cards of your library\. You may put a land card from among them onto the battlefield\. Until end of turn, for "
+    r"each nonland card type, you may cast a spell of that type from among the exiled cards without paying its mana cost\."  # Aminatou's Augury
     r"|Draw a card, then discard a card\. If there are \w+ or more \w+ counters on CARDNAME, you may cast the discarded card without "
     r"paying its mana cost\."  # Malcolm, Alluring Scoundrel
     r"|Its controller may pay \w+ life\. If they do, they draw a card\."  # Gix, Yawgmoth Praetor

@@ -279,10 +279,11 @@ class Caster:
                 and not (way and way.bestow and not self.game.target_options("creature", seat, source_qualities(card)))]
 
     def _free_ways(self, seat: g.Seat, card: Card, from_hand: bool) -> list[AlternativeCost]:
-        """Omniscience: a spell from its caster's hand may be cast without paying its mana cost; One with the Multiverse: one from the
-        hand or the top of the library, once during each of its caster's turns (CR 118.9)."""
-        keys = [key for owner, _, key in self.game._static_rules() if owner is seat and key in ("free_from_hand", "free_once")]
-        ways = [FREE_FROM_HAND] if from_hand and "free_from_hand" in keys else []
+        """Omniscience: a spell from its caster's hand may be cast without paying its mana cost; Dracogenesis: a Dragon spell from
+        anywhere; One with the Multiverse: one from the hand or the top of the library, once during each of its caster's turns (CR 118.9)."""
+        keys = [key for owner, _, key in self.game._static_rules() if owner is seat and key.startswith("free_")]
+        subtypes = card.type_line.partition("\u2014")[2].split()
+        ways = [FREE_FROM_HAND] if (from_hand and "free_from_hand" in keys) or any(f"free_type:{t}" in keys for t in subtypes) else []
         if "free_once" in keys and self.game.active == seat.index and seat.free_once_turn != self.game.turn \
                 and (from_hand or (seat.library and seat.library[0] is card)):
             ways.append(FREE_ONCE)

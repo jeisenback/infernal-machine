@@ -4,16 +4,19 @@ damage), Isochron Scepter (imprint an instant, then cast copies of it), Mizzix's
 when overloaded), Beseech the Mirror (cast the card found if bargained and cheap enough, else take it) and Dauthi Voidwalker (an
 opponent's cards are exiled with void counters; play one for free). Batch 2: Omniscience and One with the Multiverse (a free way to cast),
 Electrodominance (a spell up to X), Malcolm, Alluring Scoundrel (the discarded card, with four chorus counters), Gix, Yawgmoth Praetor
-(pay 1 life to draw; play the cards exiled with Discard X) and Fallen Shinobi (play the damaged player's top two cards free)."""
+(pay 1 life to draw; play the cards exiled with Discard X) and Fallen Shinobi (play the damaged player's top two cards free). Batch 3:
+Dracogenesis (Dragon spells free), Descendants' Path (a creature sharing a type, or the bottom), Improvisation Capstone (exile to a total
+mana value; Paradigm), Arcane Bombardment (copies of every card exiled with it), Aminatou's Augury (a land, then one spell of each type)
+and Mind's Dilation (the opponent's top card, if nonland)."""
 
 import unittest
 from dataclasses import replace
 
 from infernal_machine.effects import FREE_WAY
-from infernal_machine.game import CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, X_PROMPT, Permanent
+from infernal_machine.game import CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, PARADIGM_PROMPT, X_PROMPT, Permanent
 from infernal_machine.zones import CAST_EXILE, CAST_TOP, PLAY_EXILE
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, BIG, COMMANDER, MOUNTAIN, OGRE, RAINBOW, RELIC, activate, enter, lands, pick, real, run_stack, table3
+from tests.helpers import BEAR, BIG, COMMANDER, ELF, MOUNTAIN, OGRE, RAINBOW, RELIC, activate, enter, fire, lands, pick, real, run_stack, table3
 
 SWORD = real("Buster Sword", "{3}", "Artifact — Equipment", "Equipped creature gets +3/+2.\nWhenever equipped creature deals combat "
              "damage to a player, draw a card, then you may cast a spell from your hand with mana value less than or equal to that damage "
@@ -68,6 +71,28 @@ SHINOBI = real("Fallen Shinobi", "{3}{U}{B}", "Creature — Zombie Ninja", "Ninj
                "combat damage to a player, that player exiles the top two cards of their library. Until end of turn, you may play those "
                "cards without paying their mana costs.", "5", "4", colors=("U", "B"))
 TWO = real("Two Drop", "{1}{U}", "Sorcery", "Draw a card.", colors=("U",))
+
+DRACOGENESIS = real("Dracogenesis", "{6}{R}{R}", "Enchantment", "You may cast Dragon spells without paying their mana costs.", colors=("R",))
+PATH = real("Descendants' Path", "{2}{G}", "Enchantment", "At the beginning of your upkeep, reveal the top card of your library. If it's a "
+            "creature card that shares a creature type with a creature you control, you may cast it without paying its mana cost. If you "
+            "don't cast it, put it on the bottom of your library.", colors=("G",))
+CAPSTONE = real("Improvisation Capstone", "{5}{R}{R}", "Sorcery — Lesson", "Exile cards from the top of your library until you exile cards "
+                "with total mana value 4 or greater. You may cast any number of spells from among them without paying their mana costs.\n"
+                "Paradigm (Then exile this spell. After you first resolve a spell with this name, you may cast a copy of it from exile "
+                "without paying its mana cost at the beginning of each of your first main phases.)", colors=("R",))
+BOMBARDMENT = real("Arcane Bombardment", "{4}{R}{R}", "Enchantment", "Whenever you cast your first instant or sorcery spell each turn, exile "
+                   "an instant or sorcery card at random from your graveyard. Then copy each card exiled with this enchantment. You may cast "
+                   "any number of the copies without paying their mana costs.", colors=("R",))
+AUGURY = real("Aminatou's Augury", "{6}{U}{U}", "Sorcery", "Exile the top eight cards of your library. You may put a land card from among "
+              "them onto the battlefield. Until end of turn, for each nonland card type, you may cast a spell of that type from among the "
+              "exiled cards without paying its mana cost.", colors=("U",))
+DILATION = real("Mind's Dilation", "{5}{U}{U}", "Enchantment", "Whenever an opponent casts their first spell each turn, that player exiles the "
+                "top card of their library. If it's a nonland card, you may cast it without paying its mana cost.", colors=("U",))
+DRAGON = real("Whelp", "{3}{R}{R}", "Creature — Dragon", "Flying", "4", "4", colors=("R",))
+CUB = real("Cub", "{G}", "Creature — Cub", "", "1", "1", colors=("G",))
+KINDRED = real("Elf Rite", "{1}{G}", "Kindred Sorcery — Elf", "Draw a card.", colors=("G",))
+GOLEM = real("Golem", "{3}", "Artifact Creature — Golem", "", "3", "3")
+ELF_DRUID = real("Druid", "{2}{G}", "Creature — Elf Druid", "", "2", "2", colors=("G",))
 
 
 def asking(policy, asked):
@@ -308,6 +333,101 @@ class CastFreeBatchTwoTests(unittest.TestCase):
         self.assertIn("Big", [p.card.name for p in a.battlefield])
         game.turn += 1
         self.assertNotIn(PLAY_EXILE + "Mountain", game.legal_actions(a))
+
+
+class CastFreeBatchThreeTests(unittest.TestCase):
+    def test_the_cards_are_understood(self):
+        for card in (DRACOGENESIS, PATH, CAPSTONE, BOMBARDMENT, AUGURY, DILATION):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_dracogenesis_casts_its_controllers_dragons_free(self):
+        game, _ = table3(pick(FREE_WAY))
+        a, b, _ = game.seats
+        a.battlefield, a.hand, b.hand = [Permanent(DRACOGENESIS)], [DRAGON, BEAR], [DRAGON]
+        game.active = 1
+        self.assertNotIn(CAST + "Whelp", game.legal_actions(b))  # not its owner's
+        game.active = 0
+        self.assertEqual([x for x in game.legal_actions(a) if x.startswith(CAST)], [CAST + "Whelp"])  # not the Bear
+        game._perform(a, CAST + "Whelp")
+        run_stack(game)
+        self.assertIn("Whelp", [p.card.name for p in a.battlefield])
+
+    def test_descendants_path_casts_a_creature_sharing_a_type_or_puts_it_on_the_bottom(self):
+        for top, cast in ((ELF_DRUID, True), (DRAGON, False), (KINDRED, False)):  # a Kindred Elf is no creature card
+            game, _ = table3()
+            a = game.seats[0]
+            path = Permanent(PATH)
+            a.battlefield, a.library = [path, Permanent(ELF)], [top, FOREST]
+            fire(game, a, path, "upkeep")
+            self.assertEqual((top.name in [p.card.name for p in a.battlefield], [c.name for c in a.library]),
+                             (cast, ["Forest"] if cast else ["Forest", top.name]), top.name)
+
+    def test_improvisation_capstone_exiles_up_to_four_mana_value_and_comes_back_by_paradigm(self):
+        asked = []
+        game, _ = table3(asking(lambda prompt, options: 0, asked))
+        a = game.seats[0]
+        a.battlefield, a.hand, a.library = lands(9), [CAPSTONE, replace(CAPSTONE)], [FOREST, CUB, FOREST, ELF_DRUID, OGRE, OGRE, OGRE]
+        game._perform(a, CAST + "Improvisation Capstone")
+        run_stack(game)
+        self.assertEqual(sorted(c.name for c in a.exile), ["Forest", "Forest", "Improvisation Capstone"])  # Cub, Druid cast: 1 + 3 = 4
+        self.assertEqual([c.name for c in a.library[:1]], ["Ogre"])
+        game.step = "main1"
+        game._turn_based_actions(a)
+        run_stack(game)
+        self.assertIn("Ogre", [p.card.name for p in a.battlefield])  # the copy exiled the Ogres and cast them
+        self.assertEqual([c.name for c in a.exile].count("Improvisation Capstone"), 1)
+        a.library = [OGRE, BEAR]
+        for p in a.battlefield:
+            p.tapped = False
+        game._perform(a, CAST + "Improvisation Capstone")  # another of the same name: exiled, but no second paradigm
+        run_stack(game)
+        self.assertEqual(len(a.paradigms), 1)
+        a.exile.clear()  # the first left exile: nothing to copy
+        a.library = [BEAR]
+        game._turn_based_actions(a)
+        run_stack(game)
+        self.assertEqual([c.name for c in a.library], ["Bear"])
+
+    def test_arcane_bombardment_copies_every_card_exiled_with_it(self):
+        game, _ = table3()
+        a = game.seats[0]
+        bombardment = Permanent(BOMBARDMENT)
+        a.battlefield, a.hand, a.graveyard, a.library = [bombardment, *lands(4)], [OPT, replace(OPT)], [BEAR, THREE], [FOREST] * 6
+        game._perform(a, CAST + "Opt")
+        run_stack(game)
+        self.assertEqual(([c.name for c in a.exile], len(a.hand)), (["Three Drop"], 3))  # Opt and the Three Drop copy drew; the Bear stays
+        game._perform(a, CAST + "Opt")  # the second instant this turn: nothing
+        run_stack(game)
+        self.assertEqual(len(a.hand), 3)
+        a.exile.clear()  # the card exiled with it left exile: no copy of it
+        a.graveyard, a.hand = [], [OPT]
+        game.turn += 3
+        for p in a.battlefield:
+            p.tapped = False
+        game._perform(a, CAST + "Opt")
+        run_stack(game)
+        self.assertEqual(len(a.hand), 1)
+
+    def test_aminatous_augury_puts_a_land_and_casts_one_spell_of_each_type(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield, a.hand = lands(8), [AUGURY]
+        a.library = [FOREST, GOLEM, BEAR, replace(BEAR), OPT, MOUNTAIN, THREE, OGRE, FOREST]
+        game._perform(a, CAST + "Aminatou's Augury")
+        run_stack(game)
+        names = [p.card.name for p in a.battlefield]  # the Golem used up artifact, so a creature could still be cast
+        self.assertEqual((names.count("Forest"), names.count("Golem"), names.count("Bear"), names.count("Ogre")), (1, 1, 1, 0))
+        self.assertEqual(sorted(c.name for c in a.graveyard), ["Aminatou's Augury", "Opt", "Three Drop"])
+
+    def test_minds_dilation_casts_the_opponents_top_card_only_if_nonland(self):
+        for top, cast in ((BEAR, True), (FOREST, False)):
+            game, _ = table3()
+            a, b, _ = game.seats
+            a.battlefield, b.battlefield, b.hand, b.library = [Permanent(DILATION)], lands(1), [OPT], [top, OPT]
+            game.active = 1
+            game._perform(b, CAST + "Opt")
+            run_stack(game)
+            self.assertEqual(("Bear" in [p.card.name for p in a.battlefield], [c.name for c in b.exile]), (cast, [] if cast else [top.name]), top.name)
 
 
 if __name__ == "__main__":

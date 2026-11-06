@@ -442,6 +442,36 @@ class ExileTopOfTargetPlayFree:
 
 
 @dataclass(frozen=True)
+class ThatPlayerExilesTopCastFree:
+    """Mind's Dilation: "that player exiles the top card of their library. If it's a nonland card, you may cast it without paying its mana
+    cost." (the player who cast the spell)"""
+    binds = PLAYER
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_top_cast_nonland_free(controller, target)
+
+
+@dataclass(frozen=True)
+class RevealTopCastKindredFree:
+    """Descendants' Path: "reveal the top card of your library. If it's a creature card that shares a creature type with a creature you
+    control, you may cast it without paying its mana cost. If you don't cast it, put it on the bottom of your library." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.reveal_top_cast_kindred_free(controller)
+
+
+@dataclass(frozen=True)
+class ExileUntilTotalCastFree:
+    """Improvisation Capstone: "Exile cards from the top of your library until you exile cards with total mana value 4 or greater. You may
+    cast any number of spells from among them without paying their mana costs." """
+    total: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_until_total_cast_free(controller, self.total)
+
+
+@dataclass(frozen=True)
 class ExileTopOfEachCastFree:
     """Etali, Primal Storm: "exile the top card of each player's library, then you may cast any number of spells from among those
     cards without paying their mana costs." """

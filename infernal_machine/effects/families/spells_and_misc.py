@@ -823,3 +823,14 @@ class SubjectControllerMayPayLifeDraw:
 
 
 PAY_LIFE_DRAW_PROMPT = PromptKind("pay_life_draw", "Pay to draw a card: ")  # followed by the life; Yes or No
+
+
+@dataclass(frozen=True)
+class ExileTopCastOneOfEachType:
+    """Aminatou's Augury: "Exile the top eight cards of your library. You may put a land card from among them onto the battlefield. Until
+    end of turn, for each nonland card type, you may cast a spell of that type from among the exiled cards without paying its mana
+    cost." """
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_top_cast_one_of_each_type(controller, self.count)
