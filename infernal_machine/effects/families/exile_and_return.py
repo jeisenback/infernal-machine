@@ -82,9 +82,12 @@ class ExileTop:
     play: str | None = None
     choose_one: bool = False
     leftovers_token: Card | None = None  # Glimpse the Impossible: the cards still exiled at the next end step go to the graveyard, a token each
+    free_from_graveyard: bool = False  # Ignite the Future: played without paying their mana costs if this spell was cast from a graveyard
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         exiled = game.exile_top(controller, game.amount(self.count), self.play, self.choose_one)
+        if self.free_from_graveyard and game.resolving_item is not None and game.resolving_item.from_graveyard:
+            controller.exile_free.extend(exiled)
         if self.leftovers_token is not None:
             game.leftovers_to_graveyard_at_end_step(controller, exiled, self.leftovers_token)
 
@@ -94,6 +97,12 @@ class _LeftoversToGraveyard:
     """ "At the beginning of the next end step, if any of those cards remain exiled, put them into your graveyard, then create a 0/1
     ... Eldrazi Spawn creature token for each card put into your graveyard this way. ..." after an ExileTop (see _merge_exile)."""
     token: Card
+
+
+@dataclass(frozen=True)
+class _FreeIfFromGraveyard:
+    """ "If this spell was cast from a graveyard, you may play cards this way without paying their mana costs." after an ExileTop that may
+    be played (Ignite the Future; see _merge_exile)."""
 
 
 @dataclass(frozen=True)

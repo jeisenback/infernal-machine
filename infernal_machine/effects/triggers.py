@@ -139,7 +139,7 @@ _WATCHES = {
                                          r"graveyard from the battlefield, (.+)", re.I),
     "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:(an?|another)|(?:your|their) (first|second|third)) "
                        r"((?:white|blue|black|red|green) spell|multicolored spell|colorless spell"
-                       r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell"
+                       r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell|legendary spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
                        r"|permanent spell with a mana cost that contains \{X\}|instant or sorcery spell with \{X\} in its mana cost"
                        r"|(?-i:[A-Z][a-z]+)(?: or (?-i:[A-Z][a-z]+))?(?: permanent)? spell)"  # a creature type: "another Vampire spell", "a Faerie or Wizard permanent spell"
@@ -494,8 +494,9 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
     rest = rest.removesuffix(_TRIGGERS_ONCE)
     rest = _MAY_HAVE.sub(lambda m: f"you may {m[1]} {_THIRD_PERSON[m[2].lower()]} ", rest, count=1)  # "you may have this creature deal 1 damage ..."
     optional = rest.lower().startswith("you may ")
-    if optional and re.match(r"you may (?:(?:discard|sacrifice|remove) [^.]*|exile an? (?:black )?creature card(?: other than this card)? from your graveyard)\. If you do, ", rest, re.I):
-        optional = False  # "you may discard a card. If you do, draw a card" is one effect that asks for itself (see _merge_loot)
+    if optional and re.match(r"you may (?:(?:discard|sacrifice|remove) [^.]*|exile an? (?:black )?creature card(?: other than this card)? from your graveyard)\. If you do, "
+                             r"|you may mill \w+ cards\. Then if ", rest, re.I):
+        optional = False  # "you may discard a card. If you do, draw a card" is one effect that asks for itself (see _merge_loot); Cemetery Tampering
     else:
         rest = rest[len("you may "):] if optional else rest
     return _parse(_split_sentences(rest[:1].upper() + rest[1:])), optional, once, condition

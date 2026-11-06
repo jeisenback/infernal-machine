@@ -191,6 +191,8 @@ DREDGE_PROMPT = PromptKind("dredge", "Dredge instead of drawing a card? ")  # op
 SYLVAN_CHOOSE_PROMPT = PromptKind("sylvan_choose", "Choose a card you drew this turn: ")  # asked twice, for the two cards
 SYLVAN_PAY_PROMPT = PromptKind("sylvan_pay", "Pay life for it or put it on top of your library: ")  # followed by the card's name
 REBOUND_PROMPT = PromptKind("rebound", "Cast it again with rebound: ")  # followed by the card's name; options: YES_NO
+FREE_TOP = "cast the top card free"  # Planetarium of Wan Shi Tong's "Do this only once each turn", kept in Permanent.activated_turn
+COMMANDER_FREE_PROMPT = PromptKind("commander_free", "Cast your commander without paying its mana cost")  # names, then NONE_TAKEN
 PUT_LAND_PROMPT = PromptKind("put_land", "Put a land onto the battlefield from among the exiled cards")  # land names, then NONE_TAKEN
 PARADIGM_PROMPT = PromptKind("paradigm", "Cast a copy with paradigm: ")  # followed by the card's name; options: YES_NO
 SPLICE_PROMPT = PromptKind("splice", "Splice onto the Arcane spell: ")  # followed by the spliced card's name; options: YES_NO
@@ -4661,6 +4663,9 @@ class Game:
                 if wanted == "Commander":  # Guardian Augmenter: not a creature type, a role
                     if _is_token(permanent.card) or not any(permanent.card.name in s.commander_names for s in self.seats):
                         continue
+                elif wanted == "Legendary":  # Jodah, the Unifier: a supertype, not a creature type
+                    if "Legendary" not in permanent.card.type_line:
+                        continue
                 elif (buff.other and source is permanent) or (wanted and not any(w in subtypes for w in wanted.split("|"))) or (buff.subtype == "chosen" and not wanted):
                     continue
                 if buff.self_only and source is not permanent:
@@ -5616,28 +5621,30 @@ class Game:
         self._enter(seat, germ)
         self.attach(equipment, germ)
 
-    def cascade(self, seat: Seat, value: int | None) -> None:
+    def cascade(self, seat: Seat, value: int | None, kind: str = "nonland", owner: Seat | None = None) -> None:
         """Exile cards from the top of the library until a nonland card that costs less than `value` is exiled; the
-        player may cast it for free, and the rest go to the bottom of the library in a random order."""
+        player may cast it for free, and the rest go to the bottom of the library in a random order. Jodah, the Unifier: a `kind`
+        "legendary nonland" card; Gríma, Saruman's Footman: an "instant or sorcery" card from `owner`'s library, with no cap."""
+        owner = owner or seat
         passed: list[Card] = []
         found = None
-        while seat.library:
-            card = seat.library.pop(0)
-            if not is_land(card) and (value is None or card.cmc < value):
+        while owner.library:
+            card = owner.library.pop(0)
+            if not is_land(card) and (value is None or card.cmc < value) and (kind == "nonland" or _card_matches(kind, card)):
                 found = card
                 break
             passed.append(card)
-        self.broadcast({"event": "cascade", "seat": seat.index, "exiled": len(passed) + (found is not None),
+        self.broadcast({"event": "cascade", "seat": owner.index, "exiled": len(passed) + (found is not None),
                         **({"card": found.name} if found else {})})
         if found is not None:
-            seat.exile.append(found)
+            owner.exile.append(found)
             if seat.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
-                self._cast(seat, found, seat.exile, free=True)
-            if found in seat.exile:  # not cast: it goes to the bottom too
-                seat.exile.remove(found)
+                self._cast(seat, found, owner.exile, free=True)
+            if found in owner.exile:  # not cast: it goes to the bottom too
+                owner.exile.remove(found)
                 passed.append(found)
         self.rng.shuffle(passed)
-        seat.library += passed
+        owner.library += passed
 
     def _delve_max(self, seat: Seat, card: Card) -> int:
         """Delve: how many cards in the graveyard could help pay for `card` (one for each generic mana)."""
@@ -6987,6 +6994,31 @@ class Game:
             self._cast(seat, card, seat.library, free=True)
         else:
             seat.library.append(seat.library.pop(0))
+
+    def look_top_cast_free_once(self, seat: Seat, source: Permanent) -> None:
+        """Planetarium of Wan Shi Tong: look at the top card; `seat` may cast it without paying its mana cost, once each turn (counted
+        when a card is cast, on `source`)."""
+        if not seat.library or source.activated_turn.get(FREE_TOP) == self.turn:
+            return
+        card = seat.library[0]
+        seat.player.notify({"event": "look", "seat": seat.index, "cards": [card.name]})
+        if not is_land(card) and not self._cast_barred(seat, card) \
+                and seat.player.choose(CAST_FREE_EXILED_PROMPT, [card.name, NONE_TAKEN]) == 0:
+            source.activated_turn[FREE_TOP] = self.turn
+            self._cast(seat, card, seat.library, free=True)
+
+    def cast_commander_free(self, seat: Seat) -> None:
+        """Geode Golem: `seat` may cast their commander from the command zone without paying its mana cost; the commander tax is an
+        additional cost and is still paid (CR 903.8), so only a commander whose tax `seat` can pay is offered."""
+        free = AlternativeCost("Cast without paying its mana cost")
+        options = [c for c in seat.command_zone if not self._cast_barred(seat, c)
+                   and self._payment(seat, c, from_command_zone=True, alternative=free) is not None]
+        if not options:
+            return
+        pick = seat.player.choose(COMMANDER_FREE_PROMPT, [c.name for c in options] + [NONE_TAKEN])
+        if pick < len(options):
+            self._cast(seat, options[pick], seat.command_zone, from_command_zone=True, free=True)
+            seat.commander_casts[options[pick].name] = seat.commander_casts.get(options[pick].name, 0) + 1
 
     def exile_top_play_free(self, seat: Seat, victim: Seat, count: int) -> None:
         """Gix, Yawgmoth Praetor: exile the top `count` cards of `victim`'s library; `seat` may play lands and cast spells from among

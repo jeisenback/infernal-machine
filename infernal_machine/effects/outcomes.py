@@ -238,6 +238,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
 )
 from .families.exile_and_return import (  # noqa: F401
     _LeftoversToGraveyard,
+    _FreeIfFromGraveyard,
     ExileAttackers,
     ReturnPerOpponent,
     WishArtifact,
@@ -474,6 +475,11 @@ from .families.spells_and_misc import (  # noqa: F401
     LootCastIfCounters,
     SubjectControllerMayPayLifeDraw,
     ExileTopCastOneOfEachType,
+    CascadeOfKind,
+    ThatPlayerCascades,
+    CastCommanderFree,
+    MayMillThenPlayHideaway,
+    LookTopCastFreeOnce,
     Learn,
     MillUntilLand,
     EachWithNamedDraws,
@@ -2348,6 +2354,21 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"reveal the top card of your library\. If it's a creature card that shares a creature type with a creature you control, "
                 r"you may cast it without paying its mana cost\. If you don't cast it, put it on the bottom of your library\.", re.I),
      lambda m: RevealTopCastKindredFree()),  # Descendants' Path
+    (re.compile(r"if this spell was cast from a graveyard, you may play cards this way without paying their mana costs\.", re.I),
+     lambda m: _FreeIfFromGraveyard()),  # Ignite the Future, folded into the ExileTop before it
+    (re.compile(r"look at the top card of your library\. You may cast that card without paying its mana cost\. Do this only once each "
+                r"turn\.", re.I), lambda m: LookTopCastFreeOnce()),  # Planetarium of Wan Shi Tong
+    (re.compile(rf"you may mill {_N_FIXED} cards\. Then if there are (\w+) or more cards in your graveyard, you may play the exiled card "
+                r"without paying its mana cost\.", re.I),
+     lambda m: MayMillThenPlayHideaway(_number(m[1]), {"twenty": 20}.get(m[2].lower()) or int(m[2]))),  # Cemetery Tampering
+    (re.compile(r"(?:you may )?cast your commander from the command zone without paying its mana cost\.", re.I),
+     lambda m: CastCommanderFree()),  # Geode Golem
+    (re.compile(r"exile cards from the top of your library until you exile a legendary nonland card with lesser mana value\. You may cast "
+                r"that card without paying its mana cost\. Put the rest on the bottom of your library in a random order\.", re.I),
+     lambda m: CascadeOfKind("legendary nonland")),  # Jodah, the Unifier
+    (re.compile(r"that player exiles cards from the top of their library until they exile an instant or sorcery card\. You may cast that "
+                r"card without paying its mana cost\. Then that player puts the exiled cards that weren't cast this way on the bottom of "
+                r"their library in a random order\.", re.I), lambda m: ThatPlayerCascades("instant or sorcery")),  # Gríma
     (re.compile(r"that player exiles the top card of their library\. If it's a nonland card, you may cast it without paying its mana "
                 r"cost\.", re.I), lambda m: ThatPlayerExilesTopCastFree()),  # Mind's Dilation
     (re.compile(rf"that player exiles the top {_N_FIXED} cards of their library\. Until end of turn, you may play those cards without "
@@ -3338,7 +3359,8 @@ _merge_exile = Follows(
     Follow(PlayExiled, ExileTop, set_fields(play=lambda m: m.until), fits=lambda previous, marker: not previous.play),
     Follow(PlayExiled, Mill, set_fields(play_this_turn=lambda m: True)),  # Tablet of Discovery: "Mill a card. You may play that card this turn."
     Follow(_ChooseOneOfThem, ExileTop, set_fields(choose_one=lambda m: True), fits=lambda previous, marker: previous.count != 1 and not previous.play),
-    Follow(_LeftoversToGraveyard, ExileTop, set_fields(leftovers_token=lambda m: m.token)))
+    Follow(_LeftoversToGraveyard, ExileTop, set_fields(leftovers_token=lambda m: m.token)),
+    Follow(_FreeIfFromGraveyard, ExileTop, set_fields(free_from_graveyard=lambda m: True), fits=lambda previous, marker: bool(previous.play)))
 
 
 _COPY_SENTENCES = (CopyToken, CopySubjectToken, CopyHostToken, CopySelfToken, CopyEachToken)  # "Create a token that's a copy of ..."

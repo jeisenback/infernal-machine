@@ -1215,6 +1215,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     battlefield, then one spell of each nonland card type, cast as it resolves; a spell of several types uses the first not used yet);
     Mind's Dilation's "that player exiles the top card of their library. If it's a nonland card, you may cast it" (the "it" is the exiled
     card, not the spell that set it off).
+  - Casting without paying the mana cost, batch 4 (`tests/test_cast_free.py`, #655): Jodah, the Unifier's "Legendary creatures you
+    control get +X/+X, where X is the number of legendary creatures you control." (a static buff whose "Legendary" is the supertype) and
+    its legendary cascade, "Whenever you cast a legendary spell from your hand, exile cards ... until you exile a legendary nonland card
+    with lesser mana value" (`Game.cascade` with a `kind`; the cast trigger carries the spell, so its mana value is the bound); Gríma,
+    Saruman's Footman's cascade through the damaged player's library to an instant or sorcery card (`Game.cascade(owner=...)`); Geode
+    Golem's "cast your commander from the command zone without paying its mana cost" (`Game.cast_commander_free`: the tax is still paid,
+    CR 903.8); Cemetery Tampering's "you may mill three cards. Then if there are twenty or more cards in your graveyard, you may play the
+    exiled card" (the mill is optional on its own, the card is its Hideaway's); Planetarium of Wan Shi Tong's free cast of the top card
+    after a scry or surveil, once each turn (counted on the permanent when a card is cast); and Ignite the Future's "If this spell was cast
+    from a graveyard, you may play cards this way without paying their mana costs." (a marker folded into the ExileTop before it, which
+    then marks the cards in `Seat.exile_free`).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

@@ -834,3 +834,67 @@ class ExileTopCastOneOfEachType:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.exile_top_cast_one_of_each_type(controller, self.count)
+
+
+@dataclass(frozen=True)
+class CascadeOfKind:
+    """Jodah, the Unifier: "exile cards from the top of your library until you exile a legendary nonland card with lesser mana value. You
+    may cast that card without paying its mana cost. Put the rest on the bottom of your library in a random order." The mana value is the
+    spell's that set the trigger off."""
+    kind: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        spell = item.carried if item is not None else None  # the cast trigger carries the spell that was cast
+        card = getattr(spell, "card", spell)
+        game.cascade(controller, int(getattr(card, "cmc", 0)), self.kind)
+
+
+@dataclass(frozen=True)
+class ThatPlayerCascades:
+    """Gríma, Saruman's Footman: "that player exiles cards from the top of their library until they exile an instant or sorcery card. You
+    may cast that card without paying its mana cost. Then that player puts the exiled cards that weren't cast this way on the bottom of
+    their library in a random order." (the player dealt damage)"""
+    kind: str
+    binds = PLAYER
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.cascade(controller, None, self.kind, owner=target)
+
+
+@dataclass(frozen=True)
+class CastCommanderFree:
+    """Geode Golem: "you may cast your commander from the command zone without paying its mana cost." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.cast_commander_free(controller)
+
+
+@dataclass(frozen=True)
+class MayMillThenPlayHideaway:
+    """Cemetery Tampering: "you may mill three cards. Then if there are twenty or more cards in your graveyard, you may play the exiled card
+    without paying its mana cost." The mill is optional on its own; the card is the one its Hideaway exiled."""
+    count: int
+    at_least: int
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if controller.player.choose(MILL_PROMPT(str(self.count)), ["Yes", "No"]) == 0:
+            game.mill(controller, self.count)
+        if target is not None and len(controller.graveyard) >= self.at_least:
+            game.play_hideaway(controller, target)
+
+
+MILL_PROMPT = PromptKind("may_mill", "Mill cards: ")  # followed by how many; Yes or No
+
+
+@dataclass(frozen=True)
+class LookTopCastFreeOnce:
+    """Planetarium of Wan Shi Tong: "look at the top card of your library. You may cast that card without paying its mana cost. Do this
+    only once each turn." """
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.look_top_cast_free_once(controller, target)

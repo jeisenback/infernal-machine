@@ -216,6 +216,14 @@ _WHOLE_LINE = re.compile(
     r"|That player exiles the top \w+ cards of their library\. Until end of turn, you may play those cards without paying their mana "
     r"costs\."  # Fallen Shinobi
     r"|That player exiles the top card of their library\. If it's a nonland card, you may cast it without paying its mana cost\."
+    r"|Exile cards from the top of your library until you exile a legendary nonland card with lesser mana value\. You may cast that card "
+    r"without paying its mana cost\. Put the rest on the bottom of your library in a random order\."  # Jodah, the Unifier
+    r"|That player exiles cards from the top of their library until they exile an instant or sorcery card\. You may cast that card "
+    r"without paying its mana cost\. Then that player puts the exiled cards that weren't cast this way on the bottom of their library in "
+    r"a random order\."  # Gríma, Saruman's Footman
+    r"|you may mill \w+ cards\. Then if there are \w+ or more cards in your graveyard, you may play the exiled card without paying its "
+    r"mana cost\."  # Cemetery Tampering (the trigger's body begins in lower case)
+    r"|Look at the top card of your library\. You may cast that card without paying its mana cost\. Do this only once each turn\."
     r"|Reveal the top card of your library\. If it's a creature card that shares a creature type with a creature you control, you may "
     r"cast it without paying its mana cost\. If you don't cast it, put it on the bottom of your library\."  # Descendants' Path
     r"|Exile an instant or sorcery card at random from your graveyard\. Then copy each card exiled with this enchantment\. You may cast "
