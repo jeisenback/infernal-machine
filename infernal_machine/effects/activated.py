@@ -77,6 +77,7 @@ class ActivatedAbility:
     tap: bool = False  # {T}
     sacrifice: bool = False  # sacrifice the source itself
     life: int = 0  # pay N life
+    energy: int = 0  # "Pay {E}{E}": that many energy counters (Inventor's Axe)
     loyalty: int | None = None  # planeswalker loyalty change: +1, -2, 0
     sorcery_speed: bool = False  # "Activate only as a sorcery." (loyalty abilities always)
     once_per_turn: bool = False  # "Activate only once each turn."
@@ -157,6 +158,7 @@ _PAY_LIFE_IDENTITY = re.compile(r"Pay life equal to the number of colors in your
 
 
 _PAY_LIFE = re.compile(rf"Pay {_N} life", re.I)
+_PAY_ENERGY = re.compile(rf"Pay (?:((?:\{{E\}})+)|{_N} \{{E\}})")  # "Pay {E}{E}", "Pay eight {E}"
 
 
 _CARDS = r"(an?|two|three|four)"
@@ -283,6 +285,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["sacrifice"] = True
         elif (m := _PAY_LIFE.fullmatch(part)) and m[1] != "X":
             fields["life"] = _count(m[1])
+        elif m := _PAY_ENERGY.fullmatch(part):
+            fields["energy"] = m[1].count("{E}") if m[1] else _count(m[2])
         elif _PAY_LIFE_IDENTITY.fullmatch(part):
             fields["life_identity"] = True
         elif m := _SACRIFICE_OTHER.fullmatch(part):

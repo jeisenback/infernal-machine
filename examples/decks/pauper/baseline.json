@@ -26,9 +26,7 @@
   },
   "mono_red_rally": {
    "cards": 60,
-   "unplayable": [
-    "Inventor's Axe"
-   ]
+   "unplayable": []
   },
   "ruby_storm": {
    "cards": 60,

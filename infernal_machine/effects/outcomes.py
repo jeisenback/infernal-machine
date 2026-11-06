@@ -165,6 +165,7 @@ from .families.copying import (  # noqa: F401
     copy_of,
 )
 from .families.counters import (  # noqa: F401
+    GetEnergy,
     Amass,
     DISTRIBUTE_PROMPT,
     DistributeCounters,
@@ -2596,6 +2597,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"put {_N} {_COUNTER} and {_N} {_COUNTER} on {_SELF}\.", re.I),  # Captain Marvel, Quicksilver
      lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), PutCountersOnSource(_count(m[3]), _counter_name(m[4]))]),
     (re.compile(r"choose a land card name\.", re.I), lambda m: ChooseCardName("land")),  # Petrified Hamlet
+    (re.compile(r"you get ((?:\{E\})+)\.", re.I), lambda m: GetEnergy(m[1].count("{E}"))),  # Inventor's Axe
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF} and it becomes renowned\.", re.I),  # Renown
      lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), BecomeRenowned()]),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} gains protection from the color of your choice until end of turn\."),
