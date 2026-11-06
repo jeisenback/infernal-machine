@@ -282,6 +282,21 @@ CAST_COPY_PROMPT = PromptKind("cast_copy", "Cast a copy without paying its mana 
 
 
 @dataclass(frozen=True)
+class ExileRandomThenCastCopiesOfExiled:
+    """Arcane Bombardment: "exile an instant or sorcery card at random from your graveyard. Then copy each card exiled with this
+    enchantment. You may cast any number of the copies without paying their mana costs." """
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        spells = [c for c in controller.graveyard if "Instant" in c.type_line or "Sorcery" in c.type_line]
+        if spells:
+            game.exile_from_graveyard(game.graveyard_target(game.rng.choice(spells), controller))  # noted as exiled with it
+        game.cast_copies_free(controller, [card for owner, card in target.exiled_with if any(c is card for c in owner.exile)])
+
+
+@dataclass(frozen=True)
 class ExileEachThenCastCopies:
     """Mizzix's Mastery overloaded: "Exile each card that's an instant or sorcery from your graveyard. For each card exiled this way,
     copy it, and you may cast the copy without paying its mana cost." """

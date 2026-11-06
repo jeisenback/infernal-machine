@@ -155,6 +155,7 @@ from .families.copying import (  # noqa: F401
     ExileDeadCopy,
     CopyImprintedCastFree,
     ExileEachThenCastCopies,
+    ExileRandomThenCastCopiesOfExiled,
     ExileThenCastCopy,
     MayCopyLeftCard,
     _TwiceFromGraveyard,
@@ -266,6 +267,9 @@ from .families.exile_and_return import (  # noqa: F401
     ExileTopOfEachCastFree,
     ExileTopOfThatPlayerMayCast,
     ExileTopOfTargetPlayFree,
+    ThatPlayerExilesTopCastFree,
+    RevealTopCastKindredFree,
+    ExileUntilTotalCastFree,
     ExileUntilLeaves,
     ExileUntilNonlandCast,
     SearchExileCastIfKicked,
@@ -469,6 +473,7 @@ from .families.spells_and_misc import (  # noqa: F401
     DrawUnlessFromHand,
     LootCastIfCounters,
     SubjectControllerMayPayLifeDraw,
+    ExileTopCastOneOfEachType,
     Learn,
     MillUntilLand,
     EachWithNamedDraws,
@@ -2309,6 +2314,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnFromGraveyard(f"graveyard:permanent|mv<={m[1]}:yours", "battlefield")),
     (re.compile(r"exile up to one target instant or sorcery card from your graveyard and copy it\. You may cast the copy without "
                 r"paying its mana cost\.", re.I), lambda m: ExileThenCastCopy()),
+    (re.compile(r"exile an instant or sorcery card at random from your graveyard\. Then copy each card exiled with this enchantment\. You "
+                r"may cast any number of the copies without paying their mana costs\.", re.I),
+     lambda m: ExileRandomThenCastCopiesOfExiled()),  # Arcane Bombardment
     (re.compile(r"exile (target|each) card that's an instant or sorcery from your graveyard\. For each card exiled this way, copy it, "
                 r"and you may cast the copy without paying its mana cost\.", re.I),  # Mizzix's Mastery, overloaded or not
      lambda m: ExileThenCastCopy(optional_target=False) if m[1].lower() == "target" else ExileEachThenCastCopies()),
@@ -2331,6 +2339,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"draw a card, then discard a card\. If there are {_N_FIXED} or more ([a-z]+) counters on {_SELF}, you may cast the "
                 r"discarded card without paying its mana cost\.", re.I),
      lambda m: LootCastIfCounters(m[2].lower(), _number(m[1]))),  # Malcolm, Alluring Scoundrel
+    (re.compile(rf"exile the top {_N_FIXED} cards of your library\. You may put a land card from among them onto the battlefield\. Until "
+                r"end of turn, for each nonland card type, you may cast a spell of that type from among the exiled cards without paying its "
+                r"mana cost\.", re.I), lambda m: ExileTopCastOneOfEachType(_number(m[1]))),  # Aminatou's Augury
+    (re.compile(r"exile cards from the top of your library until you exile cards with total mana value (\d+) or greater\. You may cast "
+                r"any number of spells from among them without paying their mana costs\.", re.I),
+     lambda m: ExileUntilTotalCastFree(int(m[1]))),  # Improvisation Capstone
+    (re.compile(r"reveal the top card of your library\. If it's a creature card that shares a creature type with a creature you control, "
+                r"you may cast it without paying its mana cost\. If you don't cast it, put it on the bottom of your library\.", re.I),
+     lambda m: RevealTopCastKindredFree()),  # Descendants' Path
+    (re.compile(r"that player exiles the top card of their library\. If it's a nonland card, you may cast it without paying its mana "
+                r"cost\.", re.I), lambda m: ThatPlayerExilesTopCastFree()),  # Mind's Dilation
     (re.compile(rf"that player exiles the top {_N_FIXED} cards of their library\. Until end of turn, you may play those cards without "
                 r"paying their mana costs\.", re.I), lambda m: ExileTopOfThatPlayerMayCast(_number(m[1]), free=True)),  # Fallen Shinobi
     (re.compile(r"put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a "

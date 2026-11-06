@@ -521,7 +521,8 @@ _PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creat
                      r"|\bWhen you do, if it has \w+ or more [a-z+/-]+ counters on it\b"  # Earthbender Ascension: "it" is the source, as the sentence before said
                      r"|\btarget [^.]*\. It gains [^.]*\."  # "... on target creature you control. It gains trample until end of turn.": the target
                      r"|\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
-                     r"|\btap up to one target creature and goad it\b|\btap (?:[^.]*? )?target [^.]*? and put \w+ stun counters? on it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bthat player copies that spell for each other creature they control that the spell could target\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it\b", re.I)
+                     r"|\btap up to one target creature and goad it\b|\btap (?:[^.]*? )?target [^.]*? and put \w+ stun counters? on it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bthat player copies that spell for each other creature they control that the spell could target\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it\b"
+                     r"|\bexiles the top card of their library\. If it's a nonland card, you may cast it\b", re.I)  # Mind's Dilation: the exiled card
 
 
 _TOKEN_HAS = re.compile(r'(?:It has|They have|with) "[^"]*"\.?')  # a token's own ability: its "it" is the token (Weapons Manufacturing)

@@ -133,6 +133,12 @@ RETURN_CHOSEN_PROMPT = PromptKind("return_chosen", "Return which card from your 
 DECLINE = "Don't"
 EACH_CARD_TYPE = "each card type"  # a look's card type: one card of each type may be taken (Atraxa, Grand Unifier)
 CARD_TYPES = ("artifact", "battle", "creature", "enchantment", "instant", "land", "planeswalker", "sorcery")  # CR 205.2a
+
+
+def _nonland_types(card: Card) -> list[str]:
+    """The nonland card types of `card`, from its type line ("Artifact Creature": artifact, creature)."""
+    words = card.type_line.partition("\u2014")[0].lower().split()
+    return [t for t in CARD_TYPES if t != "land" and t in words]
 GRAVEYARD_CAST_PROMPT = PromptKind("graveyard_cast", "Cast which spell from your graveyard? ")  # Bilbo
 DECLINE_CAST = "Don't cast"
 CHOOSE_COLOR_PROMPT = PromptKind("choose_color", "Choose a color for ")  # followed by the card's name; white, blue, black, red, green
@@ -185,6 +191,8 @@ DREDGE_PROMPT = PromptKind("dredge", "Dredge instead of drawing a card? ")  # op
 SYLVAN_CHOOSE_PROMPT = PromptKind("sylvan_choose", "Choose a card you drew this turn: ")  # asked twice, for the two cards
 SYLVAN_PAY_PROMPT = PromptKind("sylvan_pay", "Pay life for it or put it on top of your library: ")  # followed by the card's name
 REBOUND_PROMPT = PromptKind("rebound", "Cast it again with rebound: ")  # followed by the card's name; options: YES_NO
+PUT_LAND_PROMPT = PromptKind("put_land", "Put a land onto the battlefield from among the exiled cards")  # land names, then NONE_TAKEN
+PARADIGM_PROMPT = PromptKind("paradigm", "Cast a copy with paradigm: ")  # followed by the card's name; options: YES_NO
 SPLICE_PROMPT = PromptKind("splice", "Splice onto the Arcane spell: ")  # followed by the spliced card's name; options: YES_NO
 KICKER_PROMPT = PromptKind("kicker", "Pay the kicker cost for ")  # followed by the spell's name; options: YES_NO
 MULTIKICKER_PROMPT = PromptKind("multikicker", "Choose how many times to kick ")  # followed by the spell's name; options are "0", "1", ...
@@ -570,6 +578,7 @@ class Seat:
     extra_lands: int = 0  # additional lands this player may play on `extra_lands_turn` (Explore)
     extra_lands_turn: int | None = None
     rebounding: list[tuple[Card, int]] = field(default_factory=list)  # cards exiled by rebound, and the turn they were: cast at the next upkeep
+    paradigms: list[Card] = field(default_factory=list)  # the first resolved spell of each name with paradigm, in exile: a copy each first main phase
     cast_barred: tuple[int, str] | None = None  # (the turn, "" or "noncreature") this player can't cast spells on (Silence)
     spent_turn: int | None = None  # the turn `spent_amount` counts for
     spent_amount: int = 0  # the mana this player spent casting spells that turn ("Whenever you expend 4")
@@ -955,6 +964,9 @@ class Game:
             self._add_delayed_mana(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("first_main", permanent, seat)
+            for card in list(seat.paradigms):  # Paradigm: a copy from exile, without paying its mana cost
+                if any(c is card for c in seat.exile) and seat.player.choose(PARADIGM_PROMPT(card.name), YES_NO) == 0:
+                    self.cast_copy_free(seat, card)
         elif self.step == "beginning_of_combat":
             self.combat = Combat(self)
             for permanent in list(seat.battlefield) + list(seat.emblems):  # Tezzeret, Cruel Captain's emblem
@@ -1988,6 +2000,53 @@ class Game:
             left -= int(card.cmc)
             self.cast_copy_free(seat, card)
 
+    def exile_until_total_cast_free(self, seat: Seat, total: int) -> None:
+        """Improvisation Capstone: exile cards from the top of the library until their total mana value is `total` or greater; `seat` may
+        cast any number of spells from among them without paying their mana costs (as it resolves). The rest stay exiled."""
+        exiled: list[Card] = []
+        while seat.library and sum(c.cmc for c in exiled) < total:
+            exiled.append(seat.library.pop(0))
+            seat.exile.append(exiled[-1])
+        self.broadcast({"event": "exiled_from_library", "seat": seat.index, "cards": [c.name for c in exiled], "may_play": True})
+        spells = [c for c in exiled if not is_land(c)]
+        while spells:
+            pick = seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for c in spells] + [NONE_TAKEN])
+            if pick >= len(spells):
+                return
+            self._cast(seat, spells.pop(pick), seat.exile, free=True)
+
+    def exile_top_cast_one_of_each_type(self, seat: Seat, count: int) -> None:
+        """Aminatou's Augury: exile the top `count` cards; `seat` may put a land from among them onto the battlefield; then, for each
+        nonland card type, may cast a spell of that type from among them without paying its mana cost. The spells are cast as it resolves
+        (the card allows it until end of turn); a spell of several types uses up the first of them not used yet."""
+        exiled = seat.library[:count]
+        del seat.library[:count]
+        seat.exile.extend(exiled)
+        self.broadcast({"event": "exiled_from_library", "seat": seat.index, "cards": [c.name for c in exiled], "may_play": True})
+        found = [c for c in exiled if is_land(c)]
+        if found and (pick := seat.player.choose(PUT_LAND_PROMPT, [c.name for c in found] + [NONE_TAKEN])) < len(found):
+            seat.exile.remove(found[pick])
+            self._enter(seat, Permanent(found[pick], sick=True, owner=seat))
+        used: set[str] = set()
+        while True:
+            spells = [c for c in exiled if not is_land(c) and any(c is x for x in seat.exile) and set(_nonland_types(c)) - used]
+            if not spells:
+                return
+            pick = seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for c in spells] + [NONE_TAKEN])
+            if pick >= len(spells):
+                return
+            used.add(next(t for t in _nonland_types(spells[pick]) if t not in used))
+            self._cast(seat, spells[pick], seat.exile, free=True)
+
+    def cast_copies_free(self, seat: Seat, cards: list[Card]) -> None:
+        """Copy each of `cards`; `seat` may cast any number of the copies without paying their mana costs (Arcane Bombardment)."""
+        left = list(cards)
+        while left:
+            pick = seat.player.choose(CAST_COPIES_PROMPT(""), [c.name for c in left] + [NONE_TAKEN])
+            if pick >= len(left):
+                return
+            self.cast_copy_free(seat, left.pop(pick))
+
     def exile_top_cast_or_damage(self, seat: Seat, amount: int, source: Permanent | None) -> None:
         """Chandra, Torch of Defiance: "Exile the top card of your library. You may cast that card. If you don't, Chandra deals 2 damage
         to each opponent." Casting it pays its costs as usual."""
@@ -2514,6 +2573,12 @@ class Game:
             return
         if item.bottom_after and card.name not in home.commander_names:
             home.library.append(card)
+            return
+        if resolved and has_keyword(item.card, "paradigm") and not item.is_copy:  # "Then exile this spell."
+            home.exile.append(card)
+            if not any(c.name == card.name for c in item.controller.paradigms):  # "After you first resolve a spell with this name"
+                item.controller.paradigms.append(card)
+            self.broadcast({"event": "paradigm", "seat": item.controller.index, "card": card.name})
             return
         if resolved and item.from_hand and has_keyword(item.card, "rebound") and not item.is_copy:
             home.exile.append(card)  # Ephemerate: it comes back at the next upkeep
@@ -6897,6 +6962,31 @@ class Game:
             self._enter(seat, Permanent(card, sick=True, owner=owner))
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
+
+    def exile_top_cast_nonland_free(self, seat: Seat, victim: Seat) -> None:
+        """Mind's Dilation: `victim` exiles the top card of their library; if it's a nonland card, `seat` may cast it without paying its
+        mana cost (as the ability resolves). Otherwise it stays exiled."""
+        if not victim.library:
+            return
+        card = victim.library.pop(0)
+        victim.exile.append(card)
+        self.broadcast({"event": "exiled_from_library", "seat": victim.index, "cards": [card.name], "may_play": not is_land(card)})
+        if not is_land(card) and seat.player.choose(CAST_FREE_EXILED_PROMPT, [card.name, NONE_TAKEN]) == 0:
+            self._cast(seat, card, victim.exile, free=True)
+
+    def reveal_top_cast_kindred_free(self, seat: Seat) -> None:
+        """Descendants' Path: reveal the top card; a creature card that shares a creature type with a creature `seat` controls may be
+        cast without paying its mana cost. If it isn't cast, it goes to the bottom of the library."""
+        if not seat.library:
+            return
+        card = seat.library[0]
+        self.broadcast({"event": "revealed", "seat": seat.index, "card": card.name})
+        types = set(card.type_line.partition("\u2014")[2].split()) if "Creature" in card.type_line else set()
+        kindred = any(types & set(self.subtypes(p)) for p in seat.battlefield if "Creature" in p.card.type_line)
+        if kindred and seat.player.choose(CAST_FREE_EXILED_PROMPT, [card.name, NONE_TAKEN]) == 0:
+            self._cast(seat, card, seat.library, free=True)
+        else:
+            seat.library.append(seat.library.pop(0))
 
     def exile_top_play_free(self, seat: Seat, victim: Seat, count: int) -> None:
         """Gix, Yawgmoth Praetor: exile the top `count` cards of `victim`'s library; `seat` may play lands and cast spells from among

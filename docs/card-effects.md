@@ -1204,6 +1204,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     ability resolves (`Game.exile_top_play_free`, as Gix's ruling has it); Fallen Shinobi's "that player exiles the top two cards of
     their library. Until end of turn, you may play those cards without paying their mana costs." (Ragavan's exile with `count` and
     `Seat.exile_free`).
+  - Casting without paying the mana cost, batch 3 (`tests/test_cast_free.py`, #655): Dracogenesis's "You may cast Dragon spells without
+    paying their mana costs." (the rules static `free_type:Dragon`: the free cost option for its controller's spells of that subtype, from
+    anywhere they may be cast); Descendants' Path's upkeep reveal (`Game.reveal_top_cast_kindred_free`: a creature card sharing a creature
+    type with one of your creatures may be cast free, else it goes to the bottom); Improvisation Capstone's "Exile cards ... until you exile
+    cards with total mana value 4 or greater" with any number cast free, and Paradigm (`Seat.paradigms`: the spell is exiled as it
+    resolves; the first of its name is offered as a free copy at the beginning of each of its owner's first main phases while it stays
+    exiled); Arcane Bombardment (a random instant or sorcery from the graveyard joins the cards exiled with it, and copies of all of those
+    may be cast free: `Game.cast_copies_free`); Aminatou's Augury (`Game.exile_top_cast_one_of_each_type`: a land put onto the
+    battlefield, then one spell of each nonland card type, cast as it resolves; a spell of several types uses the first not used yet);
+    Mind's Dilation's "that player exiles the top card of their library. If it's a nonland card, you may cast it" (the "it" is the exiled
+    card, not the spell that set it off).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);
