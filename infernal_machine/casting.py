@@ -19,7 +19,7 @@ from .effects import (AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demo
                       chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest_power, reduced_by_total_power,
-                      replicate_cost, restricted_mana, sacrifice_discount, self_cost_reduction, collect_evidence_of, teamwork_of, storm_kind, strive_cost, target_kind, triggered_abilities,
+                      replicate_cost, restricted_mana, rules_statics, sacrifice_discount, self_cost_reduction, collect_evidence_of, teamwork_of, storm_kind, strive_cost, target_kind, triggered_abilities,
                       x_limited_by_players, x_spell_discount)
 from .filters import has_type, parse_filter
 from .mana import Cost, cost_of, parse_cost
@@ -188,7 +188,11 @@ class Caster:
         self.game.broadcast(event)
         seat.cast_log.append((self.game.turn, card))
         copies = (replicated or 0) + sacrificed
-        if (storm := storm_kind(card)) is not None and prepared is None:
+        storm = storm_kind(card)
+        if storm is None and g._is_instant_or_sorcery(card) and any(  # Ral, Crackling Wit's emblem
+                "grant_storm" in rules_statics(p.card) for p in list(seat.emblems) + list(seat.battlefield)):
+            storm = "storm"
+        if storm is not None and prepared is None:
             before = [t for s in self.game.seats for t, _ in s.cast_log if t == self.game.turn]  # spells cast before this one
             copies += (len(before) - 1) if storm == "storm" else (self.game.graveyarded_count if self.game.graveyarded_turn == self.game.turn else 0)
         if copies and prepared is None:  # Replicate, Storm, Gravestorm: a trigger above the spell copies it

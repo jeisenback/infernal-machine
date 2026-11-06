@@ -219,6 +219,7 @@ EXILE_TYPE_PROMPT = PromptKind("exile_type", "Exile a card of this type from you
 CAST_COPIES_PROMPT = PromptKind("cast_copies", "Cast one of the copies without paying its mana cost")  # Uldaros Theorix; followed by the mana value left; then NONE_TAKEN
 TEAMWORK_PROMPT = PromptKind("teamwork", "Tap a creature for teamwork for ")  # followed by the spell's name; options are creatures, then TEAMWORK_NONE
 TEAMWORK_NONE = "Don't use teamwork"
+CAST_EXILED_TOP_PROMPT = PromptKind("cast_exiled_top", "Cast the exiled card? ")  # Chandra, Torch of Defiance; followed by its name; Yes or No
 HARMONIZE_PROMPT = PromptKind("harmonize", "Tap a creature to pay less for ")  # followed by the spell's name; options are creatures, then HARMONIZE_NONE
 HARMONIZE_NONE = "Tap none"
 PUNISHER_PROMPT = PromptKind("punisher", "Lose life, sacrifice or discard for ")  # Rottenmouth Viper; followed by the source's name
@@ -525,6 +526,7 @@ class Seat:
     signature: str | None = None  # an Oathbreaker's signature spell, which starts in the command zone and is cast only while its owner controls the Oathbreaker
     sideboard: list = field(default_factory=list)  # cards outside the game: "an artifact card you own from outside the game" (Karn, the Great Creator)
     next_uncounterable_turn: int | None = None  # Mistrise Village: the turn in which the next spell this player casts can't be countered
+    flashback_granted: list = field(default_factory=list)  # (card, turn): it has flashback for its mana cost that turn (Snapcaster Mage)
     enduring_story: bool = False  # Storied: three or more artifacts, legendaries and/or Sagas once, with a storied permanent; for good
     equip_turn: int | None = None  # the last turn this player activated an equip ability (Kili: only the first each turn is free)
     companion: Card | None = None  # kept outside the game: for {3}, once, at sorcery timing, it goes into the hand (CR 702.139)
@@ -1916,6 +1918,29 @@ class Game:
             left -= int(card.cmc)
             self.cast_copy_free(seat, card)
 
+    def exile_top_cast_or_damage(self, seat: Seat, amount: int, source: Permanent | None) -> None:
+        """Chandra, Torch of Defiance: "Exile the top card of your library. You may cast that card. If you don't, Chandra deals 2 damage
+        to each opponent." Casting it pays its costs as usual."""
+        card = seat.library.pop(0) if seat.library else None
+        if card is not None:
+            seat.exile.append(card)
+            self.broadcast({"event": "exiled_from_library", "seat": seat.index, "cards": [card.name]})
+            self._exiled_from_library_or_graveyard(seat)
+            if self._can_cast(seat, card, from_hand=False) \
+                    and seat.player.choose(CAST_EXILED_TOP_PROMPT(card.name), YES_NO) == 0:
+                self._cast(seat, card, seat.exile)
+                return
+        for opponent in self.opponents(seat):
+            self.damage(opponent, amount, source)
+
+    def graveyard_casts_for(self, seat: Seat, card: Card) -> list[GraveyardCast]:
+        """The ways `seat` may cast `card` from its graveyard: the card's own (flashback, escape ...), then flashback for its mana cost
+        if a spell or ability gave it that this turn (Snapcaster Mage, Flashback)."""
+        ways = graveyard_casts(card)
+        if any(c is card and turn == self.turn for c, turn in seat.flashback_granted):
+            ways = ways + [GraveyardCast("Flashback", card.mana_cost, exile_after=True)]
+        return ways
+
     def cast_copy_free(self, seat: Seat, card: Card) -> None:
         """Cast a copy of `card` without paying its mana cost (Surge to Victory); the copy stops existing afterwards."""
         self._cast(seat, card, [card], free=True, copy=True)
@@ -2201,6 +2226,8 @@ class Game:
                          sacrificed_power=self.cost_sacrificed_power, sacrificed_toughness=self.cost_sacrificed_toughness,
                          tapped_power=self.cost_tapped_power)
         self.stack.append(item)
+        if ability.loyalty is not None:  # Ajani Unrelenting: "Whenever you activate a loyalty ability" (above the ability)
+            self.happened("loyalty_activated", seat)
         self.broadcast({"event": "activate", "seat": seat.index, "card": permanent.card.name,
                         "ability": _shown(ability.text, permanent.card), "targets": labels,
                         "tapped": [p.card.name for p in tapped]})

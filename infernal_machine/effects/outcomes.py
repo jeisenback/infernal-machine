@@ -232,6 +232,7 @@ from .families.exile_and_return import (  # noqa: F401
     WishArtifact,
     ExileUpToXFromGraveyards,
     ExileUpToNFromGraveyards,
+    GrantFlashback,
     CastExiledWithFree,
     DECLINE,
     EachSacrificesThenReturn,
@@ -340,6 +341,7 @@ from .families.library_and_hand import (  # noqa: F401
     MillThenExileRandomPlay,
     MillThenReturn,
     EachExilesAllButBottom,
+    ExileTopCastOrDamage,
     PilesOfFour,
     PutAttackingFromHand,
     PutBackTop,
@@ -1705,6 +1707,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile up to one target nonland card of each card type from your graveyard\. Copy those cards\. You may cast any "
                 r"number of spells with total mana value (\d+) or less from among the copies without paying their mana costs\.", re.I),
      lambda m: ExileEachTypeCastCopies(int(m[1]))),  # Uldaros Theorix
+    (re.compile(rf"exile the top card of your library\. You may cast that card\. If you don't, {_SELF} deals (\d+) damage to each "
+                r"opponent\.", re.I), lambda m: ExileTopCastOrDamage(int(m[1]))),  # Chandra, Torch of Defiance
+    (re.compile(rf"{_SELF} deals {_N} damage to each creature except for tokens you control\.", re.I),
+     lambda m: DamageEach(_count(m[1]), "all", None, spare_own_tokens=True)),  # Ajani Unrelenting
+    (re.compile(r"target instant or sorcery card in your graveyard gains flashback until end of turn\. The flashback cost is equal to its "
+                r"mana cost\.", re.I), lambda m: GrantFlashback()),  # Snapcaster Mage, Flashback
     (re.compile(r"each player exiles all but the bottom (\w+) cards of their library face down\.", re.I),
      lambda m: EachExilesAllButBottom(_number(m[1]))),  # Doomsday Excruciator
     (re.compile(r"counter (up to one )?target activated or triggered ability\.( If an ability of an artifact, creature, or planeswalker is "

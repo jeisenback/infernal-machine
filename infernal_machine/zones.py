@@ -65,7 +65,7 @@ class Graveyard(ZonePlay):
         if game.casts_from_graveyards_barred():  # Grafdigger's Cage (lands are still played: not cast)
             return actions
         for card in g._unique(seat.graveyard):
-            for cast in graveyard_casts(card)[:1]:
+            for cast in game.graveyard_casts_for(seat, card)[:1]:
                 if not is_land(card) and _timely(game, seat, card, sorcery_timing) and game._can_cast(seat, card, graveyard=cast):
                     actions.append(CAST_GRAVEYARD + card.name)
             if (other := card.alternate) and is_aftermath(other) and _timely(game, seat, other, sorcery_timing) \
@@ -84,7 +84,7 @@ class Graveyard(ZonePlay):
             name = action.removeprefix(CAST_GRAVEYARD)
             card = next((c for c in seat.graveyard if c.name == name), None)
             if card is not None:
-                game._cast(seat, card, seat.graveyard, graveyard=graveyard_casts(card)[0])
+                game._cast(seat, card, seat.graveyard, graveyard=game.graveyard_casts_for(seat, card)[0])
             else:  # the Aftermath half of a card in the graveyard
                 whole = next(c for c in seat.graveyard if c.alternate and c.alternate.name == name)
                 half = g._checked(whole.alternate)
