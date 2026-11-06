@@ -296,6 +296,7 @@ _RULES_STATICS = [
     (re.compile(rf"{_SELF} doesn't untap during your untap step\.", re.I), "no_untap"),  # Basalt Monolith, Mana Vault
     (re.compile(r"Activated abilities of sources with the chosen name can't be activated unless they're mana abilities\.", re.I),
      "name_lock"),  # Pithing Needle, Disruptor Flute: the name its permanent chose as it entered
+    (re.compile(r'Lands with the chosen name have "\{T\}: Add \{C\}\."', re.I), "name_mana_c"),  # Petrified Hamlet
     (re.compile(r"Creature cards in graveyards and libraries can't enter the battlefield\.", re.I), "cage_enter"),  # Grafdigger's Cage
     (re.compile(r"Players can't cast spells from graveyards or libraries\.", re.I), "cage_cast"),
     (re.compile(r"If a land is tapped for two or more mana, it produces \{C\} instead of any other type and amount\.", re.I),
@@ -326,7 +327,7 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     "spell_count_tax" (a spell costs {1} more for each other spell its caster cast this turn), "no_life_gain" (nobody gains life), "opp_sorcery_speed" (its
     controller's opponents cast spells only at sorcery speed), "token_ability_discount" (the activated abilities of its controller's artifact tokens cost {1} less), "grant_storm" (its controller's instant and sorcery spells have storm), "cage_enter" / "cage_cast" (Grafdigger's Cage: no creature card
     enters the battlefield from a graveyard or library, and no spell is cast from one), "name_lock" (nobody can activate the non-mana abilities of sources
-    with the name the permanent chose), "umbra_armor" (an Aura that saves what it enchants from being destroyed), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
+    with the name the permanent chose), "name_mana_c" (lands with that name also tap for {C}), "umbra_armor" (an Aura that saves what it enchants from being destroyed), "untap_others" (its controller's permanents untap in every other player's untap step; ":artifact" its artifacts, ":self" it
     alone), "enter_tapped:opp:creature" / ":artifact,creature" / ":nonbasic land" (those its controller's opponents control enter tapped), "no_enter_triggers:Creature" /
     ":Artifact,Creature" (those entering trigger no abilities), "noncombat_wither" (its controller's noncombat damage to an opponent's
     creature is -1/-1 counters instead), "look_top" (its controller may look at their top card: no

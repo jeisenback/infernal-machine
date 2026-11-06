@@ -454,6 +454,7 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    ChooseCardName,
     Harness,
     DiscardByLifeLoss,
     DiscardChosen,
@@ -2574,6 +2575,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCountersOnEntered(_counter_name(m[1]), _COLOR_WORDS[m[2].lower()] if m[2] else "")),
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
      lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),
+    (re.compile(rf"put {_N} {_COUNTER} and {_N} {_COUNTER} on {_SELF}\.", re.I),  # Captain Marvel, Quicksilver
+     lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), PutCountersOnSource(_count(m[3]), _counter_name(m[4]))]),
+    (re.compile(r"choose a land card name\.", re.I), lambda m: ChooseCardName("land")),  # Petrified Hamlet
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF} and it becomes renowned\.", re.I),  # Renown
      lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), BecomeRenowned()]),
     (re.compile(rf"(?i:target) {_PERMANENT_KIND} gains protection from the color of your choice until end of turn\."),

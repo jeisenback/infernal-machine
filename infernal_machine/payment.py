@@ -189,6 +189,8 @@ class ManaPayer:
                     continue
                 # Command Tower makes only the colors of your commander, whatever the card data lists.
                 types = seat.color_identity if is_identity_mana_land(card) else frozenset(card.produced_mana)
+                if self.game.name_gives_colorless(card):  # Petrified Hamlet
+                    types |= frozenset("C")
                 if mana_of_imprinted(card):  # Pit of Offerings: its plain {C}, or a color of the cards still exiled with it
                     plain = mana_ability(card, seat.color_identity) or []
                     types = frozenset().union(*plain) | frozenset(c for owner, exiled in permanent.exiled_with

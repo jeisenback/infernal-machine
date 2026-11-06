@@ -107,11 +107,17 @@ def _rules_text(card: Card) -> str:
     for name in dict.fromkeys((card.name, front, front.split(",")[0], short)):
         text = re.sub(rf"(?<!\w){re.escape(name)}(?!\w)", "CARDNAME", text)
     text = _INFINITY_LINE.sub(r"\1, if CARDNAME is harnessed, ", text)
+    text = _POWER_UP_LINE.sub(r"\1 Power-up.", text)
     return _join_modes(_MAX_SPEED_LINE.sub(r"\1 Activate only if your speed is 4.", text))
 
 
 # "Max speed — {T}: Add {R}." is the ability only while your speed is 4 (CR 702.178): read as the ability with that condition.
 _MAX_SPEED_LINE = re.compile(r"^Max speed \u2014 (\{.*\.)$", re.M)
+
+
+# "Power-up \u2014 {5}{W}{W}: ..." is the ability with the marker sentence "Power-up." (ActivatedAbility.power_up): it can be activated
+# only once, and costs its source's mana cost less if that entered this turn (the reminder text is gone by then).
+_POWER_UP_LINE = re.compile(r"^Power-up \u2014 (\{.*\.)$", re.M)
 
 
 # An Infinity Stone's "\u221e \u2014 At the beginning of your end step, ..." works only once it is harnessed: read as the trigger with

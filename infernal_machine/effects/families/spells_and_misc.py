@@ -714,3 +714,15 @@ class Harness:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             target.harnessed = True
+
+
+@dataclass(frozen=True)
+class ChooseCardName:
+    """Petrified Hamlet: "When this land enters, choose a land card name." The name is kept on the permanent, like Pithing Needle's
+    (Permanent.chosen_name), and its other abilities read it."""
+    kind: str  # "land"
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            target.chosen_name = game._choose_card_name(controller, target.card, self.kind)

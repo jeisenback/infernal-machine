@@ -1224,6 +1224,8 @@ class Game:
             return False
         if ability.once_per_turn and permanent.activated_turn.get(ability.text) == self.turn:
             return False
+        if ability.power_up and ability.text in permanent.activated_turn:  # "Activate each power-up ability only once."
+            return False
         if ability.loyalty is not None and (permanent.loyalty_turn == self.turn
                                             or (permanent.loyalty or 0) + ability.loyalty < 0):
             return False
@@ -1482,6 +1484,8 @@ class Game:
             cost = cost.reduced(sum(_permanent_matches(ability.discount_each, p.card) for p in seat.battlefield))
         if ability.equip:
             cost = Cost() if self._free_equip(seat) else cost.reduced(self._equip_discount(seat, ability, target))
+        if ability.power_up and permanent.entered_turn == self.turn and permanent.card.mana_cost:  # "Reduce the cost by her mana cost
+            cost = cost.minus(cost_of(permanent.card.mana_cost))  # if she entered this turn."
         if _is_token(permanent.card) and "Artifact" in permanent.card.type_line:  # Mutagen Man
             cost = cost.reduced(sum(owner is seat and key == "token_ability_discount" for owner, _, key in self._static_rules()))
         # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
@@ -6369,16 +6373,17 @@ class Game:
             holder.paired, options[pick].paired = options[pick], holder
             self.broadcast({"event": "paired", "card": holder.card.name, "with": options[pick].card.name})
 
-    def _choose_card_name(self, seat: Seat, card: Card) -> str | None:
+    def _choose_card_name(self, seat: Seat, card: Card, kind: str = "") -> str | None:
         """The card name `seat` names as `card` enters (Pithing Needle): one of the cards in view, those of its opponents' permanents with
-        an activated ability that isn't a mana ability first. None if no card is in view."""
+        an activated ability that isn't a mana ability first. With `kind` "land", only land cards' names (Petrified Hamlet). None if no
+        card is in view."""
         def rank(c: Card) -> int:
             if any(c is p.card for o in self.opponents(seat) for p in o.battlefield):
                 return 0 if activated_abilities(c) else 1  # (mana abilities are not among them)
             return 2
         seen = [c for o in self.opponents(seat) for c in [*(p.card for p in o.battlefield), *o.graveyard, *o.exile, *o.command_zone]]
         seen += [c for c in [*(p.card for s in self.live_seats() for p in s.battlefield), *seat.graveyard] if c not in seen]
-        options = list(dict.fromkeys(c.name for c in sorted(seen, key=rank)))
+        options = list(dict.fromkeys(c.name for c in sorted(seen, key=rank) if kind != "land" or "Land" in c.type_line))
         return options[seat.player.choose(CHOOSE_NAME_PROMPT(card.name), options)] if options else None
 
     def has_rule(self, key: str) -> bool:
@@ -6392,6 +6397,10 @@ class Game:
     def casts_from_graveyards_barred(self) -> bool:
         """Grafdigger's Cage: "Players can't cast spells from graveyards or libraries." """
         return any(key == "cage_cast" for _, _, key in self._static_rules())
+
+    def name_gives_colorless(self, card: Card) -> bool:
+        """Petrified Hamlet: "Lands with the chosen name have "{T}: Add {C}."" """
+        return any(key == "name_mana_c" and p.chosen_name == card.name for _, p, key in self._static_rules())
 
     def name_locked(self, card: Card) -> bool:
         """Pithing Needle: a permanent on the battlefield chose `card`'s name, so its activated abilities that aren't mana abilities can't

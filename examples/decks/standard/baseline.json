@@ -2,10 +2,7 @@
  "decks": {
   "azorius_control": {
    "cards": 60,
-   "unplayable": [
-    "Captain Marvel, Earth's Protector",
-    "Petrified Hamlet"
-   ]
+   "unplayable": []
   },
   "azorius_momo": {
    "cards": 60,
