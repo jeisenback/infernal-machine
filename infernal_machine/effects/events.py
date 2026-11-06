@@ -89,6 +89,8 @@ declare("valiant", re.compile(rf"Whenever {_SELF} becomes the target of a spell 
                               re.I))  # Game._valiant
 declare("commit_crime", re.compile(r"Whenever you commit a crime, (.+)", re.I), to="you")  # Game._targets_chosen: an opponent, what they
 # control or a card in their graveyard was targeted
+declare("activate_loyalty", re.compile(r"Whenever you activate a loyalty ability, (.+)", re.I), to="you",
+        happens="loyalty_activated")  # Ajani Unrelenting: Game._activate
 declare("library_to_graveyard", re.compile(r"When (?:CARDNAME|this card) is put into your graveyard from your library, (.+)", re.I))  # Narcomoeba
 declare("class_level_2", re.compile(r"When this Class becomes level 2, (.+)", re.I))  # Game.class_level_up
 declare("class_level_3", re.compile(r"When this Class becomes level 3, (.+)", re.I))

@@ -398,6 +398,16 @@ class MillThenReturn:
 
 
 @dataclass(frozen=True)
+class ExileTopCastOrDamage:
+    """Chandra, Torch of Defiance: "Exile the top card of your library. You may cast that card. If you don't, Chandra deals 2 damage
+    to each opponent." """
+    amount: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_top_cast_or_damage(controller, self.amount, game.resolving_source)
+
+
+@dataclass(frozen=True)
 class EachExilesAllButBottom:
     """Doomsday Excruciator: "each player exiles all but the bottom six cards of their library face down." """
     keep: int

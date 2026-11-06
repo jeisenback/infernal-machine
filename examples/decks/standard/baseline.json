@@ -61,12 +61,7 @@
   },
   "jeskai_control": {
    "cards": 60,
-   "unplayable": [
-    "Ajani Unrelenting",
-    "Chandra, Torch of Defiance",
-    "Flashback",
-    "Ral, Crackling Wit"
-   ]
+   "unplayable": []
   },
   "jund_sacrifice": {
    "cards": 60,

@@ -125,6 +125,17 @@ class ExileUpToXFromGraveyards:
 
 
 @dataclass(frozen=True)
+class GrantFlashback:
+    """Snapcaster Mage, Flashback: "Target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback
+    cost is equal to its mana cost." (Game.graveyard_casts_for)"""
+    target: str = "graveyard:instant or sorcery:yours"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.seat.flashback_granted.append((target.card, game.turn))
+
+
+@dataclass(frozen=True)
 class ExileUpToNFromGraveyards:
     """Pit of Offerings: "Exile up to three target cards from graveyards." The targets are one list."""
     max_targets: int
