@@ -539,6 +539,7 @@ _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've c
 _COUNTER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each ([a-z]+) counter on (?:this artifact|CARDNAME|this creature)\.")  # Door of Destinies
 
 
+_LEGENDARY_SCALED = re.compile(r"Legendary creatures you control get \+X/\+X, where X is the number of legendary creatures you control\.")
 _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|(?:have|has) {_KEYWORDS})\.")
 
 
@@ -663,6 +664,8 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     token=bool(who["tokens"]),
                                     with_counters=bool(who["counters"]), plus_counter=bool(who["plus"]),
                                     permanents=bool(who["perms"]), opponents=bool(who["opps"])))
+        elif _LEGENDARY_SCALED.fullmatch(sentence):  # Jodah, the Unifier: +1/+1 for each legendary creature you control
+            buffs.append(StaticBuff(Modifier(1, 1), False, "Legendary", line, condition=condition, per=("permanent", "legendary creature")))
         elif m := _COUNTER_SCALED.fullmatch(sentence):  # Door of Destinies: +1/+1 for each charge counter on it
             who = _AFFECTED_WHO.fullmatch(m[1])
             assert who is not None

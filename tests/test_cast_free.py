@@ -7,7 +7,10 @@ Electrodominance (a spell up to X), Malcolm, Alluring Scoundrel (the discarded c
 (pay 1 life to draw; play the cards exiled with Discard X) and Fallen Shinobi (play the damaged player's top two cards free). Batch 3:
 Dracogenesis (Dragon spells free), Descendants' Path (a creature sharing a type, or the bottom), Improvisation Capstone (exile to a total
 mana value; Paradigm), Arcane Bombardment (copies of every card exiled with it), Aminatou's Augury (a land, then one spell of each type)
-and Mind's Dilation (the opponent's top card, if nonland)."""
+and Mind's Dilation (the opponent's top card, if nonland). Batch 4: Jodah, the Unifier (a legendary anthem and a legendary cascade),
+Cemetery Tampering (a Hideaway played at twenty cards in the graveyard), Gríma, Saruman's Footman (an instant or sorcery from the damaged
+player's library), Geode Golem (the commander, free but for its tax), Planetarium of Wan Shi Tong (the top card, once a turn) and Ignite the
+Future (free when flashed back)."""
 
 import unittest
 from dataclasses import replace
@@ -93,6 +96,29 @@ CUB = real("Cub", "{G}", "Creature — Cub", "", "1", "1", colors=("G",))
 KINDRED = real("Elf Rite", "{1}{G}", "Kindred Sorcery — Elf", "Draw a card.", colors=("G",))
 GOLEM = real("Golem", "{3}", "Artifact Creature — Golem", "", "3", "3")
 ELF_DRUID = real("Druid", "{2}{G}", "Creature — Elf Druid", "", "2", "2", colors=("G",))
+
+JODAH = real("Jodah, the Unifier", "{W}{U}{B}{R}{G}", "Legendary Creature — Human Wizard", "Legendary creatures you control get +X/+X, "
+             "where X is the number of legendary creatures you control.\nWhenever you cast a legendary spell from your hand, exile cards from "
+             "the top of your library until you exile a legendary nonland card with lesser mana value. You may cast that card without paying "
+             "its mana cost. Put the rest on the bottom of your library in a random order.", "5", "5", colors=("W", "U", "B", "R", "G"))
+TAMPERING = real("Cemetery Tampering", "{2}{B}", "Enchantment", "Hideaway 5 (When this enchantment enters, look at the top five cards of your "
+                 "library, exile one face down, then put the rest on the bottom in a random order.)\nAt the beginning of your upkeep, you may "
+                 "mill three cards. Then if there are twenty or more cards in your graveyard, you may play the exiled card without paying its "
+                 "mana cost.", colors=("B",))
+GRIMA = real("Gríma, Saruman's Footman", "{2}{U}{B}", "Legendary Creature — Human Advisor", "Gríma can't be blocked.\nWhenever Gríma deals "
+             "combat damage to a player, that player exiles cards from the top of their library until they exile an instant or sorcery card. "
+             "You may cast that card without paying its mana cost. Then that player puts the exiled cards that weren't cast this way on the "
+             "bottom of their library in a random order.", "1", "4", colors=("U", "B"))
+GEODE = real("Geode Golem", "{5}", "Artifact Creature — Golem", "Trample\nWhenever this creature deals combat damage to a player, you may "
+             "cast your commander from the command zone without paying its mana cost. (You still pay any additional costs.)", "5", "3")
+PLANETARIUM = real("Planetarium of Wan Shi Tong", "{6}", "Legendary Artifact", "{1}, {T}: Scry 2.\nWhenever you scry or surveil, look at "
+                   "the top card of your library. You may cast that card without paying its mana cost. Do this only once each turn. (Look at "
+                   "the card after you scry or surveil.)")
+IGNITE = real("Ignite the Future", "{3}{R}", "Sorcery", "Exile the top three cards of your library. Until the end of your next turn, you may "
+              "play those cards. If this spell was cast from a graveyard, you may play cards this way without paying their mana costs.\n"
+              "Flashback {7}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)", colors=("R",))
+LEGEND2 = real("Small Legend", "{1}{G}", "Legendary Creature — Elf", "", "2", "2", colors=("G",))
+LEGEND4 = real("Big Legend", "{3}{G}", "Legendary Creature — Elf", "", "4", "4", colors=("G",))
 
 
 def asking(policy, asked):
@@ -428,6 +454,95 @@ class CastFreeBatchThreeTests(unittest.TestCase):
             game._perform(b, CAST + "Opt")
             run_stack(game)
             self.assertEqual(("Bear" in [p.card.name for p in a.battlefield], [c.name for c in b.exile]), (cast, [] if cast else [top.name]), top.name)
+
+
+class CastFreeBatchFourTests(unittest.TestCase):
+    def test_the_cards_are_understood(self):
+        for card in (JODAH, TAMPERING, GRIMA, GEODE, PLANETARIUM, IGNITE):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_jodah_pumps_legendary_creatures_by_their_number(self):
+        game, _ = table3()
+        a = game.seats[0]
+        jodah, legend, bear = Permanent(JODAH), Permanent(LEGEND2), Permanent(BEAR)
+        a.battlefield = [jodah, legend, bear]
+        self.assertEqual((game.power(jodah), game.power(legend), game.power(bear)), (7, 4, 2))
+
+    def test_jodah_casts_a_cheaper_legend_when_a_legend_is_cast_from_hand(self):
+        for cast, legend in ((LEGEND4, True), (BIG, False)):
+            game, _ = table3()
+            a = game.seats[0]
+            a.battlefield, a.hand = [Permanent(JODAH), *lands(5)], [cast]
+            a.library = [replace(LEGEND4), BEAR, LEGEND2, FOREST]  # an equal mana value is passed over
+            game._perform(a, CAST + cast.name)
+            run_stack(game)
+            names = [p.card.name for p in a.battlefield]
+            self.assertEqual(("Small Legend" in names, sorted(c.name for c in a.library)[:2]),
+                             (legend, ["Bear", "Big Legend"] if legend else ["Bear", "Big Legend"]), cast.name)
+            self.assertEqual(len(a.library), 3 if legend else 4, cast.name)
+
+    def test_grima_casts_an_instant_or_sorcery_from_the_damaged_players_library(self):
+        for library, cast in (([FOREST, BEAR, OPT, MOUNTAIN], True), ([FOREST, BEAR], False)):
+            game, _ = table3()
+            a, b, _ = game.seats
+            grima = Permanent(GRIMA)
+            a.battlefield, a.library, b.library = [grima], [FOREST] * 3, list(library)
+            game.damage(b, 1, grima, combat=True)
+            run_stack(game)
+            self.assertEqual((len(a.hand), [c.name for c in b.graveyard], b.exile), (1 if cast else 0, ["Opt"] if cast else [], []))
+            self.assertEqual(sorted(c.name for c in b.library), sorted(c.name for c in library if c is not OPT))
+
+    def test_geode_golem_casts_the_commander_free_but_for_its_tax(self):
+        for casts, cast in ((0, True), (1, False)):
+            game, _ = table3()
+            a, b, _ = game.seats
+            golem = Permanent(GEODE)
+            a.battlefield, a.command_zone, a.commander_casts = [golem], [COMMANDER], {"Omnath": casts}
+            game.damage(b, 5, golem, combat=True)
+            run_stack(game)
+            self.assertEqual(("Omnath" in [p.card.name for p in a.battlefield], a.commander_casts["Omnath"]), (cast, casts + cast), casts)
+
+    def test_cemetery_tampering_plays_the_hidden_card_at_twenty_cards_in_the_graveyard(self):
+        for graveyard, mill, played in ((17, "Yes", True), (16, "Yes", False), (20, "No", True)):
+            game, _ = table3(lambda prompt, options, mill=mill: options.index(mill) if "Yes" in options and "Play it" not in options else 0)
+            a = game.seats[0]
+            tampering = Permanent(TAMPERING)
+            a.battlefield, a.graveyard, a.library, a.exile = [tampering], [replace(FOREST) for _ in range(graveyard)], [FOREST] * 5, [BIG]
+            tampering.exiled_with.append((a, BIG))
+            fire(game, a, tampering, "upkeep")
+            self.assertEqual(("Big" in [p.card.name for p in a.battlefield], len(a.library)), (played, 2 if mill == "Yes" else 5),
+                             (graveyard, mill))
+
+    def test_planetarium_casts_the_top_card_free_once_each_turn(self):
+        game, _ = table3()
+        a = game.seats[0]
+        planetarium = Permanent(PLANETARIUM)
+        a.battlefield, a.library = [planetarium], [BEAR, OGRE, MOUNTAIN]
+        fire(game, a, planetarium, "scry_or_surveil")
+        fire(game, a, planetarium, "scry_or_surveil")
+        self.assertEqual([p.card.name for p in a.battlefield], ["Planetarium of Wan Shi Tong", "Bear"])
+        game.turn += 1
+        fire(game, a, planetarium, "scry_or_surveil")
+        self.assertIn("Ogre", [p.card.name for p in a.battlefield])
+        game.turn += 1
+        fire(game, a, planetarium, "scry_or_surveil")  # a land is not cast
+        self.assertEqual([c.name for c in a.library], ["Mountain"])
+
+    def test_ignite_the_future_plays_free_only_when_flashed_back(self):
+        for zone, free in (("hand", False), ("graveyard", True)):
+            game, _ = table3(pick("Flashback", "Pay"))
+            a = game.seats[0]
+            a.battlefield, a.library = lands(8), [BIG, OPT, FOREST]
+            if zone == "hand":
+                a.hand = [IGNITE]
+                game._perform(a, CAST + "Ignite the Future")
+            else:
+                a.graveyard = [IGNITE]
+                game._perform(a, "Cast from graveyard: Ignite the Future")
+            run_stack(game)
+            for p in a.battlefield:
+                p.tapped = True  # no mana left
+            self.assertEqual(CAST_EXILE + "Big" in game.legal_actions(a), free, zone)
 
 
 if __name__ == "__main__":
