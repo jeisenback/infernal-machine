@@ -398,6 +398,21 @@ class MillThenReturn:
 
 
 @dataclass(frozen=True)
+class EachExilesAllButBottom:
+    """Doomsday Excruciator: "each player exiles all but the bottom six cards of their library face down." """
+    keep: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            gone = seat.library[:max(0, len(seat.library) - self.keep)]
+            del seat.library[:len(gone)]
+            seat.exile.extend(gone)
+            game.broadcast({"event": "exiled_from_library", "seat": seat.index, "count": len(gone), "face_down": True})
+            if gone:
+                game._exiled_from_library_or_graveyard(seat)
+
+
+@dataclass(frozen=True)
 class PilesOfFour:
     """Abstract Performance: exile the top four cards face down and the next four face up; an opponent chooses one pile to
     put into your graveyard; you may cast a spell from the other for free and put the rest into your hand."""

@@ -346,6 +346,17 @@ class CastExiledCopy:
 
 
 @dataclass(frozen=True)
+class ExileEachTypeCastCopies:
+    """Uldaros Theorix: "exile up to one target nonland card of each card type from your graveyard. Copy those cards. You may cast any
+    number of spells with total mana value 6 or less from among the copies without paying their mana costs." The cards are chosen as it
+    resolves."""
+    total: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_each_type_cast_copies(controller, self.total)
+
+
+@dataclass(frozen=True)
 class CopyTokensOfTargets:
     """Twinflame: "Choose any number of target creatures you control. For each of them, create a token that's a copy of that
     creature, except it has haste. Exile those tokens at the beginning of the next end step." The three sentences are

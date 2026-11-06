@@ -1146,6 +1146,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     player controls." (`PutCountersOnEach.target`) and "Target creature gains your choice of double strike or lifelink until end of
     turn." (`GainChosenKeyword`, Practiced Offense). Sage of the Skies: "if you've cast another spell this turn" counts the spell
     itself, and its "copy this spell" copies the spell the cast trigger came from (a copy of a creature spell is a token).
+  - Standard's Dimir graveyard decks (`tests/test_standard_dimir_graveyard.py`): Impending N (Overlord of the Balemurk) is an alternative
+    cost; the permanent enters with N time counters and its card without the Creature type (the card it is waits in `real_card`), and at
+    the beginning of its controller's end step loses a time counter, becoming the creature with the last. "mill four cards, then you may
+    return a non-Avatar creature card or a planeswalker card" is one card of either kind. Doomsday Excruciator: "if it was cast" and
+    "each player exiles all but the bottom six cards of their library face down" (`EachExilesAllButBottom`). Collect evidence N (Deadly
+    Cover-Up): after the mana, its caster may exile cards with total mana value N or more from their graveyard (`StackItem.evidence`); then
+    every card with the name of the chosen card from an opponent's graveyard is exiled from its owner's graveyard, hand and library, and
+    they draw for each from the hand (`Game.exile_name_everywhere`). Uldaros Theorix: up to one nonland card of each card type is exiled
+    from the graveyard (chosen as it resolves), and copies with total mana value 6 or less are cast free (`ExileEachTypeCastCopies`).
   - Standard's Dimir Midrange deck (`tests/test_standard_dimir_midrange.py`): "It loses all abilities for as long as The Wondrous Wasp
     remains on the battlefield." after a Tap, and Tishana's Tidebinder's "that permanent loses all abilities for as long as this creature
     remains on the battlefield" set `Permanent.loses_abilities_while` (`Game.strip_while`); the board view counts it stripped while

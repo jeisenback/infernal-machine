@@ -126,6 +126,7 @@ from .families.copying import (  # noqa: F401
     CHOOSE_COPY_PROMPT,
     COPY_THIS_PROMPT,
     CastExiledCopy,
+    ExileEachTypeCastCopies,
     CopiesOfAnotherCreature,
     CopyChanges,
     CopyChosenPermanent,
@@ -338,6 +339,7 @@ from .families.library_and_hand import (  # noqa: F401
     Mill,
     MillThenExileRandomPlay,
     MillThenReturn,
+    EachExilesAllButBottom,
     PilesOfFour,
     PutAttackingFromHand,
     PutBackTop,
@@ -481,6 +483,7 @@ from .families.spells_and_misc import (  # noqa: F401
     MayPayLoot,
     Modal,
     ModifiedGainHexproof,
+    ExileNameIfEvidence,
     CounterAbility,
     TransformIfCastFromGraveyard,
     NewTargetMustBe,
@@ -1696,6 +1699,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield\.", re.I), lambda m: ReturnUpToTotalManaValue(_number(m[1]), m[2].lower(), int(m[3]))),  # Lively Dirge
     (re.compile(r"if this spell was cast from a graveyard, exile it, then put it onto the battlefield transformed under its owner's "
                 r"control with a finality counter on it\.", re.I), lambda m: TransformIfCastFromGraveyard()),  # Esper Origins
+    (re.compile(r"if evidence was collected, exile a card from an opponent's graveyard\. Then search its owner's graveyard, hand, and "
+                r"library for any number of cards with that name and exile them\. That player shuffles, then draws a card for each card "
+                r"exiled from their hand this way\.", re.I), lambda m: ExileNameIfEvidence()),  # Deadly Cover-Up
+    (re.compile(r"exile up to one target nonland card of each card type from your graveyard\. Copy those cards\. You may cast any "
+                r"number of spells with total mana value (\d+) or less from among the copies without paying their mana costs\.", re.I),
+     lambda m: ExileEachTypeCastCopies(int(m[1]))),  # Uldaros Theorix
+    (re.compile(r"each player exiles all but the bottom (\w+) cards of their library face down\.", re.I),
+     lambda m: EachExilesAllButBottom(_number(m[1]))),  # Doomsday Excruciator
     (re.compile(r"counter (up to one )?target activated or triggered ability\.( If an ability of an artifact, creature, or planeswalker is "
                 r"countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield\.)?", re.I),
      lambda m: CounterAbility(strip=bool(m[2]), optional_target=bool(m[1]))),  # Tishana's Tidebinder
@@ -2102,6 +2113,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnDeadAtNextUpkeep()),
     (re.compile(r"you may put a creature card from your hand onto the battlefield\. If you do, sacrifice it unless you pay its "
                 r"mana cost reduced by \{(\d+)\}\.", re.I), lambda m: PutCreatureFromHand(int(m[1]))),
+    (re.compile(rf"mill {_N} cards?, then (you may )?return an? ((?:non-(?-i:[A-Z][a-z]+) )?creature) card or an? (planeswalker|land) card "
+                r"from your graveyard to your hand\.", re.I),  # Overlord of the Balemurk: one card of either kind
+     lambda m: MillThenReturn(_count(m[1]), (f"{m[3]} or {m[4].lower()}",), "hand", optional=bool(m[2]))),
     (re.compile(rf"mill {_N} cards?, then (you may )?return ({_MILL_KIND}(?: and {_MILL_KIND})?) from your graveyard to "
                 r"(your hand|the battlefield)( tapped)?\.", re.I),
      lambda m: None if " and " not in m[3] and m[4].lower() == "your hand" else  # one kind to hand: Mill, then ReturnChosen
@@ -3076,7 +3090,7 @@ _CONDITIONS = [
     (re.compile(r"it's (day|night)"), lambda m: Condition(m[1])),
     (re.compile(rf"{_SELF} is tapped"), lambda m: Condition("source_tapped")),
     (re.compile(r"you control no other ([A-Za-z]+)"), lambda m: Condition("control_no_other", what=_singular(m[1]))),
-    (re.compile(r"you cast it"), lambda m: Condition("cast_it")),
+    (re.compile(r"you cast (?:it|him|her)|it was cast"), lambda m: Condition("cast_it")),  # Doomsday Excruciator, Uldaros Theorix
     (re.compile(r"a modified creature died under your control this turn"), lambda m: Condition("modified_died")),
     (re.compile(rf"{_N_FIXED} or more of those creatures are attacking you and/or planeswalkers you control"),
      lambda m: Condition("attackers_at_least", _number(m[1]))),

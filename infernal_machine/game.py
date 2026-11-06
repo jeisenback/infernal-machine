@@ -212,6 +212,11 @@ PUT_PERMANENT_PROMPT = PromptKind("put_permanent", "Put a nonland permanent card
 SET_ASIDE_PROMPT = PromptKind("set_aside", "Choose a nonland card exiled this way; it can't be cast")
 CAST_FREE_EXILED_PROMPT = PromptKind("cast_free_exiled", "Cast a spell from among the other exiled cards without paying its mana cost")  # then NONE_TAKEN
 CHOOSE_EXILED_WITH_PROMPT = PromptKind("choose_exiled_with", "Choose a card exiled with this permanent")
+EVIDENCE_PROMPT = PromptKind("evidence", "Exile a card from your graveyard to collect evidence for ")  # followed by the spell's name; options are cards, then EVIDENCE_NONE
+EVIDENCE_NONE = "Don't collect evidence"
+EXILE_NAME_PROMPT = PromptKind("exile_name", "Exile a card from an opponent's graveyard, and every card with its name, for ")  # followed by the spell's name
+EXILE_TYPE_PROMPT = PromptKind("exile_type", "Exile a card of this type from your graveyard: ")  # followed by the card type; then NONE_TAKEN
+CAST_COPIES_PROMPT = PromptKind("cast_copies", "Cast one of the copies without paying its mana cost")  # Uldaros Theorix; followed by the mana value left; then NONE_TAKEN
 TEAMWORK_PROMPT = PromptKind("teamwork", "Tap a creature for teamwork for ")  # followed by the spell's name; options are creatures, then TEAMWORK_NONE
 TEAMWORK_NONE = "Don't use teamwork"
 HARMONIZE_PROMPT = PromptKind("harmonize", "Tap a creature to pay less for ")  # followed by the spell's name; options are creatures, then HARMONIZE_NONE
@@ -412,6 +417,8 @@ class StackItem:
     warped: bool = False  # cast for its warp cost: exiled at the next end step, castable from exile on a later turn
     phyrexian_life: int = 0  # Phyrexian mana symbols of its cost paid with life: a Compleated walker enters with two fewer loyalty each
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
+    evidence: bool = False  # evidence was collected as it was cast (Deadly Cover-Up)
+    impending: int = 0  # cast for its impending cost: it enters with this many time counters, not a creature until the last goes
     whole: Card | None = None  # cast as one half of this card (an Adventure, a split half): the card that moves between zones
     from_hand: bool = False  # cast from its owner's hand (rebound only works then)
     face_down: tuple[str, "MorphCost"] | None = None  # cast face down: (Morph, Megamorph or Disguise; the cost to turn it face up)
@@ -887,6 +894,7 @@ class Game:
             self.happened("draw_step", seat)  # and "each other player's draw step" (Well of Ideas)
         elif self.step in ("upkeep", "end"):
             if self.step == "end":  # "at the beginning of the next end step"
+                self._impending_end_step(seat)
                 due = [what for turn, what in self.at_end_step if turn <= self.turn]
                 self.at_end_step = [(turn, what) for turn, what in self.at_end_step if turn > self.turn]
                 for what in due:
@@ -1883,6 +1891,31 @@ class Game:
             card, way = options[pick]
             self._cast(seat, card, seat.graveyard, graveyard=way)
 
+    def exile_each_type_cast_copies(self, seat: Seat, total: int) -> None:
+        """Uldaros Theorix: exile up to one nonland card of each card type from `seat`'s graveyard (chosen as this resolves), copy them,
+        and cast any number of the copies with total mana value `total` or less without paying their mana costs."""
+        exiled: list[Card] = []
+        for kind in ("Artifact", "Battle", "Creature", "Enchantment", "Instant", "Kindred", "Planeswalker", "Sorcery"):
+            options = _unique([c for c in seat.graveyard if kind in c.type_line.partition("\u2014")[0] and "Land" not in c.type_line
+                               and not any(c is e for e in exiled)])
+            if not options:
+                continue
+            pick = seat.player.choose(EXILE_TYPE_PROMPT(kind.lower()), [c.name for c in options] + [NONE_TAKEN])
+            if pick < len(options) and self.exile_from_graveyard(GraveyardTarget(options[pick], seat)):
+                exiled.append(options[pick])
+        left = total
+        while True:
+            options = [c for c in exiled if c.cmc <= left]
+            if not options:
+                return
+            pick = seat.player.choose(CAST_COPIES_PROMPT(f" (mana value {left} or less left)"), [c.name for c in options] + [NONE_TAKEN])
+            if pick >= len(options):
+                return
+            card = options[pick]
+            exiled.remove(card)
+            left -= int(card.cmc)
+            self.cast_copy_free(seat, card)
+
     def cast_copy_free(self, seat: Seat, card: Card) -> None:
         """Cast a copy of `card` without paying its mana cost (Surge to Victory); the copy stops existing afterwards."""
         self._cast(seat, card, [card], free=True, copy=True)
@@ -2315,6 +2348,9 @@ class Game:
                                  mana_types_spent=item.mana_types_spent)
             if enters_by_discarding_land(card) and not self._discard_land_to_enter(seat, card):  # Mox Diamond
                 return
+            if item.impending:  # it isn't a creature while it has a time counter; the card it is waits in real_card
+                entering.real_card, entering.card = card, _without_creature(card)
+                entering.counters["time"] = item.impending
             if item.evoked:  # queued first, so it resolves after the creature's own "when it enters" abilities
                 self._queue(EVOKE_SACRIFICE, entering, seat)
             self._enter(seat, entering, x=item.x, mana_spent=item.mana_spent)
@@ -2378,6 +2414,40 @@ class Game:
             self.broadcast({"event": "adventure", "seat": item.controller.index, "card": card.name})
             return
         self._move_card(home, card, "exile" if item.exile_after else "graveyard")
+
+    def _impending_end_step(self, seat: Seat) -> None:
+        """Impending: "At the beginning of your end step, remove a time counter from it." With the last one gone it is a creature
+        again."""
+        for permanent in list(seat.battlefield):
+            real = permanent.real_card
+            if real is None or not permanent.counters.get("time"):  # (only impending leaves time counters on a stand-in card)
+                continue
+            self.remove_counters(permanent, "time", 1)
+            if not permanent.counters.get("time"):
+                permanent.card, permanent.real_card = real, None
+                self.broadcast({"event": "became_creature", "card": real.name, "power": real.power, "toughness": real.toughness})
+
+    def exile_name_everywhere(self, caster: Seat, source: str) -> None:
+        """Deadly Cover-Up: exile a card from an opponent's graveyard, then every card with its name from its owner's graveyard, hand and
+        library; that player shuffles, then draws a card for each card exiled from their hand."""
+        options = [(seat, card) for seat in self.opponents(caster) for card in _unique(seat.graveyard)]
+        if not options:
+            return
+        owner, chosen = options[caster.player.choose(EXILE_NAME_PROMPT(source), [f"{c.name} (seat {s.index})" for s, c in options])]
+        name = chosen.name
+        from_hand = [c for c in owner.hand if c.name == name]
+        from_graveyard = [c for c in owner.graveyard if c.name == name]
+        from_library = [c for c in owner.library if c.name == name]
+        owner.hand[:] = [c for c in owner.hand if c.name != name]
+        owner.graveyard[:] = [c for c in owner.graveyard if c.name != name]
+        owner.library[:] = [c for c in owner.library if c.name != name]
+        owner.exile.extend(from_graveyard + from_hand + from_library)
+        self.broadcast({"event": "exiled_name", "seat": owner.index, "card": name,
+                        "count": len(from_graveyard) + len(from_hand) + len(from_library)})
+        if from_graveyard:
+            self._left_graveyard(owner, from_graveyard)
+        self.rng.shuffle(owner.library)
+        self.draw(owner, len(from_hand))
 
     def _discard_land_to_enter(self, seat: Seat, card: Card) -> bool:
         """Mox Diamond: "you may discard a land card instead"; without doing so it goes to its owner's graveyard."""
@@ -6907,6 +6977,12 @@ def _instant_speed(card: Card) -> bool:
 def _permanent_matches(kind: str, card: Card) -> bool:
     """Whether a permanent's card is of `kind` ("creature", "nonland permanent", "black creature", "Elf", ...): see filters.py."""
     return parse_filter(kind).matches(card)
+
+
+def _without_creature(card: Card) -> Card:
+    """Impending: the card as it is while it has time counters, its types without Creature."""
+    head, dash, tail = card.type_line.partition(" \u2014 ")
+    return dataclasses.replace(card, type_line=" ".join(w for w in head.split() if w != "Creature") + (f" \u2014 {tail}" if dash else ""))
 
 
 def _card_type_count(cards: list[Card]) -> int:

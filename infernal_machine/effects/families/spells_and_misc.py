@@ -48,6 +48,18 @@ class Counter:
 
 
 @dataclass(frozen=True)
+class ExileNameIfEvidence:
+    """Deadly Cover-Up: "If evidence was collected, exile a card from an opponent's graveyard. Then search its owner's graveyard, hand,
+    and library for any number of cards with that name and exile them. That player shuffles, then draws a card for each card exiled
+    from their hand this way." (every card with the name is exiled)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if item is not None and item.evidence:
+            game.exile_name_everywhere(controller, item.card.name)
+
+
+@dataclass(frozen=True)
 class CounterAbility:
     """Tishana's Tidebinder: "Counter up to one target activated or triggered ability. If an ability of an artifact, creature, or
     planeswalker is countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield." """
