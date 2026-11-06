@@ -222,11 +222,13 @@ class EachSacrifices:
     kind: str = "creature"  # "creature", "artifact", "enchantment", "land", "permanent", "nonland permanent", ...
     count: int | str | None = 1  # "two lands"; None: "all creatures they control"
     greatest: bool = False  # "a creature with the greatest power among creatures they control"
+    greatest_if_evidence: bool = False  # Extract a Confession: "If evidence was collected, instead ... the greatest power ..."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        greatest = self.greatest or (self.greatest_if_evidence and game.resolving_item is not None and game.resolving_item.evidence)
         for seat in game.turn_order_from_active():
             if self.who == "player" or (self.who == "you") == (seat is controller):
-                game.sacrifice(seat, self.kind, None if self.count is None else game.amount(self.count), self.greatest)
+                game.sacrifice(seat, self.kind, None if self.count is None else game.amount(self.count), greatest)
 
 
 @dataclass(frozen=True)

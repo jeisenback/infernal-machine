@@ -981,3 +981,13 @@ class GreatestPowerMayDraw:
         source = game.resolving_item.card.name if game.resolving_item is not None else "this ability"
         if owner.player.choose(MAY_DRAW_PROMPT(source), ["Yes", "No"]) == 0:
             game.draw(owner, 1)
+
+
+@dataclass(frozen=True)
+class OwnerPutsSecondOrBottom:
+    """Deem Inferior: "The owner of target nonland permanent puts it into their library second from the top or on the bottom." """
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.put_second_or_bottom(target)

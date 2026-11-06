@@ -166,7 +166,8 @@ class Caster:
         sacrificed = self.game._sacrifice_for_copies(seat, card)
         evidence = self._collect_evidence(seat, card)
         teamwork = self._pay_teamwork(seat, card)
-        item = g.StackItem(card, seat, effects, targets, x=x, delved=tuple(delved), kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, additional_paid=additional_paid, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
+        item = g.StackItem(card, seat, effects, targets, x=x, delved=tuple(delved), sacrificed_power=self.game.cost_sacrificed_power,
+                         sacrificed_toughness=self.game.cost_sacrificed_toughness, sacrificed_value=self.game.cost_sacrificed_value, kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, additional_paid=additional_paid, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
                          foretold=graveyard is not None and graveyard.word == "Foretell", discarded=discarded, from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
@@ -419,6 +420,7 @@ class Caster:
             counted = (sum(has_type(p.card, "creature") for s in self.game.live_seats() for p in s.battlefield) if what == "creature"
                        else self.game.basic_land_types(seat) if what == "basic land type"  # Domain
                        else (seat.discards_turn[1] if seat.discards_turn[0] == self.game.turn else 0) if what == "cycled or discarded"
+                       else (seat.draw_count if seat.draw_turn == self.game.turn else 0) if what == "drawn"  # Deem Inferior
                        else sum(any(t in c.type_line for t in ("Instant", "Sorcery")) or (c.alternate is not None and "Adventure" in c.alternate.type_line)
                                 for c in seat.graveyard) if what == "instant, sorcery or Adventure"  # Hearth Elemental
                        else sum(g._card_matches(what, c) for c in seat.graveyard))
@@ -540,6 +542,7 @@ class Caster:
             self.game._move_card(seat, exiled, "exile")
         extras = [c for c in self._extra_costs(card, kicked, bought_back) if not c.options] + list(picked)
         paid: list[Card] = []
+        sacrificed: list[g.Permanent] = []  # what an additional cost sacrificed: Fling and Reckoner's Bargain read it
         for extra in extras:
             if extra.discard:
                 discarded = seat.hand[seat.player.choose(g.DISCARD_PROMPT, [c.name for c in seat.hand])]
@@ -552,6 +555,10 @@ class Caster:
             for _ in range(x if extra.sacrifice_x else 1 if extra.sacrifice else 0):
                 options = [p for p in seat.battlefield if g._permanent_matches(extra.sacrifice, p.card)]
                 choice = options[seat.player.choose(g.SACRIFICE_COST_PROMPT(card.name), [self.game.label(p) for p in options])]
+                sacrificed.append(choice)
+                self.game.cost_sacrificed_power = sum(self.game.power(p) for p in sacrificed)  # as it last was, before it leaves
+                self.game.cost_sacrificed_toughness = sum(self.game.toughness(p) or 0 for p in sacrificed)
+                self.game.cost_sacrificed_value = int(sum(p.card.cmc for p in sacrificed))
                 self.game._leave_together([(choice, "sacrificed")])
         life = (sum(c.life for c in extras) + (alternative.life if alternative else 0)
                 + (x if any(c.life_x for c in additional_costs(card)) else 0))

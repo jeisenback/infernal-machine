@@ -1171,6 +1171,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     to its mana cost." (Flashback, Snapcaster Mage) records the card for the turn (`Seat.flashback_granted`, read by
     `Game.graveyard_casts_for`). Ral, Crackling Wit's emblem "Instant and sorcery spells you cast have storm." is the rules static
     `grant_storm`.
+  - The Pauper decks one card short (`tests/test_pauper_near_complete.py`, #645): "This spell costs {1} less to cast for each card you've
+    drawn this turn." and "The owner of target nonland permanent puts it into their library second from the top or on the bottom." (Deem
+    Inferior, `Game.put_second_or_bottom`); "It doesn't untap during its controller's next untap step." after a tap (Sleep of the Dead,
+    `Permanent.skips_next_untap`); Benevolent Blessing's protection "doesn't remove Auras and Equipment you control that are already
+    attached to it" (`spares_your_attachments`); Extract a Confession sacrifices the greatest power "if evidence was collected"
+    (`EachSacrifices.greatest_if_evidence`); "the sacrificed permanent's mana value" (Reckoner's Bargain). An additional cost's sacrifice
+    now records the power, toughness and mana value of what it sacrificed on the spell, so Fling deals the sacrificed creature's power
+    (it dealt 0 before). "Create a tapped 2/2 ... token" (Melded Moxite).
   - Standard's Izzet Spellementals deck (`tests/test_standard_izzet_spellementals.py`): Get Out's "Counter target creature or enchantment
     spell." and "Return one or two target creatures and/or enchantments you own to your hand." Sunderflock costs {X} less, "where X is the
     greatest mana value among Elementals you control" (`reduced_by_greatest`, The Great Henge's power reduction generalized), and "return
