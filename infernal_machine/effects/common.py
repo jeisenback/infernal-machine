@@ -257,7 +257,8 @@ _WHOLE_LINE = re.compile(
     r"your hand\."
     r"|Tap enchanted creature\. It becomes unprepared\."
     r"|Then if you control [a-z]+ or more [A-Z][a-z]+s, sacrifice this Saga\. If you do, create [^.]+\."
-    r"|Reveal the top card of your library\. If it's an? (?:permanent|creature|land|nonland) card, put it into your hand\.", re.I)
+    r"|Reveal the top card of your library\. If it's an? (?:permanent|creature|land|nonland) card, put it into your hand\."
+    r"|(?:You may )?remove an? \S+ counter from this creature\. If you do, put [^.]+ on each other creature you control\.", re.I)
 
 
 def _split_sentences(text: str) -> list[str]:

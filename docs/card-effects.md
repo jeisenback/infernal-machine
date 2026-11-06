@@ -1139,6 +1139,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     with base power and toughness 3/4 and gains flying and vigilance." keeps the creature's types (Secret Identity). Sarkhan, Dragon
     Ascendant beholds a Dragon for a Treasure, and "becomes a Dragon in addition to his other types" until end of turn
     (`BecomesTypeUntilEndOfTurn`, undone in the cleanup step).
+  - Standard's Azorius Momo deck (`tests/test_standard_azorius_momo.py`): "you may remove a +1/+1 counter from this creature. If you
+    do, put a +1/+1 counter on each other creature you control." (`RemoveCounterFromSourceThen`, which asks; `PutCountersOnEach.other`,
+    Guiding Hydra). "Return up to one target non-Faerie, nonland permanent you control ... If a permanent was returned this way, put a
+    +1/+1 counter on this creature." (`ReturnToHand.counter_on_source`, Nurturing Pixie). "Put a +1/+1 counter on each creature target
+    player controls." (`PutCountersOnEach.target`) and "Target creature gains your choice of double strike or lifelink until end of
+    turn." (`GainChosenKeyword`, Practiced Offense). Sage of the Skies: "if you've cast another spell this turn" counts the spell
+    itself, and its "copy this spell" copies the spell the cast trigger came from (a copy of a creature spell is a token).
   - Disturb (`tests/test_disturb.py`): `Disturb {cost}` on the front of a transforming card is the action `Cast with disturb: <card>`,
     offered for a card in your graveyard at the back face's usual timing. The back face is cast (`whole` is the card, as with
     Aftermath) for the disturb cost as a `GraveyardCast("Disturb", cost, exile_after=True)`, so a countered or fizzled spell is exiled; a

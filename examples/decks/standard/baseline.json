@@ -11,12 +11,7 @@
   },
   "azorius_momo": {
    "cards": 60,
-   "unplayable": [
-    "Guiding Hydra",
-    "Nurturing Pixie",
-    "Practiced Offense",
-    "Sage of the Skies"
-   ]
+   "unplayable": []
   },
   "boros_dragons": {
    "cards": 60,

@@ -524,6 +524,7 @@ class ReturnToHand:
     optional_target: bool = False  # "Return up to one target creature ...": the target may be left out
     distinct: bool = False  # "Return up to two target creatures ...": the second can't be the first again
     draw_if_yours: bool = False  # Boomerang Basics: "If you controlled that permanent, draw a card."
+    counter_on_source: str = ""  # Nurturing Pixie: "If a permanent was returned this way, put a +1/+1 counter on this creature."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is None:
@@ -535,6 +536,15 @@ class ReturnToHand:
             game.return_to_hand(target)
             if self.draw_if_yours and yours:
                 game.draw(controller, 1)
+            source = game.resolving_source
+            if self.counter_on_source and source is not None:
+                game.put_counters(source, self.counter_on_source, 1)
+
+
+@dataclass(frozen=True)
+class _CounterIfReturned:
+    """ "If a permanent was returned this way, put a +1/+1 counter on this creature." after a ReturnToHand (Nurturing Pixie)."""
+    counter: str
 
 
 @dataclass(frozen=True)

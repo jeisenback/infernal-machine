@@ -39,6 +39,24 @@ class PutCounters:
 
 
 @dataclass(frozen=True)
+class RemoveCounterFromSourceThen:
+    """Guiding Hydra: "you may remove a +1/+1 counter from this creature. If you do, put a +1/+1 counter on each other creature you
+    control." (`then` happens only if a counter was removed)"""
+    counter: str
+    then: Any
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None or not target.counters.get(self.counter):
+            return
+        from ...game import OPTIONAL_PROMPT, YES_NO
+        if controller.player.choose(OPTIONAL_PROMPT(target.card.name), YES_NO) != 0:
+            return
+        game.remove_counters(target, self.counter, 1)
+        self.then.resolve(game, controller, None)
+
+
+@dataclass(frozen=True)
 class RemoveCounters:
     """ "Remove a +1/+1 counter from target creature." / "Remove all counters from target permanent." (count None: all;
     counter None: of every kind)"""
@@ -241,9 +259,16 @@ class PutCountersOnEach:
     kind: str = ""  # a creature type, "" for every creature
     grant: frozenset[str] = frozenset()  # Ursine Guide's spell: "They gain trample until end of turn."
     or_vehicle: bool = False  # Ao: "each permanent you control that's a creature or Vehicle"
+    other: bool = False  # Guiding Hydra: "each other creature you control": not the source
+    target: str | None = None  # Practiced Offense: "each creature target player controls" ("player")
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for permanent in list(controller.battlefield):
+        seat = target if self.target else controller
+        if seat is None:
+            return
+        for permanent in list(seat.battlefield):
+            if self.other and permanent is game.resolving_source:
+                continue
             if ("Creature" in permanent.card.type_line or self.or_vehicle and "Vehicle" in permanent.card.type_line) \
                     and self.kind in permanent.card.type_line:
                 game.put_counters(permanent, self.counter, game.amount(self.count))
