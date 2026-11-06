@@ -811,7 +811,7 @@ def x_spell_discount(card: Card) -> bool:
 
 _PER_REDUCTION = re.compile(r"(?:Domain \u2014 )?This spell costs \{(\d+)\} less to cast for each "
                             r"(creature on the battlefield|instant and sorcery card in your graveyard|basic land type among lands you control"
-                            r"|card you've cycled or discarded this turn)\.")  # Hollow One
+                            r"|card you've cycled or discarded this turn|card you've drawn this turn)\.")  # Hollow One; Deem Inferior
 _ADVENTURE_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, where X is the number of cards in your graveyard that are instant "
                                   r"cards, sorcery cards, and/or have an Adventure\.")  # Hearth Elemental
 
@@ -823,6 +823,7 @@ def self_cost_reduction(card: Card) -> tuple[int, str] | None:
     for line in rules_lines(card):
         if m := _PER_REDUCTION.fullmatch(line):
             return int(m[1]), ("creature" if m[2].startswith("creature") else "basic land type" if m[2].startswith("basic")
+                               else "drawn" if m[2].startswith("card you've drawn")
                                else "cycled or discarded" if m[2].startswith("card you've") else "instant or sorcery")
         if _ADVENTURE_REDUCTION.fullmatch(line):
             return 1, "instant, sorcery or Adventure"

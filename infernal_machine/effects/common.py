@@ -272,6 +272,7 @@ _WHOLE_LINE = re.compile(
     r"|Then if you control [a-z]+ or more [A-Z][a-z]+s, sacrifice this Saga\. If you do, create [^.]+\."
     r"|Reveal the top card of your library\. If it's an? (?:permanent|creature|land|nonland) card, put it into your hand\."
     r"|(?:You may )?remove an? \S+ counter from this creature\. If you do, put [^.]+ on each other creature you control\."
+    r"|Each opponent sacrifices a creature of their choice\. If evidence was collected, instead [^.]+\."  # Extract a Confession
     r"|If evidence was collected, exile a card from an opponent's graveyard\. Then search its owner's graveyard, hand, and library for "
     r"any number of cards with that name and exile them\. That player shuffles, then draws a card for each card exiled from their hand "
     r"this way\."

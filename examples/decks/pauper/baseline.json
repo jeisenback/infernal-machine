@@ -2,22 +2,15 @@
  "decks": {
   "blue_terror": {
    "cards": 60,
-   "unplayable": [
-    "Deem Inferior",
-    "Sleep of the Dead"
-   ]
+   "unplayable": []
   },
   "bogles": {
    "cards": 60,
-   "unplayable": [
-    "Benevolent Blessing"
-   ]
+   "unplayable": []
   },
   "dimir_faeries": {
    "cards": 60,
-   "unplayable": [
-    "Extract a Confession"
-   ]
+   "unplayable": []
   },
   "elves": {
    "cards": 60,
@@ -26,15 +19,12 @@
   "grixis_affinity": {
    "cards": 60,
    "unplayable": [
-    "Black Mage's Rod",
-    "Reckoner's Bargain"
+    "Black Mage's Rod"
    ]
   },
   "mono_red_madness": {
    "cards": 60,
-   "unplayable": [
-    "Melded Moxite"
-   ]
+   "unplayable": []
   },
   "mono_red_rally": {
    "cards": 60,

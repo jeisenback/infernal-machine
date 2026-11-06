@@ -31,7 +31,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, heals_before_damage, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, heals_before_damage, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -106,6 +106,7 @@ PERMANENT_TYPES = ("Artifact", "Battle", "Creature", "Enchantment", "Land", "Pla
 KEEP_PROMPT = PromptKind("keep", "Keep this hand?")
 OPENING_PROMPT = PromptKind("opening", "Begin the game with this on the battlefield: ")  # followed by the card's name
 BOTTOM_PROMPT = PromptKind("bottom", "Put a card on the bottom of your library")
+SECOND_OR_BOTTOM_PROMPT = PromptKind("second_or_bottom", "Second from the top or the bottom of your library for ")  # followed by its name
 DISCARD_PROMPT = PromptKind("discard", "Discard down to hand size")
 DISCARD_CARD_PROMPT = PromptKind("discard_card", "Choose a card to discard")  # options are card names
 CHOOSE_DISCARD_PROMPT = PromptKind("choose_discard", "Choose a card from their hand to discard")  # options are card names
@@ -342,6 +343,7 @@ class Permanent:
     mana_types_spent: tuple[frozenset[str], ...] = ()  # the types each mana spent to cast it could be (Deceit: "if {U}{U} was spent to cast it")
     returns_when_dies: int = 0  # Malakir Rebirth: the turn it gained "When this creature dies, return it to the battlefield tapped"
     animated_until: int | None = None  # Karn, the Great Creator: animated "until your next turn", the index of the seat whose turn ends it
+    skips_next_untap: bool = False  # "It doesn't untap during its controller's next untap step." (Sleep of the Dead)
     harnessed: bool = False  # an Infinity Stone that was harnessed: its \u221e ability works
     earthbent: bool = False  # a land earthbent into a creature for good: `original` is the land, and it returns tapped when it dies or is exiled
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
@@ -851,7 +853,9 @@ class Game:
             seat.battlefield += seat.phased_out  # they phase in first, then untap with everything else
             seat.phased_out = []
             for permanent in seat.battlefield:
-                if self.has_keyword(permanent, NO_UNTAP) or "no_untap" in rules_statics(permanent.card) \
+                if permanent.skips_next_untap:  # Sleep of the Dead: this untap step only
+                    permanent.skips_next_untap = False
+                elif self.has_keyword(permanent, NO_UNTAP) or "no_untap" in rules_statics(permanent.card) \
                         and not self.loses_abilities(permanent):  # Infinite Coursework; Basalt Monolith
                     pass
                 elif permanent.tapped and may_skip_untap(permanent.card) and \
@@ -2650,8 +2654,10 @@ class Game:
             return self.basic_land_types(controller)
         if kind == "devotion":  # Gray Merchant of Asphodel: every {B} (hybrid and Phyrexian too) in the mana costs of your permanents
             return sum(len(re.findall(rf"\{{[^}}]*{amount.what}[^}}]*\}}", p.card.mana_cost)) for p in controller.battlefield)
-        if kind == "sacrificed_power":  # the creature sacrificed to pay this ability's cost
+        if kind == "sacrificed_power":  # the creature sacrificed to pay this ability's (or spell's) cost
             return self.resolving_item.sacrificed_power if self.resolving_item else 0
+        if kind == "sacrificed_value":  # ... and its mana value (Reckoner's Bargain)
+            return self.resolving_item.sacrificed_value if self.resolving_item else 0
         if kind == "tapped_power":  # the creature tapped to pay this ability's cost (Station)
             return self.resolving_item.tapped_power if self.resolving_item else 0
         if kind == "source_counters":
@@ -5522,6 +5528,12 @@ class Game:
             self.add_mana(seat, (frozenset("C"),) * seat.delayed_mana)
             seat.delayed_mana = 0
 
+    def put_second_or_bottom(self, permanent: Permanent) -> None:
+        """Deem Inferior: the permanent's owner chooses second from the top of their library or the bottom."""
+        owner = self.owner_of(permanent)
+        pick = owner.player.choose(SECOND_OR_BOTTOM_PROMPT(permanent.card.name), ["Second from the top", "On the bottom"])
+        self._leave_together([(permanent, "returned")], destination="library_second" if pick == 0 else "library")
+
     def put_on_library_top(self, permanent: Permanent) -> None:
         """Sensei's Divining Top: the permanent goes on top of its owner's library (a token just ceases to exist)."""
         self._leave_together([(permanent, "returned")], destination="library_top")
@@ -6856,6 +6868,9 @@ class Game:
         if zone == "library_third":  # Braided Quipu: "into its owner's library third from the top"
             seat.library.insert(2, card)
             return
+        if zone == "library_second":  # Deem Inferior
+            seat.library.insert(1, card)
+            return
         if zone == SHUFFLED:  # revealed, then shuffled into its owner's library
             self.broadcast({"event": "revealed", "seat": seat.index, "card": card.name})
             seat.library.append(card)
@@ -6934,7 +6949,9 @@ class Game:
                         changed = True
                     if host is not None and (not self.on_battlefield(host)
                                              or self.protected_from(host, source_qualities(permanent.card))
-                                             and not keeps_its_protection_aura(permanent.card)):  # Flickering Ward stays
+                                             and not keeps_its_protection_aura(permanent.card)  # Flickering Ward stays
+                                             and not any(a.attached_to is host and spares_your_attachments(a.card)
+                                                         for a in seat.battlefield)):  # Benevolent Blessing spares its controller's
                         self.detach(permanent)  # CR 704.5n: Equipment stays, unattached
                         host = None
                     if "Aura" in permanent.card.type_line and host is None:

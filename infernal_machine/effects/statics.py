@@ -1146,7 +1146,8 @@ _ATTACHED_LOSES = re.compile(r"(?:Equipped|Enchanted) creature (?:loses all abil
                              r"untap step)?|doesn't untap during its controller's untap step)\.")
 
 
-_ATTACHED_CHOSEN_PROTECTION = re.compile(r"Enchanted creature has protection from the chosen color\. This effect doesn't remove this Aura\.")
+_ATTACHED_CHOSEN_PROTECTION = re.compile(r"Enchanted creature has protection from the chosen color\. This effect doesn't remove (this Aura"
+                                         r"|Auras and Equipment you control that are already attached to it)\.")  # Benevolent Blessing
 
 
 # Darksteel Mutation. Its card types and creature types are not replaced (only the size, indestructible and the lost abilities are).
@@ -1285,6 +1286,13 @@ def is_haste_abilities_line(line: str) -> bool:
 def keeps_its_protection_aura(card: Card) -> bool:
     """Flickering Ward: its protection "doesn't remove this Aura" (CR 704.5m would otherwise)."""
     return any(_ATTACHED_CHOSEN_PROTECTION.fullmatch(line) for line in rules_lines(card))
+
+
+@lru_cache(maxsize=None)
+def spares_your_attachments(card: Card) -> bool:
+    """Benevolent Blessing: its protection "doesn't remove Auras and Equipment you control that are already attached to it" (anything
+    attached later had to target the creature, which the protection already stops)."""
+    return any((m := _ATTACHED_CHOSEN_PROTECTION.fullmatch(line)) is not None and m[1].startswith("Auras") for line in rules_lines(card))
 
 
 _ATTACHED_PER_OWN_COUNTER = re.compile(r"(?:Enchanted|Equipped) creature gets \+X/\+0, where X is the number of ([a-z]+) counters on this "

@@ -326,6 +326,7 @@ from .statics import (  # noqa: F401
     is_rules_static_line,
     is_ward_line,
     keeps_its_protection_aura,
+    spares_your_attachments,
     no_max_hand_size,
     players_have_no_max_hand,
     power_toughness_amount,

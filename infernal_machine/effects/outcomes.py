@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    DoesntUntapNext,
     BecomeLandUntilNextTurn,
     VehicleBecomesCreature,
     _LockedWhileTapped,
@@ -309,6 +310,7 @@ from .families.exile_and_return import (  # noqa: F401
     _PlayTheExiledCard,
 )
 from .families.library_and_hand import (  # noqa: F401
+    OwnerPutsSecondOrBottom,
     TargetScriesThenDraws,
     BASIC_LAND_TYPES,
     GreatestPowerMayDraw,
@@ -1126,8 +1128,8 @@ def _pump_each_x(m: re.Match) -> PumpEachX:
 
 def _create(m: re.Match, follows: bool) -> Any:
     spec = m[1] + '."' if m[2] else m[1]  # a quoted ability's own full stop comes before its closing quote
-    tapped = re.search(r"\btapped (?=[A-Z])", spec) is not None  # "X tapped Treasure tokens"
-    parsed = _token(re.sub(r"\btapped (?=[A-Z])", "", spec, count=1))
+    tapped = re.search(r"\btapped (?=[A-Z0-9])", spec) is not None  # "X tapped Treasure tokens", "a tapped 2/2 ... Robot" (Melded Moxite)
+    parsed = _token(re.sub(r"\btapped (?=[A-Z0-9])", "", spec, count=1))
     if parsed is None:
         return None
     if follows:
@@ -1157,6 +1159,7 @@ def _merge_target_copies(effects: list) -> list | None:
 _AMOUNTS = [
     (re.compile(r"(?:its|this creature's|CARDNAME's) power", re.I), lambda m: Amount("source_power")),
     (re.compile(r"the sacrificed creature's power", re.I), lambda m: Amount("sacrificed_power")),
+    (re.compile(r"the sacrificed (?:permanent|creature|artifact)'s mana value", re.I), lambda m: Amount("sacrificed_value")),  # Reckoner's Bargain
     (re.compile(r"your devotion to (white|blue|black|red|green)", re.I), lambda m: Amount("devotion", _COLOR_LETTER[m[1].lower()])),
     (re.compile(r"the tapped creature's power", re.I), lambda m: Amount("tapped_power")),
     (re.compile(r"the number of basic land types among lands you control", re.I), lambda m: Amount("basic_land_types")),  # Domain
@@ -2307,6 +2310,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"that creature gains haste until end of turn\.", re.I),
      lambda m: PumpSource(Modifier(keywords=frozenset({"haste"})))),
     (re.compile(r"tap (?:it|that creature)\.", re.I), lambda m: TapThat()),
+    (re.compile(rf"the owner of target {_PERMANENT_KIND} puts it into their library second from the top or on the bottom\.", re.I),
+     lambda m: OwnerPutsSecondOrBottom(m[1].lower())),  # Deem Inferior
+    (re.compile(r"(?:it|that creature) doesn't untap during its controller's next untap step\.", re.I),
+     lambda m: DoesntUntapNext()),  # Sleep of the Dead
     (re.compile(rf"put {_N} stun counters? on (?:it|that creature)\.", re.I), lambda m: PutStunCounters(_count(m[1]))),
     (re.compile(rf"put {_N} stun counters? on (?:this creature|{{self}})\.".replace("{self}", "CARDNAME"), re.I),
      lambda m: PutStunOnSource(_count(m[1]))),
@@ -2521,6 +2528,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PoisonShrinksOpponentsCreatures()),
     (re.compile(rf"each (opponent|player) sacrifices (a|an) {_SACRIFICE_KIND} of their choice and gets a poison counter\.", re.I),  # Vraska's Fall
      lambda m: [EachSacrifices(m[1].lower(), m[3].lower(), 1), GivePoison(m[1].lower())]),
+    (re.compile(r"each opponent sacrifices a creature of their choice\. If evidence was collected, instead each opponent sacrifices a "
+                r"creature with the greatest power among creatures they control\.", re.I),
+     lambda m: EachSacrifices("opponent", "creature", 1, greatest_if_evidence=True)),  # Extract a Confession
     (re.compile(rf"each (opponent|player) sacrifices (a|an|one|two|three) {_SACRIFICE_KIND}"
                 r"( with the greatest power among creatures they control)?\.", re.I),
      lambda m: EachSacrifices(m[1].lower(), m[3].lower(), _count(m[2]), bool(m[4])) if m[4] is None or m[3].lower() == "creature" else None),

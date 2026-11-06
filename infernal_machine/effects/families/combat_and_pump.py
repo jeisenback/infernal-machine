@@ -615,6 +615,16 @@ class TapThat:
 
 
 @dataclass(frozen=True)
+class DoesntUntapNext:
+    """Sleep of the Dead: "Tap target creature. It doesn't untap during its controller's next untap step." (Permanent.skips_next_untap)"""
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.skips_next_untap = True
+
+
+@dataclass(frozen=True)
 class BecomeCreature:
     """Crewing a Vehicle: until end of turn it is an artifact creature."""
     binds = SOURCE
