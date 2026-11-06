@@ -1163,6 +1163,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     opponent controls"; Bladewheel Chariot taps "two other untapped artifacts" to become a creature. "When this artifact enters or leaves
     the battlefield" is two triggers (Cryogen Relic), which stuns "up to one target tapped creature". Perilous Snare's Max speed ability
     targets a "creature or Vehicle you control".
+  - Standard's Jeskai Control deck (`tests/test_standard_jeskai_control.py`): "Whenever you activate a loyalty ability" is the event
+    `activate_loyalty` (Ajani Unrelenting), and "deals 4 damage to each creature except for tokens you control" spares only its
+    controller's tokens (`DamageEach.spare_own_tokens`). Chandra, Torch of Defiance's +1 exiles the top card; its controller may cast it,
+    paying its costs, and if they don't she deals 2 damage to each opponent (`Game.exile_top_cast_or_damage`); "this emblem" is a source
+    like "this creature". "Target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal
+    to its mana cost." (Flashback, Snapcaster Mage) records the card for the turn (`Seat.flashback_granted`, read by
+    `Game.graveyard_casts_for`). Ral, Crackling Wit's emblem "Instant and sorcery spells you cast have storm." is the rules static
+    `grant_storm`.
   - Standard's Dimir Midrange deck (`tests/test_standard_dimir_midrange.py`): "It loses all abilities for as long as The Wondrous Wasp
     remains on the battlefield." after a Tap, and Tishana's Tidebinder's "that permanent loses all abilities for as long as this creature
     remains on the battlefield" set `Permanent.loses_abilities_while` (`Game.strip_while`); the board view counts it stripped while

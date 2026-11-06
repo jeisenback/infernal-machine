@@ -24,7 +24,7 @@ _REMINDER = re.compile(r"\s*\([^)]*\)")
 
 
 _SELF = (r"(?:CARDNAME|it|this (?:spell|creature|artifact|enchantment|land|planeswalker|permanent"
-         r"|Aura|Equipment|Class|Vehicle|Saga|Room|token))")
+         r"|Aura|Equipment|Class|Vehicle|Saga|Room|token|emblem))")  # "this emblem": Chandra, Torch of Defiance's
 
 
 Quantity = int | str  # a number, or the "X", "2X", "hX", "hX+" the game fills in when the spell resolves (Game.amount)
@@ -267,7 +267,10 @@ _WHOLE_LINE = re.compile(
     r"|Counter up to one target activated or triggered ability\. If an ability of an artifact, creature, or planeswalker is countered "
     r"this way, that permanent loses all abilities for as long as this creature remains on the battlefield\."
     r"|Counter target spell unless its controller pays (?:\{[^}]+\})+\. Counter that spell unless its controller pays (?:\{[^}]+\})+ "
-    r"instead if this spell was cast using teamwork\.", re.I)
+    r"instead if this spell was cast using teamwork\."
+    r"|Exile the top card of your library\. You may cast that card\. If you don't, CARDNAME deals \d+ damage to each opponent\."
+    r"|Target instant or sorcery card in your graveyard gains flashback until end of turn\. The flashback cost is equal to its mana cost\.",
+    re.I)
 
 
 def _split_sentences(text: str) -> list[str]:

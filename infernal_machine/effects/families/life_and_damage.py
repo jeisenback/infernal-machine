@@ -348,12 +348,15 @@ class DamageEach:
     creatures: str | None  # None, "all", or "opponents" (only creatures you don't control)
     players: str | None  # None, "opponents" or "all"
     restriction: MassFilter | None = None  # "each creature with flying"
+    spare_own_tokens: bool = False  # Ajani Unrelenting: "each creature except for tokens you control"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         amount = game.amount(self.amount)
         if self.creatures:
             kind = "creature" if self.creatures == "all" else "creature you don't control"
             for permanent in game.mass_targets(kind, controller, self.restriction):
+                if self.spare_own_tokens and game.controller_of(permanent) is controller and permanent.card.type_line.startswith("Token"):
+                    continue
                 game.damage(permanent, amount, source=game.resolving_source)
             if self.creatures == "opponents and planeswalkers":  # Volcanic Torrent
                 for permanent in game.mass_targets("planeswalker you don't control", controller, None):

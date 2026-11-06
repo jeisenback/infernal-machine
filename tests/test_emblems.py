@@ -23,12 +23,11 @@ AJANI = walker("Ajani, Adversary of Tyrants", "{2}{W}{W}",
                "−2: Return target creature card with mana value 2 or less from your graveyard to the battlefield.\n"
                "−7: You get an emblem with \"At the beginning of your end step, create three 1/1 white Cat creature tokens with "
                "lifelink.\"", "4", ("W",))
-RAL = walker("Ral, Crackling Wit", "{2}{U}{R}",
-             "Whenever you cast a noncreature spell, put a loyalty counter on Ral.\n"
-             "+1: Create a 1/1 blue and red Otter creature token with prowess.\n"
-             "−3: Draw three cards, then discard two cards.\n"
-             "−10: Draw three cards. You get an emblem with \"Instant and sorcery spells you cast have storm.\" (Whenever you cast an "
-             "instant or sorcery spell, copy it for each spell cast before it this turn.)", "4", ("U", "R"))
+WRENN = walker("Wrenn and Six", "{R}{G}",
+               "+1: Return up to one target land card from your graveyard to your hand.\n"
+               "−1: Wrenn and Six deals 1 damage to any target.\n"
+               "−7: You get an emblem with \"Instant and sorcery cards in your graveyard have retrace.\" (You may cast instant and sorcery "
+               "cards from your graveyard by discarding a land card in addition to paying their other costs.)", "3", ("R", "G"))
 TEFERI = walker("Teferi, Hero of Dominaria", "{3}{W}{U}",
                 "+1: Draw a card. At the beginning of the next end step, untap up to two lands.\n"
                 "−3: Put target nonland permanent into its owner's library third from the top.\n"
@@ -50,7 +49,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(unsupported_lines(AJANI), [])
 
     def test_an_emblem_whose_text_is_not_read_leaves_the_ability_unread(self):
-        self.assertEqual([line[:30] for line in unsupported_lines(RAL)], ["−10: Draw three cards. You get"])
+        self.assertEqual([line[:30] for line in unsupported_lines(WRENN)], ["−7: You get an emblem with \"In"])
 
 
 class StaticEmblemTests(unittest.TestCase):
