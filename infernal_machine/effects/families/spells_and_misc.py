@@ -585,6 +585,7 @@ class TargetChooseDiscard:
     max_mv: int | None
     exile: bool = False
     only: tuple[str, ...] = ()  # Intimidation Tactics: "an artifact or creature card", lowercase
+    until_leaves: bool = False  # Mesmeric Fiend: the exiled card returns to its owner's hand when the source leaves the battlefield
 
     @property
     def binds(self) -> str | None:
@@ -592,7 +593,8 @@ class TargetChooseDiscard:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.reveal_and_discard(controller, target, self.excluded, self.max_mv, self.exile, self.only)
+            game.reveal_and_discard(controller, target, self.excluded, self.max_mv, self.exile, self.only,
+                                    holder=game.resolving_source if self.until_leaves else None)
 
 
 @dataclass(frozen=True)
@@ -732,6 +734,17 @@ class ChooseCardName:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and game.on_battlefield(target):
             target.chosen_name = game._choose_card_name(controller, target.card, self.kind)
+
+
+@dataclass(frozen=True)
+class MillUntilLand:
+    """Balustrade Spy: "target player reveals cards from the top of their library until they reveal a land card, then puts those cards
+    into their graveyard." (the land too)"""
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.mill_until_land(target)
 
 
 @dataclass(frozen=True)

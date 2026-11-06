@@ -460,6 +460,7 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    MillUntilLand,
     EachWithNamedDraws,
     ShuffleFromGraveyard,
     ChooseCardName,
@@ -2494,6 +2495,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"discard {_N} cards?, then draw {_N} cards?\.", re.I),
      lambda m: [Discard(_count(m[1]), "you"), Draw(_count(m[2]))]),
     (re.compile(r"(?:target (player|opponent)|that player) reveals their hand\.", re.I), lambda m: RevealHand(m[1] and m[1].lower())),
+    (re.compile(r"target (player|opponent) reveals their hand and you choose a nonland card from it\.", re.I),
+     lambda m: [RevealHand(m[1].lower()), ChooseFromHand(("land",), None)]),  # Mesmeric Fiend
+    (re.compile(r"target player reveals cards from the top of their library until they reveal a land card, then puts those cards into "
+                r"their graveyard\.", re.I), lambda m: MillUntilLand()),  # Balustrade Spy
     (re.compile(r"you choose an? ((?:non[a-z]+(?:, non[a-z]+)*) )?card(?: with mana value (\d+) or less)? from it"
                 r"(?: with mana value (\d+) or less)?\.", re.I),
      lambda m: ChooseFromHand(tuple(w.strip(",") for w in m[1].lower().replace("non", "").split()) if m[1] else (),
@@ -2775,6 +2780,7 @@ _TIMES_X = [
     (r"\b(draws?) (?:a card|cards)\b", r"\1 X cards"),
     (r"\b(mills?) (?:a card|cards)\b", r"\1 X cards"),
     (r"\b(gains?|loses?) (?:1 )?life\b", r"\1 X life"),
+    (r"\b(deals?) 1 damage\b", r"\1 X damage"),  # Lotleth Giant: "deals 1 damage to target opponent for each creature card in your graveyard"
     (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
     (r"\b(creates?) a number of (.+?) tokens\b", r"\1 X \2 tokens"),
     (r"\b(put) (?:a|one) (\+1/\+1) counter\b", r"\1 X \2 counters"),
