@@ -400,7 +400,7 @@ from .costs import (  # noqa: F401
     madness_cost,
     non_hand_cost_reduction,
     overloaded_effects,
-    reduced_by_greatest_power,
+    reduced_by_greatest,
     reduced_by_total_power,
     replicate_cost,
     self_cost_reduction,

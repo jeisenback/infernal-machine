@@ -903,3 +903,15 @@ class EntersTapped:
     count: int = 0
     life: int = 0
     condition: "Condition | None" = None
+
+
+@dataclass(frozen=True)
+class BecomeLandUntilNextTurn:
+    """Hydro-Man: "Until your next turn, he becomes a land and gains "{T}: Add {U}." (He's not a creature during that time.)"
+    (Game.become_land_until_next_turn)"""
+    color: str
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            game.become_land_until_next_turn(controller, target, self.color)

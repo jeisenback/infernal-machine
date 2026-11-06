@@ -1347,6 +1347,16 @@ class Game:
         self.animate(permanent, value, value, (), (permanent.original or permanent.card).type_line.partition("\u2014")[2].strip(), True, frozenset())
         permanent.animated_until = controller.index
 
+    def become_land_until_next_turn(self, controller: Seat, permanent: Permanent, color: str) -> None:
+        """Hydro-Man: until `controller`'s next turn `permanent` is a land (keeping its supertypes, CR 205.1a; no longer a creature) with
+        its abilities and "{T}: Add {color}."; like Karn's animation it reverts in that player's untap step."""
+        base = permanent.original or permanent.card
+        supertypes = [word for word in base.type_line.partition("\u2014")[0].split() if word in ("Legendary", "Snow")]
+        permanent.original = base
+        permanent.card = dataclasses.replace(base, type_line=" ".join([*supertypes, "Land"]), power=None, toughness=None,
+                                             oracle_text=f"{base.oracle_text}\n{{T}}: Add {{{color}}}.", produced_mana=(color,))
+        permanent.animated_until = controller.index
+
     def wish_artifact(self, seat: Seat, source: str) -> None:
         """Karn, the Great Creator's −2: "You may reveal an artifact card you own from outside the game or choose a face-up artifact
         card you own in exile. Put that card into your hand." Outside the game is the sideboard; a foretold card is face down."""
@@ -3017,6 +3027,8 @@ class Game:
             return seat.speed >= 4
         if kind == "harnessed":  # The Mind Stone's \u221e ability
             return source is not None and source.harnessed
+        if kind == "source_is_creature":  # Hydro-Man: "if Hydro-Man is a creature"
+            return source is not None and "Creature" in source.card.type_line
         if kind == "your_turn":
             return self.active == seat.index
         if kind == "not_your_turn":

@@ -18,7 +18,7 @@ from .effects import (AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demo
                       Scry, TriggeredAbility, NOTHING_MORE, additional_costs, additional_paid_effects, affinity_for, alternative_costs, buyback_cost, buyback_other_cost,
                       chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
-                      mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest_power, reduced_by_total_power,
+                      mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest, reduced_by_total_power,
                       replicate_cost, restricted_mana, rules_statics, sacrifice_discount, self_cost_reduction, collect_evidence_of, teamwork_of, storm_kind, strive_cost, target_kind, triggered_abilities,
                       x_limited_by_players, x_spell_discount)
 from .filters import has_type, parse_filter
@@ -410,8 +410,10 @@ class Caster:
             reduction += conditional[0]
         if reduced_by_total_power(card):
             reduction += sum(self.game.power(p) for p in seat.battlefield if "Creature" in p.card.type_line)
-        if reduced_by_greatest_power(card):  # The Great Henge
-            reduction += max((self.game.power(p) for p in seat.battlefield if "Creature" in p.card.type_line), default=0)
+        if greatest := reduced_by_greatest(card):  # The Great Henge, Sunderflock
+            stat, kind = greatest
+            reduction += max((self.game.power(p) if stat == "power" else int(p.card.cmc) for p in seat.battlefield
+                              if has_type(p.card, kind)), default=0)
         if own := self_cost_reduction(card):  # "This spell costs {1} less to cast for each creature on the battlefield."
             amount, what = own
             counted = (sum(has_type(p.card, "creature") for s in self.game.live_seats() for p in s.battlefield) if what == "creature"

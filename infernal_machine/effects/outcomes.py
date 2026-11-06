@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    BecomeLandUntilNextTurn,
     VehicleBecomesCreature,
     _LockedWhileTapped,
     _LosesAbilitiesWhileSource,
@@ -1541,11 +1542,13 @@ _PLURAL_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments
                  "planeswalkers": "planeswalker", "permanents": "permanent", "nonland permanents": "nonland permanent",
                  "creature tokens": "creature token", "lands": "land", "artifacts or enchantments": "artifact or enchantment",
                  "artifacts and/or creatures": "artifact or creature",
-                 "artifacts and/or enchantments": "artifact or enchantment"}
+                 "artifacts and/or enchantments": "artifact or enchantment",
+                 "creatures and/or enchantments": "creature or enchantment"}
 
 
-_PLURAL_KIND = (r"(creature tokens|nonland permanents|artifacts or enchantments|artifacts and/or enchantments|artifacts and/or creatures|creatures|artifacts|enchantments|planeswalkers"
-                r"|permanents|lands)( an opponent controls| you don't control| you control| your opponents control)?")
+_PLURAL_KIND = (r"(creature tokens|nonland permanents|artifacts or enchantments|artifacts and/or enchantments|artifacts and/or creatures"
+                r"|creatures and/or enchantments|creatures|artifacts|enchantments|planeswalkers"
+                r"|permanents|lands)( an opponent controls| you don't control| you control| your opponents control| you own)?")
 
 
 def _suffix(controller: str | None) -> str:
@@ -1667,7 +1670,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"of mana spent to cast this spell\.", re.I), lambda m: ExileIfConverge(m[1].lower())),  # Prismatic Ending
     (re.compile(r"(?:revolt \u2014 )?destroy that creature if it has mana value (\d+) or less instead if (.+)\.", re.I),  # Fatal Push
      lambda m: _InsteadManaValue(int(m[1]), c) if (c := _condition(m[2])) else None),
-    (re.compile(r"counter target ((?:noncreature|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|instant|sorcery|white|blue|black|red|green) )?spell"
+    (re.compile(r"counter target ((?:noncreature|creature or enchantment|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|instant|sorcery|white|blue|black|red|green) )?spell"
                 rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
     (re.compile(r"counter target spell with mana value X or less, where X is the number of ((?-i:[A-Z][a-z]+))s you control\.", re.I),
@@ -1976,6 +1979,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnToHand(m[2].lower(), "other" in (m[1] or "").lower(), (m[1] or "").lower().startswith("up to one"),
                             distinct="other" in (m[1] or "").lower())),
     (re.compile(rf"return {_UP_TO} target {_PLURAL_KIND} to their owners' hands\.", re.I), lambda m: _up_to(ReturnToHand, m)),
+    (re.compile(rf"return one or two target {_PLURAL_KIND} to (?:their owners' hands|your hand)\.", re.I),  # Get Out
+     lambda m: [ReturnToHand(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2])),
+                ReturnToHand(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2]), optional_target=True, distinct=True)]),
+    (re.compile(r"return all non-((?-i:[A-Z][a-z]+)) creatures to their owners' hands\.", re.I),  # Sunderflock
+     lambda m: ReturnAllToHand(f"non-{m[1]} creature")),
     (re.compile(rf"return (five|six|seven) target {_PLURAL_KIND} to their owners' hands\.", re.I),  # Aether Gale: exactly that many
      lambda m: [ReturnToHand(_PLURAL_KINDS[m[2].lower()] + _suffix(m[3]), distinct=n > 0) for n in range(_number(m[1]))]),
     (re.compile(rf"return all {_CARDS_PLURAL} from your graveyard to (the battlefield|your hand)\.", re.I),
@@ -2675,7 +2683,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:until end of turn, )(?i:{_SELF}) becomes an? ((?-i:[A-Z][a-z]+)) in addition to (?:its|his|her) other types"
                 rf"(?: and gains {_KEYWORDS})?\.", re.I),
      lambda m: BecomesTypeUntilEndOfTurn(m[1], _keyword_list(m[2]) if m[2] else frozenset())),  # Sarkhan, Dragon Ascendant
-    (re.compile(rf"(?i:{_SELF}) {_CHANGE}"), lambda m: PumpSource(_modifier(m, 1))),
+    (re.compile(rf"(?i:{_SELF}|he|she) {_CHANGE}"), lambda m: PumpSource(_modifier(m, 1))),  # Hydro-Man: "he gets +1/+1 ..."
+    (re.compile(r'until your next turn, (?:he|she|it|CARDNAME) becomes a land and gains "\{T\}: Add \{([WUBRGC])\}\."', re.I),
+     lambda m: BecomeLandUntilNextTurn(m[1])),  # Hydro-Man
     (re.compile(rf"(?i:{_SELF}) gets {_PT} until end of turn and can't be blocked this turn\."),  # Nimrodel Watcher
      lambda m: PumpSource(Modifier(_signed(m[1]), _signed(m[2]), frozenset({CANT_BE_BLOCKED})))),
     (re.compile(rf"(?i:{_SELF}) gets? {_PT_X} until end of turn\."),
@@ -3083,7 +3093,8 @@ _CONDITIONS = [
     (re.compile(rf"you control {_N_FIXED} or more ([A-Za-z]+)"),
      lambda m: Condition("control_at_least", _number(m[1]), _singular(m[2]))),
     (re.compile(r"your speed is 4"), lambda m: Condition("max_speed")),  # Max speed
-    (re.compile(r"CARDNAME is harnessed"), lambda m: Condition("harnessed")),  # an Infinity Stone's \u221e ability
+    (re.compile(r"CARDNAME is harnessed"), lambda m: Condition("harnessed")),
+    (re.compile(r"CARDNAME is a creature"), lambda m: Condition("source_is_creature")),  # Hydro-Man: not while he is a land  # an Infinity Stone's \u221e ability
     (re.compile(r"you control no creatures with ([a-z]+)"), lambda m: Condition("control_none_keyword", what=m[1])),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
     (re.compile(r"you don't control an? ([A-Za-z]+) creature token"), lambda m: Condition("control_none_token", what=m[1])),
