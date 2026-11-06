@@ -991,3 +991,4 @@ class OwnerPutsSecondOrBottom:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.put_second_or_bottom(target)
+

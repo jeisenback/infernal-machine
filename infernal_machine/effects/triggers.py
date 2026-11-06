@@ -37,6 +37,7 @@ from .outcomes import (
     ExileTopOfThatPlayerMayCast,
     RevealTopToHandDrain,
     ExileUntilLeaves,
+    TargetChooseDiscard,
     Exploit,
     Hideaway,
     LivingWeapon,
@@ -305,8 +306,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
     return None
 
 
-_RETURN_EXILED = re.compile(rf"When(?:ever)? {_SELF} leaves the battlefield, return the exiled card to the "
-                            r"battlefield under its owner's control\.", re.I)
+_RETURN_EXILED = re.compile(rf"When(?:ever)? {_SELF} leaves the battlefield, return the exiled card to (?:the "
+                            r"battlefield under its owner's control|(its owner's hand))\.", re.I)  # (Mesmeric Fiend: to the hand)
 
 
 _OPENING_HAND = "If this card is in your opening hand, you may begin the game with it on the battlefield."
@@ -394,10 +395,12 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
                 abilities.append(TriggeredAbility("dies", (ReturnWithCounter(counter),), False, line,
                                                   condition=Condition("no_counter", what=counter)))
     if any(is_return_exiled_line(line) for line in rules_lines(card)):
-        # Two-trigger wording: the enters-the-battlefield exile lasts until this permanent leaves.
+        # Two-trigger wording: the enters-the-battlefield exile lasts until this permanent leaves (a card exiled from a hand goes back
+        # to its owner's hand: Mesmeric Fiend).
         abilities = [
-            dataclasses.replace(a, effects=tuple(ExileUntilLeaves(e.target, e.another) if isinstance(e, Exile) else e
-                                                 for e in a.effects))
+            dataclasses.replace(a, effects=tuple(ExileUntilLeaves(e.target, e.another) if isinstance(e, Exile)
+                                                 else dataclasses.replace(e, until_leaves=True) if isinstance(e, TargetChooseDiscard) and e.exile
+                                                 else e for e in a.effects))
             if a.event == "enters" else a
             for a in abilities]
     return tuple(abilities)

@@ -194,14 +194,26 @@ def mana_ability(card: Card, commander_identity: frozenset[str]) -> list[frozens
     return units
 
 
-_COUNTER_MANA = re.compile(r"Remove an? ([a-z]+) counter from (?:CARDNAME|this [a-z]+): Add one mana of any color\. "
-                           r"Activate only once each turn\.")
+_COUNTER_MANA = re.compile(r"(Remove|Put) an? ([a-z]+|[+\-]\d+/[+\-]\d+) counter (?:from|on) (?:CARDNAME|this [a-z]+): Add (one mana of any "
+                           r"color|\{[WUBRGC]\})\. Activate only once each turn\.")
+
+
+@dataclass(frozen=True)
+class OnceCounterMana:
+    """Mana Bloom: "Remove a charge counter from this enchantment: Add one mana of any color. Activate only once each turn." Wall of
+    Roots: "Put a -0/-1 counter on this creature: Add {G}. ..." (no {T}: it is not tapped, and summoning sickness does not matter)."""
+    counter: str
+    put: bool  # the counter is put on it, not removed
+    types: frozenset[str]
 
 
 @lru_cache(maxsize=None)
-def counter_mana(card: Card) -> str | None:
-    """Mana Bloom: the counter its mana ability removes (it makes one mana of any color, once each turn)."""
-    return next((m[1] for line in rules_lines(card) if (m := _COUNTER_MANA.fullmatch(line))), None)
+def counter_mana(card: Card) -> OnceCounterMana | None:
+    """The once-each-turn mana ability whose cost is a counter (Mana Bloom, Wall of Roots)."""
+    for line in rules_lines(card):
+        if m := _COUNTER_MANA.fullmatch(line):
+            return OnceCounterMana(m[2], m[1] == "Put", frozenset("WUBRG") if m[3] == "one mana of any color" else frozenset(m[3][1]))
+    return None
 
 
 _ADD_POWER = re.compile(_TAP + r"X mana of any one color, where X is this creature's power\." + _IF_TAIL)
@@ -222,6 +234,8 @@ def mana_ability_sacrifices(card: Card) -> bool:
 def mana_ability_needs_no_tap(card: Card) -> bool:
     """Eldrazi Spawn: "Sacrifice this token: Add {C}." has no {T} in its cost, so summoning sickness does not stop a creature
     from using it."""
+    if counter_mana(card) is not None:  # Mana Bloom, Wall of Roots: a counter is the whole cost
+        return True
     line = _mana_line(card)
     return bool(line and "{T}" not in line.split(":")[0])
 
@@ -542,7 +556,8 @@ _FILTER = re.compile(r"((?:\{\d+\}|\{[WUBRGC]\}|\{[WUBRG]/[WUBRG]\})+), \{T\}: A
 
 
 # Gaea's Cradle, Cabal Coffers, Elvish Archdruid: "{T}: Add {G} for each creature you control." (maybe with a mana cost)
-_PER_COUNT = re.compile(r"(?:((?:\{\d+\}|\{[WUBRGC]\})+), )?\{T\}: Add \{([WUBRGC])\} for each ([A-Za-z]+) you control\." + _IF_TAIL)
+_PER_COUNT = re.compile(r"(?:((?:\{\d+\}|\{[WUBRGC]\})+), )?\{T\}: Add \{([WUBRGC])\} for each ([A-Za-z]+) you control( with [a-z]+)?\."
+                        + _IF_TAIL)  # Overgrown Battlement: "... for each creature you control with defender."
 
 
 @lru_cache(maxsize=None)
@@ -551,7 +566,7 @@ def mana_per_count(card: Card) -> tuple[str, str, str] | None:
     control" ability."""
     for line in rules_lines(card):
         if m := _PER_COUNT.fullmatch(_THRESHOLD.sub(r"\2", line)):
-            return m[1] or "", m[2], m[3]
+            return m[1] or "", m[2], m[3] + (m[4] or "")
     return None
 
 

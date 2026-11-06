@@ -1171,6 +1171,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     to its mana cost." (Flashback, Snapcaster Mage) records the card for the turn (`Seat.flashback_granted`, read by
     `Game.graveyard_casts_for`). Ral, Crackling Wit's emblem "Instant and sorcery spells you cast have storm." is the rules static
     `grant_storm`.
+  - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
+    a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
+    until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);
+    "{T}: Add {G} for each creature you control with defender" (Overgrown Battlement); "Put a -0/-1 counter on this creature: Add {G}.
+    Activate only once each turn." (`OnceCounterMana.put`, Wall of Roots: no {T}, so summoning sickness does not matter). Every counter
+    named like "+N/+N" or "-0/-1" changes power and toughness now, not only +1/+1 and -1/-1 (CR 122.1a). "deals 1 damage ... for each
+    creature card in your graveyard" (Lotleth Giant).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

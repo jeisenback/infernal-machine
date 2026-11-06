@@ -142,7 +142,7 @@ class ManaPayer:
             if (per := mana_per_count(card)) is not None:  # Gaea's Cradle: as much as you control
                 if not per[0] and not self.game.summoning_sick(seat, permanent):
                     lands.extend(own(permanent, [ManaSource(permanent, frozenset(per[1]))
-                                                 for _ in range(sum(has_type(p.card, per[2]) for p in seat.battlefield))]))
+                                                 for _ in range(self._count_per(seat, per[2]))]))
                 if not per[0] or mana_ability(card, seat.color_identity) is None:
                     continue  # (Cabal Coffers has only the ability that costs mana; Evendo's plain {T}: Add {G} is read below)
             if is_land(card):
@@ -231,9 +231,9 @@ class ManaPayer:
                     if permanent.counters.get("charge", 0) and self._restriction_ok(charge[1]):
                         bucket.extend(ManaSource(permanent, charge[0], restriction=charge[1])
                                       for _ in range(permanent.counters["charge"]))
-                if (kind := counter_mana(card)) is not None:  # Mana Bloom: a counter for one mana, once each turn
-                    if permanent.counters.get(kind, 0) and permanent.activated_turn.get("counter mana") != self.game.turn:
-                        bucket.append(ManaSource(permanent, frozenset("WUBRG")))
+                if (once := counter_mana(card)) is not None:  # Mana Bloom, Wall of Roots: a counter for one mana, once each turn
+                    if (once.put or permanent.counters.get(once.counter, 0)) and permanent.activated_turn.get("counter mana") != self.game.turn:
+                        bucket.append(ManaSource(permanent, once.types))
                     continue
                 if reflect := reflected_mana(card):  # Fellwar Stone: what the opponents' lands could produce
                     types = self._reflected_types(seat, *reflect)
@@ -443,6 +443,12 @@ class ManaPayer:
         payment.counters = tuple(tuple(entry) for entry in losing.values())
         return payment
 
+    def _count_per(self, seat: Seat, what: str) -> int:
+        """How many permanents `seat` controls for a "for each X you control" mana ability: "creature", "Elf", or "creature with
+        defender" (Overgrown Battlement)."""
+        kind, _, keyword = what.partition(" with ")
+        return sum(has_type(p.card, kind) and (not keyword or self.game.has_keyword(p, keyword)) for p in seat.battlefield)
+
     def _filter_sources(self, seat: Seat, exclude: Permanent | None) -> list[tuple[Permanent, Cost, list]]:
         found = []
         for permanent in seat.battlefield:
@@ -459,7 +465,7 @@ class ManaPayer:
                     found.append((permanent, parse_cost(by[0]), units))
             elif (per := mana_per_count(permanent.card)) is not None and per[0] \
                     and permanent.counters.get("charge", 0) >= mana_threshold(permanent.card):  # Cabal Coffers, Evendo
-                units = [frozenset(per[1])] * sum(has_type(p.card, per[2]) for p in seat.battlefield)
+                units = [frozenset(per[1])] * self._count_per(seat, per[2])
                 if units:
                     found.append((permanent, parse_cost(per[0]), units))
         return found
@@ -468,8 +474,11 @@ class ManaPayer:
         """Tap the chosen mana sources; ones whose mana ability sacrifices them (Treasure) are sacrificed,
         and painlands and Talismans that made painful mana damage the payer."""
         for source in sources:
-            if (kind := counter_mana(source.card)) is not None:  # no {T} in the cost: it isn't tapped
-                self.game.remove_counters(source, kind, 1)
+            if (once := counter_mana(source.card)) is not None:  # no {T} in the cost: it isn't tapped
+                if once.put:  # Wall of Roots: CR 118.3, putting a counter on is always payable
+                    self.game.put_counters(source, once.counter, 1)
+                else:
+                    self.game.remove_counters(source, once.counter, 1)
                 source.activated_turn["counter mana"] = self.game.turn
                 continue
             self.game.tap(source)

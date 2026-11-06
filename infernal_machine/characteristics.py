@@ -5,7 +5,9 @@ effects like Giant Growth). The game collects the modifiers; see Game.modifiers.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import TYPE_CHECKING, Iterable
 
 if TYPE_CHECKING:
@@ -39,8 +41,15 @@ def _number(value: str | None) -> int | None:
     return int(value) if value and value.lstrip("-").isdigit() else None
 
 
-def _counter_bonus(permanent: Permanent) -> int:
-    return permanent.counters.get(PLUS, 0) - permanent.counters.get(MINUS, 0)
+@lru_cache(maxsize=None)
+def _counter_pt(name: str) -> tuple[int, int] | None:
+    """What a counter named like "+1/+1", "-1/-1" or "-0/-1" (Wall of Roots) adds to power and toughness (CR 122.1a)."""
+    m = re.fullmatch(r"([+\-])(\d+)/([+\-])(\d+)", name)
+    return (int(m[1] + m[2]), int(m[3] + m[4])) if m else None
+
+
+def _counter_bonus(permanent: Permanent, index: int) -> int:
+    return sum(pt[index] * n for name, n in permanent.counters.items() if (pt := _counter_pt(name)))
 
 
 def _base(printed: str | None, modifiers: list[Modifier], index: int) -> int | None:
@@ -54,7 +63,7 @@ def _base(printed: str | None, modifiers: list[Modifier], index: int) -> int | N
 def power(permanent: Permanent, modifiers: Iterable[Modifier] = ()) -> int:
     """Current power; printed "*" counts as 0. Can be negative (it then deals no damage)."""
     modifiers = list(modifiers)
-    return (_base(permanent.card.power, modifiers, 0) or 0) + _counter_bonus(permanent) + sum(m.power for m in modifiers)
+    return (_base(permanent.card.power, modifiers, 0) or 0) + _counter_bonus(permanent, 0) + sum(m.power for m in modifiers)
 
 
 def toughness(permanent: Permanent, modifiers: Iterable[Modifier] = ()) -> int | None:
@@ -63,4 +72,4 @@ def toughness(permanent: Permanent, modifiers: Iterable[Modifier] = ()) -> int |
         return None
     modifiers = list(modifiers)
     base = _base(permanent.card.toughness, modifiers, 1)
-    return None if base is None else base + _counter_bonus(permanent) + sum(m.toughness for m in modifiers)
+    return None if base is None else base + _counter_bonus(permanent, 1) + sum(m.toughness for m in modifiers)

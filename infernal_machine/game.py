@@ -315,6 +315,7 @@ class Permanent:
     owner: "Seat | None" = None  # whose card it is; None means its controller (the usual case)
     attached_to: "Permanent | None" = None  # the permanent this Equipment or Aura is attached to
     paired: "Permanent | None" = None  # Soulbond: the creature it is paired with (each points at the other)
+    held_from_hand: list = field(default_factory=list)  # (owner seat, card) exiled from a hand until this leaves (Mesmeric Fiend)
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     exiled_with: list = field(default_factory=list)  # (owner seat, card) this permanent's abilities exiled for good
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
@@ -6234,7 +6235,7 @@ class Game:
             self._move_card(seat, card, "graveyard")
 
     def reveal_and_discard(self, chooser: Seat, victim: Seat, excluded: tuple[str, ...], max_mv: int | None, exile: bool = False,
-                           only: tuple[str, ...] = ()) -> None:
+                           only: tuple[str, ...] = (), holder: Permanent | None = None) -> None:
         """Thoughtseize: `victim` reveals their hand and `chooser` picks a card from it that isn't one of the
         `excluded` types (is one of the `only` types, if any) and costs at most `max_mv`; the victim discards it, or it is exiled
         (Thought-Knot Seer)."""
@@ -6249,6 +6250,8 @@ class Game:
         if exile:
             self.broadcast({"event": "exiled_from_hand", "seat": victim.index, "card": card.name})
             self._move_card(victim, card, "exile")
+            if holder is not None and self.on_battlefield(holder):  # Mesmeric Fiend: until it leaves, then back to the hand
+                holder.held_from_hand.append((victim, card))
             return
         self.broadcast({"event": "discard", "seat": victim.index, "card": card.name})
         self._discard_into_zone(victim, card)
@@ -6259,6 +6262,12 @@ class Game:
         won = self.rng.random() < 0.5
         self.broadcast({"event": "coin_flip", "seat": seat.index, "won": won})
         return won
+
+    def mill_until_land(self, seat: Seat) -> None:
+        """Balustrade Spy: `seat` reveals cards from the top of its library until a land card, then puts them all into its graveyard."""
+        count = next((i + 1 for i, card in enumerate(seat.library) if is_land(card)), len(seat.library))
+        self.broadcast({"event": "revealed", "seat": seat.index, "cards": [c.name for c in seat.library[:count]]})
+        self.mill(seat, count)
 
     def mill(self, seat: Seat, count: int) -> list[Card]:
         """Put the top `count` cards of the library into the graveyard (fewer if there aren't that many); the cards milled."""
@@ -6767,6 +6776,11 @@ class Game:
             held, permanent.linked_exile = permanent.linked_exile, []
             for seat, card in held:
                 self._return_from_exile(seat, card)
+            from_hand, permanent.held_from_hand = permanent.held_from_hand, []
+            for seat, card in from_hand:  # Mesmeric Fiend: to its owner's hand
+                if any(c is card for c in seat.exile):
+                    seat.exile = [c for c in seat.exile if c is not card]
+                    self._move_card(seat, card, "hand")
 
     def _dies_exiled(self, creature: Permanent, controller: Seat) -> bool:
         """Whether a creature that would die is exiled instead: marked by a spell this turn, a replacement effect on itself ("If this
