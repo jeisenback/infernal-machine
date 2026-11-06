@@ -1171,6 +1171,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     to its mana cost." (Flashback, Snapcaster Mage) records the card for the turn (`Seat.flashback_granted`, read by
     `Game.graveyard_casts_for`). Ral, Crackling Wit's emblem "Instant and sorcery spells you cast have storm." is the rules static
     `grant_storm`.
+  - Standard's Azorius Control deck (`tests/test_standard_azorius_control.py`): "Power-up — {cost}: ..." is an activated ability that can
+    be activated only once and costs its source's mana cost less if that entered this turn (`ActivatedAbility.power_up`; `Cost.minus`
+    takes each colored symbol from the same color, else from the generic part, CR 601.2f). "Put a +1/+1 counter and an indestructible
+    counter on Captain Marvel." Petrified Hamlet: "When this land enters, choose a land card name." (`ChooseCardName`), and "Lands with
+    the chosen name have "{T}: Add {C}."" (the rules static `name_mana_c`).
   - Standard's Jeskai Artifacts deck, part two (`tests/test_standard_jeskai_artifacts.py`): "exile all artifacts and creatures with mana
     value 2 or less until this artifact leaves the battlefield" (`ExileAll.until_leaves`, Pinnacle Starcage), whose other ability puts
     what it holds into its owners' graveyards for good and makes a Robot for each (`PutLinkedExileIntoGraveyards`); "Sacrifice this

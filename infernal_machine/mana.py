@@ -29,6 +29,17 @@ class Cost:
         """Cost reductions only lower the generic part (CR 601.2f)."""
         return replace(self, generic=max(0, self.generic - amount))
 
+    def minus(self, other: "Cost") -> "Cost":
+        """Reduced by a mana cost (Power-up: "Reduce the cost by her mana cost"): each colored symbol of `other` removes one the
+        same from this cost, or one generic mana if there is none (CR 601.2f); its generic part lowers the generic part."""
+        colored, spare = list(self.colored), other.generic
+        for symbol in other.colored:
+            if symbol in colored:
+                colored.remove(symbol)
+            else:
+                spare += 1
+        return replace(self, colored=tuple(colored), generic=max(0, self.generic - spare))
+
     def with_x(self, value: int) -> "Cost":
         """The cost to pay once X is chosen."""
         return replace(self, generic=self.generic + self.x * value, x=0)
