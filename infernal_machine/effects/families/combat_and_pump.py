@@ -207,6 +207,23 @@ class BecomesTypeUntilEndOfTurn:
                 game.modify_until_end_of_turn(target, Modifier(keywords=self.keywords))
 
 
+KEYWORD_CHOICE_PROMPT = PromptKind("keyword_choice", "Choose what it gains for ")  # followed by the source's name; options are the keywords
+
+
+@dataclass(frozen=True)
+class GainChosenKeyword:
+    """Practiced Offense: "Target creature gains your choice of double strike or lifelink until end of turn." """
+    keywords: tuple[str, ...]
+    target: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        name = game.resolving_item.card.name if game.resolving_item is not None else ""
+        keyword = self.keywords[controller.player.choose(KEYWORD_CHOICE_PROMPT(name), list(self.keywords))]
+        game.modify_until_end_of_turn(target, Modifier(keywords=frozenset({keyword})))
+
+
 @dataclass(frozen=True)
 class PumpSourceX:
     """ "This creature gets +X/+0 until end of turn." (X from "where X is ..."): multiples of X, like PumpX."""

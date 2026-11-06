@@ -198,7 +198,7 @@ class Caster:
                 cast_effects = list(ability.effects)
                 chosen = self._choose_targets(seat, cast_effects, card.name, colors=source_qualities(card))
                 if chosen is not None:  # (with no legal target the ability is removed, as any trigger is)
-                    self.game.stack.append(g.StackItem(card, seat, cast_effects, chosen[0], ability, x=x))
+                    self.game.stack.append(g.StackItem(card, seat, cast_effects, chosen[0], ability, x=x, carried=item))  # "copy this spell"
         for source in tapped or ():  # Study Hall, Path of Ancestry: "When that mana is spent to cast ..., scry"
             if self.game._mana_spent_matches(seat, source, card, from_command_zone, tapped):
                 trigger = g._checked(mana_spent_trigger(source.card))

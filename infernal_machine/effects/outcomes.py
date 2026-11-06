@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    GainChosenKeyword,
     BecomesTypeUntilEndOfTurn,
     KindsGainUntilEndOfTurn,
     SubjectDamagesTargetByPower,
@@ -189,6 +190,7 @@ from .families.counters import (  # noqa: F401
     PutStunOnSource,
     RemoveAllCountersDraw,
     RemoveCounters,
+    RemoveCounterFromSourceThen,
     RemoveCountersFromSource,
     SHIFT_COUNTERS_PROMPT,
     SHIFT_ONTO_PROMPT,
@@ -283,6 +285,7 @@ from .families.exile_and_return import (  # noqa: F401
     ReturnToHand,
     ReturnAnyNumber,
     _DrawIfYouControlledIt,
+    _CounterIfReturned,
     MayCastFromGraveyard,
     _ExileCastThisWay,
     _DrawPerReturned,
@@ -1482,7 +1485,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|creature, enchantment, or planeswalker|non-outlaw creature"  # Get Lost; Shoot the Sheriff
                    r"|monocolored permanent|(?:white|blue|black|red|green) permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact|legendary) creature|noncreature artifact or noncreature enchantment"
-                   r"|noncreature, nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
+                   r"|noncreature, nonland permanent|non-(?-i:[A-Z][a-z]+), nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
                    r"|artifact, creature, or enchantment|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker|creature or enchantment|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?:, (?-i:[A-Z][a-z]+))*,? or (?-i:[A-Z][a-z]+)(?= you control)"
@@ -1691,6 +1694,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"battlefield\.", re.I), lambda m: ReturnUpToTotalManaValue(_number(m[1]), m[2].lower(), int(m[3]))),  # Lively Dirge
     (re.compile(r"if this spell was cast from a graveyard, exile it, then put it onto the battlefield transformed under its owner's "
                 r"control with a finality counter on it\.", re.I), lambda m: TransformIfCastFromGraveyard()),  # Esper Origins
+    (re.compile(r"copy this spell\.", re.I), lambda m: CopySpellTimes(1)),  # Sage of the Skies: a "When you cast this spell" trigger
     (re.compile(r"reveal the top card of your library\. If it's an? (permanent|creature|land|nonland) card, put it into your hand\.", re.I),
      lambda m: RevealTopToHand(only=m[1].lower())),  # Summon: Esper Maduin
     (re.compile(r"search your library for a card, put (?:that card|it) into your graveyard, then shuffle\.", re.I),  # "it": Lively Dirge
@@ -1849,6 +1853,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnAnyNumber(f"{m[1]} you control")),  # Paradoxical Outcome
     (re.compile(r"draw a card for each card returned to your hand this way\.", re.I), lambda m: _DrawPerReturned()),
     (re.compile(r"if you controlled that permanent, draw a card\.", re.I), lambda m: _DrawIfYouControlledIt()),  # Boomerang Basics
+    (re.compile(rf"if a permanent was returned this way, put an? {_COUNTER} on {_SELF}\.", re.I),
+     lambda m: _CounterIfReturned(_counter_name(m[1]))),  # Nurturing Pixie
     (re.compile(r"(?:you may )?cast an? ((?:artifact|creature|enchantment|instant|sorcery)(?:,? (?:or )?(?:artifact|creature|enchantment|instant|"
                 r"sorcery))*) spell from your graveyard\.", re.I),  # Bilbo, Thief in the Night
      lambda m: MayCastFromGraveyard(tuple(k.capitalize() for k in re.split(r",? (?:or )?", m[1].lower())))),
@@ -2492,6 +2498,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: DistributeCounters(_count(m[1]), _counter_name(m[2]), "creature" + (" you control" if m[5] else ""), another=m[4] is not None)),
     (re.compile(rf"put {_N} {_COUNTER} on another target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower(), another=True)),
+    (re.compile(rf"(?:you may )?remove an? {_COUNTER} from {_SELF}\. If you do, (put .+ on each other creature you control\.)", re.I),
+     lambda m: RemoveCounterFromSourceThen(_counter_name(m[1]), e) if (e := _template(m[2])) is not None else None),  # Guiding Hydra
+    (re.compile(rf"put {_N} {_COUNTER} on each other creature you control\.", re.I),  # Guiding Hydra
+     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), other=True)),
+    (re.compile(rf"put {_N} {_COUNTER} on each creature target player controls\.", re.I),  # Practiced Offense
+     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), target="player")),
+    (re.compile(rf"target (creature(?: you control)?) gains your choice of ([a-z ]+?) or ([a-z ]+?) until end of turn\.", re.I),
+     lambda m: GainChosenKeyword((m[2].lower(), m[3].lower()), m[1].lower())),  # Practiced Offense
     (re.compile(rf"put {_N} {_COUNTER} on each (creature|(?-i:[A-Z][a-z]+)(?: creature)?|artifact creature) you control\.", re.I),
      lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), "" if m[3].lower() == "creature" else m[3].removesuffix(" creature").capitalize())),
     (re.compile(rf"put a {_COUNTER} on each (?:(white|blue|black|red|green) )?creature that entered this turn\.", re.I),
@@ -2995,6 +3009,7 @@ _CONDITIONS = [
     (re.compile(rf"that creature has power {_N_FIXED} or greater"), lambda m: Condition("target_power_at_least", _number(m[1]))),
     (re.compile(r"you've cast an? (instant or sorcery spell|creature spell|noncreature spell|spell) this turn"),
      lambda m: Condition("cast_this_turn", what=m[1])),
+    (re.compile(r"you've cast another spell this turn"), lambda m: Condition("cast_this_turn", 2, "spell")),  # Sage of the Skies: it and one more
     (re.compile(rf"you've cast {_N_FIXED} or more (instant and sorcery spells|spells) this turn"),  # Arclight Phoenix
      lambda m: Condition("cast_this_turn", _number(m[1]), m[2].replace(" spells", " spell").replace("spells", "spell"))),
     (re.compile(rf"you control {_N_FIXED} or more (white|blue|black|red|green) permanents"),
@@ -3163,6 +3178,7 @@ _CONDITIONAL = Follows(
     Follow(_Otherwise, IfElse, set_fields(otherwise=lambda m: m.effects)),
     Follow(_IfFlip, FlipCoin, lambda previous, marker: FlipCoin(marker.effect, marker.on_win), fits=lambda previous, marker: previous.then is None),
     Follow(_DrawIfYouControlledIt, ReturnToHand, set_fields(draw_if_yours=lambda m: True)),
+    Follow(_CounterIfReturned, ReturnToHand, set_fields(counter_on_source=lambda m: m.counter)),
     Follow(_ExileCastThisWay, MayCastFromGraveyard, set_fields(exile_after=lambda m: True)),
     Follow(_InsteadDamage, Damage, set_fields(instead=lambda m: m.amount, instead_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.instead_if is None),
