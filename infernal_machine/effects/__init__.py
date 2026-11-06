@@ -348,6 +348,7 @@ from .statics import (  # noqa: F401
 )
 from .costs import (  # noqa: F401
     AdditionalCost,
+    FREE_WAY,
     AlternativeCost,
     GraveyardCast,
     NOTHING_MORE,

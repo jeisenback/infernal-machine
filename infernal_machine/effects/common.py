@@ -213,6 +213,13 @@ _WHOLE_LINE = re.compile(
     r"without paying its mana cost if that spell's mana value is \d+ or less\. Put the exiled card into your hand if it wasn't cast "
     r"this way\."  # Beseech the Mirror
     r"|Choose an exiled card an opponent owns with a void counter on it\. You may play it this turn without paying its mana cost\."
+    r"|That player exiles the top \w+ cards of their library\. Until end of turn, you may play those cards without paying their mana "
+    r"costs\."  # Fallen Shinobi
+    r"|Draw a card, then discard a card\. If there are \w+ or more \w+ counters on CARDNAME, you may cast the discarded card without "
+    r"paying its mana cost\."  # Malcolm, Alluring Scoundrel
+    r"|Its controller may pay \w+ life\. If they do, they draw a card\."  # Gix, Yawgmoth Praetor
+    r"|Exile the top X cards of target opponent's library\. You may play lands and cast spells from among cards exiled this way without "
+    r"paying their mana costs\."  # Gix, Yawgmoth Praetor
     r"|Return up to one target artifact, creature, or non-Aura enchantment card with mana value (\d+) or less from your graveyard to "
     r"the battlefield with a finality counter on it\. It's a 1/1 Spirit creature with flying in addition to its other types\."
     r"|Choose target card exiled with (?:CARDNAME|this \w+)\. You may cast that card this turn without paying its mana cost\. If "

@@ -417,12 +417,28 @@ class ReturnSelfAsEnchantment:
 
 @dataclass(frozen=True)
 class ExileTopOfThatPlayerMayCast:
-    """Ragavan: "... exile the top card of that player's library. Until end of turn, you may cast that card." (the player dealt damage)"""
+    """Ragavan: "... exile the top card of that player's library. Until end of turn, you may cast that card." (the player dealt damage)
+    Fallen Shinobi: "that player exiles the top two cards of their library. Until end of turn, you may play those cards without paying their
+    mana costs." (`count`, `free`)"""
+    count: int = 1
+    free: bool = False
     binds = PLAYER
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.exile_top_of_other(controller, target)
+            game.exile_top_of_other(controller, target, self.count, self.free)
+
+
+@dataclass(frozen=True)
+class ExileTopOfTargetPlayFree:
+    """Gix, Yawgmoth Praetor: "Exile the top X cards of target opponent's library. You may play lands and cast spells from among cards
+    exiled this way without paying their mana costs." (as the ability resolves)"""
+    count: Quantity
+    target: str = "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_top_play_free(controller, target, game.amount(self.count))
 
 
 @dataclass(frozen=True)

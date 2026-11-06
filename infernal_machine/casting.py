@@ -14,7 +14,7 @@ from typing import Callable
 from .analysis import is_land
 from .cards import Card, has_keyword
 from .characteristics import source_qualities
-from .effects import (AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
+from .effects import (FREE_WAY, AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
                       Scry, TriggeredAbility, NOTHING_MORE, additional_costs, additional_paid_effects, affinity_for, alternative_costs, buyback_cost, buyback_other_cost, splice_cost,
                       chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
@@ -26,6 +26,9 @@ from .mana import Cost, cost_of, parse_cost
 from .payment import Payment
 
 from . import game as g
+
+FREE_FROM_HAND = AlternativeCost(FREE_WAY)  # Omniscience
+FREE_ONCE = AlternativeCost(FREE_WAY + " (once this turn)", once_a_turn=True)  # One with the Multiverse
 
 
 class Caster:
@@ -50,6 +53,8 @@ class Caster:
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
             alternative = ways[seat.player.choose(g.COST_PROMPT(card.name), options)]
+        if alternative and alternative.once_a_turn:
+            seat.free_once_turn = self.game.turn  # One with the Multiverse's permission is used up for the turn
         if alternative and alternative.bestow:  # an Aura spell that must target a creature
             effects = [AttachAura("creature")]
         if alternative and alternative.overload:  # every "target" is "each": no targets
@@ -264,7 +269,7 @@ class Caster:
             payable = (self._harmonize_options(seat, paying) if graveyard.harmonize
                        else [None] if self._payment(seat, paying) is not None else [])
             return [None] if others >= graveyard.exile and graveyard.life <= seat.life and payable else []
-        return [way for way in [None, *alternative_costs(card)]
+        return [way for way in [None, *alternative_costs(card), *self._free_ways(seat, card, from_hand and not from_command_zone)]
                 if not (way and way.warp and not from_hand)  # warp is a way to cast from the hand only
                 and self._can_pay_extras(seat, card, way, afford=lambda extra, way=way: self._payment(
                     seat, card, from_command_zone, alternative=way, extra=extra,
@@ -272,6 +277,16 @@ class Caster:
                 and not (way is None and sacrifice_discount(card)
                          and not self._sacrifice_discounts(seat, card, from_command_zone, delve=self.game._delve_max(seat, card)))
                 and not (way and way.bestow and not self.game.target_options("creature", seat, source_qualities(card)))]
+
+    def _free_ways(self, seat: g.Seat, card: Card, from_hand: bool) -> list[AlternativeCost]:
+        """Omniscience: a spell from its caster's hand may be cast without paying its mana cost; One with the Multiverse: one from the
+        hand or the top of the library, once during each of its caster's turns (CR 118.9)."""
+        keys = [key for owner, _, key in self.game._static_rules() if owner is seat and key in ("free_from_hand", "free_once")]
+        ways = [FREE_FROM_HAND] if from_hand and "free_from_hand" in keys else []
+        if "free_once" in keys and self.game.active == seat.index and seat.free_once_turn != self.game.turn \
+                and (from_hand or (seat.library and seat.library[0] is card)):
+            ways.append(FREE_ONCE)
+        return ways
 
     def _collect_evidence(self, seat: g.Seat, card: Card) -> bool:
         """"You may collect evidence N": exile cards with total mana value N or more from your graveyard. Whether its caster did."""

@@ -575,6 +575,8 @@ class Seat:
     spent_amount: int = 0  # the mana this player spent casting spells that turn ("Whenever you expend 4")
     surge: tuple[int, Card] | None = None  # Surge to Victory: (the turn, the exiled card its creatures copy on combat damage)
     paragon_turn: int | None = None  # the last turn Serra Paragon's once-a-turn permission was used
+    free_once_turn: int | None = None  # the last turn One with the Multiverse's free cast was used
+    exile_free: list[Card] = field(default_factory=list)  # cards in `exile_play` that are played without paying (Fallen Shinobi)
     paragon_marked: list = field(default_factory=list)  # cards played with it, which are exiled if they go back (+ life)
     modified_died_turn: int | None = None  # the last turn a modified creature died under this player's control
     citys_blessing: bool = False  # Ascend: ten permanents, for the rest of the game
@@ -1443,7 +1445,8 @@ class Game:
         self.broadcast({"event": "counters", "card": destination.card.name, "counter": counter,
                         "added": moved, "total": destination.counters[counter]})
 
-    def _pay_card_costs(self, seat: Seat, source: Permanent | None, ability: ActivatedAbility, sacrifice_x: int = 0, name: str = "") -> None:
+    def _pay_card_costs(self, seat: Seat, source: Permanent | None, ability: ActivatedAbility, sacrifice_x: int = 0, name: str = "",
+                        discard_x: int = 0) -> None:
         """Pay an activated ability's "Sacrifice a creature", "Discard a card" and "Exile a card from your
         graveyard" costs (CR 602.2b). `source` is None, and `name` the card's, when the ability works from a zone."""
         name = source.card.name if source is not None else name
@@ -1480,7 +1483,7 @@ class Game:
                 seat.hand.remove(card)
                 self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
                 self._discard_into_zone(seat, card)
-        for _ in range(ability.discard):
+        for _ in range(discard_x if ability.discard_x else ability.discard):
             card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT(name), [c.name for c in seat.hand])]
             seat.hand.remove(card)
             self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
@@ -1682,10 +1685,10 @@ class Game:
         return parse_filter(term).matches(card)
 
     def _can_cast(self, seat: Seat, card: Card, from_command_zone: bool = False,
-                  graveyard: GraveyardCast | None = None, from_hand: bool = True) -> bool:
+                  graveyard: GraveyardCast | None = None, from_hand: bool = True, free: bool = False) -> bool:
         if self._cast_barred(seat, card):
             return False
-        if not self._cast_ways(seat, card, from_command_zone, graveyard, from_hand):
+        if not free and not self._cast_ways(seat, card, from_command_zone, graveyard, from_hand):  # `free`: no cost to afford
             return False
         effects, colors = kicked_effects(_effects(card), 0) or [], source_qualities(card)
         if not self._effects_possible(seat, effects, colors):
@@ -2284,6 +2287,9 @@ class Game:
         if ability.sacrifice_x:  # "Sacrifice X Squirrels": X is as many as the player chooses to sacrifice
             most = min(len(self._sacrifice_choices(seat, permanent, ability)), MAX_X)
             sacrificed = x = seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in range(most + 1)])
+        discarded = 0
+        if ability.discard_x:  # "Discard X cards": X is as many as the player chooses to discard
+            discarded = x = seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in range(min(len(seat.hand), MAX_X) + 1)])
         target = targets[0] if ability.equip and targets and isinstance(targets[0], Permanent) else None
         tapped = _checked(self._ability_payment(seat, permanent, ability, x, target))
         self._spend_mana(seat, tapped)
@@ -2293,7 +2299,7 @@ class Game:
             self.tap(permanent)
         if life := self._life_cost(seat, ability):
             self.change_life(seat, -life)
-        self._pay_card_costs(seat, permanent, ability, sacrificed)
+        self._pay_card_costs(seat, permanent, ability, sacrificed, discard_x=discarded)
         if ability.loyalty is not None:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn
@@ -3673,6 +3679,7 @@ class Game:
                     and (toxic := toxic_of(source.card)):
                 self.give_poison(target, toxic, by=controller)  # Toxic N: that many poison counters in addition to the damage
             if combat and controller and source is not None:  # (a controller means there is a source)
+                self.happened("combat_damaged", target, subject=source)  # "Whenever a creature deals combat damage to one of your opponents"
                 self.trigger("combat_damage_to_player", source, controller, player=target, x=amount)
                 self.trigger("combat_damage_to_player_or_walker", source, controller, player=target, x=amount)
                 if target is self.monarch and controller is not target:  # CR 725.2
@@ -5390,15 +5397,17 @@ class Game:
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
         self._searched(seat)
 
-    def exile_top_of_other(self, seat: Seat, victim: Seat) -> None:
-        """Ragavan: exile the top card of `victim`'s library; `seat` may cast it until the turn ends."""
-        if not victim.library:
-            return
-        card = victim.library.pop(0)
-        seat.exile.append(card)
-        seat.borrowed.append((card, victim))
-        seat.exile_play.append((card, self.turn))
-        self.broadcast({"event": "exiled_from_library", "seat": victim.index, "cards": [card.name], "may_play": True})
+    def exile_top_of_other(self, seat: Seat, victim: Seat, count: int = 1, free: bool = False) -> None:
+        """Ragavan: exile the top card of `victim`'s library; `seat` may cast it until the turn ends. Fallen Shinobi: the top `count`,
+        played without paying their mana costs (`free`)."""
+        for card in victim.library[:count]:
+            victim.library.remove(card)
+            seat.exile.append(card)
+            seat.borrowed.append((card, victim))
+            seat.exile_play.append((card, self.turn))
+            if free:
+                seat.exile_free.append(card)
+            self.broadcast({"event": "exiled_from_library", "seat": victim.index, "cards": [card.name], "may_play": True})
 
     def exile_top_of_each_cast_free(self, seat: Seat) -> None:
         """Etali, Primal Storm: exile the top card of each library; `seat` may cast any number of the spells among them free."""
@@ -6876,6 +6885,11 @@ class Game:
             return
         owner, card = options[pick]
         self.void_exiled = [c for c in self.void_exiled if c is not card]
+        self._play_exiled_free(seat, owner, card)
+
+    def _play_exiled_free(self, seat: Seat, owner: Seat, card: Card) -> None:
+        """`seat` plays `card` from `owner`'s exile without paying its mana cost, now: a spell is cast, a land is played only with a
+        land drop left (Dauthi Voidwalker, Gix)."""
         if not is_land(card):
             self._cast(seat, card, owner.exile, free=True)
         elif seat.lands_played < self._land_drops(seat):
@@ -6883,6 +6897,23 @@ class Game:
             self._enter(seat, Permanent(card, sick=True, owner=owner))
             seat.lands_played += 1
             self.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
+
+    def exile_top_play_free(self, seat: Seat, victim: Seat, count: int) -> None:
+        """Gix, Yawgmoth Praetor: exile the top `count` cards of `victim`'s library; `seat` may play lands and cast spells from among
+        them without paying their mana costs, as the ability resolves (its ruling). What is not played stays exiled."""
+        exiled = victim.library[:count]
+        del victim.library[:count]
+        victim.exile.extend(exiled)
+        self.broadcast({"event": "exiled_from_library", "seat": victim.index, "cards": [c.name for c in exiled], "may_play": True})
+        while True:
+            options = exiled
+            if not options:
+                return
+            pick = seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for c in options] + [NONE_TAKEN])
+            if pick >= len(options):
+                return
+            exiled = [c for c in exiled if c is not options[pick]]
+            self._play_exiled_free(seat, victim, options[pick])
 
     def exile_all_graveyards(self) -> None:
         for seat in self.live_seats():

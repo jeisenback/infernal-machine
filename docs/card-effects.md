@@ -1192,6 +1192,18 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Voidwalker's "instead exile it with a void counter on it" (`Replacements.void_counter`, `Game.void_exiled`) and its sacrifice
     ability, which plays one of those cards for free as the ability resolves (`Game.play_void_card_free`; a land only with a land drop
     left), as Quintorius's does.
+  - Casting without paying the mana cost, batch 2 (`tests/test_cast_free.py`, #655): Omniscience's "You may cast spells from your hand
+    without paying their mana costs." and One with the Multiverse's "Once during each of your turns, you may cast a spell from your hand
+    or the top of your library without paying its mana cost." are rules statics (`free_from_hand`, `free_once`) that add a cost option,
+    "Without paying its mana cost" (`Caster._free_ways`, `Seat.free_once_turn`; never from the command zone; the bot takes it);
+    Electrodominance's "a spell with mana value X or less from your hand"; Malcolm, Alluring Scoundrel's "Draw a card, then discard a
+    card. If there are four or more chorus counters on Malcolm, you may cast the discarded card ..." (`LootCastIfCounters`: not a land,
+    and only while the card is in the graveyard); Gix, Yawgmoth Praetor's "Whenever a creature deals combat damage to one of your
+    opponents, its controller may pay 1 life. If they do, they draw a card." (the event `combat_damage_to_your_opponent`, heard by the
+    damaged player's opponents) and "Discard X cards" as a cost (`ActivatedAbility.discard_x`), whose exiled cards are played free as the
+    ability resolves (`Game.exile_top_play_free`, as Gix's ruling has it); Fallen Shinobi's "that player exiles the top two cards of
+    their library. Until end of turn, you may play those cards without paying their mana costs." (Ragavan's exile with `count` and
+    `Seat.exile_free`).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

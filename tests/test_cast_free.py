@@ -2,14 +2,18 @@
 damage), Etali, Primal Conqueror (each player exiles until a nonland card; cast any number of them) and its back face (poison equal to the
 damage), Isochron Scepter (imprint an instant, then cast copies of it), Mizzix's Mastery (copies of a graveyard spell, or of all of them
 when overloaded), Beseech the Mirror (cast the card found if bargained and cheap enough, else take it) and Dauthi Voidwalker (an
-opponent's cards are exiled with void counters; play one for free)."""
+opponent's cards are exiled with void counters; play one for free). Batch 2: Omniscience and One with the Multiverse (a free way to cast),
+Electrodominance (a spell up to X), Malcolm, Alluring Scoundrel (the discarded card, with four chorus counters), Gix, Yawgmoth Praetor
+(pay 1 life to draw; play the cards exiled with Discard X) and Fallen Shinobi (play the damaged player's top two cards free)."""
 
 import unittest
 from dataclasses import replace
 
-from infernal_machine.game import CAST, KICKER_PROMPT, Permanent
+from infernal_machine.effects import FREE_WAY
+from infernal_machine.game import CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, X_PROMPT, Permanent
+from infernal_machine.zones import CAST_EXILE, CAST_TOP, PLAY_EXILE
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, BIG, RAINBOW, RELIC, activate, enter, lands, pick, real, run_stack, table3
+from tests.helpers import BEAR, BIG, COMMANDER, MOUNTAIN, OGRE, RAINBOW, RELIC, activate, enter, lands, pick, real, run_stack, table3
 
 SWORD = real("Buster Sword", "{3}", "Artifact — Equipment", "Equipped creature gets +3/+2.\nWhenever equipped creature deals combat "
              "damage to a player, draw a card, then you may cast a spell from your hand with mana value less than or equal to that damage "
@@ -44,6 +48,26 @@ LEYLINE = real("Leyline of the Void", "{2}{B}{B}", "Enchantment", "If Leyline of
                 "with it on the battlefield.\nIf a card would be put into an opponent's graveyard from anywhere, exile it instead.",
                 colors=("B",))
 FOREST = real("Forest", "", "Basic Land — Forest", "({T}: Add {G}.)")
+
+OMNISCIENCE = real("Omniscience", "{7}{U}{U}{U}", "Enchantment", "You may cast spells from your hand without paying their mana costs.",
+                   colors=("U",))
+MULTIVERSE = real("One with the Multiverse", "{6}{U}{U}", "Enchantment", "You may look at the top card of your library any time.\nYou may "
+                  "play lands and cast spells from the top of your library.\nOnce during each of your turns, you may cast a spell from your "
+                  "hand or the top of your library without paying its mana cost.", colors=("U",))
+ELECTRO = real("Electrodominance", "{X}{R}{R}", "Instant", "Electrodominance deals X damage to any target. You may cast a spell with mana "
+               "value X or less from your hand without paying its mana cost.", colors=("R",))
+MALCOLM = real("Malcolm, Alluring Scoundrel", "{1}{U}", "Legendary Creature — Siren Pirate", "Flash\nFlying\nWhenever Malcolm deals combat "
+               "damage to a player, put a chorus counter on it. Draw a card, then discard a card. If there are four or more chorus counters "
+               "on Malcolm, you may cast the discarded card without paying its mana cost.", "2", "1", colors=("U",))
+GIX = real("Gix, Yawgmoth Praetor", "{1}{B}{B}", "Legendary Creature — Phyrexian Praetor", "Whenever a creature deals combat damage to one "
+           "of your opponents, its controller may pay 1 life. If they do, they draw a card.\n{4}{B}{B}{B}, Discard X cards: Exile the top X "
+           "cards of target opponent's library. You may play lands and cast spells from among cards exiled this way without paying their "
+           "mana costs.", "3", "3", colors=("B",))
+SHINOBI = real("Fallen Shinobi", "{3}{U}{B}", "Creature — Zombie Ninja", "Ninjutsu {2}{U}{B} ({2}{U}{B}, Return an unblocked attacker "
+               "you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nWhenever this creature deals "
+               "combat damage to a player, that player exiles the top two cards of their library. Until end of turn, you may play those "
+               "cards without paying their mana costs.", "5", "4", colors=("U", "B"))
+TWO = real("Two Drop", "{1}{U}", "Sorcery", "Draw a card.", colors=("U",))
 
 
 def asking(policy, asked):
@@ -173,6 +197,117 @@ class CastFreeTests(unittest.TestCase):
             game._move_card(b, RAINBOW, "graveyard")
             activate(game, a, "Dauthi Voidwalker")
             self.assertEqual("City of Brass" in [p.card.name for p in a.battlefield], entered, played)
+
+
+class CastFreeBatchTwoTests(unittest.TestCase):
+    def test_the_cards_are_understood(self):
+        for card in (OMNISCIENCE, MULTIVERSE, ELECTRO, MALCOLM, GIX, SHINOBI):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_omniscience_casts_spells_from_the_hand_for_free(self):
+        game, _ = table3(pick(FREE_WAY))
+        a, b, _ = game.seats
+        a.battlefield, a.hand, a.command_zone = [Permanent(OMNISCIENCE)], [BIG], [COMMANDER]
+        b.hand = [OPT]
+        self.assertNotIn(CAST_COMMANDER + "Omnath", game.legal_actions(a))  # not from the command zone
+        self.assertNotIn(CAST + "Opt", game.legal_actions(b))  # only its controller's spells
+        game._perform(a, CAST + "Big")
+        run_stack(game)
+        self.assertEqual([p.card.name for p in a.battlefield], ["Omniscience", "Big"])
+
+    def test_one_with_the_multiverse_casts_one_spell_free_on_each_of_your_turns(self):
+        game, _ = table3(pick(FREE_WAY))
+        a = game.seats[0]
+        a.battlefield, a.hand, a.library = [Permanent(MULTIVERSE)], [BIG], [OPT, BEAR]
+        a.exile, a.exile_play = [OGRE], [(OGRE, game.turn)]
+        self.assertIn(CAST_TOP + "Opt", game.legal_actions(a))  # from the top of the library too
+        self.assertNotIn(CAST_EXILE + "Ogre", game.legal_actions(a))  # but not from anywhere else
+        game._perform(a, CAST + "Big")
+        run_stack(game)
+        self.assertNotIn(CAST_TOP + "Opt", game.legal_actions(a))  # once a turn
+        game.turn += 3
+        self.assertIn(CAST_TOP + "Opt", game.legal_actions(a))
+        game.active = 1
+        self.assertNotIn(CAST_TOP + "Opt", game.legal_actions(a))  # during your turns only
+
+    def test_electrodominance_casts_a_spell_up_to_x(self):
+        asked = []
+        policy = lambda prompt, options: (options.index("2") if X_PROMPT.matches(prompt) else options.index("Player: B (seat 1)")
+                                          if "Player: B (seat 1)" in options else pick("Two Drop")(prompt, options))
+        game, _ = table3(asking(policy, asked))
+        a, b, _ = game.seats
+        a.battlefield, a.hand, a.library = lands(4), [ELECTRO, THREE, TWO], [FOREST] * 3
+        life = b.life
+        game._perform(a, CAST + "Electrodominance")
+        run_stack(game)
+        self.assertEqual((b.life, sorted(c.name for c in a.graveyard)), (life - 2, ["Electrodominance", "Two Drop"]))
+        self.assertIn(["Two Drop", "Don't cast"], asked)  # Three Drop costs more than X
+
+    def test_malcolm_casts_the_discarded_card_with_four_chorus_counters(self):
+        for counters, cast in ((3, True), (2, False)):
+            game, _ = table3(pick("Three Drop"))
+            a, b, _ = game.seats
+            malcolm = Permanent(MALCOLM, counters={"chorus": counters})
+            a.battlefield, a.hand, a.library = [malcolm], [THREE], [FOREST] * 3
+            game.damage(b, 2, malcolm, combat=True)
+            run_stack(game)
+            self.assertEqual((malcolm.counters["chorus"], len(a.hand)), (counters + 1, 1 + cast), counters)
+
+    def test_malcolm_casts_no_land_and_nothing_that_left_the_graveyard(self):
+        for discard, theirs in (("Mountain", []), ("Three Drop", [Permanent(LEYLINE)])):
+            game, _ = table3(pick(discard))
+            a, b, _ = game.seats
+            malcolm = Permanent(MALCOLM, counters={"chorus": 3})
+            a.battlefield, a.hand, a.library, b.battlefield = [malcolm], [replace(MOUNTAIN), THREE], [FOREST] * 3, theirs
+            game.damage(b, 2, malcolm, combat=True)
+            run_stack(game)
+            self.assertEqual((len(a.hand), [c.name for c in a.graveyard + a.exile]), (2, [discard]), discard)  # nothing cast
+
+    def test_gix_lets_the_controller_of_a_creature_that_hits_your_opponent_pay_to_draw(self):
+        game, _ = table3()
+        a, b, c = game.seats
+        theirs = Permanent(BEAR)
+        a.battlefield, b.battlefield = [Permanent(GIX)], [theirs]
+        for seat in game.seats:
+            seat.library = [FOREST] * 3
+        life = b.life
+        game.damage(c, 2, theirs, combat=True)  # c is one of a's opponents: b pays and draws
+        game.damage(a, 2, theirs, combat=True)  # a is not their own opponent
+        game.damage(c, 2, theirs)  # not combat damage
+        run_stack(game)
+        self.assertEqual((b.life, len(b.hand), len(a.hand)), (life - 1, 1, 0))
+        b.life = 0  # no life to pay
+        game.damage(c, 2, theirs, combat=True)
+        run_stack(game)
+        self.assertEqual(len(b.hand), 1)
+
+    def test_gixs_ability_plays_the_exiled_cards_for_free(self):
+        for played, forest in ((0, True), (1, False)):
+            game, _ = table3(lambda prompt, options: options.index("2") if X_PROMPT.matches(prompt)
+                             else options.index("Player: B (seat 1)") if "Player: B (seat 1)" in options else 0)
+            a, b, _ = game.seats
+            a.battlefield, a.hand, a.lands_played = [Permanent(GIX), *lands(7)], [BEAR, OGRE, TWO], played
+            b.library = [BIG, MOUNTAIN, OPT]
+            activate(game, a, "Gix")
+            mine = [p.card.name for p in a.battlefield]
+            self.assertEqual(("Big" in mine, "Mountain" in mine, [c.name for c in a.hand], [c.name for c in b.library]),
+                             (True, forest, ["Two Drop"], ["Opt"]), played)
+
+    def test_fallen_shinobi_plays_the_damaged_players_top_two_cards_free_this_turn(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        shinobi = Permanent(SHINOBI)
+        a.battlefield, b.library = [shinobi], [BIG, MOUNTAIN, BEAR]
+        game.damage(b, 5, shinobi, combat=True)
+        run_stack(game)
+        actions = game.legal_actions(a)
+        self.assertTrue({CAST_EXILE + "Big", PLAY_EXILE + "Mountain"} <= set(actions))  # no lands needed for Big
+        self.assertEqual([c.name for c in b.library], ["Bear"])
+        game._perform(a, CAST_EXILE + "Big")  # free: no lands to pay with
+        run_stack(game)
+        self.assertIn("Big", [p.card.name for p in a.battlefield])
+        game.turn += 1
+        self.assertNotIn(PLAY_EXILE + "Mountain", game.legal_actions(a))
 
 
 if __name__ == "__main__":

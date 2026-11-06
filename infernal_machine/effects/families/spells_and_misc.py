@@ -786,3 +786,40 @@ class DrawUnlessFromHand:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         item = game.resolving_item
         game.draw(controller, self.count if item is not None and item.from_hand else self.other)
+
+
+@dataclass(frozen=True)
+class LootCastIfCounters:
+    """Malcolm, Alluring Scoundrel: "Draw a card, then discard a card. If there are four or more chorus counters on Malcolm, you may cast
+    the discarded card without paying its mana cost." The counters are the source's, as they are once the card is discarded."""
+    counter: str
+    at_least: int
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        from .exile_and_return import DECLINE, FREE_CAST_PROMPT
+
+        game.draw(controller, 1)
+        for card in game.discard(controller, 1):
+            if target is not None and target.counters.get(self.counter, 0) >= self.at_least and "Land" not in card.type_line \
+                    and any(c is card for c in controller.graveyard) \
+                    and controller.player.choose(FREE_CAST_PROMPT, [card.name, DECLINE]) == 0:
+                game._cast(controller, card, controller.graveyard, free=True)
+
+
+@dataclass(frozen=True)
+class SubjectControllerMayPayLifeDraw:
+    """Gix, Yawgmoth Praetor: "its controller may pay 1 life. If they do, they draw a card." The creature that dealt the damage decides
+    who: its controller, whoever that is (CR 119.4: only with that much life to pay)."""
+    life: int
+    binds = SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        payer = game.controller_of(target) if target is not None else None
+        if payer is not None and payer.life >= self.life \
+                and payer.player.choose(PAY_LIFE_DRAW_PROMPT(f"{self.life} life"), ["Yes", "No"]) == 0:
+            game.change_life(payer, -self.life)
+            game.draw(payer, 1)
+
+
+PAY_LIFE_DRAW_PROMPT = PromptKind("pay_life_draw", "Pay to draw a card: ")  # followed by the life; Yes or No

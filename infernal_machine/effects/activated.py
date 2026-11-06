@@ -87,6 +87,7 @@ class ActivatedAbility:
     sacrifice_count: int = 1  # "Sacrifice two creatures"
     sacrifice_x: bool = False  # "Sacrifice X Squirrels" (Chatterfang): X is chosen, up to as many as it can sacrifice, and is the ability's X
     discard: int = 0  # "Discard a card": how many
+    discard_x: bool = False  # "Discard X cards" (Gix, Yawgmoth Praetor): X is chosen, up to the cards in hand, and is the ability's X
     exile_graveyard: int = 0  # "Exile a card from your graveyard": how many
     exile_graveyard_kind: str = ""  # "Exile a creature card from your graveyard": of this kind ("" for any card)
     crew: int = 0  # "Crew N": tap untapped creatures you control with total power N or more
@@ -294,6 +295,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
                           sacrifice_x=m[1] == "X")
         elif m := _DISCARD_COST.fullmatch(part):
             fields["discard"] = _NUMBER[m[1]]
+        elif part == "Discard X cards":
+            fields["discard_x"] = True
         elif _DISCARD_SELF.fullmatch(part):
             fields["discard_self"] = True
         elif _EXILE_FROM_HAND.fullmatch(part):
