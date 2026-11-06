@@ -92,6 +92,10 @@ class AlternativeCost:
     no_lands_in_hand: bool = False  # Land Grant: "If you have no land cards in hand, you may reveal your hand ..." (free)
     opponent_spells: int = 0  # Mindbreak Trap: "If an opponent cast three or more spells this turn, you may pay {0} ..." (free)
     impending: int = 0  # Impending N: it enters with N time counters and isn't a creature until the last is removed
+    once_a_turn: bool = False  # One with the Multiverse: free, once during each of its caster's turns
+
+
+FREE_WAY = "Without paying its mana cost"  # the cost option Omniscience and One with the Multiverse add (casting.py)
 
 
 @dataclass(frozen=True)

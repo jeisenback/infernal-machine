@@ -265,6 +265,7 @@ from .families.exile_and_return import (  # noqa: F401
     ExileTopCastAura,
     ExileTopOfEachCastFree,
     ExileTopOfThatPlayerMayCast,
+    ExileTopOfTargetPlayFree,
     ExileUntilLeaves,
     ExileUntilNonlandCast,
     SearchExileCastIfKicked,
@@ -466,6 +467,8 @@ from .families.mana import (  # noqa: F401
 )
 from .families.spells_and_misc import (  # noqa: F401
     DrawUnlessFromHand,
+    LootCastIfCounters,
+    SubjectControllerMayPayLifeDraw,
     Learn,
     MillUntilLand,
     EachWithNamedDraws,
@@ -2321,6 +2324,15 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: CastExiledWithFree()),
     (re.compile(r"choose an exiled card an opponent owns with a void counter on it\. You may play it this turn without paying its mana "
                 r"cost\.", re.I), lambda m: PlayVoidCardFree()),  # Dauthi Voidwalker
+    (re.compile(r"exile the top X cards of target opponent's library\. You may play lands and cast spells from among cards exiled this "
+                r"way without paying their mana costs\.", re.I), lambda m: ExileTopOfTargetPlayFree("X")),  # Gix, Yawgmoth Praetor
+    (re.compile(rf"its controller may pay {_N_FIXED} life\. If they do, they draw a card\.", re.I),
+     lambda m: SubjectControllerMayPayLifeDraw(_number(m[1]))),  # Gix, Yawgmoth Praetor: the creature that dealt the damage
+    (re.compile(rf"draw a card, then discard a card\. If there are {_N_FIXED} or more ([a-z]+) counters on {_SELF}, you may cast the "
+                r"discarded card without paying its mana cost\.", re.I),
+     lambda m: LootCastIfCounters(m[2].lower(), _number(m[1]))),  # Malcolm, Alluring Scoundrel
+    (re.compile(rf"that player exiles the top {_N_FIXED} cards of their library\. Until end of turn, you may play those cards without "
+                r"paying their mana costs\.", re.I), lambda m: ExileTopOfThatPlayerMayCast(_number(m[1]), free=True)),  # Fallen Shinobi
     (re.compile(r"put a card exiled with (?:this artifact|CARDNAME) into its owner's graveyard\. If it's a land card, create a "
                 r"Treasure token\. If it's a nonland card, create an? (.+ creature token)\.", re.I),
      lambda m: PutExiledWithIntoGraveyard(TREASURE, made[1]) if (made := _token("a " + m[1])) else None),
@@ -2371,8 +2383,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [Tap(m[1].lower(), optional_target=True), PutStunCounters(_count(m[2]))]),
     (re.compile(r"attach (?:it|this Equipment) to target ((?:legendary )?creature you control)\.", re.I),
      lambda m: Attach(m[1].lower())),  # Mithril Coat
-    (re.compile(r"you may cast a spell with mana value (\d+) or less from your hand without paying its mana cost\.", re.I),
-     lambda m: MayCastFromHandFree(int(m[1]))),  # Rishkar's Expertise
+    (re.compile(r"you may cast a spell with mana value (\d+|X) or less from your hand without paying its mana cost\.", re.I),
+     lambda m: MayCastFromHandFree("X" if m[1] == "X" else int(m[1]))),  # Rishkar's Expertise; Electrodominance
     (re.compile(r"you may cast a spell from your hand with mana value less than or equal to that damage without paying its mana cost\.", re.I),
      lambda m: MayCastFromHandFree("X")),  # Buster Sword: X is the damage the trigger saw
     (re.compile(r"choose two target creature cards in your graveyard\. sacrifice a creature\. if you do, return the chosen cards to the "
