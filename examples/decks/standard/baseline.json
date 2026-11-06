@@ -47,14 +47,9 @@
   "jeskai_artifacts": {
    "cards": 60,
    "unplayable": [
-    "Braided Net // Braided Quipu",
-    "Clay-Fired Bricks // Cosmium Kiln",
-    "Cryogen Relic",
-    "Perilous Snare",
     "Pinnacle Starcage",
     "Repurposing Bay",
     "Simulacrum Synthesizer",
-    "Spring-Loaded Sawblades // Bladewheel Chariot",
     "The Irencrag",
     "The Mind Stone"
    ]
