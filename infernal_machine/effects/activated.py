@@ -285,7 +285,7 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["sacrifice"] = True
         elif (m := _PAY_LIFE.fullmatch(part)) and m[1] != "X":
             fields["life"] = _count(m[1])
-        elif m := _PAY_ENERGY.fullmatch(part):
+        elif (m := _PAY_ENERGY.fullmatch(part)) and m[2] != "X":  # (paying X energy is not read yet: HELIOS One)
             fields["energy"] = m[1].count("{E}") if m[1] else _count(m[2])
         elif _PAY_LIFE_IDENTITY.fullmatch(part):
             fields["life_identity"] = True
