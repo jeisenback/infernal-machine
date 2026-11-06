@@ -342,6 +342,7 @@ class Permanent:
     mana_types_spent: tuple[frozenset[str], ...] = ()  # the types each mana spent to cast it could be (Deceit: "if {U}{U} was spent to cast it")
     returns_when_dies: int = 0  # Malakir Rebirth: the turn it gained "When this creature dies, return it to the battlefield tapped"
     animated_until: int | None = None  # Karn, the Great Creator: animated "until your next turn", the index of the seat whose turn ends it
+    harnessed: bool = False  # an Infinity Stone that was harnessed: its \u221e ability works
     earthbent: bool = False  # a land earthbent into a creature for good: `original` is the land, and it returns tapped when it dies or is exiled
     chosen_type: str | None = None  # "As this enters, choose a creature type." (Patchwork Banner)
     chosen_color: str | None = None  # "As this enters, choose a color." (a color letter)
@@ -414,6 +415,7 @@ class StackItem:
     bestowed: bool = False  # cast for its bestow cost: an Aura spell that may resolve as a creature
     sacrificed_power: int = 0  # for an ability: the power of the creature sacrificed to pay for it
     sacrificed_toughness: int = 0  # ... and its toughness (Witch's Oven)
+    sacrificed_value: int = 0  # ... and its mana value (Repurposing Bay)
     tapped_power: int = 0  # for an ability: the power of the creature tapped to pay for it (Station)
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
     cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
@@ -718,6 +720,7 @@ class Game:
         self.targeting_max: int | None = None  # how many targets "any number of target ..." may have (Strive: what the mana pays for)
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.cost_sacrificed_toughness = 0  # ... and its toughness
+        self.cost_sacrificed_value = 0  # ... and its mana value (Repurposing Bay)
         self.cost_tapped_power = 0  # the power of what the ability being activated tapped as a cost (Station)
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
@@ -1468,6 +1471,7 @@ class Game:
             chosen.append(options[seat.player.choose(SACRIFICE_COST_PROMPT(name), [self.label(p) for p in options])])
         self.cost_sacrificed_power = sum(self.power(p) for p in chosen)
         self.cost_sacrificed_toughness = sum(self.toughness(p) or 0 for p in chosen)
+        self.cost_sacrificed_value = int(sum(p.card.cmc for p in chosen))
         if chosen:
             self._leave_together([(p, "sacrificed") for p in chosen])
 
@@ -2245,6 +2249,7 @@ class Game:
                                     destination="exile" if ability.exile_source else "hand")
         item = StackItem(permanent.card, seat, effects, targets, ability, permanent, x=x,
                          sacrificed_power=self.cost_sacrificed_power, sacrificed_toughness=self.cost_sacrificed_toughness,
+                         sacrificed_value=self.cost_sacrificed_value,
                          tapped_power=self.cost_tapped_power)
         self.stack.append(item)
         if ability.loyalty is not None:  # Ajani Unrelenting: "Whenever you activate a loyalty ability" (above the ability)
@@ -3006,6 +3011,8 @@ class Game:
             return any(o.life_lost_turn == self.turn and o.life_lost_amount > 0 for o in self.opponents(seat))
         if kind == "max_speed":
             return seat.speed >= 4
+        if kind == "harnessed":  # The Mind Stone's \u221e ability
+            return source is not None and source.harnessed
         if kind == "your_turn":
             return self.active == seat.index
         if kind == "not_your_turn":
@@ -3162,8 +3169,8 @@ class Game:
             else:  # a gone creature's toughness: its printed one plus counters, the last known information
                 value = _checked(self.toughness(permanent)) if here else int(permanent.card.toughness or 0) + permanent.counters.get("+1/+1", 0)
             return value >= int(m[3]) if m[2] == ">=" else value <= int(m[3])
-        if qualifier.startswith("mv<="):
-            return permanent.card.cmc <= int(qualifier.removeprefix("mv<="))
+        if m := re.fullmatch(r"mv(>=|<=)(\d+)", qualifier):  # Simulacrum Synthesizer: "with mana value 3 or greater"
+            return permanent.card.cmc >= int(m[2]) if m[1] == ">=" else permanent.card.cmc <= int(m[2])
         if qualifier == "enchanted":  # "an enchanted creature dies": it had an Aura on it (as it died, if it is gone)
             if here:
                 return any(p.attached_to is permanent and "Aura" in p.card.type_line for s in self.seats for p in s.battlefield)
@@ -4190,6 +4197,25 @@ class Game:
             if changes and any("return the exiled card to its owner's graveyard" in ability for ability in changes.abilities):
                 made.exiled_with.append((owner, card))
 
+    def become_card(self, permanent: Permanent, card: Card) -> None:
+        """A lasting "becomes" that sets every characteristic (The Irencrag becomes Everflame): `permanent` is `card` from now on, but
+        what leaves the battlefield is still the card it was (`real_card`)."""
+        permanent.real_card = permanent.real_card or permanent.card
+        was, permanent.card = permanent.card, card
+        self.broadcast({"event": "became", "seat": self.controller(permanent).index, "card": was.name, "as": card.name})
+
+    def put_linked_exile_into_graveyards(self, source: Permanent) -> int:
+        """Pinnacle Starcage: the cards `source` holds in exile "until it leaves the battlefield" go to their owners' graveyards
+        instead of coming back; how many did."""
+        held, source.linked_exile = source.linked_exile, []
+        moved = 0
+        for owner, card in held:
+            if any(c is card for c in owner.exile):
+                owner.exile = [c for c in owner.exile if c is not card]
+                self._move_card(owner, card, "graveyard")
+                moved += 1
+        return moved
+
     def return_exiled_with_to_graveyard(self, leaver: Permanent) -> None:
         """The exiled card a Hofri Ghostforge token was made from goes to its owner's graveyard."""
         for owner, card in leaver.exiled_with:
@@ -4331,6 +4357,9 @@ class Game:
         card_type = card_type.replace("mv<=x", f"mv<={self.x_value}")  # Chord of Calling
         if "mv=self" in card_type and self.resolving_item is not None:  # Transmute: the mana value of the card that was discarded
             card_type = card_type.replace("mv=self", f"mv={int(self.resolving_item.card.cmc)}")
+        if "mv=sacrificed+1" in card_type:  # Repurposing Bay: "equal to 1 plus the sacrificed artifact's mana value"
+            value = self.resolving_item.sacrificed_value if self.resolving_item is not None else 0
+            card_type = card_type.replace("mv=sacrificed+1", f"mv={value + 1}")
         if "mv<power" in card_type:  # Sisay, Weatherlight Captain: less than the source's power as the ability resolves
             source = self.resolving_item.source if self.resolving_item is not None else None
             power = self.power(source) if source is not None and self.on_battlefield(source) else 0

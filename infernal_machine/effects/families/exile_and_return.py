@@ -55,6 +55,7 @@ class Flicker:
     under_owner: bool = True
     another: bool = False
     counters: int = 0  # Daydream: "... with a +1/+1 counter on it"
+    optional_target: bool = False  # The Mind Stone: "up to one other target"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
@@ -439,9 +440,29 @@ class ExileAll:
     kind: str
     restriction: MassFilter | None = None
     gives: "GiveBack | None" = None
+    until_leaves: bool = False  # Pinnacle Starcage: "... until this artifact leaves the battlefield."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_all(game.mass_targets(self.kind, controller, self.restriction), self.gives, controller)
+        exiled = game.mass_targets(self.kind, controller, self.restriction)
+        if not self.until_leaves:
+            game.exile_all(exiled, self.gives, controller)
+            return
+        source = game.resolving_source
+        for permanent in exiled:
+            if permanent is not source:
+                game.exile_until_leaves(permanent, source)
+
+
+@dataclass(frozen=True)
+class PutLinkedExileIntoGraveyards:
+    """Pinnacle Starcage: "Put each card exiled with this artifact into its owner's graveyard, then create a 2/2 ... Robot artifact
+    creature token for each card put into a graveyard this way." The cards it holds "until it leaves" go for good."""
+    token: Card
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.create_tokens(controller, self.token, game.put_linked_exile_into_graveyards(target))
 
 
 @dataclass(frozen=True)

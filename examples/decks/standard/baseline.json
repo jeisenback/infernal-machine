@@ -4,8 +4,7 @@
    "cards": 60,
    "unplayable": [
     "Captain Marvel, Earth's Protector",
-    "Petrified Hamlet",
-    "Pinnacle Starcage"
+    "Petrified Hamlet"
    ]
   },
   "azorius_momo": {
@@ -46,13 +45,7 @@
   },
   "jeskai_artifacts": {
    "cards": 60,
-   "unplayable": [
-    "Pinnacle Starcage",
-    "Repurposing Bay",
-    "Simulacrum Synthesizer",
-    "The Irencrag",
-    "The Mind Stone"
-   ]
+   "unplayable": []
   },
   "jeskai_control": {
    "cards": 60,

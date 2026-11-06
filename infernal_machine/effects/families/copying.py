@@ -502,3 +502,18 @@ class CopyTriggeredAbility:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.copy_ability(target, controller, self.new_targets, self.times)
+
+
+@dataclass(frozen=True)
+class BecomeCard:
+    """The Irencrag: "you may have The Irencrag become a legendary Equipment artifact named Everflame, Heroes' Legacy. If you do, it
+    gains equip {3} and "Equipped creature gets +3/+3" and loses all other abilities." (the trigger asks the "you may"). For good;
+    it keeps its mana cost and colors, and the card it was is what leaves the battlefield (Game.become_card)."""
+    card: Card
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            was = target.card
+            game.become_card(target, dataclasses.replace(self.card, mana_cost=was.mana_cost, cmc=was.cmc, colors=was.colors,
+                                                         color_identity=was.color_identity))

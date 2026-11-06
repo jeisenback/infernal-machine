@@ -1171,6 +1171,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     to its mana cost." (Flashback, Snapcaster Mage) records the card for the turn (`Seat.flashback_granted`, read by
     `Game.graveyard_casts_for`). Ral, Crackling Wit's emblem "Instant and sorcery spells you cast have storm." is the rules static
     `grant_storm`.
+  - Standard's Jeskai Artifacts deck, part two (`tests/test_standard_jeskai_artifacts.py`): "exile all artifacts and creatures with mana
+    value 2 or less until this artifact leaves the battlefield" (`ExileAll.until_leaves`, Pinnacle Starcage), whose other ability puts
+    what it holds into its owners' graveyards for good and makes a Robot for each (`PutLinkedExileIntoGraveyards`); "Sacrifice this
+    artifact." as an effect. "Search your library for an artifact card with mana value equal to 1 plus the sacrificed artifact's mana
+    value" (Repurposing Bay, Birthing Pod) reads the mana value the cost sacrificed (`StackItem.sacrificed_value`). A watch "with mana value
+    3 or greater" (Simulacrum Synthesizer). The Irencrag becomes Everflame, Heroes' Legacy for good (`BecomeCard`, `Game.become_card`:
+    the card it was is what leaves). "Harness The Mind Stone." marks it (`Permanent.harnessed`), and its "∞ — At the beginning of your
+    end step, ..." is that trigger with the intervening "if CARDNAME is harnessed"; "exile up to one other target nonland permanent you
+    control, then return that card" is a `Flicker` that may have no target.
   - Standard's Dimir Midrange deck (`tests/test_standard_dimir_midrange.py`): "It loses all abilities for as long as The Wondrous Wasp
     remains on the battlefield." after a Tap, and Tishana's Tidebinder's "that permanent loses all abilities for as long as this creature
     remains on the battlefield" set `Permanent.loses_abilities_while` (`Game.strip_while`); the board view counts it stripped while
