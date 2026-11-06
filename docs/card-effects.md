@@ -1171,6 +1171,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     to its mana cost." (Flashback, Snapcaster Mage) records the card for the turn (`Seat.flashback_granted`, read by
     `Game.graveyard_casts_for`). Ral, Crackling Wit's emblem "Instant and sorcery spells you cast have storm." is the rules static
     `grant_storm`.
+  - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
+    `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
+    "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
   - Auras and Equipment that grant a triggered ability (`tests/test_granted_triggers.py`, #645): 'Enchanted creature has "Whenever this
     creature deals combat damage to a player, you may draw a card."' (Sixth Sense), and 'Equipped creature gets +1/+0, has "Whenever you
     cast a noncreature spell, this creature deals 1 damage to each opponent," and is a Wizard in addition to its other types.' (Black Mage's

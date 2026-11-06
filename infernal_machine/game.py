@@ -1255,6 +1255,8 @@ class Game:
         the permanents to sacrifice, the counters to remove, the creatures to tap. `source` is None when the ability works from a zone."""
         if self._life_cost(seat, ability) > seat.life:  # CR 119.4
             return False
+        if ability.energy > seat.player_counters.get("energy", 0):  # CR 107.14: energy is paid from the player's counters
+            return False
         if len(seat.hand) < ability.discard or len(self._exile_cost_choices(seat, ability)) < ability.exile_graveyard:
             return False
         if ability.sacrifice_other and not ability.sacrifice_x and len(self._sacrifice_choices(seat, source, ability)) < ability.sacrifice_count:
@@ -1425,6 +1427,8 @@ class Game:
         """Pay an activated ability's "Sacrifice a creature", "Discard a card" and "Exile a card from your
         graveyard" costs (CR 602.2b). `source` is None, and `name` the card's, when the ability works from a zone."""
         name = source.card.name if source is not None else name
+        if ability.energy:
+            self.change_energy(seat, -ability.energy)
         if ability.craft:  # Craft: exile another artifact you control or an artifact card from your graveyard
             options = self._craft_choices(seat, source, ability.craft)
             material = options[seat.player.choose(CRAFT_PROMPT(name), [self.label(o) if isinstance(o, Permanent) else f"{o.name} (graveyard)"
@@ -3769,6 +3773,11 @@ class Game:
         dealt = ordered[pick]
         self._use_shields(target, outcomes[dealt][1])
         return dealt, outcomes[dealt][1]
+
+    def change_energy(self, seat: Seat, amount: int) -> None:
+        """`seat` gets (or pays) energy counters, {E} (CR 122.1, 107.14)."""
+        seat.player_counters["energy"] = seat.player_counters.get("energy", 0) + amount
+        self.broadcast({"event": "energy", "seat": seat.index, "change": amount, "total": seat.player_counters["energy"]})
 
     def give_poison(self, seat: Seat, count: int, by: Seat | None = None) -> None:
         count = self._counters_put_by(by, count)

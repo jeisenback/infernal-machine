@@ -507,3 +507,12 @@ class Proliferate:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for _ in range(game.amount(self.times)):
             game.proliferate(controller)
+
+
+@dataclass(frozen=True)
+class GetEnergy:
+    """ "You get {E}{E}." (two energy counters: Inventor's Axe)"""
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.change_energy(controller, self.count)
