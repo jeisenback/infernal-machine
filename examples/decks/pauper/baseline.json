@@ -18,9 +18,7 @@
   },
   "grixis_affinity": {
    "cards": 60,
-   "unplayable": [
-    "Black Mage's Rod"
-   ]
+   "unplayable": []
   },
   "mono_red_madness": {
    "cards": 60,

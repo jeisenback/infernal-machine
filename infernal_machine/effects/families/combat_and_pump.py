@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
+from ...cards import Card
 from ...characteristics import Modifier
 from ..common import Quantity
 from ..targets import PREVIOUS_TARGET, SOURCE, SUBJECT
@@ -433,14 +434,19 @@ class OthersBecomeAsBigAsSource:
                 game.modify_until_end_of_turn(permanent, Modifier(set_pt=size))
 
 
+HERO = Card(name="Hero", type_line="Token Creature \u2014 Hero", power="1", toughness="1")  # Job select's 1/1 colorless Hero
+
+
 @dataclass(frozen=True)
 class LivingWeapon:
-    """Living weapon: "When this Equipment enters, create a 0/0 black Phyrexian Germ creature token, then attach this to it." """
+    """Living weapon: "When this Equipment enters, create a 0/0 black Phyrexian Germ creature token, then attach this to it." Job select
+    (`hero`): the token is a 1/1 colorless Hero."""
+    hero: bool = False
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.living_weapon(target)
+            game.living_weapon(target, HERO if self.hero else None)
 
 
 @dataclass(frozen=True)

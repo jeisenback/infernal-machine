@@ -257,6 +257,7 @@ from .statics import (  # noqa: F401
     additional_land_mana,
     annihilator_of,
     attached_abilities,
+    granted_triggers,
     AttackTax,
     attack_tax_per_counter,
     aura_controls,
