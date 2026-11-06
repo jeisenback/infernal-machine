@@ -611,6 +611,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
 
 
 _COMPOUND_TRIGGER = re.compile(r"(When|Whenever) ([^,]+?) and whenever ([^,]+), (.+)")
+_ENTERS_OR_LEAVES = re.compile(r"(When|Whenever) (this [a-z]+|CARDNAME) enters or leaves the battlefield, (.+)")  # Cryogen Relic
 _COMPOUND_STEP_TRIGGER = re.compile(r"(When|Whenever) ([^,]+?) and at the beginning of ([^,]+), (.+)")  # Obsessive Pursuit
 
 
@@ -629,6 +630,8 @@ def _split_compound_trigger(line: str) -> list[tuple[str, str]]:
                  "the copy.", line)]
     if m := _COMPOUND_TRIGGER.fullmatch(line):
         return [(f"{m[1]} {m[2]}, {m[4]}", line), (f"Whenever {m[3]}, {m[4]}", line)]
+    if m := _ENTERS_OR_LEAVES.fullmatch(line):
+        return [(f"{m[1]} {m[2]} enters, {m[3]}", line), (f"{m[1]} {m[2]} leaves the battlefield, {m[3]}", line)]
     if m := _COMPOUND_STEP_TRIGGER.fullmatch(line):
         return [(f"{m[1]} {m[2]}, {m[4]}", line), (f"At the beginning of {m[3]}, {m[4]}", line)]
     return [(line, line)]

@@ -126,6 +126,30 @@ class ExileUpToXFromGraveyards:
 
 
 @dataclass(frozen=True)
+class CraftReturn:
+    """Craft: "Return this card transformed under its owner's control." The card was exiled as a cost; it comes back on its back face."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        source = game.resolving_source
+        if source is None:
+            return
+        card, owner = source.card, source.owner or controller
+        if any(c is card for c in owner.exile):  # (a card that left exile meanwhile stays where it is)
+            owner.exile.remove(card)
+            game._enter(owner, game._transformed_permanent(card, owner))
+
+
+@dataclass(frozen=True)
+class PutSourceThirdFromTop:
+    """Braided Quipu: "put this artifact into its owner's library third from the top." """
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game._leave_together([(target, "returned")], destination="library_third")
+
+
+@dataclass(frozen=True)
 class GrantFlashback:
     """Snapcaster Mage, Flashback: "Target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback
     cost is equal to its mana cost." (Game.graveyard_casts_for)"""

@@ -45,13 +45,7 @@
   },
   "jeskai_artifacts": {
    "cards": 60,
-   "unplayable": [
-    "Braided Net // Braided Quipu",
-    "Clay-Fired Bricks // Cosmium Kiln",
-    "Cryogen Relic",
-    "Perilous Snare",
-    "Spring-Loaded Sawblades // Bladewheel Chariot"
-   ]
+   "unplayable": []
   },
   "jeskai_control": {
    "cards": 60,

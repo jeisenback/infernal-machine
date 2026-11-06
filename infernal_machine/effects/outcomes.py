@@ -48,6 +48,8 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    VehicleBecomesCreature,
+    _LockedWhileTapped,
     _LosesAbilitiesWhileSource,
     GainChosenKeyword,
     BecomesTypeUntilEndOfTurn,
@@ -233,6 +235,8 @@ from .families.exile_and_return import (  # noqa: F401
     WishArtifact,
     ExileUpToXFromGraveyards,
     ExileUpToNFromGraveyards,
+    PutSourceThirdFromTop,
+    CraftReturn,
     GrantFlashback,
     CastExiledWithFree,
     DECLINE,
@@ -1498,7 +1502,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|noncreature, nonland permanent|non-(?-i:[A-Z][a-z]+), nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
                    r"|artifact, creature, or enchantment|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
-                   r"|creature or planeswalker|creature or enchantment|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?:, (?-i:[A-Z][a-z]+))*,? or (?-i:[A-Z][a-z]+)(?= you control)"
+                   r"|creature or planeswalker|creature or enchantment|creature or Vehicle|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?:, (?-i:[A-Z][a-z]+))*,? or (?-i:[A-Z][a-z]+)(?= you control)"
                    r"|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that player controls)?"
                    r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with power \d+ or less)?)")
 
@@ -1557,7 +1561,7 @@ def _up_to(cls: type, m: re.Match, **fixed: Any) -> list:
     return [cls(kind, optional_target=True, distinct=n > 0, **fixed) for n in range(_number(m[1]))]
 
 
-_DAMAGE_KIND = (r"(any target|target attacking or blocking creature|target creature an opponent controls|target creature with(?:out)? flying"
+_DAMAGE_KIND = (r"(any target|target attacking or blocking creature|target (?:tapped )?creature an opponent controls|target creature with(?:out)? flying"
                 r"|target creature|target player|target opponent|target creature or planeswalker"
                 r"|target player or planeswalker)")
 
@@ -1887,6 +1891,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnAnyNumber(f"{m[1]} you control")),  # Paradoxical Outcome
     (re.compile(r"draw a card for each card returned to your hand this way\.", re.I), lambda m: _DrawPerReturned()),
     (re.compile(r"if you controlled that permanent, draw a card\.", re.I), lambda m: _DrawIfYouControlledIt()),  # Boomerang Basics
+    (re.compile(rf"draw a card for each ([a-z]+) you control, then put {_SELF} into its owner's library third from the top\.", re.I),
+     lambda m: [DefineX(Amount("you_control", m[1].lower())), Draw("X"), PutSourceThirdFromTop()]),  # Braided Quipu
+    (re.compile(r"this Vehicle becomes an artifact creature until end of turn\.", re.I), lambda m: VehicleBecomesCreature()),  # Bladewheel Chariot
+    (re.compile(r"its activated abilities can't be activated for as long as it remains tapped\.", re.I),
+     lambda m: _LockedWhileTapped()),  # Braided Net
     (re.compile(rf"(?:it|that creature) loses all abilities for as long as {_SELF} remains on the battlefield\.", re.I),
      lambda m: _LosesAbilitiesWhileSource()),  # The Wondrous Wasp
     (re.compile(rf"if a permanent was returned this way, put an? {_COUNTER} on {_SELF}\.", re.I),
@@ -2540,8 +2549,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: TargetExiles(m[1].lower(), m[2].lower(), graveyard=bool(m[3]))),
     (re.compile(rf"put a ({_COUNTER}) on each of up to (two|three) target creatures\.", re.I),  # Elegant Rotunda
      lambda m: [PutCounters(1, _counter_name(m[2]), "creature", optional_target=True, distinct=n > 0) for n in range(_number(m[3]))]),
-    (re.compile(rf"put {_N} {_COUNTER} on up to one target creature\.", re.I),  # Gideon, Ally of Zendikar's kin: a loyalty ability may pick no one
-     lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), "creature", optional_target=True)),
+    (re.compile(rf"put {_N} {_COUNTER} on up to one target ((?:tapped )?creature)\.", re.I),  # Gideon, Ally of Zendikar's kin; "tapped": Cryogen Relic
+     lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower(), optional_target=True)),
     (re.compile(rf"put {_N} {_COUNTER} on target {_PERMANENT_KIND}\.", re.I),
      lambda m: PutCounters(_count(m[1]), _counter_name(m[2]), m[3].lower())),
     (re.compile(rf"put {_N} {_COUNTER} on target (attacking creature with lesser power)\.", re.I),  # Mentor
@@ -3233,6 +3242,7 @@ _CONDITIONAL = Follows(
     Follow(_IfFlip, FlipCoin, lambda previous, marker: FlipCoin(marker.effect, marker.on_win), fits=lambda previous, marker: previous.then is None),
     Follow(_DrawIfYouControlledIt, ReturnToHand, set_fields(draw_if_yours=lambda m: True)),
     Follow(_LosesAbilitiesWhileSource, Tap, set_fields(strip_while_source=lambda m: True)),
+    Follow(_LockedWhileTapped, Tap, set_fields(lock_while_tapped=lambda m: True)),
     Follow(_CounterIfReturned, ReturnToHand, set_fields(counter_on_source=lambda m: m.counter)),
     Follow(_ExileCastThisWay, MayCastFromGraveyard, set_fields(exile_after=lambda m: True)),
     Follow(_InsteadDamage, Damage, set_fields(instead=lambda m: m.amount, instead_if=lambda m: m.condition),
