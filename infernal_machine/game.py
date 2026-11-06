@@ -31,7 +31,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, heals_before_damage, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, heals_before_damage, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -2787,12 +2787,19 @@ class Game:
             raise ValueError(f"{event!r} is not a declared event (effects/events.py)")
         if self.loses_abilities(permanent):
             return
-        for ability in triggered_abilities(permanent.card):
+        for ability in self._triggers_of(permanent):
             if ability.event == event and ability.watch is None and (text is None or ability.text == text):
                 if any(isinstance(e, ReturnThisFromGraveyard) for e in ability.effects) and self.on_battlefield(permanent):
                     continue  # it only works from the graveyard (Squee)
                 for _ in range(self._trigger_times(controller, event, permanent.card, source=permanent)):
                     self._queue(ability, permanent, controller, x=x, subject=subject, player=player, spell=spell)
+
+    def _triggers_of(self, permanent: Permanent) -> tuple:
+        """`permanent`'s triggered abilities: its own, and those an Aura or Equipment attached to it grants (Sixth Sense, Black Mage's
+        Rod). What is attached comes from the board view, which is rebuilt only when the board changes."""
+        own = triggered_abilities(permanent.card)
+        attached = self._board_view().attached.get(id(permanent))
+        return own + tuple(a for attachment in attached for a in granted_triggers(attachment.card)) if attached else own
 
     def happened(self, occurrence: str, seat: Seat, *facts: str, subject: Permanent | None = None,
                  spell: "StackItem | Card | tuple | None" = None, x: int = 0) -> None:
@@ -3102,7 +3109,7 @@ class Game:
             delayed = [d.ability for d in self.delayed if d.watcher is watcher]
             if not delayed and self.loses_abilities(watcher):
                 continue
-            for ability in delayed or triggered_abilities(watcher.card):
+            for ability in delayed or self._triggers_of(watcher):
                 watch = ability.watch
                 if not watch or ability.event != ("cast" if event == "copy" else event):
                     continue
@@ -5469,14 +5476,15 @@ class Game:
             self.broadcast({"event": "devoured", "seat": seat.index, "card": permanent.card.name, "creatures": eaten})
 
 
-    def living_weapon(self, equipment: Permanent) -> None:
-        """Create a 0/0 black Phyrexian Germ token and attach the Equipment to it."""
+    def living_weapon(self, equipment: Permanent, token: Card | None = None) -> None:
+        """Create a 0/0 black Phyrexian Germ token (Job select: `token`, a 1/1 Hero) and attach the Equipment to it."""
         seat = self.controller_of(equipment)
         if seat is None:
             return
-        germ = Permanent(GERM, sick=True)
-        self.broadcast({"event": "token_created", "seat": seat.index, "card": GERM.name, "type_line": GERM.type_line,
-                        "power": GERM.power, "toughness": GERM.toughness})
+        token = token or GERM
+        germ = Permanent(token, sick=True)
+        self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name, "type_line": token.type_line,
+                        "power": token.power, "toughness": token.toughness})
         self._enter(seat, germ)
         self.attach(equipment, germ)
 

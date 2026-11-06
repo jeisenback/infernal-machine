@@ -387,6 +387,8 @@ def triggered_abilities(card: Card) -> tuple[TriggeredAbility, ...]:
                     abilities.append(TriggeredAbility("becomes_blocked", (PumpSourceX(n, n),), False, word.capitalize()))
         if "living weapon" in words:
             abilities.append(TriggeredAbility("enters", (LivingWeapon(),), False, "Living weapon"))
+        if "job select" in words:  # the same, with a 1/1 colorless Hero (Black Mage's Rod)
+            abilities.append(TriggeredAbility("enters", (LivingWeapon(hero=True),), False, "Job select"))
         for keyword, counter in (("persist", "-1/-1"), ("undying", "+1/+1")):
             if keyword in words:
                 abilities.append(TriggeredAbility("dies", (ReturnWithCounter(counter),), False, line,

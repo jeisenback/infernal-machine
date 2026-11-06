@@ -42,7 +42,7 @@ from .common import (
 )
 from .outcomes import Amount, Condition, CopyChanges, EntersTapped, _copy_changes, _CLASS_LEVEL_LINE, _ENCHANT, _amount, _condition
 from .activated import ActivatedAbility, _ACTIVATED, _cost_fields, _parse_activated
-from .triggers import _ABILITY_WORD
+from .triggers import _ABILITY_WORD, TriggeredAbility, triggered_abilities
 from .mana import _ADD_ANY, _ADD_EITHER, _ADD_SYMBOLS, _mana_from_line, is_mana_ability
 
 
@@ -1142,6 +1142,30 @@ class AttachedBuff:
     subtype: str | None = None  # "... and is an Angel in addition to its other types."
 
 
+# An Aura or Equipment that grants a triggered ability: 'Enchanted creature has "Whenever this creature attacks, ..."' (Sixth Sense), and
+# 'Equipped creature gets +1/+0, has "Whenever you cast a noncreature spell, this creature deals 1 damage to each opponent," and is a
+# Wizard in addition to its other types.' (Black Mage's Rod). The creature hears the quoted ability as its own (Game._triggers_of).
+_ATTACHED_GRANTED_TRIGGER = re.compile(r'(?:Equipped|Enchanted) creature (?:gets ([+\-\u2212]\d+)/([+\-\u2212]\d+), )?has "((?:Whenever|When|At the '
+                                       r'beginning) [^"]+?)[.,]?"(?:,? and is an? ([A-Z][a-z]+) in addition to its other types)?\.?')
+
+
+@lru_cache(maxsize=None)
+def granted_triggers(card: Card) -> tuple[TriggeredAbility, ...]:
+    """The triggered abilities an Aura or Equipment gives the creature it is attached to (only those the engine reads in full)."""
+    found: list[TriggeredAbility] = []
+    for line in rules_lines(card):
+        if (m := _ATTACHED_GRANTED_TRIGGER.fullmatch(line)) and (ability := _granted_trigger(m[3])):
+            found.append(ability)
+    return tuple(found)
+
+
+@lru_cache(maxsize=None)
+def _granted_trigger(text: str) -> TriggeredAbility | None:
+    """The quoted ability read as a creature's own: "this creature" is the creature it is granted to."""
+    abilities = triggered_abilities(Card(name="Granted", type_line="Creature", oracle_text=text + "."))
+    return abilities[0] if len(abilities) == 1 else None
+
+
 _ATTACHED_LOSES = re.compile(r"(?:Equipped|Enchanted) creature (?:loses all abilities(?: and doesn't untap during its controller's "
                              r"untap step)?|doesn't untap during its controller's untap step)\.")
 
@@ -1317,6 +1341,8 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[3])), line, subtype=m[4]))
         elif _ATTACHED_CHOSEN_PROTECTION.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(keywords=frozenset({PROTECTION_CHOSEN})), line))
+        elif (m := _ATTACHED_GRANTED_TRIGGER.fullmatch(line)) and _granted_trigger(m[3]):  # the ability itself: granted_triggers
+            buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2])) if m[1] else Modifier(), line, subtype=m[4]))
         elif _ATTACHED_MUTATION.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(keywords=frozenset({"indestructible", LOSES_ALL}), set_pt=(0, 1)), line))
         elif _ATTACHED_LOSES.fullmatch(line):  # Infinite Coursework

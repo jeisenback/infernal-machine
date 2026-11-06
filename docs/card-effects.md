@@ -1171,6 +1171,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     to its mana cost." (Flashback, Snapcaster Mage) records the card for the turn (`Seat.flashback_granted`, read by
     `Game.graveyard_casts_for`). Ral, Crackling Wit's emblem "Instant and sorcery spells you cast have storm." is the rules static
     `grant_storm`.
+  - Auras and Equipment that grant a triggered ability (`tests/test_granted_triggers.py`, #645): 'Enchanted creature has "Whenever this
+    creature deals combat damage to a player, you may draw a card."' (Sixth Sense), and 'Equipped creature gets +1/+0, has "Whenever you
+    cast a noncreature spell, this creature deals 1 damage to each opponent," and is a Wizard in addition to its other types.' (Black Mage's
+    Rod). The quoted ability is read as a creature's own (`granted_triggers`), and the creature it is attached to hears it like its own
+    (`Game._triggers_of`). Job select is living weapon with a 1/1 colorless Hero token.
   - The Pauper decks one card short (`tests/test_pauper_near_complete.py`, #645): "This spell costs {1} less to cast for each card you've
     drawn this turn." and "The owner of target nonland permanent puts it into their library second from the top or on the bottom." (Deem
     Inferior, `Game.put_second_or_bottom`); "It doesn't untap during its controller's next untap step." after a tap (Sleep of the Dead,
