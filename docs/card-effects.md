@@ -1178,6 +1178,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Activate only once each turn." (`OnceCounterMana.put`, Wall of Roots: no {T}, so summoning sickness does not matter). Every counter
     named like "+N/+N" or "-0/-1" changes power and toughness now, not only +1/+1 and -1/-1 (CR 122.1a). "deals 1 damage ... for each
     creature card in your graveyard" (Lotleth Giant).
+  - Pauper Tron (`tests/test_pauper_tron.py`, #646): "Each player who controls a permanent named Bonder's Ornament draws a card."
+    (`EachWithNamedDraws`); "Search your library for an instant card or a card with flash" (the kind "instant or flash", Mystical
+    Teachings); "Counter target spell if its mana value is 2 or less. If this spell was kicked, ... 4 or less instead." (`Counter.if_mv_at_most`,
+    `kicked_mv_at_most`, Prohibit); "You shuffle up to four cards from your graveyard into your library." (`Game.shuffle_from_graveyard`,
+    Stream of Thought); "Each attacking creature doesn't untap during its controller's next untap step." (Tangle); "Prevent all damage that
+    would be dealt by creatures this turn." (`Game.creature_fog_turn`, Ethereal Haze).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

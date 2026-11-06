@@ -33,10 +33,16 @@ class Counter:
     unless: str = ""  # "unless its controller pays {2}": the cost
     unless_teamwork: str = ""  # We Say Thee Nay!: "... pays {4} instead if this spell was cast using teamwork."
     if_color: str = ""  # Pyroblast: "Counter target spell if it's blue." (checked as it resolves)
+    if_mv_at_most: int | None = None  # Prohibit: "Counter target spell if its mana value is 2 or less." (checked as it resolves)
+    kicked_mv_at_most: int | None = None  # "... If this spell was kicked, ... if its mana value is 4 or less instead."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if self.if_color and target is not None and self.if_color not in target.card.colors:
             return
+        if self.if_mv_at_most is not None and target is not None:
+            kicked = self.kicked_mv_at_most is not None and game.resolving_item is not None and game.resolving_item.kicked
+            if target.card.cmc > (self.kicked_mv_at_most if kicked else self.if_mv_at_most):
+                return
         if target is not None and not cant_be_countered(target.card) and not game.uncounterable(target):
             unless = self.unless_teamwork if self.unless_teamwork and game.resolving_item is not None and game.resolving_item.teamwork \
                 else self.unless
@@ -729,6 +735,7 @@ class ChooseCardName:
         if target is not None and game.on_battlefield(target):
             target.chosen_name = game._choose_card_name(controller, target.card, self.kind)
 
+
 @dataclass(frozen=True)
 class MillUntilLand:
     """Balustrade Spy: "target player reveals cards from the top of their library until they reveal a land card, then puts those cards
@@ -738,3 +745,25 @@ class MillUntilLand:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.mill_until_land(target)
+
+
+@dataclass(frozen=True)
+class ShuffleFromGraveyard:
+    """Stream of Thought: "You shuffle up to four cards from your graveyard into your library." """
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.shuffle_from_graveyard(controller, self.count)
+
+
+@dataclass(frozen=True)
+class EachWithNamedDraws:
+    """Bonder's Ornament: "Each player who controls a permanent named Bonder's Ornament draws a card." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is None:
+            return
+        name = game.resolving_item.card.name
+        for seat in game.turn_order_from_active():
+            if any(p.card.name == name for p in seat.battlefield):
+                game.draw(seat, 1)
