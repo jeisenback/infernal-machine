@@ -234,6 +234,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     _SacrificeThemLater,
 )
 from .families.exile_and_return import (  # noqa: F401
+    _LeftoversToGraveyard,
     ExileAttackers,
     ReturnPerOpponent,
     WishArtifact,
@@ -460,6 +461,8 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    DrawUnlessFromHand,
+    Learn,
     MillUntilLand,
     EachWithNamedDraws,
     ShuffleFromGraveyard,
@@ -965,7 +968,7 @@ _TOKEN_COUNT = _N.replace("|X)", "|X|twice X|half X up|half X down)")  # "Create
 
 
 _CREATURE_TOKEN = re.compile(
-    rf"{_TOKEN_COUNT} (\d+|X)/(\d+|X) (colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact |enchantment )?"
+    rf"{_TOKEN_COUNT} (?:(\d+|X)/(\d+|X) )?(colorless|{_COLOR}(?:(?:,? and |, ){_COLOR})*) ((?:[A-Z][\w'-]* )+)(artifact |enchantment )?"
     r"creature tokens?(?: named ([A-Z][\w'-]*))?"  # "named Cadet"
     r"(?: with (?:([a-z ,]+?)(?:,? and |, |$))?(?:\"(.+)\")?)?"  # keywords and/or a quoted ability
 )
@@ -993,6 +996,11 @@ def _token(spec: str) -> tuple[Quantity, Card] | None:
     if not m:
         return None
     count, power, toughness, colors, subtypes, artifact, named, keywords, quoted = m.groups()
+    if power is None:  # Seize the Storm: no printed size, only "This token's power and toughness are each equal to ..."
+        from .statics import is_cda_line
+        if not (quoted and is_cda_line(quoted)):
+            return None
+        power = toughness = "0"
     keyword_line = ""
     if keywords:
         words = [w.strip() for w in re.split(r",? and |, ", keywords) if w.strip()]
@@ -1014,11 +1022,11 @@ def _is_ability(card: Card, line: str) -> bool:
     """Whether `line` of `card`'s rules text is an ability we understand."""
     from .activated import activated_abilities  # the readers of abilities read effects with this module
     from .mana import is_mana_ability
-    from .statics import is_combat_restriction_line, static_abilities
+    from .statics import is_cda_line, is_combat_restriction_line, static_abilities
     from .triggers import triggered_abilities
 
     known = {a.text for a in (*triggered_abilities(card), *activated_abilities(card), *static_abilities(card))}
-    return line in known or is_mana_ability(line) or is_combat_restriction_line(line)  # Pinnacle Emissary's Drone: "can block only ..."
+    return line in known or is_mana_ability(line) or is_combat_restriction_line(line) or is_cda_line(line)  # Pinnacle Emissary's Drone: "can block only ..."
 
 
 _ANIMATED = (r"(\d+)/(\d+)(?: ((?:white|blue|black|red|green)(?:(?:,? and |, )(?:white|blue|black|red|green))*))?"
@@ -1176,6 +1184,8 @@ _AMOUNTS = [
      lambda m: Amount("creatures_entered")),
     (re.compile(r"(?:the number of )?([+\-\u2212]1/[+\-\u2212]1|[a-z]+) counters? on (?:it|this creature|this artifact|this enchantment|CARDNAME)",
                 re.I), lambda m: Amount("source_counters", _counter_name(m[1].lower()))),
+    (re.compile(r"the number of instant and sorcery cards in your graveyard plus the number of cards with flashback you own in exile", re.I),
+     lambda m: Amount("spells_and_exiled_flashback")),  # Seize the Storm
     (re.compile(r"(?:the number of )?(?:(creature|land|artifact|enchantment|instant|sorcery|planeswalker) )?cards? in your graveyard",
                 re.I), lambda m: Amount("graveyard", (m[1] or "card").lower())),
     (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
@@ -1869,6 +1879,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
     (re.compile(r"when you do, if (.+?), (.+)\.", re.I), _when_you_do_if),  # Earthbender Ascension
     (re.compile(r"if (this spell was foretold), (.+)\.", re.I), _then_if),
+    (re.compile(r"if (this spell was cast using teamwork), (.+)\.", re.I), _then_if),  # Crossover Collaboration
     (re.compile(r"if (the discarded card wasn't a land card), (.+)\.", re.I), _then_if),  # Grab the Prize
     (re.compile(r"if (X is \d+ or more), (?!double the number)(.+)\.", re.I), _then_if),
     (re.compile(rf"if X is {_N} or more, double the number of ([+\-\u2212]1/[+\-\u2212]1) counters on any number of other target "
@@ -2603,9 +2614,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCountersOnEntered(_counter_name(m[1]), _COLOR_WORDS[m[2].lower()] if m[2] else "")),
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF}\.", re.I),
      lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),
+    (re.compile(rf"put {_N} \+1/\+1 counters? on it and it gains {_KEYWORDS} until end of turn\.", re.I),  # First Day of Class
+     lambda m: [PutCountersOnSource(_count(m[1]), "+1/+1"), PumpSource(Modifier(keywords=_keyword_list(m[2])))]),
     (re.compile(rf"put {_N} {_COUNTER} and {_N} {_COUNTER} on {_SELF}\.", re.I),  # Captain Marvel, Quicksilver
      lambda m: [PutCountersOnSource(_count(m[1]), _counter_name(m[2])), PutCountersOnSource(_count(m[3]), _counter_name(m[4]))]),
     (re.compile(r"choose a land card name\.", re.I), lambda m: ChooseCardName("land")),  # Petrified Hamlet
+    (re.compile(r"learn\.", re.I), lambda m: Learn()),  # First Day of Class
+    (re.compile(r'at the beginning of the next end step, if any of those cards remain exiled, put them into your graveyard, then create '
+                r'(an? [^.]+? creature token) for each card put into your graveyard this way\. Those tokens have ("[^"]+")\.?', re.I),
+     lambda m: _LeftoversToGraveyard(made[1]) if (made := _token(f"{m[1]} with {m[2]}")) else None),  # Glimpse the Impossible
+    (re.compile(r"draw a card\. If this spell wasn't cast from your hand, draw two cards instead\.", re.I),
+     lambda m: DrawUnlessFromHand(1, 2)),  # Twinned Vision
     (re.compile(r"counter target spell if its mana value is (\d+) or less\. If this spell was kicked, counter that spell if its mana "
                 r"value is (\d+) or less instead\.", re.I),
      lambda m: Counter(if_mv_at_most=int(m[1]), kicked_mv_at_most=int(m[2]))),  # Prohibit
@@ -3127,7 +3146,8 @@ _CONDITIONS = [
      lambda m: Condition("control_at_least", _number(m[1]), _singular(m[2]))),
     (re.compile(r"your speed is 4"), lambda m: Condition("max_speed")),  # Max speed
     (re.compile(r"CARDNAME is harnessed"), lambda m: Condition("harnessed")),
-    (re.compile(r"CARDNAME is a creature"), lambda m: Condition("source_is_creature")),  # Hydro-Man: not while he is a land  # an Infinity Stone's \u221e ability
+    (re.compile(r"CARDNAME is a creature"), lambda m: Condition("source_is_creature")),
+    (re.compile(r"this spell was cast using teamwork"), lambda m: Condition("teamwork")),  # Crossover Collaboration  # Hydro-Man: not while he is a land  # an Infinity Stone's \u221e ability
     (re.compile(r"you control no creatures with ([a-z]+)"), lambda m: Condition("control_none_keyword", what=m[1])),
     (re.compile(r"you control no ([A-Za-z]+)"), lambda m: Condition("control_none", what=_singular(m[1]))),
     (re.compile(r"you don't control an? ([A-Za-z]+) creature token"), lambda m: Condition("control_none_token", what=m[1])),
@@ -3264,7 +3284,8 @@ _merge_exile = Follows(
     Follow(ReturnLater, Exile, lambda previous, marker: Flicker(previous.target, "end_step", marker.to, marker.under_owner, previous.another)),
     Follow(PlayExiled, ExileTop, set_fields(play=lambda m: m.until), fits=lambda previous, marker: not previous.play),
     Follow(PlayExiled, Mill, set_fields(play_this_turn=lambda m: True)),  # Tablet of Discovery: "Mill a card. You may play that card this turn."
-    Follow(_ChooseOneOfThem, ExileTop, set_fields(choose_one=lambda m: True), fits=lambda previous, marker: previous.count != 1 and not previous.play))
+    Follow(_ChooseOneOfThem, ExileTop, set_fields(choose_one=lambda m: True), fits=lambda previous, marker: previous.count != 1 and not previous.play),
+    Follow(_LeftoversToGraveyard, ExileTop, set_fields(leftovers_token=lambda m: m.token)))
 
 
 _COPY_SENTENCES = (CopyToken, CopySubjectToken, CopyHostToken, CopySelfToken, CopyEachToken)  # "Create a token that's a copy of ..."

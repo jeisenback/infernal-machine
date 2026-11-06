@@ -1171,6 +1171,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     to its mana cost." (Flashback, Snapcaster Mage) records the card for the turn (`Seat.flashback_granted`, read by
     `Game.graveyard_casts_for`). Ral, Crackling Wit's emblem "Instant and sorcery spells you cast have storm." is the rules static
     `grant_storm`.
+  - Pauper Ruby Storm (`tests/test_pauper_ruby_storm.py`, #648): Glimpse the Impossible's cards still exiled at the next end step go to the
+    graveyard, an Eldrazi Spawn each (`ExileTop.leftovers_token`, `Game.leftovers_to_graveyard_at_end_step`); "If this spell was cast
+    using teamwork, create a Treasure token." (Crossover Collaboration); Splice onto Arcane (`splice_cost`, `_choose_splices`: as an Arcane
+    spell is cast, each other card in hand with splice may add its cost and its effects; it stays in hand); "Draw a card. If this spell
+    wasn't cast from your hand, draw two cards instead." and "Flashback—{1}{U/R}{U/R}, Discard a card." (`GraveyardCast.discard`, a real
+    discard: Twinned Vision); "put a +1/+1 counter on it and it gains haste until end of turn" in a "this turn" trigger, and Learn
+    (`Game.learn`: a Lesson from the sideboard, or discard a card to draw a card: First Day of Class); a token with no printed size whose
+    quoted "This token's power and toughness are each equal to ..." defines it, counting "instant and sorcery cards in your graveyard plus
+    the number of cards with flashback you own in exile" (Seize the Storm).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

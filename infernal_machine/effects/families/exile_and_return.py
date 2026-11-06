@@ -81,9 +81,19 @@ class ExileTop:
     count: int | str
     play: str | None = None
     choose_one: bool = False
+    leftovers_token: Card | None = None  # Glimpse the Impossible: the cards still exiled at the next end step go to the graveyard, a token each
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_top(controller, game.amount(self.count), self.play, self.choose_one)
+        exiled = game.exile_top(controller, game.amount(self.count), self.play, self.choose_one)
+        if self.leftovers_token is not None:
+            game.leftovers_to_graveyard_at_end_step(controller, exiled, self.leftovers_token)
+
+
+@dataclass(frozen=True)
+class _LeftoversToGraveyard:
+    """ "At the beginning of the next end step, if any of those cards remain exiled, put them into your graveyard, then create a 0/1
+    ... Eldrazi Spawn creature token for each card put into your graveyard this way. ..." after an ExileTop (see _merge_exile)."""
+    token: Card
 
 
 @dataclass(frozen=True)
