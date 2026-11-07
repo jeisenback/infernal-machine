@@ -508,6 +508,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     - Cunning Rhetoric takes the attacker's top card on `opponent_attacks_you`: an opponent attacked you or one of your planeswalkers, once a combat.
     - Brainstealer's "Whenever a nonland permanent an opponent owns enters the battlefield under your control, they lose life equal to its mana value" is `opponent_owned_enters`: the owner loses the life.
     - A land played from exile that came from another player's library is still that player's (CR 108.3).
+    - Grenzo, Havoc Raiser: `ally_combat_damage` ("Whenever a creature you control deals combat damage to a player") carries the player dealt damage. A mode's "target creature that player controls" is limited to that player's creatures while the modes are offered and chosen. Its other mode takes that player's top card, castable until end of turn with mana of any color.
+    - You Find Some Prisoners: "Exile the top three cards of target opponent's library. Choose one of them. Until the end of your next turn, you may play that card, ..." Only the chosen card may be played (`exile_top_of_other`'s `choose_one` and `next_turn`); the other two stay exiled.
     - In such a trigger, "for as long as it remains exiled", "as though it were mana" and "to cast it" are about the exiled card, not the creature.
   - **Sieges (#658):** "As this enchantment enters, choose Khans or Dragons." (`CHOOSE_SIEGE_PROMPT`).
     - Each "• Khans —" and "• Dragons —" line is read as an ability of its own, so the card is supported when both are.

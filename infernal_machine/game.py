@@ -3390,7 +3390,11 @@ class Game:
                 continue
             effects = list(trigger.ability.effects)
             if effects and isinstance(effects[0], Modal):  # "When this enters, choose one —": modes, then targets
-                effects, _ = self._choose_modes(seat, trigger.source, effects[0], source=trigger.permanent)
+                self.targeting_player = trigger.player  # Grenzo: a mode's "target creature that player controls" needs the player
+                try:
+                    effects, _ = self._choose_modes(seat, trigger.source, effects[0], source=trigger.permanent)
+                finally:
+                    self.targeting_player = None
                 if not effects:
                     continue
             self.targeting_x = trigger.x  # "mana value X or less, where X is the damage dealt" (Venerable Warsinger)
@@ -3823,7 +3827,8 @@ class Game:
                 self._observe("combat_damage_dealt", source.card, controller, subject=source)  # "Whenever a Ninja you control deals ..."
                 enchanted = self._qualifies("enchanted", source)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
-                    self.trigger("ally_combat_damage", permanent, controller, subject=source, x=amount)  # x: "draw that many cards"
+                    self.trigger("ally_combat_damage", permanent, controller, subject=source, x=amount,  # x: "draw that many cards"
+                                 player=target)  # Grenzo, Havoc Raiser: "that player"
                     if permanent is source or enchanted:  # Calix: "Whenever Calix or an enchanted creature you control deals ..."
                         self.trigger("self_or_enchanted_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
@@ -5556,16 +5561,20 @@ class Game:
         self._searched(seat)
 
     def exile_top_of_other(self, seat: Seat, victim: Seat, count: int = 1, free: bool = False, forever: bool = False,
-                           any_mana: bool = False, spells_only: bool = False) -> None:
+                           any_mana: bool = False, spells_only: bool = False, choose_one: bool = False, next_turn: bool = False) -> None:
         """Ragavan: exile the top card of `victim`'s library; `seat` may cast it until the turn ends. Fallen Shinobi: the top `count`,
         played without paying their mana costs (`free`). Brainstealer Dragon: for as long as it remains exiled (`forever`), with mana as
-        though of any color (`any_mana`); Stolen Strategy: spells only, not a land (`spells_only`)."""
-        for card in victim.library[:count]:
+        though of any color (`any_mana`); Stolen Strategy: spells only, not a land (`spells_only`). You Find Some Prisoners: only the card
+        `seat` chooses (`choose_one`), until the end of its next turn (`next_turn`)."""
+        cards = victim.library[:count]
+        chosen = cards[seat.player.choose(CHOOSE_EXILED_PROMPT, [c.name for c in cards])] if choose_one and len(cards) > 1 else None
+        until = FOREVER if forever else self.turn + ((seat.index - self.active) % len(self.seats) or len(self.seats)) if next_turn else self.turn
+        for card in cards:
             victim.library.remove(card)
             seat.exile.append(card)
             seat.borrowed.append((card, victim))
-            if not (spells_only and is_land(card)):
-                seat.exile_play.append((card, FOREVER if forever else self.turn))
+            if not (spells_only and is_land(card)) and (chosen is None or card is chosen):
+                seat.exile_play.append((card, until))
             if free:
                 seat.exile_free.append(card)
             if any_mana:

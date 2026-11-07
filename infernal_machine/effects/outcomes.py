@@ -573,6 +573,7 @@ from .families.spells_and_misc import (  # noqa: F401
     _TokenAttacksThisCombat,
 )
 from .families.free_casting import (  # noqa: F401
+    ExileTopOfOpponentChooseOne,
     ExileTopOfEachOpponentMayCast,
     OwnerLosesManaValue,
     LootCastIfCounters,
@@ -1783,10 +1784,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"Exile the top card of your library\. You may put that card into your hand unless it has the same name as another card exiled this way\. Repeat this process until you put a card into your hand or you exile two cards with the same name, whichever comes first\.", re.I), lambda m: ExileUntilTakenOrTwice()),  # Tainted Pact
     (re.compile(r"exile the top card of each opponent's library\. Until end of turn, you may cast spells from among those exiled cards, and you may spend mana as though it were mana of any color to cast those spells\.", re.I), lambda m: ExileTopOfEachOpponentMayCast()),  # Stolen Strategy
     (re.compile(r"exile the top card of each opponent's library\. You may play those cards for as long as they remain exiled\. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfEachOpponentMayCast(forever=True)),  # Brainstealer Dragon
-    (re.compile(r"exile the top card of that player's library\. You may play that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfThatPlayerMayCast(forever=True)),  # Cunning Rhetoric
+    (re.compile(r"exile the top card of that player's library\. You may play that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfThatPlayerMayCast(forever=True, any_mana=True)),  # Cunning Rhetoric
     (re.compile(r"they lose life equal to its mana value\.", re.I), lambda m: OwnerLosesManaValue()),  # Brainstealer Dragon
     (re.compile(r"exile the top card of your library\. If it's an? (\w+ creature) card, you may cast that card until the end of your next turn\.", re.I),
      lambda m: ExileTop(1, "next turn", spells_only=True, only=m[1].lower())),  # Rundvelt Hordemaster
+    (re.compile(r"exile the top card of that player's library\. Until end of turn, you may cast that card and you may spend mana as though it were mana of any color to cast that spell\.", re.I), lambda m: ExileTopOfThatPlayerMayCast(any_mana=True)),  # Grenzo, Havoc Raiser
+    (re.compile(r"exile the top (\w+) cards of target opponent's library\. Choose one of them\. Until the end of your next turn, you may play that card, and you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfOpponentChooseOne(_number(m[1]))),  # You Find Some Prisoners
     (re.compile(r"pay X life, where X is the number of opponents that were dealt combat damage this turn\. If you do, draw X cards\.", re.I),
      lambda m: PayLifeDrawPerOpponentHit()),  # Tymna the Weaver
 
@@ -2767,7 +2770,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"untap up to one target {_PERMANENT_KIND}\.", re.I), lambda m: Untap(m[1].lower(), optional_target=True)),
     (re.compile(rf"untap {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Untap, m)),
     (re.compile(rf"untap (?:it|{_SELF})\.", re.I), lambda m: UntapSource()),
-    (re.compile(r"goad target (creature)\.", re.I), lambda m: Goad(m[1].lower())),
+    (re.compile(r"goad target (creature(?: that player controls)?)\.", re.I), lambda m: Goad(m[1].lower())),  # Grenzo: the player dealt damage
     (re.compile(r"goad (?:all creatures you don't control|each creature your opponents control)\.", re.I),
      lambda m: GoadAll()),
     (re.compile(rf"mill {_N} cards?\.", re.I), lambda m: Mill(_count(m[1]), "you")),

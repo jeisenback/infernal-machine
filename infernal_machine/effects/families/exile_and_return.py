@@ -439,12 +439,13 @@ class ExileTopOfThatPlayerMayCast:
     mana costs." (`count`, `free`)"""
     count: int = 1
     free: bool = False
-    forever: bool = False  # Cunning Rhetoric: "for as long as it remains exiled, and ... mana as though it were mana of any color"
+    forever: bool = False  # Cunning Rhetoric: "for as long as it remains exiled"
+    any_mana: bool = False  # ... and Grenzo, Havoc Raiser: "you may spend mana as though it were mana of any color"
     binds = PLAYER
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.exile_top_of_other(controller, target, self.count, self.free, self.forever, any_mana=self.forever)
+            game.exile_top_of_other(controller, target, self.count, self.free, self.forever, any_mana=self.any_mana)
 
 
 @dataclass(frozen=True)

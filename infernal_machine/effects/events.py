@@ -158,7 +158,8 @@ declare("gain_life", re.compile(r"Whenever you gain life, (.+)", re.I), to="you"
 declare("lose_life", re.compile(r"Whenever you lose life, (.+)", re.I), to="you", happens="life_lost")
 declare("exploits", re.compile(rf"When(?:ever)? {_SELF} exploits a creature, (.+)", re.I))  # the Exploit keyword (Game.exploit)
 declare("sacrifice_creature", re.compile(r"Whenever you sacrifice a creature, (.+)", re.I))
-declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals combat damage to a player, (.+)", re.I), about_creature=True)
+declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals combat damage to a player, (.+)", re.I), about_creature=True)  # (the
+# player dealt damage is carried: Grenzo, Havoc Raiser's "that player" in a mode)
 declare("self_or_enchanted_combat_damage",  # Calix, Guided by Fate
         re.compile(rf"Whenever {_SELF} or an enchanted creature you control deals combat damage to a player, (.+)", re.I))
 declare("combat_damage_to_your_opponent", re.compile(r"Whenever a creature deals combat damage to one of your opponents, (.+)", re.I),
