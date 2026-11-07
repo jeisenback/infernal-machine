@@ -94,6 +94,11 @@ stats = goldfish(deck, games=5000, turns=5)
     for Korvold and Krenko, and never for Niv-Mizzet, Sisay or Jace. A first attempt at the same issue (#490), which cast and kept the pieces
     of a combo ahead of other cards, changed nothing (809 of 1600 duels, 50.6%, 48.1%-53.0%) and was left out: the bottleneck is finding
     the pieces, not what the bot does with them.
+  - `win`: Thassa's Oracle's line (#682). The bot casts the Oracle before anything else once its library is down to two cards (the
+    Oracle's own {U}{U} makes the devotion two). With the Oracle in hand and two mana left to cast it, it names the Oracle for Demonic
+    Consultation and takes nothing from Tainted Pact, so the library is exiled and the Oracle wins. Otherwise Consultation names the most
+    expensive card in the library, and Tainted Pact passes over lands and takes the first spell. The plain bot names the first card offered
+    and takes the first card exiled.
   `python tools/compare_bots.py DECK DECK ...` plays one version of the bot against another on the same decks and reports the
   win rate with its 95% interval. Against the plain bot on the five Secrets of Strixhaven precons (191 games) all five
   together won 67.5% (60.6%-73.8%); alone, timing won 65.5%, attack 57.6%, land 56.8%, target 55.2% and mana 52.9%.

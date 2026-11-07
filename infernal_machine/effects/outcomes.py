@@ -426,6 +426,7 @@ from .families.library_and_hand import (  # noqa: F401
     _card_matches_kind,
 )
 from .families.life_and_damage import (  # noqa: F401
+    PayLifeDrawPerOpponentHit,
     PreventAllCreatureDamage,
     SubjectDamagesEachOpponent,
     Annihilate,
@@ -486,6 +487,12 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    CONSULT_NAME_PROMPT,
+    ORACLE_TOP_PROMPT,
+    PACT_TAKE_PROMPT,
+    ExileUntilTakenOrTwice,
+    NameExileUntil,
+    OracleLookAndWin,
     DrawUnlessFromHand,
     Learn,
     MillUntilLand,
@@ -1765,6 +1772,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"add (two|three|four|five) mana in any combination of colors\.", re.I),  # Realm-Scorcher Hellkite: each mana its own color
      lambda m: AddMana((frozenset("WUBRG"),) * _ANY_N[m[1].lower()])),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
+    (re.compile(r"look at the top X cards of your library, where X is your devotion to blue\. Put up to one of them on top of your library and the rest on the bottom of your library in a random order\. If X is greater than or equal to the number of cards in your library, you win the game\.", re.I), lambda m: OracleLookAndWin()),  # Thassa's Oracle
+    (re.compile(r"Choose a card name\. Exile the top (\w+) cards of your library, then reveal cards from the top of your library until you reveal a card with the chosen name\. Put that card into your hand and exile all other cards revealed this way\.", re.I), lambda m: NameExileUntil(_number(m[1]))),  # Demonic Consultation
+    (re.compile(r"Exile the top card of your library\. You may put that card into your hand unless it has the same name as another card exiled this way\. Repeat this process until you put a card into your hand or you exile two cards with the same name, whichever comes first\.", re.I), lambda m: ExileUntilTakenOrTwice()),  # Tainted Pact
+    (re.compile(r"pay X life, where X is the number of opponents that were dealt combat damage this turn\. If you do, draw X cards\.", re.I),
+     lambda m: PayLifeDrawPerOpponentHit()),  # Tymna the Weaver
 
     (re.compile(r"it deals that much damage to any other target\.", re.I), lambda m: Damage("X", "any", another=True)),  # Screaming Nemesis
     (re.compile(r"if a player is dealt damage this way, they can't gain life for the rest of the game\.", re.I),

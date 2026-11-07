@@ -826,3 +826,92 @@ class DrawUnlessFromHand:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         item = game.resolving_item
         game.draw(controller, self.count if item is not None and item.from_hand else self.other)
+
+
+ORACLE_TOP_PROMPT = PromptKind("oracle_top", "Keep on top of your library for ")  # followed by the source's name; card names, then KEEP_NONE
+CONSULT_NAME_PROMPT = PromptKind("consult_name", "Name a card for ")  # followed by the spell's name; the names in the library first
+PACT_TAKE_PROMPT = PromptKind("pact_take", "Put into your hand: ")  # followed by the exiled card's name; Yes or No
+KEEP_NONE = "Keep none on top"
+
+
+def _source_name(game: Game) -> str:
+    return game.resolving_item.card.name if game.resolving_item is not None else ""
+
+
+def _exile_from_library(game: Game, seat: Seat, cards: list) -> None:
+    for card in cards:
+        game._move_card(seat, card, "exile")
+    if cards:
+        game.broadcast({"event": "exiled_from_library", "seat": seat.index, "cards": [c.name for c in cards], "may_play": False})
+        game._exiled_from_library_or_graveyard(seat)
+
+
+@dataclass(frozen=True)
+class OracleLookAndWin:
+    """Thassa's Oracle: "look at the top X cards of your library, where X is your devotion to blue. Put up to one of them on top of your
+    library and the rest on the bottom of your library in a random order. If X is greater than or equal to the number of cards in your
+    library, you win the game." (CR 104.2a: X is counted as the trigger resolves; an empty library wins with any devotion)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        x = game.evaluate(Amount("devotion", "U"), controller)
+        seen = controller.library[:x]
+        if seen:
+            del controller.library[:len(seen)]
+            pick = controller.player.choose(ORACLE_TOP_PROMPT(_source_name(game)), [c.name for c in seen] + [KEEP_NONE])
+            top = seen.pop(pick) if pick < len(seen) else None
+            game.rng.shuffle(seen)
+            controller.library.extend(seen)
+            if top is not None:
+                controller.library.insert(0, top)
+        if x >= len(controller.library):
+            controller.wins_game = True
+            game.broadcast({"event": "wins_game", "seat": controller.index})
+
+
+@dataclass(frozen=True)
+class NameExileUntil:
+    """Demonic Consultation: "Choose a card name. Exile the top six cards of your library, then reveal cards from the top of your library
+    until you reveal a card with the chosen name. Put that card into your hand and exile all other cards revealed this way." A name
+    that is not in the library exiles all of it."""
+    first: int  # six
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        inside = list(dict.fromkeys(c.name for c in sorted(controller.library, key=lambda c: -c.cmc)))
+        others = [c.name for c in [*controller.hand, *(p.card for p in controller.battlefield)] if c.name not in inside]
+        options = inside + list(dict.fromkeys(others))
+        if not options:
+            return
+        name = options[controller.player.choose(CONSULT_NAME_PROMPT(_source_name(game)), options)]
+        exiled = [controller.library.pop(0) for _ in range(min(self.first, len(controller.library)))]
+        found = None
+        while controller.library and found is None:
+            card = controller.library.pop(0)
+            game.broadcast({"event": "revealed", "seat": controller.index, "card": card.name})
+            if card.name == name:
+                found = card
+            else:
+                exiled.append(card)
+        _exile_from_library(game, controller, exiled)
+        if found is not None:
+            game._move_card(controller, found, "hand")
+
+
+@dataclass(frozen=True)
+class ExileUntilTakenOrTwice:
+    """Tainted Pact: "Exile the top card of your library. You may put that card into your hand unless it has the same name as another card
+    exiled this way. Repeat this process until you put a card into your hand or you exile two cards with the same name, whichever comes
+    first." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        names: set[str] = set()
+        while controller.library:
+            card = controller.library.pop(0)
+            if card.name in names:
+                _exile_from_library(game, controller, [card])
+                return
+            names.add(card.name)
+            if controller.player.choose(PACT_TAKE_PROMPT(card.name), ["Yes", "No"]) == 0:
+                game._move_card(controller, card, "hand")
+                return
+            _exile_from_library(game, controller, [card])
+

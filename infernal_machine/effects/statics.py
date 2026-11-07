@@ -561,6 +561,7 @@ _PER = {"artifact you control": ("permanent", "artifact"), "creature you control
         "Aura attached to it": ("auras_on_it", ""), "Aura you control that's attached to a creature": ("auras_on_creatures", ""),
         "land you control": ("permanent", "land"), "artifact and/or enchantment you control": ("permanent", "artifact or enchantment"),
         "color among permanents you control": ("colors", ""),  # Faeburrow Elder
+        "color among other legendary permanents you control": ("colors_other_legendary", ""),  # Sisay, Weatherlight Captain
         "enchantment you control": ("permanent", "enchantment"),  # Ethereal Armor
         "other enchantment on the battlefield": ("others_anywhere", "enchantment"),
         "+1/+1 counter on this Aura": ("source_counters", "+1/+1")}  # Nyxborn Hydra, bestowed  # Ancestral Mask: every player's, not the Aura itself

@@ -56,9 +56,9 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(unsupported_lines(GOBLIN_RECRUITER), [])
         self.assertEqual(unsupported_lines(TIAMAT), [])
         self.assertEqual(unsupported_lines(URENI), [])
-        # Muxus's attack pump and Sisay's static are other work; their library lines are read
+        # Muxus's attack pump is other work; its library line is read (Sisay's static is read since #682)
         self.assertEqual([line[:30] for line in unsupported_lines(MUXUS)], ["Whenever CARDNAME attacks, it "])
-        self.assertEqual([line[:30] for line in unsupported_lines(SISAY)], ["CARDNAME gets +1/+1 for each c"])
+        self.assertEqual(unsupported_lines(SISAY), [])
 
 
 class SearchManyTests(unittest.TestCase):

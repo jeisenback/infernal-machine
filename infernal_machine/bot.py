@@ -16,7 +16,7 @@ from .prompts import PRIORITY_PROMPT, is_one_of, subject_of
 from .effects import FREE_WAY, RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
 from .report import unsupported_lines
 from .undercity import HELPS_ITS_TARGET
-from .effects import MOVE_COUNTERS_PROMPT
+from .effects import CONSULT_NAME_PROMPT, MOVE_COUNTERS_PROMPT, PACT_TAKE_PROMPT
 from .zones import CAST_PREFIXES, LAND_PREFIXES, PLOT
 from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, COST_PROMPT, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, COMPANION, CAST_PREPARED, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
@@ -25,7 +25,7 @@ from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, COST_PROMPT, NONE_TAKEN, 
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor", "win"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
 HIGH_TAX = 6  # a commander cast from the command zone three times has this much tax; past it, a graveyard with a way out can be the better place
 # A card that brings a card back from a graveyard to the battlefield or the hand: where a commander that dies can be worth leaving.
 RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
@@ -37,6 +37,8 @@ LOW_CURVE = 3.0  # a deck whose spells cost this much on average or less can kee
 CHEAP_SPELL = 2  # a spell this cheap (or cheaper) is one a two-land hand can cast
 SMALL_THREAT = 2  # an opposing creature this small (power) is not worth a removal spell while nothing bigger is out
 LAND_GOAL = 6  # lands (in play and in hand) the bot wants before it stops keeping more
+ORACLE = "Thassa's Oracle"
+ORACLE_LIBRARY = 2  # Thassa's Oracle wins on a library this small: it counts its own {U}{U} toward the devotion
 
 
 def keep_hand(hand: list[Card], mulligans: int = 0) -> bool:
@@ -99,7 +101,9 @@ class BotPlayer:
         the lowest life), "destination" (a commander that would be bounced goes to the hand to be cast without tax, and one that would
         die with a lot of tax on it goes to the graveyard if the deck can bring it back), "tutor" (a search or a look at the top of the library
         takes the card that completes a combo the deck holds, with what is on the battlefield and in the hand; `combos` are the deck's combos
-        as tuples of card names, or come from the Commander Spellbook cache, and the judgment does nothing for a deck the cache doesn't know)."""
+        as tuples of card names, or come from the Commander Spellbook cache, and the judgment does nothing for a deck the cache doesn't know),
+        "win" (Thassa's Oracle's line: it casts the Oracle once its library is down to ORACLE_LIBRARY cards, and with the Oracle in hand and
+        mana left to cast it, names the Oracle for Demonic Consultation and takes nothing from Tainted Pact, so the library is exiled)."""
         self.features = features
         self._commanders = {c.name for c in deck.commanders}
         self._signature = deck.signature_spell.name if deck.signature_spell else None  # an Oathbreaker's spell: cast like any spell, not first like a commander
@@ -152,6 +156,13 @@ class BotPlayer:
             self._stack.reverse()
 
     def choose(self, prompt: str, options: Sequence[str]) -> int:
+        if CONSULT_NAME_PROMPT.matches(prompt):  # Demonic Consultation: a name outside the library exiles all of it
+            return options.index(ORACLE) if self._oracle_ready() and ORACLE in options else 0
+        if PACT_TAKE_PROMPT.matches(prompt):  # Tainted Pact: keep exiling for the Oracle, else take the first spell
+            if self._oracle_ready():
+                return 1
+            card = self._cards.get(subject_of(prompt, PACT_TAKE_PROMPT))
+            return 1 if card is not None and is_land(card) and "win" in self.features else 0
         if KEEP_PROMPT.matches(prompt):
             keep = keep_hand_for(self._hand, self._average_cost, self._mulligans) if "keep" in self.features else keep_hand(self._hand, self._mulligans)
             return 0 if keep else 1
@@ -251,6 +262,10 @@ class BotPlayer:
                  and not self._unhelpful_wipe(self._cards.get(_cast_name(option))) and not self._holds_removal(self._cards.get(_cast_name(option)))]
         if "commander" in self.features:
             casts += [i for i in commanders if i not in casts]  # a commander that has grown expensive competes with the rest
+        mine = self._my_seat()
+        oracle = [i for i in casts if _cast_name(options[i]) == ORACLE]
+        if oracle and "win" in self.features and mine is not None and mine["library"] <= ORACLE_LIBRARY:
+            return oracle[0]
         if casts:
             if "mana" in self.features:
                 return self._best_cast(casts, options)
@@ -395,10 +410,7 @@ class BotPlayer:
 
     def _best_cast(self, casts: list[int], options: Sequence[str]) -> int:
         """Of the spells it can cast, the biggest one in the combination that spends the most of its untapped mana."""
-        mine = self._my_seat()
-        mana = sum(1 for p in mine["battlefield"] if not p.get("tapped") and (
-            "Land" in p["type"] or (p.get("name") in self._cards and self._cards[p["name"]].produced_mana))) if mine else 0
-        mana += len((mine or {}).get("mana_pool", []))
+        mana = self._mana()
         costs = {i: int(self._cards[name].cmc) + (self._tax(options[i]) if options[i].startswith(CAST_COMMANDER) else 0)
                  if (name := _cast_name(options[i])) in self._cards else 0 for i in casts}
         if max(costs.values()) > mana:  # the game says it can pay for that, so this count is wrong (a cost reduction, a mana ability it can't see)
@@ -412,6 +424,17 @@ class BotPlayer:
         if best_total < 0:  # it cannot tell what it can pay (X spells, cost reductions): the plain rule
             return max(casts, key=costs.__getitem__)
         return best
+
+    def _mana(self) -> int:
+        """Untapped lands and mana permanents, and the mana in the pool: about what the bot can still spend."""
+        mine = self._my_seat()
+        mana = sum(1 for p in mine["battlefield"] if not p.get("tapped") and (
+            "Land" in p["type"] or (p.get("name") in self._cards and self._cards[p["name"]].produced_mana))) if mine else 0
+        return mana + len((mine or {}).get("mana_pool", []))
+
+    def _oracle_ready(self) -> bool:
+        """Thassa's Oracle is in hand with mana left to cast it ({U}{U}): exiling the library now wins rather than loses."""
+        return "win" in self.features and ORACLE in (self._state or {}).get("hand", []) and self._mana() >= 2
 
     def _is_removal(self, name: str) -> bool:
         card = self._cards.get(name)
