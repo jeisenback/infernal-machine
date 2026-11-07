@@ -170,6 +170,8 @@ from .families.copying import (  # noqa: F401
     ImprintDead,
     CopyExiledWith,
     DelinaRoll,
+    CopyAnotherAttacker,
+    CopyDiscardedCard,
     ExileOthersCopy,
     CopySubjectForItsController,
     _OthersBecomeCopies,
@@ -2000,6 +2002,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(?:that creature|it), except it's not legendary and it has \"At end of combat, exile this token\.\" 15\u201420 \| Create one "
                 r"of those tokens\. You may roll again\.", re.I), lambda m: DelinaRoll()),  # Delina, Wild Mage
     (re.compile(r"roll a d20\. (\d+(?:\u2014\d+)? \| .+)", re.I), lambda m: _roll_table(20, m[1])),  # CR 706.2: Hoarding Ogre
+    (re.compile(r"create a token that's a copy of another target attacking creature and that's tapped and attacking\. Exile the token at "
+                r"end of combat\.", re.I), lambda m: CopyAnotherAttacker()),  # Flamerush Rider
+    (re.compile(r"create a tapped token that's a copy of that card(?:, except (.+))?\.", re.I),  # Hashaton: the card discarded
+     lambda m: CopyDiscardedCard(c) if (c := _copy_changes(m[1]) if m[1] else CopyChanges()) else None),
     (re.compile(r"roll a d20\.", re.I), lambda m: RollDie(20)),  # CR 706: the Ancient dragons
     (re.compile(r"you have no maximum hand size for the rest of the game\.", re.I), lambda m: NoMaxHandForTheGame()),  # Ancient Silver Dragon
     (re.compile(r"if you (win|lose) the flip, (.+)\.", re.I), _if_flip),  # Mana Crypt
@@ -2867,6 +2873,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: DestroyAllOfChosenType(("artifact", "enchantment"))),
     (re.compile(r"choose an artifact or creature you control\. create a token that's a copy of it\.", re.I),
      lambda m: CopyChosenPermanent("artifact or creature you control")),
+    (re.compile(r"create a token that's a copy of a nonlegendary enchantment you control\.", re.I),  # Calix, Guided by Fate
+     lambda m: CopyChosenPermanent("nonlegendary enchantment you control")),
     (re.compile(r"double the (power|power and toughness) of each creature you control until end of turn\.", re.I),
      lambda m: DoubleStats("power" in m[1].lower(), "toughness" in m[1].lower(), each=True)),
     (re.compile(r"double the (power|power and toughness) of each ([A-Z][a-z]+) you control until end of turn\.", re.I),
