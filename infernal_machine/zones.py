@@ -186,7 +186,10 @@ class Exile(ZonePlay):
         if action.startswith(PLAY_EXILE):
             card = g._take(seat.exile, action.removeprefix(PLAY_EXILE))
             game._used_exile_permission(seat, card)
-            game._enter(seat, g.Permanent(card, sick=True))
+            entry = next((e for e in seat.borrowed if e[0] is card), None)  # an opponent's land (Brainstealer Dragon) stays theirs (CR 108.3)
+            if entry is not None:
+                seat.borrowed.remove(entry)
+            game._enter(seat, g.Permanent(card, sick=True, owner=entry[1] if entry is not None else None))
             seat.lands_played += 1
             game.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
         elif action.startswith(CAST_EXILE):

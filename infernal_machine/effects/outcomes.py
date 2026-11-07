@@ -572,6 +572,8 @@ from .families.spells_and_misc import (  # noqa: F401
     _TokenAttacksThisCombat,
 )
 from .families.free_casting import (  # noqa: F401
+    ExileTopOfEachOpponentMayCast,
+    OwnerLosesManaValue,
     LootCastIfCounters,
     SubjectControllerMayPayLifeDraw,
     ExileTopCastOneOfEachType,
@@ -1778,6 +1780,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"look at the top X cards of your library, where X is your devotion to blue\. Put up to one of them on top of your library and the rest on the bottom of your library in a random order\. If X is greater than or equal to the number of cards in your library, you win the game\.", re.I), lambda m: OracleLookAndWin()),  # Thassa's Oracle
     (re.compile(r"Choose a card name\. Exile the top (\w+) cards of your library, then reveal cards from the top of your library until you reveal a card with the chosen name\. Put that card into your hand and exile all other cards revealed this way\.", re.I), lambda m: NameExileUntil(_number(m[1]))),  # Demonic Consultation
     (re.compile(r"Exile the top card of your library\. You may put that card into your hand unless it has the same name as another card exiled this way\. Repeat this process until you put a card into your hand or you exile two cards with the same name, whichever comes first\.", re.I), lambda m: ExileUntilTakenOrTwice()),  # Tainted Pact
+    (re.compile(r"exile the top card of each opponent's library\. Until end of turn, you may cast spells from among those exiled cards, and you may spend mana as though it were mana of any color to cast those spells\.", re.I), lambda m: ExileTopOfEachOpponentMayCast()),  # Stolen Strategy
+    (re.compile(r"exile the top card of each opponent's library\. You may play those cards for as long as they remain exiled\. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfEachOpponentMayCast(forever=True)),  # Brainstealer Dragon
+    (re.compile(r"exile the top card of that player's library\. You may play that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfThatPlayerMayCast(forever=True)),  # Cunning Rhetoric
+    (re.compile(r"they lose life equal to its mana value\.", re.I), lambda m: OwnerLosesManaValue()),  # Brainstealer Dragon
     (re.compile(r"pay X life, where X is the number of opponents that were dealt combat damage this turn\. If you do, draw X cards\.", re.I),
      lambda m: PayLifeDrawPerOpponentHit()),  # Tymna the Weaver
 

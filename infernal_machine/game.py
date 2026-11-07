@@ -5535,16 +5535,21 @@ class Game:
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
         self._searched(seat)
 
-    def exile_top_of_other(self, seat: Seat, victim: Seat, count: int = 1, free: bool = False) -> None:
+    def exile_top_of_other(self, seat: Seat, victim: Seat, count: int = 1, free: bool = False, forever: bool = False,
+                           any_mana: bool = False, spells_only: bool = False) -> None:
         """Ragavan: exile the top card of `victim`'s library; `seat` may cast it until the turn ends. Fallen Shinobi: the top `count`,
-        played without paying their mana costs (`free`)."""
+        played without paying their mana costs (`free`). Brainstealer Dragon: for as long as it remains exiled (`forever`), with mana as
+        though of any color (`any_mana`); Stolen Strategy: spells only, not a land (`spells_only`)."""
         for card in victim.library[:count]:
             victim.library.remove(card)
             seat.exile.append(card)
             seat.borrowed.append((card, victim))
-            seat.exile_play.append((card, self.turn))
+            if not (spells_only and is_land(card)):
+                seat.exile_play.append((card, FOREVER if forever else self.turn))
             if free:
                 seat.exile_free.append(card)
+            if any_mana:
+                seat.exile_any_mana.append(card)
             self.broadcast({"event": "exiled_from_library", "seat": victim.index, "cards": [card.name], "may_play": True})
 
     def exile_top_of_each_cast_free(self, seat: Seat) -> None:
@@ -6725,6 +6730,9 @@ class Game:
         if saga_chapters(permanent.card):
             self.trigger(f"chapter_{permanent.counters['lore']}", permanent, seat)
         self._observe("permanent_enters", permanent.card, seat, subject=permanent)
+        if permanent.owner is not None and permanent.owner is not seat and not is_land(permanent.card):  # Brainstealer Dragon
+            for watcher in list(seat.battlefield):
+                self.trigger("opponent_owned_enters", watcher, seat, subject=permanent)
         if "Creature" in permanent.card.type_line:
             self._soulbond(seat, permanent)
 

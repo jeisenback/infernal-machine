@@ -179,6 +179,10 @@ declare("tribe_attack", re.compile(r"Whenever you attack with one or more (?-i:[
         accepts=attacked_with_tribe)  # Hired Claw
 declare("opponents_noncombat_damage", re.compile(r"Whenever one or more opponents are dealt noncombat damage, (.+)", re.I))  # Master of Barbs
 declare("opponent_attacks", re.compile(r"Whenever an opponent attacks with creatures, (.+)", re.I), about_player=True)
+declare("opponent_attacks_you", re.compile(r"Whenever an opponent attacks you and/or one or more planeswalkers you control, (.+)", re.I),
+        about_player=True)  # Cunning Rhetoric: once a combat, if any creature attacks its controller or their planeswalkers
+declare("opponent_owned_enters", re.compile(r"Whenever a nonland permanent an opponent owns enters the battlefield under your control, (.+)",
+                                            re.I), about_creature=True)  # Brainstealer Dragon: the permanent is the subject
 declare("activate_x", re.compile(r"Whenever you activate an ability with \{X\} in its activation cost, (.+)", re.I), to="you")
 # Rings of Brighthearth and kin: any activated ability that isn't a mana ability, which the game raises as "activated" (the ability is `spell`)
 declare("activate_any", re.compile(r"Whenever you activate an ability, if it isn't a mana ability, (.+)", re.I), to="you", happens="activated")

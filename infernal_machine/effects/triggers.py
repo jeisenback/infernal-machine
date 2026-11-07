@@ -529,7 +529,9 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 
 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
+_CAST_IT = re.compile(r"\bfor as long as it remains exiled\b|\bas though it were mana\b|\bto cast it\.$", re.I)  # Cunning Rhetoric: the card
 _PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creature|CARDNAME)\b"
+
                      r"|\bWhen you do, if it has \w+ or more [a-z+/-]+ counters on it\b"  # Earthbender Ascension: "it" is the source, as the sentence before said
                      r"|\btarget [^.]*\. It gains [^.]*\."  # "... on target creature you control. It gains trample until end of turn.": the target
                      r"|\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
@@ -602,7 +604,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     without_token_ability = _AURAS_ON_IT.sub("", _TOKEN_HAS.sub("", rest) if re.search(r"\btokens?\b", rest, re.I) else rest)
     without_token_ability = _SELF_THEN_IT.sub(r"\1 This", without_token_ability)
     without_token_ability = _STILL_A_LAND.sub("", without_token_ability)  # "It's still a land." closes an Animate; it is not about the subject
-    about_subject = re.search(r"\bit\b|\bthat spell\b", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability))))), re.I) is not None
+    about_subject = re.search(r"\bit\b|\bthat spell\b", _CAST_IT.sub("", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability)))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?(?:you may pay (?:\{[^}]+\})+\. If you do, )?copy (it|that spell)(?: for each [^.]*)?\.", rest,
                             re.I) is not None  # Codie: "it" is the spell cast (Mirari: after a payment; Thousand-Year Storm: so many times)
     copies_spell = copies_spell or re.fullmatch(r"(?:if no (?:colored )?mana was spent to cast it, )?counter that spell\.", rest, re.I) is not None  # Vexing Bauble, Void Mirror, Chalice
