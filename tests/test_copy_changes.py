@@ -129,3 +129,89 @@ class CopyChangesTests(unittest.TestCase):
         fire(game, a, irma, "combat")
         self.assertEqual((irma.card.name, game.power(irma), "At the beginning of combat on your turn" in irma.card.oracle_text),
                          ("Irma, Part-Time Mutant", 6, True))
+
+
+FLESH_DUPLICATE = real("Flesh Duplicate", "{U}{U}", "Creature — Shapeshifter Rebel",
+                       "You may have this creature enter as a copy of any creature on the battlefield, except it has vanishing 3 if that "
+                       "creature doesn't have vanishing. (A permanent with vanishing 3 enters with three time counters on it. At the beginning "
+                       "of your upkeep, remove a time counter from it. When the last is removed, sacrifice it.)", "0", "0", colors=("U",))
+IMPOSTER_MECH = real("Imposter Mech", "{1}{U}", "Artifact — Vehicle",
+                     "You may have this Vehicle enter as a copy of a creature an opponent controls, except it's a Vehicle artifact with crew 3 "
+                     "and it loses all other card types.\nCrew 3", "3", "1", colors=("U",))
+ESTRIDS_INVOCATION = real("Estrid's Invocation", "{2}{U}", "Enchantment",
+                          "You may have this enchantment enter as a copy of an enchantment you control, except it has \"At the beginning of "
+                          "your upkeep, you may exile this enchantment. If you do, return it to the battlefield under its owner's control.\"")
+SAKASHIMA_FACES = real("Sakashima of a Thousand Faces", "{3}{U}", "Legendary Creature — Human Rogue",
+                       "You may have Sakashima enter as a copy of another creature you control, except it has Sakashima's other abilities.\n"
+                       "The \"legend rule\" doesn't apply to permanents you control.\nPartner (You can have two commanders if both have "
+                       "partner.)", "3", "1", colors=("U",))
+DREAMTIDE_WHALE = real("Dreamtide Whale", "{2}{U}", "Creature — Whale",
+                       "Vanishing 2 (This creature enters with two time counters on it. At the beginning of your upkeep, remove a time "
+                       "counter from it. When the last is removed, sacrifice it.)\nWhenever a player casts their second spell each turn, "
+                       "proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already "
+                       "there.)", "7", "5", colors=("U",))
+ANTHEM_CARD = real("Test Anthem", "{2}{W}", "Enchantment", "Creatures you control get +1/+1.", colors=("W",))
+
+
+def clone_into(card, copying, mine=(), theirs=(), lands_=6):
+    """Seat 0 casts `card` and copies the permanent whose label starts with `copying`."""
+    def policy(prompt, options):
+        if CLONE_PROMPT.matches(prompt):
+            return next(i for i, o in enumerate(options) if o.startswith(copying))
+        return options.index(PASS) if PASS in options else 0
+    game, _ = table3(policy)
+    a, b, _ = game.seats
+    a.battlefield, a.hand, b.battlefield = [*(Permanent(c) for c in mine), *lands(lands_)], [card], [Permanent(c) for c in theirs]
+    game._perform(a, CAST + card.name)
+    run_stack(game)
+    return game, a, next(p for p in a.battlefield if p.real_card is not None)
+
+
+def upkeep(game, seat):
+    game.step = "upkeep"
+    game._turn_based_actions(seat)
+    run_stack(game)
+
+
+class CopyChangesBatch2Tests(unittest.TestCase):
+    def test_the_cards_are_fully_playable(self):
+        for card in (FLESH_DUPLICATE, IMPOSTER_MECH, ESTRIDS_INVOCATION, SAKASHIMA_FACES, DREAMTIDE_WHALE):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_vanishing_counts_down_and_sacrifices_on_the_last(self):
+        game, _ = table3()
+        a = game.seats[0]
+        whale = enter(game, a, DREAMTIDE_WHALE)
+        self.assertEqual(whale.counters.get("time"), 2)
+        upkeep(game, a)
+        self.assertEqual((whale.counters.get("time"), whale in a.battlefield), (1, True))
+        upkeep(game, a)
+        self.assertNotIn(whale, a.battlefield)
+        bare = Permanent(DREAMTIDE_WHALE)  # with no time counter on it, the trigger does nothing (CR 702.63a: "if this permanent has ...")
+        a.battlefield.append(bare)
+        upkeep(game, a)
+        self.assertIn(bare, a.battlefield)
+
+    def test_flesh_duplicate_gets_vanishing_only_if_the_copied_creature_has_none(self):
+        _, _, copy = clone_into(FLESH_DUPLICATE, "Test Brute", mine=[BRUTE])
+        self.assertEqual((copy.card.name, copy.counters.get("time")), ("Test Brute", 3))
+        _, _, copy = clone_into(FLESH_DUPLICATE, "Dreamtide Whale", mine=[DREAMTIDE_WHALE])
+        self.assertEqual((copy.card.name, copy.counters.get("time")), ("Dreamtide Whale", 2))  # its own vanishing 2, not 3
+
+    def test_imposter_mech_is_a_vehicle_copy_of_an_opponents_creature(self):
+        game, a, mech = clone_into(IMPOSTER_MECH, "Test Brute", theirs=[BRUTE])
+        self.assertEqual((mech.card.name, mech.card.type_line, "Creature" in mech.card.type_line), ("Test Brute", "Artifact — Vehicle", False))
+        self.assertIn("Crew 3", mech.card.oracle_text)
+
+    def test_estrids_invocation_copies_an_enchantment_and_may_blink_itself(self):
+        game, a, copy = clone_into(ESTRIDS_INVOCATION, "Test Anthem", mine=[ANTHEM_CARD])
+        self.assertEqual(copy.card.name, "Test Anthem")
+        upkeep(game, a)  # it leaves and comes back: a new object, which may copy again
+        self.assertNotIn(copy, a.battlefield)
+        self.assertEqual(sorted(p.card.name for p in a.battlefield if "Enchantment" in p.card.type_line), ["Test Anthem", "Test Anthem"])
+
+    def test_sakashima_of_a_thousand_faces_keeps_its_own_other_abilities(self):
+        _, _, copy = clone_into(SAKASHIMA_FACES, "Test Brute", mine=[BRUTE])
+        self.assertEqual(copy.card.name, "Test Brute")
+        self.assertIn("legend rule", copy.card.oracle_text)
+        self.assertNotIn("enter as a copy", copy.card.oracle_text)

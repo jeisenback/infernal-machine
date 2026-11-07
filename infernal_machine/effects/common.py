@@ -234,6 +234,7 @@ _WHOLE_LINE = re.compile(
     r"|create a token that's a copy of another target attacking creature and that's tapped and attacking\. Exile the token at end of "
     r"combat\."  # Flamerush Rider
     r"|[Rr]oll a d20\. \d+(?:\u2014\d+)? \| .+"  # a die roll and its table (CR 706.2)
+    r"|exile this (?:enchantment|creature|artifact)\. If you do, return it to the battlefield under its owner's control\."  # Estrid's Invocation
     r"|Destroy target creature\. If that creature dies this way, its controller creates two tokens that are copies of that creature, "
     r"except their power is half that creature's power and their toughness is half that creature's toughness\. Round up each time\."
     r"|Exile target nonland permanent\. Each player other than its controller creates a token that's a copy of it\."  # Fractured Identity

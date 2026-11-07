@@ -31,7 +31,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, heals_before_damage, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, heals_before_damage, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -5230,7 +5230,7 @@ class Game:
     def exile_noting(self, target: Permanent, source: Permanent | None) -> None:
         """Exile `target` and remember the card on `source` ("the exiled card's owner ..."). Tokens are not remembered."""
         owner = self.owner_of(target)
-        card, before = target.transformed_from or target.card, len(owner.exile)
+        card, before = target.transformed_from or target.real_card or target.card, len(owner.exile)  # a clone's own card is what goes
         self.exile(target)
         if source is not None and not _is_token(card) and len(owner.exile) > before:
             source.exiled_with.append((owner, card))
@@ -5320,7 +5320,7 @@ class Game:
         next end step begins ("end_step"). A token is gone for good; it comes back under `controller`'s control if
         the card says "under your control", otherwise under its owner's, with `counters` +1/+1 counters (Daydream)."""
         owner = self.owner_of(target)
-        card, before = target.transformed_from or target.card, len(owner.exile)
+        card, before = target.transformed_from or target.real_card or target.card, len(owner.exile)  # a clone's own card is what goes
         self.exile(target)
         if _is_token(card) or len(owner.exile) <= before:  # a token ceases to exist; a commander went to the command zone
             return
@@ -6838,6 +6838,9 @@ class Game:
         permanent.card = copy_of(copied, rule.changes)
         if rule.changes.name == "CARDNAME":  # "except its name is Superior Spider-Man": the clone's own name
             permanent.card = dataclasses.replace(permanent.card, name=permanent.real_card.name)
+        if rule.changes.own_abilities:  # Sakashima of a Thousand Faces: "except it has CARDNAME's other abilities"
+            own = [line for line in rules_lines(permanent.real_card) if not is_clone_line(line)]
+            permanent.card = dataclasses.replace(permanent.card, oracle_text="\n".join([permanent.card.oracle_text, *own]).strip())
         if rule.exile_copied and copied in owner.graveyard:  # Mind Swap: "When you do, exile that card."
             self.exile_from_graveyard(GraveyardTarget(copied, owner))
         if "Planeswalker" in permanent.card.type_line:  # Spark Double: the copy starts at the planeswalker's loyalty

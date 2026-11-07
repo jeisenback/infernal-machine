@@ -1290,6 +1290,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (of a target; what leaves the battlefield is still its own card), where "except it has this ability" keeps the ability's own text
     (`CopyChanges.keeps_ability`) and "its name is CARDNAME" its own name; and Sakashima the Impostor's "{2}{U}{U}: Return CARDNAME to its
     owner's hand at the beginning of the next end step." (`ReturnSelfAtNextEndStep`).
+  - Copies with changes, batch 2 (`tests/test_copy_changes.py`, #657): Vanishing N (CR 702.63a: it enters with N time counters, one is
+    removed at your upkeep if there is one, and it is sacrificed when the last goes; Dreamtide Whale, Deep Forest Hermit); clones whose
+    except clause is "it has vanishing 3 if that creature doesn't have vanishing" (Flesh Duplicate), "it's a Vehicle artifact with crew 3
+    and it loses all other card types" (Imposter Mech), "it has CARDNAME's other abilities" (Sakashima of a Thousand Faces, whose "legend
+    rule" line holds as it is: the engine applies no legend rule) and a quoted "you may exile this enchantment. If you do, return it to
+    the battlefield under its owner's control." (Estrid's Invocation). Exiling a clone (a flicker, "exiled with") now moves and remembers
+    its own card, not the card it copied, so a flickered clone comes back.
   - Token copies, batch 4 (`tests/test_copy_tokens.py`, #656): Flamerush Rider's "create a token that's a copy of another target attacking
     creature and that's tapped and attacking. Exile the token at end of combat." (`Game.copy_attacking_creature`); Hashaton's "Whenever you
     discard a creature card" (event `discard_creature`) and "create a tapped token that's a copy of that card, except it's a 4/4 black

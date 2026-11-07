@@ -244,6 +244,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     SacrificeSelf,
     ExileSelf,
     ReturnSelfAtNextEndStep,
+    Vanish,
     SacrificeSelfThenCreate,
     SacrificeUnlessPay,
     TargetSacrifices,
@@ -818,6 +819,17 @@ def _copy_changes(text: str) -> CopyChanges | None:
     for clause in _COPY_SPLIT.split(text):
         clause = clause.strip()
         was_keywords, after_keywords = after_keywords, False
+        if re.fullmatch(r"it has CARDNAME's other abilities", clause):  # Sakashima of a Thousand Faces
+            fields["own_abilities"] = True
+            continue
+        if m := re.fullmatch(r"it's a Vehicle artifact with crew (\d+)", clause, re.I):  # Imposter Mech (with "it loses all other card types")
+            fields["vehicle_crew"] = int(m[1])
+            continue
+        if re.fullmatch(r"it loses all other card types", clause, re.I) and "vehicle_crew" in fields:
+            continue
+        if m := re.fullmatch(r"it has vanishing (\d+) if that creature doesn't have vanishing", clause, re.I):  # Flesh Duplicate
+            fields["vanishing_unless"] = int(m[1])
+            continue
         if re.fullmatch(r"(?:it|she|he) has this ability", clause, re.I):  # Thespian's Stage, Irma
             fields["keeps_ability"] = True
             continue
@@ -880,7 +892,8 @@ def _copy_changes(text: str) -> CopyChanges | None:
         add_types=tuple(types), keywords=tuple(keywords), add_colors=tuple(colors), abilities=tuple(abilities),
         extra_counters=fields.get("extra_counters", ""), extra_loyalty=fields.get("extra_loyalty", 0), supertypes=tuple(supertypes),
         set_colors=fields.get("set_colors"), set_subtypes=fields.get("set_subtypes"), name=fields.get("name"),
-        keeps_ability=fields.get("keeps_ability", False))
+        keeps_ability=fields.get("keeps_ability", False), vanishing_unless=fields.get("vanishing_unless", 0),
+        vehicle_crew=fields.get("vehicle_crew", 0), own_abilities=fields.get("own_abilities", False))
 
 
 
@@ -1886,9 +1899,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'it gains haste and "When this token dies, draw a card\."', re.I), lambda m: _TokenGainsBlitz()),  # Jaxis  # Devastating Onslaught
     (re.compile(r"(?:it|that token|they|those tokens) gains? haste\.", re.I), lambda m: _TokenHasHaste()),
     (re.compile(r"sacrifice (?:it|this (?:creature|artifact|token))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."; Electroduplicate's token
-    (re.compile(r"exile this token\.", re.I), lambda m: ExileSelf()),
+    (re.compile(r"exile this token\.", re.I), lambda m: ExileSelf()),  # Heat Shimmer's token: "At the beginning of the end step, exile this token."
     (re.compile(r"return (?:CARDNAME|this creature) to its owner's hand at the beginning of the next end step\.", re.I),  # Sakashima the Impostor
-     lambda m: ReturnSelfAtNextEndStep()),  # Heat Shimmer's token: "At the beginning of the end step, exile this token."
+     lambda m: ReturnSelfAtNextEndStep()),
     (re.compile(r"mill a card, then exile a card from your graveyard at random\. you may play the exiled card this turn\.", re.I),
      lambda m: MillThenExileRandomPlay()),
     (re.compile(r"exile (?:that card|one of them) from your graveyard\.(?: if you do, you may (?:play|cast) (?:that card|it) this turn\.)?", re.I),
@@ -2012,6 +2025,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(?:that creature|it), except it's not legendary and it has \"At end of combat, exile this token\.\" 15\u201420 \| Create one "
                 r"of those tokens\. You may roll again\.", re.I), lambda m: DelinaRoll()),  # Delina, Wild Mage
     (re.compile(r"roll a d20\. (\d+(?:\u2014\d+)? \| .+)", re.I), lambda m: _roll_table(20, m[1])),  # CR 706.2: Hoarding Ogre
+    (re.compile(r"exile this (?:enchantment|creature|artifact)\. If you do, return it to the battlefield under its owner's control\.", re.I),
+     lambda m: FlickerSelf(False)),  # Estrid's Invocation's copy: "At the beginning of your upkeep, you may exile this enchantment. ..."
     (re.compile(rf"{_SELF} becomes? a copy of (?:it|that creature) until end of turn, except (.+)\.", re.I),  # Sarkhan, Soul Aflame
      lambda m: BecomeCopyOfSubject(c) if (c := _copy_changes(m[1])) else None),
     (re.compile(rf"{_SELF} becomes? a copy of (another |up to one other )?target ((?-i:[A-Z][a-z]+)|land|creature)( you control)?, except (.+)\.",
