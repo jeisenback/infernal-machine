@@ -211,11 +211,11 @@ class SisayTests(unittest.TestCase):
 DECK = Deck([COMMANDER], [ORACLE, CONSULTATION, PACT, FOREST, *CARDS[:3]], [])
 
 
-def bot(features=FEATURES, hand=(), untapped=2, library=40):
+def bot(features=FEATURES, hand=(), untapped=2, library=40, graveyard=()):
     b = BotPlayer("Bot", DECK, features=features)
     b.notify({"event": "seat", "seat": 0, "name": "Bot", "life": 40})
     b.notify({"event": "state", "hand": list(hand), "seats": [
-        {"seat": 0, "lost": False, "library": library, "mana_pool": [],
+        {"seat": 0, "lost": False, "library": library, "mana_pool": [], "graveyard": list(graveyard), "exile": [],
          "battlefield": [{"name": "Island", "type": "Basic Land — Island", "tapped": False} for _ in range(untapped)]}]})
     return b
 
@@ -250,6 +250,35 @@ class BotOracleLineTests(unittest.TestCase):
         options = ["Cast: Card 0", "Cast: Thassa's Oracle", "Pass"]
         b = bot(hand=["Card 0", "Thassa's Oracle"], library=3)
         self.assertEqual(options[b.choose("Your priority", options)], "Cast: Card 0")
+
+
+class BotOracleOrderTests(unittest.TestCase):
+    """The pieces of the line are kept for it, and the library goes first."""
+    OPTIONS = ["Cast: Card 0", "Cast: Demonic Consultation", "Cast: Thassa's Oracle", "Pass"]
+
+    def cast(self, b, options=None):
+        options = options or self.OPTIONS
+        return options[b.choose("Your priority", options)]
+
+    def test_with_the_oracle_and_mana_for_both_consultation_goes_first(self):
+        self.assertEqual(self.cast(bot(hand=["Demonic Consultation", "Thassa's Oracle", "Card 0"], untapped=3)), "Cast: Demonic Consultation")
+
+    def test_without_the_mana_for_both_consultation_is_kept(self):
+        b = bot(hand=["Demonic Consultation", "Thassa's Oracle", "Card 0"], untapped=2)
+        self.assertNotEqual(self.cast(b), "Cast: Demonic Consultation")
+
+    def test_without_the_oracle_in_hand_consultation_is_kept(self):
+        options = ["Cast: Demonic Consultation", "Pass"]
+        self.assertEqual(self.cast(bot(hand=["Demonic Consultation"], untapped=5), options), "Pass")
+
+    def test_once_the_oracle_is_gone_consultation_is_a_tutor(self):
+        options = ["Cast: Demonic Consultation", "Pass"]
+        b = bot(hand=["Demonic Consultation"], untapped=5, graveyard=["Thassa's Oracle"])
+        self.assertEqual(self.cast(b, options), "Cast: Demonic Consultation")
+
+    def test_without_the_judgment_consultation_is_cast_like_any_spell(self):
+        options = ["Cast: Demonic Consultation", "Pass"]
+        self.assertEqual(self.cast(bot(FEATURES - {"win"}, hand=["Demonic Consultation"], untapped=5), options), "Cast: Demonic Consultation")
 
 
 if __name__ == "__main__":

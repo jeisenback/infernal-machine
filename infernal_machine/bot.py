@@ -38,6 +38,7 @@ CHEAP_SPELL = 2  # a spell this cheap (or cheaper) is one a two-land hand can ca
 SMALL_THREAT = 2  # an opposing creature this small (power) is not worth a removal spell while nothing bigger is out
 LAND_GOAL = 6  # lands (in play and in hand) the bot wants before it stops keeping more
 ORACLE = "Thassa's Oracle"
+ORACLE_EXILERS = ("Demonic Consultation", "Tainted Pact")  # they exile the library for Thassa's Oracle
 ORACLE_LIBRARY = 2  # Thassa's Oracle wins on a library this small: it counts its own {U}{U} toward the devotion
 
 
@@ -102,8 +103,9 @@ class BotPlayer:
         die with a lot of tax on it goes to the graveyard if the deck can bring it back), "tutor" (a search or a look at the top of the library
         takes the card that completes a combo the deck holds, with what is on the battlefield and in the hand; `combos` are the deck's combos
         as tuples of card names, or come from the Commander Spellbook cache, and the judgment does nothing for a deck the cache doesn't know),
-        "win" (Thassa's Oracle's line: it casts the Oracle once its library is down to ORACLE_LIBRARY cards, and with the Oracle in hand and
-        mana left to cast it, names the Oracle for Demonic Consultation and takes nothing from Tainted Pact, so the library is exiled)."""
+        "win" (Thassa's Oracle's line: it casts the Oracle once its library is down to ORACLE_LIBRARY cards; it keeps Demonic Consultation
+        and Tainted Pact for the Oracle, casting one first once the Oracle is in hand with the mana for both; and then it names the Oracle
+        for Consultation and takes nothing from the Pact, so the library is exiled)."""
         self.features = features
         self._commanders = {c.name for c in deck.commanders}
         self._signature = deck.signature_spell.name if deck.signature_spell else None  # an Oathbreaker's spell: cast like any spell, not first like a commander
@@ -263,9 +265,17 @@ class BotPlayer:
         if "commander" in self.features:
             casts += [i for i in commanders if i not in casts]  # a commander that has grown expensive competes with the rest
         mine = self._my_seat()
-        oracle = [i for i in casts if _cast_name(options[i]) == ORACLE]
-        if oracle and "win" in self.features and mine is not None and mine["library"] <= ORACLE_LIBRARY:
-            return oracle[0]
+        if "win" in self.features:
+            oracle = [i for i in casts if _cast_name(options[i]) == ORACLE]
+            if oracle and mine is not None and mine["library"] <= ORACLE_LIBRARY:
+                return oracle[0]
+            exilers = [i for i in casts if _cast_name(options[i]) in ORACLE_EXILERS]
+            ready = [i for i in exilers if ORACLE in (self._state or {}).get("hand", [])
+                     and self._mana() >= self._cards[_cast_name(options[i])].cmc + 2]
+            if ready:  # the library goes first, then the Oracle wins
+                return ready[0]
+            if self._oracle_alive(mine):  # a piece of the Oracle's line is kept for it, not spent as a tutor
+                casts = [i for i in casts if i not in exilers]
         if casts:
             if "mana" in self.features:
                 return self._best_cast(casts, options)
@@ -435,6 +445,10 @@ class BotPlayer:
     def _oracle_ready(self) -> bool:
         """Thassa's Oracle is in hand with mana left to cast it ({U}{U}): exiling the library now wins rather than loses."""
         return "win" in self.features and ORACLE in (self._state or {}).get("hand", []) and self._mana() >= 2
+
+    def _oracle_alive(self, mine: dict | None) -> bool:
+        """Thassa's Oracle is in the deck and still to come: not in the graveyard or exile."""
+        return ORACLE in self._cards and not (mine and ORACLE in (*mine.get("graveyard", []), *mine.get("exile", [])))
 
     def _is_removal(self, name: str) -> bool:
         card = self._cards.get(name)
