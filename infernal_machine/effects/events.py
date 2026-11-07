@@ -126,6 +126,8 @@ declare("become_monarch", re.compile(r"Whenever you become the monarch, (.+)", r
 declare("opponent_become_monarch", re.compile(r"Whenever an opponent becomes the monarch, (.+)", re.I),
         to="opponents", happens="became_monarch", about_player=True)
 declare("discard", re.compile(r"Whenever you discard a card, (.+)", re.I), to="you", happens="discarded")
+declare("discard_creature", re.compile(r"Whenever you discard a creature card, (.+)", re.I), to="you", happens="discarded",
+        accepts=fact("creature"))  # Hashaton: the card discarded is carried ("that card")
 declare("exile_library_graveyard", re.compile(
         r"Whenever one or more cards are put into exile from your library and/or your graveyard, (.+)", re.I), to="you")
 declare("discard_nonland", re.compile(r"Whenever you discard one or more nonland cards, (.+)", re.I),
@@ -153,6 +155,8 @@ declare("lose_life", re.compile(r"Whenever you lose life, (.+)", re.I), to="you"
 declare("exploits", re.compile(rf"When(?:ever)? {_SELF} exploits a creature, (.+)", re.I))  # the Exploit keyword (Game.exploit)
 declare("sacrifice_creature", re.compile(r"Whenever you sacrifice a creature, (.+)", re.I))
 declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals combat damage to a player, (.+)", re.I), about_creature=True)
+declare("self_or_enchanted_combat_damage",  # Calix, Guided by Fate
+        re.compile(rf"Whenever {_SELF} or an enchanted creature you control deals combat damage to a player, (.+)", re.I))
 declare("combat_damage_to_your_opponent", re.compile(r"Whenever a creature deals combat damage to one of your opponents, (.+)", re.I),
         to="opponents", happens="combat_damaged", about_creature=True)  # Gix, Yawgmoth Praetor: any creature, the player's opponents hear it
 declare("ally_noncombat_damage", re.compile(r"Whenever a source you control deals noncombat damage to an opponent, (.+)", re.I), about_creature=True)  # Niv-Mizzet, Visionary

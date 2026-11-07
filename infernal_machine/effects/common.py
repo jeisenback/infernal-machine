@@ -231,6 +231,8 @@ _WHOLE_LINE = re.compile(
     r"mana cost\."  # Cemetery Tampering (the trigger's body begins in lower case)
     r"|Look at the top card of your library\. You may cast that card without paying its mana cost\. Do this only once each turn\."
     r"|choose target creature you control, then roll a d20\. 1\u201414 \| .+"  # Delina, Wild Mage: the whole table
+    r"|create a token that's a copy of another target attacking creature and that's tapped and attacking\. Exile the token at end of "
+    r"combat\."  # Flamerush Rider
     r"|[Rr]oll a d20\. \d+(?:\u2014\d+)? \| .+"  # a die roll and its table (CR 706.2)
     r"|Exile target nonland permanent\. Each player other than its controller creates a token that's a copy of it\."  # Fractured Identity
     r"|exile (?:that card|it)\. If you do, return each other card exiled with this artifact to its owner's graveyard\."  # Mimic Vat

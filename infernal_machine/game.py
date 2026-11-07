@@ -2975,7 +2975,7 @@ class Game:
         """`seat` discarded a card: "Whenever you discard a card" and "Whenever an opponent discards a card". Cards
         discarded `together` set off "one or more nonland cards" once, which the caller reports (_discarded_nonland)."""
         self._count_discard(seat)
-        self.happened("discarded", seat, spell=card)
+        self.happened("discarded", seat, *(("creature",) if card is not None and "Creature" in card.type_line else ()), spell=card)
         if not together and card is not None:
             self._discarded_nonland(seat, [card])
 
@@ -3796,8 +3796,11 @@ class Game:
                         self._queue(TriggeredAbility("ally_combat_damage", (effect.then,), False, effect.text), watcher,
                                     self.controller(watcher))
                 self._observe("combat_damage_dealt", source.card, controller, subject=source)  # "Whenever a Ninja you control deals ..."
+                enchanted = self._qualifies("enchanted", source)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source, x=amount)  # x: "draw that many cards"
+                    if permanent is source or enchanted:  # Calix: "Whenever Calix or an enchanted creature you control deals ..."
+                        self.trigger("self_or_enchanted_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
                         self.trigger("token_combat_damage", permanent, controller, subject=source, x=amount)
             if combat and controller and source is not None and source.card.name in controller.commander_names and self.format.commander_damage is not None:
@@ -6544,6 +6547,15 @@ class Game:
                     self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
             if result < 15 or seat.player.choose(ROLL_AGAIN_PROMPT(source.card.name), YES_NO) != 0:
                 return
+
+    def copy_attacking_creature(self, seat: Seat, creature: Permanent) -> None:
+        """Flamerush Rider: a token that's a copy of `creature`, tapped and attacking whom it attacks, exiled at end of combat."""
+        attack = next((a for a in self.combat.attacks if a.attacker is creature), None)
+        for made in self.create_tokens(seat, copy_of(creature.card, as_token=True), 1):
+            made.tapped = True
+            self.combat.exile_at_end.append(made)
+            if attack is not None:
+                self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
 
     def flip_until_lose(self, seat: Seat) -> int:
         """"Flip a coin until you lose a flip.": how many flips `seat` won, kept for "for each flip you won" (`flips_won`)."""

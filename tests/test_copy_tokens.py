@@ -6,6 +6,7 @@ permanent of a kind). Lines are the cards' own Oracle text."""
 import dataclasses
 import unittest
 
+from infernal_machine.combat import Attack
 from infernal_machine.game import CAST, X_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.helpers import ANTHEM, BEAR, OGRE, Table, end_turn, enter, fire, lands, pick, real, run_stack, table, table3
@@ -589,3 +590,80 @@ class MimicVatTests(unittest.TestCase):
         b.exile.clear()  # and once the Ogre has left exile too, there is nothing to copy
         activate(game, a, "Create a token")
         self.assertEqual(tokens(a), [])
+
+
+FLAMERUSH_RIDER = real("Flamerush Rider", "{4}{R}", "Creature — Human Warrior",
+                       "Whenever this creature attacks, create a token that's a copy of another target attacking creature and that's tapped "
+                       "and attacking. Exile the token at end of combat.\nDash {2}{R}{R} (You may cast this spell for its dash cost. If you do, "
+                       "it gains haste, and it's returned from the battlefield to its owner's hand at the beginning of the next end step.)",
+                       "3", "3", colors=("R",))
+HASHATON = real("Hashaton, Scarab's Fist", "{W}{B}", "Legendary Creature — Zombie Wizard",
+                "Whenever you discard a creature card, you may pay {2}{U}. If you do, create a tapped token that's a copy of that card, except "
+                "it's a 4/4 black Zombie.", "1", "3", colors=("B", "W"))
+CALIX = real("Calix, Guided by Fate", "{1}{G}{W}", "Legendary Enchantment Creature — Human Druid",
+             "Constellation — Whenever Calix or another enchantment you control enters, put a +1/+1 counter on target creature.\nWhenever "
+             "Calix or an enchanted creature you control deals combat damage to a player, you may create a token that's a copy of a "
+             "nonlegendary enchantment you control. Do this only once each turn.", "2", "2", colors=("G", "W"))
+
+
+class TokenCopyFamilyBatch4Tests(unittest.TestCase):
+    """#656: a copy of another attacker for the combat, a copy of a discarded creature card, a copy of an enchantment you control."""
+
+    def test_the_cards_are_fully_playable(self):
+        for card in (FLAMERUSH_RIDER, HASHATON, CALIX):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_flamerush_rider_copies_another_attacker_for_the_combat(self):
+        game, _ = table3(pick("Ogre"))
+        a, b, _ = game.seats
+        rider, ogre = Permanent(FLAMERUSH_RIDER), Permanent(OGRE)
+        a.battlefield = [rider, ogre]
+        game.combat.attacks += [Attack(rider, a, b), Attack(ogre, a, b)]
+        fire(game, a, rider, "attacks")
+        [token] = tokens(a, "Ogre")
+        self.assertEqual((token.tapped, [x.defender for x in game.combat.attacks if x.attacker is token]), (True, [b]))
+        alone, _ = table3()
+        a2, b2, _ = alone.seats
+        rider2 = Permanent(FLAMERUSH_RIDER)
+        a2.battlefield = [rider2]
+        alone.combat.attacks.append(Attack(rider2, a2, b2))
+        fire(alone, a2, rider2, "attacks")
+        self.assertEqual(tokens(a2), [])  # another attacking creature: never itself
+        game.step = "main2"  # past the end of combat
+        game._turn_based_actions(a)
+        self.assertEqual(tokens(a), [])
+
+    def test_hashaton_makes_a_zombie_copy_of_a_discarded_creature_card(self):
+        for card, copied in ((OGRE, True), (CLUE, False)):
+            game, _ = table3(pick("Pay"))
+            a = game.seats[0]
+            a.battlefield, a.hand = [Permanent(HASHATON), *lands(3)], [card]
+            game.discard(a, 1)
+            run_stack(game)
+            made = tokens(a)
+            self.assertEqual(len(made), 1 if copied else 0, card.name)
+            if copied:
+                [zombie] = made
+                self.assertEqual((zombie.card.name, zombie.card.power, zombie.card.toughness, zombie.card.colors, zombie.tapped),
+                                 ("Ogre", "4", "4", ("B",), True))
+
+    def test_calix_copies_a_nonlegendary_enchantment_once_a_turn(self):
+        game, _ = table3(pick("Glorious Anthem", "Yes"))
+        a, b, _ = game.seats
+        calix = Permanent(CALIX)
+        a.battlefield = [calix, Permanent(ANTHEM)]
+        for _ in range(2):
+            game.damage(b, 2, calix, combat=True)
+            run_stack(game)
+        self.assertEqual(len(tokens(a, "Glorious Anthem")), 1)  # once a turn; Calix itself is legendary
+        bear = Permanent(BEAR)
+        a.battlefield.append(bear)
+        game.turn += 3
+        game.damage(b, 2, bear, combat=True)  # a creature that isn't enchanted
+        run_stack(game)
+        self.assertEqual(len(tokens(a, "Glorious Anthem")), 1)
+        a.battlefield.append(Permanent(real("Test Aura", "{W}", "Enchantment \u2014 Aura", "Enchant creature"), attached_to=bear))
+        game.turn += 3
+        game.damage(b, 2, bear, combat=True)  # now an enchanted creature
+        run_stack(game)
+        self.assertEqual(len(tokens(a, "Glorious Anthem")), 2)

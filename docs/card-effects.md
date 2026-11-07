@@ -1284,6 +1284,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "Exile target nonland permanent. Each player other than its controller creates a token that's a copy of it." (`ExileOthersCopy`);
     Bramble Sovereign's "that creature's controller creates a token that's a copy of that creature" (`CopySubjectForItsController`); and
     Octomancer's "target creature token that entered the battlefield this turn" (a filter state, "entered this turn").
+  - Token copies, batch 4 (`tests/test_copy_tokens.py`, #656): Flamerush Rider's "create a token that's a copy of another target attacking
+    creature and that's tapped and attacking. Exile the token at end of combat." (`Game.copy_attacking_creature`); Hashaton's "Whenever you
+    discard a creature card" (event `discard_creature`) and "create a tapped token that's a copy of that card, except it's a 4/4 black
+    Zombie." (`CopyDiscardedCard`: the card discarded); and Calix's "Whenever Calix or an enchanted creature you control deals combat
+    damage to a player" (event `self_or_enchanted_combat_damage`) with "a copy of a nonlegendary enchantment you control".
   - Mimic Vat (`tests/test_copy_tokens.py`, #656): "Whenever a nontoken creature dies, you may exile that card. If you do, return each
     other card exiled with this artifact to its owner's graveyard." (`Game.imprint_dead`: only a card still in its owner's graveyard is
     exiled) and "Create a token that's a copy of a card exiled with this artifact." (`CopyExiledWith`, with the usual riders).

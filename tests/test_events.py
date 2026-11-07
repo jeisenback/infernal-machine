@@ -82,7 +82,7 @@ class RegistryTests(unittest.TestCase):
                          ["draw", "opponent_draw", "opponent_extra_draw", "second_draw", "third_draw", "opponent_second_draw"])
         self.assertEqual({e.name for e in heard_on("scried")}, {"scry", "scry_or_surveil"})
         self.assertEqual({e.name for e in heard_on("cycled")}, {"cycle", "cycle_or_discard"})
-        self.assertEqual({e.name for e in heard_on("discarded")}, {"discard", "cycle_or_discard", "opponent_discard"})
+        self.assertEqual({e.name for e in heard_on("discarded")}, {"discard", "discard_creature", "cycle_or_discard", "opponent_discard"})
         self.assertEqual(heard_on("nothing happened"), ())
 
     def test_what_the_text_is_about_comes_from_the_declaration(self):

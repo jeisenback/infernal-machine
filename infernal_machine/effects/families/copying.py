@@ -287,6 +287,31 @@ class DelinaRoll:
 
 
 @dataclass(frozen=True)
+class CopyAnotherAttacker:
+    """Flamerush Rider: "create a token that's a copy of another target attacking creature and that's tapped and attacking. Exile the token
+    at end of combat." (`Game.copy_attacking_creature`)"""
+    target: str = "attacking creature"
+    another: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.copy_attacking_creature(controller, target)
+
+
+@dataclass(frozen=True)
+class CopyDiscardedCard:
+    """Hashaton, Scarab's Fist: "create a tapped token that's a copy of that card, except it's a 4/4 black Zombie." (that card: the one
+    discarded, carried by the trigger)"""
+    changes: CopyChanges | None = None
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        card = game.resolving_item.carried if game.resolving_item is not None else None
+        if isinstance(card, Card):
+            for made in game.create_tokens(controller, copy_of(card, self.changes, as_token=True), 1):
+                made.tapped = True
+
+
+@dataclass(frozen=True)
 class TokensBecomeCopies:
     """Brudiclad: "Then you may choose a token you control. If you do, each other token you control becomes a copy of
     that token." (two sentences, folded together by _merge_token_copies). The older wording ended "until end of turn"."""
