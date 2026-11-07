@@ -288,7 +288,6 @@ from .families.exile_and_return import (  # noqa: F401
     RevealTopCastKindredFree,
     ExileUntilTotalCastFree,
     ExileUntilLeaves,
-    ExileUntilNonlandCast,
     SearchExileCastIfKicked,
     PlayVoidCardFree,
     ExileX,
@@ -576,6 +575,7 @@ from .families.free_casting import (  # noqa: F401
     LookTopCastFreeOnce,
     LookTopCastOneFree,
     ShuffleExileTopPlayFree,
+    ExileUntilNonlandCast,
     ExileUntilNonlandCastOrTake,
     CastTwoFreeFromHandOrGraveyard,
     TargetCascades,
@@ -1761,7 +1761,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: AddDevotionMana()),
     (re.compile(r"add one mana of any color\.", re.I), lambda m: AddMana((frozenset("WUBRG"),))),  # Phyrexian Altar, Springleaf Drum
     # the engine keeps one option set per mana, so the three of Lion's Eye Diamond can be spent as different colors
-    (re.compile(r"add (two|three|four|five) mana of any one color\.", re.I), lambda m: AddMana((frozenset("WUBRG"),) * _ANY_N[m[1].lower()])),
+    (re.compile(r"add (two|three|four|five|ten) mana of any one color\.", re.I), lambda m: AddMana((frozenset("WUBRG"),) * _number(m[1]))),  # Apex of Power: ten
     (re.compile(r"add (two|three|four|five) mana in any combination of colors\.", re.I),  # Realm-Scorcher Hellkite: each mana its own color
      lambda m: AddMana((frozenset("WUBRG"),) * _ANY_N[m[1].lower()])),
     (re.compile(rf"each opponent loses {_N} life\.", re.I), lambda m: OpponentsLoseLife(_count(m[1]))),
@@ -2010,6 +2010,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
     (re.compile(r"when you do, if (.+?), (.+)\.", re.I), _when_you_do_if),  # Earthbender Ascension
     (re.compile(r"if (this spell was foretold), (.+)\.", re.I), _then_if),
+    (re.compile(r"if (this spell was cast from your hand), (.+)\.", re.I), _then_if),  # Apex of Power
     (re.compile(r"if (this spell was cast using teamwork), (.+)\.", re.I), _then_if),  # Crossover Collaboration
     (re.compile(r"if (the discarded card wasn't a land card), (.+)\.", re.I), _then_if),  # Grab the Prize
     (re.compile(r"if (X is \d+ or more), (?!double the number)(.+)\.", re.I), _then_if),
@@ -2044,6 +2045,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if you (win|lose) the flip, (.+)\.", re.I), _if_flip),  # Mana Crypt
     (re.compile(r"if you do, (.+)\.", re.I), _if_you_do),
     (re.compile(r'if an? (creature) card is exiled this way, (create .+?)(\."?)', re.I), _if_exiled),
+    (re.compile(r'if you exiled an? (land|nonland) card this way, (create .+?)(\."?)', re.I), _if_exiled),  # Bonehoard Dracosaur
     (re.compile(rf"return (?:CARDNAME|this card) from your graveyard to the battlefield( tapped)?\.", re.I),
      lambda m: ReturnThisFromGraveyard(bool(m[1]))),
     (re.compile(rf"return (?:CARDNAME|this card) from your graveyard to your hand\.", re.I),
@@ -2106,9 +2108,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you may play (?:it|that card|those cards|them) this turn\.", re.I), lambda m: PlayExiled("this turn")),
     (re.compile(r"until (?:the )?end of turn, you may play (?:it|that card|those cards|them)\.", re.I),
      lambda m: PlayExiled("this turn")),
+    (re.compile(r"until (?:the )?end of turn, you may cast spells from among them\.", re.I),  # Apex of Power: no land
+     lambda m: PlayExiled("this turn", spells_only=True)),
     (re.compile(r"until (?:the )?end of your next turn, you may play (?:it|that card|those cards|them)\.", re.I),
      lambda m: PlayExiled("next turn")),
-    (re.compile(r"you may play (?:it|that card|those cards|them) until (?:the )?end of your next turn\.", re.I),
+    (re.compile(r"you may play (?:it|that card|those cards|them|cards exiled this way) until (?:the )?end of your next turn\.", re.I),  # Escape to the Wilds
      lambda m: PlayExiled("next turn")),  # Clockwork Percussionist
     (re.compile(r"you may play (?:it|that card|those cards|them) until your next end step\.", re.I),
      lambda m: PlayExiled("next end step")),  # Opera Love Song
@@ -2515,7 +2519,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"look at the top {_N_FIXED} cards of your library\. You may cast a spell from among them without paying its mana cost\. "
                 r"Put the rest on the bottom of your library in a random order\.", re.I),
      lambda m: LookTopCastOneFree(_number(m[1]))),  # Aetherworks Marvel
-    (re.compile(r"shuffle your library\. Then exile the top card of your library\. Until end of turn, you may play that card without "
+    (re.compile(r"shuffle your library(?:\. Then|, then) exile the top card(?: of your library)?\. Until end of turn, you may play that card without "
                 r"paying its mana cost\.", re.I), lambda m: ShuffleExileTopPlayFree()),  # Mind's Desire
     (re.compile(r"exile cards from the top of your library until you exile a nonland card\. You may cast it without paying its mana cost "
                 r"if that spell's mana value is (\d+) or less\. If you don't, put that card into your hand\.", re.I),
@@ -3444,6 +3448,7 @@ _CONDITIONS = [
     (re.compile(r"(?:it|that creature) has greater power or toughness than (?:this creature|CARDNAME)"), lambda m: Condition("subject_greater")),
     (re.compile(rf"{_SELF} isn't renowned"), lambda m: Condition("not_renowned")),
     (re.compile(r"this spell was foretold"), lambda m: Condition("foretold")),
+    (re.compile(r"this spell was cast from your hand"), lambda m: Condition("cast_from_hand")),  # Apex of Power
     (re.compile(r"the discarded card wasn't a land card"), lambda m: Condition("discarded_nonland")),
     (re.compile(r"a permanent left the battlefield under your control this turn"), lambda m: Condition("revolt")),
     (re.compile(r"no mana was spent to cast it"), lambda m: Condition("no_mana_spent")),
@@ -3551,11 +3556,14 @@ _merge_control = Follows(
 _merge_exile = Follows(
     Follow(ExileInstead, Counter, set_fields(exile=lambda m: True)),
     Follow(ReturnLater, Exile, lambda previous, marker: Flicker(previous.target, "end_step", marker.to, marker.under_owner, previous.another)),
-    Follow(PlayExiled, ExileTop, set_fields(play=lambda m: m.until), fits=lambda previous, marker: not previous.play),
+    Follow(PlayExiled, ExileTop, set_fields(play=lambda m: m.until, spells_only=lambda m: m.spells_only), fits=lambda previous, marker: not previous.play),
     Follow(PlayExiled, Mill, set_fields(play_this_turn=lambda m: True)),  # Tablet of Discovery: "Mill a card. You may play that card this turn."
     Follow(_ChooseOneOfThem, ExileTop, set_fields(choose_one=lambda m: True), fits=lambda previous, marker: previous.count != 1 and not previous.play),
     Follow(_LeftoversToGraveyard, ExileTop, set_fields(leftovers_token=lambda m: m.token)),
-    Follow(_FreeIfFromGraveyard, ExileTop, set_fields(free_from_graveyard=lambda m: True), fits=lambda previous, marker: bool(previous.play)))
+    Follow(_FreeIfFromGraveyard, ExileTop, set_fields(free_from_graveyard=lambda m: True), fits=lambda previous, marker: bool(previous.play)),
+    Follow(_IfExiledThen, ExileTop,  # Bonehoard Dracosaur
+           lambda previous, marker: dataclasses.replace(previous, if_exiled=previous.if_exiled + ((marker.card_type, marker.effect),)),
+           strict=False))  # after another exile (Feral Appetite), a later table folds it
 
 
 _COPY_SENTENCES = (CopyToken, CopySubjectToken, CopyHostToken, CopySelfToken, CopyEachToken, CopyExiledWith)  # "Create a token that's a copy of ..."

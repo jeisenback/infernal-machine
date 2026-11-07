@@ -241,7 +241,8 @@ _WHOLE_LINE = re.compile(
     r"|exile (?:that card|it)\. If you do, return each other card exiled with this artifact to its owner's graveyard\."  # Mimic Vat
     r"|Look at the top \w+ cards of your library\. You may cast a spell from among them without paying its mana cost\. Put the rest on the "
     r"bottom of your library in a random order\."  # Aetherworks Marvel
-    r"|Shuffle your library\. Then exile the top card of your library\. Until end of turn, you may play that card without paying its mana "
+    r"|Shuffle your library(?:\. Then|, then) exile the top card(?: of your library)?\. Until end of turn, you may play that card without paying "
+    r"its mana "
     r"cost\."  # Mind's Desire
     r"|exile cards from the top of your library until you exile a nonland card\. You may cast it without paying its mana cost if that "
     r"spell's mana value is \d+ or less\. If you don't, put that card into your hand\."  # Breaching Dragonstorm
