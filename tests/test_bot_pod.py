@@ -80,6 +80,21 @@ class ThreatTests(unittest.TestCase):
         b = bot([seat(1, 30, board_of(9))], [creature(3)])
         self.assertEqual(b.choose(ATTACK_PROMPT + "Body 3/3 (seat 0, #5)", OPTIONS[:2]), 1)
 
+    def test_a_creature_that_must_attack_one_opponent_attacks_it(self):  # #685: "Don't attack" is not offered
+        b = bot([seat(1, 30, board_of(9))], [creature(3)])
+        self.assertEqual(b.choose(ATTACK_PROMPT + "Body 3/3 (seat 0, #5)", OPTIONS[1:2]), 0)
+
+    def test_a_creature_that_must_attack_weighs_the_first_target_too(self):
+        foes = [seat(1, 5), seat(2, 30), seat(3, 30)]
+        self.assertEqual(bot(foes, [creature(1)], frozenset()).choose(ATTACK_PROMPT + "Body 1/1 (seat 0, #5)", OPTIONS[1:]), 0)  # the lowest life
+
+    def test_a_commander_that_must_attack_still_goes_for_21_on_the_first_target(self):
+        foes = self.foes()
+        foes[1]["commander_damage"] = [{"from_seat": 0, "commander": "Boss", "damage": 19}]
+        b = bot(foes, [{**creature(3), "name": "Boss"}])
+        options = [OPTIONS[2], OPTIONS[1]]  # seat 2 first; the threat alone would attack seat 1
+        self.assertEqual(b.choose(ATTACK_PROMPT + "Boss 3/3 (seat 0, #5)", options), 0)
+
     def test_the_threat_score(self):
         self.assertEqual(_threat(seat(1, 20, board_of(3, 2), hand=4)), 5 + 0.5 * 2 + 0.5 * 4)
         self.assertEqual(_threat(seat(1, 20, [{"name": "Forest", "type": "Basic Land", "power": None}], hand=0)), 0)  # a land is nothing
