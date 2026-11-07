@@ -324,6 +324,18 @@ class ReflexiveTrigger:
 
 
 @dataclass(frozen=True)
+class MayDiscardThen:
+    """ "You may discard a card. If you do, <effects>." (Party Thrasher) and "... When you do, <effects>." (Inti, Seneschal of the Sun),
+    whose effects are then a reflexive trigger (CR 603.12) that chooses its targets as it goes on the stack."""
+    then: tuple
+    reflexive: bool = False
+    text: str = ""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.may_discard_then(controller, self.then, self.reflexive, self.text)
+
+
+@dataclass(frozen=True)
 class _ItGains:
     """ "It gains trample until end of turn.": the creature that just got counters, or else the source itself."""
     keywords: frozenset[str]

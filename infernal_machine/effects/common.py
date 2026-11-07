@@ -179,6 +179,7 @@ _WHOLE_LINE = re.compile(
     r"(?: with mana value \d+ or less)? (?:revealed this way|from among them) (?:into your hand|onto the battlefield) and the rest on the "
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
+    r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"  # Party Thrasher, Inti: the rest of the line is what it does
     r'|CARDNAME becomes an? [^.]+\. If you do, it gains [^.]+ and loses all other abilities\.'  # The Irencrag
     r"|(?:You may )?behold an? [A-Z][a-z]+\. If you do, (?:untap that land|create an? [A-Z][a-z]+ token)\."  # Elven Passage; Sarkhan
     r"|Exile all attacking creatures target player controls\. That player may search their library for that many basic land cards, "
