@@ -3392,10 +3392,10 @@ class Game:
                     if i.ability or re.search(r"\b(Instant|Sorcery)\b", i.card.type_line)]
         if kind == "creature card in a graveyard":  # Animate Dead is cast on one
             kind = "graveyard:creature:any"
-        if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|any>"
+        if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|opponents|any>"
             _, card_type, whose = kind.split(":")
             for seat in self.live_seats():
-                if whose == "yours" and seat is not caster:
+                if (whose == "yours" and seat is not caster) or (whose == "opponents" and seat is caster):
                     continue
                 options += [(f"{card.name} (seat {seat.index} graveyard)", GraveyardTarget(card, seat))
                             for card in _unique(seat.graveyard) if _card_matches(card_type, card)]
@@ -4666,6 +4666,9 @@ class Game:
                         continue
                 elif wanted == "Legendary":  # Jodah, the Unifier: a supertype, not a creature type
                     if "Legendary" not in permanent.card.type_line:
+                        continue
+                elif wanted == "Equipped":  # Zamriel, Seraph of Steel: "Equipped creatures you control", not a creature type
+                    if not any("Equipment" in a.card.type_line for a in self._board_view().attached.get(id(permanent), ())):
                         continue
                 elif (buff.other and source is permanent) or (wanted and not any(w in subtypes for w in wanted.split("|"))) or (buff.subtype == "chosen" and not wanted):
                     continue
@@ -7052,6 +7055,54 @@ class Game:
             zone, card = options[pick]
             left -= int(card.cmc)
             self._cast(seat, card, zone, free=True, exile_after=True)
+
+    def exile_random_from_opponents_cast(self, seat: Seat) -> None:
+        """Kefka, Dancing Mad: exile a card at random from each opponent's graveyard; `seat` may cast any number of spells from among them
+        without paying their mana costs; then each player who owns a spell cast this way loses life equal to its mana value."""
+        exiled = []
+        for opponent in self.opponents(seat):
+            if opponent.graveyard:
+                card = self.rng.choice(opponent.graveyard)
+                if self.exile_from_graveyard(GraveyardTarget(card, opponent)):
+                    exiled.append((opponent, card))
+        lost: list[tuple[Seat, int]] = []
+        while spells := [(o, c) for o, c in exiled if not is_land(c) and any(c is x for x in o.exile)]:
+            pick = seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for _, c in spells] + [NONE_TAKEN])
+            if pick >= len(spells):
+                break
+            owner, card = spells[pick]
+            exiled = [(o, c) for o, c in exiled if c is not card]
+            self._cast(seat, card, owner.exile, free=True)
+            lost.append((owner, int(card.cmc)))
+        for owner, amount in lost:
+            self.change_life(owner, -amount)
+
+    def possibility_storm(self, player: Seat, spell: "StackItem | None") -> None:
+        """Possibility Storm: `player` exiles the spell they cast from their hand, then exiles cards from the top of their library until a
+        card that shares a card type with it; they may cast that card without paying its mana cost; then every card exiled this way goes
+        to the bottom of their library in a random order. A spell no longer on the stack is not exiled, but its types still count."""
+        if spell is None:
+            return
+        exiled: list[Card] = []
+        if spell in self.stack:  # (a spell cast from a hand is never a copy)
+            self.stack.remove(spell)
+            player.exile.append(spell.card)
+            exiled.append(spell.card)
+        types = set(_nonland_types(spell.card))
+        found = None
+        while player.library and found is None:
+            card = player.library.pop(0)
+            player.exile.append(card)
+            exiled.append(card)
+            if types & set(_nonland_types(card)):
+                found = card
+        self.broadcast({"event": "exiled_from_library", "seat": player.index, "cards": [c.name for c in exiled], "may_play": True})
+        if found is not None and not is_land(found) and player.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
+            self._cast(player, found, player.exile, free=True)
+        rest = [c for c in exiled if any(c is x for x in player.exile)]
+        player.exile = [x for x in player.exile if not any(x is c for c in rest)]
+        self.rng.shuffle(rest)
+        player.library.extend(rest)
 
     def cast_commander_free(self, seat: Seat) -> None:
         """Geode Golem: `seat` may cast their commander from the command zone without paying its mana cost; the commander tax is an

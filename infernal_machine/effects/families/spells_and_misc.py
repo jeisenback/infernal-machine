@@ -938,3 +938,51 @@ class CastTwoFreeFromHandOrGraveyard:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.cast_two_free_from_hand_or_graveyard(controller, self.total)
+
+
+@dataclass(frozen=True)
+class TargetCascades:
+    """Chaos Wand: "Target opponent exiles cards from the top of their library until they exile an instant or sorcery card. You may cast
+    that card without paying its mana cost. Then put the exiled cards that weren't cast this way on the bottom of that library in a random
+    order." """
+    kind: str
+    target: str = "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.cascade(controller, None, self.kind, owner=target)
+
+
+@dataclass(frozen=True)
+class CastTargetFromGraveyardFree:
+    """Memory Plunder: "You may cast target instant or sorcery card from an opponent's graveyard without paying its mana cost." """
+    target: str = "graveyard:instant or sorcery:opponents"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        from .copying import CAST_COPY_PROMPT
+
+        if target is not None and controller.player.choose(CAST_COPY_PROMPT(target.card.name), ["Yes", "No"]) == 0:  # (a target gone: it fizzles)
+            game._cast(controller, target.card, target.seat.graveyard, free=True)
+
+
+@dataclass(frozen=True)
+class ExileRandomFromOpponentsCast:
+    """Kefka, Dancing Mad: "exile a card at random from each opponent's graveyard. You may cast any number of spells from among cards
+    exiled this way without paying their mana costs. Then each player who owns a spell you cast this way loses life equal to its mana
+    value." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_random_from_opponents_cast(controller)
+
+
+@dataclass(frozen=True)
+class PossibilityStorm:
+    """Possibility Storm: "that player exiles it, then exiles cards from the top of their library until they exile a card that shares a
+    card type with it. That player may cast that card without paying its mana cost. Then they put all cards exiled with this enchantment
+    on the bottom of their library in a random order." (the player who cast the spell; the trigger carries the spell)"""
+    binds = PLAYER
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if target is not None and item is not None:
+            game.possibility_storm(target, item.carried)
