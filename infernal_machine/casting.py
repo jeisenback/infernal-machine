@@ -748,8 +748,9 @@ class Caster:
                     if owner is seat and effect.per_player == "opponent":
                         continue  # The Theorist, Jace Beleren: "For each opponent, ..."
                     pool = [o for o in self.game.target_options(kind, seat, colors) if self.game.controller_of(o[1]) is owner]
-                    if pool:
-                        pick = seat.player.choose(g.TARGET_PROMPT(source_name), [o[0] for o in pool] + [g.NO_TARGET])
+                    if pool:  # "up to one" may be no target; Guff Rewrites History's "choose target" must be one when there is one
+                        pick = seat.player.choose(g.TARGET_PROMPT(source_name), [o[0] for o in pool]
+                                                  + ([g.NO_TARGET] if getattr(effect, "optional_target", False) else []))
                         if pick < len(pool):
                             picked.append(pool[pick][1])
                 targets.append(picked)

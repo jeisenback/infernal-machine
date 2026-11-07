@@ -1251,6 +1251,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     player" in an option is that player. The two options are split at the ", or " where both read as effects. Ensnared by the Mara is
     the first card read this way ("exile cards ... until they exile a nonland card, then you may cast that card", or "exiles the top four
     cards ... and deals damage equal to the total mana value"); the bot facing a choice takes the first option.
+  - Guff Rewrites History (`tests/test_cast_free.py`, #655): "For each player, choose target nonenchantment, nonland permanent that
+    player controls. ..." takes one target for each player who controls one, and a per-player target can be left out only when the
+    effect says "up to one" (`optional_target`); the owners shuffle them into their libraries, and each player who controlled one exiles
+    until a nonland card, puts the rest on the bottom and may cast it free (`Game.guff_rewrites_history`).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

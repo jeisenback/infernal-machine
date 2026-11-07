@@ -242,6 +242,10 @@ _WHOLE_LINE = re.compile(
     r"|that player exiles it, then exiles cards from the top of their library until they exile a card that shares a card type with it\. "
     r"That player may cast that card without paying its mana cost\. Then they put all cards exiled with this enchantment on the bottom "
     r"of their library in a random order\."  # Possibility Storm
+    r"|For each player, choose target nonenchantment, nonland permanent that player controls\. Those permanents' owners shuffle them into "
+    r"their libraries\. Each player who controlled one of those permanents exiles cards from the top of their library until they exile a "
+    r"nonland card, then puts the rest on the bottom of their library in a random order\. Each player may cast the nonland card they "
+    r"exiled without paying its mana cost\."  # Guff Rewrites History
     r"|Reveal the top card of your library\. If it's a creature card that shares a creature type with a creature you control, you may "
     r"cast it without paying its mana cost\. If you don't cast it, put it on the bottom of your library\."  # Descendants' Path
     r"|Exile an instant or sorcery card at random from your graveyard\. Then copy each card exiled with this enchantment\. You may cast "

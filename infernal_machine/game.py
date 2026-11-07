@@ -5733,6 +5733,33 @@ class Game:
         """Sensei's Divining Top: the permanent goes on top of its owner's library (a token just ceases to exist)."""
         self._leave_together([(permanent, "returned")], destination="library_top")
 
+    def guff_rewrites_history(self, seat: Seat, permanents: list[Permanent]) -> None:
+        """Guff Rewrites History: the owners of `permanents` shuffle them into their libraries; each player who controlled one exiles
+        cards from the top of their library until a nonland card, puts the rest on the bottom in a random order, and may cast that card
+        without paying its mana cost (in turn order)."""
+        controllers = []
+        for permanent in permanents:
+            if self.on_battlefield(permanent):
+                controllers.append(self.controller(permanent))
+                owner = self.owner_of(permanent)
+                self._leave_together([(permanent, "returned")], destination="library")
+                self.rng.shuffle(owner.library)
+        found: list[tuple[Seat, Card]] = []
+        for player in [p for p in self.turn_order_from_active() if p in controllers]:
+            passed: list[Card] = []
+            while player.library:
+                card = player.library.pop(0)
+                if not is_land(card):
+                    player.exile.append(card)
+                    found.append((player, card))
+                    break
+                passed.append(card)
+            self.rng.shuffle(passed)
+            player.library.extend(passed)
+        for player, card in found:
+            if player.player.choose(CASCADE_PROMPT(card.name), YES_NO) == 0:
+                self._cast(player, card, player.exile, free=True)
+
     def chaos_warp(self, permanent: Permanent) -> None:
         """Its owner shuffles it into their library, reveals the top card and puts it onto the battlefield if it is a
         permanent card (an Aura stays on top: it would have nothing to enchant)."""
