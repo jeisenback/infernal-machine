@@ -224,6 +224,7 @@ _WHOLE_LINE = re.compile(
     r"|you may mill \w+ cards\. Then if there are \w+ or more cards in your graveyard, you may play the exiled card without paying its "
     r"mana cost\."  # Cemetery Tampering (the trigger's body begins in lower case)
     r"|Look at the top card of your library\. You may cast that card without paying its mana cost\. Do this only once each turn\."
+    r"|Exile target nonland permanent\. Each player other than its controller creates a token that's a copy of it\."  # Fractured Identity
     r"|Look at the top \w+ cards of your library\. You may cast a spell from among them without paying its mana cost\. Put the rest on the "
     r"bottom of your library in a random order\."  # Aetherworks Marvel
     r"|Shuffle your library\. Then exile the top card of your library\. Until end of turn, you may play that card without paying its mana "

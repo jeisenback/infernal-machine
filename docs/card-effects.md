@@ -1279,6 +1279,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Good's "Then tokens you control gain indestructible until your next turn." (every token, not only creatures:
     `KindsGainUntilEndOfTurn.until_next_turn`); Clone Legion's "For each creature target player controls, create a token that's a copy
     of that creature." (`CopyEachOfTargetPlayer`); and Oltec Matterweaver's "target artifact token you control".
+  - Token copies, batch 3 (`tests/test_copy_tokens.py`, #656): City of Death's "target non-Saga token you control"; Cleaver Skaab's
+    "Create two tokens that are copies of the sacrificed creature." (`StackItem.sacrificed_cards`, `CopySacrificed`); Fractured Identity's
+    "Exile target nonland permanent. Each player other than its controller creates a token that's a copy of it." (`ExileOthersCopy`);
+    Bramble Sovereign's "that creature's controller creates a token that's a copy of that creature" (`CopySubjectForItsController`); and
+    Octomancer's "target creature token that entered the battlefield this turn" (a filter state, "entered this turn").
   - Blitz (`tests/test_blitz.py`, CR 702.152): "Blitz {2}{R}" is an alternative cost; cast for it, the creature has haste and "When
     this creature dies, draw a card." (`Permanent.blitzed`) and is sacrificed as the next end step begins (Mayhem Patrol, Night Clubber,
     Riveteers Requisitioner, Workshop Warchief). Jaxis, the Troublemaker's copy "gains haste and "When this token dies, draw a card."" the
