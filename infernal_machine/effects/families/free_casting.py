@@ -265,6 +265,36 @@ class GuffRewritesHistory:
 
 
 @dataclass(frozen=True)
+class FlickerSelf:
+    """Jin-Gitaxias: "Exile Jin-Gitaxias, then return it to the battlefield transformed under its owner's control." The Great Synthesis:
+    "Exile this Saga, then return it to the battlefield (front face up)." (`transformed` False: the front face)"""
+    transformed: bool
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.flicker(target, controller, "now", "battlefield", True, self.transformed)
+
+
+@dataclass(frozen=True)
+class NoMaxHandWhileControlled:
+    """The Great Synthesis: "You have no maximum hand size for as long as you control this Saga." (kept on the permanent)"""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.no_max_hand = True
+
+
+@dataclass(frozen=True)
+class CastAnyFromHandFree:
+    """The Great Synthesis: "You may cast any number of spells from your hand without paying their mana costs." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.cast_any_from_hand_free(controller)
+
+
+@dataclass(frozen=True)
 class CourtExileTopPlay:
     """Court of Locthwain: "exile the top card of target opponent's library. You may play that card for as long as it remains exiled, and
     mana of any type can be spent to cast it. If you're the monarch, until end of turn, you may cast a spell from among cards exiled with

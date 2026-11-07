@@ -1255,6 +1255,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     player controls. ..." takes one target for each player who controls one, and a per-player target can be left out only when the
     effect says "up to one" (`optional_target`); the owners shuffle them into their libraries, and each player who controlled one exiles
     until a nonland card, puts the rest on the bottom and may cast it free (`Game.guff_rewrites_history`).
+  - Jin-Gitaxias // The Great Synthesis (`tests/test_cast_free.py`, #655): "Exile Jin-Gitaxias, then return it to the battlefield
+    transformed under its owner's control." and the Saga's "Exile this Saga, then return it to the battlefield (front face up)."
+    (`FlickerSelf`, through `Game.flicker`); "You have no maximum hand size for as long as you control this Saga." (`Permanent.no_max_hand`,
+    kept on the permanent the chapter resolved for); "You may cast any number of spells from your hand without paying their mana costs."
+    (cast as the chapter resolves: `Game.cast_any_from_hand_free`).
   - Court of Locthwain (`tests/test_cast_free.py`, #655): "exile the top card of target opponent's library. You may play that card for
     as long as it remains exiled, and mana of any type can be spent to cast it." (`Seat.exile_any_mana`: such a card is cast with each
     colored, colorless, hybrid or Phyrexian symbol paid as generic mana, `casting.any_type_cost`), and "If you're the monarch, until end
