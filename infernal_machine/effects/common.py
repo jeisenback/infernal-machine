@@ -224,6 +224,16 @@ _WHOLE_LINE = re.compile(
     r"|you may mill \w+ cards\. Then if there are \w+ or more cards in your graveyard, you may play the exiled card without paying its "
     r"mana cost\."  # Cemetery Tampering (the trigger's body begins in lower case)
     r"|Look at the top card of your library\. You may cast that card without paying its mana cost\. Do this only once each turn\."
+    r"|Look at the top \w+ cards of your library\. You may cast a spell from among them without paying its mana cost\. Put the rest on the "
+    r"bottom of your library in a random order\."  # Aetherworks Marvel
+    r"|Shuffle your library\. Then exile the top card of your library\. Until end of turn, you may play that card without paying its mana "
+    r"cost\."  # Mind's Desire
+    r"|exile cards from the top of your library until you exile a nonland card\. You may cast it without paying its mana cost if that "
+    r"spell's mana value is \d+ or less\. If you don't, put that card into your hand\."  # Breaching Dragonstorm
+    r"|You may cast up to two instant and/or sorcery spells with total mana value \d+ or less from your graveyard and/or hand without "
+    r"paying their mana costs\. If those spells would be put into your graveyard, exile them instead\."  # Invoke Calamity
+    r"|Exile target instant or sorcery card from a graveyard\. Copy that card three times\. You may cast the copies without paying their "
+    r"mana costs\."  # Mnemonic Deluge
     r"|Reveal the top card of your library\. If it's a creature card that shares a creature type with a creature you control, you may "
     r"cast it without paying its mana cost\. If you don't cast it, put it on the bottom of your library\."  # Descendants' Path
     r"|Exile an instant or sorcery card at random from your graveyard\. Then copy each card exiled with this enchantment\. You may cast "

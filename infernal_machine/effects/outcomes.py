@@ -480,6 +480,10 @@ from .families.spells_and_misc import (  # noqa: F401
     CastCommanderFree,
     MayMillThenPlayHideaway,
     LookTopCastFreeOnce,
+    LookTopCastOneFree,
+    ShuffleExileTopPlayFree,
+    ExileUntilNonlandCastOrTake,
+    CastTwoFreeFromHandOrGraveyard,
     Learn,
     MillUntilLand,
     EachWithNamedDraws,
@@ -2356,6 +2360,22 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RevealTopCastKindredFree()),  # Descendants' Path
     (re.compile(r"if this spell was cast from a graveyard, you may play cards this way without paying their mana costs\.", re.I),
      lambda m: _FreeIfFromGraveyard()),  # Ignite the Future, folded into the ExileTop before it
+    (re.compile(rf"look at the top {_N_FIXED} cards of your library\. You may cast a spell from among them without paying its mana cost\. "
+                r"Put the rest on the bottom of your library in a random order\.", re.I),
+     lambda m: LookTopCastOneFree(_number(m[1]))),  # Aetherworks Marvel
+    (re.compile(r"shuffle your library\. Then exile the top card of your library\. Until end of turn, you may play that card without "
+                r"paying its mana cost\.", re.I), lambda m: ShuffleExileTopPlayFree()),  # Mind's Desire
+    (re.compile(r"exile cards from the top of your library until you exile a nonland card\. You may cast it without paying its mana cost "
+                r"if that spell's mana value is (\d+) or less\. If you don't, put that card into your hand\.", re.I),
+     lambda m: ExileUntilNonlandCastOrTake(int(m[1]))),  # Breaching Dragonstorm
+    (re.compile(r"you may cast up to two instant and/or sorcery spells with total mana value (\d+) or less from your graveyard and/or "
+                r"hand without paying their mana costs\. If those spells would be put into your graveyard, exile them instead\.", re.I),
+     lambda m: CastTwoFreeFromHandOrGraveyard(int(m[1]))),  # Invoke Calamity
+    (re.compile(r"exile target instant or sorcery card from a graveyard\. Copy that card three times\. You may cast the copies without "
+                r"paying their mana costs\.", re.I),
+     lambda m: ExileThenCastCopy("graveyard:instant or sorcery:any", optional_target=False, copies=3)),  # Mnemonic Deluge
+    (re.compile(r"then if (.+), you may play the exiled card without paying its mana cost\.", re.I),
+     lambda m: PlayExiledCard(c) if (c := _condition(m[1])) else None),  # Fight Rigging: after the sentence before it
     (re.compile(r"look at the top card of your library\. You may cast that card without paying its mana cost\. Do this only once each "
                 r"turn\.", re.I), lambda m: LookTopCastFreeOnce()),  # Planetarium of Wan Shi Tong
     (re.compile(rf"you may mill {_N_FIXED} cards\. Then if there are (\w+) or more cards in your graveyard, you may play the exiled card "

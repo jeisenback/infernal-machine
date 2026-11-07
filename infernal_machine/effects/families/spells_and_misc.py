@@ -898,3 +898,43 @@ class LookTopCastFreeOnce:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.look_top_cast_free_once(controller, target)
+
+
+@dataclass(frozen=True)
+class LookTopCastOneFree:
+    """Aetherworks Marvel: "Look at the top six cards of your library. You may cast a spell from among them without paying its mana cost.
+    Put the rest on the bottom of your library in a random order." """
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.look_top_cast_one_free(controller, self.count)
+
+
+@dataclass(frozen=True)
+class ShuffleExileTopPlayFree:
+    """Mind's Desire: "Shuffle your library. Then exile the top card of your library. Until end of turn, you may play that card without
+    paying its mana cost." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.rng.shuffle(controller.library)
+        controller.exile_free.extend(game.exile_top(controller, 1, "this turn"))
+
+
+@dataclass(frozen=True)
+class ExileUntilNonlandCastOrTake:
+    """Breaching Dragonstorm: "exile cards from the top of your library until you exile a nonland card. You may cast it without paying its
+    mana cost if that spell's mana value is 8 or less. If you don't, put that card into your hand." """
+    most: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_until_nonland_cast_or_take(controller, self.most)
+
+
+@dataclass(frozen=True)
+class CastTwoFreeFromHandOrGraveyard:
+    """Invoke Calamity: "You may cast up to two instant and/or sorcery spells with total mana value 6 or less from your graveyard and/or
+    hand without paying their mana costs. If those spells would be put into your graveyard, exile them instead." """
+    total: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.cast_two_free_from_hand_or_graveyard(controller, self.total)

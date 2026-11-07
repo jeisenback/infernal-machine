@@ -129,14 +129,14 @@ _PERMANENT_WATCH = rf"(enchanted creature|legendary creature|nontoken creature|n
 
 _WATCHES = {
     "permanent_enters": re.compile(
-        rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? enters(?: the battlefield)?"
+        rf"When(?:ever)? {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? enters(?: the battlefield)?"  # "When": Breaching Dragonstorm
         rf"( under your control| under an opponent's control)?, (.+)", re.I),
     "creature_dies": re.compile(rf"When(?:ever)? {_WHO} (enchanted creature|legendary creature|nontoken creature|nontoken {_TRIBE}|creature token|token|creature or artifact|creature|{_TRIBE})"
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
     "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? leaves the battlefield, (.+)", re.I),
     "permanent_taps": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? becomes tapped, (.+)", re.I),
     "permanent_to_graveyard": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? is put into (?:a|(your)) "
-                                         r"graveyard from the battlefield, (.+)", re.I),
+                                         r"graveyard(?: from the battlefield)?, (.+)", re.I),  # a permanent only ever goes there from the battlefield (Aetherworks Marvel)
     "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:(an?|another)|(?:your|their) (first|second|third)) "
                        r"((?:white|blue|black|red|green) spell|multicolored spell|colorless spell"
                        r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell|legendary spell"
