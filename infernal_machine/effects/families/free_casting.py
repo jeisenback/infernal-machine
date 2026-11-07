@@ -278,3 +278,15 @@ class CastAnyFromHandFree:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.cast_any_from_hand_free(controller)
+
+
+@dataclass(frozen=True)
+class CourtExileTopPlay:
+    """Court of Locthwain: "exile the top card of target opponent's library. You may play that card for as long as it remains exiled, and
+    mana of any type can be spent to cast it. If you're the monarch, until end of turn, you may cast a spell from among cards exiled with
+    this enchantment without paying its mana cost." """
+    target: str = "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.court_of_locthwain(controller, target, game.resolving_source)

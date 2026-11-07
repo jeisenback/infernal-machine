@@ -1256,6 +1256,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (`FlickerSelf`, through `Game.flicker`); "You have no maximum hand size for as long as you control this Saga." (`Permanent.no_max_hand`,
     kept on the permanent the chapter resolved for); "You may cast any number of spells from your hand without paying their mana costs."
     (cast as the chapter resolves: `Game.cast_any_from_hand_free`).
+  - Court of Locthwain (`tests/test_cast_free.py`, #655): "exile the top card of target opponent's library. You may play that card for
+    as long as it remains exiled, and mana of any type can be spent to cast it." (`Seat.exile_any_mana`: such a card is cast with each
+    colored, colorless, hybrid or Phyrexian symbol paid as generic mana, `casting.any_type_cost`), and "If you're the monarch, until end
+    of turn, you may cast a spell from among cards exiled with this enchantment without paying its mana cost." (cast as the ability
+    resolves, like Quintorius's card).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

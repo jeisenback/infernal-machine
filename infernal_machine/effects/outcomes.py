@@ -568,6 +568,7 @@ from .families.free_casting import (  # noqa: F401
     FlickerSelf,
     NoMaxHandWhileControlled,
     CastAnyFromHandFree,
+    CourtExileTopPlay,
 )
 from .families.tokens import (  # noqa: F401
     AttackerCreatesAttackingToken,
@@ -2407,6 +2408,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"without paying its mana cost\.", re.I), lambda m: ThatPlayerExilesUntilNonlandYouCast()),  # Ensnared by the Mara
     (re.compile(rf"that player exiles the top {_N_FIXED} cards of their library and {_SELF} deals damage equal to the total mana value of "
                 r"those exiled cards to that player\.", re.I), lambda m: ThatPlayerExilesTopDamaged(_number(m[1]))),  # Ensnared by the Mara
+    (re.compile(r"exile the top card of target opponent's library\. You may play that card for as long as it remains exiled, and mana of "
+                r"any type can be spent to cast it\. If you're the monarch, until end of turn, you may cast a spell from among cards exiled "
+                r"with this enchantment without paying its mana cost\.", re.I), lambda m: CourtExileTopPlay()),  # Court of Locthwain
     (re.compile(r"target opponent exiles cards from the top of their library until they exile an instant or sorcery card\. You may cast "
                 r"that card without paying its mana cost\. Then put the exiled cards that weren't cast this way on the bottom of that library "
                 r"in a random order\.", re.I), lambda m: TargetCascades("instant or sorcery")),  # Chaos Wand
