@@ -11,7 +11,7 @@ from typing import Sequence
 from .analysis import color_pips, is_land
 from .cards import Card, Deck
 from .combos import SpellbookSource
-from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT
+from .combat import ASSIGN_PROMPT, ATTACK_PROMPT, BLOCK_PROMPT, NO_ATTACK
 from .prompts import PRIORITY_PROMPT, is_one_of, subject_of
 from .effects import FREE_WAY, RETURN_LAND_PROMPT, DamageEach, DestroyAll, ExileAll, ReturnAllToHand, spell_effects
 from .report import unsupported_lines
@@ -298,10 +298,10 @@ class BotPlayer:
         """The opponent to attack. The plain bot takes the one on the lowest life. With "threat" and more than one choice it finishes an
         opponent its ready creatures can kill, and otherwise attacks the most dangerous: the most creature power on the board, then
         nonland permanents and cards in hand, and on a tie the lower life."""
-        lowest = min(range(1, len(options)), key=lambda i: self._life_of(_seat_of(options[i])))
+        lowest = min(_targets(options), key=lambda i: self._life_of(_seat_of(options[i])))
         mine = self._my_seat()
         seats = {s["seat"]: s for s in (self._state or {}).get("seats", [])}
-        foes = [(i, seats[_seat_of(options[i])]) for i in range(1, len(options)) if _seat_of(options[i]) in seats]
+        foes = [(i, seats[_seat_of(options[i])]) for i in _targets(options) if _seat_of(options[i]) in seats]
         if "threat" not in self.features or mine is None or len(foes) < 2:
             return lowest
         reach = sum(p["power"] for p in mine["battlefield"] if p.get("power") and not p.get("tapped") and not p.get("sick"))
@@ -339,7 +339,7 @@ class BotPlayer:
             return None
         power = _stats(prompt)[0]
         seats = {s["seat"]: s for s in (self._state or {}).get("seats", [])}
-        for i in range(1, len(options)):
+        for i in _targets(options):
             foe = seats.get(_seat_of(options[i]))
             dealt = sum(d["damage"] for d in (foe or {}).get("commander_damage", []) if d["from_seat"] == self._seat and d["commander"] == name)
             if foe is not None and dealt + power >= self._damage_limit:
@@ -736,6 +736,11 @@ def _stats(label: str) -> tuple[int, int]:
         return 0, 0
     power, toughness = (int(v) if v.isdigit() else 0 for v in match.groups())
     return power, toughness
+
+
+def _targets(options: Sequence[str]) -> range:
+    """The indexes of the attack targets: all of them when a creature must attack and "Don't attack" is not offered (#685)."""
+    return range(1 if options and options[0] == NO_ATTACK else 0, len(options))
 
 
 def _seat_of(label: str) -> int | None:
