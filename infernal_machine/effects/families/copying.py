@@ -199,6 +199,16 @@ class CopyEachEnteredToken:
 
 
 @dataclass(frozen=True)
+class CopyEachOfTargetPlayer:
+    """Clone Legion: "For each creature target player controls, create a token that's a copy of that creature." """
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.create_token_batch(controller, [copy_of(p.card, as_token=True) for p in target.battlefield if "Creature" in p.card.type_line])
+
+
+@dataclass(frozen=True)
 class TokensBecomeCopies:
     """Brudiclad: "Then you may choose a token you control. If you do, each other token you control becomes a copy of
     that token." (two sentences, folded together by _merge_token_copies). The older wording ended "until end of turn"."""
