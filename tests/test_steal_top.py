@@ -2,7 +2,8 @@
 until end of turn), Brainstealer Dragon (each opponent, played for as long as the cards remain exiled; an opponent's permanent entering
 under your control costs its owner life equal to its mana value), Cunning Rhetoric (the player who attacked you), Grenzo, Havoc Raiser
 (the player a creature dealt combat damage to, as a mode; the other mode goads a creature that player controls) and You Find Some
-Prisoners (three of target opponent's cards, one chosen, until the end of your next turn)."""
+Prisoners (three of target opponent's cards, one chosen, until the end of your next turn) and Laughing Jasper Flint (as many of target
+opponent's cards as the outlaws you control, spells only, until end of turn; the creatures you control but don't own are Mercenaries)."""
 
 import unittest
 
@@ -29,6 +30,11 @@ PRISONERS = real("You Find Some Prisoners", "{1}{R}", "Instant",
                  "Choose one —\n• Break Their Chains — Destroy target artifact.\n• Interrogate Them — Exile the top three cards of target "
                  "opponent's library. Choose one of them. Until the end of your next turn, you may play that card, and you may spend mana as "
                  "though it were mana of any color to cast it.", colors=("R",))
+JASPER = real("Laughing Jasper Flint", "{1}{B}{R}", "Legendary Creature — Lizard Rogue",
+              "Creatures you control but don't own are Mercenaries in addition to their other types.\nAt the beginning of your upkeep, exile "
+              "the top X cards of target opponent's library, where X is the number of outlaws you control. Until end of turn, you may cast "
+              "spells from among those cards, and mana of any type can be spent to cast those spells.", "4", "2", colors=("B", "R"))
+PIRATE = real("Deckhand", "{1}{R}", "Creature — Human Pirate", "", "2", "2", colors=("R",))
 TWIN_BEARS = real("Green Twins", "{G}{G}", "Creature — Bear", "", "2", "2", colors=("G",))  # green mana only: red lands pay for it "as any color"
 CHARM = real("Green Charm", "{G}{G}", "Sorcery", "", colors=("G",))
 
@@ -188,6 +194,31 @@ class YouFindSomePrisonersTests(unittest.TestCase):
         game._perform(a, CAST_EXILE + "Green Twins")
         run_stack(game)
         self.assertIn("Green Twins", [p.card.name for p in a.battlefield])
+
+
+class LaughingJasperFlintTests(unittest.TestCase):
+    def upkeep(self, *others, stolen=False):
+        game, _ = table3(pick("Player: B", "Green"))
+        a, b, c = game.seats
+        others += (Permanent(BEAR, owner=c),) if stolen else ()
+        jasper = Permanent(JASPER, sick=False)
+        a.battlefield = [jasper, *others] + red_lands(2)
+        b.library = [TWIN_BEARS, FOREST, CHARM, FOREST]
+        fire(game, a, jasper, "upkeep")
+        return game, a, b
+
+    def test_one_card_for_each_outlaw_spells_only_with_any_mana(self):
+        game, a, b = self.upkeep(Permanent(PIRATE), Permanent(BEAR))  # Jasper (a Rogue) and the Pirate: two outlaws; the Bear is none
+        self.assertEqual(names(a.exile), ["Forest", "Green Twins"])
+        actions = game.legal_actions(a)
+        self.assertIn(CAST_EXILE + "Green Twins", actions)
+        self.assertNotIn(PLAY_EXILE + "Forest", actions)
+        game.turn += 3
+        self.assertNotIn(CAST_EXILE + "Green Twins", game.legal_actions(a))
+
+    def test_a_creature_you_control_but_dont_own_counts_as_a_mercenary(self):
+        game, a, b = self.upkeep(Permanent(BEAR), stolen=True)
+        self.assertEqual(len(a.exile), 2)  # Jasper and the stolen Bear; the Bear a owns is none
 
 
 if __name__ == "__main__":

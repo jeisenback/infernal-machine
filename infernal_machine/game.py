@@ -336,6 +336,7 @@ class Permanent:
     held_from_hand: list = field(default_factory=list)  # (owner seat, card) exiled from a hand until this leaves (Mesmeric Fiend)
     linked_exile: list = field(default_factory=list)  # (owner seat, card) exiled "until this leaves the battlefield"
     exiled_with: list = field(default_factory=list)  # (owner seat, card) this permanent's abilities exiled for good
+    playable_exile: "Card | None" = None  # Unstable Amulet: the card it exiled last, playable "until you exile another card with this"
     kicked: int = 0  # how many times its kicker cost was paid when it was cast
     kickers: tuple[str, ...] = ()  # the mana kicker costs paid, once per payment
     regeneration: int = 0  # regeneration shields, which last until end of turn
@@ -2143,14 +2144,22 @@ class Game:
     def exile_top(self, seat: Seat, count: int, play: str | None, choose_one: bool = False, spells_only: bool = False,
                   only: str = "") -> list[Card]:
         """Exile the top `count` cards of the library; `play` is None, "this turn", "next turn" (until the end of
-        their controller's next turn) or "next end step": the cards may then be played from exile until that turn ends
+        their controller's next turn), "next end step" or "until another" (until the source exiles another card this way: Unstable
+        Amulet): the cards may then be played from exile until that turn ends
         (the end step itself is counted in: the permission is kept to the turn). With `choose_one`, only the card the
         controller chooses may be played."""
         seats = len(self.seats)
         mine_now = seat.index == self.active and self.step not in ("end", "cleanup")  # their end step is still to come this turn
         until = (None if play is None else self.turn if play == "this turn" or (play == "next end step" and mine_now)
                  else self.turn + ((seat.index - self.active) % seats or seats))  # the end of their next turn
+        source = self.resolving_source
+        if play == "until another":
+            until = FOREVER
+            if source is not None and source.playable_exile is not None:  # the card it exiled before may no longer be played
+                seat.exile_play = [(c, u) for c, u in seat.exile_play if c is not source.playable_exile]
         exiled = [seat.library.pop(0) for _ in range(min(count, len(seat.library)))]
+        if play == "until another" and source is not None and exiled:
+            source.playable_exile = exiled[-1]
         self.broadcast({"event": "exiled_from_library", "seat": seat.index, "cards": [c.name for c in exiled],
                         "may_play": play is not None})
         chosen = None
@@ -2818,7 +2827,10 @@ class Game:
         if kind == "on_battlefield":
             return sum(has_type(p.card, amount.what) for s in self.live_seats() for p in s.battlefield)
         if kind == "you_control":
-            return sum(has_type(p.card, amount.what) for p in controller.battlefield)
+            mercenaries = amount.what.lower() in ("outlaw", "mercenary") and any(
+                "unowned_mercenaries" in rules_statics(p.card) for p in controller.battlefield)  # Laughing Jasper Flint
+            return sum(has_type(p.card, amount.what) or (mercenaries and "Creature" in p.card.type_line and self.owner_of(p) is not controller)
+                       for p in controller.battlefield)
         if kind == "greatest_power":
             kind_wanted = amount.what.removeprefix("other ")
             return max((self.power(p) for p in controller.battlefield if has_type(p.card, kind_wanted)

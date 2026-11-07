@@ -45,7 +45,8 @@ class Alternative:
         words, subtypes = _words(card.type_line)
         if self.permanent and not (PERMANENT_TYPES & words):
             return False
-        if any(word not in words for word in self.needs) or any(word in words for word in self.lacks):
+        if any(word not in words and not (word == "outlaw" and subtypes & _OUTLAWS) for word in self.needs) \
+                or any(word in words for word in self.lacks):  # ("outlaws you control": an Assassin, Mercenary, Pirate, Rogue or Warlock)
             return False
         if any(word in subtypes or (word == "outlaw" and subtypes & _OUTLAWS) for word in self.lacks_subtype):
             return False
