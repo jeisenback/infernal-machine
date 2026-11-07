@@ -435,6 +435,7 @@ class StackItem:
     sacrificed_power: int = 0  # for an ability: the power of the creature sacrificed to pay for it
     sacrificed_toughness: int = 0  # ... and its toughness (Witch's Oven)
     sacrificed_value: int = 0  # ... and its mana value (Repurposing Bay)
+    sacrificed_cards: tuple[Card, ...] = ()  # ... and what it was, as it last was (Cleaver Skaab)
     tapped_power: int = 0  # for an ability: the power of the creature tapped to pay for it (Station)
     warding: "StackItem | None" = None  # for a ward trigger: the spell or ability it will counter unless paid for
     cant_be_countered: bool = False  # Cavern of Souls: mana from it was spent to cast this spell
@@ -745,6 +746,7 @@ class Game:
         self.cost_sacrificed_power = 0  # the power of what the ability being activated sacrificed
         self.cost_sacrificed_toughness = 0  # ... and its toughness
         self.cost_sacrificed_value = 0  # ... and its mana value (Repurposing Bay)
+        self.cost_sacrificed_cards: tuple[Card, ...] = ()  # ... and what it was (Cleaver Skaab: "copies of the sacrificed creature")
         self.cost_tapped_power = 0  # the power of what the ability being activated tapped as a cost (Station)
         self.x_value = 0  # X of the spell resolving right now
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
@@ -1533,6 +1535,7 @@ class Game:
         self.cost_sacrificed_power = sum(self.power(p) for p in chosen)
         self.cost_sacrificed_toughness = sum(self.toughness(p) or 0 for p in chosen)
         self.cost_sacrificed_value = int(sum(p.card.cmc for p in chosen))
+        self.cost_sacrificed_cards = tuple(p.card for p in chosen)
         if chosen:
             self._leave_together([(p, "sacrificed") for p in chosen])
 
@@ -2377,7 +2380,7 @@ class Game:
                                     destination="exile" if ability.exile_source else "hand")
         item = StackItem(permanent.card, seat, effects, targets, ability, permanent, x=x,
                          sacrificed_power=self.cost_sacrificed_power, sacrificed_toughness=self.cost_sacrificed_toughness,
-                         sacrificed_value=self.cost_sacrificed_value,
+                         sacrificed_value=self.cost_sacrificed_value, sacrificed_cards=self.cost_sacrificed_cards,
                          tapped_power=self.cost_tapped_power)
         self.stack.append(item)
         if ability.loyalty is not None:  # Ajani Unrelenting: "Whenever you activate a loyalty ability" (above the ability)
@@ -4058,6 +4061,8 @@ class Game:
             return any(a.attacker is permanent for a in self.combat.attacks)
         if state == "attacking or blocking":  # Eiganjo
             return any(a.attacker is permanent or permanent in a.blockers for a in self.combat.attacks)
+        if state == "entered this turn":  # Octomancer
+            return permanent.entered_turn == self.turn
         return {"tapped": permanent.tapped, "untapped": not permanent.tapped}.get(state, True)
 
     def _spared(self, permanent: Permanent, spared: MassFilter) -> bool:

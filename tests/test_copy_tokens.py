@@ -458,3 +458,80 @@ class TokenCopyFamilyBatch2Tests(unittest.TestCase):
         game._perform(a, CAST + "Bear")
         run_stack(game)
         self.assertEqual((len(tokens(a, "Clue")), len(tokens(a, "Goat"))), (2, 1))  # the Goat is no artifact
+
+
+CITY_OF_DEATH = real("City of Death", "{2}{G}", "Enchantment — Saga",
+                     "(As this Saga enters and after your draw step, add a lore counter. Sacrifice after VI.)\nI — Create a Treasure token.\nII, "
+                     "III, IV, V, VI — Create a token that's a copy of target non-Saga token you control.", colors=("G",))
+CLEAVER_SKAAB = real("Cleaver Skaab", "{3}{U}", "Creature — Zombie Horror",
+                     "{3}, {T}, Sacrifice another Zombie: Create two tokens that are copies of the sacrificed creature.", "2", "4", colors=("U",))
+FRACTURED_IDENTITY = real("Fractured Identity", "{3}{W}{U}", "Sorcery",
+                          "Exile target nonland permanent. Each player other than its controller creates a token that's a copy of it.",
+                          colors=("U", "W"))
+BRAMBLE_SOVEREIGN = real("Bramble Sovereign", "{2}{G}{G}", "Creature — Dryad",
+                         "Whenever another nontoken creature enters, you may pay {1}{G}. If you do, that creature's controller creates a token "
+                         "that's a copy of that creature.", "4", "4", colors=("G",))
+OCTOMANCER = real("Octomancer", "{3}{G}{U}", "Creature — Frog Druid",
+                  "Gift an Octopus (You may promise an opponent a gift as you cast this spell. If you do, when it enters, they create an 8/8 "
+                  "blue Octopus creature token.)\nAt the beginning of each end step, create a token that's a copy of target creature token "
+                  "that entered the battlefield this turn.", "3", "3", colors=("G", "U"))
+ZOMBIE = real("Walking Corpse", "{1}{B}", "Creature — Zombie", "", "2", "2")
+SAGA_TOKEN = real("Saga Token", "", "Token Enchantment — Saga", "")
+
+
+class TokenCopyFamilyBatch3Tests(unittest.TestCase):
+    """#656: copies of a non-Saga token, of the sacrificed creature, of an exiled permanent for the other players, of an entering
+    creature for its controller, of a token that entered this turn."""
+
+    def test_the_cards_are_fully_playable(self):
+        for card in (CITY_OF_DEATH, CLEAVER_SKAAB, FRACTURED_IDENTITY, BRAMBLE_SOVEREIGN, OCTOMANCER):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_city_of_death_copies_a_token_that_is_no_saga(self):
+        for token, copied in ((GOAT, True), (SAGA_TOKEN, False)):
+            game, _ = table3()
+            a = game.seats[0]
+            city = Permanent(CITY_OF_DEATH)
+            a.battlefield = [city, Permanent(token)]
+            fire(game, a, city, "chapter_2")
+            self.assertEqual(len(tokens(a, token.name)), 2 if copied else 1, token.name)
+
+    def test_cleaver_skaab_copies_the_sacrificed_zombie_twice(self):
+        game, _ = table3(pick("Walking Corpse"))
+        a = game.seats[0]
+        a.battlefield = [Permanent(CLEAVER_SKAAB), Permanent(ZOMBIE), Permanent(BEAR), *lands(3)]
+        activate(game, a, "Sacrifice another Zombie")
+        self.assertEqual((len(tokens(a, "Walking Corpse")), "Walking Corpse" in [c.name for c in a.graveyard]), (2, True))
+        game2, _ = table3()
+        a2 = game2.seats[0]
+        a2.battlefield = [Permanent(CLEAVER_SKAAB), Permanent(BEAR), *lands(3)]  # no other Zombie: nothing to pay with
+        self.assertFalse([x for x in game2._activations(a2, True) if "Sacrifice another Zombie" in x])
+
+    def test_fractured_identity_gives_the_other_players_a_copy(self):
+        t = Table(FRACTURED_IDENTITY, "Ogre", theirs=[Permanent(OGRE)]).cast()
+        self.assertEqual(([p.card.name for p in tokens(t.a)], tokens(t.b), [p.card.name for p in tokens(t.c)]), (["Ogre"], [], ["Ogre"]))
+        self.assertEqual([c.name for c in t.b.exile], ["Ogre"])
+
+    def test_bramble_sovereign_gives_the_creatures_controller_a_copy_when_paid(self):
+        for paid in (True, False):
+            game, _ = table3(pick("Pay" if paid else "Don't pay"))
+            a, b, _ = game.seats
+            a.battlefield = [Permanent(BRAMBLE_SOVEREIGN), *lands(2)]
+            enter(game, b, OGRE)
+            run_stack(game)
+            self.assertEqual((len(tokens(b, "Ogre")), tokens(a)), (1 if paid else 0, []), paid)
+        game, _ = table3()
+        a, b, _ = game.seats
+        a.battlefield = [Permanent(BRAMBLE_SOVEREIGN), *lands(2)]
+        game.create_tokens(b, GOAT, 1)  # a token entering: not nontoken
+        run_stack(game)
+        self.assertEqual(len(tokens(b, "Goat")), 1)
+
+    def test_octomancer_copies_only_a_token_that_entered_this_turn(self):
+        for entered, copied in ((0, True), (-3, False)):
+            game, _ = table3()
+            a = game.seats[0]
+            octo = Permanent(OCTOMANCER)
+            a.battlefield = [octo, Permanent(GOAT, entered_turn=game.turn + entered)]
+            fire(game, a, octo, "each_end_step")
+            self.assertEqual(len(tokens(a, "Goat")), 2 if copied else 1, entered)

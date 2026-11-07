@@ -166,6 +166,9 @@ from .families.copying import (  # noqa: F401
     _CopyEachWithHaste,
     CopyEachEnteredToken,
     CopyEachOfTargetPlayer,
+    CopySacrificed,
+    ExileOthersCopy,
+    CopySubjectForItsController,
     _OthersBecomeCopies,
     apply_copy_changes,
     copy_of,
@@ -1573,7 +1576,8 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
 
 _COPY_TOKEN = re.compile(
     r"create (?:a token that's a copy|(?P<count>two|three|four|five|X) tokens that are copies) of "
-    rf"(?:(?P<another>another )?target (?P<kind>{_PERMANENT_KIND}|(?:artifact )?token you control)"  # Esika's Chariot; Oltec Matterweaver: "artifact token"
+    rf"(?:(?P<another>another )?target (?P<kind>{_PERMANENT_KIND}|(?:artifact |non-Saga )?token you control"  # Esika's Chariot; Oltec Matterweaver; City of Death
+    r"|creature token that entered the battlefield this turn)"  # Octomancer
     r"|target (?P<grave>creature|artifact) card in your graveyard"
     r"|(?P<subject>it|that (?:creature|permanent|artifact|enchantment|card|token))"
     r"|(?P<host>equipped|enchanted) (?:creature|artifact|permanent)"
@@ -2594,6 +2598,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"create a token that's a copy of (?:it|that (?:creature|permanent|artifact|token))(?:, except (.+))?\.", re.I),  # Ocelot Pride
      lambda m: CopyEachToken(m[1].lower() + " you control", c, entered_this_turn=bool(m[2]))
      if (c := _copy_changes(m[3]) if m[3] else CopyChanges()) else None),
+    (re.compile(r"(?:that creature|it)'s controller creates a token that's a copy of (?:that creature|it)\.", re.I),
+     lambda m: CopySubjectForItsController()),  # Bramble Sovereign
+    (re.compile(r"exile target nonland permanent\. Each player other than its controller creates a token that's a copy of it\.", re.I),
+     lambda m: ExileOthersCopy()),  # Fractured Identity
+    (re.compile(r"create (a token that's a copy|two tokens that are copies) of the sacrificed creature\.", re.I),  # Cleaver Skaab
+     lambda m: CopySacrificed(1 if m[1].startswith("a ") else 2)),
     (re.compile(r"for each creature target player controls, create a token that's a copy of that creature\.", re.I),
      lambda m: CopyEachOfTargetPlayer()),  # Clone Legion
     (re.compile(rf"create a token that's a copy of {_SELF}, tapped and attacking\.", re.I), lambda m: CopyTokenAttacking()),

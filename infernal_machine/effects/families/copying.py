@@ -9,7 +9,7 @@ from typing import Any, TYPE_CHECKING
 from ...cards import Card
 from ...characteristics import Modifier
 from ..common import Quantity
-from ..targets import (DEAD_SUBJECT, PLAYER, SOURCE, SOURCE_AND_SUBJECT)
+from ..targets import (DEAD_SUBJECT, PLAYER, SOURCE, SOURCE_AND_SUBJECT, SUBJECT)
 from ...prompts import PromptKind
 
 if TYPE_CHECKING:
@@ -206,6 +206,41 @@ class CopyEachOfTargetPlayer:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.create_token_batch(controller, [copy_of(p.card, as_token=True) for p in target.battlefield if "Creature" in p.card.type_line])
+
+
+@dataclass(frozen=True)
+class CopySacrificed:
+    """Cleaver Skaab: "Create two tokens that are copies of the sacrificed creature." (as it last existed on the battlefield)"""
+    count: Quantity = 1
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        cards = game.resolving_item.sacrificed_cards if game.resolving_item else ()
+        game.create_token_batch(controller, [copy_of(card, as_token=True) for card in cards for _ in range(game.amount(self.count))])
+
+
+@dataclass(frozen=True)
+class ExileOthersCopy:
+    """Fractured Identity: "Exile target nonland permanent. Each player other than its controller creates a token that's a copy of it."
+    (the copy is of the permanent as it last was on the battlefield)"""
+    target: str = "nonland permanent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            owner, card = game.controller_of(target), target.card
+            game.exile_noting(target, game.resolving_source)
+            for seat in game.live_seats():
+                if seat is not owner:
+                    game.create_tokens(seat, copy_of(card, as_token=True), 1)
+
+
+@dataclass(frozen=True)
+class CopySubjectForItsController:
+    """Bramble Sovereign: "... that creature's controller creates a token that's a copy of that creature." """
+    binds = SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and (owner := game.controller_of(target)) is not None:
+            game.create_tokens(owner, copy_of(target.card, as_token=True), 1)
 
 
 @dataclass(frozen=True)
