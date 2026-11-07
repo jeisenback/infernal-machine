@@ -130,6 +130,9 @@ _MODAL_LEAD = re.compile(r".+[,:] choose (?:one or both|one or more|up to one|on
                          r"|.+, you may choose two\. Each mode must target a different player\.", re.I)
 
 
+_TABLE_ROW = re.compile(r"\d+(?:\u2014\d+)? \| ")
+
+
 _MODE_LABEL = re.compile(r"^\u2022 [A-Z][A-Za-z']*(?: (?:[A-Z][A-Za-z']*|a|an|the|of|to)){0,5} \u2014 ")
 
 
@@ -141,6 +144,9 @@ def _join_modes(text: str) -> str:
     for line in text.splitlines():
         line = _MODE_LABEL.sub("\u2022 ", line.strip()) if line.strip().startswith("\u2022 ") else line  # "\u2022 Sell Contraband \u2014 Create ..."
         if joining and line.strip().startswith("\u2022 "):
+            lines[-1] += " " + line.strip()
+            continue
+        if lines and _TABLE_ROW.match(line.strip()):  # "1\u20149 | Create a Treasure token.": a row of the die roll above (CR 706.2)
             lines[-1] += " " + line.strip()
             continue
         joining = _MODAL_LEAD.fullmatch(line.strip()) is not None
@@ -224,6 +230,8 @@ _WHOLE_LINE = re.compile(
     r"|you may mill \w+ cards\. Then if there are \w+ or more cards in your graveyard, you may play the exiled card without paying its "
     r"mana cost\."  # Cemetery Tampering (the trigger's body begins in lower case)
     r"|Look at the top card of your library\. You may cast that card without paying its mana cost\. Do this only once each turn\."
+    r"|choose target creature you control, then roll a d20\. 1\u201414 \| .+"  # Delina, Wild Mage: the whole table
+    r"|[Rr]oll a d20\. \d+(?:\u2014\d+)? \| .+"  # a die roll and its table (CR 706.2)
     r"|Exile target nonland permanent\. Each player other than its controller creates a token that's a copy of it\."  # Fractured Identity
     r"|exile (?:that card|it)\. If you do, return each other card exiled with this artifact to its owner's graveyard\."  # Mimic Vat
     r"|Look at the top \w+ cards of your library\. You may cast a spell from among them without paying its mana cost\. Put the rest on the "

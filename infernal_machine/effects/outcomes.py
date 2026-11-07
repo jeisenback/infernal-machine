@@ -169,6 +169,7 @@ from .families.copying import (  # noqa: F401
     CopySacrificed,
     ImprintDead,
     CopyExiledWith,
+    DelinaRoll,
     ExileOthersCopy,
     CopySubjectForItsController,
     _OthersBecomeCopies,
@@ -505,6 +506,7 @@ from .families.spells_and_misc import (  # noqa: F401
     FlipCoin,
     FlipUntilLose,
     RollDie,
+    RollTable,
     NoMaxHandForTheGame,
     _IfFlip,
     IfElse,
@@ -1432,6 +1434,21 @@ def _when_you_do_if(m: re.Match) -> Any:
     return ReflexiveTrigger(tuple(inner), condition, m[0]) if condition is not None and inner else None
 
 
+_ROW = re.compile(r"(\d+)(?:\u2014(\d+))? \| (.+?)(?= \d+(?:\u2014\d+)? \| |$)")
+
+
+def _roll_table(sides: int, text: str) -> RollTable | None:
+    """The rows of a die roll's table (CR 706.2), each "low\u2014high | effects"; None if a row is not understood, or targets or acts on the
+    source (Component Pouch's "Put a component counter on this artifact.": not read yet)."""
+    rows = []
+    for m in _ROW.finditer(text):
+        effects = _parse(_split_sentences(m[3]))
+        if not effects or any(target_kind(e) or binding(e) for e in effects):
+            return None
+        rows.append((int(m[1]), int(m[2] or m[1]), tuple(effects)))
+    return RollTable(sides, tuple(rows))
+
+
 def _then_if(m: re.Match) -> Any:
     condition = _condition(m[1])
     inner = _parse([m[2][:1].upper() + m[2][1:] + "."]) if condition else None
@@ -1979,6 +1996,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if you do, discard a card unless this creature entered this turn\.", re.I), lambda m: DiscardUnlessSourceEntered()),
     (re.compile(r"flip a coin\.", re.I), lambda m: FlipCoin()),
     (re.compile(r"flip a coin until you lose a flip\.", re.I), lambda m: FlipUntilLose()),
+    (re.compile(r"choose target creature you control, then roll a d20\. 1\u201414 \| Create a tapped and attacking token that's a copy of "
+                r"(?:that creature|it), except it's not legendary and it has \"At end of combat, exile this token\.\" 15\u201420 \| Create one "
+                r"of those tokens\. You may roll again\.", re.I), lambda m: DelinaRoll()),  # Delina, Wild Mage
+    (re.compile(r"roll a d20\. (\d+(?:\u2014\d+)? \| .+)", re.I), lambda m: _roll_table(20, m[1])),  # CR 706.2: Hoarding Ogre
     (re.compile(r"roll a d20\.", re.I), lambda m: RollDie(20)),  # CR 706: the Ancient dragons
     (re.compile(r"you have no maximum hand size for the rest of the game\.", re.I), lambda m: NoMaxHandForTheGame()),  # Ancient Silver Dragon
     (re.compile(r"if you (win|lose) the flip, (.+)\.", re.I), _if_flip),  # Mana Crypt

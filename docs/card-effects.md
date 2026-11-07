@@ -1294,6 +1294,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Rolling a d20 (`tests/test_die_rolls.py`, CR 706): "roll a d20." (`Game.roll_die`) keeps the result for "equal to the result" and
     "where X is the result" (`Amount("die_result")`): Ancient Copper Dragon's Treasures, Ancient Gold Dragon's Faerie Dragons, Ancient
     Silver Dragon's draw and its "You have no maximum hand size for the rest of the game." (`Seat.no_max_hand`).
+  - A d20's table (`tests/test_die_rolls.py`, CR 706.2): the rows under "Roll a d20." ("1\u20149 | Create a Treasure token.") are joined to
+    its line (`common._TABLE_ROW`) and read as one `RollTable`: the row the result falls in happens. A row that targets or acts on the
+    source is not read yet (Component Pouch). Hoarding Ogre, Chaos Channeler, Lightfoot Rogue and others; and Delina, Wild Mage
+    (`Game.delina_roll`): each roll makes a copy of the target, not legendary, tapped and attacking whom Delina attacks and exiled at end of
+    combat, and on 15 or more its controller may roll again.
   - Blitz (`tests/test_blitz.py`, CR 702.152): "Blitz {2}{R}" is an alternative cost; cast for it, the creature has haste and "When
     this creature dies, draw a card." (`Permanent.blitzed`) and is sacrificed as the next end step begins (Mayhem Patrol, Night Clubber,
     Riveteers Requisitioner, Workshop Warchief). Jaxis, the Troublemaker's copy "gains haste and "When this token dies, draw a card."" the

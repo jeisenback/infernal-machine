@@ -275,6 +275,18 @@ class CopyExiledWith:
 
 
 @dataclass(frozen=True)
+class DelinaRoll:
+    """Delina, Wild Mage: "choose target creature you control, then roll a d20. 1\u201414 | Create a tapped and attacking token that's a
+    copy of that creature, except it's not legendary and it has "At end of combat, exile this token." 15\u201420 | Create one of those
+    tokens. You may roll again." (`Game.delina_roll`)"""
+    target: str = "creature you control"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.resolving_source is not None:
+            game.delina_roll(controller, game.resolving_source, target)
+
+
+@dataclass(frozen=True)
 class TokensBecomeCopies:
     """Brudiclad: "Then you may choose a token you control. If you do, each other token you control becomes a copy of
     that token." (two sentences, folded together by _merge_token_copies). The older wording ended "until end of turn"."""

@@ -416,6 +416,21 @@ class _Otherwise:
 
 
 @dataclass(frozen=True)
+class RollTable:
+    """ "Roll a d20." and its table (CR 706.2): "1\u20149 | Create a Treasure token. 10\u201419 | ... 20 | ...": the row the result falls
+    in happens. `rows` are (lowest, highest, effects); no effect of a row has a target or acts on the ability's source."""
+    sides: int
+    rows: tuple
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        result = game.roll_die(controller, self.sides)
+        for low, high, effects in self.rows:
+            if low <= result <= high:
+                for effect in effects:
+                    effect.resolve(game, controller, None)
+
+
+@dataclass(frozen=True)
 class NoMaxHandForTheGame:
     """Ancient Silver Dragon: "You have no maximum hand size for the rest of the game." """
 
