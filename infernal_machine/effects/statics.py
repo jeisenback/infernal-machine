@@ -1625,6 +1625,17 @@ def is_equip_rules_line(line: str) -> bool:
 
 
 _CHOOSE_NAME = re.compile(rf"As {_SELF} enters, choose a card name\.", re.I)  # Pithing Needle, Disruptor Flute
+_CHOOSE_SIEGE = re.compile(rf"As {_SELF} enters, choose Khans or Dragons\.", re.I)  # Fate Reforged's Sieges
+
+
+@lru_cache(maxsize=None)
+def chooses_siege_mode(card: Card) -> bool:
+    """Outpost Siege: "As this enchantment enters, choose Khans or Dragons." (the permanent keeps only the chosen ability)."""
+    return any(_CHOOSE_SIEGE.fullmatch(line) for line in rules_lines(card))
+
+
+def is_choose_siege_line(line: str) -> bool:
+    return _CHOOSE_SIEGE.fullmatch(line) is not None
 
 
 @lru_cache(maxsize=None)

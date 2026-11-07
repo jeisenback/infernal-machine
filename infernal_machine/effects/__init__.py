@@ -297,6 +297,8 @@ from .statics import (  # noqa: F401
     is_cda_line,
     is_choose_color_line,
     is_choose_name_line,
+    is_choose_siege_line,
+    chooses_siege_mode,
     is_equip_rules_line,
     heals_before_damage,
     equip_target_discount,

@@ -31,7 +31,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, heals_before_damage, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -145,6 +145,7 @@ DECLINE_CAST = "Don't cast"
 CHOOSE_COLOR_PROMPT = PromptKind("choose_color", "Choose a color for ")  # followed by the card's name; white, blue, black, red, green
 KAROO_PROMPT = PromptKind("karoo", "Return a land or sacrifice ")  # followed by the card's name; the last option is SACRIFICE_IT
 SACRIFICE_IT = "Sacrifice it"
+CHOOSE_SIEGE_PROMPT = PromptKind("choose_siege", "Choose Khans or Dragons for ")  # followed by the Siege's name; options: Khans, Dragons
 CHOOSE_LAND_TYPE_PROMPT = PromptKind("choose_land_type", "Choose a basic land type for ")  # followed by the land's name; Plains, Island, Swamp, Mountain, Forest
 WISH_PROMPT = PromptKind("wish", "Put into your hand for ")  # followed by the source's name; options: "<card> (outside the game)", "<card> (exile)", "Nothing"
 CHOOSE_NAME_PROMPT = PromptKind("choose_name", "Choose a card name for ")  # followed by the card's name; options are the names in view
@@ -987,6 +988,9 @@ class Game:
             self.combat = Combat(self)
             for permanent in list(seat.battlefield) + list(seat.emblems):  # Tezzeret, Cruel Captain's emblem
                 self.trigger("combat", permanent, seat)
+            for other in self.opponents(seat):  # Citadel Siege: "that player" is whose turn it is
+                for permanent in list(other.battlefield):
+                    self.trigger("opponent_combat", permanent, other, player=seat)
             self._graveyard_returns(seat, "combat")  # Arclight Phoenix
             for holder in self.live_seats():  # "At the beginning of each combat": whoever's turn it is
                 for permanent in list(holder.battlefield):
@@ -6695,6 +6699,11 @@ class Game:
                                                  produced_mana=(types[chosen],))
         if chooses_card_name(permanent.card):
             permanent.chosen_name = self._choose_card_name(seat, permanent.card)
+        if chooses_siege_mode(permanent.card):  # a Siege keeps only the chosen ability; it leaves as the printed card
+            other = ("Dragons", "Khans")[seat.player.choose(CHOOSE_SIEGE_PROMPT(permanent.card.name), ["Khans", "Dragons"])]
+            permanent.real_card = permanent.real_card or permanent.card
+            permanent.card = dataclasses.replace(permanent.card, oracle_text="\n".join(
+                line for line in permanent.card.oracle_text.splitlines() if not line.startswith(f"\u2022 {other} \u2014 ")))
         if chooses_color(permanent.card):
             names = {"White": "W", "Blue": "U", "Black": "B", "Red": "R", "Green": "G"}
             names = {name: letter for name, letter in names.items() if letter != color_choice_excludes(permanent.card)}

@@ -137,12 +137,19 @@ _TABLE_ROW = re.compile(r"\d+(?:\u2014\d+)? \| ")
 _MODE_LABEL = re.compile(r"^\u2022 [A-Z][A-Za-z']*(?: (?:[A-Z][A-Za-z']*|a|an|the|of|to)){0,5} \u2014 ")
 
 
+SIEGE_MODE = re.compile(r"^\u2022 (Khans|Dragons) \u2014 (.+)$")  # Fate Reforged's Sieges: only the chosen one is the permanent's (Game._enter)
+
+
 def _join_modes(text: str) -> str:
     """Put the modes of a modal triggered or activated ability on its own line, so it is one ability like any other
     ("When ... enters, choose one — \u2022 Scry 2. \u2022 You gain 3 life."). A modal spell keeps its lines."""
     lines: list[str] = []
     joining = False
     for line in text.splitlines():
+        if m := SIEGE_MODE.match(line.strip()):  # a Siege: "\u2022 Khans \u2014 At the beginning of ..." is an ability of its own
+            lines.append(m[2])
+            joining = False
+            continue
         line = _MODE_LABEL.sub("\u2022 ", line.strip()) if line.strip().startswith("\u2022 ") else line  # "\u2022 Sell Contraband \u2014 Create ..."
         if joining and line.strip().startswith("\u2022 "):
             lines[-1] += " " + line.strip()
