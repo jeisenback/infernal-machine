@@ -193,6 +193,16 @@ class SacrificeSelf:
 
 
 @dataclass(frozen=True)
+class ExileSelf:
+    """Heat Shimmer's token: "At the beginning of the end step, exile this token." """
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game._leave_together([(target, "exiled")], "exile")
+
+
+@dataclass(frozen=True)
 class SacrificeSelfThenCreate:
     """The Misty Mountains Cold: "Then if you control four or more Treasures, sacrifice this Saga. If you do, create a 6/6 red Dragon
     creature token with flying." """

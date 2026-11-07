@@ -1273,6 +1273,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     of it." (`CopyEachEnteredToken`: the tokens created with the one that set it off, `Permanent.entered_with`); and Ondu Spiritdancer's
     "you may ... Do this only once each turn." (`TriggeredAbility.once_if_done`: it triggers each time, and once it has been done that
     turn it is declined without asking).
+  - Token copies, batch 2 (`tests/test_copy_tokens.py`, #656): a copy that "has haste and "At the beginning of the end step, sacrifice
+    this token."" (Electroduplicate) or "... exile this token." (Heat Shimmer): the quoted ability after "has haste and", and "sacrifice
+    this token." / "exile this token." (`ExileSelf`); Devastating Onslaught's "Those tokens gain haste until end of turn."; For the Common
+    Good's "Then tokens you control gain indestructible until your next turn." (every token, not only creatures:
+    `KindsGainUntilEndOfTurn.until_next_turn`); Clone Legion's "For each creature target player controls, create a token that's a copy
+    of that creature." (`CopyEachOfTargetPlayer`); and Oltec Matterweaver's "target artifact token you control".
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

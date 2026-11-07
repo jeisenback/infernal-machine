@@ -6,9 +6,9 @@ permanent of a kind). Lines are the cards' own Oracle text."""
 import dataclasses
 import unittest
 
-from infernal_machine.game import CAST, Permanent
+from infernal_machine.game import CAST, X_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import ANTHEM, BEAR, OGRE, Table, enter, fire, lands, pick, real, run_stack, table, table3
+from tests.helpers import ANTHEM, BEAR, OGRE, Table, end_turn, enter, fire, lands, pick, real, run_stack, table, table3
 
 KIKI = real("Kiki-Jiki, Mirror Breaker", "{2}{R}{R}{R}", "Legendary Creature — Goblin Shaman",
             "Haste\n{T}: Create a token that's a copy of target nonlegendary creature you control, except it has haste. Sacrifice it at "
@@ -382,3 +382,79 @@ class TokenCopyFamilyTests(unittest.TestCase):
         game._perform(a, CAST + "Second Harvest")
         run_stack(game)
         self.assertEqual((len(tokens(a, "Clue")), len(tokens(a, "Goat")), len(tokens(b, "Goat"))), (2, 0, 1))
+
+
+ELECTRODUPLICATE = real("Electroduplicate", "{2}{R}", "Sorcery",
+                        "Create a token that's a copy of target creature you control, except it has haste and \"At the beginning of the "
+                        "end step, sacrifice this token.\"\nFlashback {2}{R}{R} (You may cast this card from your graveyard for its "
+                        "flashback cost. Then exile it.)", colors=("R",))
+HEAT_SHIMMER = real("Heat Shimmer", "{2}{R}", "Sorcery",
+                    "Create a token that's a copy of target creature, except it has haste and \"At the beginning of the end step, exile "
+                    "this token.\"", colors=("R",))
+DEVASTATING_ONSLAUGHT = real("Devastating Onslaught", "{X}{X}{R}", "Sorcery",
+                             "Create X tokens that are copies of target artifact or creature you control. Those tokens gain haste until end "
+                             "of turn. Sacrifice them at the beginning of the next end step.", colors=("R",))
+FOR_THE_COMMON_GOOD = real("For the Common Good", "{X}{X}{G}", "Sorcery",
+                           "Create X tokens that are copies of target token you control. Then tokens you control gain indestructible until "
+                           "your next turn. You gain 1 life for each token you control.", colors=("G",))
+CLONE_LEGION = real("Clone Legion", "{7}{U}{U}", "Sorcery",
+                    "For each creature target player controls, create a token that's a copy of that creature.", colors=("U",))
+OLTEC_MATTERWEAVER = real("Oltec Matterweaver", "{2}{W}", "Creature — Human Artificer",
+                          "Whenever you cast a creature spell, choose one —\n• Create a 1/1 colorless Gnome artifact creature token.\n• "
+                          "Create a token that's a copy of target artifact token you control.", "2", "4", colors=("W",))
+
+
+def x_is(value, *labels):
+    """Answers X with `value`, and anything else as `pick` would."""
+    rest = pick(*labels)
+    return lambda prompt, options: options.index(str(value)) if X_PROMPT.matches(prompt) else rest(prompt, options)
+
+
+class TokenCopyFamilyBatch2Tests(unittest.TestCase):
+    """#656: copies that leave at the end step by their own ability, X copies with riders, copies of a player's creatures."""
+
+    def test_the_cards_are_fully_playable(self):
+        for card in (ELECTRODUPLICATE, HEAT_SHIMMER, DEVASTATING_ONSLAUGHT, FOR_THE_COMMON_GOOD, CLONE_LEGION, OLTEC_MATTERWEAVER):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_the_copy_leaves_by_the_ability_it_was_given(self):
+        for spell, gone_to in ((ELECTRODUPLICATE, "graveyard"), (HEAT_SHIMMER, "exile")):
+            t = Table(spell, "Bear", mine=[Permanent(BEAR)]).cast()
+            [token] = tokens(t.a, "Bear")
+            self.assertTrue(t.game.has_keyword(token, "haste"), spell.name)
+            end_step(t.game, t.b)  # "the end step": any player's
+            self.assertEqual((tokens(t.a), len([p for p in t.a.battlefield if p.card.name == "Bear"])), ([], 1), spell.name)
+
+    def test_heat_shimmer_copies_an_opponents_creature(self):
+        t = Table(HEAT_SHIMMER, "Ogre", theirs=[Permanent(OGRE)]).cast()
+        self.assertEqual([p.card.name for p in tokens(t.a)], ["Ogre"])
+
+    def test_devastating_onslaught_makes_x_hasty_copies_until_the_end_step(self):
+        t = Table(DEVASTATING_ONSLAUGHT, mine=[Permanent(BEAR)], policy=x_is(2, "Bear"))
+        t.cast()
+        made = tokens(t.a, "Bear")
+        self.assertEqual((len(made), all(t.game.has_keyword(p, "haste") for p in made)), (2, True))
+        end_step(t.game, t.a)
+        self.assertEqual(tokens(t.a), [])
+
+    def test_for_the_common_good_copies_then_protects_every_token_and_gains_life(self):
+        t = Table(FOR_THE_COMMON_GOOD, mine=[Permanent(CLUE), Permanent(GOAT)], theirs=[Permanent(GOAT)], policy=x_is(2, "Goat"))
+        life = t.a.life
+        t.cast()
+        self.assertEqual((len(tokens(t.a, "Goat")), t.a.life - life), (3, 4))  # two copies; four tokens of yours
+        self.assertTrue(all(t.game.has_keyword(p, "indestructible") for p in tokens(t.a)))
+        self.assertFalse(t.game.has_keyword(t.b.battlefield[0], "indestructible"))  # not an opponent's token
+        end_turn(t.game, t.a)  # this turn's cleanup: it lasts until your next turn
+        self.assertTrue(t.game.has_keyword(tokens(t.a, "Clue")[0], "indestructible"))
+
+    def test_clone_legion_copies_every_creature_of_the_target_player(self):
+        t = Table(CLONE_LEGION, "Player: B", n=9, theirs=[Permanent(BEAR), Permanent(OGRE), Permanent(RELIC)]).cast()
+        self.assertEqual(sorted(p.card.name for p in tokens(t.a)), ["Bear", "Ogre"])  # not the artifact
+
+    def test_oltec_matterweaver_copies_an_artifact_token_you_control(self):
+        game, _ = table3(pick("Create a token that's a copy", "Clue"))
+        a, b, _ = game.seats
+        a.battlefield, a.hand, b.battlefield = [Permanent(OLTEC_MATTERWEAVER), Permanent(CLUE), Permanent(GOAT), *lands(2)], [BEAR], [Permanent(CLUE)]
+        game._perform(a, CAST + "Bear")
+        run_stack(game)
+        self.assertEqual((len(tokens(a, "Clue")), len(tokens(a, "Goat"))), (2, 1))  # the Goat is no artifact

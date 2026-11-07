@@ -165,6 +165,7 @@ from .families.copying import (  # noqa: F401
     _COPY_CARD_TYPES,
     _CopyEachWithHaste,
     CopyEachEnteredToken,
+    CopyEachOfTargetPlayer,
     _OthersBecomeCopies,
     apply_copy_changes,
     copy_of,
@@ -230,6 +231,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     SacrificeAll,
     SacrificeCreature,
     SacrificeSelf,
+    ExileSelf,
     SacrificeSelfThenCreate,
     SacrificeUnlessPay,
     TargetSacrifices,
@@ -836,6 +838,10 @@ def _copy_changes(text: str) -> CopyChanges | None:
                 return None
             keywords.append(m[1].lower())
             after_keywords = True
+        elif was_keywords and (m := re.fullmatch(r"\x00(\d+)\x00", clause)):  # Electroduplicate: it has haste and "At the beginning ..."
+            if not _understood_ability(quoted[int(m[1])]):
+                return None
+            abilities.append(quoted[int(m[1])])
         elif was_keywords and (clause.lower() in _COPY_KEYWORDS or _understood_ability(clause.capitalize())):  # "it has flying and haste"
             keywords.append(clause.lower())
             after_keywords = True
@@ -1567,7 +1573,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
 
 _COPY_TOKEN = re.compile(
     r"create (?:a token that's a copy|(?P<count>two|three|four|five|X) tokens that are copies) of "
-    rf"(?:(?P<another>another )?target (?P<kind>{_PERMANENT_KIND}|token you control)"  # Esika's Chariot: "target token you control"
+    rf"(?:(?P<another>another )?target (?P<kind>{_PERMANENT_KIND}|(?:artifact )?token you control)"  # Esika's Chariot; Oltec Matterweaver: "artifact token"
     r"|target (?P<grave>creature|artifact) card in your graveyard"
     r"|(?P<subject>it|that (?:creature|permanent|artifact|enchantment|card|token))"
     r"|(?P<host>equipped|enchanted) (?:creature|artifact|permanent)"
@@ -1837,9 +1843,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if a creature dealt damage this way would die this turn, exile it instead\.", re.I),
      lambda m: ExileDamagedIfDie()),
     (re.compile(r"exile enchanted creature\.", re.I), lambda m: ExileEnchanted()),
-    (re.compile(r"that token gains haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
+    (re.compile(r"(?:that token gains|those tokens gain) haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),  # Devastating Onslaught
     (re.compile(r"(?:it|that token|they|those tokens) gains? haste\.", re.I), lambda m: _TokenHasHaste()),
-    (re.compile(r"sacrifice (?:it|this (?:creature|artifact))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."
+    (re.compile(r"sacrifice (?:it|this (?:creature|artifact|token))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."; Electroduplicate's token
+    (re.compile(r"exile this token\.", re.I), lambda m: ExileSelf()),  # Heat Shimmer's token: "At the beginning of the end step, exile this token."
     (re.compile(r"mill a card, then exile a card from your graveyard at random\. you may play the exiled card this turn\.", re.I),
      lambda m: MillThenExileRandomPlay()),
     (re.compile(r"exile (?:that card|one of them) from your graveyard\.(?: if you do, you may (?:play|cast) (?:that card|it) this turn\.)?", re.I),
@@ -2587,6 +2594,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"create a token that's a copy of (?:it|that (?:creature|permanent|artifact|token))(?:, except (.+))?\.", re.I),  # Ocelot Pride
      lambda m: CopyEachToken(m[1].lower() + " you control", c, entered_this_turn=bool(m[2]))
      if (c := _copy_changes(m[3]) if m[3] else CopyChanges()) else None),
+    (re.compile(r"for each creature target player controls, create a token that's a copy of that creature\.", re.I),
+     lambda m: CopyEachOfTargetPlayer()),  # Clone Legion
     (re.compile(rf"create a token that's a copy of {_SELF}, tapped and attacking\.", re.I), lambda m: CopyTokenAttacking()),
     (re.compile(r"that attacking player creates a tapped (.+? creature token(?: with [a-z, ]+)?) that's attacking that opponent\.",
                 re.I), lambda m: _attacker_token("a " + m[1])),
@@ -2907,6 +2916,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
     (re.compile(rf"(?i:other creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), other=True)),  # Summon: Esper Maduin
+    (re.compile(rf"(?i:tokens you control gain) {_KEYWORDS} (?i:until (end of turn|your next turn))\."),  # For the Common Good: every token
+     lambda m: KindsGainUntilEndOfTurn("token", _keyword_list(m[1]), until_next_turn=m[2].lower() == "your next turn")),
     (re.compile(rf"((?-i:[A-Z][a-z]+))s you control {_CHANGE}"), lambda m: PumpEach(_modifier(m, 2), subtype=m[1])),
     (re.compile(rf"(?i:non)-((?-i:[A-Z][a-z]+)) creatures you control {_CHANGE}"),
      lambda m: PumpEach(_modifier(m, 2), subtype="non-" + m[1])),  # Return of the Wildspeaker

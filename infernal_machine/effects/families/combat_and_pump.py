@@ -266,12 +266,16 @@ class KindsGainUntilEndOfTurn:
     any permanent of those types, a land as well as a creature)"""
     kind: str
     keywords: frozenset[str]
+    until_next_turn: bool = False  # For the Common Good: "Then tokens you control gain indestructible until your next turn."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         from ...filters import has_type
         for permanent in list(controller.battlefield):
             if has_type(permanent.card, self.kind):
-                game.modify_until_end_of_turn(permanent, Modifier(keywords=self.keywords))
+                if self.until_next_turn:
+                    permanent.until_next_turn.append(Modifier(keywords=self.keywords))
+                else:
+                    game.modify_until_end_of_turn(permanent, Modifier(keywords=self.keywords))
 
 
 @dataclass(frozen=True)
