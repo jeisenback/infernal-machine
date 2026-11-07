@@ -416,6 +416,14 @@ class _Otherwise:
 
 
 @dataclass(frozen=True)
+class FlipUntilLose:
+    """ "Flip a coin until you lose a flip." (Okaun, Zndrsplt, Mirror March, Crazed Firecat: "... for each flip you won")"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.flip_until_lose(controller)
+
+
+@dataclass(frozen=True)
 class FlipCoin:
     """ "Flip a coin." (CR 705) and, folded in, "If you lose the flip, this artifact deals 3 damage to you." (Mana Crypt): `then` happens
     when the flip is won (`on_win`) or lost."""

@@ -198,6 +198,7 @@ declare("graveyard_leave", re.compile(r"Whenever one or more cards leave your gr
 declare("instant_sorcery_left_graveyard", re.compile(r"Whenever an instant or sorcery card leaves your graveyard, (.+)", re.I),
         to="you")  # Murktide Regent: once for each such card (Game._left_graveyard)
 declare("any_sacrifice", re.compile(r"Whenever a player sacrifices a permanent, (.+)", re.I))
+declare("coin_flip_won", re.compile(r"Whenever a player wins a coin flip, (.+)", re.I))  # Game.flip_coin: Okaun, Zndrsplt
 declare("other_sacrifice", re.compile(r"Whenever a player sacrifices another permanent, (.+)", re.I))
 declare("host_dies", re.compile(r"When(?:ever)? (?:enchanted|equipped) creature dies, (.+)", re.I), host_gone=True)
 declare("host_combat_damage", re.compile(r"Whenever (?:enchanted|equipped) creature deals combat damage to a player, (.+)", re.I), about_creature=True, about_player=True)

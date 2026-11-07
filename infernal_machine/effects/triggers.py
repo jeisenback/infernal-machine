@@ -15,6 +15,8 @@ from .events import EVENTS
 from .targets import CONTEXT_BINDINGS, DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind
 from .common import FROM_LIBRARY
 from .outcomes import (
+    DefineX,
+    FlipUntilLose,
     SubjectDamagesEachOpponent,
     ExileThisFromGraveyardThen,
     ReturnThisFromGraveyard,
@@ -615,8 +617,9 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
                                  for a, e in zip(aimed, effects)):
             return None, False, False, None
         effects = [OnPlayer(e) if a else e for a, e in zip(aimed, effects)]
-    elif about_subject:
-        if not all(binding(e) in (SOURCE, SUBJECT, SOURCE_AND_SUBJECT, DEAD_SUBJECT) for e in effects):
+    elif about_subject:  # (a flip and the X it counts touch no permanent: Mirror March)
+        if not all(binding(e) in (SOURCE, SUBJECT, SOURCE_AND_SUBJECT, DEAD_SUBJECT) or isinstance(e, (FlipUntilLose, DefineX))
+                   for e in effects):
             return None, False, False, None
         effects = [OnSubject(e) if binding(e) == SOURCE else e for e in effects]
     return effects, optional, once, condition
