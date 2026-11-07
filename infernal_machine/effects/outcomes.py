@@ -575,6 +575,7 @@ from .families.spells_and_misc import (  # noqa: F401
     _TokenAttacksThisCombat,
 )
 from .families.free_casting import (  # noqa: F401
+    ExileTopOfTargetMayCast,
     ExileTopOfOpponentChooseOne,
     ExileTopOfEachOpponentMayCast,
     OwnerLosesManaValue,
@@ -2146,6 +2147,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnLater("hand", True)),
     (re.compile(rf"exile the top (?:card|{_N} cards) of your library\.", re.I), lambda m: ExileTop(_count(m[1] or "one"))),
     (re.compile(r"you may play (?:it|that card|those cards|them) this turn\.", re.I), lambda m: PlayExiled("this turn")),
+    (re.compile(r"you may play (?:it|that card) until you exile another card with this (?:artifact|creature|enchantment)\.", re.I),
+     lambda m: PlayExiled("until another")),  # Unstable Amulet
+    (re.compile(r"exile the top X cards of target opponent's library, where X is (.+?)\. Until end of turn, you may cast spells from among "
+                r"those cards, and mana of any type can be spent to cast those spells\.", re.I),
+     lambda m: [DefineX(a), ExileTopOfTargetMayCast("X")] if (a := _amount(m[1])) else None),  # Laughing Jasper Flint
     (re.compile(r"until (?:the )?end of turn, you may play (?:it|that card|those cards|them)\.", re.I),
      lambda m: PlayExiled("this turn")),
     (re.compile(r"until (?:the )?end of turn, you may cast spells from among them\.", re.I),  # Apex of Power: no land

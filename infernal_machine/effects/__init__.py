@@ -145,6 +145,7 @@ from .outcomes import (  # noqa: F401
     ReflexiveTrigger,
     MayDiscardThen,
     DamageEachOtherOpponent,
+    ExileTopOfTargetMayCast,
     KickedInstead,
     LivingWeapon,
     LoseLife,

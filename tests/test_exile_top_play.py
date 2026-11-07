@@ -1,8 +1,8 @@
 """Exile the top cards of your library and play them: until the end of your next turn (said after the exile), until your next end step,
 and "Choose one of them" (Clockwork Percussionist, Haste Magic, Heroes' Hangout, Riverwheel Sweep, Fireglass Mentor, Snowslope Hunter);
 what was exiled decides a rider (Bonehoard Dracosaur), only spells may be cast (Apex of Power), and played free (Urza, Lord High Artificer);
-only a Goblin creature card may be cast (Rundvelt Hordemaster), and Ob Nixilis, Captive Kingpin's "one or more opponents each lose exactly
-1 life"."""
+only a Goblin creature card may be cast (Rundvelt Hordemaster), Ob Nixilis, Captive Kingpin's "one or more opponents each lose exactly
+1 life", and Unstable Amulet's "until you exile another card with this artifact"."""
 
 import unittest
 
@@ -47,6 +47,10 @@ OB_NIXILIS = real("Ob Nixilis, Captive Kingpin", "{2}{B}{R}", "Legendary Creatur
 GOBLIN = real("Goblin Card", "{1}{R}", "Creature — Goblin", "", "2", "1", colors=("R",))
 DRAIN_ONE = real("Drain One", "{B}", "Sorcery", "Each opponent loses 1 life.", colors=("B",))
 DRAIN_TWO = real("Drain Two", "{B}", "Sorcery", "Each opponent loses 2 life.", colors=("B",))
+AMULET = real("Unstable Amulet", "{1}{R}", "Artifact",
+              "When this artifact enters, you get {E}{E} (two energy counters).\nWhenever you cast a spell from anywhere other than your hand, "
+              "this artifact deals 1 damage to each opponent.\n{T}, Pay {E}{E}: Exile the top card of your library. You may play it until "
+              "you exile another card with this artifact.")
 TOP = real("Top Card", "{1}", "Sorcery", "")
 NEXT = real("Next Card", "{1}", "Sorcery", "")
 
@@ -279,6 +283,45 @@ class ObNixilisTests(unittest.TestCase):
     def test_losing_2_life_does_not(self):
         game, a, ob = self.drain(DRAIN_TWO)
         self.assertEqual((ob.counters.get("+1/+1"), a.exile), (None, []))
+
+
+class UnstableAmuletTests(unittest.TestCase):
+    def exile(self, game, mine, amulet):
+        amulet.tapped = False
+        mine.player_counters["energy"] = 2
+        activate(game, mine, "Exile the top card")
+
+    def test_the_card_stays_playable_on_later_turns(self):
+        amulet = Permanent(AMULET)
+        game, mine, theirs = board(None, amulet, *lands(1))
+        self.exile(game, mine, amulet)
+        game.turn += 6
+        self.assertIn(CAST_EXILE + "Top Card", game.legal_actions(mine))
+
+    def test_exiling_another_card_ends_the_first_ones_permission(self):
+        amulet = Permanent(AMULET)
+        game, mine, theirs = board(None, amulet)
+        self.exile(game, mine, amulet)
+        game.turn += 2
+        self.exile(game, mine, amulet)
+        self.assertEqual([c.name for c, _ in mine.exile_play], ["Next Card"])
+
+    def test_another_amulet_leaves_the_first_ones_card_alone(self):
+        first, second = Permanent(AMULET), Permanent(AMULET)
+        game, mine, theirs = board(None, first, second)
+        self.exile(game, mine, first)
+        mine.player_counters["energy"] = 2
+        game._perform(mine, [a for a in game.legal_actions(mine) if "Exile the top card" in a][-1])  # the second Amulet's
+        run_stack(game)
+        self.assertEqual(sorted(c.name for c, _ in mine.exile_play), ["Next Card", "Top Card"])
+
+    def test_a_spell_cast_from_exile_deals_1_to_each_opponent(self):
+        amulet = Permanent(AMULET)
+        game, mine, theirs = board(None, amulet, *lands(1))
+        self.exile(game, mine, amulet)
+        game._perform(mine, CAST_EXILE + "Top Card")
+        run_stack(game)
+        self.assertEqual(theirs.life, 39)
 
 
 if __name__ == "__main__":

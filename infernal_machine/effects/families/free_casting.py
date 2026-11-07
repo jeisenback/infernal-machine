@@ -352,3 +352,15 @@ class ExileTopOfOpponentChooseOne:
         if target is not None:
             game.exile_top_of_other(controller, target, self.count, any_mana=True, choose_one=True, next_turn=True)
 
+
+
+@dataclass(frozen=True)
+class ExileTopOfTargetMayCast:
+    """Laughing Jasper Flint: "exile the top X cards of target opponent's library, where X is .... Until end of turn, you may cast spells
+    from among those cards, and mana of any type can be spent to cast those spells." (X is set just before)"""
+    count: Any
+    target: str = "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_top_of_other(controller, target, game.amount(self.count), any_mana=True, spells_only=True)
