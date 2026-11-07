@@ -5224,6 +5224,27 @@ class Game:
         if source is not None and not _is_token(card) and len(owner.exile) > before:
             source.exiled_with.append((owner, card))
 
+    def imprint_dead(self, source: Permanent, dead: Permanent) -> None:
+        """Mimic Vat: the card of the creature that died is exiled with `source` (if it is still in its owner's graveyard), and each
+        other card exiled with `source` goes back to its owner's graveyard."""
+        owner = self.owner_of(dead)
+        card = dead.transformed_from or dead.card
+        if not any(card is c for c in owner.graveyard):
+            return
+        owner.graveyard.remove(card)
+        owner.exile.append(card)
+        for other_owner, other in source.exiled_with:
+            if any(other is c for c in other_owner.exile):
+                other_owner.exile.remove(other)
+                self._move_card(other_owner, other, "graveyard")
+        source.exiled_with = [(owner, card)]
+        self.broadcast({"event": "exiled_from_graveyard", "seat": owner.index, "cards": [card.name]})
+
+    def copy_exiled_with(self, seat: Seat, source: Permanent, changes: CopyChanges | None = None) -> list[Permanent]:
+        """Mimic Vat: a token that's a copy of the card exiled with `source` (it keeps only one, `imprint_dead`), if it is still exiled."""
+        cards = [card for owner, card in source.exiled_with if any(card is c for c in owner.exile)]
+        return self.create_tokens(seat, copy_of(cards[-1], changes, as_token=True), 1) if cards else []
+
     def exile_until_leaves(self, target: Permanent, source: Permanent | None) -> None:
         """Exile `target` until `source` leaves the battlefield. If the source is already gone, nothing
         is exiled. A token is exiled for good, since it would stop existing anyway."""

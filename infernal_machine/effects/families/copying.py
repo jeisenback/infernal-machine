@@ -248,6 +248,33 @@ class CopySubjectForItsController:
 
 
 @dataclass(frozen=True)
+class ImprintDead:
+    """Mimic Vat: "Whenever a nontoken creature dies, you may exile that card. If you do, return each other card exiled with this artifact
+    to its owner's graveyard." (`Game.imprint_dead`)"""
+    binds = SOURCE_AND_SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target[1] is not None:
+            game.imprint_dead(target[0], target[1])
+
+
+@dataclass(frozen=True)
+class CopyExiledWith:
+    """Mimic Vat: "Create a token that's a copy of a card exiled with this artifact." (its riders: "It gains haste. Exile it at the
+    beginning of the next end step.")"""
+    changes: CopyChanges | None = None
+    count: Quantity = 1
+    haste: bool = False
+    sacrifice_at_end: bool = False
+    exile_at_end: bool = False
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            finish_copies(game, game.copy_exiled_with(controller, target, self.changes), self)
+
+
+@dataclass(frozen=True)
 class TokensBecomeCopies:
     """Brudiclad: "Then you may choose a token you control. If you do, each other token you control becomes a copy of
     that token." (two sentences, folded together by _merge_token_copies). The older wording ended "until end of turn"."""

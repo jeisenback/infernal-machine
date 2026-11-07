@@ -1284,6 +1284,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "Exile target nonland permanent. Each player other than its controller creates a token that's a copy of it." (`ExileOthersCopy`);
     Bramble Sovereign's "that creature's controller creates a token that's a copy of that creature" (`CopySubjectForItsController`); and
     Octomancer's "target creature token that entered the battlefield this turn" (a filter state, "entered this turn").
+  - Mimic Vat (`tests/test_copy_tokens.py`, #656): "Whenever a nontoken creature dies, you may exile that card. If you do, return each
+    other card exiled with this artifact to its owner's graveyard." (`Game.imprint_dead`: only a card still in its owner's graveyard is
+    exiled) and "Create a token that's a copy of a card exiled with this artifact." (`CopyExiledWith`, with the usual riders).
   - Blitz (`tests/test_blitz.py`, CR 702.152): "Blitz {2}{R}" is an alternative cost; cast for it, the creature has haste and "When
     this creature dies, draw a card." (`Permanent.blitzed`) and is sacrificed as the next end step begins (Mayhem Patrol, Night Clubber,
     Riveteers Requisitioner, Workshop Warchief). Jaxis, the Troublemaker's copy "gains haste and "When this token dies, draw a card."" the

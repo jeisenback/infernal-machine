@@ -167,6 +167,8 @@ from .families.copying import (  # noqa: F401
     CopyEachEnteredToken,
     CopyEachOfTargetPlayer,
     CopySacrificed,
+    ImprintDead,
+    CopyExiledWith,
     ExileOthersCopy,
     CopySubjectForItsController,
     _OthersBecomeCopies,
@@ -2602,6 +2604,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      if (c := _copy_changes(m[3]) if m[3] else CopyChanges()) else None),
     (re.compile(r"(?:that creature|it)'s controller creates a token that's a copy of (?:that creature|it)\.", re.I),
      lambda m: CopySubjectForItsController()),  # Bramble Sovereign
+    (re.compile(r"exile (?:that card|it)\. If you do, return each other card exiled with this artifact to its owner's graveyard\.", re.I),
+     lambda m: ImprintDead()),  # Mimic Vat
+    (re.compile(r"create a token that's a copy of a card exiled with this artifact\.", re.I), lambda m: CopyExiledWith()),  # Mimic Vat
     (re.compile(r"exile target nonland permanent\. Each player other than its controller creates a token that's a copy of it\.", re.I),
      lambda m: ExileOthersCopy()),  # Fractured Identity
     (re.compile(r"create (a token that's a copy|two tokens that are copies) of the sacrificed creature\.", re.I),  # Cleaver Skaab
@@ -3480,7 +3485,7 @@ _merge_exile = Follows(
     Follow(_FreeIfFromGraveyard, ExileTop, set_fields(free_from_graveyard=lambda m: True), fits=lambda previous, marker: bool(previous.play)))
 
 
-_COPY_SENTENCES = (CopyToken, CopySubjectToken, CopyHostToken, CopySelfToken, CopyEachToken)  # "Create a token that's a copy of ..."
+_COPY_SENTENCES = (CopyToken, CopySubjectToken, CopyHostToken, CopySelfToken, CopyEachToken, CopyExiledWith)  # "Create a token that's a copy of ..."
 
 
 _CONDITIONAL = Follows(

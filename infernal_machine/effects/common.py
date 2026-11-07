@@ -225,6 +225,7 @@ _WHOLE_LINE = re.compile(
     r"mana cost\."  # Cemetery Tampering (the trigger's body begins in lower case)
     r"|Look at the top card of your library\. You may cast that card without paying its mana cost\. Do this only once each turn\."
     r"|Exile target nonland permanent\. Each player other than its controller creates a token that's a copy of it\."  # Fractured Identity
+    r"|exile (?:that card|it)\. If you do, return each other card exiled with this artifact to its owner's graveyard\."  # Mimic Vat
     r"|Look at the top \w+ cards of your library\. You may cast a spell from among them without paying its mana cost\. Put the rest on the "
     r"bottom of your library in a random order\."  # Aetherworks Marvel
     r"|Shuffle your library\. Then exile the top card of your library\. Until end of turn, you may play that card without paying its mana "
