@@ -1235,6 +1235,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     a graveyard" (a permanent only goes there from the battlefield, so the watch no longer needs those words) and its look at the top six,
     one spell cast free, the rest on the bottom; Invoke Calamity (up to two instants and/or sorceries with total mana value 6 or less from
     the hand and the graveyard, exiled afterwards: `_cast(exile_after=True)`).
+  - Casting without paying the mana cost, batch 6 (`tests/test_cast_free.py`, #655): Kefka, Dancing Mad's "During your turn, Kefka has
+    indestructible." ("During your turn, ..." is a static condition like "as long as it's your turn") and its end-step cast from cards
+    exiled at random from each opponent's graveyard, each owner losing life equal to the mana value of their spell cast; Chaos Wand (a
+    cascade through the target opponent's library to an instant or sorcery card); Memory Plunder's "target instant or sorcery card from
+    an opponent's graveyard" (the graveyard target kind "opponents"); Possibility Storm (a spell cast from a hand, by any player, is
+    exiled and replaced by the first card from the top of its caster's library that shares a card type with it, cast free; everything
+    exiled goes to the bottom; the watch reads "from their hand"); Clive's Hideaway's "if you control four or more legendary
+    creatures". The "During your turn" condition also makes some 30 other cards playable ("During your turn, this creature has first
+    strike." and the like); with it, two readings of the creatures a static ability affects were put right: "Equipped creatures you
+    control" are those with an Equipment attached, not a creature type (Zamriel, Kemba, Dalakos), and a plural in "-ies" is the type in
+    "-y" when the list of creature types says so ("Allies" are Allies, "Armies" Armies; "Zombies" stay Zombies).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

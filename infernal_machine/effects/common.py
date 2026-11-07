@@ -234,6 +234,14 @@ _WHOLE_LINE = re.compile(
     r"paying their mana costs\. If those spells would be put into your graveyard, exile them instead\."  # Invoke Calamity
     r"|Exile target instant or sorcery card from a graveyard\. Copy that card three times\. You may cast the copies without paying their "
     r"mana costs\."  # Mnemonic Deluge
+    r"|Target opponent exiles cards from the top of their library until they exile an instant or sorcery card\. You may cast that card "
+    r"without paying its mana cost\. Then put the exiled cards that weren't cast this way on the bottom of that library in a random "
+    r"order\."  # Chaos Wand
+    r"|exile a card at random from each opponent's graveyard\. You may cast any number of spells from among cards exiled this way without "
+    r"paying their mana costs\. Then each player who owns a spell you cast this way loses life equal to its mana value\."  # Kefka
+    r"|that player exiles it, then exiles cards from the top of their library until they exile a card that shares a card type with it\. "
+    r"That player may cast that card without paying its mana cost\. Then they put all cards exiled with this enchantment on the bottom "
+    r"of their library in a random order\."  # Possibility Storm
     r"|Reveal the top card of your library\. If it's a creature card that shares a creature type with a creature you control, you may "
     r"cast it without paying its mana cost\. If you don't cast it, put it on the bottom of your library\."  # Descendants' Path
     r"|Exile an instant or sorcery card at random from your graveyard\. Then copy each card exiled with this enchantment\. You may cast "

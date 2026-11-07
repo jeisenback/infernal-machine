@@ -144,7 +144,7 @@ _WATCHES = {
                        r"|permanent spell with a mana cost that contains \{X\}|instant or sorcery spell with \{X\} in its mana cost"
                        r"|(?-i:[A-Z][a-z]+)(?: or (?-i:[A-Z][a-z]+))?(?: permanent)? spell)"  # a creature type: "another Vampire spell", "a Faerie or Wizard permanent spell"
                        r"(?: with mana value (\d+) or greater)?"
-                       r"( from your hand| from your graveyard| from their graveyard| from anywhere other than your hand"
+                       r"( from your hand| from their hand| from your graveyard| from their graveyard| from anywhere other than your hand"
                        r"| that isn't from your starting deck)?"
                        r"(?(3) each turn), (.+)", re.I),
     "card_to_graveyard": re.compile(rf"Whenever an? ([a-z ]+?) card is put into your graveyard from anywhere, (.+)", re.I),
@@ -270,7 +270,7 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         origin = (m[6] or "").strip()
         watch = Watch(m[4].lower(), other=(m[2] or "").lower() == "another", caster=caster, nth_each_turn=nth,
                       with_copy=m[1].lower() == "you cast or copy", mv_at_least=int(m[5] or 0),
-                      from_hand=origin == "from your hand", qualifier=qualifier,
+                      from_hand=origin in ("from your hand", "from their hand"), qualifier=qualifier,
                       not_starting_deck=origin == "that isn't from your starting deck",
                       from_zone="graveyard" if "graveyard" in origin else "not_hand" if "other than" in origin else "")
         return "cast", watch, m[7]
@@ -523,7 +523,9 @@ _PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creat
                      r"|\btarget [^.]*\. It gains [^.]*\."  # "... on target creature you control. It gains trample until end of turn.": the target
                      r"|\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
                      r"|\btap up to one target creature and goad it\b|\btap (?:[^.]*? )?target [^.]*? and put \w+ stun counters? on it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bthat player copies that spell for each other creature they control that the spell could target\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it\b"
-                     r"|\bexiles the top card of their library\. If it's a nonland card, you may cast it\b", re.I)  # Mind's Dilation: the exiled card
+                     r"|\bexiles the top card of their library\. If it's a nonland card, you may cast it\b"  # Mind's Dilation: the exiled card
+                     r"|\bthat player exiles it, then exiles cards from the top of their library until they exile a card that shares a card "
+                     r"type with it\b", re.I)  # Possibility Storm: the spell, which the trigger carries
 
 
 _TOKEN_HAS = re.compile(r'(?:It has|They have|with) "[^"]*"\.?')  # a token's own ability: its "it" is the token (Weapons Manufacturing)

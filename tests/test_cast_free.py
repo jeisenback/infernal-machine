@@ -11,7 +11,7 @@ and Mind's Dilation (the opponent's top card, if nonland). Batch 4: Jodah, the U
 Cemetery Tampering (a Hideaway played at twenty cards in the graveyard), Gríma, Saruman's Footman (an instant or sorcery from the damaged
 player's library), Geode Golem (the commander, free but for its tax), Planetarium of Wan Shi Tong (the top card, once a turn) and Ignite the
 Future (free when flashed back). Batch 5: Mind's Desire, Breaching Dragonstorm, Mnemonic Deluge, Fight Rigging, Aetherworks Marvel and
-Invoke Calamity."""
+Invoke Calamity. Batch 6: Kefka, Dancing Mad, Chaos Wand, Memory Plunder, Possibility Storm and Clive's Hideaway."""
 
 import unittest
 from dataclasses import replace
@@ -142,6 +142,29 @@ CALAMITY = real("Invoke Calamity", "{1}{R}{R}{R}{R}", "Instant", "You may cast u
                 "exile them instead. Exile Invoke Calamity.", colors=("R",))
 NINE = real("Nine Drop", "{9}", "Artifact", "")
 SIX = real("Giant", "{6}", "Creature — Giant", "", "6", "6")
+
+KEFKA = real("Kefka, Dancing Mad", "{5}{B}{R}", "Legendary Creature — Human Wizard", "During your turn, Kefka has indestructible.\nAt the "
+             "beginning of your end step, exile a card at random from each opponent's graveyard. You may cast any number of spells from "
+             "among cards exiled this way without paying their mana costs. Then each player who owns a spell you cast this way loses life "
+             "equal to its mana value.", "6", "6", colors=("B", "R"))
+WAND = real("Chaos Wand", "{3}", "Artifact", "{4}, {T}: Target opponent exiles cards from the top of their library until they exile an "
+            "instant or sorcery card. You may cast that card without paying its mana cost. Then put the exiled cards that weren't cast this "
+            "way on the bottom of that library in a random order.")
+PLUNDER = real("Memory Plunder", "{U/B}{U/B}{U/B}{U/B}", "Instant", "You may cast target instant or sorcery card from an opponent's "
+               "graveyard without paying its mana cost.", colors=("U", "B"))
+POSSIBILITY = real("Possibility Storm", "{3}{R}{R}", "Enchantment", "Whenever a player casts a spell from their hand, that player exiles it, "
+                   "then exiles cards from the top of their library until they exile a card that shares a card type with it. That player "
+                   "may cast that card without paying its mana cost. Then they put all cards exiled with this enchantment on the bottom of "
+                   "their library in a random order.", colors=("R",))
+CHARGE = real("Sokka's Charge", "{3}{W}", "Enchantment", "During your turn, Allies you control have double strike and lifelink.",
+              colors=("W",))
+ZAMRIEL = real("Zamriel, Seraph of Steel", "{2}{W}{W}", "Legendary Creature — Angel", "Flying\nDuring your turn, equipped creatures you "
+               "control have indestructible.", "3", "4", colors=("W",))
+ALLY = real("Ally", "{1}{W}", "Creature — Human Soldier Ally", "", "2", "2", colors=("W",))
+SYNOD = real("Seat of the Synod", "", "Artifact Land", "{T}: Add {U}.")
+CLIVE = real("Clive's Hideaway", "", "Land — Town", "Hideaway 4 (When this land enters, look at the top four cards of your library, exile one "
+             "face down, then put the rest on the bottom in a random order.)\n{T}: Add {C}.\n{2}, {T}: You may play the exiled card "
+             "without paying its mana cost if you control four or more legendary creatures.")
 
 
 def asking(policy, asked):
@@ -651,6 +674,101 @@ class CastFreeBatchFiveTests(unittest.TestCase):
         run_stack(game)
         self.assertEqual(sorted(c.name for c in a.exile), ["Invoke Calamity", "Opt", "Three Drop"])  # 3 + 1; the Four Drop would pass 6
         self.assertEqual(([c.name for c in a.graveyard], "Four Drop" in [c.name for c in a.hand]), (["Opt"], True))  # two spells only
+
+
+class CastFreeBatchSixTests(unittest.TestCase):
+    def test_the_cards_are_understood(self):
+        for card in (KEFKA, WAND, PLUNDER, POSSIBILITY, CLIVE):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_kefka_is_indestructible_during_its_controllers_turn(self):
+        game, _ = table3()
+        kefka = Permanent(KEFKA)
+        game.seats[0].battlefield = [kefka]
+        self.assertTrue(game.has_keyword(kefka, "indestructible"))
+        game.active = 1
+        self.assertFalse(game.has_keyword(kefka, "indestructible"))
+
+    def test_during_your_turn_groups_are_the_right_creatures(self):
+        game, _ = table3()
+        a = game.seats[0]
+        ally, other, equipped, bare = Permanent(ALLY), Permanent(BEAR), Permanent(OGRE), Permanent(replace(OGRE))
+        a.battlefield = [Permanent(CHARGE), Permanent(ZAMRIEL), ally, other, equipped, bare, Permanent(SWORD, attached_to=equipped)]
+        self.assertEqual((game.has_keyword(ally, "double strike"), game.has_keyword(other, "double strike")), (True, False))
+        self.assertEqual((game.has_keyword(equipped, "indestructible"), game.has_keyword(bare, "indestructible")), (True, False))
+        game.active = 1
+        self.assertEqual((game.has_keyword(ally, "double strike"), game.has_keyword(equipped, "indestructible")), (False, False))
+
+    def test_kefka_casts_cards_from_opponents_graveyards_and_drains_their_owners(self):
+        game, _ = table3()
+        a, b, c = game.seats
+        kefka = Permanent(KEFKA)
+        a.battlefield, a.library, b.graveyard, c.graveyard = [kefka], [FOREST] * 3, [OPT], [MOUNTAIN]
+        life_b, life_c = b.life, c.life
+        fire(game, a, kefka, "end_step")
+        self.assertEqual((len(a.hand), b.life, c.life, [x.name for x in c.exile]), (1, life_b - 1, life_c, ["Mountain"]))
+
+    def test_chaos_wand_casts_an_instant_or_sorcery_from_the_opponents_library(self):
+        game, _ = table3(lambda prompt, options: options.index("Player: B (seat 1)") if "Player: B (seat 1)" in options else 0)
+        a, b, _ = game.seats
+        a.battlefield, a.library, b.library = [Permanent(WAND), *lands(4)], [FOREST] * 3, [FOREST, BEAR, OPT, MOUNTAIN]
+        activate(game, a, "Chaos Wand")
+        self.assertEqual((len(a.hand), [x.name for x in b.graveyard], sorted(x.name for x in b.library)),
+                         (1, ["Opt"], ["Bear", "Forest", "Mountain"]))
+
+    def test_memory_plunder_casts_from_an_opponents_graveyard_only(self):
+        asked = []
+        game, _ = table3(asking(lambda prompt, options: 0, asked))
+        a, b, _ = game.seats
+        a.battlefield, a.hand, a.graveyard, a.library, b.graveyard = lands(4), [PLUNDER], [replace(OPT)], [FOREST] * 3, [OPT]
+        game._perform(a, CAST + "Memory Plunder")
+        run_stack(game)
+        self.assertNotIn("Opt (seat 0 graveyard)", [o for options in asked for o in options])
+        self.assertEqual((len(a.hand), [x.name for x in b.graveyard], len(a.graveyard)), (1, ["Opt"], 2))
+        a.hand = [replace(PLUNDER)]
+        for p in a.battlefield:
+            p.tapped = False
+        game._perform(a, CAST + "Memory Plunder")
+        b.graveyard.clear()  # the target left the graveyard before it resolved: the spell fizzles (CR 608.2b)
+        run_stack(game)
+        self.assertEqual(len(a.hand), 0)  # nothing cast, nothing drawn
+
+    def test_possibility_storm_swaps_a_spell_cast_from_hand_for_one_of_its_type(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield, a.hand, a.library = [Permanent(POSSIBILITY), *lands(2)], [BEAR], [OPT, OGRE, FOREST]
+        game._perform(a, CAST + "Bear")
+        run_stack(game)
+        names = [p.card.name for p in a.battlefield]
+        self.assertEqual(("Ogre" in names, "Bear" in names, sorted(x.name for x in a.library)), (True, False, ["Bear", "Forest", "Opt"]))
+
+    def test_possibility_storm_does_not_cast_an_artifact_land(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield, a.hand, a.library = [Permanent(POSSIBILITY), *lands(1)], [RELIC], [SYNOD, FOREST]
+        game._perform(a, CAST + "Relic")
+        run_stack(game)
+        self.assertEqual((sorted(x.name for x in a.library), "Seat of the Synod" in [p.card.name for p in a.battlefield]),
+                         (["Forest", "Relic", "Seat of the Synod"], False))
+
+    def test_possibility_storm_ignores_spells_not_cast_from_hand(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield, a.library = [Permanent(POSSIBILITY)], [OGRE, FOREST]
+        game.cast_copy_free(a, BEAR)  # a copy, cast from no hand
+        run_stack(game)
+        self.assertEqual(([x.name for x in a.library], "Ogre" in [p.card.name for p in a.battlefield]), (["Ogre", "Forest"], False))
+
+    def test_clives_hideaway_plays_the_card_with_four_legendary_creatures(self):
+        for legends, played in ((4, True), (3, False)):
+            game, _ = table3()
+            a = game.seats[0]
+            hideaway = Permanent(CLIVE)
+            a.battlefield = [hideaway, *lands(2), Permanent(BEAR), *[Permanent(replace(LEGEND2, name=f"Legend {i}")) for i in range(legends)]]
+            a.exile = [BIG]
+            hideaway.exiled_with.append((a, BIG))
+            activate(game, a, "{2}")
+            self.assertEqual("Big" in [p.card.name for p in a.battlefield], played, legends)
 
 
 if __name__ == "__main__":

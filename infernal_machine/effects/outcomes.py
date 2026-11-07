@@ -484,6 +484,10 @@ from .families.spells_and_misc import (  # noqa: F401
     ShuffleExileTopPlayFree,
     ExileUntilNonlandCastOrTake,
     CastTwoFreeFromHandOrGraveyard,
+    TargetCascades,
+    CastTargetFromGraveyardFree,
+    ExileRandomFromOpponentsCast,
+    PossibilityStorm,
     Learn,
     MillUntilLand,
     EachWithNamedDraws,
@@ -2360,6 +2364,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RevealTopCastKindredFree()),  # Descendants' Path
     (re.compile(r"if this spell was cast from a graveyard, you may play cards this way without paying their mana costs\.", re.I),
      lambda m: _FreeIfFromGraveyard()),  # Ignite the Future, folded into the ExileTop before it
+    (re.compile(r"target opponent exiles cards from the top of their library until they exile an instant or sorcery card\. You may cast "
+                r"that card without paying its mana cost\. Then put the exiled cards that weren't cast this way on the bottom of that library "
+                r"in a random order\.", re.I), lambda m: TargetCascades("instant or sorcery")),  # Chaos Wand
+    (re.compile(r"you may cast target instant or sorcery card from an opponent's graveyard without paying its mana cost\.", re.I),
+     lambda m: CastTargetFromGraveyardFree()),  # Memory Plunder
+    (re.compile(r"exile a card at random from each opponent's graveyard\. You may cast any number of spells from among cards exiled this "
+                r"way without paying their mana costs\. Then each player who owns a spell you cast this way loses life equal to its mana "
+                r"value\.", re.I), lambda m: ExileRandomFromOpponentsCast()),  # Kefka, Dancing Mad
+    (re.compile(r"that player exiles it, then exiles cards from the top of their library until they exile a card that shares a card type "
+                r"with it\. That player may cast that card without paying its mana cost\. Then they put all cards exiled with this "
+                r"enchantment on the bottom of their library in a random order\.", re.I), lambda m: PossibilityStorm()),  # Possibility Storm
     (re.compile(rf"look at the top {_N_FIXED} cards of your library\. You may cast a spell from among them without paying its mana cost\. "
                 r"Put the rest on the bottom of your library in a random order\.", re.I),
      lambda m: LookTopCastOneFree(_number(m[1]))),  # Aetherworks Marvel
@@ -3236,6 +3251,8 @@ _CONDITIONS = [
      lambda m: Condition("cast_this_turn", _number(m[1]), m[2].replace(" spells", " spell").replace("spells", "spell"))),
     (re.compile(rf"you control {_N_FIXED} or more (white|blue|black|red|green) permanents"),
      lambda m: Condition("control_color_at_least", _number(m[1]), m[2])),
+    (re.compile(rf"you control {_N_FIXED} or more legendary creatures"),
+     lambda m: Condition("control_at_least", _number(m[1]), "legendary creature")),  # Clive's Hideaway
     (re.compile(rf"you control {_N_FIXED} or more ([A-Za-z]+)"),
      lambda m: Condition("control_at_least", _number(m[1]), _singular(m[2]))),
     (re.compile(r"your speed is 4"), lambda m: Condition("max_speed")),  # Max speed

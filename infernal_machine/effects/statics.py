@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+from ..creature_types import CREATURE_TYPES
 from ..cards import Card
 from ..characteristics import Modifier
 
@@ -611,6 +612,8 @@ def _conditional(line: str) -> tuple[str, str] | None:
         return m[2], m[1]
     if m := _AS_LONG_AS_LAST.fullmatch(line):
         return m[1] + ".", m[2]
+    if m := re.fullmatch(r"During your turn, (.+)", line):  # Kefka, Dancing Mad: "During your turn, Kefka has indestructible."
+        return m[1][:1].upper() + m[1][1:], "it's your turn"
     return None
 
 
@@ -619,11 +622,21 @@ def _other(who: re.Match) -> bool:
     return who["other"] is not None or (who["other_chosen"] or "").startswith("O") or who["other_perms"] is not None or who["other2"] is not None or who["other3"] is not None
 
 
+def _tribe(stem: str) -> str:
+    """The creature type a plural names, given the plural without its "s": "Wolve" (Wolves) is Wolf, "Allie" (Allies) is Ally, "Zombie"
+    (Zombies) stays as it is (CR 205.3m: the types are a fixed list)."""
+    if stem.endswith("ve"):
+        return stem[:-2] + "f"
+    if stem.endswith("ie") and stem not in CREATURE_TYPES and stem[:-2] + "y" in CREATURE_TYPES:
+        return stem[:-2] + "y"
+    return stem
+
+
 def _who_subtype(who: re.Match) -> str | None:
     """The creature type a static ability affects: "Elf" in "Other Elf creatures", or "Wolf|Werewolf" for "Wolves and Werewolves" (any of them)."""
     if who["sub"]:
         return who["sub"]
-    kinds = [t[:-2] + "f" if t.endswith("ve") else t for t in (who["tribe"], who["tribe2"], who["tribe3"]) if t]  # Wolves -> Wolf
+    kinds = [_tribe(t) for t in (who["tribe"], who["tribe2"], who["tribe3"]) if t]
     return "|".join(kinds) or None
 
 
