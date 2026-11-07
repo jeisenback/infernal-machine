@@ -427,6 +427,7 @@ from .families.library_and_hand import (  # noqa: F401
     _card_matches_kind,
 )
 from .families.life_and_damage import (  # noqa: F401
+    DamageEachOtherOpponent,
     PayLifeDrawPerOpponentHit,
     PreventAllCreatureDamage,
     SubjectDamagesEachOpponent,
@@ -534,6 +535,7 @@ from .families.spells_and_misc import (  # noqa: F401
     IfAdditionalCostPaid,
     IfKicked,
     ReflexiveTrigger,
+    MayDiscardThen,
     IfNotKicked,
     KickedInstead,
     KickedReplaces,
@@ -1464,6 +1466,17 @@ def _if_you_do(m: re.Match) -> Any:
     return _IfYouDo(inner[0]) if inner and len(inner) == 1 and isinstance(inner[0], (BecomePrepared, SearchForLands)) else None
 
 
+def _may_discard_then(m: re.Match) -> Any:
+    """"You may discard a card. If you do, <the rest of the line>." An "if you do" effect may not target or act on the source (the targets
+    would be chosen before the discard); "When you do" makes a reflexive trigger, which chooses its own targets."""
+    inner = _parse(_split_sentences(m[2][:1].upper() + m[2][1:]))
+    if not inner:
+        return None
+    if m[1].lower() == "when":
+        return MayDiscardThen(tuple(inner), True, m[0])
+    return None if any(target_kind(e) or binding(e) for e in inner) else MayDiscardThen(tuple(inner))
+
+
 def _when_you_do_if(m: re.Match) -> Any:
     """"When you do, if <condition>, <effect>.": the effect may target, since the reflexive trigger chooses its targets itself."""
     condition = _condition(m[1])
@@ -1632,7 +1645,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|artifact, creature, or enchantment|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker|creature or enchantment|creature or Vehicle|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?:, (?-i:[A-Z][a-z]+))*,? or (?-i:[A-Z][a-z]+)(?= you control)"
-                   r"|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that player controls)?"
+                   r"|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that (?:player|opponent) controls)?"
                    r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with power \d+ or less)?)")
 
 
@@ -2159,7 +2172,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RevealTopTradeLife()),
     (re.compile(rf"you and target opponent each draw {_N} cards?\.", re.I), lambda m: YouAndTargetDraw(_count(m[1]))),
     (re.compile(rf"each player loses {_N} life\.", re.I), lambda m: EachPlayerLosesLife(_count(m[1]))),
+    (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
+    (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti
     (re.compile(rf"you may sacrifice (an?|another) {_SACRIFICE_KIND}\.", re.I), lambda m: _MaySacrifice(m[2].lower(), m[1].lower() == "another")),
     (re.compile(rf"you may remove an? {_COUNTER} from (?:it|{_SELF})\.", re.I), lambda m: _MayRemoveCounter(_counter_name(m[1]))),
     (re.compile(rf"if you do, draw {_N_FIXED} cards?(?:, then mill {_N_FIXED} cards?)?\.", re.I),

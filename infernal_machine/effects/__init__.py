@@ -143,6 +143,8 @@ from .outcomes import (  # noqa: F401
     IfAdditionalCostPaid,
     IfKicked,
     ReflexiveTrigger,
+    MayDiscardThen,
+    DamageEachOtherOpponent,
     KickedInstead,
     LivingWeapon,
     LoseLife,

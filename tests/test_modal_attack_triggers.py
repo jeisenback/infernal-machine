@@ -1,11 +1,12 @@
 """Modal triggers that exile the top cards to play them (#658): Breeches, Eager Pillager ("choose one that hasn't been chosen this
-turn", each mode once a turn for the source; Lita, Little Orphan Amphibian says it with a period) and Tectonic Giant ("attacks or
-becomes the target of a spell an opponent controls")."""
+turn", each mode once a turn for the source; Lita, Little Orphan Amphibian says it with a period), Tectonic Giant ("attacks or
+becomes the target of a spell an opponent controls") and Parapet Thrasher ("one or more Dragons you control deal combat damage to an
+opponent": "that opponent" is the player hit)."""
 
 import unittest
 
 from infernal_machine.game import MODE_PROMPT, Permanent
-from tests.helpers import BEAR, FOREST, enter, lands, pick, real, run_stack, table
+from tests.helpers import BEAR, FOREST, OGRE, RELIC, enter, lands, pick, real, run_stack, table, table3
 
 BREECHES = real("Breeches, Eager Pillager", "{2}{R}", "Legendary Creature — Goblin Pirate",
                 "First strike\nWhenever a Pirate you control attacks, choose one that hasn't been chosen this turn —\n• Create a Treasure token.\n"
@@ -20,6 +21,11 @@ LITA = real("Lita, Little Orphan Amphibian", "{1}{W}", "Legendary Creature — M
             "2", "1", colors=("W",))
 PIRATE = real("Deckhand", "{1}{R}", "Creature — Human Pirate", "", "2", "2", colors=("R",))
 SHOCK = real("Shock", "{R}", "Instant", "Shock deals 2 damage to any target.", colors=("R",))
+THRASHER = real("Parapet Thrasher", "{2}{R}{R}", "Creature — Dragon",
+                "Flying\nWhenever one or more Dragons you control deal combat damage to an opponent, choose one that hasn't been chosen this "
+                "turn —\n• Destroy target artifact that opponent controls.\n• This creature deals 4 damage to each other opponent.\n• Exile "
+                "the top card of your library. You may play it this turn.", "4", "3", colors=("R",))
+DRAKE = real("Red Drake", "{2}{R}", "Creature — Dragon", "Flying", "2", "2", colors=("R",))
 TOP = real("Top Card", "{1}", "Sorcery", "")
 NEXT = real("Next Card", "{1}", "Sorcery", "")
 
@@ -135,6 +141,60 @@ class TectonicGiantTests(unittest.TestCase):
         game._perform(mine, "Cast: Shock")
         run_stack(game)
         self.assertEqual(theirs.life, 40)
+
+
+class ParapetThrasherTests(unittest.TestCase):
+    def hit(self, answer, attackers=(DRAKE,), asked=None):
+        game, _ = table3(asking(answer, asked if asked is not None else []) if asked is not None else pick("Attack Player: B", answer))
+        a, b, c = game.seats
+        thrasher = Permanent(THRASHER, sick=True)  # (it stays home)
+        a.battlefield, a.library = [thrasher] + [Permanent(card, sick=False) for card in attackers], [TOP, FOREST]
+        b.battlefield, c.battlefield = [Permanent(RELIC)], [Permanent(RELIC)]
+        game.step = "declare_attackers"
+        game.combat.declare_attackers(a)
+        run_stack(game)
+        game.combat.declare_blockers()
+        run_stack(game)
+        game.combat.deal_damage(first_strike_step=False)
+        run_stack(game)
+        return game, a, b, c
+
+    def test_the_other_opponents_take_4(self):
+        game, a, b, c = self.hit("This creature deals 4")
+        self.assertEqual((b.life, c.life), (38, 36))  # B took the Drake's 2
+
+    def test_only_an_artifact_of_the_opponent_hit_is_destroyed(self):
+        game, a, b, c = self.hit("Destroy target")
+        self.assertEqual(([p.card.name for p in b.battlefield], [p.card.name for p in c.battlefield]), ([], ["Relic"]))
+
+    def test_a_creature_that_is_not_a_dragon_sets_nothing_off(self):
+        game, a, b, c = self.hit("This creature deals 4", attackers=(BEAR,))
+        self.assertEqual(c.life, 40)
+
+    def test_a_dragon_hitting_beside_another_creature_sets_it_off_once(self):
+        game, a, b, c = self.hit("This creature deals 4", attackers=(OGRE, DRAKE, DRAKE))
+        self.assertEqual(c.life, 36)
+
+
+    def test_dragons_hitting_two_opponents_set_it_off_for_each(self):
+        asked, targets = [], iter(["Attack Player: B", "Attack Player: C"])
+
+        def policy(prompt, options):
+            if any(o.startswith("Attack Player") for o in options):
+                return pick(next(targets, "Attack Player: B"))(prompt, options)
+            return asking("Exile the top card", asked)(prompt, options)
+        game, _ = table3(policy)
+        a, b, c = game.seats
+        a.battlefield, a.library = [Permanent(THRASHER, sick=True), Permanent(DRAKE, sick=False), Permanent(DRAKE, sick=False)], [TOP, FOREST]
+        game.step = "declare_attackers"
+        game.combat.declare_attackers(a)
+        run_stack(game)
+        game.combat.declare_blockers()
+        run_stack(game)
+        game.combat.deal_damage(first_strike_step=False)
+        run_stack(game)
+        self.assertEqual(len(asked), 2)  # once for B, once for C: the second time the exile mode is gone and no artifact is there,
+        self.assertEqual((b.life, c.life), (34, 38))  # so C's trigger deals 4 to each other opponent: B
 
 
 if __name__ == "__main__":

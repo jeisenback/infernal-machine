@@ -19,6 +19,7 @@ from .outcomes import (
     FightSourceFirst,
     FightSubjectFirst,
     Modal,
+    MayDiscardThen,
     Vanish,
     FlipUntilLose,
     SubjectDamagesEachOpponent,
@@ -31,6 +32,7 @@ from .outcomes import (
     _parse,
     _parse_modal,
     _parse_modal_inline,
+    _singular,
     _SPELL_COLORS,
     Backup,
     CopySelfToken,
@@ -160,7 +162,7 @@ _WATCHES = {
     "creature_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
     "expend": re.compile(r"Whenever you expend (\d+), (.+)", re.I),
     "combat_damage_dealt": re.compile(rf"Whenever (a|one or more) (nontoken creatures?|{_TRIBE}(?: or {_TRIBE})*)(?: creatures?)? you control deals? combat damage "
-                                      r"to a player, (.+)", re.I),  # Ingenious Infiltrator, Prosperous Thief
+                                      r"to (?:a player|an opponent), (.+)", re.I),  # Ingenious Infiltrator, Prosperous Thief; Parapet Thrasher
 }
 
 
@@ -296,7 +298,10 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         kind = m[2].lower()
         if kind.startswith("nontoken"):  # Impostor Syndrome: "Whenever a nontoken creature you control deals combat damage to a player"
             return "combat_damage_dealt", Watch("creature", yours=True, nontoken=True, batch=m[1].lower() == "one or more"), m[3]
-        return "combat_damage_dealt", Watch(kind, yours=True, batch=m[1].lower() == "one or more"), m[3]
+        batch = m[1].lower() == "one or more"
+        if batch:  # "one or more Dragons": what each of them is, a Dragon (Alela, Anowon, Parapet Thrasher)
+            kind = " or ".join(_singular(part) for part in kind.split(" or "))
+        return "combat_damage_dealt", Watch(kind, yours=True, batch=batch), m[3]
     if m := _WATCHES["expend"].fullmatch(line):
         return "expend", Watch("expend", yours=True, expend=int(m[1])), m[2]
     for event in ("permanent_enters", "creature_dies", "permanent_leaves", "permanent_taps", "permanent_to_graveyard"):
@@ -508,6 +513,7 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
     rest = _MAY_HAVE.sub(lambda m: f"you may {m[1]} {_THIRD_PERSON[m[2].lower()]} ", rest, count=1)  # "you may have this creature deal 1 damage ..."
     optional = rest.lower().startswith("you may ")
     if optional and re.match(r"you may (?:(?:discard|sacrifice|remove) [^.]*|exile an? (?:black )?creature card(?: other than this card)? from your graveyard)\. If you do, "
+                             r"|you may discard a card\. When you do, "  # Inti: the discard asks for itself (MayDiscardThen)
                              r"|you may mill \w+ cards\. Then if ", rest, re.I):
         optional = False  # "you may discard a card. If you do, draw a card" is one effect that asks for itself (see _merge_loot); Cemetery Tampering
     else:
@@ -617,8 +623,9 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     if about_subject and any(isinstance(e, CreateTokens) and e.counters for e in effects) \
             and not any(binding(e) in (SOURCE, PREVIOUS_TARGET) for e in effects):
         about_subject = False  # the "it" was the new token of "Create a ... token. Put X counters on it." (Deekah)
-    if about_subject and len(effects) == 1 and isinstance(effects[0], Modal):
+    if about_subject and len(effects) == 1 and isinstance(effects[0], (Modal, MayDiscardThen)):
         about_subject = False  # Breeches: "• Exile the top card of your library. You may play it this turn.": the mode's own "it"
+        # (Inti: "When you do, put a +1/+1 counter on target attacking creature. It gains trample ...": the creature given counters)
     if about_subject and not subject_ok and not copies_spell:
         return None, False, False, None
     if copies_spell and not subject_ok:
@@ -742,7 +749,7 @@ def _one_trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
         found = []
         for event, watch, rest in watched:
             effects, optional, once, condition = _event_body(
-                rest, event in _SUBJECT_EVENTS or event == "combat_damage_dealt",  # ("it" is the creature that dealt it; no player is carried)
+                rest, event in _SUBJECT_EVENTS or event == "combat_damage_dealt",  # ("it" is the creature that dealt it)
                 (event == "cast" and watch.caster != "you") or event in _SUBJECT_EVENTS)
             if effects is None:
                 return None

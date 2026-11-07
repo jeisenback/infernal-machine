@@ -387,6 +387,18 @@ class SubjectDamagesEachOpponent:
 
 
 @dataclass(frozen=True)
+class DamageEachOtherOpponent:
+    """Parapet Thrasher: "This creature deals 4 damage to each other opponent." (each opponent but the one the trigger is about)"""
+    amount: int
+    binds = PLAYER
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.opponents(controller):
+            if seat is not target:
+                game.damage(seat, self.amount, source=game.resolving_source)
+
+
+@dataclass(frozen=True)
 class GivePoison:
     """Prologue to Phyresis: "Each opponent gets a poison counter." / Ichor Rats: "each player gets a poison counter." (CR 122.1f)"""
     who: str  # "opponent" or "player"

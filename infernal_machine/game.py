@@ -258,6 +258,7 @@ MAY_PAY_PROMPT = PromptKind("may_pay", "Pay the cost for ")  # followed by the s
 DRAW_UP_TO_PROMPT = PromptKind("draw_up_to", "How many cards do you draw? ")
 SACRIFICE_DRAW_PROMPT = PromptKind("sacrifice_draw", "Sacrifice a permanent to draw cards? ")
 LOOT_PROMPT = PromptKind("loot", "Discard a card to draw a card? ")
+MAY_DISCARD_PROMPT = PromptKind("may_discard", "Discard a card for ")  # followed by the source's name; options are Yes and No
 DISCARD_UNLESS_PROMPT = PromptKind("discard_unless", "Discard a card (one of the named kind is enough)")  # options are the hand's cards
 DISCARD_OR_SACRIFICE_PROMPT = PromptKind("discard_or_sacrifice", "Discard a card or sacrifice a land to draw? ")  # Highway Robbery
 DISCARD_A_CARD, SACRIFICE_A_LAND, DO_NEITHER = "Discard a card", "Sacrifice a land", "Neither"
@@ -739,7 +740,7 @@ class Game:
         self.deaths_turn, self.deaths_count = 0, 0  # how many creatures have died this turn, for "two or more creatures died this turn"
         self.previous_player: Seat | None = None  # whose turn came before this one, for the day/night rule
         self.day_night: str | None = None  # None until a permanent with daybound or nightbound is around, then "day" or "night"
-        self._batch: set[tuple[int, int]] | None = None  # watchers of "one or more ..." already told about this simultaneous event
+        self._batch: set[tuple[int, ...]] | None = None  # watchers of "one or more ..." already told about this simultaneous event
         self.at_upkeep: list[tuple[int, Callable[[], None]]] = []  # (turn made, what) to do as the next turn's upkeep begins
         self.spectators: list = []  # watchers with notify(event): they see every public event and the board, never a hand
         self.at_end_step: list[tuple[int, Callable[[], None]]] = []  # (turn, what) to do as that turn's next end step begins
@@ -3004,7 +3005,10 @@ class Game:
         seat.discards_turn = (self.turn, count + 1 if turn == self.turn else 1)
 
     def _discarded_nonland(self, seat: Seat, cards: list[Card]) -> None:
-        """"Whenever you discard one or more nonland cards": once, carrying the nonland cards among those discarded."""
+        """"Whenever you discard one or more cards" once, and "... one or more nonland cards" once, carrying the nonland cards among
+        those discarded."""
+        if cards:
+            self.happened("discarded_some", seat)
         if nonland := tuple(c for c in cards if "Land" not in c.type_line):
             self.happened("discarded_nonland", seat, spell=nonland)
 
@@ -3257,8 +3261,10 @@ class Game:
 
     def _observe(self, event: str, card: Card, seat: Seat, subject: Permanent | None = None,
                  extra: Sequence[tuple[Permanent, Seat]] = (), x: int = 0, from_hand: bool = False,
-                 prepared: bool = False, spell: "StackItem | None" = None, from_graveyard: bool = False) -> None:
-        """Trigger abilities that watch for `event` happening to `card` (controlled by `seat`):
+                 prepared: bool = False, spell: "StackItem | None" = None, from_graveyard: bool = False,
+                 player: "Seat | None" = None) -> None:
+        """Trigger abilities that watch for `event` happening to `card` (controlled by `seat`; `player` is "that player" when it is
+        someone else: the player a creature dealt combat damage to):
         "Whenever another creature enters", landfall, "whenever a creature dies",
         "whenever you cast a spell". `extra` adds watchers that just left the battlefield
         and still "look back in time" (CR 603.10a). Event "copy" is a spell being copied, which only a
@@ -3305,10 +3311,6 @@ class Game:
                         continue
                 elif watch.qualifier and (subject is None or not self._qualifies(watch.qualifier, subject)):
                     continue
-                if watch.batch and self._batch is not None:  # "one or more": once for everything that happened together
-                    if (id(watcher), id(ability)) in self._batch:
-                        continue
-                    self._batch.add((id(watcher), id(ability)))
                 if event == "expend" and watch.expend != x:  # x is the total the spell took the count up to
                     continue
                 if watch.other and subject is watcher:
@@ -3336,8 +3338,13 @@ class Game:
                 if watch.nth_each_turn and sum(turn == self.turn and _watch_type_matches(watch.kind, c)
                                                for turn, c in seat.cast_log) != watch.nth_each_turn:
                     continue
+                if watch.batch and self._batch is not None:  # "one or more": once for everything that happened together (to each
+                    key = (id(watcher), id(ability), id(player))  # player hit), counted only for what the watch is about
+                    if key in self._batch:
+                        continue
+                    self._batch.add(key)
                 for _ in range(self._trigger_times(watcher_seat, event, card, seat, source=watcher)):
-                    self._queue(ability, watcher, watcher_seat, x, subject, seat, spell)
+                    self._queue(ability, watcher, watcher_seat, x, subject, player or seat, spell)
 
     def _is_modified(self, permanent: Permanent, controller: Seat | None = None) -> bool:
         """CR 700.9: it has a counter, or an Equipment or an Aura its controller controls is attached to it."""
@@ -3466,8 +3473,8 @@ class Game:
                         and not (spell_filter.controller == "opponent" and i.controller is caster)]
             return options
         that_player = None
-        if kind.endswith(" that player controls"):  # Throat Slitter: what the player this trigger is about controls
-            kind = kind.removesuffix(" that player controls")
+        if kind.endswith((" that player controls", " that opponent controls")):  # Throat Slitter: what the player this trigger is about
+            kind = kind.removesuffix(" that player controls").removesuffix(" that opponent controls")  # controls (Parapet Thrasher)
             that_player = self.resolving_item.player if self.resolving_item is not None else self.targeting_player
             if that_player is None:
                 return options
@@ -3824,7 +3831,7 @@ class Game:
                     if watched is source and self.on_battlefield(watcher):
                         self._queue(TriggeredAbility("ally_combat_damage", (effect.then,), False, effect.text), watcher,
                                     self.controller(watcher))
-                self._observe("combat_damage_dealt", source.card, controller, subject=source)  # "Whenever a Ninja you control deals ..."
+                self._observe("combat_damage_dealt", source.card, controller, subject=source, player=target)  # "Whenever a Ninja you control deals ..."
                 enchanted = self._qualifies("enchanted", source)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source, x=amount,  # x: "draw that many cards"
@@ -6401,6 +6408,19 @@ class Game:
         else:
             return
         self.draw(seat, draw)
+
+    def may_discard_then(self, seat: Seat, then: tuple, reflexive: bool, text: str) -> None:
+        """ "You may discard a card. If you do, <then>." With `reflexive` ("When you do, ..."), `then` is a reflexive trigger that
+        chooses its targets as it goes on the stack (CR 603.12)."""
+        name = self.resolving_source.card.name if self.resolving_source is not None else ""
+        if not seat.hand or seat.player.choose(MAY_DISCARD_PROMPT(name), YES_NO) != 0:
+            return
+        self.discard(seat, 1)
+        if reflexive:
+            self.reflexive_trigger(seat, then, None, text)
+        else:
+            for effect in then:
+                effect.resolve(self, seat, None)
 
     def may_loot(self, seat: Seat, draw: int = 1, mill: int = 0) -> None:
         """ "You may discard a card. If you do, draw a card." (and maybe then mill some)"""

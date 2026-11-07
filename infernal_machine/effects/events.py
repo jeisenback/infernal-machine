@@ -133,6 +133,8 @@ declare("exile_library_graveyard", re.compile(
         r"Whenever one or more cards are put into exile from your library and/or your graveyard, (.+)", re.I), to="you")
 declare("discard_nonland", re.compile(r"Whenever you discard one or more nonland cards, (.+)", re.I),
         to="you", happens="discarded_nonland")
+declare("discard_some", re.compile(r"Whenever you discard one or more cards, (.+)", re.I),
+        to="you", happens="discarded_some")  # Inti, Seneschal of the Sun: once for the cards discarded together
 declare("opponent_discard", re.compile(r"Whenever an opponent discards a card, (.+)", re.I),
         to="opponents", happens="discarded", about_player=True)
 declare("opponent_search", re.compile(r"Whenever an opponent searches their library, (.+)", re.I),

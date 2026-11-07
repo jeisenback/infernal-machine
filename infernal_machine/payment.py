@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from .analysis import is_land
 from .cards import Card, has_keyword
-from .effects import (additional_land_mana, charge_mana, chosen_color_mana, counter_mana, counter_removal_mana, filter_mana_ability,
+from .effects import (rules_statics, additional_land_mana, charge_mana, chosen_color_mana, counter_mana, counter_removal_mana, filter_mana_ability,
                       granted_land_mana, granted_mana, group_mana_grants, has_next_x_rider, is_identity_mana_land, land_mana_units,
                       makes_mana_by_power, mana_ability, mana_ability_needs_no_tap, mana_ability_sacrifices, mana_among_legendary,
                       mana_bonus, mana_by_amount, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
@@ -319,7 +319,7 @@ class ManaPayer:
         spell = self._spending_spell
         if spell is None:
             return []
-        convoke, improvise = has_keyword(spell, "convoke"), has_keyword(spell, "improvise")
+        convoke, improvise = has_keyword(spell, "convoke") or self._exile_convoke(seat, spell), has_keyword(spell, "improvise")
         busy = {id(s.permanent) for s in taken if s.permanent is not None}
         found = []
         for permanent in sorted(seat.battlefield, key=lambda p: not p.sick):
@@ -330,6 +330,11 @@ class ManaPayer:
             elif improvise and "Artifact" in permanent.card.type_line:
                 found.append(ManaSource(permanent, frozenset({GENERIC_ONLY})))
         return found
+
+    def _exile_convoke(self, seat: Seat, spell: Card) -> bool:
+        """Party Thrasher: "Noncreature spells you cast from exile have convoke." (the card is still in exile while it is paid for)"""
+        return "Creature" not in spell.type_line and any(c is spell for s in self.game.seats for c in s.exile) \
+            and any("exile_convoke" in rules_statics(p.card) for p in seat.battlefield)
 
     def _reflected_types(self, seat: Seat, opponents: bool, colorless: bool) -> frozenset[str]:
         """What Exotic Orchard / Reflecting Pool can make: the mana types the lands of the opponents (or your other
