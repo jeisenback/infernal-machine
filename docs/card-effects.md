@@ -1284,6 +1284,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "Exile target nonland permanent. Each player other than its controller creates a token that's a copy of it." (`ExileOthersCopy`);
     Bramble Sovereign's "that creature's controller creates a token that's a copy of that creature" (`CopySubjectForItsController`); and
     Octomancer's "target creature token that entered the battlefield this turn" (a filter state, "entered this turn").
+  - Blitz (`tests/test_blitz.py`, CR 702.152): "Blitz {2}{R}" is an alternative cost; cast for it, the creature has haste and "When
+    this creature dies, draw a card." (`Permanent.blitzed`) and is sacrificed as the next end step begins (Mayhem Patrol, Night Clubber,
+    Riveteers Requisitioner, Workshop Warchief). Jaxis, the Troublemaker's copy "gains haste and "When this token dies, draw a card."" the
+    same way (`CopyToken.blitz`).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

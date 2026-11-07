@@ -108,6 +108,9 @@ def copy_of(card: Card, changes: CopyChanges | None = None, *, as_token: bool = 
 
 def finish_copies(game: Game, made: list, effect: Any) -> None:
     """Apply the riders of a copy sentence to the tokens it made."""
+    if getattr(effect, "blitz", False):
+        for token in made:
+            token.blitzed = True
     if effect.haste:
         for token in made:
             game.modify_until_end_of_turn(token, Modifier(keywords=frozenset({"haste"})))
@@ -162,6 +165,7 @@ class CopyToken:
     changes: CopyChanges | None = None  # Helm of the Host, Irenicus's Vile Duplication: "..., except it isn't legendary."
     sacrifice_at_end: bool = False  # Kiki-Jiki: "Sacrifice it at the beginning of the next end step."
     exile_at_end: bool = False  # Felhide Spiritbinder: "Exile it at the beginning of the next end step."
+    blitz: bool = False  # Jaxis: "It gains haste and "When this token dies, draw a card."" (Permanent.blitzed)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
