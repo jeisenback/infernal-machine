@@ -23,7 +23,7 @@ from infernal_machine.analysis import is_land
 from infernal_machine.zones import CAST_EXILE, CAST_TOP, PLAY_EXILE
 from infernal_machine.cards import Card
 from infernal_machine.report import unsupported_lines
-from tests.helpers import scryfall, BEAR, BIG, COMMANDER, ELF, MOUNTAIN, OGRE, RAINBOW, RELIC, SWAMP, activate, enter, fire, lands, pick, real, run_stack, table3
+from tests.helpers import scryfall, ANTHEM, BEAR, BIG, COMMANDER, ELF, MOUNTAIN, OGRE, RAINBOW, RELIC, SWAMP, activate, enter, fire, lands, pick, real, run_stack, table3
 
 SWORD = real("Buster Sword", "{3}", "Artifact — Equipment", "Equipped creature gets +3/+2.\nWhenever equipped creature deals combat "
              "damage to a player, draw a card, then you may cast a spell from your hand with mana value less than or equal to that damage "
@@ -175,6 +175,10 @@ ENSNARED = real("Ensnared by the Mara", "{2}{R}{R}", "Sorcery", "Each opponent f
                 "exiles the top four cards of their library and Ensnared by the Mara deals damage equal to the total mana value of those "
                 "exiled cards to that player.", colors=("R",))
 
+GUFF = real("Guff Rewrites History", "{2}{R}", "Instant", "For each player, choose target nonenchantment, nonland permanent that player "
+            "controls. Those permanents' owners shuffle them into their libraries. Each player who controlled one of those permanents exiles "
+            "cards from the top of their library until they exile a nonland card, then puts the rest on the bottom of their library in a "
+            "random order. Each player may cast the nonland card they exiled without paying its mana cost.", colors=("R",))
 COURT = real("Court of Locthwain", "{2}{B}{B}", "Enchantment", "When this enchantment enters, you become the monarch.\nAt the beginning of "
              "your upkeep, exile the top card of target opponent's library. You may play that card for as long as it remains exiled, and "
              "mana of any type can be spent to cast it. If you're the monarch, until end of turn, you may cast a spell from among cards "
@@ -814,6 +818,25 @@ class VillainousChoiceTests(unittest.TestCase):
         self.assertEqual(("Bear" in [p.card.name for p in a.battlefield], [x.name for x in b.exile], b.life), (True, ["Forest"], life_b))
         self.assertEqual((sorted(x.name for x in c.exile), c.life, [x.name for x in c.library]),
                          (["Big", "Forest", "Mountain", "Opt"], life_c - 6, ["Ogre"]))  # 5 + 1 damage
+
+
+class GuffRewritesHistoryTests(unittest.TestCase):
+    def test_the_card_is_understood(self):
+        self.assertEqual(unsupported_lines(GUFF), [])
+
+    def test_each_player_shuffles_one_permanent_away_and_casts_what_they_find(self):
+        asked = []
+        game, _ = table3(asking(lambda prompt, options: 0, asked))
+        a, b, c = game.seats
+        a.battlefield, a.hand, a.library = [*lands(3), Permanent(OGRE)], [GUFF], [FOREST] * 10
+        b.battlefield, b.library = [Permanent(BEAR)], [FOREST] * 10
+        c.battlefield, c.library = [Permanent(ANTHEM)], [BIG, FOREST]  # nothing c controls can be chosen
+        game._perform(a, CAST + "Guff Rewrites History")
+        run_stack(game)
+        self.assertFalse(any("No target" in o for options in asked for o in options))  # "choose target": one for each player who can
+        self.assertEqual(([p.card.name for p in a.battlefield if not is_land(p.card)], [p.card.name for p in b.battlefield]),
+                         (["Ogre"], ["Bear"]))  # shuffled in, found again, cast free
+        self.assertEqual(([x.name for x in c.library], len(a.library), len(b.library)), (["Big", "Forest"], 10, 10))  # lands to the bottom
 
 
 class JinGitaxiasTests(unittest.TestCase):

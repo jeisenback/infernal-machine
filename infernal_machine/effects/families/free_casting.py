@@ -251,6 +251,20 @@ class ThatPlayerExilesTopDamaged:
 
 
 @dataclass(frozen=True)
+class GuffRewritesHistory:
+    """Guff Rewrites History: "For each player, choose target nonenchantment, nonland permanent that player controls. Those permanents'
+    owners shuffle them into their libraries. Each player who controlled one of those permanents exiles cards from the top of their library
+    until they exile a nonland card, then puts the rest on the bottom of their library in a random order. Each player may cast the nonland
+    card they exiled without paying its mana cost." The targets are one list, a permanent for each player who controls one."""
+    target: str = "nonenchantment, nonland permanent"
+    per_player = True
+    multi_target = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.guff_rewrites_history(controller, list(target or []))
+
+
+@dataclass(frozen=True)
 class FlickerSelf:
     """Jin-Gitaxias: "Exile Jin-Gitaxias, then return it to the battlefield transformed under its owner's control." The Great Synthesis:
     "Exile this Saga, then return it to the battlefield (front face up)." (`transformed` False: the front face)"""

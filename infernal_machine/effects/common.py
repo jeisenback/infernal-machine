@@ -242,6 +242,10 @@ _WHOLE_LINE = re.compile(
     r"|that player exiles it, then exiles cards from the top of their library until they exile a card that shares a card type with it\. "
     r"That player may cast that card without paying its mana cost\. Then they put all cards exiled with this enchantment on the bottom "
     r"of their library in a random order\."  # Possibility Storm
+    r"|For each player, choose target nonenchantment, nonland permanent that player controls\. Those permanents' owners shuffle them into "
+    r"their libraries\. Each player who controlled one of those permanents exiles cards from the top of their library until they exile a "
+    r"nonland card, then puts the rest on the bottom of their library in a random order\. Each player may cast the nonland card they "
+    r"exiled without paying its mana cost\."  # Guff Rewrites History
     r"|exile the top card of target opponent's library\. You may play that card for as long as it remains exiled, and mana of any type "
     r"can be spent to cast it\. If you're the monarch, until end of turn, you may cast a spell from among cards exiled with this "
     r"enchantment without paying its mana cost\."  # Court of Locthwain

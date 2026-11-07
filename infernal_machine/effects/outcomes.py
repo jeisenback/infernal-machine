@@ -565,6 +565,7 @@ from .families.free_casting import (  # noqa: F401
     VillainousChoice,
     ThatPlayerExilesUntilNonlandYouCast,
     ThatPlayerExilesTopDamaged,
+    GuffRewritesHistory,
     FlickerSelf,
     NoMaxHandWhileControlled,
     CastAnyFromHandFree,
@@ -2395,6 +2396,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RevealTopCastKindredFree()),  # Descendants' Path
     (re.compile(r"if this spell was cast from a graveyard, you may play cards this way without paying their mana costs\.", re.I),
      lambda m: _FreeIfFromGraveyard()),  # Ignite the Future, folded into the ExileTop before it
+    (re.compile(r"for each player, choose target nonenchantment, nonland permanent that player controls\. Those permanents' owners shuffle "
+                r"them into their libraries\. Each player who controlled one of those permanents exiles cards from the top of their library "
+                r"until they exile a nonland card, then puts the rest on the bottom of their library in a random order\. Each player may "
+                r"cast the nonland card they exiled without paying its mana cost\.", re.I), lambda m: GuffRewritesHistory()),
     (re.compile(rf"exile {_SELF}, then return it to the battlefield transformed under its owner's control\.", re.I),
      lambda m: FlickerSelf(True)),  # Jin-Gitaxias
     (re.compile(r"exile this Saga, then return it to the battlefield(?: \(front face up\))?\.", re.I),
