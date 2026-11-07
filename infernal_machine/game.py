@@ -1786,8 +1786,9 @@ class Game:
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
               graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False,
               copy: bool = False, bottom_after: bool = False, madness: AlternativeCost | None = None,
-              whole: Card | None = None, face_down: tuple[str, MorphCost] | None = None) -> None:
-        return self.caster._cast(seat, card, zone, from_command_zone, graveyard, prepared, free, copy, bottom_after, madness, whole, face_down)
+              whole: Card | None = None, face_down: tuple[str, MorphCost] | None = None, exile_after: bool = False) -> None:
+        return self.caster._cast(seat, card, zone, from_command_zone, graveyard, prepared, free, copy, bottom_after, madness, whole, face_down,
+                                 exile_after)
 
     def _cast_ways(self, seat: Seat, card: Card, from_command_zone: bool,
                    graveyard: GraveyardCast | None = None, from_hand: bool = True) -> list[AlternativeCost | None]:
@@ -7006,6 +7007,51 @@ class Game:
                 and seat.player.choose(CAST_FREE_EXILED_PROMPT, [card.name, NONE_TAKEN]) == 0:
             source.activated_turn[FREE_TOP] = self.turn
             self._cast(seat, card, seat.library, free=True)
+
+    def look_top_cast_one_free(self, seat: Seat, count: int) -> None:
+        """Aetherworks Marvel: look at the top `count` cards; `seat` may cast a spell from among them without paying its mana cost; the
+        rest go to the bottom in a random order."""
+        top = seat.library[:count]
+        spells = [c for c in top if not is_land(c) and not self._cast_barred(seat, c)]
+        if spells and (pick := seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for c in spells] + [NONE_TAKEN])) < len(spells):
+            top.remove(spells[pick])
+            self._cast(seat, spells[pick], seat.library, free=True)
+        rest = seat.library[:len(top)]  # the cast spell has left the library: the others are still on top
+        del seat.library[:len(top)]
+        self.rng.shuffle(rest)
+        seat.library.extend(rest)
+
+    def exile_until_nonland_cast_or_take(self, seat: Seat, most: int) -> None:
+        """Breaching Dragonstorm: exile cards from the top until a nonland card is exiled; `seat` may cast it without paying its mana cost
+        if its mana value is `most` or less; if it isn't cast, it is put into the hand. The others stay exiled."""
+        found = None
+        while seat.library and found is None:
+            card = seat.library.pop(0)
+            seat.exile.append(card)
+            found = None if is_land(card) else card
+        if found is None:
+            return
+        if found.cmc <= most and seat.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
+            self._cast(seat, found, seat.exile, free=True)
+        if any(c is found for c in seat.exile):
+            seat.exile.remove(found)
+            seat.hand.append(found)
+
+    def cast_two_free_from_hand_or_graveyard(self, seat: Seat, total: int) -> None:
+        """Invoke Calamity: up to two instant and/or sorcery spells with total mana value `total` or less from `seat`'s graveyard and/or
+        hand, cast without paying their mana costs; they are exiled instead of going to the graveyard."""
+        left = total
+        for _ in range(2):
+            options = [(zone, c) for zone in (seat.hand, seat.graveyard) for c in zone
+                       if ("Instant" in c.type_line or "Sorcery" in c.type_line) and c.cmc <= left]
+            if not options:
+                return
+            pick = seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for _, c in options] + [NONE_TAKEN])
+            if pick >= len(options):
+                return
+            zone, card = options[pick]
+            left -= int(card.cmc)
+            self._cast(seat, card, zone, free=True, exile_after=True)
 
     def cast_commander_free(self, seat: Seat) -> None:
         """Geode Golem: `seat` may cast their commander from the command zone without paying its mana cost; the commander tax is an

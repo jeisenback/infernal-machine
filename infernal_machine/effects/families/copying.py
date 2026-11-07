@@ -267,15 +267,18 @@ class CopyTokenAttacking:
 @dataclass(frozen=True)
 class ExileThenCastCopy:
     """Renegade Bull: "Exile up to one target instant or sorcery card from your graveyard and copy it. You may cast the copy without
-    paying its mana cost." Mizzix's Mastery: "Exile target card that's an instant or sorcery ..." (one target, not "up to one")."""
+    paying its mana cost." Mizzix's Mastery: "Exile target card that's an instant or sorcery ..." (one target, not "up to one"). Mnemonic
+    Deluge: from any graveyard, three copies."""
     target: str = "graveyard:instant or sorcery:yours"
     optional_target: bool = True
+    copies: int = 1  # Mnemonic Deluge: "Copy that card three times. You may cast the copies ..." (each one asked for)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is None or not game.exile_from_graveyard(target):
             return
-        if controller.player.choose(CAST_COPY_PROMPT(target.card.name), ["Yes", "No"]) == 0:
-            game.cast_copy_free(controller, target.card)
+        for _ in range(self.copies):
+            if controller.player.choose(CAST_COPY_PROMPT(target.card.name), ["Yes", "No"]) == 0:
+                game.cast_copy_free(controller, target.card)
 
 
 CAST_COPY_PROMPT = PromptKind("cast_copy", "Cast a copy without paying its mana cost: ")  # followed by the card's name; Yes or No

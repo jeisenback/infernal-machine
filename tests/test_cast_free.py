@@ -10,7 +10,8 @@ mana value; Paradigm), Arcane Bombardment (copies of every card exiled with it),
 and Mind's Dilation (the opponent's top card, if nonland). Batch 4: Jodah, the Unifier (a legendary anthem and a legendary cascade),
 Cemetery Tampering (a Hideaway played at twenty cards in the graveyard), Gríma, Saruman's Footman (an instant or sorcery from the damaged
 player's library), Geode Golem (the commander, free but for its tax), Planetarium of Wan Shi Tong (the top card, once a turn) and Ignite the
-Future (free when flashed back)."""
+Future (free when flashed back). Batch 5: Mind's Desire, Breaching Dragonstorm, Mnemonic Deluge, Fight Rigging, Aetherworks Marvel and
+Invoke Calamity."""
 
 import unittest
 from dataclasses import replace
@@ -119,6 +120,28 @@ IGNITE = real("Ignite the Future", "{3}{R}", "Sorcery", "Exile the top three car
               "Flashback {7}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)", colors=("R",))
 LEGEND2 = real("Small Legend", "{1}{G}", "Legendary Creature — Elf", "", "2", "2", colors=("G",))
 LEGEND4 = real("Big Legend", "{3}{G}", "Legendary Creature — Elf", "", "4", "4", colors=("G",))
+
+DESIRE = real("Mind's Desire", "{4}{U}{U}", "Sorcery", "Shuffle your library. Then exile the top card of your library. Until end of turn, "
+              "you may play that card without paying its mana cost.\nStorm (When you cast this spell, copy it for each spell cast before it "
+              "this turn.)", colors=("U",))
+DRAGONSTORM = real("Breaching Dragonstorm", "{4}{R}", "Enchantment", "When this enchantment enters, exile cards from the top of your library "
+                   "until you exile a nonland card. You may cast it without paying its mana cost if that spell's mana value is 8 or less. If "
+                   "you don't, put that card into your hand.\nWhen a Dragon you control enters, return this enchantment to its owner's hand.",
+                   colors=("R",))
+DELUGE = real("Mnemonic Deluge", "{6}{U}{U}{U}", "Sorcery", "Exile target instant or sorcery card from a graveyard. Copy that card three "
+              "times. You may cast the copies without paying their mana costs. Exile Mnemonic Deluge.", colors=("U",))
+RIGGING = real("Fight Rigging", "{2}{G}", "Enchantment", "Hideaway 5 (When this enchantment enters, look at the top five cards of your "
+               "library, exile one face down, then put the rest on the bottom in a random order.)\nAt the beginning of combat on your turn, "
+               "put a +1/+1 counter on target creature you control. Then if you control a creature with power 7 or greater, you may play the "
+               "exiled card without paying its mana cost.", colors=("G",))
+MARVEL = real("Aetherworks Marvel", "{4}", "Legendary Artifact", "Whenever a permanent you control is put into a graveyard, you get {E} (an "
+              "energy counter).\n{T}, Pay six {E}: Look at the top six cards of your library. You may cast a spell from among them without "
+              "paying its mana cost. Put the rest on the bottom of your library in a random order.")
+CALAMITY = real("Invoke Calamity", "{1}{R}{R}{R}{R}", "Instant", "You may cast up to two instant and/or sorcery spells with total mana value 6 "
+                "or less from your graveyard and/or hand without paying their mana costs. If those spells would be put into your graveyard, "
+                "exile them instead. Exile Invoke Calamity.", colors=("R",))
+NINE = real("Nine Drop", "{9}", "Artifact", "")
+SIX = real("Giant", "{6}", "Creature — Giant", "", "6", "6")
 
 
 def asking(policy, asked):
@@ -543,6 +566,91 @@ class CastFreeBatchFourTests(unittest.TestCase):
             for p in a.battlefield:
                 p.tapped = True  # no mana left
             self.assertEqual(CAST_EXILE + "Big" in game.legal_actions(a), free, zone)
+
+
+class CastFreeBatchFiveTests(unittest.TestCase):
+    def test_the_cards_are_understood(self):
+        for card in (DESIRE, DRAGONSTORM, DELUGE, RIGGING, MARVEL, CALAMITY):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_minds_desire_plays_the_exiled_card_free_this_turn(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield, a.hand, a.library = lands(6), [DESIRE], [BIG]
+        game._perform(a, CAST + "Mind's Desire")
+        run_stack(game)
+        self.assertIn(CAST_EXILE + "Big", game.legal_actions(a))  # free: no mana left
+        game.turn += 1
+        self.assertNotIn(CAST_EXILE + "Big", game.legal_actions(a))
+
+    def test_minds_desire_shuffles_first(self):
+        game, _ = table3()
+        a = game.seats[0]
+        cards = [replace(FOREST, name=f"Card {i}") for i in range(20)]
+        a.battlefield, a.hand, a.library = lands(6), [DESIRE], list(cards)
+        game._perform(a, CAST + "Mind's Desire")
+        run_stack(game)
+        self.assertNotEqual([c.name for c in a.library], [c.name for c in cards[1:]])  # 19 cards left in their first order: not shuffled
+
+    def test_breaching_dragonstorm_casts_up_to_eight_or_takes_the_card(self):
+        for card, cast in ((BIG, True), (NINE, False)):
+            game, _ = table3()
+            a = game.seats[0]
+            a.library = [FOREST, card, OPT]
+            enter(game, a, DRAGONSTORM)
+            run_stack(game)
+            self.assertEqual((card.name in [p.card.name for p in a.battlefield], [c.name for c in a.hand], [c.name for c in a.exile]),
+                             (cast, [] if cast else [card.name], ["Forest"]), card.name)
+
+    def test_breaching_dragonstorm_returns_when_a_dragon_enters(self):
+        for creature, back in ((DRAGON, True), (BEAR, False)):
+            game, _ = table3()
+            a = game.seats[0]
+            a.battlefield = [Permanent(DRAGONSTORM)]
+            enter(game, a, creature)
+            run_stack(game)
+            self.assertEqual([c.name for c in a.hand], ["Breaching Dragonstorm"] if back else [], creature.name)
+
+    def test_mnemonic_deluge_casts_three_copies_of_a_card_from_any_graveyard(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        a.battlefield, a.hand, a.library, b.graveyard = lands(9), [DELUGE], [FOREST] * 6, [OPT]
+        game._perform(a, CAST + "Mnemonic Deluge")
+        run_stack(game)
+        self.assertEqual((len(a.hand), [c.name for c in b.exile], [c.name for c in a.exile]), (3, ["Opt"], ["Mnemonic Deluge"]))
+
+    def test_fight_rigging_plays_the_hidden_card_with_a_creature_of_power_seven(self):
+        for creature, played in ((SIX, True), (OGRE, False)):
+            game, _ = table3()
+            a = game.seats[0]
+            rigging = Permanent(RIGGING)
+            a.battlefield, a.exile = [rigging, Permanent(creature)], [BIG]
+            rigging.exiled_with.append((a, BIG))
+            fire(game, a, rigging, "combat")
+            self.assertEqual("Big" in [p.card.name for p in a.battlefield], played, creature.name)
+
+    def test_aetherworks_marvel_gets_energy_and_casts_one_of_six_free(self):
+        game, _ = table3()
+        a = game.seats[0]
+        marvel, bear = Permanent(MARVEL), Permanent(BEAR)
+        a.battlefield = [marvel, bear]
+        a.player_counters["energy"] = 5
+        game.destroy(bear)
+        run_stack(game)
+        self.assertEqual(a.player_counters["energy"], 6)  # the Bear went to the graveyard
+        a.library = [FOREST, BIG, OPT, replace(FOREST), OGRE, replace(BEAR), MOUNTAIN]
+        activate(game, a, "Aetherworks Marvel")
+        self.assertEqual(("Big" in [p.card.name for p in a.battlefield], a.player_counters["energy"]), (True, 0))
+        self.assertEqual(([c.name for c in a.library[:1]], len(a.library)), (["Mountain"], 6))
+
+    def test_invoke_calamity_casts_two_spells_up_to_six_and_exiles_them(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield, a.hand, a.graveyard, a.library = lands(5), [CALAMITY, THREE, FOUR], [OPT, replace(OPT)], [FOREST] * 5
+        game._perform(a, CAST + "Invoke Calamity")
+        run_stack(game)
+        self.assertEqual(sorted(c.name for c in a.exile), ["Invoke Calamity", "Opt", "Three Drop"])  # 3 + 1; the Four Drop would pass 6
+        self.assertEqual(([c.name for c in a.graveyard], "Four Drop" in [c.name for c in a.hand]), (["Opt"], True))  # two spells only
 
 
 if __name__ == "__main__":

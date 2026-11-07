@@ -40,7 +40,7 @@ class Caster:
     def _cast(self, seat: g.Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
               graveyard: GraveyardCast | None = None, prepared: g.Permanent | None = None, free: bool = False,
               copy: bool = False, bottom_after: bool = False, madness: AlternativeCost | None = None,
-              whole: Card | None = None, face_down: tuple[str, MorphCost] | None = None) -> None:
+              whole: Card | None = None, face_down: tuple[str, MorphCost] | None = None, exile_after: bool = False) -> None:
         effects = g._effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
         extra = ""
@@ -175,7 +175,7 @@ class Caster:
         evidence = self._collect_evidence(seat, card)
         teamwork = self._pay_teamwork(seat, card)
         item = g.StackItem(card, seat, effects, targets, x=x, delved=tuple(delved), sacrificed_power=self.game.cost_sacrificed_power,
-                         sacrificed_toughness=self.game.cost_sacrificed_toughness, sacrificed_value=self.game.cost_sacrificed_value, kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, additional_paid=additional_paid, exile_after=bool(graveyard and graveyard.exile_after), bottom_after=bottom_after,
+                         sacrificed_toughness=self.game.cost_sacrificed_toughness, sacrificed_value=self.game.cost_sacrificed_value, kicked=kicked, kickers=kickers, gift=gift, bought_back=bought_back, additional_paid=additional_paid, exile_after=bool(graveyard and graveyard.exile_after) or exile_after, bottom_after=bottom_after,
                          foretold=graveyard is not None and graveyard.word == "Foretell", discarded=discarded, from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),

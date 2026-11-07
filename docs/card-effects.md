@@ -1226,6 +1226,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     after a scry or surveil, once each turn (counted on the permanent when a card is cast); and Ignite the Future's "If this spell was cast
     from a graveyard, you may play cards this way without paying their mana costs." (a marker folded into the ExileTop before it, which
     then marks the cards in `Seat.exile_free`).
+  - Casting without paying the mana cost, batch 5 (`tests/test_cast_free.py`, #655): Mind's Desire (shuffle, then the top card may be
+    played free this turn: `Seat.exile_free`); Breaching Dragonstorm's "exile cards ... until you exile a nonland card. You may cast it
+    without paying its mana cost if that spell's mana value is 8 or less. If you don't, put that card into your hand." and its "When a
+    Dragon you control enters, return this enchantment to its owner's hand." (an enters watch may begin "When" as well as "Whenever");
+    Mnemonic Deluge (three copies of an instant or sorcery card from any graveyard); Fight Rigging's "Then if you control a creature with
+    power 7 or greater, you may play the exiled card" (its Hideaway's); Aetherworks Marvel's "Whenever a permanent you control is put into
+    a graveyard" (a permanent only goes there from the battlefield, so the watch no longer needs those words) and its look at the top six,
+    one spell cast free, the rest on the bottom; Invoke Calamity (up to two instants and/or sorceries with total mana value 6 or less from
+    the hand and the graveyard, exiled afterwards: `_cast(exile_after=True)`).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);
