@@ -256,6 +256,8 @@ _WHOLE_LINE = re.compile(
     r"|[Ee]xile the top card of each opponent's library\. You may play those cards for as long as they remain exiled\. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it\."  # Brainstealer Dragon
     r"|[Ee]xile the top card of that player's library\. You may play that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast it\."  # Cunning Rhetoric
     r"|[Ee]xile the top card of your library\. If it's an? \w+ creature card, you may cast that card until the end of your next turn\."  # Rundvelt Hordemaster
+    r"|[Ee]xile the top card of that player's library\. Until end of turn, you may cast that card and you may spend mana as though it were mana of any color to cast that spell\."  # Grenzo, Havoc Raiser
+    r"|[Ee]xile the top \w+ cards of target opponent's library\. Choose one of them\. Until the end of your next turn, you may play that card, and you may spend mana as though it were mana of any color to cast it\."  # You Find Some Prisoners
     r"|[Pp]ay X life, where X is the number of opponents that were dealt combat damage this turn\. If you do, draw X cards\."  # Tymna
     r"|Shuffle your library(?:\. Then|, then) exile the top card(?: of your library)?\. Until end of turn, you may play that card without paying "
     r"its mana "

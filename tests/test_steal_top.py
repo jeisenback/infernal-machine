@@ -1,6 +1,8 @@
 """Exile the top card of an opponent's library and cast it with mana of any color (#658): Stolen Strategy (each opponent, spells only,
 until end of turn), Brainstealer Dragon (each opponent, played for as long as the cards remain exiled; an opponent's permanent entering
-under your control costs its owner life equal to its mana value) and Cunning Rhetoric (the player who attacked you)."""
+under your control costs its owner life equal to its mana value), Cunning Rhetoric (the player who attacked you), Grenzo, Havoc Raiser
+(the player a creature dealt combat damage to, as a mode; the other mode goads a creature that player controls) and You Find Some
+Prisoners (three of target opponent's cards, one chosen, until the end of your next turn)."""
 
 import unittest
 
@@ -19,6 +21,14 @@ RHETORIC = real("Cunning Rhetoric", "{2}{B}", "Enchantment",
                 "Whenever an opponent attacks you and/or one or more planeswalkers you control, exile the top card of that player's library. "
                 "You may play that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast "
                 "it.", colors=("B",))
+GRENZO = real("Grenzo, Havoc Raiser", "{R}{R}", "Legendary Creature — Goblin Rogue",
+              "Whenever a creature you control deals combat damage to a player, choose one —\n• Goad target creature that player controls.\n"
+              "• Exile the top card of that player's library. Until end of turn, you may cast that card and you may spend mana as though it "
+              "were mana of any color to cast that spell.", "2", "2", colors=("R",))
+PRISONERS = real("You Find Some Prisoners", "{1}{R}", "Instant",
+                 "Choose one —\n• Break Their Chains — Destroy target artifact.\n• Interrogate Them — Exile the top three cards of target "
+                 "opponent's library. Choose one of them. Until the end of your next turn, you may play that card, and you may spend mana as "
+                 "though it were mana of any color to cast it.", colors=("R",))
 TWIN_BEARS = real("Green Twins", "{G}{G}", "Creature — Bear", "", "2", "2", colors=("G",))  # green mana only: red lands pay for it "as any color"
 CHARM = real("Green Charm", "{G}{G}", "Sorcery", "", colors=("G",))
 
@@ -130,6 +140,54 @@ class CunningRhetoricTests(unittest.TestCase):
     def test_an_attack_on_another_player_sets_nothing_off(self):
         game, a, b, c = self.attack("C")
         self.assertEqual(a.exile, [])
+
+
+class GrenzoTests(unittest.TestCase):
+    def hit(self, answer):
+        asked = []
+
+        def policy(prompt, options):
+            asked.append(list(options))
+            return pick(*answer)(prompt, options)
+        game, _ = table3(policy)
+        a, b, c = game.seats
+        bear = Permanent(BEAR, sick=False)
+        a.battlefield = [Permanent(GRENZO, sick=False), bear] + red_lands(2)
+        b.library, b.battlefield = [TWIN_BEARS, FOREST], [Permanent(real("Ogre B", "{3}", "Creature — Ogre", "", "3", "3"), sick=False)]
+        c.battlefield = [Permanent(real("Ogre C", "{3}", "Creature — Ogre", "", "3", "3"), sick=False)]
+        game.damage(b, 2, source=bear, combat=True)
+        run_stack(game)
+        return game, a, b, c, asked
+
+    def test_the_exile_mode_takes_the_damaged_players_top_card_castable_with_any_mana(self):
+        game, a, b, c, asked = self.hit(("Exile the top",))
+        self.assertEqual(names(a.exile), ["Green Twins"])
+        game._perform(a, CAST_EXILE + "Green Twins")
+        run_stack(game)
+        self.assertIn("Green Twins", [p.card.name for p in a.battlefield])
+
+    def test_the_goad_mode_targets_only_a_creature_the_damaged_player_controls(self):
+        game, a, b, c, asked = self.hit(("Goad", "Ogre C"))  # (it would take C's Ogre if it were offered)
+        self.assertIs(b.battlefield[0].goaded_by, a)
+        self.assertIsNone(c.battlefield[0].goaded_by)
+
+
+class YouFindSomePrisonersTests(unittest.TestCase):
+    def test_one_of_the_three_cards_may_be_played_through_the_next_turn_with_any_mana(self):
+        game, _ = table3(pick("Interrogate", "Exile the top", "Player: B", "Green Twins"))
+        a, b, c = game.seats
+        a.hand, a.battlefield = [PRISONERS], red_lands(4)
+        b.library = [FOREST, TWIN_BEARS, CHARM, FOREST]
+        game._perform(a, "Cast: You Find Some Prisoners")
+        run_stack(game)
+        self.assertEqual(names(a.exile), ["Forest", "Green Charm", "Green Twins"])
+        self.assertEqual([(card.name, until) for card, until in a.exile_play], [("Green Twins", game.turn + 3)])
+        self.assertEqual(b.library, [FOREST])
+        for p in a.battlefield:
+            p.tapped = False
+        game._perform(a, CAST_EXILE + "Green Twins")
+        run_stack(game)
+        self.assertIn("Green Twins", [p.card.name for p in a.battlefield])
 
 
 if __name__ == "__main__":

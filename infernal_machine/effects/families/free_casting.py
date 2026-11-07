@@ -340,3 +340,15 @@ class OwnerLosesManaValue:
         if target is not None:
             game.change_life(game.owner_of(target), -int(target.card.cmc))
 
+
+@dataclass(frozen=True)
+class ExileTopOfOpponentChooseOne:
+    """You Find Some Prisoners: "Exile the top three cards of target opponent's library. Choose one of them. Until the end of your next
+    turn, you may play that card, and you may spend mana as though it were mana of any color to cast it." """
+    count: int
+    target: str = "opponent"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_top_of_other(controller, target, self.count, any_mana=True, choose_one=True, next_turn=True)
+
