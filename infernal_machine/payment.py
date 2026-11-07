@@ -75,6 +75,7 @@ class ManaPayer:
         self._spending_spell: Card | None = None  # the spell mana is being paid for right now (Cavern of Souls, convoke)
         self._spending_x = False  # ... or an ability whose cost has {X}
         self._spending_from_hand = False  # ... and whether that spell is being cast from its owner's hand
+        self._untapping: Permanent | None = None  # a permanent paying for its own "Untap this" ability: its mana is used first
 
     @contextlib.contextmanager
     def _paying_for(self, seat: Seat, card: Card):
@@ -262,7 +263,11 @@ class ManaPayer:
                     bucket.append(ManaSource(permanent, _snowy(permanent, mana), pain, damage, restriction=restriction))
         if effects := self._tap_mana_effects(seat):
             abilities, lands, sacrifices = (self._tapped_for_mana(effects, bucket, seat) for bucket in (abilities, lands, sacrifices))
-        return pooled + abilities + lands + sacrifices + self._convoke_sources(seat, exclude, pooled + abilities + lands + sacrifices)
+        sources = pooled + abilities + lands + sacrifices
+        if self._untapping is not None:  # Basalt Monolith's "{3}: Untap": tapping it to pay leaves the pool's mana (CR 602.2b), which
+            itself = [s for s in sources if s.permanent is self._untapping]  # Kinnan's extra mana makes a loop of
+            sources = itself + [s for s in sources if s.permanent is not self._untapping]
+        return sources + self._convoke_sources(seat, exclude, sources)
 
     def _tap_mana_effects(self, seat: Seat) -> list:
         """What changes the mana `seat`'s permanents make when tapped: its own Kinnan or Nyxbloom Ancient, and anyone's Mana Flare."""

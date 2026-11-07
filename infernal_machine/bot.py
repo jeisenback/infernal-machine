@@ -25,7 +25,7 @@ from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, COST_PROMPT, NONE_TAKEN, 
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor", "win"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor", "win", "loop"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
 HIGH_TAX = 6  # a commander cast from the command zone three times has this much tax; past it, a graveyard with a way out can be the better place
 # A card that brings a card back from a graveyard to the battlefield or the hand: where a commander that dies can be worth leaving.
 RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
@@ -38,6 +38,9 @@ CHEAP_SPELL = 2  # a spell this cheap (or cheaper) is one a two-land hand can ca
 SMALL_THREAT = 2  # an opposing creature this small (power) is not worth a removal spell while nothing bigger is out
 LAND_GOAL = 6  # lands (in play and in hand) the bot wants before it stops keeping more
 ORACLE = "Thassa's Oracle"
+KINNAN, BASALT = "Kinnan, Bonder Prodigy", "Basalt Monolith"  # with Kinnan, Basalt Monolith's untap makes one mana more than it costs
+BALLISTA, THRASIOS = "Walking Ballista", "Thrasios, Triton Hero"  # where the loop's mana goes: damage, or a card at a time
+LOOP_LIBRARY = 5  # Thrasios digs while the library holds more than this (a draw from an empty library loses)
 ORACLE_EXILERS = ("Demonic Consultation", "Tainted Pact")  # they exile the library for Thassa's Oracle
 ORACLE_LIBRARY = 2  # Thassa's Oracle wins on a library this small: it counts its own {U}{U} toward the devotion
 
@@ -103,7 +106,8 @@ class BotPlayer:
         die with a lot of tax on it goes to the graveyard if the deck can bring it back), "tutor" (a search or a look at the top of the library
         takes the card that completes a combo the deck holds, with what is on the battlefield and in the hand; `combos` are the deck's combos
         as tuples of card names, or come from the Commander Spellbook cache, and the judgment does nothing for a deck the cache doesn't know),
-        "win" (Thassa's Oracle's line: it casts the Oracle once its library is down to ORACLE_LIBRARY cards; it keeps Demonic Consultation
+        "loop" (#684: with Kinnan out, it untaps Basalt Monolith over and over for a mana each time, but only for somewhere to spend it:
+        Walking Ballista's counters, a point of damage each to the opponents, or Thrasios digging for the Ballista), "win" (Thassa's Oracle's line: it casts the Oracle once its library is down to ORACLE_LIBRARY cards; it keeps Demonic Consultation
         and Tainted Pact for the Oracle, casting one first once the Oracle is in hand with the mana for both; and then it names the Oracle
         for Consultation and takes nothing from the Pact, so the library is exiled)."""
         self.features = features
@@ -127,6 +131,8 @@ class BotPlayer:
         self._damage_limit = COMMANDER_DAMAGE
         self._joint: dict[str, list[str]] = {}  # this combat's double blocks: the attacker -> the blockers that were planned for it
         self._joint_turn: int | None = None
+        self._loop_pool: int | None = None  # the pool when it last untapped Basalt Monolith in the loop: the next look must find more
+        self._loop_stopped: int | None = None  # the turn a loop made nothing: not tried again that turn
 
     def _card(self, name: str) -> Card:
         """The card called `name`. One from another deck (Plargg and Nassari casts opponents' cards) is known by name only."""
@@ -238,6 +244,9 @@ class BotPlayer:
             theirs = [i for i, option in enumerate(options) if _seat_of(option) != self._seat]
             if self._is_buff_aura(subject_of(prompt, TARGET_PROMPT)) and mine:
                 return mine[0]
+            players = [i for i in theirs if options[i].startswith("Player")]
+            if "loop" in self.features and subject_of(prompt, TARGET_PROMPT).startswith(BALLISTA) and players and self._looping_kill():
+                return min(players, key=lambda i: self._life_of(_seat_of(options[i])))  # the loop's damage goes to the players
             if "target" in self.features and theirs and self._is_removal(subject_of(prompt, TARGET_PROMPT)):
                 sized = [i for i in theirs if sum(_stats(options[i])) > 0]
                 if sized:
@@ -247,6 +256,8 @@ class BotPlayer:
             return 0  # search, command zone and other yes/no choices: take the first option
         if self._stack and self._stack[-1] == self._seat:
             return options.index(PASS)
+        if not self._stack and (looped := self._loop(options)) is not None:
+            return looped
         lands = [i for i, option in enumerate(options) if option.startswith((PLAY_LAND, *LAND_PREFIXES))]
         if lands:
             return self._best_land(lands, options) if "land" in self.features else lands[0]
@@ -445,6 +456,51 @@ class BotPlayer:
     def _oracle_ready(self) -> bool:
         """Thassa's Oracle is in hand with mana left to cast it ({U}{U}): exiling the library now wins rather than loses."""
         return "win" in self.features and ORACLE in (self._state or {}).get("hand", []) and self._mana() >= 2
+
+    def _loop(self, options: Sequence[str]) -> int | None:
+        """The next step of Kinnan's Basalt Monolith loop (#684): spend the pool on Walking Ballista or Thrasios, or untap Basalt for one
+        more mana; None when there is no loop, nowhere to spend it, or the last untap made nothing (then not again this turn)."""
+        mine = self._my_seat()
+        turn = (self._state or {}).get("turn")
+        if "loop" not in self.features or mine is None or self._loop_stopped == turn:
+            return None
+        board = {p["name"]: p for p in mine["battlefield"]}
+        goal = self._opponents_life()
+        if self._looping_kill():  # enough counters to finish the table, however they came
+            self._loop_pool = None
+            return _activation(options, BALLISTA, "Remove a +1/+1 counter")
+        untap = _activation(options, BASALT, "Untap this")
+        if KINNAN not in board or untap is None:
+            return None
+        pool = len(mine.get("mana_pool", []))
+        if self._loop_pool is not None and pool <= self._loop_pool:  # the untap made nothing: the loop is broken
+            self._loop_pool, self._loop_stopped = None, turn
+            return None
+        hand = (self._state or {}).get("hand", [])
+        spend, need = None, 0
+        if BALLISTA in board:
+            spend, need = _activation(options, BALLISTA, "Put a +1/+1 counter"), 4
+        elif BALLISTA in hand:
+            spend, need = next((i for i, o in enumerate(options) if o.startswith(CAST) and _cast_name(o) == BALLISTA), None), 2 * goal
+        elif THRASIOS in board and mine.get("library", 0) > LOOP_LIBRARY:
+            spend, need = _activation(options, THRASIOS, "Scry 1"), 4
+        if need == 0:
+            return None
+        if pool >= need and spend is not None:
+            self._loop_pool = None
+            return spend
+        self._loop_pool = pool
+        return untap
+
+    def _looping_kill(self) -> bool:
+        """Walking Ballista is out with enough counters to finish the opponents: each ping goes to a player."""
+        mine = self._my_seat()
+        board = {p["name"]: p for p in (mine or {}).get("battlefield", [])}
+        return BALLISTA in board and self._opponents_life() <= board[BALLISTA].get("counters", {}).get("+1/+1", 0)
+
+    def _opponents_life(self) -> int:
+        """The life the opponents still in the game have between them: the damage that wins."""
+        return sum(s["life"] for s in (self._state or {}).get("seats", []) if s["seat"] != self._seat and not s["lost"])
 
     def _oracle_alive(self, mine: dict | None) -> bool:
         """Thassa's Oracle is in the deck and still to come: not in the graveyard or exile."""
@@ -736,6 +792,11 @@ def _stats(label: str) -> tuple[int, int]:
         return 0, 0
     power, toughness = (int(v) if v.isdigit() else 0 for v in match.groups())
     return power, toughness
+
+
+def _activation(options: Sequence[str], card: str, text: str) -> int | None:
+    """The action that activates `card`'s ability with `text` in it, if it is offered."""
+    return next((i for i, o in enumerate(options) if o.startswith(ACTIVATE) and o[len(ACTIVATE):].startswith(card) and text in o), None)
 
 
 def _targets(options: Sequence[str]) -> range:
