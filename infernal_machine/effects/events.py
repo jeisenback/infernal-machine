@@ -150,6 +150,8 @@ declare("end_step", re.compile(r"At the beginning of your end step, (.+)", re.I)
 declare("each_upkeep", re.compile(r"At the beginning of each upkeep, (.+)", re.I))
 declare("each_end_step", re.compile(r"At the beginning of (?:each|the) end step, (.+)", re.I))
 declare("combat", re.compile(r"At the beginning of combat on your turn, (.+)", re.I))
+declare("each_main", re.compile(r"At the beginning of each of your main phases, (.+)", re.I))  # Frontier Siege: the first and the second
+declare("opponent_lost_one", re.compile(r"Whenever one or more opponents each lose exactly 1 life, (.+)", re.I))  # Ob Nixilis, Captive Kingpin
 declare("opponent_combat", re.compile(r"At the beginning of combat on each opponent's turn, (.+)", re.I), about_player=True)  # Citadel Siege
 declare("each_combat", re.compile(r"At the beginning of each combat, (.+)", re.I))  # Unnatural Growth: every player's combat
 declare("gain_life", re.compile(r"Whenever you gain life, (.+)", re.I), to="you", happens="life_gained")

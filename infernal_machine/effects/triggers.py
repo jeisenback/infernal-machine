@@ -16,6 +16,8 @@ from .targets import CONTEXT_BINDINGS, DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SO
 from .common import FROM_LIBRARY
 from .outcomes import (
     DefineX,
+    FightSourceFirst,
+    FightSubjectFirst,
     Modal,
     Vanish,
     FlipUntilLose,
@@ -458,8 +460,8 @@ _YURIKO_BODY = ("reveal the top card of your library and put that card into your
 _RAGAVAN_BODY = ("create a Treasure token and exile the top card of that player's library. Until end of turn, you may cast that card.")
 
 
-_MAY_HAVE = re.compile(r"^you may have ((?:this|target) [^,.]+?|CARDNAME|it|that \w+) (deal|lose|become|gain|get) ", re.I)
-_THIRD_PERSON = {"deal": "deals", "lose": "loses", "become": "becomes", "gain": "gains", "get": "gets"}
+_MAY_HAVE = re.compile(r"^you may have ((?:this|target) [^,.]+?|CARDNAME|it|that \w+) (deal|lose|become|gain|get|fight) ", re.I)
+_THIRD_PERSON = {"deal": "deals", "lose": "loses", "become": "becomes", "gain": "gains", "get": "gets", "fight": "fights"}
 
 
 def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]:
@@ -529,7 +531,8 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 
 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
-_CAST_IT = re.compile(r"\bfor as long as it remains exiled\b|\bas though it were mana\b|\bto cast it\.$", re.I)  # Cunning Rhetoric: the card
+_CAST_IT = re.compile(r"\bfor as long as it remains exiled\b|\bas though it were mana\b|\bto cast it\.$"  # Cunning Rhetoric: the card
+                      r"|\bIf it's an? \w+ creature card, you may cast that card\b", re.I)  # Rundvelt Hordemaster: the exiled card
 _PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creature|CARDNAME)\b"
 
                      r"|\bWhen you do, if it has \w+ or more [a-z+/-]+ counters on it\b"  # Earthbender Ascension: "it" is the source, as the sentence before said
@@ -627,6 +630,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
                                  for a, e in zip(aimed, effects)):
             return None, False, False, None
         effects = [OnPlayer(e) if a else e for a, e in zip(aimed, effects)]
+    elif about_subject and effects and isinstance(effects[0], FightSourceFirst):  # Frontier Siege: "you may have it fight ...": the creature
+        effects = [FightSubjectFirst(), *effects[1:]]  # that set the trigger off fights, not the source
     elif about_subject:  # (a flip and the X it counts touch no permanent: Mirror March)
         if not all(binding(e) in (SOURCE, SUBJECT, SOURCE_AND_SUBJECT, DEAD_SUBJECT) or isinstance(e, (FlipUntilLose, DefineX))
                    for e in effects):

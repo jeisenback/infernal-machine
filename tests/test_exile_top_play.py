@@ -1,12 +1,14 @@
 """Exile the top cards of your library and play them: until the end of your next turn (said after the exile), until your next end step,
 and "Choose one of them" (Clockwork Percussionist, Haste Magic, Heroes' Hangout, Riverwheel Sweep, Fireglass Mentor, Snowslope Hunter);
-what was exiled decides a rider (Bonehoard Dracosaur), only spells may be cast (Apex of Power), and played free (Urza, Lord High Artificer)."""
+what was exiled decides a rider (Bonehoard Dracosaur), only spells may be cast (Apex of Power), and played free (Urza, Lord High Artificer);
+only a Goblin creature card may be cast (Rundvelt Hordemaster), and Ob Nixilis, Captive Kingpin's "one or more opponents each lose exactly
+1 life"."""
 
 import unittest
 
 from infernal_machine.game import Permanent
 from infernal_machine.zones import CAST_EXILE
-from tests.helpers import BEAR, FOREST, OGRE, activate, fire, lands, pick, real, run_stack, table
+from tests.helpers import table3, BEAR, FOREST, OGRE, activate, fire, lands, pick, real, run_stack, table
 
 PERCUSSIONIST = real("Clockwork Percussionist", "{R}", "Artifact Creature — Monkey Toy",
                      "Haste\nWhen this creature dies, exile the top card of your library. You may play it until the end of your next turn.", "1", "1")
@@ -35,6 +37,16 @@ URZA = real("Urza, Lord High Artificer", "{2}{U}{U}", "Legendary Creature — Hu
             "When Urza enters, create a 0/0 colorless Construct artifact creature token with \"This token gets +1/+1 for each artifact you control.\"\n"
             "Tap an untapped artifact you control: Add {U}.\n"
             "{5}: Shuffle your library, then exile the top card. Until end of turn, you may play that card without paying its mana cost.", "1", "4")
+HORDEMASTER = real("Rundvelt Hordemaster", "{1}{R}", "Creature — Goblin Warrior",
+                   "Other Goblins you control get +1/+1.\nWhenever this creature or another Goblin you control dies, exile the top card of "
+                   "your library. If it's a Goblin creature card, you may cast that card until the end of your next turn.", "1", "1",
+                   colors=("R",))
+OB_NIXILIS = real("Ob Nixilis, Captive Kingpin", "{2}{B}{R}", "Legendary Creature — Demon",
+                  "Flying, trample\nWhenever one or more opponents each lose exactly 1 life, put a +1/+1 counter on Ob Nixilis. Exile the "
+                  "top card of your library. Until your next end step, you may play that card.", "4", "3", colors=("B", "R"))
+GOBLIN = real("Goblin Card", "{1}{R}", "Creature — Goblin", "", "2", "1", colors=("R",))
+DRAIN_ONE = real("Drain One", "{B}", "Sorcery", "Each opponent loses 1 life.", colors=("B",))
+DRAIN_TWO = real("Drain Two", "{B}", "Sorcery", "Each opponent loses 2 life.", colors=("B",))
 TOP = real("Top Card", "{1}", "Sorcery", "")
 NEXT = real("Next Card", "{1}", "Sorcery", "")
 
@@ -223,6 +235,50 @@ class UrzaTests(unittest.TestCase):
         activate(game, mine, "Shuffle your library")
         self.assertEqual(playable(mine), [("Top Card", game.turn)])
         self.assertEqual(mine.exile_free, [TOP])
+
+
+class RundveltHordemasterTests(unittest.TestCase):
+    def dies(self, top, dying=GOBLIN):
+        game, mine, theirs = board(None, Permanent(HORDEMASTER, sick=False))
+        mine.library = [top, FOREST]
+        creature = Permanent(dying, sick=False)
+        mine.battlefield.append(creature)
+        game.destroy(creature)
+        run_stack(game)
+        return game, mine
+
+    def test_a_goblin_creature_card_may_be_cast_until_the_end_of_the_next_turn(self):
+        game, mine = self.dies(GOBLIN)
+        self.assertEqual(playable(mine), [("Goblin Card", game.turn + 2)])
+
+    def test_another_card_is_exiled_but_may_not_be_played(self):
+        game, mine = self.dies(TOP)
+        self.assertEqual([c.name for c in mine.exile], ["Top Card"])
+        self.assertEqual(playable(mine), [])
+
+    def test_a_creature_that_is_not_a_goblin_sets_nothing_off(self):
+        game, mine = self.dies(GOBLIN, BEAR)
+        self.assertEqual(mine.exile, [])
+
+
+class ObNixilisTests(unittest.TestCase):
+    def drain(self, spell):
+        game, _ = table3()
+        a, b, c = game.seats
+        ob = Permanent(OB_NIXILIS, sick=False)
+        a.battlefield, a.hand, a.library = [ob] + lands(1), [spell], [TOP, FOREST]
+        game._perform(a, f"Cast: {spell.name}")
+        run_stack(game)
+        return game, a, ob
+
+    def test_opponents_each_losing_1_life_set_it_off_once(self):
+        game, a, ob = self.drain(DRAIN_ONE)
+        self.assertEqual(ob.counters.get("+1/+1"), 1)
+        self.assertEqual([c.name for c in a.exile], ["Top Card"])
+
+    def test_losing_2_life_does_not(self):
+        game, a, ob = self.drain(DRAIN_TWO)
+        self.assertEqual((ob.counters.get("+1/+1"), a.exile), (None, []))
 
 
 if __name__ == "__main__":
