@@ -503,6 +503,7 @@ from .families.spells_and_misc import (  # noqa: F401
     PutThisFromCommandZone,
     Conditional,
     FlipCoin,
+    FlipUntilLose,
     _IfFlip,
     IfElse,
     _Otherwise,
@@ -1243,6 +1244,7 @@ _AMOUNTS = [
     (re.compile(r"(?:the number of )?creatures? that died this turn", re.I), lambda m: Amount("all_creatures_died")),
     (re.compile(r"the number of permanents you've sacrificed this turn", re.I), lambda m: Amount("sacrificed")),  # Obsessive Pursuit  # Mahadi: whoever controlled them
     (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
+    (re.compile(r"flips? you won", re.I), lambda m: Amount("flips_won")),  # Crazed Firecat, Mirror March
     (re.compile(r"the amount of life you lost this turn", re.I), lambda m: Amount("life_lost")),
     (re.compile(r"half your life total, rounded (down|up)", re.I), lambda m: Amount("half_life", m[1].lower())),
     (re.compile(r"(?:the number of )?spells? you've cast this turn", re.I), lambda m: Amount("spells_cast")),
@@ -1973,6 +1975,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"exile {_N_FIXED} cards from your graveyard\.", re.I), lambda m: ExileOwnGraveyard(_number(m[1]))),
     (re.compile(r"if you do, discard a card unless this creature entered this turn\.", re.I), lambda m: DiscardUnlessSourceEntered()),
     (re.compile(r"flip a coin\.", re.I), lambda m: FlipCoin()),
+    (re.compile(r"flip a coin until you lose a flip\.", re.I), lambda m: FlipUntilLose()),
     (re.compile(r"if you (win|lose) the flip, (.+)\.", re.I), _if_flip),  # Mana Crypt
     (re.compile(r"if you do, (.+)\.", re.I), _if_you_do),
     (re.compile(r'if an? (creature) card is exiled this way, (create .+?)(\."?)', re.I), _if_exiled),
@@ -2992,6 +2995,7 @@ _TIMES_X = [
     (r"\b(mills?) (?:a card|cards)\b", r"\1 X cards"),
     (r"\b(gains?|loses?) (?:1 )?life\b", r"\1 X life"),
     (r"\b(deals?) 1 damage\b", r"\1 X damage"),  # Lotleth Giant: "deals 1 damage to target opponent for each creature card in your graveyard"
+    (r"\b(creates?) a token that's a copy\b", r"\1 X tokens that are copies"),  # Mirror March
     (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
     (r"\b(creates?) a number of (.+?) tokens\b", r"\1 X \2 tokens"),
     (r"\b(put) (?:a|one) (\+1/\+1) counter\b", r"\1 X \2 counters"),
@@ -3037,6 +3041,8 @@ def _clauses(sentence: str) -> list[str]:
         return [sentence]
     if m := re.fullmatch(r"Create a number of (.+?) tokens? equal to (.+)\.", sentence, re.I):  # Gyome's Food
         return [f"Let X be {m[2]}.", f"Create X {m[1]} tokens."] if _amount(m[2]) else [sentence]
+    if m := re.fullmatch(r"For each (flip you won), (.+)\.", sentence):  # Mirror March: the amount comes first
+        return _clauses(f"{m[2][:1].upper()}{m[2][1:]} for each {m[1]}.")
     if m := re.fullmatch(r"(.+), where X is (.+)\.", sentence):
         return [f"Let X be {m[2]}."] + _clauses(m[1] + ".") if _amount(m[2]) else [sentence]
     if m := re.fullmatch(r"(.+) (?<!or )(?:equal to|for each) (.+)\.", sentence):  # "less than or equal to" is a cap, not an amount

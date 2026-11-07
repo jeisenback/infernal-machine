@@ -1287,6 +1287,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Mimic Vat (`tests/test_copy_tokens.py`, #656): "Whenever a nontoken creature dies, you may exile that card. If you do, return each
     other card exiled with this artifact to its owner's graveyard." (`Game.imprint_dead`: only a card still in its owner's graveyard is
     exiled) and "Create a token that's a copy of a card exiled with this artifact." (`CopyExiledWith`, with the usual riders).
+  - Flip a coin until you lose a flip (`tests/test_flip_until_lose.py`, CR 705, #656): `Game.flip_until_lose` keeps the flips won for
+    "for each flip you won" (`Amount("flips_won")`; "For each flip you won, create a token that's a copy of that creature." reads as
+    "... for each flip you won"), and every flip won is a "Whenever a player wins a coin flip" (event `coin_flip_won`) for each player's
+    permanents: Mirror March, Okaun, Eye of Chaos, Zndrsplt, Eye of Wisdom, Crazed Firecat.
   - Blitz (`tests/test_blitz.py`, CR 702.152): "Blitz {2}{R}" is an alternative cost; cast for it, the creature has haste and "When
     this creature dies, draw a card." (`Permanent.blitzed`) and is sacrificed as the next end step begins (Mayhem Patrol, Night Clubber,
     Riveteers Requisitioner, Workshop Warchief). Jaxis, the Troublemaker's copy "gains haste and "When this token dies, draw a card."" the

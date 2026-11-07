@@ -752,6 +752,7 @@ class Game:
         self.cost_sacrificed_cards: tuple[Card, ...] = ()  # ... and what it was (Cleaver Skaab: "copies of the sacrificed creature")
         self.cost_tapped_power = 0  # the power of what the ability being activated tapped as a cost (Station)
         self.x_value = 0  # X of the spell resolving right now
+        self.flips_won = 0  # the flips won by the last "flip a coin until you lose a flip" (Mirror March, Crazed Firecat)
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
         self.resolving_damaged: list[Permanent] = []  # the creatures the spell or ability resolving now has dealt damage to
@@ -2810,6 +2811,8 @@ class Game:
             return controller.life_lost_amount if controller.life_lost_turn == self.turn else 0
         if kind == "life_gained":
             return controller.life_gained_amount if controller.life_gained_turn == self.turn else 0
+        if kind == "flips_won":  # "for each flip you won"
+            return self.flips_won
         if kind == "spells_cast":
             return len(this_turn)
         if kind == "one_plus_spells":  # Rionya: one plus the instant and sorcery spells you've cast this turn
@@ -6510,7 +6513,18 @@ class Game:
         """`seat` flips a coin (CR 705): whether they won."""
         won = self.rng.random() < 0.5
         self.broadcast({"event": "coin_flip", "seat": seat.index, "won": won})
+        if won:  # "Whenever a player wins a coin flip" (Zndrsplt, Okaun)
+            for hearer in self.live_seats():
+                for permanent in list(hearer.battlefield):
+                    self.trigger("coin_flip_won", permanent, hearer)
         return won
+
+    def flip_until_lose(self, seat: Seat) -> int:
+        """"Flip a coin until you lose a flip.": how many flips `seat` won, kept for "for each flip you won" (`flips_won`)."""
+        self.flips_won = 0
+        while self.flip_coin(seat):
+            self.flips_won += 1
+        return self.flips_won
 
     def mill_until_land(self, seat: Seat) -> None:
         """Balustrade Spy: `seat` reveals cards from the top of its library until a land card, then puts them all into its graveyard."""
