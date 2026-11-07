@@ -312,6 +312,7 @@ class Permanent:
     tapped: bool = False
     sick: bool = False  # entered since its controller's last untap step
     entered_turn: int | None = None  # the turn it came onto the battlefield ("that entered this turn")
+    entered_with: list["Permanent"] = field(default_factory=list, repr=False)  # the tokens created at the same time, itself included (Kambal)
     damage: int = 0
     deathtouched: bool = False  # dealt damage by a source with deathtouch (CR 704.5h)
     loyalty: int | None = None
@@ -2730,7 +2731,9 @@ class Game:
 
     def _resolve_ability(self, item: StackItem) -> None:
         seat, ability = item.controller, _checked(item.ability)
-        if getattr(ability, "optional", False) and seat.player.choose(OPTIONAL_PROMPT(item.card.name), YES_NO) != 0:
+        done = getattr(ability, "once_if_done", False) and item.source is not None  # "Do this only once each turn."
+        if done and _checked(item.source).triggered_turn.get("done: " + ability.text) == self.turn or \
+                getattr(ability, "optional", False) and seat.player.choose(OPTIONAL_PROMPT(item.card.name), YES_NO) != 0:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": _shown(ability.text, item.card), "declined": True})
             return
@@ -2739,6 +2742,8 @@ class Game:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": item.card.name,
                             "ability": _shown(ability.text, item.card), "condition_false": True})
             return
+        if done:
+            _checked(item.source).triggered_turn["done: " + ability.text] = self.turn
         self._apply_effects(item)
 
     def evaluate(self, amount: Amount, controller: Seat) -> int:
@@ -3036,6 +3041,9 @@ class Game:
         if kind == "no_colored_mana_spent":  # Void Mirror: none of the mana spent on the spell that set it off was colored (a mana that
             # could have been colored is counted so: its player would have made it so)
             return isinstance(spell, StackItem) and not any(types & set("WUBRG") for types in spell.mana_types_spent)
+        if kind == "same_name_artifacts":  # Mechanized Production: that many artifacts you control share one name
+            names = [p.card.name for p in seat.battlefield if "Artifact" in p.card.type_line]
+            return any(names.count(name) >= condition.count for name in set(names))
         if kind == "revolt":  # a permanent left the battlefield under your control this turn
             return seat.permanent_left_turn == self.turn
         if kind == "discarded_nonland":  # Grab the Prize: the card discarded to cast it wasn't a land card
@@ -5075,7 +5083,7 @@ class Game:
             for _ in range(self._factor(seat, "tokens")):
                 self.broadcast({"event": "token_created", "seat": seat.index, "card": token.name,
                                 "type_line": token.type_line, "power": token.power, "toughness": token.toughness})
-                permanent = Permanent(token, sick=True, tapped=tapped)
+                permanent = Permanent(token, sick=True, tapped=tapped, entered_with=made)  # (made is complete before any trigger resolves)
                 self._enter(seat, permanent)
                 if counters:
                     self.put_counters(permanent, counters[1], counters[0])

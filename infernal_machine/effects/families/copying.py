@@ -174,15 +174,28 @@ class CopyEachToken:
     """Second Harvest: "For each token you control, create a token that's a copy of that permanent." (Saheeli, the Gifted: "For each
     artifact you control, create a token that's a copy of it. Those tokens gain haste. Exile those tokens at the beginning of the
     next end step.")"""
-    kind: str  # "token", "artifact", "nontoken creature"
+    kind: str  # "token you control", "artifact you control", "nontoken creature you control"
     changes: CopyChanges | None = None
     haste: bool = False
     sacrifice_at_end: bool = False
     exile_at_end: bool = False
+    entered_this_turn: bool = False  # Ocelot Pride: "for each token you control that entered this turn"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        cards = [copy_of(p.card, self.changes, as_token=True) for p in game.mass_targets(self.kind, controller)]
+        cards = [copy_of(p.card, self.changes, as_token=True) for p in game.mass_targets(self.kind, controller)
+                 if not self.entered_this_turn or p.entered_turn == game.turn]
         finish_copies(game, game.create_token_batch(controller, cards), self)
+
+
+@dataclass(frozen=True)
+class CopyEachEnteredToken:
+    """Kambal, Profiteering Mayor: "Whenever one or more tokens your opponents control enter, for each of them, create a tapped token
+    that's a copy of it." Them are the tokens created together with the one that set the trigger off (still there or not)."""
+    binds = DEAD_SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.create_token_batch(controller, [copy_of(p.card, as_token=True) for p in target.entered_with or [target]], tapped=True)
 
 
 @dataclass(frozen=True)
