@@ -1265,6 +1265,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     colored, colorless, hybrid or Phyrexian symbol paid as generic mana, `casting.any_type_cost`), and "If you're the monarch, until end
     of turn, you may cast a spell from among cards exiled with this enchantment without paying its mana cost." (cast as the ability
     resolves, like Quintorius's card).
+  - Token copies, batch 1 (`tests/test_copy_tokens.py`, #656): "create a token that's a copy of target token you control" (Esika's
+    Chariot, Caretaker's Talent); Mechanized Production's "Then if you control eight or more artifacts with the same name as one another,
+    you win the game." (a condition, `same_name_artifacts`); Ocelot Pride's "for each token you control that entered this turn, create a
+    token that's a copy of it" (`CopyEachToken.entered_this_turn`; "for each token you control" now copies only yours, not every
+    player's); Kambal's "Whenever one or more tokens your opponents control enter, for each of them, create a tapped token that's a copy
+    of it." (`CopyEachEnteredToken`: the tokens created with the one that set it off, `Permanent.entered_with`); and Ondu Spiritdancer's
+    "you may ... Do this only once each turn." (`TriggeredAbility.once_if_done`: it triggers each time, and once it has been done that
+    turn it is declined without asking).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

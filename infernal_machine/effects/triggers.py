@@ -72,6 +72,7 @@ class TriggeredAbility:
     watch: "Watch | None" = None  # set when it watches other objects ("Whenever another creature enters")
     once_per_turn: bool = False  # "This ability triggers only once each turn."
     condition: "Condition | None" = None  # "At the beginning of your upkeep, if ..., ..." (CR 603.4)
+    once_if_done: bool = False  # Ondu Spiritdancer: "you may ... Do this only once each turn." (it triggers every time; once taken, no more)
 
 
 @dataclass(frozen=True)
@@ -165,7 +166,8 @@ _WATCH_QUALIFIER = re.compile(r" with ((power|toughness) (\d+) or (greater|less)
 
 # "Whenever one or more other creatures you control with mana value 3 or less enter": read as the singular, once per batch
 _ONE_OR_MORE = re.compile(r"Whenever one or more (other )?(nontoken creatures|creature tokens|tokens|creatures|lands|artifacts|"
-                          r"enchantments|permanents)( you control| an opponent controls)?( with (?:power \d+ or (?:greater|less)|flying|"
+                          r"enchantments|permanents)( you control| an opponent controls| your opponents control)?"
+                          r"( with (?:power \d+ or (?:greater|less)|flying|"
                           r"mana value \d+ or less))? (enter(?: the battlefield)?|die|leave the battlefield)(, .+)")
 
 
@@ -245,7 +247,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         verb = {"enter": "enters", "die": "dies"}.get(m[5].split(" ")[0], m[5]) if m[5] not in ("enter the battlefield",) else "enters"
         verb = "leaves the battlefield" if m[5] == "leave the battlefield" else verb
         article = "another" if m[1] else "a"
-        single = f"Whenever {article} {_SINGULAR[m[2]]}{m[3] or ''}{m[4] or ''} {verb}{m[6]}"
+        whose = (m[3] or "").replace("your opponents control", "an opponent controls")
+        single = f"Whenever {article} {_SINGULAR[m[2]]}{whose}{m[4] or ''} {verb}{m[6]}"
         found = _watch_trigger(single)
         return (found[0], dataclasses.replace(found[1], batch=True), found[2]) if found else None
     line = _ABILITY_WORD.sub("", line)
@@ -700,9 +703,20 @@ def _from_library(bare: str, text: str) -> list[TriggeredAbility] | None:
     return None
 
 
+_DO_THIS_ONCE = " Do this only once each turn."
+
+
 def _trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
     """The triggered abilities one line (or one half of a compound line) is: [] if it is not a trigger, None if it is
     one that isn't fully understood."""
+    found = _one_trigger_part(line, text)
+    if found is None and line.endswith(_DO_THIS_ONCE):  # it triggers each time; once done, not again this turn
+        found = _one_trigger_part(line.removesuffix(_DO_THIS_ONCE), text)
+        return [dataclasses.replace(a, once_if_done=True) for a in found] if found else None
+    return found
+
+
+def _one_trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
     bare = _ABILITY_WORD.sub("", line)  # patterns read the line without "Council's dilemma — "; its text stays whole
     if _FROM_LIBRARY.fullmatch(bare):
         return _from_library(bare, text)

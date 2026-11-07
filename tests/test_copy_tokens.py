@@ -8,7 +8,7 @@ import unittest
 
 from infernal_machine.game import CAST, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, OGRE, Table, lands, pick, real, run_stack, table, table3
+from tests.helpers import ANTHEM, BEAR, OGRE, Table, enter, fire, lands, pick, real, run_stack, table, table3
 
 KIKI = real("Kiki-Jiki, Mirror Breaker", "{2}{R}{R}{R}", "Legendary Creature — Goblin Shaman",
             "Haste\n{T}: Create a token that's a copy of target nonlegendary creature you control, except it has haste. Sacrifice it at "
@@ -276,3 +276,109 @@ class TriggeredCopyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+CARETAKERS_TALENT = real("Caretaker's Talent", "{2}{W}", "Enchantment — Class",
+                         "(Gain the next level as a sorcery to add its ability.)\nWhenever one or more tokens you control enter, draw a card. "
+                         "This ability triggers only once each turn.\n{W}: Level 2\nWhen this Class becomes level 2, create a token that's a "
+                         "copy of target token you control.\n{3}{W}: Level 3\nCreature tokens you control get +2/+2.", colors=("W",))
+ESIKAS_CHARIOT = real("Esika's Chariot", "{3}{G}", "Legendary Artifact — Vehicle",
+                      "When Esika's Chariot enters, create two 2/2 green Cat creature tokens.\nWhenever Esika's Chariot attacks, create a "
+                      "token that's a copy of target token you control.\nCrew 4", "4", "4", colors=("G",))
+MECHANIZED_PRODUCTION = real("Mechanized Production", "{2}{U}{U}", "Enchantment — Aura",
+                             "Enchant artifact you control\nAt the beginning of your upkeep, create a token that's a copy of enchanted "
+                             "artifact. Then if you control eight or more artifacts with the same name as one another, you win the game.",
+                             colors=("U",))
+OCELOT_PRIDE = real("Ocelot Pride", "{W}", "Creature — Cat",
+                    "First strike, lifelink\nAscend (If you control ten or more permanents, you get the city's blessing for the rest of "
+                    "the game.)\nAt the beginning of your end step, if you gained life this turn, create a 1/1 white Cat creature token. "
+                    "Then if you have the city's blessing, for each token you control that entered this turn, create a token that's a copy "
+                    "of it.", "1", "1", colors=("W",))
+KAMBAL = real("Kambal, Profiteering Mayor", "{1}{W}{B}", "Legendary Creature — Human Advisor",
+              "Whenever one or more tokens your opponents control enter, for each of them, create a tapped token that's a copy of it. This "
+              "ability triggers only once each turn.\nWhenever one or more tokens you control enter, each opponent loses 1 life and you gain "
+              "1 life.", "2", "4", colors=("B", "W"))
+ONDU_SPIRITDANCER = real("Ondu Spiritdancer", "{4}{W}", "Creature — Kor Cleric",
+                         "Whenever an enchantment you control enters, you may create a token that's a copy of it. Do this only once "
+                         "each turn.", "3", "3", colors=("W",))
+GOAT = real("Goat", "", "Token Creature — Goat", "", "0", "1")
+CLUE = real("Clue", "", "Token Artifact — Clue", "{2}, Sacrifice this token: Draw a card.")
+
+
+class TokenCopyFamilyTests(unittest.TestCase):
+    """#656: copies of a token you control, of an enchanted artifact, of the tokens that entered together or this turn."""
+
+    def test_the_cards_are_fully_playable(self):
+        for card in (CARETAKERS_TALENT, ESIKAS_CHARIOT, MECHANIZED_PRODUCTION, OCELOT_PRIDE, KAMBAL, ONDU_SPIRITDANCER):
+            self.assertEqual(unsupported_lines(card), [], card.name)
+
+    def test_esikas_chariot_copies_only_a_token_you_control(self):
+        for mine, copied in ((True, True), (False, False)):
+            game, _ = table3()
+            a, b, _ = game.seats
+            chariot, goat = Permanent(ESIKAS_CHARIOT), Permanent(GOAT)
+            a.battlefield, b.battlefield = [chariot, Permanent(BEAR)], []
+            (a if mine else b).battlefield.append(goat)
+            fire(game, a, chariot, "attacks")
+            self.assertEqual(len(tokens(a, "Goat")), 2 if copied else 0, mine)
+
+    def test_caretakers_talent_copies_a_token_at_level_2(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield = [Permanent(CLUE), *lands(1)]
+        enter(game, a, CARETAKERS_TALENT)
+        activate(game, a, "Level 2")
+        self.assertEqual(len(tokens(a, "Clue")), 2)
+
+    def test_mechanized_production_wins_with_eight_of_one_name(self):
+        for already, wins in ((7, True), (6, False)):
+            game, _ = table3()
+            a = game.seats[0]
+            relics = [Permanent(dataclasses.replace(RELIC)) for _ in range(already)]
+            aura = Permanent(MECHANIZED_PRODUCTION, attached_to=relics[0])
+            a.battlefield = [*relics, aura, Permanent(dataclasses.replace(BEAR, name="Relic"))]  # a creature by that name is no artifact
+            fire(game, a, aura, "upkeep")
+            self.assertEqual((len(tokens(a, "Relic")), a.wins_game), (1, wins), already)
+
+    def test_ocelot_pride_copies_this_turns_tokens_with_the_citys_blessing(self):
+        for blessing, cats in ((True, 2), (False, 1)):
+            game, _ = table3()
+            a = game.seats[0]
+            ocelot, old = Permanent(OCELOT_PRIDE), Permanent(GOAT, entered_turn=game.turn - 3)
+            a.battlefield, a.life_gained_turn, a.citys_blessing = [ocelot, old], game.turn, blessing
+            game.create_tokens(a, CLUE, 1)
+            fire(game, a, ocelot, "end_step")
+            self.assertEqual((len(tokens(a, "Cat")), len(tokens(a, "Clue")), len(tokens(a, "Goat"))),
+                             (cats, 2 if blessing else 1, 1), blessing)  # the Goat came on an earlier turn
+
+    def test_kambal_copies_each_token_an_opponent_made_once_a_turn(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        a.battlefield = [Permanent(KAMBAL)]
+        game.create_token_batch(b, [GOAT, CLUE])
+        run_stack(game)
+        made = tokens(a)
+        self.assertEqual((sorted(p.card.name for p in made), all(p.tapped for p in made)), (["Clue", "Goat"], True))
+        life = b.life
+        game.create_token_batch(b, [GOAT])  # a second time this turn: no more copies
+        run_stack(game)
+        self.assertEqual((len(tokens(a)), b.life), (2, life))  # (its own copies drained once, before)
+
+    def test_ondu_spiritdancer_copies_one_enchantment_a_turn(self):
+        answers = iter([1, 0])  # declines the first time, then takes it
+        game, _ = table3(lambda prompt, options: next(answers, 0) if options == ["Yes", "No"] else 0)
+        a = game.seats[0]
+        a.battlefield = [Permanent(ONDU_SPIRITDANCER)]
+        for _ in range(3):
+            enter(game, a, ANTHEM)
+            run_stack(game)
+        self.assertEqual(len(tokens(a, "Glorious Anthem")), 1)  # once taken, not again this turn (nor for the copy itself)
+
+    def test_second_harvest_leaves_an_opponents_tokens_alone(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        b.battlefield = [Permanent(GOAT)]
+        a.battlefield, a.hand = [Permanent(CLUE), *lands(4)], [SECOND_HARVEST]
+        game._perform(a, CAST + "Second Harvest")
+        run_stack(game)
+        self.assertEqual((len(tokens(a, "Clue")), len(tokens(a, "Goat")), len(tokens(b, "Goat"))), (2, 0, 1))

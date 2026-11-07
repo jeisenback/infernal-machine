@@ -164,6 +164,7 @@ from .families.copying import (  # noqa: F401
     TokensBecomeCopies,
     _COPY_CARD_TYPES,
     _CopyEachWithHaste,
+    CopyEachEnteredToken,
     _OthersBecomeCopies,
     apply_copy_changes,
     copy_of,
@@ -1566,7 +1567,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
 
 _COPY_TOKEN = re.compile(
     r"create (?:a token that's a copy|(?P<count>two|three|four|five|X) tokens that are copies) of "
-    rf"(?:(?P<another>another )?target (?P<kind>{_PERMANENT_KIND})"
+    rf"(?:(?P<another>another )?target (?P<kind>{_PERMANENT_KIND}|token you control)"  # Esika's Chariot: "target token you control"
     r"|target (?P<grave>creature|artifact) card in your graveyard"
     r"|(?P<subject>it|that (?:creature|permanent|artifact|enchantment|card|token))"
     r"|(?P<host>equipped|enchanted) (?:creature|artifact|permanent)"
@@ -1999,6 +2000,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _ExileCastThisWay()),
     (re.compile(r"for each of them, create a token that's a copy of that creature, except it has haste\.", re.I),
      lambda m: _CopyEachWithHaste()),
+    (re.compile(r"for each of them, create a tapped token that's a copy of it\.", re.I), lambda m: CopyEachEnteredToken()),  # Kambal
     (re.compile(r"exile those tokens at the beginning of the next end step\.", re.I), lambda m: _ExileThoseTokens()),
     (re.compile(rf"exile up to one target {_PERMANENT_KIND}\.", re.I), lambda m: Exile(m[1].lower(), optional_target=True)),
     (re.compile(rf"exile up to one other target {_PERMANENT_KIND}\.", re.I),  # Solitude
@@ -2581,9 +2583,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"target (creature(?: that attacked this turn)?) becomes (prepared|unprepared)\.", re.I),
      lambda m: TargetPrepared(m[1].lower(), m[2].lower() == "prepared")),
     (_COPY_TOKEN, _copy_token),
-    (re.compile(r"for each (token|artifact|creature|nontoken creature|enchantment|land|permanent) you control, create a token that's a "
-                r"copy of (?:it|that (?:creature|permanent|artifact|token))(?:, except (.+))?\.", re.I),
-     lambda m: CopyEachToken(m[1].lower(), c) if (c := _copy_changes(m[2]) if m[2] else CopyChanges()) else None),
+    (re.compile(r"for each (token|artifact|creature|nontoken creature|enchantment|land|permanent) you control( that entered this turn)?, "
+                r"create a token that's a copy of (?:it|that (?:creature|permanent|artifact|token))(?:, except (.+))?\.", re.I),  # Ocelot Pride
+     lambda m: CopyEachToken(m[1].lower() + " you control", c, entered_this_turn=bool(m[2]))
+     if (c := _copy_changes(m[3]) if m[3] else CopyChanges()) else None),
     (re.compile(rf"create a token that's a copy of {_SELF}, tapped and attacking\.", re.I), lambda m: CopyTokenAttacking()),
     (re.compile(r"that attacking player creates a tapped (.+? creature token(?: with [a-z, ]+)?) that's attacking that opponent\.",
                 re.I), lambda m: _attacker_token("a " + m[1])),
@@ -3272,6 +3275,8 @@ _CONDITIONS = [
     (re.compile(r"creatures you control have total power (\d+) or greater"), lambda m: Condition("creature_power_at_least", int(m[1]))),
     (re.compile(r"you control a creature with power (\d+) or greater"), lambda m: Condition("creature_with_power", int(m[1]))),
     (re.compile(r"you created a token this turn"), lambda m: Condition("created_token")),
+    (re.compile(r"you control (eight) or more artifacts with the same name as one another"),  # Mechanized Production
+     lambda m: Condition("same_name_artifacts", _number(m[1]))),
     (re.compile(r"you attacked this turn"), lambda m: Condition("attacked_this_turn")),  # Raid
     (re.compile(r"you control your commander"), lambda m: Condition("control_commander")),  # Lieutenant
     (re.compile(r"a library has (twenty|\d+) or fewer cards in it"),
