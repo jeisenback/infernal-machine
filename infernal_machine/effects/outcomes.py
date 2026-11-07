@@ -472,22 +472,6 @@ from .families.mana import (  # noqa: F401
 )
 from .families.spells_and_misc import (  # noqa: F401
     DrawUnlessFromHand,
-    LootCastIfCounters,
-    SubjectControllerMayPayLifeDraw,
-    ExileTopCastOneOfEachType,
-    CascadeOfKind,
-    ThatPlayerCascades,
-    CastCommanderFree,
-    MayMillThenPlayHideaway,
-    LookTopCastFreeOnce,
-    LookTopCastOneFree,
-    ShuffleExileTopPlayFree,
-    ExileUntilNonlandCastOrTake,
-    CastTwoFreeFromHandOrGraveyard,
-    TargetCascades,
-    CastTargetFromGraveyardFree,
-    ExileRandomFromOpponentsCast,
-    PossibilityStorm,
     Learn,
     MillUntilLand,
     EachWithNamedDraws,
@@ -560,6 +544,27 @@ from .families.spells_and_misc import (  # noqa: F401
     _TheyGain,
     _TheyGainHaste,
     _TokenAttacksThisCombat,
+)
+from .families.free_casting import (  # noqa: F401
+    LootCastIfCounters,
+    SubjectControllerMayPayLifeDraw,
+    ExileTopCastOneOfEachType,
+    CascadeOfKind,
+    ThatPlayerCascades,
+    CastCommanderFree,
+    MayMillThenPlayHideaway,
+    LookTopCastFreeOnce,
+    LookTopCastOneFree,
+    ShuffleExileTopPlayFree,
+    ExileUntilNonlandCastOrTake,
+    CastTwoFreeFromHandOrGraveyard,
+    TargetCascades,
+    CastTargetFromGraveyardFree,
+    ExileRandomFromOpponentsCast,
+    PossibilityStorm,
+    VillainousChoice,
+    ThatPlayerExilesUntilNonlandYouCast,
+    ThatPlayerExilesTopDamaged,
 )
 from .families.tokens import (  # noqa: F401
     AttackerCreatesAttackingToken,
@@ -1639,6 +1644,28 @@ _DESTINATIONS = {"into your hand": "hand", "onto the battlefield": "battlefield"
 _MILL_KIND = r"an? [a-z ]+? card(?: with mana value \d+(?: or less| or greater)?)?"  # "a creature card with mana value 2 or less"
 
 
+_VILLAINOUS = re.compile(r"(each opponent|target opponent) faces a villainous choice \u2014 (.+)\.", re.I)
+
+
+def _villainous(m: re.Match) -> VillainousChoice | None:
+    """ "Each opponent faces a villainous choice — A, or B.": the two options are split where both read as effects."""
+    body = m[2]
+    for at in [i for i in range(len(body)) if body.startswith(", or ", i)]:
+        first, second = body[:at], body[at + len(", or "):]
+        if (a := _villain_option(first)) is not None and (b := _villain_option(second)) is not None:
+            return VillainousChoice((first, second), (tuple(a), tuple(b)), "opponent" if m[1].lower().startswith("target") else None)
+    return None
+
+
+def _villain_option(text: str) -> list | None:
+    """One option of a villainous choice, as effects: "They exile ..." and "that player ..." are the player facing it."""
+    text = re.sub(r"^(?:They|they) (\w+)", lambda m: f"that player {m[1]}s", text)
+    effects = _parse(_split_sentences(text[:1].upper() + text[1:] + "."))
+    if effects is None or any(target_kind(e) for e in effects):
+        return None
+    return effects
+
+
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'you get an emblem with "(.+)"\.?', re.I), lambda m: _emblem(m[1])),  # Elspeth, Sun's Champion
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
@@ -2364,6 +2391,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RevealTopCastKindredFree()),  # Descendants' Path
     (re.compile(r"if this spell was cast from a graveyard, you may play cards this way without paying their mana costs\.", re.I),
      lambda m: _FreeIfFromGraveyard()),  # Ignite the Future, folded into the ExileTop before it
+    (_VILLAINOUS, _villainous),  # CR 701.56
+    (re.compile(r"that player exiles cards from the top of their library until they exile a nonland card, then you may cast that card "
+                r"without paying its mana cost\.", re.I), lambda m: ThatPlayerExilesUntilNonlandYouCast()),  # Ensnared by the Mara
+    (re.compile(rf"that player exiles the top {_N_FIXED} cards of their library and {_SELF} deals damage equal to the total mana value of "
+                r"those exiled cards to that player\.", re.I), lambda m: ThatPlayerExilesTopDamaged(_number(m[1]))),  # Ensnared by the Mara
     (re.compile(r"target opponent exiles cards from the top of their library until they exile an instant or sorcery card\. You may cast "
                 r"that card without paying its mana cost\. Then put the exiled cards that weren't cast this way on the bottom of that library "
                 r"in a random order\.", re.I), lambda m: TargetCascades("instant or sorcery")),  # Chaos Wand

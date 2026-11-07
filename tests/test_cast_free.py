@@ -11,7 +11,8 @@ and Mind's Dilation (the opponent's top card, if nonland). Batch 4: Jodah, the U
 Cemetery Tampering (a Hideaway played at twenty cards in the graveyard), Gríma, Saruman's Footman (an instant or sorcery from the damaged
 player's library), Geode Golem (the commander, free but for its tax), Planetarium of Wan Shi Tong (the top card, once a turn) and Ignite the
 Future (free when flashed back). Batch 5: Mind's Desire, Breaching Dragonstorm, Mnemonic Deluge, Fight Rigging, Aetherworks Marvel and
-Invoke Calamity. Batch 6: Kefka, Dancing Mad, Chaos Wand, Memory Plunder, Possibility Storm and Clive's Hideaway."""
+Invoke Calamity. Batch 6: Kefka, Dancing Mad, Chaos Wand, Memory Plunder, Possibility Storm and Clive's Hideaway. Villainous choice:
+Ensnared by the Mara."""
 
 import unittest
 from dataclasses import replace
@@ -165,6 +166,11 @@ SYNOD = real("Seat of the Synod", "", "Artifact Land", "{T}: Add {U}.")
 CLIVE = real("Clive's Hideaway", "", "Land — Town", "Hideaway 4 (When this land enters, look at the top four cards of your library, exile one "
              "face down, then put the rest on the bottom in a random order.)\n{T}: Add {C}.\n{2}, {T}: You may play the exiled card "
              "without paying its mana cost if you control four or more legendary creatures.")
+
+ENSNARED = real("Ensnared by the Mara", "{2}{R}{R}", "Sorcery", "Each opponent faces a villainous choice — They exile cards from the top of "
+                "their library until they exile a nonland card, then you may cast that card without paying its mana cost, or that player "
+                "exiles the top four cards of their library and Ensnared by the Mara deals damage equal to the total mana value of those "
+                "exiled cards to that player.", colors=("R",))
 
 
 def asking(policy, asked):
@@ -769,6 +775,23 @@ class CastFreeBatchSixTests(unittest.TestCase):
             hideaway.exiled_with.append((a, BIG))
             activate(game, a, "{2}")
             self.assertEqual("Big" in [p.card.name for p in a.battlefield], played, legends)
+
+
+class VillainousChoiceTests(unittest.TestCase):
+    def test_the_card_is_understood(self):
+        self.assertEqual(unsupported_lines(ENSNARED), [])
+
+    def test_each_opponent_chooses_for_themselves(self):
+        game, _ = table3(lambda prompt, options: 0, lambda prompt, options: 0, lambda prompt, options: 1)
+        a, b, c = game.seats
+        a.battlefield, a.hand = lands(4), [ENSNARED]
+        b.library, c.library = [FOREST, BEAR, OPT], [BIG, OPT, FOREST, MOUNTAIN, OGRE]
+        life_b, life_c = b.life, c.life
+        game._perform(a, CAST + "Ensnared by the Mara")
+        run_stack(game)
+        self.assertEqual(("Bear" in [p.card.name for p in a.battlefield], [x.name for x in b.exile], b.life), (True, ["Forest"], life_b))
+        self.assertEqual((sorted(x.name for x in c.exile), c.life, [x.name for x in c.library]),
+                         (["Big", "Forest", "Mountain", "Opt"], life_c - 6, ["Ogre"]))  # 5 + 1 damage
 
 
 if __name__ == "__main__":
