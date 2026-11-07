@@ -126,7 +126,8 @@ _INFINITY_LINE = re.compile(r"^\u221e \u2014 (At the beginning of [^,]+), ", re.
 
 
 # "When this creature enters, choose one —" and "{T}: Choose one —" are followed by their modes on separate lines.
-_MODAL_LEAD = re.compile(r".+[,:] choose (?:one or both|one or more|up to one|one|two|three) \u2014"
+_MODAL_LEAD = re.compile(r".+[,:] choose (?:one or both|one or more|up to one|one(?: that hasn't been chosen this turn)?|two|three) \u2014"
+                         r"|.+, choose one that hasn't been chosen this turn\."  # Lita, Little Orphan Amphibian: a period, not a dash
                          r"|.+, you may choose two\. Each mode must target a different player\.", re.I)
 
 

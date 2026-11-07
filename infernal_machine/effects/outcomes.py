@@ -779,7 +779,8 @@ def _parse_modal(how: str, lines: list[str], repeat: bool = False) -> list | Non
 _MODAL_DIFFERENT = re.compile(r"you may choose two\. Each mode must target a different player\. (\u2022 .+)")
 
 
-_MODAL_INLINE = re.compile(r"choose (one or both|one or more|up to one|one|two|three) \u2014 (\u2022 .+)", re.I)
+_MODAL_INLINE = re.compile(r"choose (one or both|one or more|up to one|one(?: that hasn't been chosen this turn)?|two|three)(?: \u2014|(?<=turn)\.) (\u2022 .+)",
+                           re.I)  # Breeches, Eager Pillager: "one that hasn't been chosen this turn"
 
 
 def _parse_modal_inline(text: str) -> list | None:
@@ -787,7 +788,9 @@ def _parse_modal_inline(text: str) -> list | None:
     the text isn't one."""
     if not (m := _MODAL_INLINE.fullmatch(text)):
         return None
-    return _parse_modal(m[1].lower(), ["\u2022 " + part for part in m[2].removeprefix("\u2022 ").split(" \u2022 ")])
+    fresh = m[1].lower().startswith("one that")
+    modal = _parse_modal("one" if fresh else m[1].lower(), ["\u2022 " + part for part in m[2].removeprefix("\u2022 ").split(" \u2022 ")])
+    return [dataclasses.replace(modal[0], fresh=True)] if modal and fresh else modal
 
 
 _ENCHANT_HEAD = (r"(?:(?:non-?[a-z]+|basic|tapped) )?(?:land|creature|artifact|enchantment|planeswalker|permanent|equipment"

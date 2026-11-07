@@ -173,6 +173,7 @@ class Modal:
     repeat: bool = False  # "You may choose the same mode more than once." (a Confluence): `max` picks, each mode any number of times
     costs: tuple[int, ...] = ()  # pawprint modes (a Season): what each mode costs of the `max` pawprints to spend
     mode_costs: tuple[str, ...] = ()  # Spree: the mana each mode adds to the cost of the spell (CR 702.172)
+    fresh: bool = False  # "choose one that hasn't been chosen this turn" (Breeches): a mode once per turn for each source
 
 
 PARITY_PROMPT = PromptKind("parity", "Choose odd or even for ")  # followed by the spell's name; options: "Odd", "Even"
