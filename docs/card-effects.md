@@ -1279,6 +1279,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Good's "Then tokens you control gain indestructible until your next turn." (every token, not only creatures:
     `KindsGainUntilEndOfTurn.until_next_turn`); Clone Legion's "For each creature target player controls, create a token that's a copy
     of that creature." (`CopyEachOfTargetPlayer`); and Oltec Matterweaver's "target artifact token you control".
+  - Token copies, batch 3 (`tests/test_copy_tokens.py`, #656): City of Death's "target non-Saga token you control"; Cleaver Skaab's
+    "Create two tokens that are copies of the sacrificed creature." (`StackItem.sacrificed_cards`, `CopySacrificed`); Fractured Identity's
+    "Exile target nonland permanent. Each player other than its controller creates a token that's a copy of it." (`ExileOthersCopy`);
+    Bramble Sovereign's "that creature's controller creates a token that's a copy of that creature" (`CopySubjectForItsController`); and
+    Octomancer's "target creature token that entered the battlefield this turn" (a filter state, "entered this turn").
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

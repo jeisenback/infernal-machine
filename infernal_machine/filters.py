@@ -23,6 +23,7 @@ COLOR_LETTER = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G
 PERMANENT_TYPES = frozenset({"artifact", "battle", "creature", "enchantment", "land", "planeswalker"})
 _CONTROLLERS = ((" an opponent controls", "opponent"), (" you don't control", "opponent"), (" you control", "you"), (" you own", "own"))
 _STATES = ("attacking or blocking", "tapped", "untapped", "attacking")
+_ENTERED_THIS_TURN = re.compile(r" that entered (?:the battlefield )?this turn$")
 _NOTHING_TO_CHECK = {"", "card", "spell", "cards", "spells"}
 
 
@@ -148,8 +149,10 @@ def parse_filter(text: str) -> Filter:
             controller, text = who, text.removesuffix(suffix)
             break
     state = ""
+    if m := _ENTERED_THIS_TURN.search(text):  # Octomancer: "target creature token that entered the battlefield this turn"
+        state, text = "entered this turn", text[:m.start()]
     for word in _STATES:
-        if text.startswith(word + " "):
+        if not state and text.startswith(word + " "):
             state, text = word, text.removeprefix(word + " ")
             break
     return Filter(_alternatives(text), controller, state, mana_value, power_at_most, toughness_at_most, keyword)
