@@ -595,6 +595,7 @@ class Seat:
     paragon_turn: int | None = None  # the last turn Serra Paragon's once-a-turn permission was used
     free_once_turn: int | None = None  # the last turn One with the Multiverse's free cast was used
     exile_free: list[Card] = field(default_factory=list)  # cards in `exile_play` that are played without paying (Fallen Shinobi)
+    no_max_hand: bool = False  # Ancient Silver Dragon: "You have no maximum hand size for the rest of the game."
     exile_any_mana: list[Card] = field(default_factory=list)  # cards in `exile_play` that mana of any type can be spent on (Court of Locthwain)
     paragon_marked: list = field(default_factory=list)  # cards played with it, which are exiled if they go back (+ life)
     modified_died_turn: int | None = None  # the last turn a modified creature died under this player's control
@@ -752,6 +753,7 @@ class Game:
         self.cost_sacrificed_cards: tuple[Card, ...] = ()  # ... and what it was (Cleaver Skaab: "copies of the sacrificed creature")
         self.cost_tapped_power = 0  # the power of what the ability being activated tapped as a cost (Station)
         self.x_value = 0  # X of the spell resolving right now
+        self.die_result = 0  # the result of the last die rolled (CR 706): the Ancient dragons' "equal to the result"
         self.flips_won = 0  # the flips won by the last "flip a coin until you lose a flip" (Mirror March, Crazed Firecat)
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
@@ -1007,7 +1009,7 @@ class Game:
         elif self.step == "cleanup":
             everyone = any(players_have_no_max_hand(p.card) for s in self.seats for p in s.battlefield)  # Price of Knowledge
             limits = [p.counters.get(c, 0) for p in seat.battlefield if (c := hand_size_counter(p.card))]  # Midnight Oil
-            excess = 0 if everyone or any(no_max_hand_size(p.card) or p.no_max_hand for p in seat.battlefield) \
+            excess = 0 if everyone or seat.no_max_hand or any(no_max_hand_size(p.card) or p.no_max_hand for p in seat.battlefield) \
                 else len(seat.hand) - (min(limits) if limits else HAND_SIZE)
             for _ in range(max(0, excess)):
                 i = seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])
@@ -2813,6 +2815,8 @@ class Game:
             return controller.life_gained_amount if controller.life_gained_turn == self.turn else 0
         if kind == "flips_won":  # "for each flip you won"
             return self.flips_won
+        if kind == "die_result":  # "equal to the result", "where X is the result"
+            return self.die_result
         if kind == "spells_cast":
             return len(this_turn)
         if kind == "one_plus_spells":  # Rionya: one plus the instant and sorcery spells you've cast this turn
@@ -6518,6 +6522,12 @@ class Game:
                 for permanent in list(hearer.battlefield):
                     self.trigger("coin_flip_won", permanent, hearer)
         return won
+
+    def roll_die(self, seat: Seat, sides: int) -> int:
+        """`seat` rolls a die with that many sides (CR 706): the result, kept for "equal to the result" (`die_result`)."""
+        self.die_result = self.rng.randint(1, sides)
+        self.broadcast({"event": "die_roll", "seat": seat.index, "sides": sides, "result": self.die_result})
+        return self.die_result
 
     def flip_until_lose(self, seat: Seat) -> int:
         """"Flip a coin until you lose a flip.": how many flips `seat` won, kept for "for each flip you won" (`flips_won`)."""

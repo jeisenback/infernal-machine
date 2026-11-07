@@ -416,6 +416,23 @@ class _Otherwise:
 
 
 @dataclass(frozen=True)
+class NoMaxHandForTheGame:
+    """Ancient Silver Dragon: "You have no maximum hand size for the rest of the game." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        controller.no_max_hand = True
+
+
+@dataclass(frozen=True)
+class RollDie:
+    """ "Roll a d20." (CR 706): the result is what "equal to the result" and "where X is the result" read (`Game.die_result`)."""
+    sides: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.roll_die(controller, self.sides)
+
+
+@dataclass(frozen=True)
 class FlipUntilLose:
     """ "Flip a coin until you lose a flip." (Okaun, Zndrsplt, Mirror March, Crazed Firecat: "... for each flip you won")"""
 

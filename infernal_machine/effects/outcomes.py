@@ -504,6 +504,8 @@ from .families.spells_and_misc import (  # noqa: F401
     Conditional,
     FlipCoin,
     FlipUntilLose,
+    RollDie,
+    NoMaxHandForTheGame,
     _IfFlip,
     IfElse,
     _Otherwise,
@@ -1245,6 +1247,7 @@ _AMOUNTS = [
     (re.compile(r"the number of permanents you've sacrificed this turn", re.I), lambda m: Amount("sacrificed")),  # Obsessive Pursuit  # Mahadi: whoever controlled them
     (re.compile(r"the amount of life you gained this turn", re.I), lambda m: Amount("life_gained")),
     (re.compile(r"flips? you won", re.I), lambda m: Amount("flips_won")),  # Crazed Firecat, Mirror March
+    (re.compile(r"the result", re.I), lambda m: Amount("die_result")),  # the die just rolled
     (re.compile(r"the amount of life you lost this turn", re.I), lambda m: Amount("life_lost")),
     (re.compile(r"half your life total, rounded (down|up)", re.I), lambda m: Amount("half_life", m[1].lower())),
     (re.compile(r"(?:the number of )?spells? you've cast this turn", re.I), lambda m: Amount("spells_cast")),
@@ -1976,6 +1979,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if you do, discard a card unless this creature entered this turn\.", re.I), lambda m: DiscardUnlessSourceEntered()),
     (re.compile(r"flip a coin\.", re.I), lambda m: FlipCoin()),
     (re.compile(r"flip a coin until you lose a flip\.", re.I), lambda m: FlipUntilLose()),
+    (re.compile(r"roll a d20\.", re.I), lambda m: RollDie(20)),  # CR 706: the Ancient dragons
+    (re.compile(r"you have no maximum hand size for the rest of the game\.", re.I), lambda m: NoMaxHandForTheGame()),  # Ancient Silver Dragon
     (re.compile(r"if you (win|lose) the flip, (.+)\.", re.I), _if_flip),  # Mana Crypt
     (re.compile(r"if you do, (.+)\.", re.I), _if_you_do),
     (re.compile(r'if an? (creature) card is exiled this way, (create .+?)(\."?)', re.I), _if_exiled),
