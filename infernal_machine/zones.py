@@ -162,6 +162,11 @@ def _free(seat, card) -> bool:
     return any(c is card for c in seat.exile_free)
 
 
+def _any_mana(seat, card) -> bool:
+    """Whether mana of any type can be spent to cast this exiled card (Court of Locthwain)."""
+    return any(c is card for c in seat.exile_any_mana)
+
+
 class Exile(ZonePlay):
     """A card exiled with "you may play it this turn" (or until the end of the next turn)."""
     land_prefix, cast_prefix = PLAY_EXILE, CAST_EXILE
@@ -172,7 +177,8 @@ class Exile(ZonePlay):
             if is_land(card):
                 if sorcery_timing and seat.lands_played < game._land_drops(seat):
                     actions.append(PLAY_EXILE + card.name)
-            elif _timely(game, seat, card, sorcery_timing) and game._can_cast(seat, card, from_hand=False, free=_free(seat, card)):
+            elif _timely(game, seat, card, sorcery_timing) and game._can_cast(seat, card, from_hand=False, free=_free(seat, card),
+                                                                            any_mana=_any_mana(seat, card)):
                 actions.append(CAST_EXILE + card.name)
         return actions
 
@@ -185,9 +191,9 @@ class Exile(ZonePlay):
             game.broadcast({"event": "play_land", "seat": seat.index, "card": card.name, "from": "exile"})
         elif action.startswith(CAST_EXILE):
             card = next(c for c in seat.exile if c.name == action.removeprefix(CAST_EXILE))
-            free = _free(seat, card)
+            free, any_mana = _free(seat, card), _any_mana(seat, card)
             game._used_exile_permission(seat, card)
-            game._cast(seat, card, seat.exile, free=free)
+            game._cast(seat, card, seat.exile, free=free, any_mana=any_mana)
         else:
             return False
         return True

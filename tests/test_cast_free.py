@@ -12,7 +12,7 @@ Cemetery Tampering (a Hideaway played at twenty cards in the graveyard), Gríma,
 player's library), Geode Golem (the commander, free but for its tax), Planetarium of Wan Shi Tong (the top card, once a turn) and Ignite the
 Future (free when flashed back). Batch 5: Mind's Desire, Breaching Dragonstorm, Mnemonic Deluge, Fight Rigging, Aetherworks Marvel and
 Invoke Calamity. Batch 6: Kefka, Dancing Mad, Chaos Wand, Memory Plunder, Possibility Storm and Clive's Hideaway. Villainous choice:
-Ensnared by the Mara."""
+Ensnared by the Mara. Court of Locthwain (a card played for as long as it stays exiled, with mana of any type; free while the monarch)."""
 
 import unittest
 from dataclasses import replace
@@ -22,7 +22,7 @@ from infernal_machine.game import CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROM
 from infernal_machine.analysis import is_land
 from infernal_machine.zones import CAST_EXILE, CAST_TOP, PLAY_EXILE
 from infernal_machine.report import unsupported_lines
-from tests.helpers import ANTHEM, BEAR, BIG, COMMANDER, ELF, MOUNTAIN, OGRE, RAINBOW, RELIC, activate, enter, fire, lands, pick, real, run_stack, table3
+from tests.helpers import ANTHEM, BEAR, BIG, COMMANDER, ELF, MOUNTAIN, OGRE, RAINBOW, RELIC, SWAMP, activate, enter, fire, lands, pick, real, run_stack, table3
 
 SWORD = real("Buster Sword", "{3}", "Artifact — Equipment", "Equipped creature gets +3/+2.\nWhenever equipped creature deals combat "
              "damage to a player, draw a card, then you may cast a spell from your hand with mana value less than or equal to that damage "
@@ -177,6 +177,11 @@ GUFF = real("Guff Rewrites History", "{2}{R}", "Instant", "For each player, choo
             "controls. Those permanents' owners shuffle them into their libraries. Each player who controlled one of those permanents exiles "
             "cards from the top of their library until they exile a nonland card, then puts the rest on the bottom of their library in a "
             "random order. Each player may cast the nonland card they exiled without paying its mana cost.", colors=("R",))
+COURT = real("Court of Locthwain", "{2}{B}{B}", "Enchantment", "When this enchantment enters, you become the monarch.\nAt the beginning of "
+             "your upkeep, exile the top card of target opponent's library. You may play that card for as long as it remains exiled, and "
+             "mana of any type can be spent to cast it. If you're the monarch, until end of turn, you may cast a spell from among cards "
+             "exiled with this enchantment without paying its mana cost.", colors=("B",))
+RED_BEAR = real("Red Bear", "{1}{R}", "Creature — Bear", "", "2", "2", colors=("R",))
 
 
 def asking(policy, asked):
@@ -817,6 +822,41 @@ class GuffRewritesHistoryTests(unittest.TestCase):
         self.assertEqual(([p.card.name for p in a.battlefield if not is_land(p.card)], [p.card.name for p in b.battlefield]),
                          (["Ogre"], ["Bear"]))  # shuffled in, found again, cast free
         self.assertEqual(([x.name for x in c.library], len(a.library), len(b.library)), (["Big", "Forest"], 10, 10))  # lands to the bottom
+
+
+class CourtOfLocthwainTests(unittest.TestCase):
+    def test_the_card_is_understood(self):
+        self.assertEqual(unsupported_lines(COURT), [])
+
+    def test_the_exiled_card_is_played_later_with_mana_of_any_type(self):
+        game, _ = table3(pick("Player: B", "Pay"))
+        a, b, _ = game.seats
+        court = Permanent(COURT)
+        a.battlefield, b.library = [court, *lands(2, SWAMP)], [RED_BEAR, OPT]
+        game.monarch = b
+        fire(game, a, court, "upkeep")
+        self.assertEqual(([c.name for c in a.exile], [p.card.name for p in a.battlefield].count("Red Bear")), (["Red Bear"], 0))
+        game.turn += 3  # a later turn of yours: for as long as it remains exiled
+        self.assertIn(CAST_EXILE + "Red Bear", game.legal_actions(a))  # two Swamps pay {1}{R}
+        game._perform(a, CAST_EXILE + "Red Bear")
+        run_stack(game)
+        self.assertIn("Red Bear", [p.card.name for p in a.battlefield])
+
+    def test_other_exiled_cards_still_need_their_colors(self):
+        game, _ = table3()
+        a = game.seats[0]
+        a.battlefield, a.exile, a.exile_play = lands(2, SWAMP), [RED_BEAR], [(RED_BEAR, game.turn)]
+        self.assertNotIn(CAST_EXILE + "Red Bear", game.legal_actions(a))
+
+    def test_the_monarch_casts_one_for_free(self):
+        for monarch, cast in ((0, True), (1, False)):
+            game, _ = table3(pick("Player: B"))
+            a, b, _ = game.seats
+            court = Permanent(COURT)
+            a.battlefield, b.library = [court], [BIG, OPT]
+            game.monarch = game.seats[monarch]
+            fire(game, a, court, "upkeep")
+            self.assertEqual("Big" in [p.card.name for p in a.battlefield], cast, monarch)
 
 
 if __name__ == "__main__":

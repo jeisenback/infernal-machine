@@ -1255,6 +1255,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     player controls. ..." takes one target for each player who controls one, and a per-player target can be left out only when the
     effect says "up to one" (`optional_target`); the owners shuffle them into their libraries, and each player who controlled one exiles
     until a nonland card, puts the rest on the bottom and may cast it free (`Game.guff_rewrites_history`).
+  - Court of Locthwain (`tests/test_cast_free.py`, #655): "exile the top card of target opponent's library. You may play that card for
+    as long as it remains exiled, and mana of any type can be spent to cast it." (`Seat.exile_any_mana`: such a card is cast with each
+    colored, colorless, hybrid or Phyrexian symbol paid as generic mana, `casting.any_type_cost`), and "If you're the monarch, until end
+    of turn, you may cast a spell from among cards exiled with this enchantment without paying its mana cost." (cast as the ability
+    resolves, like Quintorius's card).
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

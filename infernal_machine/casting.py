@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import re
 from typing import Callable
 
 from .analysis import is_land
@@ -27,6 +28,12 @@ from .payment import Payment
 
 from . import game as g
 
+def any_type_cost(mana_cost: str) -> str:
+    """A mana cost that mana of any type can be spent on: each colored, colorless, hybrid or Phyrexian symbol is one generic mana; X and
+    the generic part stay as they are."""
+    return re.sub(r"\{(?!\d+\}|X\})[^}]+\}", "{1}", mana_cost)
+
+
 FREE_FROM_HAND = AlternativeCost(FREE_WAY)  # Omniscience
 FREE_ONCE = AlternativeCost(FREE_WAY + " (once this turn)", once_a_turn=True)  # One with the Multiverse
 
@@ -40,15 +47,18 @@ class Caster:
     def _cast(self, seat: g.Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
               graveyard: GraveyardCast | None = None, prepared: g.Permanent | None = None, free: bool = False,
               copy: bool = False, bottom_after: bool = False, madness: AlternativeCost | None = None,
-              whole: Card | None = None, face_down: tuple[str, MorphCost] | None = None, exile_after: bool = False) -> None:
+              whole: Card | None = None, face_down: tuple[str, MorphCost] | None = None, exile_after: bool = False,
+              any_mana: bool = False) -> None:
         effects = g._effects(card)
         paying = dataclasses.replace(card, mana_cost=graveyard.cost) if graveyard else card
+        if any_mana:  # Court of Locthwain: "mana of any type can be spent to cast it"
+            paying = dataclasses.replace(paying, mana_cost=any_type_cost(paying.mana_cost))
         extra = ""
         if effects and isinstance(effects[0], Modal):
             effects, extra = self._choose_modes(seat, card, effects[0], from_command_zone, casting=True)
         # Alternative costs and kicker are announced before targets are chosen (CR 601.2b-c).
         ways = ([AlternativeCost("Cast without paying its mana cost")] if free else [madness] if madness
-                else self._cast_ways(seat, card, from_command_zone, graveyard, zone is seat.hand))
+                else self._cast_ways(seat, paying if any_mana else card, from_command_zone, graveyard, zone is seat.hand))
         alternative = ways[0]
         if len(ways) > 1:
             options = [f"Pay {card.mana_cost}" if way is None else way.text for way in ways]
