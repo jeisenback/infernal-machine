@@ -140,6 +140,8 @@ class Combat:
                 at_them = sum(1 for a in self.attacks if a.defender is other)
                 for permanent in list(other.battlefield):
                     self.game.trigger("opponent_attacks", permanent, other, player=seat, x=at_them)
+                    if at_them:  # (a creature attacking one of their planeswalkers has them as its defender too)
+                        self.game.trigger("opponent_attacks_you", permanent, other, player=seat)
                     if len(self.attacks) >= 2:
                         self.game.trigger("other_attacks_two", permanent, other, player=seat, x=at_them)
             attacked = {id(a.defender): a.defender for a in self.attacks if a.walker is None}

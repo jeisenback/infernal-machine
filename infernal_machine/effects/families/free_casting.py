@@ -316,3 +316,27 @@ class ExileUntilNonlandCast:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.exile_until_nonland_and_cast(controller, self.casts, self.set_aside)
+
+
+@dataclass(frozen=True)
+class ExileTopOfEachOpponentMayCast:
+    """Stolen Strategy: "exile the top card of each opponent's library. Until end of turn, you may cast spells from among those exiled
+    cards, and you may spend mana as though it were mana of any color to cast those spells." Brainstealer Dragon: "You may play those
+    cards for as long as they remain exiled." (`forever`, lands too)"""
+    forever: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for victim in game.opponents(controller):
+            game.exile_top_of_other(controller, victim, forever=self.forever, any_mana=True, spells_only=not self.forever)
+
+
+@dataclass(frozen=True)
+class OwnerLosesManaValue:
+    """Brainstealer Dragon: "Whenever a nonland permanent an opponent owns enters the battlefield under your control, they lose life equal
+    to its mana value." (the permanent that entered; its owner loses the life)"""
+    binds = SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.change_life(game.owner_of(target), -int(target.card.cmc))
+
