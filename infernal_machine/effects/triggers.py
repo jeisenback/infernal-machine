@@ -16,6 +16,7 @@ from .targets import CONTEXT_BINDINGS, DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SO
 from .common import FROM_LIBRARY
 from .outcomes import (
     DefineX,
+    Modal,
     Vanish,
     FlipUntilLose,
     SubjectDamagesEachOpponent,
@@ -111,6 +112,7 @@ _SELF_EVENTS = {
     "becomes_blocked": r"becomes blocked",
     "combat_damage_to_player": r"deals combat damage to a player",
     "targeted": r"becomes the target of an? (?:spell|spell or ability)",
+    "targeted_by_opponent": r"becomes the target of a spell an opponent controls",  # Tectonic Giant
     "transformed": r"transforms into CARDNAME",
     "put_into_graveyard": r"is put into a graveyard from the battlefield",  # Ichor Wellspring
 }
@@ -610,6 +612,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     if about_subject and any(isinstance(e, CreateTokens) and e.counters for e in effects) \
             and not any(binding(e) in (SOURCE, PREVIOUS_TARGET) for e in effects):
         about_subject = False  # the "it" was the new token of "Create a ... token. Put X counters on it." (Deekah)
+    if about_subject and len(effects) == 1 and isinstance(effects[0], Modal):
+        about_subject = False  # Breeches: "• Exile the top card of your library. You may play it this turn.": the mode's own "it"
     if about_subject and not subject_ok and not copies_spell:
         return None, False, False, None
     if copies_spell and not subject_ok:

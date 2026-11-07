@@ -85,6 +85,7 @@ def heard_on(occurrence: str) -> tuple[Event, ...]:
 
 declare("enters", re.compile(rf"When(?:ever)? {_SELF} enters?(?: the battlefield)?, (.+)", re.I))  # "enter": The Sackville-Bagginses
 declare("targeted", re.compile(rf"When(?:ever)? {_SELF} becomes the target of an? (?:spell|spell or ability), (.+)", re.I))
+declare("targeted_by_opponent", re.compile(rf"When(?:ever)? {_SELF} becomes the target of a spell an opponent controls, (.+)", re.I))  # Tectonic Giant
 declare("valiant", re.compile(rf"Whenever {_SELF} becomes the target of a spell or ability you control for the first time each turn, (.+)",
                               re.I))  # Game._valiant
 declare("commit_crime", re.compile(r"Whenever you commit a crime, (.+)", re.I), to="you")  # Game._targets_chosen: an opponent, what they

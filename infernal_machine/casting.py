@@ -260,6 +260,8 @@ class Caster:
         for target in (t for chosen in item.targets for t in (chosen if isinstance(chosen, list) else [chosen])):
             if isinstance(target, g.Permanent) and self.game.on_battlefield(target):  # "Whenever this creature becomes the target of a spell"
                 self.game.trigger("targeted", target, self.game.controller(target))
+                if self.game.controller(target) is not item.controller:  # Tectonic Giant: "a spell an opponent controls"
+                    self.game.trigger("targeted_by_opponent", target, self.game.controller(target))
         self.game._targets_chosen(item)
         self.game._check_ward(item)
 
@@ -680,6 +682,8 @@ class Caster:
         modes) and escalate (each mode beyond the first) are offered if they can be paid for."""
         colors = source_qualities(card)
         available = [i for i, effects in enumerate(modal.modes) if self.game._targets_exist(seat, effects, colors, source)]
+        if modal.fresh and source is not None:  # "choose one that hasn't been chosen this turn"
+            available = [i for i in available if source.triggered_turn.get("mode: " + modal.texts[i]) != self.game.turn]
         if len(available) < (min(modal.min, 1) if modal.repeat else modal.min):
             return [], ""
         if modal.optional and seat.player.choose(g.OPTIONAL_PROMPT(card.name), g.YES_NO) != 0:
@@ -729,6 +733,8 @@ class Caster:
             if pick == len(remaining):
                 break
             chosen.append(remaining[pick])
+        if modal.fresh and source is not None:
+            source.triggered_turn.update({"mode: " + modal.texts[i]: self.game.turn for i in chosen})
         extra = escalate * (len(chosen) - 1) if escalate and len(chosen) > 1 else ""
         return [effect for i in sorted(chosen) for effect in modal.modes[i]], extra
 
