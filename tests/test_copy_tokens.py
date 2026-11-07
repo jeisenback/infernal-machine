@@ -535,3 +535,57 @@ class TokenCopyFamilyBatch3Tests(unittest.TestCase):
             a.battlefield = [octo, Permanent(GOAT, entered_turn=game.turn + entered)]
             fire(game, a, octo, "each_end_step")
             self.assertEqual(len(tokens(a, "Goat")), 2 if copied else 1, entered)
+
+
+MIMIC_VAT = real("Mimic Vat", "{3}", "Artifact",
+                 "Imprint — Whenever a nontoken creature dies, you may exile that card. If you do, return each other card exiled with this "
+                 "artifact to its owner's graveyard.\n{3}, {T}: Create a token that's a copy of a card exiled with this artifact. It gains "
+                 "haste. Exile it at the beginning of the next end step.")
+
+
+class MimicVatTests(unittest.TestCase):
+    """#656: imprint the card of a creature that died, give the one before back, and copy what is imprinted."""
+
+    def test_the_card_is_fully_playable(self):
+        self.assertEqual(unsupported_lines(MIMIC_VAT), [])
+
+    def test_it_keeps_only_the_latest_creature_and_copies_it_for_a_turn(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        vat, bear, ogre = Permanent(MIMIC_VAT), Permanent(BEAR), Permanent(OGRE)
+        a.battlefield, b.battlefield = [vat, *lands(3)], [bear, ogre]
+        game.destroy(bear)
+        run_stack(game)
+        self.assertEqual(([c.name for c in b.exile], b.graveyard), (["Bear"], []))
+        game.destroy(ogre)
+        run_stack(game)
+        self.assertEqual(([c.name for c in b.exile], [c.name for c in b.graveyard]), (["Ogre"], ["Bear"]))  # the Bear goes back
+        activate(game, a, "Create a token")
+        [token] = tokens(a, "Ogre")
+        self.assertTrue(game.has_keyword(token, "haste"))
+        end_step(game, a)
+        self.assertEqual((tokens(a), [c.name for c in b.exile]), ([], ["Ogre"]))  # the token is exiled; the card stays imprinted
+
+    def test_declined_the_card_stays_in_the_graveyard(self):
+        game, _ = table3(lambda prompt, options: 1 if options == ["Yes", "No"] else 0)
+        a, b, _ = game.seats
+        bear = Permanent(BEAR)
+        a.battlefield, b.battlefield = [Permanent(MIMIC_VAT), *lands(3)], [bear]
+        game.destroy(bear)
+        run_stack(game)
+        self.assertEqual(([c.name for c in b.graveyard], b.exile), (["Bear"], []))
+
+    def test_nothing_happens_to_a_card_that_already_left(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        vat, bear, ogre = Permanent(MIMIC_VAT), Permanent(BEAR), Permanent(OGRE)
+        a.battlefield, b.battlefield = [vat, *lands(3)], [bear, ogre]
+        game.destroy(ogre)
+        run_stack(game)
+        game.destroy(bear)
+        b.graveyard.clear()  # the Bear's card is gone before the trigger resolves
+        run_stack(game)
+        self.assertEqual([c.name for c in b.exile], ["Ogre"])  # the Ogre stays imprinted
+        b.exile.clear()  # and once the Ogre has left exile too, there is nothing to copy
+        activate(game, a, "Create a token")
+        self.assertEqual(tokens(a), [])
