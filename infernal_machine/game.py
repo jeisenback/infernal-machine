@@ -761,7 +761,7 @@ class Game:
         self.resolving_source: Permanent | None = None  # the source of the ability resolving right now
         self.resolving_item: StackItem | None = None  # what is resolving right now
         self.resolving_damaged: list[Permanent] = []  # the creatures the spell or ability resolving now has dealt damage to
-        self.resolving_heard: set[int] = set()  # the seats whose "one or more opponents are dealt noncombat damage" it already set off
+        self.resolving_heard: set = set()  # the seats (or ("lost_one", seat)) whose "one or more opponents ..." trigger it already set off
         self.resolving_target: Any = None  # the last target chosen for it, which "that creature" in a condition means
         self.resolving_colors: frozenset[str] = frozenset()  # its colors (for protection from damage)
         self.fog_turn: int | None = None  # the turn all combat damage is prevented (Fog)
@@ -981,6 +981,7 @@ class Game:
             self._add_delayed_mana(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("first_main", permanent, seat)
+                self.trigger("each_main", permanent, seat)
             for card in list(seat.paradigms):  # Paradigm: a copy from exile, without paying its mana cost
                 if any(c is card for c in seat.exile) and seat.player.choose(PARADIGM_PROMPT(card.name), YES_NO) == 0:
                     self.cast_copy_free(seat, card)
@@ -1012,6 +1013,7 @@ class Game:
             self._add_delayed_mana(seat)
             for permanent in list(seat.battlefield):
                 self.trigger("second_main", permanent, seat)
+                self.trigger("each_main", permanent, seat)
         elif self.step == "cleanup":
             everyone = any(players_have_no_max_hand(p.card) for s in self.seats for p in s.battlefield)  # Price of Knowledge
             limits = [p.counters.get(c, 0) for p in seat.battlefield if (c := hand_size_counter(p.card))]  # Midnight Oil
@@ -1443,6 +1445,16 @@ class Game:
                 self.resolving_heard.add(watcher.index)
             for permanent in list(watcher.battlefield):
                 self.trigger("opponents_noncombat_damage", permanent, watcher)
+
+    def _opponent_lost_one(self, victim: Seat) -> None:
+        """Ob Nixilis, Captive Kingpin: once for each spell or ability, however many opponents it made lose exactly 1 life."""
+        for watcher in self.opponents(victim):
+            if self.resolving_item is not None:
+                if ("lost_one", watcher.index) in self.resolving_heard:
+                    continue
+                self.resolving_heard.add(("lost_one", watcher.index))
+            for permanent in list(watcher.battlefield):
+                self.trigger("opponent_lost_one", permanent, watcher)
 
     def _your_turn_creature(self, permanent: Permanent) -> None:
         """Kaito, Bane of Nightmares: on its controller's turn it is a 3/4 Ninja creature with hexproof, a planeswalker still
@@ -2127,7 +2139,8 @@ class Game:
         seat.exile_play = [(c, until) for c, until in seat.exile_play if c != card] + \
                           [(c, until) for c, until in seat.exile_play if c == card][1:]
 
-    def exile_top(self, seat: Seat, count: int, play: str | None, choose_one: bool = False, spells_only: bool = False) -> list[Card]:
+    def exile_top(self, seat: Seat, count: int, play: str | None, choose_one: bool = False, spells_only: bool = False,
+                  only: str = "") -> list[Card]:
         """Exile the top `count` cards of the library; `play` is None, "this turn", "next turn" (until the end of
         their controller's next turn) or "next end step": the cards may then be played from exile until that turn ends
         (the end step itself is counted in: the permission is kept to the turn). With `choose_one`, only the card the
@@ -2144,7 +2157,8 @@ class Game:
             chosen = exiled[seat.player.choose(CHOOSE_EXILED_PROMPT, [c.name for c in exiled])]
         for card in exiled:
             self._move_card(seat, card, "exile")
-            if until is not None and card in seat.exile and (chosen is None or card is chosen) and not (spells_only and is_land(card)):
+            if until is not None and card in seat.exile and (chosen is None or card is chosen) and not (spells_only and is_land(card)) \
+                    and (not only or _card_matches(only, card)):  # Rundvelt Hordemaster: only a Goblin creature card
                 seat.exile_play.append((card, until))
         if exiled:
             self._exiled_from_library_or_graveyard(seat)
@@ -3709,6 +3723,8 @@ class Game:
                         amount *= replacement_effects(p.card).opponent_loss_factor
         seat.life += amount
         self.broadcast({"event": "life", "seat": seat.index, "change": amount, "life": seat.life})
+        if amount == -1:  # Ob Nixilis, Captive Kingpin: "Whenever one or more opponents each lose exactly 1 life"
+            self._opponent_lost_one(seat)
         if amount:  # "Whenever you gain life" / "Whenever you lose life": once per event, not per point
             first_loss = amount < 0 and seat.life_lost_turn != self.turn
             first_gain = amount > 0 and seat.life_gained_turn != self.turn

@@ -674,6 +674,17 @@ class FightSourceFirst:
 
 
 @dataclass(frozen=True)
+class FightSubjectFirst:
+    """Frontier Siege: "Whenever a creature you control with flying enters, you may have it fight target creature you don't control.":
+    the creature that set the trigger off is the one that fights."""
+    binds = SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if game.resolving_item is not None:
+            game.resolving_item.carried = target
+
+
+@dataclass(frozen=True)
 class Fight:
     """The second target of a fight. Each deals damage equal to its power to the other; with `one_sided` only the
     first does ("Target creature you control deals damage equal to its power to target creature you don't control")."""

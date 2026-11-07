@@ -1,5 +1,5 @@
 """Fate Reforged's Sieges (#658): "As this enchantment enters, choose Khans or Dragons." and the permanent has only the chosen ability
-(Outpost Siege, Palace Siege, Citadel Siege). It leaves the battlefield as the printed card."""
+(Outpost Siege, Palace Siege, Citadel Siege, Frontier Siege). It leaves the battlefield as the printed card."""
 
 import unittest
 
@@ -18,6 +18,11 @@ CITADEL = real("Citadel Siege", "{2}{W}{W}", "Enchantment",
                "As this enchantment enters, choose Khans or Dragons.\n• Khans — At the beginning of combat on your turn, put two +1/+1 counters "
                "on target creature you control.\n• Dragons — At the beginning of combat on each opponent's turn, tap target creature that player "
                "controls.", colors=("W",))
+FRONTIER = real("Frontier Siege", "{3}{G}", "Enchantment",
+                "As this enchantment enters, choose Khans or Dragons.\n• Khans — At the beginning of each of your main phases, add {G}{G}.\n"
+                "• Dragons — Whenever a creature you control with flying enters, you may have it fight target creature you don't control.",
+                colors=("G",))
+FLYER = real("Wind Drake", "{2}{U}", "Creature — Drake", "Flying", "2", "2", colors=("U",))
 TOP = real("Top Card", "{1}", "Sorcery", "")
 
 
@@ -102,6 +107,33 @@ class CitadelSiegeTests(unittest.TestCase):
         game._turn_based_actions(mine)
         run_stack(game)
         self.assertFalse(bear.tapped)
+
+
+class FrontierSiegeTests(unittest.TestCase):
+    def test_khans_adds_gg_in_each_main_phase(self):
+        game, mine, theirs, frontier = siege(FRONTIER, "Khans")
+        for step in ("main1", "main2"):
+            game.step = step
+            mine.mana_pool = []
+            game._turn_based_actions(mine)
+            run_stack(game)
+            self.assertEqual(mine.mana_pool, [frozenset("G")] * 2, step)
+
+    def test_dragons_has_a_flyer_that_enters_fight(self):
+        game, mine, theirs, frontier = siege(FRONTIER, "Dragons", "Yes", "Bear")
+        bear = Permanent(BEAR, sick=False)
+        theirs.battlefield = [bear]
+        drake = enter(game, mine, FLYER)
+        run_stack(game)
+        self.assertEqual((bear.damage, drake.damage), (2, 2))  # the drake and the bear deal 2 to each other
+
+    def test_dragons_ignores_a_creature_without_flying(self):
+        game, mine, theirs, frontier = siege(FRONTIER, "Dragons", "Yes", "Bear")
+        bear = Permanent(BEAR, sick=False)
+        theirs.battlefield = [bear]
+        enter(game, mine, OGRE)
+        run_stack(game)
+        self.assertEqual(bear.damage, 0)
 
 
 if __name__ == "__main__":

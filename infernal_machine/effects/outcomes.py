@@ -80,6 +80,7 @@ from .families.combat_and_pump import (  # noqa: F401
     Fight,
     FightFirst,
     FightSourceFirst,
+    FightSubjectFirst,
     GainsAbility,
     Goad,
     GoadAll,
@@ -1784,6 +1785,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"exile the top card of each opponent's library\. You may play those cards for as long as they remain exiled\. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfEachOpponentMayCast(forever=True)),  # Brainstealer Dragon
     (re.compile(r"exile the top card of that player's library\. You may play that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast it\.", re.I), lambda m: ExileTopOfThatPlayerMayCast(forever=True)),  # Cunning Rhetoric
     (re.compile(r"they lose life equal to its mana value\.", re.I), lambda m: OwnerLosesManaValue()),  # Brainstealer Dragon
+    (re.compile(r"exile the top card of your library\. If it's an? (\w+ creature) card, you may cast that card until the end of your next turn\.", re.I),
+     lambda m: ExileTop(1, "next turn", spells_only=True, only=m[1].lower())),  # Rundvelt Hordemaster
     (re.compile(r"pay X life, where X is the number of opponents that were dealt combat damage this turn\. If you do, draw X cards\.", re.I),
      lambda m: PayLifeDrawPerOpponentHit()),  # Tymna the Weaver
 

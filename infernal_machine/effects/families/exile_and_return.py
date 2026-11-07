@@ -86,9 +86,10 @@ class ExileTop:
     free_from_graveyard: bool = False  # Ignite the Future: played without paying their mana costs if this spell was cast from a graveyard
     if_exiled: tuple = ()  # Bonehoard Dracosaur: ("land" | "nonland", effect): "If you exiled a land card this way, create ..."
     spells_only: bool = False  # Apex of Power: "you may cast spells from among them": a land among them can't be played
+    only: str = ""  # Rundvelt Hordemaster: "If it's a Goblin creature card, you may cast that card ...": the kind it must be
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        exiled = game.exile_top(controller, game.amount(self.count), self.play, self.choose_one, self.spells_only)
+        exiled = game.exile_top(controller, game.amount(self.count), self.play, self.choose_one, self.spells_only, self.only)
         for kind, effect in self.if_exiled:
             if any(is_land(card) == (kind == "land") for card in exiled):
                 effect.resolve(game, controller, None)
