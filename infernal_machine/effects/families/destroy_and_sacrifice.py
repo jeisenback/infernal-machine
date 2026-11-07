@@ -193,6 +193,19 @@ class SacrificeSelf:
 
 
 @dataclass(frozen=True)
+class Vanish:
+    """Vanishing (CR 702.63a): "At the beginning of your upkeep, if this permanent has a time counter on it, remove a time counter from it.
+    When the last is removed, sacrifice it." """
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target.counters.get("time", 0) > 0:
+            game.remove_counters(target, "time", 1)
+            if not target.counters.get("time", 0):
+                game._leave_battlefield(target, "sacrificed")
+
+
+@dataclass(frozen=True)
 class ReturnSelfAtNextEndStep:
     """Sakashima the Impostor's copy: "{2}{U}{U}: Return CARDNAME to its owner's hand at the beginning of the next end step." """
     binds = SOURCE

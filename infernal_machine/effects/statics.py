@@ -43,7 +43,7 @@ from .common import (
 )
 from .outcomes import Amount, Condition, CopyChanges, EntersTapped, _copy_changes, _CLASS_LEVEL_LINE, _ENCHANT, _amount, _condition
 from .activated import ActivatedAbility, _ACTIVATED, _cost_fields, _parse_activated
-from .triggers import _ABILITY_WORD, TriggeredAbility, triggered_abilities
+from .triggers import _ABILITY_WORD, VANISHING, TriggeredAbility, triggered_abilities
 from .mana import _ADD_ANY, _ADD_EITHER, _ADD_SYMBOLS, _mana_from_line, is_mana_ability
 
 
@@ -103,6 +103,8 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, blo
             add(name, kicked)
         elif delved_spells and _ENTERS_PER_DELVED.fullmatch(line):  # Murktide Regent
             add("+1/+1", delved_spells)
+        elif v := VANISHING.fullmatch(line):  # CR 702.63a: "This permanent enters with N time counters on it."
+            add("time", int(v[1]))
     return counters
 
 
@@ -276,6 +278,8 @@ _RULES_STATICS = [
      "lock"),  # Stony Silence; Clarion Conqueror: the types, as "lock:Artifact,Creature,Planeswalker"
     (re.compile(r"Activated abilities of artifacts your opponents control can't be activated\.", re.I), "lock_opp:Artifact"),  # Karn, the Great Creator
     (re.compile(r"Each opponent can't draw more than one card each turn\.", re.I), "draw_limit:opponents"),  # Narset, Parter of Veils
+    (re.compile(r"The \"legend rule\" doesn't apply to permanents you control\.", re.I), "no_legend_rule"),  # Sakashima of a Thousand Faces:
+    # holds as it is, since the engine applies no legend rule (CR 704.5j) to anyone
     (re.compile(r"Each player can't draw more than one card each turn\.", re.I), "draw_limit:each"),
     (re.compile(r"Creature spells you control can't be countered\.", re.I), "uncounterable:creature"),
     (re.compile(r"Spells you control can't be countered\.", re.I), "uncounterable:spell"),

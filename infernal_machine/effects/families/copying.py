@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import re
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
@@ -52,6 +53,9 @@ class CopyChanges:
     set_subtypes: tuple[str, ...] | None = None  # ... and that creature type and no other
     name: str | None = None  # Sakashima, Superior Spider-Man: "except its name is CARDNAME" (the copy keeps the clone's own name)
     keeps_ability: bool = False  # Thespian's Stage, Sunfrill Imitator: "except it has this ability" (the effect adds the ability's text)
+    vanishing_unless: int = 0  # Flesh Duplicate: "it has vanishing 3 if that creature doesn't have vanishing"
+    vehicle_crew: int = 0  # Imposter Mech: "it's a Vehicle artifact with crew 3 and it loses all other card types"
+    own_abilities: bool = False  # Sakashima of a Thousand Faces: "it has CARDNAME's other abilities" (the clone adds its own lines)
 
 
 def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
@@ -75,7 +79,12 @@ def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
         if word not in type_line.partition("\u2014")[0].split():
             prefix = "Token " if type_line.startswith("Token ") else ""
             type_line = f"{prefix}{word} {type_line.removeprefix(prefix)}"
+    if changes.vehicle_crew:  # its supertypes stay; its other card types and their subtypes go (CR 205.1b)
+        supertypes = [w for w in type_line.partition("\u2014")[0].split() if w in ("Token", "Legendary", "Snow")]
+        type_line = " ".join(supertypes + ["Artifact", "\u2014", "Vehicle"])
     card = dataclasses.replace(card, type_line=type_line)
+    if changes.vehicle_crew:
+        card = dataclasses.replace(card, oracle_text="\n".join([card.oracle_text, f"Crew {changes.vehicle_crew}"]).strip())
     if changes.set_colors is not None:
         card = dataclasses.replace(card, colors=tuple(sorted(changes.set_colors)))
     if changes.add_colors:
@@ -85,6 +94,8 @@ def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
     if changes.name is not None and changes.name != "CARDNAME":  # ("CARDNAME" is filled in by the clone, which knows its own name)
         card = dataclasses.replace(card, name=changes.name)
     extra = [k.capitalize() for k in changes.keywords] + [f'{a}' for a in changes.abilities]
+    if changes.vanishing_unless and not re.search(r"^Vanishing \d+", card.oracle_text, re.M):
+        extra.append(f"Vanishing {changes.vanishing_unless}")
     if extra:
         card = dataclasses.replace(card, oracle_text="\n".join([card.oracle_text, *extra]).strip())
     return card
