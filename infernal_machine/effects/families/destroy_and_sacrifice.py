@@ -193,6 +193,16 @@ class SacrificeSelf:
 
 
 @dataclass(frozen=True)
+class ReturnSelfAtNextEndStep:
+    """Sakashima the Impostor's copy: "{2}{U}{U}: Return CARDNAME to its owner's hand at the beginning of the next end step." """
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.leave_at_next_end_step([target], "returned", "hand")
+
+
+@dataclass(frozen=True)
 class ExileSelf:
     """Heat Shimmer's token: "At the beginning of the end step, exile this token." """
     binds = SOURCE

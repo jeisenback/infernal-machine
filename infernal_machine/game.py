@@ -6557,6 +6557,31 @@ class Game:
             if attack is not None:
                 self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
 
+    def become_copy(self, permanent: Permanent, card: Card, changes: CopyChanges, until_end_of_turn: bool) -> None:
+        """`permanent` becomes a copy of `card` with the changes of an except clause (CR 707.2, 707.9): until end of turn (its card comes
+        back at cleanup, like Muddle's) or for good (`become_card`: what leaves the battlefield is still its own card). "Its name is CARDNAME"
+        keeps its own name."""
+        own = permanent.original or permanent.real_card or permanent.card
+        if changes.name == "CARDNAME":
+            changes = dataclasses.replace(changes, name=own.name)
+        copy = copy_of(card, changes, as_token=_is_token(own))
+        if not until_end_of_turn:
+            self.become_card(permanent, copy)
+            return
+        permanent.original = permanent.original or permanent.card
+        permanent.card = copy
+        self.broadcast({"event": "copied_permanent", "seat": self.controller(permanent).index, "card": own.name, "as": card.name})
+
+    def saw_in_half(self, creature: Permanent) -> None:
+        """Saw in Half: destroy `creature`; if it dies this way, its controller creates two tokens that are copies of it, except their
+        power and toughness are half its own, rounded up (as it last existed on the battlefield)."""
+        controller = self.controller(creature)
+        power, toughness = self.power(creature) or 0, self.toughness(creature) or 0
+        self.destroy(creature)
+        if not self.on_battlefield(creature):
+            half = CopyChanges(power_toughness=(str(-(-power // 2)), str(-(-toughness // 2))))
+            self.create_tokens(controller, copy_of(creature.card, half, as_token=True), 2)
+
     def flip_until_lose(self, seat: Seat) -> int:
         """"Flip a coin until you lose a flip.": how many flips `seat` won, kept for "for each flip you won" (`flips_won`)."""
         self.flips_won = 0

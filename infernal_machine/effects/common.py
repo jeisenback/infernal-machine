@@ -234,6 +234,8 @@ _WHOLE_LINE = re.compile(
     r"|create a token that's a copy of another target attacking creature and that's tapped and attacking\. Exile the token at end of "
     r"combat\."  # Flamerush Rider
     r"|[Rr]oll a d20\. \d+(?:\u2014\d+)? \| .+"  # a die roll and its table (CR 706.2)
+    r"|Destroy target creature\. If that creature dies this way, its controller creates two tokens that are copies of that creature, "
+    r"except their power is half that creature's power and their toughness is half that creature's toughness\. Round up each time\."
     r"|Exile target nonland permanent\. Each player other than its controller creates a token that's a copy of it\."  # Fractured Identity
     r"|exile (?:that card|it)\. If you do, return each other card exiled with this artifact to its owner's graveyard\."  # Mimic Vat
     r"|Look at the top \w+ cards of your library\. You may cast a spell from among them without paying its mana cost\. Put the rest on the "
