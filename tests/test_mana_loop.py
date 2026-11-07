@@ -99,12 +99,55 @@ class BotLoopTests(unittest.TestCase):
         self.assertTrue(any(a.startswith("Cast: Walking Ballista") for a in done))
         self.assertTrue(foe.lost)
 
+    def test_a_tapped_basalt_is_untapped_with_lands_first(self):  # it doesn't untap in its controller's untap step
+        ballista = Permanent(BALLISTA, sick=False)
+        ballista.counters["+1/+1"] = 1
+        game, bot, me, foe = bot_game(battlefield=[Permanent(BASALT, tapped=True), Permanent(KINNAN, sick=False), ballista,
+                                                   *(Permanent(FOREST) for _ in range(3))])
+        play_priority(game, bot, me)
+        self.assertTrue(foe.lost)
+
+    def test_not_on_another_players_turn(self):
+        ballista = Permanent(BALLISTA, sick=False)
+        ballista.counters["+1/+1"] = 1
+        game, bot, me, foe = bot_game(battlefield=[Permanent(BASALT), Permanent(KINNAN, sick=False), ballista])
+        game.active = 1
+        self.assertEqual(loops(play_priority(game, bot, me)), 0)
+
+    def test_not_outside_a_main_phase(self):
+        ballista = Permanent(BALLISTA, sick=False)
+        ballista.counters["+1/+1"] = 1
+        game, bot, me, foe = bot_game(battlefield=[Permanent(BASALT), Permanent(KINNAN, sick=False), ballista])
+        game.step = "upkeep"
+        self.assertEqual(loops(play_priority(game, bot, me)), 0)
+
     def test_thrasios_digs_for_the_ballista(self):
         library = [FILLER, FILLER, BALLISTA] + [FOREST] * 10
         game, bot, me, foe = bot_game(battlefield=[Permanent(BASALT), Permanent(KINNAN, sick=False), Permanent(THRASIOS, sick=False)],
                                       library=library)
         play_priority(game, bot, me)
         self.assertTrue(foe.lost)
+
+    def test_thrasios_stops_digging_when_a_dig_takes_nothing(self):  # Narset, Parter of Veils: no second draw a turn
+        narset = real("Narset, Parter of Veils", "{1}{U}{U}", "Legendary Planeswalker — Narset",
+                      "Each opponent can't draw more than one card each turn.\n−2: Look at the top four cards of your library. You may reveal "
+                      "a noncreature, nonland card from among them and put it into your hand. Put the rest on the bottom of your library in "
+                      "a random order.")
+        game, bot, me, foe = bot_game(battlefield=[Permanent(BASALT), Permanent(KINNAN, sick=False), Permanent(THRASIOS, sick=False)],
+                                      library=[FILLER] * 20)
+        narset_permanent = Permanent(narset)
+        narset_permanent.loyalty = 5
+        foe.battlefield = [narset_permanent]
+        done = play_priority(game, bot, me)
+        self.assertLessEqual(sum("Thrasios" in a for a in done), 2)  # one draw, then a dig that takes nothing, then it stops
+
+    def test_a_pump_that_adds_no_counter_stops_the_loop(self):
+        ballista = Permanent(BALLISTA, sick=False)
+        ballista.counters["+1/+1"] = 1
+        game, bot, me, foe = bot_game(battlefield=[Permanent(BASALT), Permanent(KINNAN, sick=False), ballista])
+        game.put_counters = lambda *args, **kwargs: None  # (a stand-in for an effect that stops counters)
+        done = play_priority(game, bot, me)
+        self.assertLessEqual(sum("Put a +1/+1 counter" in a for a in done), 2)
 
     def test_thrasios_stops_before_the_library_runs_out(self):
         game, bot, me, foe = bot_game(battlefield=[Permanent(BASALT), Permanent(KINNAN, sick=False), Permanent(THRASIOS, sick=False)],
@@ -162,7 +205,7 @@ class BotLoopTests(unittest.TestCase):
         options = ["Activate: Basalt Monolith (seat 0, #1): {3}: Untap this artifact.", "Cast: Walking Ballista", PASS]
 
         def state(pool):
-            b.notify({"event": "state", "turn": 3, "hand": ["Walking Ballista"], "seats": [
+            b.notify({"event": "state", "turn": 3, "active": 0, "step": "main1", "hand": ["Walking Ballista"], "seats": [
                 {"seat": 0, "lost": False, "life": 40, "library": 30, "mana_pool": ["C"] * pool,
                  "battlefield": [{"name": "Basalt Monolith", "type": "Artifact"}, {"name": "Kinnan, Bonder Prodigy", "type": "Creature"}]},
                 {"seat": 1, "lost": False, "life": 40, "battlefield": []}]})
@@ -170,6 +213,16 @@ class BotLoopTests(unittest.TestCase):
         self.assertEqual(b.choose(PRIORITY_PROMPT, options), 0)
         state(0)  # (Kinnan's mana did not come)
         self.assertEqual(b.choose(PRIORITY_PROMPT, options), 1)  # no more untaps this turn: it just casts the Ballista for what it has
+
+    def test_with_the_mana_and_no_sink_on_offer_it_untaps_no_more(self):
+        b = BotPlayer("Bot", Deck([COMMANDER], [FOREST], []))
+        b.notify({"event": "seat", "seat": 0, "name": "Bot", "life": 40})
+        b.notify({"event": "state", "turn": 3, "active": 0, "step": "main1", "hand": ["Walking Ballista"], "seats": [
+            {"seat": 0, "lost": False, "life": 40, "library": 30, "mana_pool": ["C"] * 90,
+             "battlefield": [{"name": "Basalt Monolith", "type": "Artifact"}, {"name": "Kinnan, Bonder Prodigy", "type": "Creature"}]},
+            {"seat": 1, "lost": False, "life": 40, "battlefield": []}]})
+        options = ["Activate: Basalt Monolith (seat 0, #1): {3}: Untap this artifact.", PASS]  # (no "Cast: Walking Ballista")
+        self.assertEqual(options[b.choose(PRIORITY_PROMPT, options)], PASS)
 
 
 if __name__ == "__main__":

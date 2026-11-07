@@ -133,6 +133,7 @@ class BotPlayer:
         self._joint_turn: int | None = None
         self._loop_pool: int | None = None  # the pool when it last untapped Basalt Monolith in the loop: the next look must find more
         self._loop_stopped: int | None = None  # the turn a loop made nothing: not tried again that turn
+        self._spent: tuple | None = None  # (turn, sink, its counters or the library) at the loop's last spend: the next must find it changed
 
     def _card(self, name: str) -> Card:
         """The card called `name`. One from another deck (Plargg and Nassari casts opponents' cards) is known by name only."""
@@ -470,26 +471,34 @@ class BotPlayer:
             self._loop_pool = None
             return _activation(options, BALLISTA, "Remove a +1/+1 counter")
         untap = _activation(options, BASALT, "Untap this")
-        if KINNAN not in board or untap is None:
+        own_main = (self._state or {}).get("active") == self._seat and (self._state or {}).get("step") in ("main1", "main2")
+        if KINNAN not in board or untap is None or not own_main:  # (a Ballista can only be cast then, and the pool empties each step)
             return None
         pool = len(mine.get("mana_pool", []))
         if self._loop_pool is not None and pool <= self._loop_pool:  # the untap made nothing: the loop is broken
             self._loop_pool, self._loop_stopped = None, turn
             return None
         hand = (self._state or {}).get("hand", [])
-        spend, need = None, 0
+        spend, need, measure = None, 0, None
         if BALLISTA in board:
             spend, need = _activation(options, BALLISTA, "Put a +1/+1 counter"), 4
+            measure = (BALLISTA, board[BALLISTA].get("counters", {}).get("+1/+1", 0))
         elif BALLISTA in hand:
             spend, need = next((i for i, o in enumerate(options) if o.startswith(CAST) and _cast_name(o) == BALLISTA), None), 2 * goal
         elif THRASIOS in board and mine.get("library", 0) > LOOP_LIBRARY:
-            spend, need = _activation(options, THRASIOS, "Scry 1"), 4
+            spend, need, measure = _activation(options, THRASIOS, "Scry 1"), 4, (THRASIOS, mine["library"])
+        if measure is not None and self._spent == (turn, *measure):  # the last spend changed nothing (Narset stops a second draw)
+            self._loop_stopped = turn
+            return None
         if need == 0:
             return None
-        if pool >= need and spend is not None:
+        if pool >= need:  # spend it; with the sink not on offer (a Ballista at instant speed) no more untaps either
             self._loop_pool = None
+            if spend is not None and measure is not None:
+                self._spent = (turn, *measure)
             return spend
-        self._loop_pool = pool
+        # A tapped Basalt (it doesn't untap in the untap step) is untapped with other mana first: that round makes nothing by design.
+        self._loop_pool = None if board[BASALT].get("tapped") else pool
         return untap
 
     def _looping_kill(self) -> bool:
