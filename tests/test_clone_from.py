@@ -38,10 +38,9 @@ SPARK_DOUBLE = real("Spark Double", "{3}{U}", "Creature — Illusion",
 ECHOING_DEEPS = real("Echoing Deeps", "", "Land — Cave",
                      "You may have Echoing Deeps enter tapped as a copy of any land card in a graveyard, except it's a Cave in addition to its "
                      "other types.\n{T}: Add {C}.")
-SAKASHIMA = real("Sakashima the Impostor", "{2}{U}{U}", "Legendary Creature — Human Rogue",
-                 "You may have Sakashima the Impostor enter as a copy of any creature on the battlefield, except its name is Sakashima the "
-                 "Impostor, it's legendary in addition to its other types, and it has \"{2}{U}{U}: Return this creature to its owner's hand "
-                 "at the beginning of the next end step.\"", "3", "1")
+ESTRIDS_INVOCATION = real("Estrid's Invocation", "{2}{U}", "Enchantment",
+                          "You may have this enchantment enter as a copy of an enchantment you control, except it has \"At the beginning of "
+                          "your upkeep, you may exile this enchantment. If you do, return it to the battlefield under its owner's control.\"")
 HERO = real("Test Hero", "{1}{W}", "Legendary Creature — Human Knight", "Vigilance", "2", "2")
 BIG = real("Big Thing", "{3}{G}", "Creature — Beast", "", "4", "4")
 CAVE = real("Test Cave", "", "Land", "{T}: Add {G}.")
@@ -98,7 +97,7 @@ class ParseTests(unittest.TestCase):
             self.assertEqual(unsupported_lines(card), [], card.name)
 
     def test_a_granted_ability_the_engine_does_not_understand_leaves_the_line_unsupported(self):
-        self.assertEqual(len(unsupported_lines(SAKASHIMA)), 1)
+        self.assertEqual(len(unsupported_lines(ESTRIDS_INVOCATION)), 1)
 
 
 class WhereToCopyFromTests(unittest.TestCase):

@@ -1284,6 +1284,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "Exile target nonland permanent. Each player other than its controller creates a token that's a copy of it." (`ExileOthersCopy`);
     Bramble Sovereign's "that creature's controller creates a token that's a copy of that creature" (`CopySubjectForItsController`); and
     Octomancer's "target creature token that entered the battlefield this turn" (a filter state, "entered this turn").
+  - Copies with changes, batch 1 (`tests/test_copy_changes.py`, #657): Saw in Half (`Game.saw_in_half`: two copies at half power and
+    toughness, rounded up, for the dead creature's controller); "becomes a copy of" with an except clause (`Game.become_copy`): until end of
+    turn for Sarkhan, Soul Aflame (of the Dragon that entered), for good for Thespian's Stage, Sunfrill Imitator and Irma, Part-Time Mutant
+    (of a target; what leaves the battlefield is still its own card), where "except it has this ability" keeps the ability's own text
+    (`CopyChanges.keeps_ability`) and "its name is CARDNAME" its own name; and Sakashima the Impostor's "{2}{U}{U}: Return CARDNAME to its
+    owner's hand at the beginning of the next end step." (`ReturnSelfAtNextEndStep`).
   - Token copies, batch 4 (`tests/test_copy_tokens.py`, #656): Flamerush Rider's "create a token that's a copy of another target attacking
     creature and that's tapped and attacking. Exile the token at end of combat." (`Game.copy_attacking_creature`); Hashaton's "Whenever you
     discard a creature card" (event `discard_creature`) and "create a tapped token that's a copy of that card, except it's a 4/4 black

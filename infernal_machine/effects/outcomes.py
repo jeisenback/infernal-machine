@@ -171,6 +171,9 @@ from .families.copying import (  # noqa: F401
     CopyExiledWith,
     DelinaRoll,
     CopyAnotherAttacker,
+    SawInHalf,
+    BecomeCopyOfSubject,
+    BecomeCopyOfTarget,
     CopyDiscardedCard,
     ExileOthersCopy,
     CopySubjectForItsController,
@@ -240,6 +243,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     SacrificeCreature,
     SacrificeSelf,
     ExileSelf,
+    ReturnSelfAtNextEndStep,
     SacrificeSelfThenCreate,
     SacrificeUnlessPay,
     TargetSacrifices,
@@ -814,6 +818,9 @@ def _copy_changes(text: str) -> CopyChanges | None:
     for clause in _COPY_SPLIT.split(text):
         clause = clause.strip()
         was_keywords, after_keywords = after_keywords, False
+        if re.fullmatch(r"(?:it|she|he) has this ability", clause, re.I):  # Thespian's Stage, Irma
+            fields["keeps_ability"] = True
+            continue
         if not clause or re.fullmatch(r"if it's a creature", clause, re.I):  # Moritte: "..., if it's a creature, it enters with ..." (counters only go on a creature anyway)
             continue
         if re.fullmatch(r"(?:it|the token)? ?(?:isn't|is not|'s not) legendary|it's not legendary", clause, re.I):
@@ -872,7 +879,8 @@ def _copy_changes(text: str) -> CopyChanges | None:
         not_legendary=fields.get("not_legendary", False), power_toughness=fields.get("power_toughness"),
         add_types=tuple(types), keywords=tuple(keywords), add_colors=tuple(colors), abilities=tuple(abilities),
         extra_counters=fields.get("extra_counters", ""), extra_loyalty=fields.get("extra_loyalty", 0), supertypes=tuple(supertypes),
-        set_colors=fields.get("set_colors"), set_subtypes=fields.get("set_subtypes"), name=fields.get("name"))
+        set_colors=fields.get("set_colors"), set_subtypes=fields.get("set_subtypes"), name=fields.get("name"),
+        keeps_ability=fields.get("keeps_ability", False))
 
 
 
@@ -1878,7 +1886,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'it gains haste and "When this token dies, draw a card\."', re.I), lambda m: _TokenGainsBlitz()),  # Jaxis  # Devastating Onslaught
     (re.compile(r"(?:it|that token|they|those tokens) gains? haste\.", re.I), lambda m: _TokenHasHaste()),
     (re.compile(r"sacrifice (?:it|this (?:creature|artifact|token))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."; Electroduplicate's token
-    (re.compile(r"exile this token\.", re.I), lambda m: ExileSelf()),  # Heat Shimmer's token: "At the beginning of the end step, exile this token."
+    (re.compile(r"exile this token\.", re.I), lambda m: ExileSelf()),
+    (re.compile(r"return (?:CARDNAME|this creature) to its owner's hand at the beginning of the next end step\.", re.I),  # Sakashima the Impostor
+     lambda m: ReturnSelfAtNextEndStep()),  # Heat Shimmer's token: "At the beginning of the end step, exile this token."
     (re.compile(r"mill a card, then exile a card from your graveyard at random\. you may play the exiled card this turn\.", re.I),
      lambda m: MillThenExileRandomPlay()),
     (re.compile(r"exile (?:that card|one of them) from your graveyard\.(?: if you do, you may (?:play|cast) (?:that card|it) this turn\.)?", re.I),
@@ -2002,6 +2012,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"(?:that creature|it), except it's not legendary and it has \"At end of combat, exile this token\.\" 15\u201420 \| Create one "
                 r"of those tokens\. You may roll again\.", re.I), lambda m: DelinaRoll()),  # Delina, Wild Mage
     (re.compile(r"roll a d20\. (\d+(?:\u2014\d+)? \| .+)", re.I), lambda m: _roll_table(20, m[1])),  # CR 706.2: Hoarding Ogre
+    (re.compile(rf"{_SELF} becomes? a copy of (?:it|that creature) until end of turn, except (.+)\.", re.I),  # Sarkhan, Soul Aflame
+     lambda m: BecomeCopyOfSubject(c) if (c := _copy_changes(m[1])) else None),
+    (re.compile(rf"{_SELF} becomes? a copy of (another |up to one other )?target ((?-i:[A-Z][a-z]+)|land|creature)( you control)?, except (.+)\.",
+                re.I), lambda m: BecomeCopyOfTarget(m[2].lower() + (m[3] or ""), c, another=bool(m[1]), optional_target="up to" in (m[1] or ""))
+     if (c := _copy_changes(m[4])) else None),  # Thespian's Stage, Sunfrill Imitator, Irma
+    (re.compile(r"destroy target creature\. If that creature dies this way, its controller creates two tokens that are copies of that "
+                r"creature, except their power is half that creature's power and their toughness is half that creature's toughness\. Round "
+                r"up each time\.", re.I), lambda m: SawInHalf()),
     (re.compile(r"create a token that's a copy of another target attacking creature and that's tapped and attacking\. Exile the token at "
                 r"end of combat\.", re.I), lambda m: CopyAnotherAttacker()),  # Flamerush Rider
     (re.compile(r"create a tapped token that's a copy of that card(?:, except (.+))?\.", re.I),  # Hashaton: the card discarded

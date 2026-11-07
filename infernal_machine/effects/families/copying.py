@@ -51,6 +51,7 @@ class CopyChanges:
     set_colors: tuple[str, ...] | None = None  # The Scarab God's "it's a 4/4 black Zombie": that color and no other
     set_subtypes: tuple[str, ...] | None = None  # ... and that creature type and no other
     name: str | None = None  # Sakashima, Superior Spider-Man: "except its name is CARDNAME" (the copy keeps the clone's own name)
+    keeps_ability: bool = False  # Thespian's Stage, Sunfrill Imitator: "except it has this ability" (the effect adds the ability's text)
 
 
 def apply_copy_changes(card: Card, changes: CopyChanges | None) -> Card:
@@ -309,6 +310,53 @@ class CopyDiscardedCard:
         if isinstance(card, Card):
             for made in game.create_tokens(controller, copy_of(card, self.changes, as_token=True), 1):
                 made.tapped = True
+
+
+def _keeping_this_ability(game: Game, changes: CopyChanges) -> CopyChanges:
+    """ "except it has this ability": the text of the ability resolving, added to the copy."""
+    if not changes.keeps_ability or game.resolving_item is None or game.resolving_item.ability is None:
+        return changes
+    return dataclasses.replace(changes, abilities=changes.abilities + (game.resolving_item.ability.text,), keeps_ability=False)
+
+
+@dataclass(frozen=True)
+class BecomeCopyOfSubject:
+    """Sarkhan, Soul Aflame: "Whenever a Dragon you control enters, you may have CARDNAME become a copy of it until end of turn, except its
+    name is CARDNAME and it's legendary in addition to its other types." (`Game.become_copy`)"""
+    changes: CopyChanges
+    until_end_of_turn: bool = True
+    binds = SOURCE_AND_SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and target[1] is not None and game.on_battlefield(target[0]):
+            game.become_copy(target[0], target[1].card, _keeping_this_ability(game, self.changes), self.until_end_of_turn)
+
+
+@dataclass(frozen=True)
+class BecomeCopyOfTarget:
+    """Thespian's Stage: "This land becomes a copy of target land, except it has this ability." Sunfrill Imitator: "... become a copy of
+    another target Dinosaur you control, except its name is CARDNAME and it has this ability." (a lasting copy; `Game.become_copy`)"""
+    target: str
+    changes: CopyChanges
+    another: bool = False
+    optional_target: bool = False
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        source = game.resolving_source
+        if target is not None and source is not None and game.on_battlefield(source):
+            game.become_copy(source, target.card, _keeping_this_ability(game, self.changes), False)
+
+
+@dataclass(frozen=True)
+class SawInHalf:
+    """Saw in Half: "Destroy target creature. If that creature dies this way, its controller creates two tokens that are copies of that
+    creature, except their power is half that creature's power and their toughness is half that creature's toughness. Round up each
+    time." (`Game.saw_in_half`)"""
+    target: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.saw_in_half(target)
 
 
 @dataclass(frozen=True)
