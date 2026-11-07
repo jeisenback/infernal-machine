@@ -304,3 +304,15 @@ class CourtExileTopPlay:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.court_of_locthwain(controller, target, game.resolving_source)
+
+
+@dataclass(frozen=True)
+class ExileUntilNonlandCast:
+    """Plargg and Nassari: "Each player exiles cards from the top of their library until they exile a nonland card. An
+    opponent chooses a nonland card exiled this way. You may cast up to two spells from among the other cards exiled this way
+    without paying their mana costs." Etali, Primal Conqueror: nobody sets one aside, and any number may be cast (`casts` None)."""
+    casts: int | None
+    set_aside: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.exile_until_nonland_and_cast(controller, self.casts, self.set_aside)

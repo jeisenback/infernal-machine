@@ -6,6 +6,7 @@ import dataclasses
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
+from ...analysis import is_land
 from ...cards import Card
 from ..common import Quantity, colors_spent
 from ..targets import (DEAD_SOURCE, DEAD_SUBJECT, MassFilter, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, binding, target_kind)
@@ -83,9 +84,14 @@ class ExileTop:
     choose_one: bool = False
     leftovers_token: Card | None = None  # Glimpse the Impossible: the cards still exiled at the next end step go to the graveyard, a token each
     free_from_graveyard: bool = False  # Ignite the Future: played without paying their mana costs if this spell was cast from a graveyard
+    if_exiled: tuple = ()  # Bonehoard Dracosaur: ("land" | "nonland", effect): "If you exiled a land card this way, create ..."
+    spells_only: bool = False  # Apex of Power: "you may cast spells from among them": a land among them can't be played
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        exiled = game.exile_top(controller, game.amount(self.count), self.play, self.choose_one)
+        exiled = game.exile_top(controller, game.amount(self.count), self.play, self.choose_one, self.spells_only)
+        for kind, effect in self.if_exiled:
+            if any(is_land(card) == (kind == "land") for card in exiled):
+                effect.resolve(game, controller, None)
         if self.free_from_graveyard and game.resolving_item is not None and game.resolving_item.from_graveyard:
             controller.exile_free.extend(exiled)
         if self.leftovers_token is not None:
@@ -114,6 +120,7 @@ class _ChooseOneOfThem:
 class PlayExiled:
     """ "You may play it this turn." Only ever the end of an ExileTop (see _merge_exile)."""
     until: str
+    spells_only: bool = False  # Apex of Power: "you may cast spells from among them" (not play a land)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         raise NotImplementedError("a lone permission to play exiled cards is never built")
@@ -909,18 +916,6 @@ class ExileTopCastAura:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.exile_top_cast_aura(controller, self.count)
-
-
-@dataclass(frozen=True)
-class ExileUntilNonlandCast:
-    """Plargg and Nassari: "Each player exiles cards from the top of their library until they exile a nonland card. An
-    opponent chooses a nonland card exiled this way. You may cast up to two spells from among the other cards exiled this way
-    without paying their mana costs." Etali, Primal Conqueror: nobody sets one aside, and any number may be cast (`casts` None)."""
-    casts: int | None
-    set_aside: bool = True
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.exile_until_nonland_and_cast(controller, self.casts, self.set_aside)
 
 
 @dataclass(frozen=True)

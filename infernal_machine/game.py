@@ -2122,7 +2122,7 @@ class Game:
         seat.exile_play = [(c, until) for c, until in seat.exile_play if c != card] + \
                           [(c, until) for c, until in seat.exile_play if c == card][1:]
 
-    def exile_top(self, seat: Seat, count: int, play: str | None, choose_one: bool = False) -> list[Card]:
+    def exile_top(self, seat: Seat, count: int, play: str | None, choose_one: bool = False, spells_only: bool = False) -> list[Card]:
         """Exile the top `count` cards of the library; `play` is None, "this turn", "next turn" (until the end of
         their controller's next turn) or "next end step": the cards may then be played from exile until that turn ends
         (the end step itself is counted in: the permission is kept to the turn). With `choose_one`, only the card the
@@ -2139,7 +2139,7 @@ class Game:
             chosen = exiled[seat.player.choose(CHOOSE_EXILED_PROMPT, [c.name for c in exiled])]
         for card in exiled:
             self._move_card(seat, card, "exile")
-            if until is not None and card in seat.exile and (chosen is None or card is chosen):
+            if until is not None and card in seat.exile and (chosen is None or card is chosen) and not (spells_only and is_land(card)):
                 seat.exile_play.append((card, until))
         if exiled:
             self._exiled_from_library_or_graveyard(seat)
@@ -3051,6 +3051,8 @@ class Game:
             return all(s.life <= condition.count for s in self.live_seats())
         if kind == "source_equipped":
             return source is not None and any(a.attached_to is source and "Equipment" in a.card.type_line for s in self.seats for a in s.battlefield)
+        if kind == "cast_from_hand":  # Apex of Power: "If this spell was cast from your hand"
+            return self.resolving_item is not None and self.resolving_item.from_hand
         if kind == "foretold":  # the spell resolving was cast from exile for its foretell cost
             return self.resolving_item is not None and self.resolving_item.foretold
         if kind == "no_mana_spent":  # Vexing Bauble: the spell that set the trigger off was cast without spending mana
