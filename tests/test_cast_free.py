@@ -19,9 +19,11 @@ from dataclasses import replace
 
 from infernal_machine.effects import FREE_WAY
 from infernal_machine.game import CAST, CAST_COMMANDER, COST_PROMPT, KICKER_PROMPT, PARADIGM_PROMPT, X_PROMPT, Permanent
+from infernal_machine.analysis import is_land
 from infernal_machine.zones import CAST_EXILE, CAST_TOP, PLAY_EXILE
+from infernal_machine.cards import Card
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, BIG, COMMANDER, ELF, MOUNTAIN, OGRE, RAINBOW, RELIC, SWAMP, activate, enter, fire, lands, pick, real, run_stack, table3
+from tests.helpers import scryfall, BEAR, BIG, COMMANDER, ELF, MOUNTAIN, OGRE, RAINBOW, RELIC, SWAMP, activate, enter, fire, lands, pick, real, run_stack, table3
 
 SWORD = real("Buster Sword", "{3}", "Artifact — Equipment", "Equipped creature gets +3/+2.\nWhenever equipped creature deals combat "
              "damage to a player, draw a card, then you may cast a spell from your hand with mana value less than or equal to that damage "
@@ -52,6 +54,7 @@ OPT = real("Opt", "{U}", "Instant", "Scry 1.\nDraw a card.", colors=("U",))
 THREE = real("Three Drop", "{2}{U}", "Sorcery", "Draw a card.", colors=("U",))
 FOUR = real("Four Drop", "{3}{U}", "Instant", "Draw a card.", colors=("U",))
 PONDER = real("Cheap Sorcery", "{U}", "Sorcery", "Draw a card.", colors=("U",))
+PHYREXIAN = real("Phyrexian", "{2}{B}", "Creature — Phyrexian Horror", "", "2", "2", colors=("B",))
 LEYLINE = real("Leyline of the Void", "{2}{B}{B}", "Enchantment", "If Leyline of the Void is in your opening hand, you may begin the game "
                 "with it on the battlefield.\nIf a card would be put into an opponent's graveyard from anywhere, exile it instead.",
                 colors=("B",))
@@ -177,6 +180,19 @@ COURT = real("Court of Locthwain", "{2}{B}{B}", "Enchantment", "When this enchan
              "mana of any type can be spent to cast it. If you're the monarch, until end of turn, you may cast a spell from among cards "
              "exiled with this enchantment without paying its mana cost.", colors=("B",))
 RED_BEAR = real("Red Bear", "{1}{R}", "Creature — Bear", "", "2", "2", colors=("R",))
+
+
+def jin_gitaxias():
+    jin = {"name": "Jin-Gitaxias", "mana_cost": "{3}{U}{U}", "type_line": "Legendary Creature — Phyrexian Praetor", "power": "5",
+           "toughness": "5", "oracle_text": "Ward {2}\nWhenever you cast a noncreature spell with mana value 3 or greater, draw a card.\n"
+           "{3}{U}: Exile Jin-Gitaxias, then return it to the battlefield transformed under its owner's control. Activate only as a "
+           "sorcery and only if you have seven or more cards in hand."}
+    synthesis = {"name": "The Great Synthesis", "mana_cost": "", "type_line": "Enchantment — Saga", "oracle_text": "(As this Saga enters "
+                 "and after your draw step, add a lore counter.)\nI — Draw cards equal to the number of cards in your hand. You have no "
+                 "maximum hand size for as long as you control this Saga.\nII — Return all non-Phyrexian creatures to their owners' hands."
+                 "\nIII — You may cast any number of spells from your hand without paying their mana costs. Exile this Saga, then return "
+                 "it to the battlefield (front face up)."}
+    return Card.from_scryfall(scryfall("transform", jin, synthesis, cmc=5.0, colors=["U"]))
 
 
 def asking(policy, asked):
@@ -798,6 +814,40 @@ class VillainousChoiceTests(unittest.TestCase):
         self.assertEqual(("Bear" in [p.card.name for p in a.battlefield], [x.name for x in b.exile], b.life), (True, ["Forest"], life_b))
         self.assertEqual((sorted(x.name for x in c.exile), c.life, [x.name for x in c.library]),
                          (["Big", "Forest", "Mountain", "Opt"], life_c - 6, ["Ogre"]))  # 5 + 1 damage
+
+
+class JinGitaxiasTests(unittest.TestCase):
+    def test_both_faces_are_understood(self):
+        self.assertEqual(unsupported_lines(jin_gitaxias()), [])
+
+    def test_it_transforms_only_with_seven_cards_in_hand(self):
+        for cards, transformed in ((7, True), (6, False)):
+            game, _ = table3()
+            a = game.seats[0]
+            a.battlefield, a.hand, a.library = [Permanent(jin_gitaxias()), *lands(4)], [replace(OPT) for _ in range(cards)], [FOREST] * 20
+            actions = [x for x in game.legal_actions(a) if x.startswith("Activate") and "{3}{U}" in x]
+            self.assertEqual(bool(actions), transformed, cards)
+            if transformed:
+                game._perform(a, actions[0])
+                run_stack(game)
+                self.assertEqual(([p.card.name for p in a.battlefield if not is_land(p.card)], len(a.hand)), (["The Great Synthesis"], 14))
+                game.step = "cleanup"
+                game._turn_based_actions(a)  # no maximum hand size while it stays
+                self.assertEqual(len(a.hand), 14)
+
+    def test_the_saga_bounces_non_phyrexians_then_casts_free_and_comes_back(self):
+        game, _ = table3()
+        a, b, _ = game.seats
+        saga = Permanent(jin_gitaxias().flip, counters={"lore": 1}, transformed_from=jin_gitaxias())
+        a.battlefield, a.hand, b.battlefield = [saga], [BIG, OGRE], [Permanent(BEAR), Permanent(PHYREXIAN)]
+        game.step = "main1"
+        game._turn_based_actions(a)  # chapter II
+        run_stack(game)
+        self.assertEqual(([p.card.name for p in b.battlefield], [c.name for c in b.hand]), (["Phyrexian"], ["Bear"]))
+        game._turn_based_actions(a)  # chapter III
+        run_stack(game)
+        names = [p.card.name for p in a.battlefield]
+        self.assertEqual((sorted(names), a.hand), (["Big", "Jin-Gitaxias // The Great Synthesis", "Ogre"], []))  # front face up
 
 
 class CourtOfLocthwainTests(unittest.TestCase):

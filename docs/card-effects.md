@@ -1251,6 +1251,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     player" in an option is that player. The two options are split at the ", or " where both read as effects. Ensnared by the Mara is
     the first card read this way ("exile cards ... until they exile a nonland card, then you may cast that card", or "exiles the top four
     cards ... and deals damage equal to the total mana value"); the bot facing a choice takes the first option.
+  - Jin-Gitaxias // The Great Synthesis (`tests/test_cast_free.py`, #655): "Exile Jin-Gitaxias, then return it to the battlefield
+    transformed under its owner's control." and the Saga's "Exile this Saga, then return it to the battlefield (front face up)."
+    (`FlickerSelf`, through `Game.flicker`); "You have no maximum hand size for as long as you control this Saga." (`Permanent.no_max_hand`,
+    kept on the permanent the chapter resolved for); "You may cast any number of spells from your hand without paying their mana costs."
+    (cast as the chapter resolves: `Game.cast_any_from_hand_free`).
   - Court of Locthwain (`tests/test_cast_free.py`, #655): "exile the top card of target opponent's library. You may play that card for
     as long as it remains exiled, and mana of any type can be spent to cast it." (`Seat.exile_any_mana`: such a card is cast with each
     colored, colorless, hybrid or Phyrexian symbol paid as generic mana, `casting.any_type_cost`), and "If you're the monarch, until end

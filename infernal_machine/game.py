@@ -372,6 +372,7 @@ class Permanent:
     prepared: bool = False  # a prepare creature whose controller may cast a copy of its spell
     renowned: bool = False  # Renown: it has already got its counters
     transformed_from: "Card | None" = None  # a transformed double-faced permanent: its front face (`card` is the back face)
+    no_max_hand: bool = False  # The Great Synthesis: its controller has no maximum hand size while they control it
     echo_pending: bool = False  # its echo cost is due at its controller's next upkeep
     stored: int = 0  # a number it remembers (the life Soulgorger Orgg's controller lost)
     goad_forever: "Seat | None" = None  # goaded for the rest of the game by this player (Life of the Party's copies)
@@ -999,7 +1000,7 @@ class Game:
         elif self.step == "cleanup":
             everyone = any(players_have_no_max_hand(p.card) for s in self.seats for p in s.battlefield)  # Price of Knowledge
             limits = [p.counters.get(c, 0) for p in seat.battlefield if (c := hand_size_counter(p.card))]  # Midnight Oil
-            excess = 0 if everyone or any(no_max_hand_size(p.card) for p in seat.battlefield) \
+            excess = 0 if everyone or any(no_max_hand_size(p.card) or p.no_max_hand for p in seat.battlefield) \
                 else len(seat.hand) - (min(limits) if limits else HAND_SIZE)
             for _ in range(max(0, excess)):
                 i = seat.player.choose(DISCARD_PROMPT, [c.name for c in seat.hand])
@@ -7136,6 +7137,14 @@ class Game:
         player.exile = [x for x in player.exile if not any(x is c for c in rest)]
         self.rng.shuffle(rest)
         player.library.extend(rest)
+
+    def cast_any_from_hand_free(self, seat: Seat) -> None:
+        """The Great Synthesis: `seat` may cast any number of spells from their hand without paying their mana costs, as it resolves."""
+        while spells := [c for c in seat.hand if not is_land(c) and not self._cast_barred(seat, c)]:
+            pick = seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for c in spells] + [NONE_TAKEN])
+            if pick >= len(spells):
+                return
+            self._cast(seat, spells[pick], seat.hand, free=True)
 
     def court_of_locthwain(self, seat: Seat, victim: Seat, source: Permanent | None) -> None:
         """Court of Locthwain: exile the top card of `victim`'s library; `seat` may play it for as long as it remains exiled, and mana of
