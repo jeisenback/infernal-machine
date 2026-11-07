@@ -29,7 +29,7 @@ from .combat import Attack, Combat
 from . import casting
 from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, MILLED, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
-from .effects import (apply_copy_changes, copy_of, CopyChanges, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
+from .effects import (apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, heals_before_damage, equip_target_discount, free_first_equip, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand,
                       SacrificeSelf,
@@ -357,6 +357,7 @@ class Permanent:
     doors: tuple[str, ...] = ()  # a Room: the names of its unlocked doors (its `card` reads as only those; the whole card is `real_card`)
     cast: bool = False  # it came from a spell that was cast ("When it enters, if you cast it")
     mana_types_spent: tuple[frozenset[str], ...] = ()  # the types each mana spent to cast it could be (Deceit: "if {U}{U} was spent to cast it")
+    blitzed: bool = False  # Blitz, Jaxis's copy: it has haste and "When this creature dies, draw a card." (CR 702.152a)
     returns_when_dies: int = 0  # Malakir Rebirth: the turn it gained "When this creature dies, return it to the battlefield tapped"
     animated_until: int | None = None  # Karn, the Great Creator: animated "until your next turn", the index of the seat whose turn ends it
     skips_next_untap: bool = False  # "It doesn't untap during its controller's next untap step." (Sleep of the Dead)
@@ -441,6 +442,7 @@ class StackItem:
     warped: bool = False  # cast for its warp cost: exiled at the next end step, castable from exile on a later turn
     phyrexian_life: int = 0  # Phyrexian mana symbols of its cost paid with life: a Compleated walker enters with two fewer loyalty each
     dashed: bool = False  # cast for its dash cost: haste, and back to its owner's hand at the next end step
+    blitzed: bool = False  # cast for its blitz cost (CR 702.152)
     evidence: bool = False  # evidence was collected as it was cast (Deadly Cover-Up)
     impending: int = 0  # cast for its impending cost: it enters with this many time counters, not a creature until the last goes
     whole: Card | None = None  # cast as one half of this card (an Adventure, a split half): the card that moves between zones
@@ -466,6 +468,7 @@ class StackItem:
 GERM = Card(name="Phyrexian Germ", type_line="Token Creature — Phyrexian Germ", colors=("B",), power="0", toughness="0")
 RETURN_WHEN_DIES = TriggeredAbility("dies", (ReturnWithCounter("", True),), False,
                                     "When this creature dies, return it to the battlefield tapped under its owner's control.")
+BLITZ_DRAW = TriggeredAbility("dies", (Draw(1),), False, "When this creature dies, draw a card.")  # CR 702.152a
 RETURN_WHEN_EXILED = TriggeredAbility("leaves", (ReturnWithCounter("", True),), False,
                                       "When this creature is exiled, return it to the battlefield tapped.")  # an earthbent land
 EVOKE_SACRIFICE = TriggeredAbility("enters", (SacrificeSelf(),), False,
@@ -2545,6 +2548,9 @@ class Game:
             if item.dashed:  # Ragavan: it has haste this turn and is back in its owner's hand at the end step
                 self.modify_until_end_of_turn(entering, Modifier(keywords=frozenset({"haste"})))
                 self.leave_at_next_end_step([entering], "returned", "hand")
+            if item.blitzed:  # CR 702.152a: haste, "When this creature dies, draw a card.", sacrificed as the next end step begins
+                entering.blitzed = True
+                self.leave_at_next_end_step([entering], "sacrificed", "graveyard")
             return
         if item.effects is None:
             self.broadcast({"event": "resolve", "seat": seat.index, "card": card.name, "unsupported": True})
@@ -4769,7 +4775,8 @@ class Game:
         if keyword in ("hexproof", "shroud") and any(LOSES_HEXPROOF in m.keywords for m in mods):
             return False  # Arcane Lighthouse
         printed = has_keyword(permanent.card, keyword) and not self.loses_abilities(permanent)
-        return printed or permanent.counters.get(keyword, 0) > 0 or any(keyword in m.keywords for m in mods)  # CR 122.1b: a keyword counter
+        return printed or permanent.counters.get(keyword, 0) > 0 or any(keyword in m.keywords for m in mods) \
+            or (keyword == "haste" and permanent.blitzed)  # CR 122.1b: a keyword counter; CR 702.152a
 
     def _stripped(self) -> set[int]:
         """`id`s of the permanents an Aura or Equipment takes every ability from (Infinite Coursework): one pass over the board
@@ -6963,6 +6970,8 @@ class Game:
                 self.trigger("dies", permanent, controller)
                 if permanent.returns_when_dies == self.turn or permanent.earthbent:
                     self._queue(RETURN_WHEN_DIES, permanent, controller)
+                if permanent.blitzed:
+                    self._queue(BLITZ_DRAW, permanent, controller)
                 for attachment, attachment_seat in everyone:  # "When enchanted creature dies"
                     if attachment.attached_to is permanent:
                         self.trigger("host_dies", attachment, attachment_seat, subject=permanent)

@@ -604,6 +604,7 @@ from .families.tokens import (  # noqa: F401
     _InsteadTokens,
     _PopulatedTokenRider,
     _TokenGainsHaste,
+    _TokenGainsBlitz,
     _TokenHasHaste,
     _TokenPerPrevented,
 )
@@ -1843,7 +1844,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if a creature dealt damage this way would die this turn, exile it instead\.", re.I),
      lambda m: ExileDamagedIfDie()),
     (re.compile(r"exile enchanted creature\.", re.I), lambda m: ExileEnchanted()),
-    (re.compile(r"(?:that token gains|those tokens gain) haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),  # Devastating Onslaught
+    (re.compile(r"(?:that token gains|those tokens gain) haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
+    (re.compile(r'it gains haste and "When this token dies, draw a card\."', re.I), lambda m: _TokenGainsBlitz()),  # Jaxis  # Devastating Onslaught
     (re.compile(r"(?:it|that token|they|those tokens) gains? haste\.", re.I), lambda m: _TokenHasHaste()),
     (re.compile(r"sacrifice (?:it|this (?:creature|artifact|token))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."; Electroduplicate's token
     (re.compile(r"exile this token\.", re.I), lambda m: ExileSelf()),  # Heat Shimmer's token: "At the beginning of the end step, exile this token."
@@ -3522,6 +3524,7 @@ _CONDITIONAL = Follows(
     Follow(_TokenHasHaste, _COPY_SENTENCES, lambda previous, marker: dataclasses.replace(
         previous, changes=dataclasses.replace(previous.changes or CopyChanges(), keywords=(previous.changes or CopyChanges()).keywords + ("haste",)))),
     Follow(_TokenGainsHaste, _COPY_SENTENCES, set_fields(haste=lambda m: True)),
+    Follow(_TokenGainsBlitz, CopyToken, set_fields(blitz=lambda m: True)),  # Jaxis
     Follow((_TheyGainHaste, _ItGains), _COPY_SENTENCES, set_fields(haste=lambda m: True), strict=False,  # "It gains haste until end of turn."
            fits=lambda previous, marker: getattr(marker, "keywords", frozenset({"haste"})) == frozenset({"haste"})),
     Follow(PumpSource, _COPY_SENTENCES, set_fields(haste=lambda m: True), strict=False,  # "It gains haste until end of turn."

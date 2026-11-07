@@ -73,6 +73,11 @@ class _TokenGainsHaste:
 
 
 @dataclass(frozen=True)
+class _TokenGainsBlitz:
+    """Jaxis, the Troublemaker: "It gains haste and "When this token dies, draw a card."" after a CopyToken: what blitz gives."""
+
+
+@dataclass(frozen=True)
 class AttackingTokens:
     """Furygale Flocking: "For each opponent, create two 3/3 blue and red Elemental creature tokens with flying that attack
     that opponent this turn if able. They gain haste until end of turn. Exile them at the beginning of the next end step."

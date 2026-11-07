@@ -190,7 +190,7 @@ class Caster:
                          is_copy=prepared is not None or copy, evoked=bool(alternative and alternative.evoke),
                          escaped=bool(graveyard and graveyard.word == "Escape"),
                          bestowed=bool(alternative and alternative.bestow), mana_spent=spent, mana_types_spent=tapped.spent, cant_be_countered=no_counter,
-                         dashed=bool(alternative and alternative.dash), warped=bool(alternative and alternative.warp),
+                         dashed=bool(alternative and alternative.dash), blitzed=bool(alternative and alternative.blitz), warped=bool(alternative and alternative.warp),
                          impending=alternative.impending if alternative else 0, whole=whole, face_down=face_down,
                          from_hand=zone is seat.hand, owner=self._cast_owner(seat, card, zone), phyrexian_life=tapped.phyrexian_life,
                          evidence=evidence, teamwork=teamwork)
