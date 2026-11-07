@@ -589,6 +589,7 @@ class Seat:
     paragon_turn: int | None = None  # the last turn Serra Paragon's once-a-turn permission was used
     free_once_turn: int | None = None  # the last turn One with the Multiverse's free cast was used
     exile_free: list[Card] = field(default_factory=list)  # cards in `exile_play` that are played without paying (Fallen Shinobi)
+    exile_any_mana: list[Card] = field(default_factory=list)  # cards in `exile_play` that mana of any type can be spent on (Court of Locthwain)
     paragon_marked: list = field(default_factory=list)  # cards played with it, which are exiled if they go back (+ life)
     modified_died_turn: int | None = None  # the last turn a modified creature died under this player's control
     citys_blessing: bool = False  # Ascend: ten permanents, for the rest of the game
@@ -1700,10 +1701,11 @@ class Game:
         return parse_filter(term).matches(card)
 
     def _can_cast(self, seat: Seat, card: Card, from_command_zone: bool = False,
-                  graveyard: GraveyardCast | None = None, from_hand: bool = True, free: bool = False) -> bool:
+                  graveyard: GraveyardCast | None = None, from_hand: bool = True, free: bool = False, any_mana: bool = False) -> bool:
         if self._cast_barred(seat, card):
             return False
-        if not free and not self._cast_ways(seat, card, from_command_zone, graveyard, from_hand):  # `free`: no cost to afford
+        paying = dataclasses.replace(card, mana_cost=casting.any_type_cost(card.mana_cost)) if any_mana else card  # Court of Locthwain
+        if not free and not self._cast_ways(seat, paying, from_command_zone, graveyard, from_hand):  # `free`: no cost to afford
             return False
         effects, colors = kicked_effects(_effects(card), 0) or [], source_qualities(card)
         if not self._effects_possible(seat, effects, colors):
@@ -1787,9 +1789,10 @@ class Game:
     def _cast(self, seat: Seat, card: Card, zone: list[Card], from_command_zone: bool = False,
               graveyard: GraveyardCast | None = None, prepared: Permanent | None = None, free: bool = False,
               copy: bool = False, bottom_after: bool = False, madness: AlternativeCost | None = None,
-              whole: Card | None = None, face_down: tuple[str, MorphCost] | None = None, exile_after: bool = False) -> None:
+              whole: Card | None = None, face_down: tuple[str, MorphCost] | None = None, exile_after: bool = False,
+              any_mana: bool = False) -> None:
         return self.caster._cast(seat, card, zone, from_command_zone, graveyard, prepared, free, copy, bottom_after, madness, whole, face_down,
-                                 exile_after)
+                                 exile_after, any_mana)
 
     def _cast_ways(self, seat: Seat, card: Card, from_command_zone: bool,
                    graveyard: GraveyardCast | None = None, from_hand: bool = True) -> list[AlternativeCost | None]:
@@ -7133,6 +7136,26 @@ class Game:
         player.exile = [x for x in player.exile if not any(x is c for c in rest)]
         self.rng.shuffle(rest)
         player.library.extend(rest)
+
+    def court_of_locthwain(self, seat: Seat, victim: Seat, source: Permanent | None) -> None:
+        """Court of Locthwain: exile the top card of `victim`'s library; `seat` may play it for as long as it remains exiled, and mana of
+        any type can be spent to cast it. If `seat` is the monarch, it may cast a spell from among the cards exiled with `source` without
+        paying its mana cost (as the ability resolves; the card allows it until end of turn)."""
+        if victim.library:
+            card = victim.library.pop(0)
+            seat.exile.append(card)
+            seat.borrowed.append((card, victim))
+            seat.exile_play.append((card, FOREVER))
+            seat.exile_any_mana.append(card)
+            if source is not None:
+                source.exiled_with.append((seat, card))
+            self.broadcast({"event": "exiled_from_library", "seat": victim.index, "cards": [card.name], "may_play": True})
+        if source is None or self.monarch is not seat:
+            return
+        spells = [(owner, c) for owner, c in source.exiled_with if not is_land(c) and any(c is x for x in owner.exile)]
+        if spells and (pick := seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for _, c in spells] + [NONE_TAKEN])) < len(spells):
+            owner, card = spells[pick]
+            self._cast(seat, card, owner.exile, free=True)
 
     def cast_commander_free(self, seat: Seat) -> None:
         """Geode Golem: `seat` may cast their commander from the command zone without paying its mana cost; the commander tax is an

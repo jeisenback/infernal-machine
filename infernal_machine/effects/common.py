@@ -242,6 +242,9 @@ _WHOLE_LINE = re.compile(
     r"|that player exiles it, then exiles cards from the top of their library until they exile a card that shares a card type with it\. "
     r"That player may cast that card without paying its mana cost\. Then they put all cards exiled with this enchantment on the bottom "
     r"of their library in a random order\."  # Possibility Storm
+    r"|exile the top card of target opponent's library\. You may play that card for as long as it remains exiled, and mana of any type "
+    r"can be spent to cast it\. If you're the monarch, until end of turn, you may cast a spell from among cards exiled with this "
+    r"enchantment without paying its mana cost\."  # Court of Locthwain
     r"|Reveal the top card of your library\. If it's a creature card that shares a creature type with a creature you control, you may "
     r"cast it without paying its mana cost\. If you don't cast it, put it on the bottom of your library\."  # Descendants' Path
     r"|Exile an instant or sorcery card at random from your graveyard\. Then copy each card exiled with this enchantment\. You may cast "
