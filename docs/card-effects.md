@@ -1246,6 +1246,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     strike." and the like); with it, two readings of the creatures a static ability affects were put right: "Equipped creatures you
     control" are those with an Equipment attached, not a creature type (Zamriel, Kemba, Dalakos), and a plural in "-ies" is the type in
     "-y" when the list of creature types says so ("Allies" are Allies, "Armies" Armies; "Zombies" stay Zombies).
+  - Villainous choice (CR 701.56; `tests/test_cast_free.py`, #655): "Each opponent (Target opponent) faces a villainous choice — A, or B."
+    is a `VillainousChoice`: each player facing it chooses one option for themselves (`Game.villainous_choice`), and "They ..." / "that
+    player" in an option is that player. The two options are split at the ", or " where both read as effects. Ensnared by the Mara is
+    the first card read this way ("exile cards ... until they exile a nonland card, then you may cast that card", or "exiles the top four
+    cards ... and deals damage equal to the total mana value"); the bot facing a choice takes the first option.
   - Pauper Spy combo (`tests/test_pauper_spy_combo.py`, #647): "target player reveals cards from the top of their library until they reveal
     a land card, then puts those cards into their graveyard" (`Game.mill_until_land`, Balustrade Spy); Mesmeric Fiend's hand card exiled
     until it leaves, then returned to its owner's hand (`Permanent.held_from_hand`; the two-trigger wording like Oblivion Ring's);

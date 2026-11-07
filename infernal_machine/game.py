@@ -193,6 +193,7 @@ SYLVAN_PAY_PROMPT = PromptKind("sylvan_pay", "Pay life for it or put it on top o
 REBOUND_PROMPT = PromptKind("rebound", "Cast it again with rebound: ")  # followed by the card's name; options: YES_NO
 FREE_TOP = "cast the top card free"  # Planetarium of Wan Shi Tong's "Do this only once each turn", kept in Permanent.activated_turn
 COMMANDER_FREE_PROMPT = PromptKind("commander_free", "Cast your commander without paying its mana cost")  # names, then NONE_TAKEN
+VILLAINOUS_PROMPT = PromptKind("villainous", "Face a villainous choice from ")  # followed by the card's name; the two options' texts
 PUT_LAND_PROMPT = PromptKind("put_land", "Put a land onto the battlefield from among the exiled cards")  # land names, then NONE_TAKEN
 PARADIGM_PROMPT = PromptKind("paradigm", "Cast a copy with paradigm: ")  # followed by the card's name; options: YES_NO
 SPLICE_PROMPT = PromptKind("splice", "Splice onto the Arcane spell: ")  # followed by the spliced card's name; options: YES_NO
@@ -5624,6 +5625,35 @@ class Game:
                         "power": token.power, "toughness": token.toughness})
         self._enter(seat, germ)
         self.attach(equipment, germ)
+
+    def villainous_choice(self, seat: Seat, facing: Seat, labels: tuple[str, str], options: tuple[tuple, tuple]) -> None:
+        """`facing` faces a villainous choice from `seat` (CR 701.56): they choose one of the two options, which then happens, "they" and
+        "that player" being `facing`."""
+        pick = facing.player.choose(VILLAINOUS_PROMPT(_checked(self.resolving_item).card.name if self.resolving_item else ""), list(labels))
+        self.broadcast({"event": "villainous_choice", "seat": facing.index, "choice": labels[pick]})
+        for effect in options[pick]:
+            effect.resolve(self, seat, facing)
+
+    def exile_until_nonland_may_cast(self, seat: Seat, owner: Seat) -> None:
+        """Ensnared by the Mara: `owner` exiles cards from the top of their library until they exile a nonland card; `seat` may cast that
+        card without paying its mana cost. The exiled cards stay exiled."""
+        found = None
+        while owner.library and found is None:
+            card = owner.library.pop(0)
+            owner.exile.append(card)
+            found = None if is_land(card) else card
+        if found is not None and seat.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
+            self._cast(seat, found, owner.exile, free=True)
+
+    def exile_top_damage_by_value(self, owner: Seat, count: int) -> None:
+        """Ensnared by the Mara: `owner` exiles the top `count` cards of their library and is dealt damage equal to their total mana value
+        by the resolving spell."""
+        exiled = owner.library[:count]
+        del owner.library[:count]
+        owner.exile.extend(exiled)
+        self.broadcast({"event": "exiled_from_library", "seat": owner.index, "cards": [c.name for c in exiled], "may_play": False})
+        if total := sum(int(c.cmc) for c in exiled):
+            self.damage(owner, total, source=self.resolving_source)
 
     def cascade(self, seat: Seat, value: int | None, kind: str = "nonland", owner: Seat | None = None) -> None:
         """Exile cards from the top of the library until a nonland card that costs less than `value` is exiled; the
