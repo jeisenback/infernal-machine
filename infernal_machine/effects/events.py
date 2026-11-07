@@ -227,4 +227,4 @@ declare("opponent_second_draw", re.compile(r"Whenever an opponent draws their se
 declare("turned_face_up", re.compile(rf"(?:When(?:ever)?|As) {_SELF} is turned face up, (.+)", re.I))  # Morph: see Game.turn_face_up
 declare("unlock_door", re.compile(r"When you unlock this door, (.+)", re.I))  # a Room's door: see Game.unlock_door
 declare("first_main", re.compile(r"At the beginning of your first main phase, (.+)", re.I))
-declare("second_main", re.compile(r"At the beginning of your second main phase, (.+)", re.I))
+declare("second_main", re.compile(r"At the beginning of (?:your second main phase|each of your postcombat main phases), (.+)", re.I))  # Tymna the Weaver

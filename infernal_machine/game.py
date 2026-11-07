@@ -541,6 +541,7 @@ class Seat:
     life_mana_turn: int | None = None  # Channel: this turn, 1 life buys {C} any time
     conjurable: dict[str, Card] = field(default_factory=dict)  # Alchemy: the cards this player's deck can conjure, by name
     noncombat_damage_turn: int | None = None  # the last turn this player was dealt damage that wasn't combat damage
+    combat_damage_turn: int | None = None  # the last turn this player was dealt combat damage (Tymna the Weaver)
     token_turn: int | None = None  # the last turn this player created a token
     damage_taken_turn: int | None = None  # the turn `damage_taken` counts for
     damage_taken: int = 0  # the damage dealt to this player that turn
@@ -3752,6 +3753,8 @@ class Game:
         if isinstance(target, Seat):
             if amount > 0 and not combat:
                 target.noncombat_damage_turn = self.turn
+            if amount > 0 and combat:
+                target.combat_damage_turn = self.turn
             if amount > 0:
                 target.damage_taken = (target.damage_taken if target.damage_taken_turn == self.turn else 0) + amount
                 target.damage_taken_turn = self.turn
@@ -4752,6 +4755,8 @@ class Game:
             count = sum(_card_matches(kind, c) for c in controller.graveyard)
         elif what == "colors":  # Faeburrow Elder: each color among the permanents its controller controls
             count = len(self.colors_among(controller))
+        elif what == "colors_other_legendary":  # Sisay: each color among the other legendary permanents its controller controls
+            count = len({c for p in controller.battlefield if p is not permanent and "Legendary" in p.card.type_line for c in p.card.colors})
         elif what == "source_counters":  # Door of Destinies: for each charge counter on the permanent that gives the bonus
             count = source.counters.get(kind, 0) if source is not None else 0
         elif what == "others_anywhere":  # Ancestral Mask: "for each other enchantment on the battlefield"

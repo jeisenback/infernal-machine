@@ -241,6 +241,10 @@ _WHOLE_LINE = re.compile(
     r"|exile (?:that card|it)\. If you do, return each other card exiled with this artifact to its owner's graveyard\."  # Mimic Vat
     r"|Look at the top \w+ cards of your library\. You may cast a spell from among them without paying its mana cost\. Put the rest on the "
     r"bottom of your library in a random order\."  # Aetherworks Marvel
+    r"|[Ll]ook at the top X cards of your library, where X is your devotion to blue\. Put up to one of them on top of your library and the rest on the bottom of your library in a random order\. If X is greater than or equal to the number of cards in your library, you win the game\."  # Thassa's Oracle
+    r"|Choose a card name\. Exile the top \w+ cards of your library, then reveal cards from the top of your library until you reveal a card with the chosen name\. Put that card into your hand and exile all other cards revealed this way\."  # Demonic Consultation
+    r"|Exile the top card of your library\. You may put that card into your hand unless it has the same name as another card exiled this way\. Repeat this process until you put a card into your hand or you exile two cards with the same name, whichever comes first\."  # Tainted Pact
+    r"|[Pp]ay X life, where X is the number of opponents that were dealt combat damage this turn\. If you do, draw X cards\."  # Tymna
     r"|Shuffle your library(?:\. Then|, then) exile the top card(?: of your library)?\. Until end of turn, you may play that card without paying "
     r"its mana "
     r"cost\."  # Mind's Desire

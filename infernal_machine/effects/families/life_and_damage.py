@@ -521,3 +521,15 @@ class WhenThatDealsCombatDamage:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and game.resolving_source is not None:
             game.combat.damage_watches.append((target, game.resolving_source, self))
+
+
+@dataclass(frozen=True)
+class PayLifeDrawPerOpponentHit:
+    """Tymna the Weaver: "pay X life, where X is the number of opponents that were dealt combat damage this turn. If you do, draw X
+    cards." (the "you may" is the trigger's). Life can't be paid past the life a player has (CR 119.4)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        x = sum(1 for o in game.opponents(controller) if o.combat_damage_turn == game.turn)
+        if x and controller.life >= x:
+            game.change_life(controller, -x)
+            game.draw(controller, x)
