@@ -118,6 +118,7 @@ SEARCH_PROMPT = PromptKind("search", "Choose a basic land to put onto the battle
 SEARCH_OPTIONAL_PROMPT = PromptKind("search_optional", "Search your library for a basic land?")
 COMMAND_ZONE_PROMPT = PromptKind("command_zone", "Move your commander to the command zone?")  # options: "Command zone", then the zone it's going to
 OPTIONAL_PROMPT = PromptKind("optional", "Use this ability of ")  # followed by the source's name
+ROLL_AGAIN_PROMPT = PromptKind("roll_again", "Roll again for ")  # Delina, Wild Mage: followed by the source's name; options YES_NO
 X_PROMPT = PromptKind("x", "Choose X for ")  # followed by the spell's name; options are "0", "1", ...
 SPLIT_HAND_PROMPT = PromptKind("split_hand", "Put which card into your hand? ")
 SPLIT_BOTTOM_PROMPT = PromptKind("split_bottom", "Put which card on the bottom of your library? ")
@@ -6528,6 +6529,21 @@ class Game:
         self.die_result = self.rng.randint(1, sides)
         self.broadcast({"event": "die_roll", "seat": seat.index, "sides": sides, "result": self.die_result})
         return self.die_result
+
+    def delina_roll(self, seat: Seat, source: Permanent, creature: Permanent) -> None:
+        """Delina, Wild Mage: roll a d20; each roll makes a token that's a copy of `creature`, except it isn't legendary, tapped and
+        attacking whom `source` attacks and exiled at end of combat ("At end of combat, exile this token."); on 15 or more, `seat` may roll
+        again (CR 706.2)."""
+        attack = next((a for a in self.combat.attacks if a.attacker is source), None)
+        while True:
+            result = self.roll_die(seat, 20)
+            for made in self.create_tokens(seat, copy_of(creature.card, CopyChanges(not_legendary=True), as_token=True), 1):
+                made.tapped = True
+                self.combat.exile_at_end.append(made)
+                if attack is not None:
+                    self.combat.attacks.append(Attack(made, seat, attack.defender, walker=attack.walker))
+            if result < 15 or seat.player.choose(ROLL_AGAIN_PROMPT(source.card.name), YES_NO) != 0:
+                return
 
     def flip_until_lose(self, seat: Seat) -> int:
         """"Flip a coin until you lose a flip.": how many flips `seat` won, kept for "for each flip you won" (`flips_won`)."""
