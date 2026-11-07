@@ -565,6 +565,9 @@ from .families.free_casting import (  # noqa: F401
     VillainousChoice,
     ThatPlayerExilesUntilNonlandYouCast,
     ThatPlayerExilesTopDamaged,
+    FlickerSelf,
+    NoMaxHandWhileControlled,
+    CastAnyFromHandFree,
 )
 from .families.tokens import (  # noqa: F401
     AttackerCreatesAttackingToken,
@@ -2391,6 +2394,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RevealTopCastKindredFree()),  # Descendants' Path
     (re.compile(r"if this spell was cast from a graveyard, you may play cards this way without paying their mana costs\.", re.I),
      lambda m: _FreeIfFromGraveyard()),  # Ignite the Future, folded into the ExileTop before it
+    (re.compile(rf"exile {_SELF}, then return it to the battlefield transformed under its owner's control\.", re.I),
+     lambda m: FlickerSelf(True)),  # Jin-Gitaxias
+    (re.compile(r"exile this Saga, then return it to the battlefield(?: \(front face up\))?\.", re.I),
+     lambda m: FlickerSelf(False)),  # The Great Synthesis
+    (re.compile(r"you have no maximum hand size for as long as you control this Saga\.", re.I),
+     lambda m: NoMaxHandWhileControlled()),  # The Great Synthesis
+    (re.compile(r"you may cast any number of spells from your hand without paying their mana costs\.", re.I),
+     lambda m: CastAnyFromHandFree()),  # The Great Synthesis
     (_VILLAINOUS, _villainous),  # CR 701.56
     (re.compile(r"that player exiles cards from the top of their library until they exile a nonland card, then you may cast that card "
                 r"without paying its mana cost\.", re.I), lambda m: ThatPlayerExilesUntilNonlandYouCast()),  # Ensnared by the Mara
