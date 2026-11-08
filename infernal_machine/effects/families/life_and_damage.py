@@ -130,6 +130,28 @@ class RevealTopTradeLife:
 
 
 @dataclass(frozen=True)
+class EachLooksTakesLandAndSpell:
+    """Explore the Vastlands: "Each player looks at the top five cards of their library and may reveal a land card and/or an instant or
+    sorcery card from among them. Each player puts the cards they revealed this way into their hand and the rest on the bottom of their
+    library in a random order." (kept here, beside "Each player gains 3 life.", the card's last sentence)"""
+    count: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            game.look_take_land_and_spell(seat, self.count)
+
+
+@dataclass(frozen=True)
+class EachPlayerGainsLife:
+    """Explore the Vastlands: "Each player gains 3 life." """
+    amount: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            game.change_life(seat, self.amount)
+
+
+@dataclass(frozen=True)
 class EachPlayerLosesLife:
     amount: int | str
 

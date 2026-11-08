@@ -145,6 +145,8 @@ from .outcomes import (  # noqa: F401
     ReflexiveTrigger,
     MayDiscardThen,
     DamageEachOtherOpponent,
+    EachPlayerGainsLife,
+    EachLooksTakesLandAndSpell,
     ExileTopOfTargetMayCast,
     CopyPreviousTarget,
     CasterCopiesSpell,

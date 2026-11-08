@@ -1545,6 +1545,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     - Chain of Vapor: "Then that permanent's controller may sacrifice a land of their choice. If the player does, they may copy this spell ..." The controller of the permanent returned (as it left) sacrifices a land for the copy.
     - The question's options are "No" then "Yes", and the bot always answers No, so a chain between bots (or with any player who takes the first option) always ends.
     - Wondrous Crucible: "mill two cards, then exile a nonland card at random from your graveyard. Copy it. You may cast the copy without paying its mana cost." With no nonland card there, nothing is exiled.
+  - **Copy a spell, batch 7 (#659):**
+    - Wandering Archaic: "they may pay {2}. If they don't, you may copy that spell." reads like "that player may pay {2}. If the player doesn't, ..."; a "you may" after it stays optional. The copy is the Archaic's controller's.
+    - Explore the Vastlands: "Each player looks at the top five cards of their library and may reveal a land card and/or an instant or sorcery card from among them. Each player puts the cards they revealed this way into their hand and the rest on the bottom of their library in a random order." (`EachLooksTakesLandAndSpell`) and "Each player gains 3 life."
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets

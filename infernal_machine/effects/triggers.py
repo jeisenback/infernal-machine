@@ -533,7 +533,7 @@ _SAME_NAME = re.compile(r"with the same name as that spell", re.I)  # Aven Shrin
 _SPELL_MV = re.compile(r"that spell's mana value", re.I)
 
 
-_MAY_PAY_OR = re.compile(r"that player may pay ((?:\{[^}]+\})+)\. If the player doesn't, (.+)")
+_MAY_PAY_OR = re.compile(r"(?:that player|they) may pay ((?:\{[^}]+\})+)\. If (?:the player doesn't|they don't), (.+)")  # Wandering Archaic: "they"
 
 
 _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", re.I)
@@ -592,7 +592,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
         return ([OnSubjectController(e) if getattr(e, "target", None) == "player" else e for e in effects],
                 optional, once, condition)
     if player_ok and (m := _MAY_PAY_OR.fullmatch(rest)):  # "that player may pay {2}. If the player doesn't, you create ..."
-        rest = f"{re.sub('^you ', '', m[2].rstrip('.'))} unless that player pays {m[1]}."
+        rest = f"{re.sub('^you (?!may )', '', m[2].rstrip('.'))} unless that player pays {m[1]}."  # ("you may copy": stays optional)
     if player_ok:  # before "that creature" becomes "it": "that creature's controller" names the player who controls it
         before = rest
         for pattern, replacement in _PLAYER_PRONOUNS[:2]:
