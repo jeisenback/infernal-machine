@@ -1337,7 +1337,7 @@ _CONTRACT_BODY = "it gets +2/+0 until end of turn if it's attacking one of your 
 
 _MASS_KINDS = {"battles": "battle", "creatures": "creature", "creature tokens": "creature", "artifacts": "artifact", "enchantments": "enchantment",
                "planeswalkers": "planeswalker", "lands": "land", "nonland permanents": "nonland permanent",
-               "artifacts and enchantments": "artifact or enchantment",
+               "artifacts and enchantments": "artifact or enchantment", "artifacts, creatures, and enchantments": "artifact, creature, or enchantment",
                "creatures and planeswalkers": "creature or planeswalker", "artifacts and creatures": "artifact or creature"}
 
 
@@ -1377,7 +1377,7 @@ _THAT_ARE = r"(?: that (are (?:one or more colors|colorless|multicolored|monocol
 
 
 # The same, with an optional color adjective before and "with flying" etc. after (destroy and exile only).
-_MASS_NOUN = (r"(battles|artifacts and enchantments|artifacts and creatures|creatures and planeswalkers|nonland permanents|creature tokens|creatures|artifacts"
+_MASS_NOUN = (r"(battles|artifacts, creatures, and enchantments|artifacts and enchantments|artifacts and creatures|creatures and planeswalkers|nonland permanents|creature tokens|creatures|artifacts"
               r"|enchantments|planeswalkers|lands)")
 
 
@@ -1657,6 +1657,7 @@ def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] =
 
 _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
                    r"|creature, enchantment, or planeswalker|non-outlaw creature"  # Get Lost; Shoot the Sheriff
+                   r"|artifact, enchantment, or land|legendary permanent"  # Acidic Slime; Minamo, School at Water's Edge
                    r"|monocolored permanent|(?:white|blue|black|red|green) permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact|legendary) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|non-(?-i:[A-Z][a-z]+), nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
@@ -1702,10 +1703,11 @@ _PLURAL_KINDS = {"creatures": "creature", "artifacts": "artifact", "enchantments
                  "creature tokens": "creature token", "lands": "land", "artifacts or enchantments": "artifact or enchantment",
                  "artifacts and/or creatures": "artifact or creature",
                  "artifacts and/or enchantments": "artifact or enchantment",
-                 "creatures and/or enchantments": "creature or enchantment"}
+                 "creatures and/or enchantments": "creature or enchantment",
+                 "artifacts, creatures, and/or lands": "artifact, creature, or land"}  # Ghostly Flicker
 
 
-_PLURAL_KIND = (r"(creature tokens|nonland permanents|artifacts or enchantments|artifacts and/or enchantments|artifacts and/or creatures"
+_PLURAL_KIND = (r"(creature tokens|nonland permanents|artifacts, creatures, and/or lands|artifacts or enchantments|artifacts and/or enchantments|artifacts and/or creatures"
                 r"|creatures and/or enchantments|creatures|artifacts|enchantments|planeswalkers"
                 r"|permanents|lands)( an opponent controls| you don't control| you control| your opponents control| you own)?")
 
@@ -1928,6 +1930,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"counter (up to one )?target activated or triggered ability\.( If an ability of an artifact, creature, or planeswalker is "
                 r"countered this way, that permanent loses all abilities for as long as this creature remains on the battlefield\.)?", re.I),
      lambda m: CounterAbility(strip=bool(m[2]), optional_target=bool(m[1]))),  # Tishana's Tidebinder
+    (re.compile(r"counter target spell, activated ability, or triggered ability\.", re.I), lambda m: CounterAbility(target="spell or ability")),  # Disallow
     (re.compile(r"(?:then )?draw half X cards, rounded down\.", re.I), lambda m: Draw("hX")),  # Wan Shi Tong, Librarian
     (re.compile(rf"put {_N} {_COUNTER} on (?:him|her)\.", re.I), lambda m: PutCountersOnSource(_count(m[1]), _counter_name(m[2]))),  # Wan Shi Tong
     (re.compile(rf"put {_N} {_COUNTER} on {_SELF} and draw {_N} cards?\.", re.I),
@@ -2157,10 +2160,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ExileInstead()),
     (re.compile(r"at the beginning of your next main phase, add an amount of \{C\} equal to that spell's mana value\.", re.I),
      lambda m: _DelayedMana()),
-    (re.compile(rf"exile (another |up to one other )?target {_PERMANENT_KIND}, then return (?:it|that card) to the battlefield under "
+    (re.compile(rf"exile (another |up to one other |up to one )?target {_PERMANENT_KIND}, then return (?:it|that card) to the battlefield under "
                 r"(your|its owner's) control( with a \+1/\+1 counter on it)?\.", re.I),
-     lambda m: Flicker(m[2].lower(), under_owner=m[3].lower() != "your", another=bool(m[1]), counters=1 if m[4] else 0,
-                       optional_target=(m[1] or "").lower() == "up to one other ")),  # Daydream, The Mind Stone
+     lambda m: Flicker(m[2].lower(), under_owner=m[3].lower() != "your", another=(m[1] or "").lower() in ("another ", "up to one other "),
+                       counters=1 if m[4] else 0, optional_target=(m[1] or "").lower().startswith("up to one"))),  # Daydream, The Mind Stone, Displacer Kitten
+    (re.compile(rf"exile (?:{_UP_TO}|(two)) target {_PLURAL_KIND}, then return those cards to the battlefield under (your|their owner's) "
+                r"control\.", re.I),  # Displace; Ghostly Flicker
+     lambda m: [Flicker(_PLURAL_KINDS[m[3].lower()] + _suffix(m[4]), under_owner=m[5].lower() != "your", optional_target=bool(m[1]),
+                        distinct=n > 0) for n in range(_number(m[1] or m[2]))]),
     (re.compile(r"return (?:it|that card) to the battlefield under (your|its owner's) control at the beginning of the "
                 r"next end step\.", re.I), lambda m: ReturnLater("battlefield", m[1].lower() != "your")),
     (re.compile(r"return (?:it|that card) to its owner's hand at the beginning of the next end step\.", re.I),
@@ -2656,6 +2663,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn| for as long as you control (?:this creature|CARDNAME))?\.", re.I),
      lambda m: GainControl(m[1].lower(), until_end_of_turn=m[2] == " until end of turn", while_source=bool(m[2]) and "as long" in m[2])),
     (re.compile(r"goad each creature target player controls\.", re.I), lambda m: GoadEachOfTarget()),  # Geode Rager
+    (re.compile(rf"draw {_N_FIXED} cards?\. If you do, discard a card\.", re.I),  # Mask of Memory, Smuggler's Copter: after the trigger's "you may"
+     lambda m: [Draw(_number(m[1])), Discard(1, "you")]),
     (re.compile(rf"target player loses {_N_FIXED} life\. If you do, put {_N_FIXED} \+1/\+1 counters on CARDNAME\.", re.I),
      lambda m: [TargetLoseLife(_number(m[1]), "player"), PutCountersOnSource(_number(m[2]), "+1/+1")]),  # Ob Nixilis, the Fallen ("you may have ..." as the trigger rewrote it)
     (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
@@ -2889,6 +2898,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (player|opponent) mills {_N} cards?\.", re.I),
      lambda m: TargetMill(_count(m[2]), m[1].lower())),
     (re.compile(rf"destroy all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(DestroyAll, m)),
+    (re.compile(r"destroy all creatures you don't control and all planeswalkers you don't control\.", re.I),  # In Garruk's Wake
+     lambda m: [DestroyAll("creature you don't control"), DestroyAll("planeswalker you don't control")]),
     (re.compile(r"(?:they|it|a creature destroyed this way) can't be regenerated\.", re.I), lambda m: CannotRegenerate()),
     (re.compile(rf"regenerate target {_PERMANENT_KIND}\.", re.I), lambda m: Regenerate(m[1].lower())),
     (re.compile(rf"regenerate {_SELF}\.", re.I), lambda m: RegenerateSource()),
@@ -3157,12 +3168,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
 _YOUR_ACTION = (rf"(?:draw (?:a card|{_N} cards)|gain {_N} life|lose {_N} life"
                 r"|return (?:up to one )?target (?:[a-z]+ )?card from your graveyard to your hand"
                 rf"|put {_N} \+1/\+1 counters? on a creature you control"
-                r"|create an? (?:Treasure|Food|Clue) token)")  # Witch of the Moors; Breena; Lotho
+                r"|create an? (?:Treasure|Food|Clue) token|untap all lands you control)")  # Witch of the Moors; Breena; Lotho; Sword of Feast and Famine
 
 
 def _you_do(phrase: str) -> str:
     """A sentence for something you do: "draw a card" -> "Draw a card.", "lose 1 life" -> "You lose 1 life." """
-    return phrase[:1].upper() + phrase[1:] + "." if phrase.lower().startswith(("draw", "return", "create")) else f"You {phrase}."
+    return phrase[:1].upper() + phrase[1:] + "." if phrase.lower().startswith(("draw", "return", "create", "untap")) else f"You {phrase}."
 
 
 _TIMES_X = [
@@ -3573,6 +3584,7 @@ _CONDITIONS = [
     (re.compile(r"a player cast two or more spells last turn"), lambda m: Condition("two_spells_last_turn")),
     (re.compile(r"it's (day|night)"), lambda m: Condition(m[1])),
     (re.compile(rf"{_SELF} is tapped"), lambda m: Condition("source_tapped")),
+    (re.compile(rf"{_SELF} is untapped"), lambda m: Condition("source_untapped")),  # Howling Mine
     (re.compile(r"you control no other ([A-Za-z]+)"), lambda m: Condition("control_no_other", what=_singular(m[1]))),
     (re.compile(r"you cast (?:it|him|her)|it was cast"), lambda m: Condition("cast_it")),  # Doomsday Excruciator, Uldaros Theorix
     (re.compile(r"a modified creature died under your control this turn"), lambda m: Condition("modified_died")),

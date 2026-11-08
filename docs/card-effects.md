@@ -1161,6 +1161,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     sacrifice among the numbers that pay for the rest (a Treasure spent on mana can't also be sacrificed; it is offered only if one
     does), and `PunishPerCounter` asks each opponent, for each blight counter it had, to lose 4 life, sacrifice or discard
     (`Game.punish`).
+  - Cards whose effects the engine already had, read from new wordings (`tests/test_parse_only_batch.py`; picked with Forge's card scripts:
+    every effect on them also appears on a card that already played): "At the beginning of each player's draw step" (an event heard by
+    every player, `to="everyone"`; Kami of the Crescent Moon, Font of Mythos, Howling Mine with "if this artifact is untapped",
+    Nekusar); flickering "up to one target" or "two target ... then return those cards" (Displacer Kitten, Teleportation Circle,
+    Displace, Ghostly Flicker: `Flicker.distinct`); "target artifact, enchantment, or land" (Acidic Slime) and "legendary permanent"
+    (Minamo, Empress Galina); "Counter target spell, activated ability, or triggered ability." (Disallow, Voidslime); "Destroy all
+    artifacts, creatures, and enchantments." (Nevinyrral's Disk, Akroma's Vengeance) and In Garruk's Wake; "... and you untap all lands
+    you control" (Sword of Feast and Famine); "deals combat damage to an opponent" for your creatures (Coastal Piracy); "you may draw a
+    card. If you do, discard a card." in a trigger (Mask of Memory, Smuggler's Copter and some twenty looters); "Other artifact creatures
+    you control" and "All creatures ..." in a static ability (Master of Etherium, Concordant Crossroads, Night of Souls' Betrayal). An
+    "Artifact creatures you control get ..." buff now reaches artifact creatures (it was read as a creature type and reached none).
   - Landfall, batch 1 (`tests/test_landfall_triggers.py`): a sentence "If <condition>, <effect>." whose condition is read and whose
     effect has no target and doesn't point back at what an earlier sentence chose ("it", "that", "those", ...) is an `IfElse` checked
     as it resolves (Omnath, Locus of the Roil's "If you control eight or more lands, draw a card."; Rapier Wit's "put a stun counter

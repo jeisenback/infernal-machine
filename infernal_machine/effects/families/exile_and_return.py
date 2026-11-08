@@ -48,15 +48,15 @@ class ExileInstead:
 
 @dataclass(frozen=True)
 class Flicker:
-    """Exile a permanent and bring it back: right away ("now") or as the next end step begins ("end_step"), to the
-    battlefield or its owner's hand. `under_owner`: "under its owner's control" (otherwise under yours)."""
+    """Exile a permanent and bring it back: right away ("now") or as the next end step begins ("end_step"), to the battlefield or hand."""
     target: str
     when: str = "now"
     to: str = "battlefield"
-    under_owner: bool = True
+    under_owner: bool = True  # "under its owner's control" (otherwise under yours)
     another: bool = False
     counters: int = 0  # Daydream: "... with a +1/+1 counter on it"
     optional_target: bool = False  # The Mind Stone: "up to one other target"
+    distinct: bool = False  # Ghostly Flicker: "two target ...": each a different one
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
