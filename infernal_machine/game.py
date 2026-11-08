@@ -328,6 +328,7 @@ class Permanent:
     until_next_turn: list[Modifier] = field(default_factory=list)  # "until your next turn": ends as its controller's turn begins
     activated_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last activated
     triggered_turn: dict[str, int] = field(default_factory=dict)  # ability text -> turn last triggered (once-a-turn ones)
+    resolved_turn: dict[str, tuple[int, int]] = field(default_factory=dict)  # ability text -> (turn, times it resolved that turn)
     locked_while_tapped: bool = False  # Braided Net: its activated abilities can't be activated for as long as it remains tapped
     loses_abilities_while: "Permanent | None" = None  # The Wondrous Wasp: it has no abilities for as long as this one stays (Game.strip_while)
     last_controller: "Seat | None" = None  # who controlled it when it left the battlefield
@@ -348,6 +349,7 @@ class Permanent:
     extra_counters: int = 0  # +1/+1 counters it enters with besides its own (Opal Palace's rider)
     control_origin: "Seat | None" = None  # who controlled it before a control-change effect took it
     control_aura: "Permanent | None" = None  # the Aura (Control Magic) that holds control of it
+    control_keeper: "Permanent | None" = None  # Roil Elemental: control lasts for as long as its controller controls this permanent
     control_eot: bool = False  # control changes back at end of turn (Threaten)
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
@@ -424,6 +426,7 @@ class StackItem:
     bought_back: bool = False  # its buyback cost was paid: it returns to its owner's hand as it resolves
     additional_paid: bool = False  # its additional cost was paid, when that was a choice ("you may blight 1")
     carried: Any = None  # what an earlier effect chose, for a later one (a fight's first target)
+    resolution: int = 0  # for an ability: the how-manyth time this turn it resolves (Tannuk: "the second time this ability has resolved")
     mana_spent: int = 0  # the mana paid to cast it (Deekah: "the amount of mana spent to cast that spell")
     mana_types_spent: tuple[frozenset[str], ...] = ()  # the types each of that mana could be (Deceit: "if {U}{U} was spent to cast it")
     exile_after: bool = False  # cast with flashback: exiled, not put in the graveyard, when it leaves the stack
@@ -2828,6 +2831,10 @@ class Game:
             return
         if done:
             _checked(item.source).triggered_turn["done: " + ability.text] = self.turn
+        if item.source is not None:
+            turn, times = item.source.resolved_turn.get(ability.text, (self.turn, 0))
+            item.resolution = (times if turn == self.turn else 0) + 1
+            item.source.resolved_turn[ability.text] = (self.turn, item.resolution)
         self._apply_effects(item)
 
     def evaluate(self, amount: Amount, controller: Seat) -> int:
@@ -3155,6 +3162,8 @@ class Game:
                     and (self.power(subject) > self.power(source) or (self.toughness(subject) or 0) > (self.toughness(source) or 0)))
         if kind == "all_hands_empty":  # Howltooth Hollow
             return not any(s.hand for s in self.live_seats())
+        if kind == "nth_resolution":  # Tannuk: "If this is the second time this ability has resolved this turn"
+            return self.resolving_item is not None and self.resolving_item.resolution == condition.count
         if kind == "source_power_at_least":  # Kitsa, Otterball Elite: "Activate only if Kitsa's power is 3 or greater."
             return source is not None and self.power(source) >= condition.count
         if kind == "creature_with_power":  # Garruk's Uprising: a creature you control with power N or greater
@@ -4921,10 +4930,10 @@ class Game:
                         "toughness": modifier.toughness, "keywords": sorted(modifier.keywords)})
 
     def gain_control(self, permanent: Permanent, seat: Seat, aura: Permanent | None = None, until_eot: bool = False,
-                     untap: bool = False, haste: bool = False) -> None:
+                     untap: bool = False, haste: bool = False, keeper: Permanent | None = None) -> None:
         """`seat` takes control of `permanent` (CR 110.2): it moves to their battlefield, is summoning sick under
         them, and leaves combat. `aura` holds control for as long as it stays attached; `until_eot` gives it back
-        at end of turn. Its owner doesn't change."""
+        at end of turn; `keeper`, for as long as `seat` controls that permanent. Its owner doesn't change."""
         current = self.controller_of(permanent)
         if current is None:
             return
@@ -4943,6 +4952,8 @@ class Game:
             permanent.control_aura = aura
         if until_eot:
             permanent.control_eot = True
+        if keeper is not None:
+            permanent.control_keeper = keeper
         if untap:
             self.untap(permanent)
         if haste:
@@ -4951,7 +4962,7 @@ class Game:
     def _return_control(self, permanent: Permanent) -> None:
         """A control-change effect ended: `permanent` goes back to the player who controlled it before."""
         origin, now = permanent.control_origin, self.controller_of(permanent)
-        permanent.control_origin, permanent.control_aura, permanent.control_eot = None, None, False
+        permanent.control_origin, permanent.control_aura, permanent.control_eot, permanent.control_keeper = None, None, False, None
         if origin is None or origin.lost or now is None or now is origin:
             return
         now.battlefield = [p for p in now.battlefield if p is not permanent]
@@ -7663,6 +7674,10 @@ class Game:
                         counters[MINUS] -= cancel
                     holder = permanent.control_aura  # Control Magic let go of it: it goes back
                     if holder is not None and (not self.on_battlefield(holder) or holder.attached_to is not permanent):
+                        self._return_control(permanent)
+                        changed = True
+                    keeper = permanent.control_keeper  # Roil Elemental left, or its controller lost control of it: it goes back
+                    if keeper is not None and self.controller_of(keeper) is not seat:
                         self._return_control(permanent)
                         changed = True
                     host = permanent.attached_to

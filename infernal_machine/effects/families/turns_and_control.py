@@ -41,10 +41,25 @@ class GainControl:
     until_end_of_turn: bool = False
     untap: bool = False
     haste: bool = False
+    while_source: bool = False  # Roil Elemental: "for as long as you control this creature"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.gain_control(target, controller, until_eot=self.until_end_of_turn, untap=self.untap, haste=self.haste)
+            if self.while_source and (game.resolving_source is None or game.controller_of(game.resolving_source) is not controller):
+                return  # CR 611.2b: a duration that has already ended does nothing
+            game.gain_control(target, controller, until_eot=self.until_end_of_turn, untap=self.untap, haste=self.haste,
+                              keeper=game.resolving_source if self.while_source else None)
+
+
+@dataclass(frozen=True)
+class GoadEachOfTarget:
+    """Geode Rager: "goad each creature target player controls." """
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            for permanent in [p for p in target.battlefield if "Creature" in p.card.type_line]:
+                game.goad(permanent, controller)
 
 
 @dataclass(frozen=True)

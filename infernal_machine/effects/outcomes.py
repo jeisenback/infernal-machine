@@ -660,6 +660,7 @@ from .families.turns_and_control import (  # noqa: F401
     ExtraLandDrop,
     ExtraTurn,
     GainControl,
+    GoadEachOfTarget,
     OpponentsCantCast,
     TargetCantCast,
     NoAttacksThisTurn,
@@ -2652,8 +2653,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"put a number of \+1/\+1 counters on it equal to the damage dealt\.", re.I),
      lambda m: PutCountersOnSource("X", "+1/+1")),  # X is the damage the trigger saw
     (re.compile(r"you may choose new targets for the cop(?:y|ies)\.", re.I), lambda m: NewTargets()),
-    (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn)?\.", re.I),
-     lambda m: GainControl(m[1].lower(), until_end_of_turn=bool(m[2]))),
+    (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn| for as long as you control (?:this creature|CARDNAME))?\.", re.I),
+     lambda m: GainControl(m[1].lower(), until_end_of_turn=m[2] == " until end of turn", while_source=bool(m[2]) and "as long" in m[2])),
+    (re.compile(r"goad each creature target player controls\.", re.I), lambda m: GoadEachOfTarget()),  # Geode Rager
+    (re.compile(rf"target player loses {_N_FIXED} life\. If you do, put {_N_FIXED} \+1/\+1 counters on CARDNAME\.", re.I),
+     lambda m: [TargetLoseLife(_number(m[1]), "player"), PutCountersOnSource(_number(m[2]), "+1/+1")]),  # Ob Nixilis, the Fallen ("you may have ..." as the trigger rewrote it)
     (re.compile(r"untap that creature\.", re.I), lambda m: UntapThat()),
     (re.compile(r"target (creature you control) explores\.", re.I), lambda m: Explore(m[1].lower())),  # the Map token
     (re.compile(rf"choose (creature) or (land)\. reveal the top {_N_FIXED} cards of your library\. put all cards of the chosen type revealed "
@@ -3144,6 +3148,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:you may )?search your library for a basic land card, put it onto the battlefield, then shuffle\.", re.I),  # "you may": Demolition Field
      lambda m: FetchBasicLand(tapped=False)),
     (re.compile(r"if (you control an? (?-i:[A-Z])\w+), (?!.*\binstead\.$)(.+)\.", re.I), _if_else),  # Unholy Annex
+    (re.compile(r"if (.+?), (?!.*\binstead\.$)(?!.*\b(?:it|its|that|those|them|they|their)\b)(.+)\.", re.I),  # Omnath, Locus of the Roil:
+     _if_else),  # any condition read, checked as it resolves; not an effect on what an earlier sentence chose (Rapier Wit's "on it")
     (re.compile(r"otherwise, (.+)\.", re.I), _otherwise),
 ]
 
@@ -3478,6 +3484,8 @@ _CONDITIONS = [
     (re.compile(r"creatures you control have total power (\d+) or greater"), lambda m: Condition("creature_power_at_least", int(m[1]))),
     (re.compile(r"you control a creature with power (\d+) or greater"), lambda m: Condition("creature_with_power", int(m[1]))),
     (re.compile(r"(?:this creature's|CARDNAME's) power is (\d+) or greater"), lambda m: Condition("source_power_at_least", int(m[1]))),  # Kitsa
+    (re.compile(r"this is the (first|second|third) time this ability has resolved this turn"),  # Tannuk, Memorial Ensign
+     lambda m: Condition("nth_resolution", ("first", "second", "third").index(m[1]) + 1)),
     (re.compile(r"you created a token this turn"), lambda m: Condition("created_token")),
     (re.compile(r"you control (eight) or more artifacts with the same name as one another"),  # Mechanized Production
      lambda m: Condition("same_name_artifacts", _number(m[1]))),
