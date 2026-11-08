@@ -130,7 +130,7 @@ def is_station_line(line: str) -> bool:
 _ACTIVATED = re.compile(r"([^:\"]+): (.+)")
 
 
-_COST_ABILITY_WORD = re.compile(r"^[A-Z][a-z]+ \u2014 (?=\{)")
+_COST_ABILITY_WORD = re.compile(r"^[A-Z][a-z]+(?: [A-Z][a-z]+)* \u2014 (?=\{)")  # "Delirium — ", "Smear Campaign — " (Daily Bugle Building)
 
 
 _CHANNEL = re.compile(r"Channel \u2014 (.+)")

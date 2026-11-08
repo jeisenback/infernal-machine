@@ -200,6 +200,10 @@ _CONTROLLER = r"(?:its|that (?:creature|permanent|land)'s) controller"
 _PLAYER_PRONOUNS = [
     (re.compile(rf"\b{_CONTROLLER} (loses|gains|draws|discards|mills)\b", re.I), r"target player \1"),
     (re.compile(rf"\bto {_CONTROLLER}\b", re.I), "to target player"),
+    # (_event_body applies the two above on their own, so they stay first.) Seizan, Ob Nixilis, Unshackled: "that player loses 2 life and
+    # draws two cards" is two sentences about the same player
+    (re.compile(r"\bthat player (loses|gains|draws|discards|mills|sacrifices) ([^.]+?) and (loses|gains|draws|discards|mills) ([^.]+)\.", re.I),
+     r"target player \1 \2. Target player \3 \4."),
     (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bthat (?:attacking )?player (loses|gains|draws|discards|mills|sacrifices)\b", re.I), r"target player \1"),
     (re.compile(r"\bhave that player (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
@@ -762,6 +766,8 @@ def _one_trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
                 rest, event in _SUBJECT_EVENTS or event == "combat_damage_dealt",  # ("it" is the creature that dealt it)
                 (event == "cast" and watch.caster != "you") or event in _SUBJECT_EVENTS)
             if effects is None:
+                return None
+            if watch.batch and re.search(r"\bthat many\b", rest, re.I):  # Woodland Champion: a batch carries no count yet
                 return None
             found.append(TriggeredAbility(event, tuple(effects), optional, text, watch, once, condition))
         return found

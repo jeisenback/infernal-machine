@@ -572,6 +572,8 @@ from .families.spells_and_misc import (  # noqa: F401
     _GiftMatch,
     _IfYouDo,
     _ItGains,
+    _ThatCreatureGains,
+    _UntapThoseCreatures,
     _ItHas,
     _KickedInsteadTail,
     _MayRemoveCounter,
@@ -775,7 +777,9 @@ def mode_text(line: str) -> str:
     """A mode of a modal spell without its bullet (or a Spree mode without its cost)."""
     if m := _SPREE_MODE.fullmatch(line):
         return m[2]
-    return line[2:] if line.startswith("\u2022 ") else line
+    if not line.startswith("\u2022 "):
+        return line
+    return re.sub(r"^[A-Z][\w'!?]*(?: [\w'!?]+)* \u2014 ", "", line[2:])  # a named mode: "• Pray for Protection — ..." (only a label)
 
 
 def _parse_modal(how: str, lines: list[str], repeat: bool = False) -> list | None:
@@ -1657,7 +1661,7 @@ def kicked_effects(effects: list | None, kicked: int, kickers: tuple[str, ...] =
 
 _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocking creature|artifact, enchantment, or nonbasic land|artifact, creature, enchantment, or planeswalker"
                    r"|creature, enchantment, or planeswalker|non-outlaw creature"  # Get Lost; Shoot the Sheriff
-                   r"|artifact, enchantment, or land|legendary permanent"  # Acidic Slime; Minamo, School at Water's Edge
+                   r"|artifact, enchantment, or land|legendary permanent|multicolored permanent"  # Acidic Slime; Minamo; Null Elemental Blast
                    r"|monocolored permanent|(?:white|blue|black|red|green) permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
                    r"|non(?:white|blue|black|red|green|artifact|legendary) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|non-(?-i:[A-Z][a-z]+), nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
@@ -1665,7 +1669,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
                    r"|creature or planeswalker|creature or enchantment|creature or Vehicle|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?:, (?-i:[A-Z][a-z]+))*,? or (?-i:[A-Z][a-z]+)(?= you control)"
                    r"|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that (?:player|opponent) controls)?"
-                   r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with power \d+ or less)?)")
+                   r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with (?:power or toughness|power|toughness) \d+ or (?:less|greater))?)")
 
 
 _COPY_TOKEN = re.compile(
@@ -1726,7 +1730,7 @@ def _up_to(cls: type, m: re.Match, **fixed: Any) -> list:
     return [cls(kind, optional_target=True, distinct=n > 0, **fixed) for n in range(_number(m[1]))]
 
 
-_DAMAGE_KIND = (r"(any target|target attacking or blocking creature|target (?:tapped )?creature an opponent controls|target creature with(?:out)? flying"
+_DAMAGE_KIND = (r"(any target|target attacking or blocking creature|target (?:tapped )?creature an opponent controls|target creature you don't control|target creature or planeswalker an opponent controls|target creature with(?:out)? flying"
                 r"|target creature|target player|target opponent|target creature or planeswalker"
                 r"|target player or planeswalker)")
 
@@ -1859,6 +1863,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [Destroy(_PLURAL_KINDS[m[2].lower()] + _suffix(m[3]), distinct=n > 0) for n in range(_number(m[1]))]),
     (re.compile(rf"destroy up to one target {_PERMANENT_KIND}\.", re.I),
      lambda m: Destroy(m[1].lower(), optional_target=True)),
+    (re.compile(rf"destroy up to one target {_PERMANENT_KIND} and up to one target {_PERMANENT_KIND}\.", re.I),  # Sword of Sinew and Steel
+     lambda m: [Destroy(m[1].lower(), optional_target=True), Destroy(m[2].lower(), optional_target=True)]),
     (re.compile(r"counter target spell if it's (white|blue|black|red|green)\.", re.I),
      lambda m: Counter("spell", if_color=_COLOR_LETTER[m[1].lower()])),
     (re.compile(r"destroy target permanent if it's (white|blue|black|red|green)\.", re.I),
@@ -1870,7 +1876,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"of mana spent to cast this spell\.", re.I), lambda m: ExileIfConverge(m[1].lower())),  # Prismatic Ending
     (re.compile(r"(?:revolt \u2014 )?destroy that creature if it has mana value (\d+) or less instead if (.+)\.", re.I),  # Fatal Push
      lambda m: _InsteadManaValue(int(m[1]), c) if (c := _condition(m[2])) else None),
-    (re.compile(r"counter target ((?:noncreature|creature or enchantment|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|instant|sorcery|white|blue|black|red|green) )?spell"
+    (re.compile(r"counter target ((?:noncreature|creature or enchantment|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|instant|sorcery|white|blue|black|red|green|multicolored) )?spell"
                 rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
      lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
     (re.compile(r"counter target spell with mana value X or less, where X is the number of ((?-i:[A-Z][a-z]+))s you control\.", re.I),
@@ -1960,7 +1966,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:that token gains|those tokens gain) haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
     (re.compile(r'it gains haste and "When this token dies, draw a card\."', re.I), lambda m: _TokenGainsBlitz()),  # Jaxis  # Devastating Onslaught
     (re.compile(r"(?:it|that token|they|those tokens) gains? haste\.", re.I), lambda m: _TokenHasHaste()),
-    (re.compile(r"sacrifice (?:it|this (?:creature|artifact|token|permanent))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."; Electroduplicate's token
+    (re.compile(r"sacrifice (?:it|CARDNAME|this (?:creature|artifact|token|permanent|enchantment|land))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."; Electroduplicate's token
     (re.compile(r"exile this token\.", re.I), lambda m: ExileSelf()),  # Heat Shimmer's token: "At the beginning of the end step, exile this token."
     (re.compile(r"return (?:CARDNAME|this creature) to its owner's hand at the beginning of the next end step\.", re.I),  # Sakashima the Impostor
      lambda m: ReturnSelfAtNextEndStep()),
@@ -2042,6 +2048,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _PutFromAmongThem("instant or sorcery or Faerie", "hand")),  # Free the Fae
     (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),
     (re.compile(rf"it gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ItGains(_keyword_list(m[1]))),
+    (re.compile(r"untap those creatures\.", re.I), lambda m: _UntapThoseCreatures()),
+    (re.compile(rf"put that many {_COUNTER} on (?:it|{_SELF})\.", re.I),  # Hungering Hydra, Necropolis Regent: the number the event carried
+     lambda m: PutCountersOnSource("X", _counter_name(m[1]))),
     (re.compile(rf"that creature also gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ThatAlsoGains(_keyword_list(m[1]))),
     (re.compile(rf"if X is (two|three|four|five) or more, that creature gains {_KEYWORDS} until end of turn\.", re.I),  # Obsessive Pursuit
      lambda m: _GainsIfXAtLeast(_keyword_list(m[2]), _number(m[1]))),
@@ -2235,6 +2244,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnToHand(m[2].lower(), "other" in (m[1] or "").lower(), (m[1] or "").lower().startswith("up to one"),
                             distinct="other" in (m[1] or "").lower())),
     (re.compile(rf"return {_UP_TO} target {_PLURAL_KIND} to their owners' hands\.", re.I), lambda m: _up_to(ReturnToHand, m)),
+    (re.compile(rf"return {_UP_TO} other target {_PLURAL_KIND} to their owners' hands\.", re.I),  # Marang River Regent
+     lambda m: _up_to(ReturnToHand, m, another=True)),
     (re.compile(rf"return one or two target {_PLURAL_KIND} to (?:their owners' hands|your hand)\.", re.I),  # Get Out
      lambda m: [ReturnToHand(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2])),
                 ReturnToHand(_PLURAL_KINDS[m[1].lower()] + _suffix(m[2]), optional_target=True, distinct=True)]),
@@ -2251,6 +2262,16 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"return (two|three) target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),  # exactly that many
      lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand", distinct=n > 0)
                 for n in range(_number(m[1]))]),
+    (re.compile(rf"return up to one target {_CARD_TYPE} from your graveyard to the battlefield\.", re.I),  # Salvation Engine
+     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "battlefield", optional_target=True)),
+    (re.compile(rf"return another target {_CARD_TYPE} from your graveyard to the battlefield\.", re.I),  # Gixian Puppeteer
+     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "battlefield", another=True)),
+    (re.compile(r"return (up to two|one or two) target (artifact and/or enchantment|creature and/or planeswalker) cards from your graveyard "
+                r"to your hand\.", re.I),  # Ishgard's Faith & Grief; Archenemy's Charm (one or two: the first is not optional)
+     lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace(" and/or ", " or ") + " card", "yours"), "hand",
+                                    optional_target=n > 0 or m[1].lower() == "up to two", distinct=n > 0) for n in range(2)]),
+    (re.compile(r"return target card from a graveyard to its owner's hand\.", re.I),  # Naya Charm
+     lambda m: ReturnFromGraveyard("graveyard:card:any", "hand")),
     (re.compile(rf"return up to one target {_CARD_TYPE} from your graveyard to your hand\.", re.I),  # Witch of the Moors
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand", optional_target=True)),
     (re.compile(rf"return target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
@@ -2333,9 +2354,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"search your library for up to two basic land cards, reveal those cards, put one onto the battlefield "
                 r"tapped and the other into your hand, then shuffle\.", re.I),
      lambda m: SearchForLands(2, (), 1, True, True)),
-    (re.compile(r"search your library for up to (two|three|four) basic land cards, (?:reveal (?:them|those cards), )?"
+    (re.compile(r"search your library for (?:up to )?(two|three|four) basic land cards, (?:reveal (?:them|those cards), )?"
                 r"put (?:them|those cards) onto the battlefield tapped, then shuffle\.", re.I),
      lambda m: SearchForLands(_count(m[1]), (), _count(m[1]), True, False)),
+    (re.compile(r"search your library for up to (ten) land cards, put them onto the battlefield tapped, then shuffle\.", re.I),  # Reshape the Earth
+     lambda m: SearchForLands(_count(m[1]), ("*",), _count(m[1]), True, False)),
     (re.compile(rf"search your library for an? {_LAND_TYPES} card, put (?:it|that card) onto the battlefield( tapped)?, "
                 r"then shuffle\.", re.I),
      lambda m: SearchForLands(1, _land_types(m[1]), 1, bool(m[2]), False)),
@@ -2387,7 +2410,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"put the rest on the bottom of your library in (?:a random|any) order\.", re.I),
      lambda m: RestOnBottom()),
     (re.compile(r"put the rest into your graveyard\.", re.I), lambda m: RestOnBottom("graveyard")),
-    (re.compile(r"return a land you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand()),
+    (re.compile(r"return a (land|creature) you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand(m[1].capitalize())),  # Whitemane Lion
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
     (re.compile(r"put target card from a graveyard on top of its owner's library\.", re.I),
@@ -2730,6 +2753,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"proliferate (X) times\.", re.I), lambda m: Proliferate("X")),
     (re.compile(rf"target {_FIGHTER} fights (another )?target {_FIGHTER}\.", re.I),
      lambda m: [FightFirst(m[1].lower()), Fight(m[3].lower(), another=bool(m[2]))]),
+    (re.compile(rf"target {_FIGHTER} fights up to one target {_FIGHTER}\.", re.I),  # Smell Fear
+     lambda m: [FightFirst(m[1].lower()), Fight(m[2].lower(), optional_target=True)]),
     (re.compile(rf"target {_FIGHTER} deals damage equal to its power to (?:target {_FIGHTER}|(any target)"
                 r"|target (creature or planeswalker (?:you don't control|an opponent controls)))\.", re.I),
      lambda m: [FightFirst(m[1].lower()), Fight("any" if m[3] else (m[2] or m[4]).lower(), one_sided=True)]),
@@ -2827,9 +2852,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"return an? {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnChosen(_card_kind(m[1]), "hand")),
     (re.compile(r"take an extra turn after this one\.", re.I), lambda m: ExtraTurn()),
+    (re.compile(r"target player takes two extra turns after this one\.", re.I), lambda m: TargetExtraTurn(count=2)),  # Time Stretch
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
     (re.compile(rf"return (?:{_SELF}|this card) to its owner's hand\.", re.I), lambda m: ReturnSelfToHand()),
     (re.compile(r"tap all creatures your opponents control\.", re.I), lambda m: TapAll()),
+    (re.compile(r"tap all creatures target player controls\.", re.I), lambda m: TapAll("player")),  # Naya Charm
     (re.compile(r"investigate\.", re.I), lambda m: CreateTokens(1, CLUE)),
     (re.compile(rf"{_VOTE_PREFIX}starting with you, each player votes for (\w+) or (\w+)\.", re.I),
      lambda m: VoteStart((m[1].lower(), m[2].lower()))),
@@ -2853,6 +2880,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"untap (another )?target {_PERMANENT_KIND}\.", re.I), lambda m: Untap(m[2].lower(), bool(m[1]))),
     (re.compile(rf"untap up to one target {_PERMANENT_KIND}\.", re.I), lambda m: Untap(m[1].lower(), optional_target=True)),
     (re.compile(rf"untap {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Untap, m)),
+    (re.compile(r"untap two other target legendary creatures\.", re.I),  # Ioreth of the Healing House
+     lambda m: [Untap("legendary creature", another=True, distinct=n > 0) for n in range(2)]),
     (re.compile(rf"untap (?:it|{_SELF})\.", re.I), lambda m: UntapSource()),
     (re.compile(r"goad target (creature(?: that player controls)?)\.", re.I), lambda m: Goad(m[1].lower())),  # Grenzo: the player dealt damage
     (re.compile(r"goad (?:all creatures you don't control|each creature your opponents control)\.", re.I),
@@ -2898,6 +2927,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (player|opponent) mills {_N} cards?\.", re.I),
      lambda m: TargetMill(_count(m[2]), m[1].lower())),
     (re.compile(rf"destroy all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(DestroyAll, m)),
+    (re.compile(r"destroy all (non-)?((?-i:[A-Z][a-z]+)) creatures\.", re.I),  # Crux of Fate: "all Dragon creatures", "all non-Dragon creatures"
+     lambda m: DestroyAll(f"{m[1] or ''}{m[2]} creature")),
     (re.compile(r"destroy all creatures you don't control and all planeswalkers you don't control\.", re.I),  # In Garruk's Wake
      lambda m: [DestroyAll("creature you don't control"), DestroyAll("planeswalker you don't control")]),
     (re.compile(r"(?:they|it|a creature destroyed this way) can't be regenerated\.", re.I), lambda m: CannotRegenerate()),
@@ -2983,6 +3014,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), target="player")),
     (re.compile(rf"target (creature(?: you control)?) gains your choice of ([a-z ]+?) or ([a-z ]+?) until end of turn\.", re.I),
      lambda m: GainChosenKeyword((m[2].lower(), m[3].lower()), m[1].lower())),  # Practiced Offense
+    (re.compile(rf"put {_N} {_COUNTER} on each creature\.", re.I), lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), everyone=True)),  # Soul Snuffers
     (re.compile(rf"put {_N} {_COUNTER} on each (creature|(?-i:[A-Z][a-z]+)(?: creature)?|artifact creature) you control\.", re.I),
      lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), "" if m[3].lower() == "creature" else m[3].removesuffix(" creature").capitalize())),
     (re.compile(rf"put a {_COUNTER} on each (?:(white|blue|black|red|green) )?creature that entered this turn\.", re.I),
@@ -3079,6 +3111,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PumpEach(Modifier(keywords=frozenset({LOSES_HEXPROOF})), opponents=True)),
     (re.compile(rf"(?i:creatures your opponents control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), opponents=True)),
     (re.compile(rf"(?i:all creatures) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), everyone=True)),
+    (re.compile(rf"(?i:all (non-[A-Z][a-z]+) creatures) {_CHANGE}"),  # Noxious Ghoul: "all non-Zombie creatures get -1/-1 ..."
+     lambda m: PumpEach(_modifier(m, 2), everyone=True, subtype=m[1])),
     (re.compile(rf"move (?:{_N_FIXED}|all|any number of) {_COUNTER} from target (creature) onto another target (creature)"
                 r"( with the same controller)?\.", re.I),
      lambda m: [MoveCountersFrom(m[3].lower()),
@@ -3119,6 +3153,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:{_SELF}) gets? {_PT_X} until end of turn\."),
      lambda m: (lambda x: PumpSourceX(x.power, x.toughness))(_pump_x(m[1], m[2], m[3], m[4], "creature"))),
     (re.compile(rf"(?i:creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1))),
+    (re.compile(rf"(?i:attacking creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), attacking=True)),  # Warren Warleader
     (re.compile(rf"(?i:other creatures you control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), other=True)),  # Summon: Esper Maduin
     (re.compile(rf"(?i:tokens you control gain) {_KEYWORDS} (?i:until (end of turn|your next turn))\."),  # For the Common Good: every token
      lambda m: KindsGainUntilEndOfTurn("token", _keyword_list(m[1]), until_next_turn=m[2].lower() == "your next turn")),
@@ -3130,6 +3165,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"that token attacks this combat if able\.", re.I), lambda m: _TokenAttacksThisCombat()),  # Howlsquad Heavy
     (re.compile(r"exile them at the beginning of the next end step\.", re.I), lambda m: _ExileThemLater()),
     (re.compile(r"sacrifice them at the beginning of the next end step\.", re.I), lambda m: _SacrificeThemLater()),
+    (re.compile(r"create (an?|one|two) (\d+/\d+ [^.]*? creature tokens?) that(?:'s| are) tapped and attacking\.", re.I),  # Skyknight Vanguard
+     lambda m: (lambda parsed: TokensJoinAttack(parsed[0], parsed[1]) if parsed else None)(_token(f"{m[1]} {m[2]}"))),
     (re.compile(r"create (.+?) tapped and attacking (\d+/\d+ [^.]*? creature tokens?)\.", re.I),  # Mobilize
      lambda m: (lambda parsed: TokensJoinAttack(parsed[0], parsed[1]) if parsed else None)(_token(f"{m[1]} {m[2]}"))),
     (re.compile(r"prevent all combat damage that would be dealt this turn\.", re.I), lambda m: PreventAllCombatDamage()),
@@ -3162,6 +3199,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if (.+?), (?!.*\binstead\.$)(?!.*\b(?:it|its|that|those|them|they|their)\b)(.+)\.", re.I),  # Omnath, Locus of the Roil:
      _if_else),  # any condition read, checked as it resolves; not an effect on what an earlier sentence chose (Rapier Wit's "on it")
     (re.compile(r"otherwise, (.+)\.", re.I), _otherwise),
+    # Silver Shroud Costume: after an Equipment attached itself; last, so the older readings of "That creature gains haste" (Threaten) win
+    (re.compile(rf"that creature gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ThatCreatureGains(_keyword_list(m[1]))),
 ]
 
 
@@ -3249,6 +3288,12 @@ def _clauses(sentence: str) -> list[str]:
     sentence = re.sub(r"^You (draw|create) ", lambda m: m[1].capitalize() + " ", sentence)
     if m := re.fullmatch(rf"(Draw {_N} cards?|Scry {_N}) and ((?:create|remove) .+)\.", sentence):  # Big Score, Midnight Oil; Greedy Freebooter scries
         return [m[1] + ".", m[4][:1].upper() + m[4][1:] + "."]
+    if m := re.fullmatch(r"(.+) and (target player (?:loses|gains|draws|discards|mills) [^.]+)\.", sentence, re.I):  # Sword of Body and Mind
+        return _clauses(m[1] + ".") + [m[2][:1].upper() + m[2][1:] + "."]
+    if m := re.fullmatch(r"Each player (draws [^.]+?) and (loses \d+ life)\.", sentence):  # Stormfist Crusader
+        return [f"Each player {m[1]}.", f"Each player {m[2]}."]
+    if m := re.fullmatch(r"Each player (draws [^.]+?), then (discards [^.]+)\.", sentence):  # Burning Inquiry
+        return [f"Each player {m[1]}.", f"Each player {m[2]}."]
     if m := re.fullmatch(rf"(.+) and you ({_YOUR_ACTION})\.", sentence, re.I):
         return _clauses(m[1] + ".") + [_you_do(m[2])]
     if m := re.fullmatch(rf"(?:You )?(gain {_N} life) and (put .+ counters? on .+)\.", sentence):  # Dina, Essence Brewer
@@ -3585,6 +3630,7 @@ _CONDITIONS = [
     (re.compile(r"it's (day|night)"), lambda m: Condition(m[1])),
     (re.compile(rf"{_SELF} is tapped"), lambda m: Condition("source_tapped")),
     (re.compile(rf"{_SELF} is untapped"), lambda m: Condition("source_untapped")),  # Howling Mine
+    (re.compile(r"no creatures are on the battlefield"), lambda m: Condition("no_creatures")),  # Pestilence
     (re.compile(r"you control no other ([A-Za-z]+)"), lambda m: Condition("control_no_other", what=_singular(m[1]))),
     (re.compile(r"you cast (?:it|him|her)|it was cast"), lambda m: Condition("cast_it")),  # Doomsday Excruciator, Uldaros Theorix
     (re.compile(r"a modified creature died under your control this turn"), lambda m: Condition("modified_died")),
@@ -3710,6 +3756,8 @@ _CONDITIONAL = Follows(
     Follow(_IfFlip, FlipCoin, lambda previous, marker: dataclasses.replace(previous, otherwise=marker.effect),  # Krark: the other result
            fits=lambda previous, marker: previous.then is not None and previous.otherwise is None and marker.on_win != previous.on_win),
     Follow(_DrawIfYouControlledIt, ReturnToHand, set_fields(draw_if_yours=lambda m: True)),
+    Follow(_ThatCreatureGains, Attach, set_fields(grant=lambda m: m.keywords), fits=lambda previous, marker: not previous.grant),
+    Follow(_UntapThoseCreatures, (PumpEach, PutCountersOnEach), set_fields(untap=lambda m: True)),
     Follow(_LosesAbilitiesWhileSource, Tap, set_fields(strip_while_source=lambda m: True)),
     Follow(_LockedWhileTapped, Tap, set_fields(lock_while_tapped=lambda m: True)),
     Follow(_CounterIfReturned, ReturnToHand, set_fields(counter_on_source=lambda m: m.counter)),

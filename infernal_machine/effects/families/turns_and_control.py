@@ -121,12 +121,13 @@ class ExtraTurn:
 
 @dataclass(frozen=True)
 class TargetExtraTurn:
-    """ "Target player takes an extra turn after this one." """
+    """ "Target player takes an extra turn after this one." Time Stretch: two (`count`)."""
     target: str = "player"
+    count: int = 1
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.extra_turns.append(target.index)
+            game.extra_turns.extend([target.index] * self.count)
 
 
 @dataclass(frozen=True)

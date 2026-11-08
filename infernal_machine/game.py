@@ -971,6 +971,8 @@ class Game:
             for other in self.live_seats():  # "At the beginning of each upkeep / end step"
                 for permanent in list(other.battlefield):
                     self.trigger("each_upkeep" if self.step == "upkeep" else "each_end_step", permanent, other)
+                    if self.step == "upkeep":  # Seizan: "At the beginning of each player's upkeep, that player ..."
+                        self.trigger("each_player_upkeep", permanent, other, player=seat)
                     if other is not seat:  # "At the beginning of each opponent's upkeep / end step"
                         self.trigger("opponent_upkeep" if self.step == "upkeep" else "opponent_end_step", permanent, other,
                                      player=seat)  # "that player" is whose turn it is
@@ -3069,7 +3071,7 @@ class Game:
         """"Whenever you discard one or more cards" once, and "... one or more nonland cards" once, carrying the nonland cards among
         those discarded."""
         if cards:
-            self.happened("discarded_some", seat)
+            self.happened("discarded_some", seat, x=len(cards))  # Marauding Mako: "put that many +1/+1 counters"
         if nonland := tuple(c for c in cards if "Land" not in c.type_line):
             self.happened("discarded_nonland", seat, spell=nonland)
 
@@ -3306,6 +3308,8 @@ class Game:
             return seat.citys_blessing
         if kind == "source_tapped":
             return source is not None and source.tapped
+        if kind == "no_creatures":  # Pestilence: "if no creatures are on the battlefield"
+            return not any("Creature" in p.card.type_line for s in self.live_seats() for p in s.battlefield)
         if kind == "source_untapped":  # Howling Mine: "if this artifact is untapped"
             return source is not None and not source.tapped
         if kind == "not_prepared":
@@ -3553,7 +3557,9 @@ class Game:
         kind = re.sub(r" with(?:out)? flying$", "", kind)
         attacked = kind.endswith(" that attacked this turn")  # "creature that attacked this turn"
         lesser = self._source_now() if kind.endswith(" with lesser power") else None  # Mentor
-        power_limit = re.search(r" with power (\d+) or less$", kind)  # Escape Tunnel: the creature's power now, counters and pumps included
+        # Escape Tunnel's "with power 2 or less", Valorous Stance's "with toughness 4 or greater", Warping Wail's "with power or toughness 1 or
+        # less": the creature's power and toughness now, counters and pumps included
+        power_limit = re.search(r" with (power or toughness|power|toughness) (\d+) or (less|greater)$", kind)
         wanted = parse_filter(re.sub(r"mana value x\b", lambda m: "mana value %d" % (
             self.x_value if self.resolving_item is not None else self.targeting_x),
             kind.removesuffix(" that attacked this turn").removesuffix(" with lesser power")[:power_limit.start() if power_limit else None]))
@@ -3576,7 +3582,10 @@ class Game:
                     continue
                 if kind.endswith(" with lesser power") and (lesser is None or self.power(permanent) >= self.power(lesser)):
                     continue
-                if power_limit is not None and self.power(permanent) > int(power_limit[1]):
+                if power_limit is not None and not any(
+                        value <= int(power_limit[2]) if power_limit[3] == "less" else value >= int(power_limit[2])
+                        for value in ([self.power(permanent)] if power_limit[1] != "toughness" else [])
+                        + ([self.toughness(permanent) or 0] if power_limit[1] != "power" else [])):
                     continue
                 if not self._in_state(permanent, wanted.state):
                     continue
@@ -4806,6 +4815,9 @@ class Game:
                         continue
                 elif wanted == "Legendary":  # Jodah, the Unifier: a supertype, not a creature type
                     if "Legendary" not in permanent.card.type_line:
+                        continue
+                elif wanted == "Nontoken":  # Thraben Watcher: "Other nontoken creatures you control"
+                    if _is_token(permanent.card) or (buff.other and source is permanent):
                         continue
                 elif wanted == "Artifact":  # Master of Etherium: "Other artifact creatures you control", a card type
                     if "Artifact" not in permanent.card.type_line.partition("\u2014")[0] or (buff.other and source is permanent):
