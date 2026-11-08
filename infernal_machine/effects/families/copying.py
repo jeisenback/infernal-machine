@@ -10,7 +10,7 @@ from typing import Any, TYPE_CHECKING
 from ...cards import Card
 from ...characteristics import Modifier
 from ..common import Quantity
-from ..targets import (DEAD_SUBJECT, PLAYER, SOURCE, SOURCE_AND_SUBJECT, SUBJECT)
+from ..targets import (DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT)
 from ...prompts import PromptKind
 
 if TYPE_CHECKING:
@@ -708,6 +708,28 @@ class CopyTriggeringSpell:
         spell = game.resolving_item.carried if game.resolving_item is not None else None
         if spell is not None:
             game.copy_spell(spell, controller, self.new_targets, changes=self.changes)
+
+
+@dataclass(frozen=True)
+class CasterCopiesSpell:
+    """Bonus Round: "whenever a player casts an instant or sorcery spell, that player copies it and may choose new targets for the
+    copy." The copy is the caster's, not the controller's of the ability (the spell is `carried`)."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        spell = game.resolving_item.carried if game.resolving_item is not None else None
+        if spell is not None:
+            game.copy_spell(spell, spell.controller, new_targets=True)
+
+
+@dataclass(frozen=True)
+class CopyPreviousTarget:
+    """Wild Ricochet: "You may choose new targets for target instant or sorcery spell. Then copy that spell." (the spell just targeted)"""
+    new_targets: bool = False
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.copy_spell(target, controller, self.new_targets)
 
 
 @dataclass(frozen=True)

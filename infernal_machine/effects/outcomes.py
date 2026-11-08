@@ -127,6 +127,8 @@ from .families.combat_and_pump import (  # noqa: F401
     _UntapThoseLands,
 )
 from .families.copying import (  # noqa: F401
+    CopyPreviousTarget,
+    CasterCopiesSpell,
     BecomeCopyUntilEndOfTurn,
     BecomeCard,
     CAST_COPY_PROMPT,
@@ -1870,7 +1872,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ChangeTarget(m[1].lower(), every=True)),  # Goblin Flectomancer
     (re.compile(r"change a target of target spell or ability to (this creature)\.", re.I),
      lambda m: ChangeTarget("spell or ability", to="this", lone=False)),  # Spellskite
-    (re.compile(r"you may choose new targets for target spell or ability\.", re.I), lambda m: ChangeTarget("spell or ability", every=True)),
+    (re.compile(r"you may choose new targets for target (spell or ability|instant or sorcery spell)\.", re.I),
+     lambda m: ChangeTarget(m[1].lower(), every=True)),  # Deflecting Swat; Wild Ricochet
     (re.compile(r"return target (spell or nonland permanent an opponent controls|spell or permanent) to its owner's hand\.", re.I),
      lambda m: ReturnToHand(m[1].lower())),  # Sink into Stupor, Jeskai Revelation
     (re.compile(r"return target spell( you don't control)? to its owner's hand\.", re.I),
@@ -2465,6 +2468,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [DefineX(Amount("spells_before", "instant or sorcery spell")), CopySpellTimes("X")]),
     (re.compile(r"copy target (instant or sorcery spell), then return it to its owner's hand\.", re.I),
      lambda m: CopySpell(m[1].lower(), return_to_hand=True)),
+    (re.compile(r"then copy that spell\.", re.I), lambda m: CopyPreviousTarget()),  # Wild Ricochet: the spell it targets
+    (re.compile(r"that player copies (?:it|that spell) and may choose new targets for the copy\.", re.I), lambda m: CasterCopiesSpell()),  # Bonus Round
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"copy (?:it|that spell), except the copy isn't legendary\.", re.I),
      lambda m: CopyTriggeringSpell(changes=CopyChanges(not_legendary=True))),  # Storm of Saruman
@@ -3566,7 +3571,7 @@ _SPELL_COLORS = re.compile(r"the number of colors that spell is", re.I)  # Mana 
 
 # "Copy target instant or sorcery spell. You may choose new targets for the copy." is one effect. The second sentence on its own has no
 # copy to refer to, so the line isn't understood.
-_merge_copy = Follows(Follow(NewTargets, (CopySpell, CopyTriggeringSpell, CopyTriggeredAbility, CopySpellTimes),
+_merge_copy = Follows(Follow(NewTargets, (CopySpell, CopyTriggeringSpell, CopyTriggeredAbility, CopySpellTimes, CopyPreviousTarget),
                              lambda previous, marker: dataclasses.replace(previous, new_targets=True) if hasattr(previous, "new_targets") else previous),  # (CopySpellTimes's copies always may)
                       Follow(_TwiceFromGraveyard, CopySpell, set_fields(twice_from_graveyard=lambda m: True)))
 
