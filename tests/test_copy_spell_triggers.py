@@ -4,12 +4,13 @@ legendary"), Wild Ricochet (new targets for a spell, then a copy of it), Bonus R
 Sword of Wealth and Power (the next instant or sorcery spell this turn), Krark, the Thumbless (a coin flip with both results),
 Zada, Hedron Grinder (a copy for each other creature), Expansion // Explosion (a spell with mana value 4 or less), Pyromancer's
 Goggles ("When that mana is spent to cast a red instant or sorcery spell, copy that spell") and Primal Amulet // Primal Wellspring
-(charge counters, then "you may remove those counters and transform it")."""
+(charge counters, then "you may remove those counters and transform it"), Nalfeshnee ("Whenever you cast a spell from exile",
+and a permanent spell's copy gains haste and an end step sacrifice) and Twinning Staff (one copy more for each copying)."""
 
 import unittest
 
 from infernal_machine.cards import Card
-from infernal_machine.game import Permanent
+from infernal_machine.game import CAST_EXILE, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.helpers import BEAR, BOLT, OGRE, lands, pick, real, run_stack, scryfall, table
 
@@ -60,6 +61,16 @@ AMULET = Card.from_scryfall(scryfall(
 RED_STUDY = real("Red Study", "{R}", "Instant", "Draw a card.", colors=("R",))
 BLUE_STUDY = real("Blue Study", "{1}", "Instant", "Draw a card.", colors=("U",))
 MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
+NALFESHNEE = real("Nalfeshnee", "{5}{R}", "Creature — Beast Demon",
+                  "Flying\nWhenever you cast a spell from exile, copy it. You may choose new targets for the copy. If it's a permanent spell, "
+                  "the copy gains haste and \"At the beginning of the end step, sacrifice this permanent.\" (A copy of a permanent spell "
+                  "becomes a token.)", "4", "6", colors=("R",))
+STAFF = real("Twinning Staff", "{3}", "Artifact",
+             "If you would copy a spell one or more times, instead copy it that many times plus an additional time. You may choose new "
+             "targets for the additional copy.\n{7}, {T}: Copy target instant or sorcery spell you control. You may choose new targets "
+             "for the copy.")
+STORM_STUDY = real("Storm Study", "{1}", "Sorcery", "Storm (When you cast this spell, copy it for each spell cast before it this turn.)\n"
+                   "Draw a card.")
 SHOCK = real("Shock", "{R}", "Instant", "Shock deals 2 damage to any target.", colors=("R",))
 TRINKET = real("Trinket", "{1}", "Artifact", "")
 CROWN = real("Crown of Ages", "{1}", "Legendary Artifact", "")
@@ -336,6 +347,63 @@ class PrimalAmuletTests(unittest.TestCase):
         hand = len(mine.hand)
         cast(game, mine, BLUE_STUDY)
         self.assertEqual(len(mine.hand), hand + 2)
+
+
+class NalfeshneeTests(unittest.TestCase):
+    def board(self, card, exiled=True):
+        game, _, _ = table()
+        mine = game.seats[0]
+        mine.battlefield, mine.library = [Permanent(NALFESHNEE)] + lands(3), [BEAR] * 10
+        if exiled:
+            mine.exile, mine.exile_play = [card], [(card, game.turn)]
+            game._perform(mine, CAST_EXILE + card.name)
+        else:
+            mine.hand.append(card)
+            game._perform(mine, f"Cast: {card.name}")
+        run_stack(game)
+        return game, mine
+
+    def test_a_spell_cast_from_exile_is_copied(self):
+        game, mine = self.board(STUDY)
+        self.assertEqual(len(mine.hand), 2)
+
+    def test_a_spell_cast_from_the_hand_is_not(self):
+        game, mine = self.board(STUDY, exiled=False)
+        self.assertEqual(len(mine.hand), 1)
+
+    def test_a_permanent_spells_copy_has_haste_and_is_sacrificed_at_the_end_step(self):
+        game, mine = self.board(BEAR)
+        token = next(p for p in mine.battlefield if p.card.name == "Bear" and p.card.type_line.startswith("Token"))
+        self.assertTrue(game.has_keyword(token, "haste"))
+        game.step = "end"
+        game._turn_based_actions(mine)
+        run_stack(game)
+        self.assertEqual(names(mine).count("Bear"), 1)  # the card stays, the token is gone
+
+
+class TwinningStaffTests(unittest.TestCase):
+    def board(self, *others):
+        game, _, _ = table()
+        mine = game.seats[0]
+        mine.battlefield, mine.library = [Permanent(STAFF), *others] + lands(3), [BEAR] * 10
+        return game, mine
+
+    def test_a_copy_becomes_two(self):
+        game, mine = self.board(Permanent(JIN))
+        cast(game, mine, STUDY)
+        self.assertEqual(len(mine.hand), 3)
+
+    def test_several_copies_at_once_get_one_more_not_one_each(self):
+        game, mine = self.board()
+        cast(game, mine, STUDY)
+        cast(game, mine, STUDY)
+        cast(game, mine, STORM_STUDY)  # storm 2, plus one
+        self.assertEqual(len(mine.hand), 2 + 4)
+
+    def test_without_a_copy_nothing_is_added(self):
+        game, mine = self.board()
+        cast(game, mine, STUDY)
+        self.assertEqual(len(mine.hand), 1)
 
 
 if __name__ == "__main__":

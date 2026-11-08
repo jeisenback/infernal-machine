@@ -131,6 +131,7 @@ from .families.copying import (  # noqa: F401
     CopyPreviousTarget,
     CasterCopiesSpell,
     CopyForEachOtherCreature,
+    _IfPermanentCopyGains,
     ReturnTriggeringSpellToHand,
     BecomeCopyUntilEndOfTurn,
     BecomeCard,
@@ -1949,7 +1950,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:that token gains|those tokens gain) haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
     (re.compile(r'it gains haste and "When this token dies, draw a card\."', re.I), lambda m: _TokenGainsBlitz()),  # Jaxis  # Devastating Onslaught
     (re.compile(r"(?:it|that token|they|those tokens) gains? haste\.", re.I), lambda m: _TokenHasHaste()),
-    (re.compile(r"sacrifice (?:it|this (?:creature|artifact|token))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."; Electroduplicate's token
+    (re.compile(r"sacrifice (?:it|this (?:creature|artifact|token|permanent))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."; Electroduplicate's token
     (re.compile(r"exile this token\.", re.I), lambda m: ExileSelf()),  # Heat Shimmer's token: "At the beginning of the end step, exile this token."
     (re.compile(r"return (?:CARDNAME|this creature) to its owner's hand at the beginning of the next end step\.", re.I),  # Sakashima the Impostor
      lambda m: ReturnSelfAtNextEndStep()),
@@ -2480,6 +2481,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"then copy that spell\.", re.I), lambda m: CopyPreviousTarget()),  # Wild Ricochet: the spell it targets
     (re.compile(r"copy that spell, and you may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringSpell(new_targets=True)),  # Krark
     (re.compile(r"return that spell to its owner's hand\.", re.I), lambda m: ReturnTriggeringSpellToHand()),  # Krark
+    (re.compile(r"if it's a permanent spell, the copy gains haste and \"(At the beginning of the end step, sacrifice this permanent\.)\"", re.I),
+     lambda m: _IfPermanentCopyGains(CopyChanges(keywords=("haste",), abilities=(m[1],)))),  # Nalfeshnee
     (re.compile(r"that player copies (?:it|that spell) and may choose new targets for the copy\.", re.I), lambda m: CasterCopiesSpell()),  # Bonus Round
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"copy (?:it|that spell), except the copy isn't legendary\.", re.I),
@@ -3585,7 +3588,8 @@ _SPELL_COLORS = re.compile(r"the number of colors that spell is", re.I)  # Mana 
 # copy to refer to, so the line isn't understood.
 _merge_copy = Follows(Follow(NewTargets, (CopySpell, CopyTriggeringSpell, CopyTriggeredAbility, CopySpellTimes, CopyPreviousTarget),
                              lambda previous, marker: dataclasses.replace(previous, new_targets=True) if hasattr(previous, "new_targets") else previous),  # (CopySpellTimes's copies always may)
-                      Follow(_TwiceFromGraveyard, CopySpell, set_fields(twice_from_graveyard=lambda m: True)))
+                      Follow(_TwiceFromGraveyard, CopySpell, set_fields(twice_from_graveyard=lambda m: True)),
+                      Follow(_IfPermanentCopyGains, CopyTriggeringSpell, set_fields(permanent_changes=lambda m: m.changes)))
 
 
 # Mana Drain's second sentence belongs to the Counter before it, and Chaos Warp's to its ChaosWarp; alone they aren't understood.

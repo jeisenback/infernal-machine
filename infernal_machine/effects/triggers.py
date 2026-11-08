@@ -98,7 +98,7 @@ class Watch:
     mv_at_least: int = 0  # "a spell with mana value 5 or greater"
     from_hand: bool = False  # "... from your hand"
     not_starting_deck: bool = False  # "a spell that isn't from your starting deck": a conjured card
-    from_zone: str = ""  # "graveyard" ("from your graveyard", "from their graveyard") or "not_hand" ("from anywhere other than your hand")
+    from_zone: str = ""  # "graveyard" ("from your graveyard", "from their graveyard"), "not_hand" ("from anywhere other than your hand") or "exile"
     qualifier: str = ""  # "with power 4 or greater" ("power>=4"), "with flying" ("flying"), "with a +1/+1 counter on it" ("counter:+1/+1"),
     # for casts "mv_is_charge" ("with mana value equal to the number of charge counters on this artifact")
     expend: int = 0  # "Whenever you expend 4": the total mana spent on spells this turn that it waits for
@@ -156,7 +156,7 @@ _WATCHES = {
                        r"|permanent spell with a mana cost that contains \{X\}|instant or sorcery spell with \{X\} in its mana cost"
                        r"|(?-i:[A-Z][a-z]+)(?: or (?-i:[A-Z][a-z]+))?(?: permanent)? spell)"  # a creature type: "another Vampire spell", "a Faerie or Wizard permanent spell"
                        r"(?: with mana value (\d+) or greater)?"
-                       r"( from your hand| from their hand| from your graveyard| from their graveyard| from anywhere other than your hand"
+                       r"( from your hand| from their hand| from your graveyard| from their graveyard| from anywhere other than your hand| from exile"
                        r"| that isn't from your starting deck)?"
                        r"(?(3) each turn), (.+)", re.I),
     "card_to_graveyard": re.compile(rf"Whenever an? ([a-z ]+?) card is put into your graveyard from anywhere, (.+)", re.I),
@@ -286,7 +286,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
                       with_copy=m[1].lower() == "you cast or copy", mv_at_least=int(m[5] or 0),
                       from_hand=origin in ("from your hand", "from their hand"), qualifier=qualifier,
                       not_starting_deck=origin == "that isn't from your starting deck",
-                      from_zone="graveyard" if "graveyard" in origin else "not_hand" if "other than" in origin else "")
+                      from_zone="graveyard" if "graveyard" in origin else "not_hand" if "other than" in origin
+                      else "exile" if origin == "from exile" else "")  # Nalfeshnee
         return "cast", watch, m[7]
     if m := _WATCHES["card_to_graveyard"].fullmatch(line):
         return "card_to_graveyard", Watch(m[1].lower(), yours=True), m[2]

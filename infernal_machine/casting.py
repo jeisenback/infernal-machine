@@ -255,7 +255,8 @@ class Caster:
                 ability = TriggeredAbility("cast", (CopySpellTimes(copies),), False, "Copy that spell")
                 self.game.stack.append(g.StackItem(card, seat, list(ability.effects), [], ability, carried=item))
         self.game._observe("cast", card, seat, x=x, from_hand=zone is seat.hand and not prepared,
-                      prepared=prepared is not None, spell=item, from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"))
+                      prepared=prepared is not None, spell=item, from_graveyard=graveyard is not None and graveyard.word not in ("Foretell", "Plot"),
+                      from_exile=any(zone is s.exile for s in self.game.seats))
         if seat.spent_turn != self.game.turn:
             seat.spent_turn, seat.spent_amount = self.game.turn, 0
         before, seat.spent_amount = seat.spent_amount, seat.spent_amount + spent

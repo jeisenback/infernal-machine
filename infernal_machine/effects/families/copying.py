@@ -627,9 +627,10 @@ class CopySpellTimes:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         original = game.resolving_item.carried if game.resolving_item else None
-        for _ in range(game.amount(self.count)):
+        count = game.amount(self.count)
+        for i in range(count):
             if original is not None:
-                game.copy_spell(original, controller, new_targets=True)
+                game.copy_spell(original, controller, new_targets=True, extra=i == count - 1)  # (one copying: Twinning Staff adds one)
 
 
 @dataclass(frozen=True)
@@ -711,14 +712,25 @@ class CopyNextSpell:
 @dataclass(frozen=True)
 class CopyTriggeringSpell:
     """Codie: "Whenever you cast a prepared spell, copy it. You may choose new targets for the copy." The spell that set
-    the trigger off is `carried`. Storm of Saruman: "copy it, except the copy isn't legendary" (`changes`)."""
+    the trigger off is `carried`. Storm of Saruman: "copy it, except the copy isn't legendary" (`changes`). Nalfeshnee: "If it's a
+    permanent spell, the copy gains haste and ..." (`permanent_changes`, only for a permanent spell)."""
     new_targets: bool = False
     changes: CopyChanges | None = None
+    permanent_changes: CopyChanges | None = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         spell = game.resolving_item.carried if game.resolving_item is not None else None
         if spell is not None:
-            game.copy_spell(spell, controller, self.new_targets, changes=self.changes)
+            permanent = not any(t in spell.card.type_line for t in ("Instant", "Sorcery"))
+            game.copy_spell(spell, controller, self.new_targets,
+                            changes=self.permanent_changes if self.permanent_changes and permanent else self.changes)
+
+
+@dataclass(frozen=True)
+class _IfPermanentCopyGains:
+    """Nalfeshnee: "If it's a permanent spell, the copy gains haste and "At the beginning of the end step, sacrifice this permanent."" after
+    a CopyTriggeringSpell (see _merge_copy)."""
+    changes: CopyChanges
 
 
 @dataclass(frozen=True)

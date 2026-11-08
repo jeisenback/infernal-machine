@@ -3278,7 +3278,7 @@ class Game:
     def _observe(self, event: str, card: Card, seat: Seat, subject: Permanent | None = None,
                  extra: Sequence[tuple[Permanent, Seat]] = (), x: int = 0, from_hand: bool = False,
                  prepared: bool = False, spell: "StackItem | None" = None, from_graveyard: bool = False,
-                 player: "Seat | None" = None) -> None:
+                 player: "Seat | None" = None, from_exile: bool = False) -> None:
         """Trigger abilities that watch for `event` happening to `card` (controlled by `seat`; `player` is "that player" when it is
         someone else: the player a creature dealt combat damage to):
         "Whenever another creature enters", landfall, "whenever a creature dies",
@@ -3312,7 +3312,8 @@ class Game:
                 if event in ("cast", "copy") and (card.cmc < watch.mv_at_least or (watch.from_hand and not from_hand)):
                     continue
                 if event in ("cast", "copy") and ((watch.from_zone == "graveyard" and not from_graveyard)
-                                                  or (watch.from_zone == "not_hand" and from_hand)):
+                                                  or (watch.from_zone == "not_hand" and from_hand)
+                                                  or (watch.from_zone == "exile" and not from_exile)):
                     continue
                 if watch.qualifier == "targets_modified":  # a cast of a spell that targets a modified permanent you control
                     if not self._targets_modified(spell, watcher_seat):
@@ -6966,9 +6967,10 @@ class Game:
                                         kickers=item.kickers, is_copy=True))
             self.broadcast({"event": "copied_spell", "seat": caster.index, "card": item.card.name})
             self._observe("copy", item.card, caster)
+        self._additional_copies(item, caster)
 
     def copy_spell(self, item: StackItem, controller: Seat, new_targets: bool = False, color: str | None = None,
-                   changes: CopyChanges | None = None) -> None:
+                   changes: CopyChanges | None = None, extra: bool = True) -> None:
         """Put a copy of a spell on the stack under `controller`'s control; it resolves first. It isn't cast, and it
         stops existing instead of going to the graveyard. With `new_targets` the copy's controller chooses its
         targets again (the old ones are still legal choices). Fork's copy is red (`color`); Double Major's has an except clause."""
@@ -6983,6 +6985,14 @@ class Game:
                                     kickers=item.kickers, is_copy=True))
         self.broadcast({"event": "copied_spell", "seat": controller.index, "card": item.card.name})
         self._observe("copy", item.card, controller)
+        if extra:  # the last copy of this copying: Twinning Staff adds its own
+            self._additional_copies(item, controller, color, changes)
+
+    def _additional_copies(self, item: StackItem, controller: Seat, color: str | None = None, changes: CopyChanges | None = None) -> None:
+        """Twinning Staff: "If you would copy a spell one or more times, instead copy it that many times plus an additional time. You may
+        choose new targets for the additional copy." (CR 614.1a: once for each Staff, on the whole copying, not on each copy)"""
+        for _ in range(sum("twinning" in rules_statics(p.card) for p in controller.battlefield if not self.loses_abilities(p))):
+            self.copy_spell(item, controller, new_targets=True, color=color, changes=changes, extra=False)
 
     def _enters_tapped(self, seat: Seat, rule: EntersTapped, card: Card) -> bool:
         """Whether a permanent entering under `seat`'s control enters tapped, given the lands it sees
