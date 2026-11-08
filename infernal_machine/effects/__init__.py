@@ -148,6 +148,8 @@ from .outcomes import (  # noqa: F401
     ExileTopOfTargetMayCast,
     CopyPreviousTarget,
     CasterCopiesSpell,
+    CopyForEachOtherCreature,
+    ReturnTriggeringSpellToHand,
     KickedInstead,
     LivingWeapon,
     LoseLife,

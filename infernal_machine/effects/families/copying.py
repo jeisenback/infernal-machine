@@ -399,6 +399,17 @@ class CopySpellForEachOtherCreature:
 
 
 @dataclass(frozen=True)
+class CopyForEachOtherCreature:
+    """Zada, Hedron Grinder: "copy that spell for each other creature you control that the spell could target. Each copy targets a
+    different one of those creatures." (the spell, `carried`, targets only the source; the copies are its controller's)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if item is not None and item.source is not None and hasattr(item.carried, "targets"):
+            game.copy_spell_for_each_other_creature(item.carried, controller, item.source)
+
+
+@dataclass(frozen=True)
 class ExileDeadCopy:
     """Nightmare Shepherd, Hofri Ghostforge: "(You may) exile it. If you do, create a token that's a copy of that creature, except
     it's 1/1 and it's a Nightmare in addition to its other types." The creature that just died is exiled from the graveyard; only
@@ -708,6 +719,18 @@ class CopyTriggeringSpell:
         spell = game.resolving_item.carried if game.resolving_item is not None else None
         if spell is not None:
             game.copy_spell(spell, controller, self.new_targets, changes=self.changes)
+
+
+@dataclass(frozen=True)
+class ReturnTriggeringSpellToHand:
+    """Krark, the Thumbless: "If you lose the flip, return that spell to its owner's hand." (the spell that set the trigger off)"""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        spell = game.resolving_item.carried if game.resolving_item is not None else None
+        if spell is not None and spell in game.stack:
+            game.stack.remove(spell)
+            if not spell.is_copy:
+                game._move_card(spell.controller, spell.physical, "hand")
 
 
 @dataclass(frozen=True)
