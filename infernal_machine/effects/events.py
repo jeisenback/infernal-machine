@@ -53,7 +53,7 @@ def on_the_subject(hearer: Any, subject: Any, facts: tuple[str, ...]) -> bool:
 class Event:
     name: str
     text: re.Pattern  # the rules text; group 1 is what follows the comma
-    to: str = "direct"  # "you": the player it happened to; "opponents": each of their opponents; "direct": the game triggers it itself
+    to: str = "direct"  # "you": the player it happened to; "opponents": each of their opponents; "everyone": every player; "direct": the game triggers it itself
     happens: tuple[str, ...] = ()  # the occurrences that set it off (the event's own name when not given)
     accepts: Accepts | None = None  # which hearers it concerns, beyond who they are (see Accepts); None: all
     about_creature: bool = False  # it is about some other creature: there "it" and "that creature" mean that creature
@@ -160,7 +160,8 @@ declare("gain_life", re.compile(r"Whenever you gain life, (.+)", re.I), to="you"
 declare("lose_life", re.compile(r"Whenever you lose life, (.+)", re.I), to="you", happens="life_lost")
 declare("exploits", re.compile(rf"When(?:ever)? {_SELF} exploits a creature, (.+)", re.I))  # the Exploit keyword (Game.exploit)
 declare("sacrifice_creature", re.compile(r"Whenever you sacrifice a creature, (.+)", re.I))
-declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals combat damage to a player, (.+)", re.I), about_creature=True)  # (the
+declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals combat damage to (?:a player|an opponent), (.+)", re.I),
+        about_creature=True)  # (Coastal Piracy: "an opponent" is the same, since your creatures deal combat damage only to opponents)  # (the
 # player dealt damage is carried: Grenzo, Havoc Raiser's "that player" in a mode)
 declare("self_or_enchanted_combat_damage",  # Calix, Guided by Fate
         re.compile(rf"Whenever {_SELF} or an enchanted creature you control deals combat damage to a player, (.+)", re.I))
@@ -207,6 +208,8 @@ declare("surveil", re.compile(r"Whenever you surveil, (.+)", re.I), to="you", ha
 declare("draw_step", re.compile(r"At the beginning of your draw step, (.+)", re.I), to="you", happens="draw_step")
 declare("other_draw_step", re.compile(r"At the beginning of each (?:other player's|opponent's) draw step, (.+)", re.I),
         to="opponents", happens="draw_step", about_player=True)
+declare("each_draw_step", re.compile(r"At the beginning of each player's draw step, (.+)", re.I),
+        to="everyone", happens="draw_step", about_player=True)  # Howling Mine, Kami of the Crescent Moon: "that player" is whose step it is
 declare("opponent_upkeep", re.compile(r"At the beginning of each opponent's upkeep, (.+)", re.I), about_player=True)
 declare("opponent_end_step", re.compile(r"At the beginning of (?:each|an) opponent's end step, (.+)", re.I), about_player=True)
 declare("graveyard_leave", re.compile(r"Whenever one or more cards leave your graveyard, (.+)", re.I), to="you")

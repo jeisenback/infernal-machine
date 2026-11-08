@@ -3036,12 +3036,12 @@ class Game:
                     if accepts(permanent, subject, facts):
                         self.trigger(event.name, permanent, seat, subject, x=x, spell=spell)
                 hearers = [seat]
-            else:
-                for opponent in self.opponents(seat):
+            else:  # "opponents", or "everyone" (Howling Mine: "each player's draw step"), each told whose it was
+                for opponent in self.live_seats() if event.to == "everyone" else self.opponents(seat):
                     for permanent in list(opponent.battlefield) + list(opponent.emblems):
                         if accepts(permanent, subject, facts):
                             self.trigger(event.name, permanent, opponent, subject, seat, x=x, spell=spell)
-                hearers = self.opponents(seat)
+                hearers = self.live_seats() if event.to == "everyone" else self.opponents(seat)
             for delayed in list(self.delayed):  # "Until end of turn, whenever you gain life, ..." (CR 603.7)
                 if (delayed.ability.event == event.name and delayed.ability.watch is None and delayed.controller in hearers
                         and accepts(delayed.watcher, subject, facts)):
@@ -3306,6 +3306,8 @@ class Game:
             return seat.citys_blessing
         if kind == "source_tapped":
             return source is not None and source.tapped
+        if kind == "source_untapped":  # Howling Mine: "if this artifact is untapped"
+            return source is not None and not source.tapped
         if kind == "not_prepared":
             return source is not None and not source.prepared
         if kind == "not_renowned":
@@ -4804,6 +4806,9 @@ class Game:
                         continue
                 elif wanted == "Legendary":  # Jodah, the Unifier: a supertype, not a creature type
                     if "Legendary" not in permanent.card.type_line:
+                        continue
+                elif wanted == "Artifact":  # Master of Etherium: "Other artifact creatures you control", a card type
+                    if "Artifact" not in permanent.card.type_line.partition("\u2014")[0] or (buff.other and source is permanent):
                         continue
                 elif wanted == "Equipped":  # Zamriel, Seraph of Steel: "Equipped creatures you control", not a creature type
                     if not any("Equipment" in a.card.type_line for a in self._board_view().attached.get(id(permanent), ())):

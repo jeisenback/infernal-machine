@@ -61,7 +61,7 @@ class RegistryTests(unittest.TestCase):
         for name, event in EVENTS.items():
             self.assertEqual(event.name, name)
             self.assertEqual(event.text.groups, 1, name)  # the body after the comma
-            self.assertIn(event.to, ("you", "opponents", "direct"), name)
+            self.assertIn(event.to, ("you", "opponents", "everyone", "direct"), name)
             self.assertTrue(event.happens, name)
 
     def test_the_game_announces_only_declared_events(self):

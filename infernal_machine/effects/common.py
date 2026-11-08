@@ -305,6 +305,7 @@ _WHOLE_LINE = re.compile(
     r"paying its mana cost\."  # Malcolm, Alluring Scoundrel
     r"|Its controller may pay \w+ life\. If they do, they draw a card\."  # Gix, Yawgmoth Praetor
     r"|Look at that player's hand\. You may cast a spell from among those cards without paying its mana cost\."  # Silent-Blade Oni
+    r"|Draw (?:a card|\w+ cards)\. If you do, discard a card\."  # Mask of Memory, Smuggler's Copter (after "you may")
     r"|Target player loses \w+ life\. If you do, put \w+ \+1/\+1 counters on CARDNAME\."  # Ob Nixilis, the Fallen ("you may have ..." as the trigger rewrote it)
     r"|Target opponent exiles the top X cards of their library\. You may cast any number of spells with mana value X or less from among "
     r"them without paying their mana costs\."  # Villainous Wealth
