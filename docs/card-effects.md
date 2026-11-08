@@ -1543,7 +1543,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - **Copy a spell, batch 6 (#659):**
     - Chain of Smog: "That player may copy this spell and may choose a new target for that copy." The player it targeted may copy it (`CHAIN_COPY_PROMPT`), and so on down the chain.
     - Chain of Vapor: "Then that permanent's controller may sacrifice a land of their choice. If the player does, they may copy this spell ..." The controller of the permanent returned (as it left) sacrifices a land for the copy.
-    - The bot never copies a chain back, so a chain between bots always ends.
+    - The question's options are "No" then "Yes", and the bot always answers No, so a chain between bots (or with any player who takes the first option) always ends.
     - Wondrous Crucible: "mill two cards, then exile a nonland card at random from your graveyard. Copy it. You may cast the copy without paying its mana cost." With no nonland card there, nothing is exiled.
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes

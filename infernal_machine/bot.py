@@ -167,7 +167,7 @@ class BotPlayer:
             card = self._cards.get(subject_of(prompt, PACT_TAKE_PROMPT))
             return 1 if card is not None and is_land(card) and "win" in self.features else 0
         if CHAIN_COPY_PROMPT.matches(prompt):  # Chain of Smog, Chain of Vapor: never copy back, so a chain always ends
-            return 1
+            return options.index("No")
         if KEEP_PROMPT.matches(prompt):
             keep = keep_hand_for(self._hand, self._average_cost, self._mulligans) if "keep" in self.features else keep_hand(self._hand, self._mulligans)
             return 0 if keep else 1
