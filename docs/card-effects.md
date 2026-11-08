@@ -1284,6 +1284,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     strike." and the like); with it, two readings of the creatures a static ability affects were put right: "Equipped creatures you
     control" are those with an Equipment attached, not a creature type (Zamriel, Kemba, Dalakos), and a plural in "-ies" is the type in
     "-y" when the list of creature types says so ("Allies" are Allies, "Armies" Armies; "Zombies" stay Zombies).
+  - Casting without paying the mana cost from a graveyard, a hand or a library (`tests/test_cast_free_from_zones.py`, #655): Torrential
+    Gearhulk's and Goblin Dark-Dwellers' "you may cast target instant (or sorcery) card (with mana value 3 or less) from your graveyard
+    without paying its mana cost. If that spell would be put into your graveyard, exile it instead." (`CastTargetFromGraveyardFree` with
+    `exile_after`); Sword of Once and Future's "Then you may cast an instant or sorcery spell with mana value 2 or less from your graveyard
+    without paying its mana cost" (a free `MayCastFromGraveyard`, chosen as it resolves); Silent-Blade Oni's "look at that player's hand.
+    You may cast a spell from among those cards without paying its mana cost." (`Game.cast_from_hand_free`; the card goes back to its
+    owner); Villainous Wealth (the target opponent exiles the top X cards, and only the spells with mana value X or less among them may be
+    cast: `Game.exile_top_play_free(spells_most=...)`).
   - Villainous choice (CR 701.56; `tests/test_cast_free.py`, #655): "Each opponent (Target opponent) faces a villainous choice — A, or B."
     is a `VillainousChoice`: each player facing it chooses one option for themselves (`Game.villainous_choice`), and "They ..." / "that
     player" in an option is that player. The two options are split at the ", or " where both read as effects. Ensnared by the Mara is

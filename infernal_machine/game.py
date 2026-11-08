@@ -2002,9 +2002,18 @@ class Game:
         """Floodpits Drowner: these permanents are shuffled into their owners' libraries (a token just stops existing)."""
         self._leave_together([(p, "shuffled") for p in permanents if self.on_battlefield(p)], destination=SHUFFLED)
 
-    def may_cast_from_graveyard(self, seat: Seat, kinds: tuple[str, ...], exile_after: bool) -> None:
+    def may_cast_from_graveyard(self, seat: Seat, kinds: tuple[str, ...], exile_after: bool, free: bool = False,
+                                most: int | None = None) -> None:
         """Bilbo: `seat` may cast a spell of one of `kinds` from their graveyard now, paying its mana cost (CR 608.2g: timing is
-        ignored while an ability resolves). With `exile_after`, an instant or sorcery cast this way is exiled instead of going back."""
+        ignored while an ability resolves). With `exile_after`, an instant or sorcery cast this way is exiled instead of going back.
+        Sword of Once and Future: without paying its mana cost (`free`), and only one with mana value `most` or less."""
+        if free:
+            spells = _unique([c for c in seat.graveyard if any(kind in c.type_line for kind in kinds) and (most is None or c.cmc <= most)
+                              and not self.casts_from_graveyards_barred()])
+            pick = seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for c in spells] + [NONE_TAKEN]) if spells else len(spells)
+            if pick < len(spells):
+                self._cast(seat, spells[pick], seat.graveyard, free=True, exile_after=exile_after)
+            return
         options = []
         for card in _unique([c for c in seat.graveyard if any(kind in c.type_line for kind in kinds) and not self.casts_from_graveyards_barred()]):
             way = GraveyardCast("From the graveyard", card.mana_cost,
@@ -7455,15 +7464,16 @@ class Game:
             self._cast(seat, options[pick], seat.command_zone, from_command_zone=True, free=True)
             seat.commander_casts[options[pick].name] = seat.commander_casts.get(options[pick].name, 0) + 1
 
-    def exile_top_play_free(self, seat: Seat, victim: Seat, count: int) -> None:
+    def exile_top_play_free(self, seat: Seat, victim: Seat, count: int, spells_most: int | None = None) -> None:
         """Gix, Yawgmoth Praetor: exile the top `count` cards of `victim`'s library; `seat` may play lands and cast spells from among
-        them without paying their mana costs, as the ability resolves (its ruling). What is not played stays exiled."""
+        them without paying their mana costs, as the ability resolves (its ruling). What is not played stays exiled. Villainous
+        Wealth: only spells, with mana value `spells_most` or less."""
         exiled = victim.library[:count]
         del victim.library[:count]
         victim.exile.extend(exiled)
         self.broadcast({"event": "exiled_from_library", "seat": victim.index, "cards": [c.name for c in exiled], "may_play": True})
         while True:
-            options = exiled
+            options = exiled if spells_most is None else [c for c in exiled if not is_land(c) and c.cmc <= spells_most]
             if not options:
                 return
             pick = seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for c in options] + [NONE_TAKEN])
@@ -7471,6 +7481,13 @@ class Game:
                 return
             exiled = [c for c in exiled if c is not options[pick]]
             self._play_exiled_free(seat, victim, options[pick])
+
+    def cast_from_hand_free(self, seat: Seat, victim: Seat) -> None:
+        """Silent-Blade Oni: `seat` looks at `victim`'s hand and may cast a spell from among those cards without paying its mana cost."""
+        spells = _unique([c for c in victim.hand if not is_land(c)])
+        pick = seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for c in spells] + [NONE_TAKEN]) if spells else 0
+        if pick < len(spells):
+            self._cast(seat, spells[pick], victim.hand, free=True)
 
     def exile_all_graveyards(self) -> None:
         for seat in self.live_seats():

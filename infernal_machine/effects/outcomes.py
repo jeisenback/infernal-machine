@@ -605,6 +605,7 @@ from .families.free_casting import (  # noqa: F401
     CastTwoFreeFromHandOrGraveyard,
     TargetCascades,
     CastTargetFromGraveyardFree,
+    CastFromThatPlayersHandFree,
     ExileRandomFromOpponentsCast,
     PossibilityStorm,
     VillainousChoice,
@@ -2138,8 +2139,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:you may )?cast an? ((?:artifact|creature|enchantment|instant|sorcery)(?:,? (?:or )?(?:artifact|creature|enchantment|instant|"
                 r"sorcery))*) spell from your graveyard\.", re.I),  # Bilbo, Thief in the Night
      lambda m: MayCastFromGraveyard(tuple(k.capitalize() for k in re.split(r",? (?:or )?", m[1].lower())))),
-    (re.compile(r"if an instant or sorcery spell cast this way would be put into your graveyard, exile it instead\.", re.I),
+    (re.compile(r"if (?:an instant or sorcery spell cast this way|that spell) would be put into your graveyard, exile it instead\.", re.I),
      lambda m: _ExileCastThisWay()),
+    (re.compile(r"(?:then )?you may cast an instant or sorcery spell with mana value (\d+) or less from your graveyard without paying its "
+                r"mana cost\.", re.I), lambda m: MayCastFromGraveyard(("Instant", "Sorcery"), free=True, most=int(m[1]))),  # Sword of Once and Future
     (re.compile(r"for each of them, create a token that's a copy of that creature, except it has haste\.", re.I),
      lambda m: _CopyEachWithHaste()),
     (re.compile(r"for each of them, create a tapped token that's a copy of it\.", re.I), lambda m: CopyEachEnteredToken()),  # Kambal
@@ -2596,6 +2599,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"in a random order\.", re.I), lambda m: TargetCascades("instant or sorcery")),  # Chaos Wand
     (re.compile(r"you may cast target instant or sorcery card from an opponent's graveyard without paying its mana cost\.", re.I),
      lambda m: CastTargetFromGraveyardFree()),  # Memory Plunder
+    (re.compile(r"(?:you may )?cast target (instant|instant or sorcery) card (?:with mana value (\d+) or less )?from your graveyard without paying "
+                r"its mana cost\.", re.I),  # Torrential Gearhulk, Goblin Dark-Dwellers
+     lambda m: CastTargetFromGraveyardFree(f"graveyard:{m[1].lower()}{f'|mv<={m[2]}' if m[2] else ''}:yours")),
+    (re.compile(r"look at that player's hand\. You may cast a spell from among those cards without paying its mana cost\.", re.I),
+     lambda m: CastFromThatPlayersHandFree()),  # Silent-Blade Oni
+    (re.compile(r"target opponent exiles the top X cards of their library\. You may cast any number of spells with mana value X or less "
+                r"from among them without paying their mana costs\.", re.I),
+     lambda m: ExileTopOfTargetPlayFree("X", spells_most="X")),  # Villainous Wealth
     (re.compile(r"exile a card at random from each opponent's graveyard\. You may cast any number of spells from among cards exiled this "
                 r"way without paying their mana costs\. Then each player who owns a spell you cast this way loses life equal to its mana "
                 r"value\.", re.I), lambda m: ExileRandomFromOpponentsCast()),  # Kefka, Dancing Mad
@@ -3682,7 +3693,7 @@ _CONDITIONAL = Follows(
     Follow(_LosesAbilitiesWhileSource, Tap, set_fields(strip_while_source=lambda m: True)),
     Follow(_LockedWhileTapped, Tap, set_fields(lock_while_tapped=lambda m: True)),
     Follow(_CounterIfReturned, ReturnToHand, set_fields(counter_on_source=lambda m: m.counter)),
-    Follow(_ExileCastThisWay, MayCastFromGraveyard, set_fields(exile_after=lambda m: True)),
+    Follow(_ExileCastThisWay, (MayCastFromGraveyard, CastTargetFromGraveyardFree), set_fields(exile_after=lambda m: True)),
     Follow(_InsteadDamage, Damage, set_fields(instead=lambda m: m.amount, instead_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.instead_if is None),
     Follow(_InsteadManaValue, Destroy, set_fields(instead_mana_value=lambda m: m.most, instead_if=lambda m: m.condition),
