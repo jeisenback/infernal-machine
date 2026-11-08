@@ -835,6 +835,22 @@ class Transform:
             game.transform(target)
 
 
+REMOVE_TRANSFORM_PROMPT = PromptKind("remove_transform", "Remove the counters and transform ")  # followed by the name; Yes or No
+
+
+@dataclass(frozen=True)
+class MayRemoveCountersTransform:
+    """Primal Amulet: "Then if there are four or more charge counters on it, you may remove those counters and transform it." (the
+    counter is the condition's, filled in as the sentence is read)"""
+    counter: str = ""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and self.counter and controller.player.choose(REMOVE_TRANSFORM_PROMPT(target.card.name), ["Yes", "No"]) == 0:
+            target.counters.pop(self.counter, None)
+            game.transform(target)
+
+
 @dataclass(frozen=True)
 class RevealTopTransform:
     """Delver of Secrets: "Look at the top card of your library. You may reveal that card. If an instant or sorcery card is revealed this

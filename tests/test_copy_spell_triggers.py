@@ -2,12 +2,16 @@
 Kitsa, Otterball Elite ("Activate only if Kitsa's power is 3 or greater"), Storm of Saruman ("copy it, except the copy isn't
 legendary"), Wild Ricochet (new targets for a spell, then a copy of it), Bonus Round (each caster copies their own spells this turn)
 Sword of Wealth and Power (the next instant or sorcery spell this turn), Krark, the Thumbless (a coin flip with both results),
-Zada, Hedron Grinder (a copy for each other creature) and Expansion // Explosion (a spell with mana value 4 or less)."""
+Zada, Hedron Grinder (a copy for each other creature), Expansion // Explosion (a spell with mana value 4 or less), Pyromancer's
+Goggles ("When that mana is spent to cast a red instant or sorcery spell, copy that spell") and Primal Amulet // Primal Wellspring
+(charge counters, then "you may remove those counters and transform it")."""
 
 import unittest
 
+from infernal_machine.cards import Card
 from infernal_machine.game import Permanent
-from tests.helpers import BEAR, BOLT, OGRE, lands, pick, real, run_stack, table
+from infernal_machine.report import unsupported_lines
+from tests.helpers import BEAR, BOLT, OGRE, lands, pick, real, run_stack, scryfall, table
 
 JIN = real("Jin-Gitaxias, Progress Tyrant", "{5}{U}{U}", "Legendary Creature — Phyrexian Praetor",
            "Whenever you cast an artifact, instant, or sorcery spell, copy that spell. You may choose new targets for the copy. This ability "
@@ -41,6 +45,21 @@ EXPANSION = real("Expansion", "{U/R}{U/R}", "Instant",
                  "Copy target instant or sorcery spell with mana value 4 or less. You may choose new targets for the copy.", colors=("U", "R"))
 GROWTH = real("Giant Growth", "{G}", "Instant", "Target creature gets +3/+3 until end of turn.", colors=("G",))
 BIG_STUDY = real("Deep Study", "{5}", "Sorcery", "Draw a card.")
+GOGGLES = real("Pyromancer's Goggles", "{5}", "Legendary Artifact",
+               "{T}: Add {R}. When that mana is spent to cast a red instant or sorcery spell, copy that spell and you may choose new targets "
+               "for the copy.")
+AMULET = Card.from_scryfall(scryfall(
+    "transform",
+    {"name": "Primal Amulet", "mana_cost": "{4}", "type_line": "Artifact",
+     "oracle_text": "Instant and sorcery spells you cast cost {1} less to cast.\nWhenever you cast an instant or sorcery spell, put a "
+                    "charge counter on this artifact. Then if there are four or more charge counters on it, you may remove those counters "
+                    "and transform it."},
+    {"name": "Primal Wellspring", "mana_cost": "", "type_line": "Land",
+     "oracle_text": "(Transforms from Primal Amulet.)\n{T}: Add one mana of any color. When that mana is spent to cast an instant or "
+                    "sorcery spell, copy that spell and you may choose new targets for the copy."}, cmc=4.0, colors=[]) | {"produced_mana": list("WUBRG")})
+RED_STUDY = real("Red Study", "{R}", "Instant", "Draw a card.", colors=("R",))
+BLUE_STUDY = real("Blue Study", "{1}", "Instant", "Draw a card.", colors=("U",))
+MOUNTAIN = Card(name="Mountain", type_line="Basic Land — Mountain", produced_mana=("R",))
 SHOCK = real("Shock", "{R}", "Instant", "Shock deals 2 damage to any target.", colors=("R",))
 TRINKET = real("Trinket", "{1}", "Artifact", "")
 CROWN = real("Crown of Ages", "{1}", "Legendary Artifact", "")
@@ -261,6 +280,62 @@ class ExpansionTests(unittest.TestCase):
 
     def test_a_bigger_spell_is_not_a_target(self):
         self.assertFalse(self.offered(BIG_STUDY)[2])
+
+
+class PyromancersGogglesTests(unittest.TestCase):
+    def cast_with(self, spell, *others, goggles_tapped=False):
+        game, _, _ = table()
+        mine = game.seats[0]
+        goggles = Permanent(GOGGLES)
+        goggles.tapped = goggles_tapped
+        mine.battlefield, mine.library = [goggles, *others], [BEAR] * 10
+        cast(game, mine, spell)
+        return mine
+
+    def test_a_red_instant_paid_with_its_mana_is_copied(self):
+        self.assertEqual(len(self.cast_with(RED_STUDY).hand), 2)
+
+    def test_a_spell_that_is_not_red_is_not(self):
+        self.assertEqual(len(self.cast_with(BLUE_STUDY).hand), 1)
+
+    def test_a_red_instant_paid_with_other_mana_is_not(self):
+        mine = self.cast_with(RED_STUDY, Permanent(MOUNTAIN), goggles_tapped=True)
+        self.assertEqual(len(mine.hand), 1)
+
+
+class PrimalAmuletTests(unittest.TestCase):
+    def board(self, charge):
+        game, _, _ = table()
+        mine = game.seats[0]
+        amulet = Permanent(AMULET)
+        amulet.counters["charge"] = charge
+        mine.battlefield, mine.library = [amulet] + lands(3), [BEAR] * 10
+        return game, mine, amulet
+
+    def test_the_fourth_counter_turns_it_into_primal_wellspring(self):
+        game, mine, amulet = self.board(3)
+        cast(game, mine, STUDY)
+        self.assertEqual(amulet.card.name, "Primal Wellspring")  # (its back face)
+        self.assertEqual(amulet.counters.get("charge", 0), 0)
+
+    def test_with_fewer_counters_it_stays(self):
+        game, mine, amulet = self.board(2)
+        cast(game, mine, STUDY)
+        self.assertEqual((amulet.card.type_line, amulet.counters.get("charge")), ("Artifact", 3))
+
+    def test_a_line_about_the_attacker_and_the_sources_counters_is_not_read(self):  # Grasping Shadows: "it" is two things
+        shadows = real("Grasping Shadows", "{2}{B}", "Enchantment",
+                       "Whenever a creature you control attacks alone, it gains deathtouch and lifelink until end of turn. Put a dread counter "
+                       "on this enchantment. Then if there are three or more dread counters on it, transform it.")
+        self.assertTrue(unsupported_lines(shadows))
+
+    def test_primal_wellsprings_mana_copies_an_instant(self):
+        game, mine, amulet = self.board(3)
+        cast(game, mine, STUDY)  # (it transforms)
+        mine.battlefield = [amulet]
+        hand = len(mine.hand)
+        cast(game, mine, BLUE_STUDY)
+        self.assertEqual(len(mine.hand), hand + 2)
 
 
 if __name__ == "__main__":

@@ -72,6 +72,11 @@ _SPENT_RIDER = re.compile(r"(.+\.) When (?:you spend this mana|that mana is spen
                           r"scry (1|X, where X is the number of times it's been cast from the command zone this game)\.")
 
 
+# Pyromancer's Goggles, Primal Wellspring: the rider copies the spell the mana was spent on.
+_COPY_RIDER = re.compile(r"(.+\.) When (?:you spend this mana|that mana is spent) to cast an? (red )?instant or sorcery spell, copy that spell "
+                         r"and you may choose new targets for the copy\.")
+
+
 # Opal Palace: the rider puts counters on the commander as it enters instead.
 _COUNTERS_RIDER = re.compile(r"(.+\.) If you spend this mana to cast your commander, it enters with a number of additional \+1/\+1 "
                              r"counters on it equal to the number of times it's been cast from the command zone this game\.")
@@ -96,6 +101,7 @@ class ManaSpentTrigger:
     spell: str  # "commander" (your commander) or "shares_type_with_commander" (a creature spell sharing a type)
     scry: int | str  # a number, or "commander_casts": the times that commander has been cast from the command zone
     counters: bool = False  # Opal Palace: no scry; the commander enters with that many +1/+1 counters more
+    copy: str = ""  # Pyromancer's Goggles: "red instant or sorcery spell" (Primal Wellspring: any); no scry, the spell is copied
 
 
 @lru_cache(maxsize=None)
@@ -103,6 +109,8 @@ def mana_spent_trigger(card: Card) -> ManaSpentTrigger | None:
     for line in rules_lines(card):
         if _COUNTERS_RIDER.fullmatch(line):
             return ManaSpentTrigger("commander", 0, counters=True)
+        if m := _COPY_RIDER.fullmatch(line):
+            return ManaSpentTrigger("", 0, copy=f"{m[2] or ''}instant or sorcery spell")
         if m := _SPENT_RIDER.fullmatch(line):
             return ManaSpentTrigger("commander" if m[2] == "your commander" else "shares_type_with_commander",
                                     1 if m[3] == "1" else "commander_casts")
@@ -136,7 +144,8 @@ def has_next_x_rider(card: Card) -> bool:
 @lru_cache(maxsize=None)
 def _without_spent_rider(line: str) -> str:
     """The mana ability alone, without its "When that mana is spent ..." sentence or its spending restriction."""
-    m = _SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line) or _COUNTERS_RIDER.fullmatch(line) or _BONUS_RIDER.fullmatch(line)
+    m = (_SPENT_RIDER.fullmatch(line) or _NEXT_X_RIDER.fullmatch(line) or _COUNTERS_RIDER.fullmatch(line) or _BONUS_RIDER.fullmatch(line)
+         or _COPY_RIDER.fullmatch(line))
     line = _MANA_RESTRICTION.sub("", m[1] if m else line)
     # Eldrazi Spawn: "Sacrifice this token: Add {C}." reads like Treasure's "{T}, Sacrifice this permanent: Add {C}."
     return "{T}, Sacrifice this permanent: " + line.removeprefix("Sacrifice this token: ") if line.startswith("Sacrifice this token: Add ") else line

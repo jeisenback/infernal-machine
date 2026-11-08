@@ -15,7 +15,7 @@ from typing import Callable
 from .analysis import is_land
 from .cards import Card, has_keyword
 from .characteristics import source_qualities
-from .effects import (FREE_WAY, AlternativeCost, AttachAura, Cascade, CopySpellTimes, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
+from .effects import (FREE_WAY, AlternativeCost, AttachAura, Cascade, CopySpellTimes, CopyTriggeringSpell, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
                       Scry, TriggeredAbility, NOTHING_MORE, additional_costs, additional_paid_effects, affinity_for, alternative_costs, buyback_cost, buyback_other_cost, splice_cost,
                       chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
@@ -231,6 +231,10 @@ class Caster:
                 trigger = g._checked(mana_spent_trigger(source.card))
                 if trigger.counters:  # Opal Palace: it enters with more counters
                     item.rider_counters += 1
+                    continue
+                if trigger.copy:  # Pyromancer's Goggles: a trigger above the spell copies it, with new targets
+                    ability = TriggeredAbility("cast", (CopyTriggeringSpell(new_targets=True),), False, "Copy that spell")
+                    self.game.stack.append(g.StackItem(source.card, seat, list(ability.effects), [], ability, source, carried=item))
                     continue
                 scry = trigger.scry
                 count = seat.commander_casts.get(card.name, 0) + 1 if scry == "commander_casts" else int(scry)
