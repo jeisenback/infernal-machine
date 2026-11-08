@@ -146,6 +146,8 @@ from .outcomes import (  # noqa: F401
     MayDiscardThen,
     DamageEachOtherOpponent,
     ExileTopOfTargetMayCast,
+    CopyPreviousTarget,
+    CasterCopiesSpell,
     KickedInstead,
     LivingWeapon,
     LoseLife,

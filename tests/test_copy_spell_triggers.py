@@ -1,6 +1,7 @@
 """Copy a spell (#659): Jin-Gitaxias, Progress Tyrant ("an artifact, instant, or sorcery spell", copied or countered once each turn),
-Kitsa, Otterball Elite ("Activate only if Kitsa's power is 3 or greater") and Storm of Saruman ("copy it, except the copy isn't
-legendary")."""
+Kitsa, Otterball Elite ("Activate only if Kitsa's power is 3 or greater"), Storm of Saruman ("copy it, except the copy isn't
+legendary"), Wild Ricochet (new targets for a spell, then a copy of it), Bonus Round (each caster copies their own spells this turn)
+and Sword of Wealth and Power (the next instant or sorcery spell this turn)."""
 
 import unittest
 
@@ -18,6 +19,17 @@ KITSA = real("Kitsa, Otterball Elite", "{1}{U}", "Legendary Creature — Otter W
 SARUMAN = real("Storm of Saruman", "{4}{U}{U}", "Enchantment",
                "Ward {3}\nWhenever you cast your second spell each turn, copy it, except the copy isn't legendary. You may choose new targets "
                "for the copy. (A copy of a permanent spell becomes a token.)", colors=("U",))
+RICOCHET = real("Wild Ricochet", "{2}{R}{R}", "Instant",
+                "You may choose new targets for target instant or sorcery spell. Then copy that spell. You may choose new targets for the copy.",
+                colors=("R",))
+BONUS = real("Bonus Round", "{1}{R}{R}", "Sorcery",
+             "Until end of turn, whenever a player casts an instant or sorcery spell, that player copies it and may choose new targets for "
+             "the copy.", colors=("R",))
+SWORD = real("Sword of Wealth and Power", "{3}", "Artifact — Equipment",
+             "Equipped creature gets +2/+2 and has protection from instants and from sorceries.\nWhenever equipped creature deals combat "
+             "damage to a player, create a Treasure token. When you next cast an instant or sorcery spell this turn, copy that spell. You may "
+             "choose new targets for the copy.\nEquip {2}")
+SHOCK = real("Shock", "{R}", "Instant", "Shock deals 2 damage to any target.", colors=("R",))
 TRINKET = real("Trinket", "{1}", "Artifact", "")
 CROWN = real("Crown of Ages", "{1}", "Legendary Artifact", "")
 STUDY = real("Quick Study", "{1}", "Sorcery", "Draw a card.")
@@ -114,6 +126,71 @@ class StormOfSarumanTests(unittest.TestCase):
         game, mine = self.board()
         cast(game, mine, CROWN)
         self.assertEqual(names(mine).count("Crown of Ages"), 1)
+
+
+class WildRicochetTests(unittest.TestCase):
+    def test_the_spell_is_turned_and_copied(self):
+        game, _, _ = table(pick("Spell: Shock", "Player: B"), pick("Player: A"))
+        mine, theirs = game.seats
+        mine.battlefield, mine.hand = lands(4), [RICOCHET]
+        theirs.battlefield, theirs.hand = lands(1), [SHOCK]
+        game.active = 1
+        game._perform(theirs, "Cast: Shock")  # at A
+        game._perform(mine, "Cast: Wild Ricochet")
+        run_stack(game)
+        self.assertEqual((mine.life, theirs.life), (40, 36))  # the Shock and its copy both at B
+
+    def test_with_no_spell_to_target_it_cannot_be_cast(self):
+        game, _, _ = table()
+        mine = game.seats[0]
+        mine.battlefield, mine.hand = lands(4), [RICOCHET]
+        self.assertNotIn("Cast: Wild Ricochet", game.legal_actions(mine))
+
+
+class BonusRoundTests(unittest.TestCase):
+    def test_each_player_copies_their_own_spells_this_turn(self):
+        game, _, _ = table()
+        mine, theirs = game.seats
+        mine.battlefield, mine.library = lands(5), [BEAR] * 10
+        theirs.battlefield, theirs.library = lands(2), [BEAR] * 10
+        cast(game, mine, BONUS)
+        cast(game, mine, STUDY)
+        self.assertEqual(len(mine.hand), 2)
+        cast(game, theirs, BOLT)  # (an instant, on A's turn)
+        self.assertEqual(len(theirs.hand), 2)  # B's copy, for B
+
+    def test_it_ends_with_the_turn(self):
+        game, _, _ = table()
+        mine = game.seats[0]
+        mine.battlefield, mine.library = lands(5), [BEAR] * 10
+        cast(game, mine, BONUS)
+        game.step = "cleanup"
+        game._turn_based_actions(mine)
+        game.turn += 2
+        game.step = "main1"
+        cast(game, mine, STUDY)
+        self.assertEqual(len(mine.hand), 1)
+
+
+class SwordOfWealthAndPowerTests(unittest.TestCase):
+    def hit(self):
+        game, _, _ = table()
+        mine, theirs = game.seats
+        bear, sword = Permanent(BEAR, sick=False), Permanent(SWORD)
+        sword.attached_to = bear
+        mine.battlefield, mine.library = [bear, sword] + lands(3), [BEAR] * 10
+        game.damage(theirs, 4, source=bear, combat=True)
+        run_stack(game)
+        return game, mine
+
+    def test_a_treasure_and_the_next_instant_or_sorcery_is_copied(self):
+        game, mine = self.hit()
+        self.assertIn("Treasure", names(mine))
+        cast(game, mine, BEAR)  # a creature spell: not the one it waits for
+        cast(game, mine, STUDY)
+        self.assertEqual(len(mine.hand), 2)
+        cast(game, mine, STUDY)
+        self.assertEqual(len(mine.hand), 3)  # only the next one
 
 
 if __name__ == "__main__":

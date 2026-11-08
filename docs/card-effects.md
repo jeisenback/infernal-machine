@@ -1525,6 +1525,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     - Jin-Gitaxias, Progress Tyrant: "Whenever you cast an artifact, instant, or sorcery spell" is a cast watch for any of the three. Its copy of an artifact spell becomes a token. Its "counter that spell" for an opponent's spell keeps "This ability triggers only once each turn."
     - Kitsa, Otterball Elite: "Activate only if Kitsa's power is 3 or greater." is the condition `source_power_at_least`, checked against the creature's power at the time.
     - Storm of Saruman: "copy it, except the copy isn't legendary" (`CopyTriggeringSpell.changes`), so a legendary permanent spell's token copy can stay beside the original.
+  - **Copy a spell, batch 2 (#659):**
+    - Wild Ricochet: "You may choose new targets for target instant or sorcery spell." is `ChangeTarget` (each target may stay). "Then copy that spell." copies the spell it just targeted (`CopyPreviousTarget`), and its copy may get new targets.
+    - Bonus Round: "Until end of turn, whenever a player casts an instant or sorcery spell, that player copies it and may choose new targets for the copy." The copy belongs to the caster, not to Bonus Round's controller (`CasterCopiesSpell`).
+    - Sword of Wealth and Power: in its combat damage trigger, "When you next cast an instant or sorcery spell this turn, copy that spell." is about that next spell, not the creature.
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets

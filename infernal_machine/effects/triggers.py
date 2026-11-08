@@ -539,7 +539,8 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
 _CAST_IT = re.compile(r"\bfor as long as it remains exiled\b|\bas though it were mana\b|\bto cast it\.$"  # Cunning Rhetoric: the card
-                      r"|\bIf it's an? \w+ creature card, you may cast that card\b", re.I)  # Rundvelt Hordemaster: the exiled card
+                      r"|\bIf it's an? \w+ creature card, you may cast that card\b"  # Rundvelt Hordemaster: the exiled card
+                      r"|\bWhen you next cast [^.]+, copy that spell\b", re.I)  # Sword of Wealth and Power: the next spell
 _PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creature|CARDNAME)\b"
 
                      r"|\bWhen you do, if it has \w+ or more [a-z+/-]+ counters on it\b"  # Earthbender Ascension: "it" is the source, as the sentence before said
@@ -617,6 +618,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     about_subject = re.search(r"\bit\b|\bthat spell\b", _CAST_IT.sub("", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability)))))), re.I) is not None
     copies_spell = re.match(r"(?:you may )?(?:you may pay (?:\{[^}]+\})+\. If you do, )?copy (it|that spell)(?: for each [^.]*|, except the copy isn't legendary)?\.", rest,
                             re.I) is not None  # Codie: "it" is the spell cast (Mirari: after a payment; Thousand-Year Storm: so many times)
+    copies_spell = copies_spell or re.fullmatch(r"that player copies it and may choose new targets for the copy\.", rest, re.I) is not None  # Bonus Round
     copies_spell = copies_spell or re.fullmatch(r"(?:if no (?:colored )?mana was spent to cast it, )?counter that spell\.(?: This ability triggers only once each turn\.)?", rest, re.I) is not None  # Vexing Bauble, Void Mirror, Chalice
     effects, optional, once, condition = _trigger_body(rest)
     if effects is None:
