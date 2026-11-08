@@ -1540,6 +1540,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - **Copy a spell, batch 5 (#659):**
     - Nalfeshnee: "Whenever you cast a spell from exile" is a cast watch for spells cast from exile (foretold and plotted ones too). Its "If it's a permanent spell, the copy gains haste and "At the beginning of the end step, sacrifice this permanent."" changes only a permanent spell's copy (`CopyTriggeringSpell.permanent_changes`). "sacrifice this permanent" is read like "sacrifice this creature".
     - Twinning Staff: "If you would copy a spell one or more times, instead copy it that many times plus an additional time." is the rules key `twinning`. Each copying gets one more copy for each Staff its controller has, which may have new targets: a storm of 2 makes 3 copies, not 4 (`Game.copy_spell`'s `extra`).
+  - **Copy a spell, batch 6 (#659):**
+    - Chain of Smog: "That player may copy this spell and may choose a new target for that copy." The player it targeted may copy it (`CHAIN_COPY_PROMPT`), and so on down the chain.
+    - Chain of Vapor: "Then that permanent's controller may sacrifice a land of their choice. If the player does, they may copy this spell ..." The controller of the permanent returned (as it left) sacrifices a land for the copy.
+    - The bot never copies a chain back, so a chain between bots always ends.
+    - Wondrous Crucible: "mill two cards, then exile a nonland card at random from your graveyard. Copy it. You may cast the copy without paying its mana cost." With no nonland card there, nothing is exiled.
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets

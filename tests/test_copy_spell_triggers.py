@@ -5,14 +5,17 @@ Sword of Wealth and Power (the next instant or sorcery spell this turn), Krark, 
 Zada, Hedron Grinder (a copy for each other creature), Expansion // Explosion (a spell with mana value 4 or less), Pyromancer's
 Goggles ("When that mana is spent to cast a red instant or sorcery spell, copy that spell") and Primal Amulet // Primal Wellspring
 (charge counters, then "you may remove those counters and transform it"), Nalfeshnee ("Whenever you cast a spell from exile",
-and a permanent spell's copy gains haste and an end step sacrifice) and Twinning Staff (one copy more for each copying)."""
+and a permanent spell's copy gains haste and an end step sacrifice), Twinning Staff (one copy more for each copying), Chain of Smog
+and Chain of Vapor (the player it hit may copy it, and the bot never does) and Wondrous Crucible (a random nonland card from the graveyard,
+cast as a copy)."""
 
 import unittest
 
-from infernal_machine.cards import Card
-from infernal_machine.game import CAST_EXILE, Permanent
+from infernal_machine.bot import BotPlayer
+from infernal_machine.cards import Card, Deck
+from infernal_machine.game import CAST_EXILE, CHAIN_COPY_PROMPT, YES_NO, Permanent
 from infernal_machine.report import unsupported_lines
-from tests.helpers import BEAR, BOLT, OGRE, lands, pick, real, run_stack, scryfall, table
+from tests.helpers import BEAR, BOLT, FOREST, OGRE, lands, pick, real, run_stack, scryfall, table
 
 JIN = real("Jin-Gitaxias, Progress Tyrant", "{5}{U}{U}", "Legendary Creature — Phyrexian Praetor",
            "Whenever you cast an artifact, instant, or sorcery spell, copy that spell. You may choose new targets for the copy. This ability "
@@ -71,6 +74,15 @@ STAFF = real("Twinning Staff", "{3}", "Artifact",
              "for the copy.")
 STORM_STUDY = real("Storm Study", "{1}", "Sorcery", "Storm (When you cast this spell, copy it for each spell cast before it this turn.)\n"
                    "Draw a card.")
+SMOG = real("Chain of Smog", "{1}{B}", "Sorcery",
+            "Target player discards two cards. That player may copy this spell and may choose a new target for that copy.", colors=("B",))
+VAPOR = real("Chain of Vapor", "{U}", "Instant",
+             "Return target nonland permanent to its owner's hand. Then that permanent's controller may sacrifice a land of their choice. "
+             "If the player does, they may copy this spell and may choose a new target for that copy.", colors=("U",))
+CRUCIBLE = real("Wondrous Crucible", "{6}", "Artifact",
+                "Permanents you control have ward {2}.\nAt the beginning of your end step, mill two cards, then exile a nonland card at random "
+                "from your graveyard. Copy it. You may cast the copy without paying its mana cost. (A copy of a permanent spell becomes a "
+                "token.)")
 SHOCK = real("Shock", "{R}", "Instant", "Shock deals 2 damage to any target.", colors=("R",))
 TRINKET = real("Trinket", "{1}", "Artifact", "")
 CROWN = real("Crown of Ages", "{1}", "Legendary Artifact", "")
@@ -404,6 +416,63 @@ class TwinningStaffTests(unittest.TestCase):
         game, mine = self.board()
         cast(game, mine, STUDY)
         self.assertEqual(len(mine.hand), 1)
+
+
+class ChainTests(unittest.TestCase):
+    def test_the_player_hit_may_copy_chain_of_smog_back(self):
+        game, _, _ = table(pick("Player: B", "No"), pick("Yes", "Player: A"))
+        mine, theirs = game.seats
+        mine.battlefield, mine.hand = lands(2), [SMOG, BEAR, BEAR, BEAR]
+        theirs.hand = [OGRE, OGRE, OGRE]
+        game._perform(mine, "Cast: Chain of Smog")
+        run_stack(game)
+        self.assertEqual((len(mine.hand), len(theirs.hand)), (1, 1))  # B discarded two, copied it at A, and A stopped
+
+    def test_declining_ends_the_chain(self):
+        game, _, _ = table(pick("Player: B"), pick("No"))
+        mine, theirs = game.seats
+        mine.battlefield, mine.hand = lands(2), [SMOG, BEAR, BEAR]
+        theirs.hand = [OGRE, OGRE, OGRE]
+        game._perform(mine, "Cast: Chain of Smog")
+        run_stack(game)
+        self.assertEqual((len(mine.hand), len(theirs.hand)), (2, 1))
+
+    def test_chain_of_vapor_costs_a_land_to_copy(self):
+        game, _, _ = table(pick("Ogre", "No"), pick("Yes", "Forest", "Bear"))
+        mine, theirs = game.seats
+        bear, ogre = Permanent(BEAR), Permanent(OGRE)
+        mine.battlefield, mine.hand = [bear] + lands(1), [VAPOR]
+        theirs.battlefield = [ogre, Permanent(FOREST)]
+        game._perform(mine, "Cast: Chain of Vapor")
+        run_stack(game)
+        self.assertEqual(([c.name for c in theirs.hand], [c.name for c in mine.hand]), (["Ogre"], ["Bear"]))
+        self.assertEqual([p.card.name for p in theirs.battlefield], [])  # the Forest paid for the copy
+
+    def test_the_bot_never_copies_back(self):
+        bot = BotPlayer("A", Deck([FOREST], [], []))
+        self.assertEqual(bot.choose(CHAIN_COPY_PROMPT("Chain of Smog"), YES_NO), 1)
+
+
+class WondrousCrucibleTests(unittest.TestCase):
+    def test_a_nonland_card_from_the_graveyard_is_cast_as_a_copy(self):
+        game, _, _ = table(pick("Quick Study"))
+        mine = game.seats[0]
+        mine.battlefield, mine.library, mine.graveyard = [Permanent(CRUCIBLE)], [FOREST, FOREST, BEAR, BEAR], [STUDY]
+        game.step = "end"
+        game._turn_based_actions(mine)
+        run_stack(game)
+        self.assertEqual([c.name for c in mine.exile], ["Quick Study"])
+        self.assertEqual(len(mine.hand), 1)  # the copy drew a card
+        self.assertEqual(sorted(c.name for c in mine.graveyard), ["Forest", "Forest"])  # the two milled lands stay
+
+    def test_with_only_lands_in_the_graveyard_nothing_is_exiled(self):
+        game, _, _ = table(pick("Forest"))
+        mine = game.seats[0]
+        mine.battlefield, mine.library = [Permanent(CRUCIBLE)], [FOREST, FOREST, BEAR]
+        game.step = "end"
+        game._turn_based_actions(mine)
+        run_stack(game)
+        self.assertEqual((mine.exile, len(mine.graveyard)), ([], 2))
 
 
 if __name__ == "__main__":

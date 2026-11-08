@@ -180,6 +180,10 @@ _WHOLE_LINE = re.compile(
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
     r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"  # Party Thrasher, Inti: the rest of the line is what it does
+    r"|Then that permanent's controller may sacrifice a land of their choice\. If the player does, they may copy this spell and may "
+    r"choose a new target for that copy\."  # Chain of Vapor
+    r"|(?:[Mm]ill \w+ cards, then )?[Ee]xile a nonland card at random from your graveyard\. Copy it\. You may cast the copy without "
+    r"paying its mana cost\."  # Wondrous Crucible
     r"|[Ee]xile the top X cards of target opponent's library, where X is [^.]+\. Until end of turn, you may cast spells from among those "
     r"cards, and mana of any type can be spent to cast those spells\."  # Laughing Jasper Flint
     r'|CARDNAME becomes an? [^.]+\. If you do, it gains [^.]+ and loses all other abilities\.'  # The Irencrag

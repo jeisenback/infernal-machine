@@ -259,6 +259,7 @@ DRAW_UP_TO_PROMPT = PromptKind("draw_up_to", "How many cards do you draw? ")
 SACRIFICE_DRAW_PROMPT = PromptKind("sacrifice_draw", "Sacrifice a permanent to draw cards? ")
 LOOT_PROMPT = PromptKind("loot", "Discard a card to draw a card? ")
 MAY_DISCARD_PROMPT = PromptKind("may_discard", "Discard a card for ")  # followed by the source's name; options are Yes and No
+CHAIN_COPY_PROMPT = PromptKind("chain_copy", "Copy this spell: ")  # Chain of Smog, Chain of Vapor: followed by the spell's name; Yes or No
 DISCARD_UNLESS_PROMPT = PromptKind("discard_unless", "Discard a card (one of the named kind is enough)")  # options are the hand's cards
 DISCARD_OR_SACRIFICE_PROMPT = PromptKind("discard_or_sacrifice", "Discard a card or sacrifice a land to draw? ")  # Highway Robbery
 DISCARD_A_CARD, SACRIFICE_A_LAND, DO_NEITHER = "Discard a card", "Sacrifice a land", "Neither"
@@ -2077,6 +2078,19 @@ class Game:
                 return
             used.add(next(t for t in _nonland_types(spells[pick]) if t not in used))
             self._cast(seat, spells[pick], seat.exile, free=True)
+
+    def chain_copy(self, seat: Seat, sacrifice_land: bool = False) -> None:
+        """Chain of Smog: "That player may copy this spell and may choose a new target for that copy." Chain of Vapor: first "that
+        permanent's controller may sacrifice a land of their choice. If the player does, they may copy this spell ..." The copy is
+        `seat`'s, and it may chain again; a player who never agrees ends the chain."""
+        item = self.resolving_item
+        if item is None or (sacrifice_land and not any(is_land(p.card) for p in seat.battlefield)):
+            return
+        if seat.player.choose(CHAIN_COPY_PROMPT(item.card.name), YES_NO) != 0:
+            return
+        if sacrifice_land and not self.sacrifice(seat, "land"):
+            return
+        self.copy_spell(item, seat, new_targets=True)
 
     def cast_copies_free(self, seat: Seat, cards: list[Card]) -> None:
         """Copy each of `cards`; `seat` may cast any number of the copies without paying their mana costs (Arcane Bombardment)."""
