@@ -1161,6 +1161,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     sacrifice among the numbers that pay for the rest (a Treasure spent on mana can't also be sacrificed; it is offered only if one
     does), and `PunishPerCounter` asks each opponent, for each blight counter it had, to lose 4 life, sacrifice or discard
     (`Game.punish`).
+  - Landfall, batch 1 (`tests/test_landfall_triggers.py`): a sentence "If <condition>, <effect>." whose condition is read and whose
+    effect has no target and doesn't point back at what an earlier sentence chose ("it", "that", "those", ...) is an `IfElse` checked
+    as it resolves (Omnath, Locus of the Roil's "If you control eight or more lands, draw a card."; Rapier Wit's "put a stun counter
+    on it" stays unread). "If this is the first (second, third) time this ability has resolved this turn" counts the resolutions of
+    that ability of that permanent this turn (`Permanent.resolved_turn`, `StackItem.resolution`; Tannuk, Memorial Ensign, Inner-Flame
+    Igniter, Teething Wurmlet). "Gain control of target creature for as long as you control this creature" lasts while its controller
+    controls the source (`Permanent.control_keeper`; Roil Elemental, Dragonlord Silumgar, Mind Flayer, Aladdin), and does nothing if
+    the source is already gone (CR 611.2b). Ob Nixilis, the Fallen's "you may have target player lose 3 life. If you do, put three
+    +1/+1 counters on Ob Nixilis." and Geode Rager's "goad each creature target player controls." (`GoadEachOfTarget`).
   - Standard's landfall decks (`tests/test_standard_landfall.py`): "Affinity for Forests" counts a land type (Sapling Nursery), and
     "Treefolk and Forests you control gain indestructible until end of turn" reaches every permanent of either type
     (`KindsGainUntilEndOfTurn`). Keen-Eyed Curator's condition counts the card types among the cards still exiled with it
