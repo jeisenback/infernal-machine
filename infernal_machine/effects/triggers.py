@@ -149,7 +149,8 @@ _WATCHES = {
                                          r"graveyard(?: from the battlefield)?, (.+)", re.I),  # a permanent only ever goes there from the battlefield (Aetherworks Marvel)
     "cast": re.compile(r"Whenever (you cast or copy|you cast|a player casts|an opponent casts) (?:(an?|another)|(?:your|their) (first|second|third)) "
                        r"((?:white|blue|black|red|green) spell|multicolored spell|colorless spell"
-                       r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact spell|enchantment spell|legendary spell"
+                       r"|spell|creature spell|noncreature spell|instant or sorcery spell|artifact, instant, or sorcery spell|artifact spell"
+                       r"|enchantment spell|legendary spell"
                        r"|Aura spell|Aura, Equipment, or Vehicle spell|historic spell|spell with \{X\} in its mana cost|prepared spell"
                        r"|permanent spell with a mana cost that contains \{X\}|instant or sorcery spell with \{X\} in its mana cost"
                        r"|(?-i:[A-Z][a-z]+)(?: or (?-i:[A-Z][a-z]+))?(?: permanent)? spell)"  # a creature type: "another Vampire spell", "a Faerie or Wizard permanent spell"
@@ -614,9 +615,9 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
     without_token_ability = _SELF_THEN_IT.sub(r"\1 This", without_token_ability)
     without_token_ability = _STILL_A_LAND.sub("", without_token_ability)  # "It's still a land." closes an Animate; it is not about the subject
     about_subject = re.search(r"\bit\b|\bthat spell\b", _CAST_IT.sub("", _PUT_IT.sub("", _MANA_SPENT.sub("", _SPELL_MV.sub("", _SPELL_COLORS.sub("", _SAME_NAME.sub("", without_token_ability)))))), re.I) is not None
-    copies_spell = re.match(r"(?:you may )?(?:you may pay (?:\{[^}]+\})+\. If you do, )?copy (it|that spell)(?: for each [^.]*)?\.", rest,
+    copies_spell = re.match(r"(?:you may )?(?:you may pay (?:\{[^}]+\})+\. If you do, )?copy (it|that spell)(?: for each [^.]*|, except the copy isn't legendary)?\.", rest,
                             re.I) is not None  # Codie: "it" is the spell cast (Mirari: after a payment; Thousand-Year Storm: so many times)
-    copies_spell = copies_spell or re.fullmatch(r"(?:if no (?:colored )?mana was spent to cast it, )?counter that spell\.", rest, re.I) is not None  # Vexing Bauble, Void Mirror, Chalice
+    copies_spell = copies_spell or re.fullmatch(r"(?:if no (?:colored )?mana was spent to cast it, )?counter that spell\.(?: This ability triggers only once each turn\.)?", rest, re.I) is not None  # Vexing Bauble, Void Mirror, Chalice
     effects, optional, once, condition = _trigger_body(rest)
     if effects is None:
         return None, False, False, None

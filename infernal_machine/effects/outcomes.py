@@ -2466,6 +2466,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy target (instant or sorcery spell), then return it to its owner's hand\.", re.I),
      lambda m: CopySpell(m[1].lower(), return_to_hand=True)),
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
+    (re.compile(r"copy (?:it|that spell), except the copy isn't legendary\.", re.I),
+     lambda m: CopyTriggeringSpell(changes=CopyChanges(not_legendary=True))),  # Storm of Saruman
     (re.compile(r"double the value of X\.", re.I), lambda m: DoubleXOfTriggeringSpell()),
     (re.compile(r"copy that ability\. You may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringAbility(True)),
     (re.compile(r"copy target triggered ability you control( twice)?\.", re.I), lambda m: CopyTriggeredAbility(times=2 if m[1] else 1)),
@@ -3427,6 +3429,7 @@ _CONDITIONS = [
     (re.compile(r"each player has no cards in hand"), lambda m: Condition("all_hands_empty")),
     (re.compile(r"creatures you control have total power (\d+) or greater"), lambda m: Condition("creature_power_at_least", int(m[1]))),
     (re.compile(r"you control a creature with power (\d+) or greater"), lambda m: Condition("creature_with_power", int(m[1]))),
+    (re.compile(r"(?:this creature's|CARDNAME's) power is (\d+) or greater"), lambda m: Condition("source_power_at_least", int(m[1]))),  # Kitsa
     (re.compile(r"you created a token this turn"), lambda m: Condition("created_token")),
     (re.compile(r"you control (eight) or more artifacts with the same name as one another"),  # Mechanized Production
      lambda m: Condition("same_name_artifacts", _number(m[1]))),
