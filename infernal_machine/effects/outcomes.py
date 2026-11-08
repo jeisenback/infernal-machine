@@ -437,6 +437,8 @@ from .families.library_and_hand import (  # noqa: F401
 )
 from .families.life_and_damage import (  # noqa: F401
     DamageEachOtherOpponent,
+    EachPlayerGainsLife,
+    EachLooksTakesLandAndSpell,
     PayLifeDrawPerOpponentHit,
     PreventAllCreatureDamage,
     SubjectDamagesEachOpponent,
@@ -2192,6 +2194,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RevealTopTradeLife()),
     (re.compile(rf"you and target opponent each draw {_N} cards?\.", re.I), lambda m: YouAndTargetDraw(_count(m[1]))),
     (re.compile(rf"each player loses {_N} life\.", re.I), lambda m: EachPlayerLosesLife(_count(m[1]))),
+    (re.compile(rf"each player gains {_N_FIXED} life\.", re.I), lambda m: EachPlayerGainsLife(_number(m[1]))),  # Explore the Vastlands
+    (re.compile(rf"each player looks at the top {_N_FIXED} cards of their library and may reveal a land card and/or an instant or sorcery "
+                r"card from among them\. Each player puts the cards they revealed this way into their hand and the rest on the bottom of "
+                r"their library in a random order\.", re.I), lambda m: EachLooksTakesLandAndSpell(_number(m[1]))),  # Explore the Vastlands
     (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
     (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti

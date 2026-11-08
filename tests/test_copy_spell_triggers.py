@@ -6,8 +6,8 @@ Zada, Hedron Grinder (a copy for each other creature), Expansion // Explosion (a
 Goggles ("When that mana is spent to cast a red instant or sorcery spell, copy that spell") and Primal Amulet // Primal Wellspring
 (charge counters, then "you may remove those counters and transform it"), Nalfeshnee ("Whenever you cast a spell from exile",
 and a permanent spell's copy gains haste and an end step sacrifice), Twinning Staff (one copy more for each copying), Chain of Smog
-and Chain of Vapor (the player it hit may copy it, and the bot never does) and Wondrous Crucible (a random nonland card from the graveyard,
-cast as a copy)."""
+and Chain of Vapor (the player it hit may copy it, and the bot never does), Wondrous Crucible (a random nonland card from the graveyard,
+cast as a copy) and Wandering Archaic // Explore the Vastlands (a copy unless the caster pays {2}; each player takes a land and a spell)."""
 
 import unittest
 
@@ -83,6 +83,13 @@ CRUCIBLE = real("Wondrous Crucible", "{6}", "Artifact",
                 "Permanents you control have ward {2}.\nAt the beginning of your end step, mill two cards, then exile a nonland card at random "
                 "from your graveyard. Copy it. You may cast the copy without paying its mana cost. (A copy of a permanent spell becomes a "
                 "token.)")
+ARCHAIC = real("Wandering Archaic", "{5}", "Creature — Avatar",
+               "Whenever an opponent casts an instant or sorcery spell, they may pay {2}. If they don't, you may copy that spell. You may "
+               "choose new targets for the copy.", "4", "4")
+VASTLANDS = real("Explore the Vastlands", "{3}", "Sorcery",
+                 "Each player looks at the top five cards of their library and may reveal a land card and/or an instant or sorcery card from "
+                 "among them. Each player puts the cards they revealed this way into their hand and the rest on the bottom of their library "
+                 "in a random order. Each player gains 3 life.")
 SHOCK = real("Shock", "{R}", "Instant", "Shock deals 2 damage to any target.", colors=("R",))
 TRINKET = real("Trinket", "{1}", "Artifact", "")
 CROWN = real("Crown of Ages", "{1}", "Legendary Artifact", "")
@@ -483,6 +490,38 @@ class WondrousCrucibleTests(unittest.TestCase):
         game._turn_based_actions(mine)
         run_stack(game)
         self.assertEqual((mine.exile, len(mine.graveyard)), ([], 2))
+
+
+class WanderingArchaicTests(unittest.TestCase):
+    def opponent_casts(self, their_lands, pays):
+        game, _, _ = table(pick("Yes"), pick("Yes" if pays else "No"))
+        mine, theirs = game.seats
+        mine.battlefield, mine.library = [Permanent(ARCHAIC)], [BEAR] * 5
+        theirs.battlefield, theirs.library = lands(their_lands), [BEAR] * 5
+        game.active = 1
+        cast(game, theirs, BOLT)
+        return mine, theirs
+
+    def test_unless_its_caster_pays_the_spell_is_copied_for_you(self):
+        mine, theirs = self.opponent_casts(1, pays=False)
+        self.assertEqual((len(mine.hand), len(theirs.hand)), (1, 1))  # the copy is Archaic's controller's
+
+    def test_paying_2_stops_the_copy(self):
+        mine, theirs = self.opponent_casts(3, pays=True)
+        self.assertEqual(len(mine.hand), 0)
+
+    def test_explore_the_vastlands_gives_each_player_a_land_a_spell_and_3_life(self):
+        game, _, _ = table()
+        mine, theirs = game.seats
+        mine.battlefield, mine.hand = lands(3), [VASTLANDS]
+        mine.library = [BEAR, FOREST, STUDY, BEAR, BEAR, OGRE]
+        theirs.library = [STUDY, BEAR, BEAR, FOREST, BEAR, OGRE]
+        game._perform(mine, "Cast: Explore the Vastlands")
+        run_stack(game)
+        self.assertEqual(sorted(c.name for c in mine.hand), ["Forest", "Quick Study"])
+        self.assertEqual(sorted(c.name for c in theirs.hand), ["Forest", "Quick Study"])
+        self.assertEqual((mine.life, theirs.life), (43, 43))
+        self.assertEqual(mine.library[0], OGRE)  # the sixth card stays on top; the rest go under it
 
 
 if __name__ == "__main__":

@@ -259,6 +259,7 @@ DRAW_UP_TO_PROMPT = PromptKind("draw_up_to", "How many cards do you draw? ")
 SACRIFICE_DRAW_PROMPT = PromptKind("sacrifice_draw", "Sacrifice a permanent to draw cards? ")
 LOOT_PROMPT = PromptKind("loot", "Discard a card to draw a card? ")
 MAY_DISCARD_PROMPT = PromptKind("may_discard", "Discard a card for ")  # followed by the source's name; options are Yes and No
+EXPLORE_TAKE_PROMPT = PromptKind("explore_take", "Reveal and take ")  # Explore the Vastlands: followed by "a land card" or "an instant or sorcery card"
 CHAIN_COPY_PROMPT = PromptKind("chain_copy", "Copy this spell: ")  # Chain of Smog, Chain of Vapor: followed by the spell's name
 CHAIN_COPY_OPTIONS = ["No", "Yes"]  # "No" first: a player who takes the first option (the smoke tests, a bot) ends the chain
 DISCARD_UNLESS_PROMPT = PromptKind("discard_unless", "Discard a card (one of the named kind is enough)")  # options are the hand's cards
@@ -2079,6 +2080,21 @@ class Game:
                 return
             used.add(next(t for t in _nonland_types(spells[pick]) if t not in used))
             self._cast(seat, spells[pick], seat.exile, free=True)
+
+    def look_take_land_and_spell(self, seat: Seat, count: int) -> None:
+        """Explore the Vastlands, for one player: look at the top `count` cards, take a land card and/or an instant or sorcery card from
+        among them into the hand, and put the rest on the bottom in a random order."""
+        looked = [seat.library.pop(0) for _ in range(min(count, len(seat.library)))]
+        for kind, test in (("a land card", is_land), ("an instant or sorcery card", lambda c: "Instant" in c.type_line or "Sorcery" in c.type_line)):
+            options = [c for c in looked if test(c)]
+            if options:
+                pick = seat.player.choose(EXPLORE_TAKE_PROMPT(kind), [c.name for c in options] + [NONE_TAKEN])
+                if pick < len(options):
+                    looked.remove(options[pick])
+                    seat.hand.append(options[pick])
+                    self.broadcast({"event": "revealed_to_hand", "seat": seat.index, "card": options[pick].name})
+        self.rng.shuffle(looked)
+        seat.library.extend(looked)
 
     def chain_copy(self, seat: Seat, sacrifice_land: bool = False) -> None:
         """Chain of Smog: "That player may copy this spell and may choose a new target for that copy." Chain of Vapor: first "that
