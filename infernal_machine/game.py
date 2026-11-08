@@ -3113,6 +3113,8 @@ class Game:
                     and (self.power(subject) > self.power(source) or (self.toughness(subject) or 0) > (self.toughness(source) or 0)))
         if kind == "all_hands_empty":  # Howltooth Hollow
             return not any(s.hand for s in self.live_seats())
+        if kind == "source_power_at_least":  # Kitsa, Otterball Elite: "Activate only if Kitsa's power is 3 or greater."
+            return source is not None and self.power(source) >= condition.count
         if kind == "creature_with_power":  # Garruk's Uprising: a creature you control with power N or greater
             return any(self.power(p) >= condition.count for p in seat.battlefield if "Creature" in p.card.type_line)
         if kind == "attacked_this_turn":  # Raid: you declared an attack this turn (CR 508.1)

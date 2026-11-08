@@ -1521,6 +1521,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     planeswalker", X additional counters. Any other clause (a new name, "loses all other card types", "doesn't copy its
     color", conditional abilities) leaves the line unsupported. Phantasmal Image, Spark Double, Vesuva, Glasspool Mimic,
     Malleable Impostor, Phyrexian Metamorph, Altered Ego, Machine God's Effigy, Moritte of the Frost.
+  - **Copy a spell, batch 1 (#659):**
+    - Jin-Gitaxias, Progress Tyrant: "Whenever you cast an artifact, instant, or sorcery spell" is a cast watch for any of the three. Its copy of an artifact spell becomes a token. Its "counter that spell" for an opponent's spell keeps "This ability triggers only once each turn."
+    - Kitsa, Otterball Elite: "Activate only if Kitsa's power is 3 or greater." is the condition `source_power_at_least`, checked against the creature's power at the time.
+    - Storm of Saruman: "copy it, except the copy isn't legendary" (`CopyTriggeringSpell.changes`), so a legendary permanent spell's token copy can stay beside the original.
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets

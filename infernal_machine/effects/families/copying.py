@@ -700,13 +700,14 @@ class CopyNextSpell:
 @dataclass(frozen=True)
 class CopyTriggeringSpell:
     """Codie: "Whenever you cast a prepared spell, copy it. You may choose new targets for the copy." The spell that set
-    the trigger off is `carried`."""
+    the trigger off is `carried`. Storm of Saruman: "copy it, except the copy isn't legendary" (`changes`)."""
     new_targets: bool = False
+    changes: CopyChanges | None = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         spell = game.resolving_item.carried if game.resolving_item is not None else None
         if spell is not None:
-            game.copy_spell(spell, controller, self.new_targets)
+            game.copy_spell(spell, controller, self.new_targets, changes=self.changes)
 
 
 @dataclass(frozen=True)
