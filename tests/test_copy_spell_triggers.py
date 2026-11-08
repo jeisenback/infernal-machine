@@ -13,7 +13,7 @@ import unittest
 
 from infernal_machine.bot import BotPlayer
 from infernal_machine.cards import Card, Deck
-from infernal_machine.game import CAST_EXILE, CHAIN_COPY_PROMPT, YES_NO, Permanent
+from infernal_machine.game import CAST_EXILE, CHAIN_COPY_OPTIONS, CHAIN_COPY_PROMPT, Permanent
 from infernal_machine.report import unsupported_lines
 from tests.helpers import BEAR, BOLT, FOREST, OGRE, lands, pick, real, run_stack, scryfall, table
 
@@ -450,7 +450,17 @@ class ChainTests(unittest.TestCase):
 
     def test_the_bot_never_copies_back(self):
         bot = BotPlayer("A", Deck([FOREST], [], []))
-        self.assertEqual(bot.choose(CHAIN_COPY_PROMPT("Chain of Smog"), YES_NO), 1)
+        self.assertEqual(CHAIN_COPY_OPTIONS[bot.choose(CHAIN_COPY_PROMPT("Chain of Smog"), CHAIN_COPY_OPTIONS)], "No")
+
+    def test_a_player_who_takes_the_first_option_ends_the_chain(self):  # (the smoke tests' player: it must not copy forever)
+        game, _, _ = table(lambda prompt, options: next((i for i, o in enumerate(options) if o.startswith("Player: B")), 0),
+                           lambda prompt, options: 0)
+        mine, theirs = game.seats
+        mine.battlefield, mine.hand = lands(2), [SMOG]
+        theirs.hand = [OGRE, OGRE, OGRE]
+        game._perform(mine, "Cast: Chain of Smog")
+        run_stack(game)
+        self.assertEqual(len(theirs.hand), 1)
 
 
 class WondrousCrucibleTests(unittest.TestCase):
