@@ -1537,6 +1537,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     - Pyromancer's Goggles and Primal Wellspring: "{T}: Add {R}. When that mana is spent to cast a red instant or sorcery spell, copy that spell and you may choose new targets for the copy." is the mana-spent rider Study Hall uses, with a copy instead of a scry (`ManaSpentTrigger.copy`). The copy is made only when that permanent was tapped to pay for the spell; mana floated earlier does not count.
     - Primal Amulet: "Then if there are four or more charge counters on it, you may remove those counters and transform it." (`MayRemoveCountersTransform`; "there are N or more ... counters on it" is the source-counters condition).
     - Sunken Palace (its mana also copies an ability) is not read yet.
+  - **Copy a spell, batch 5 (#659):**
+    - Nalfeshnee: "Whenever you cast a spell from exile" is a cast watch for spells cast from exile (foretold and plotted ones too). Its "If it's a permanent spell, the copy gains haste and "At the beginning of the end step, sacrifice this permanent."" changes only a permanent spell's copy (`CopyTriggeringSpell.permanent_changes`). "sacrifice this permanent" is read like "sacrifice this creature".
+    - Twinning Staff: "If you would copy a spell one or more times, instead copy it that many times plus an additional time." is the rules key `twinning`. Each copying gets one more copy for each Staff its controller has, which may have new targets: a storm of 2 makes 3 copies, not 4 (`Game.copy_spell`'s `extra`).
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets

@@ -313,6 +313,8 @@ _RULES_STATICS = [
     (re.compile(r"Activated abilities of artifact tokens you control cost \{1\} less to activate\.", re.I), "token_ability_discount"),  # Mutagen Man
     (re.compile(r"Instant and sorcery spells you cast have storm\.", re.I), "grant_storm"),  # Ral, Crackling Wit's emblem
     (re.compile(r"Noncreature spells you cast from exile have convoke\.", re.I), "exile_convoke"),  # Party Thrasher
+    (re.compile(r"If you would copy a spell one or more times, instead copy it that many times plus an additional time\. You may choose "
+                r"new targets for the additional copy\.", re.I), "twinning"),  # Twinning Staff
     (re.compile(r"Creatures you control but don't own are Mercenaries in addition to their other types\.", re.I),
      "unowned_mercenaries"),  # Laughing Jasper Flint
     (re.compile(r"You may cast spells from your hand without paying their mana costs\.", re.I), "free_from_hand"),  # Omniscience
@@ -338,7 +340,7 @@ def rules_statics(card: Card) -> tuple[str, ...]:
     "extra_land" (its controller may play one more land a turn), "graveyard_lands" (its controller may play lands from the graveyard),
     "no_untap" (it stays tapped through its controller's untap step), "damp_lands" (a land tapped for two or more mana makes one {C}),
     "spell_count_tax" (a spell costs {1} more for each other spell its caster cast this turn), "no_life_gain" (nobody gains life), "opp_sorcery_speed" (its
-    controller's opponents cast spells only at sorcery speed), "token_ability_discount" (the activated abilities of its controller's artifact tokens cost {1} less), "grant_storm" (its controller's instant and sorcery spells have storm), "exile_convoke" (its controller's noncreature spells cast from exile have convoke), "unowned_mercenaries" (the creatures its controller controls but doesn't own are Mercenaries: counted as such and as outlaws among what they control), "cage_enter" / "cage_cast" (Grafdigger's Cage: no creature card
+    controller's opponents cast spells only at sorcery speed), "token_ability_discount" (the activated abilities of its controller's artifact tokens cost {1} less), "grant_storm" (its controller's instant and sorcery spells have storm), "exile_convoke" (its controller's noncreature spells cast from exile have convoke), "twinning" (each time its controller copies a spell, one copy more, which may have new targets), "unowned_mercenaries" (the creatures its controller controls but doesn't own are Mercenaries: counted as such and as outlaws among what they control), "cage_enter" / "cage_cast" (Grafdigger's Cage: no creature card
     enters the battlefield from a graveyard or library, and no spell is cast from one), "name_lock" (nobody can activate the non-mana abilities of sources
     with the name the permanent chose), "name_mana_c" (lands with that name also tap for {C}), "free_from_hand" (its controller may cast spells from their hand without paying their
     mana costs), "free_once" (once during each of its controller's turns, one from the hand or the top of the library), "free_type:Dragon" (its
