@@ -347,6 +347,8 @@ _WHOLE_LINE = re.compile(
     r"|Each opponent creates a token that's a copy of it\. The tokens are goaded for the rest of the game\."
     r"|Create (?:a token that's a copy of|five tokens that are copies of) another target creature you control(?:, except it "
     r"isn't legendary)?\. (?:It gains|They gain) haste\. Sacrifice (?:it|them) at the beginning of the next end step\."
+    r"|copy that spell for each other creature you control that the spell could target\. Each copy targets a different one of those "
+    r"creatures\."  # Zada, Hedron Grinder
     r"|That player copies that spell for each other creature they control that the spell could target\. Each copy targets a "
     r"different one of those creatures\."
     r"|Exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature|that card)(?:, except (?:\"[^\"]*\"|[^\".])*)?\.?\"?"  # Nightmare Shepherd, Hofri Ghostforge

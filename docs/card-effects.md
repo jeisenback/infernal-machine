@@ -1529,6 +1529,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     - Wild Ricochet: "You may choose new targets for target instant or sorcery spell." is `ChangeTarget` (each target may stay). "Then copy that spell." copies the spell it just targeted (`CopyPreviousTarget`), and its copy may get new targets.
     - Bonus Round: "Until end of turn, whenever a player casts an instant or sorcery spell, that player copies it and may choose new targets for the copy." The copy belongs to the caster, not to Bonus Round's controller (`CasterCopiesSpell`).
     - Sword of Wealth and Power: in its combat damage trigger, "When you next cast an instant or sorcery spell this turn, copy that spell." is about that next spell, not the creature.
+  - **Copy a spell, batch 3 (#659):**
+    - Krark, the Thumbless: "flip a coin. If you lose the flip, ... If you win the flip, ..." keeps both results (`FlipCoin.otherwise`). "return that spell to its owner's hand" (`ReturnTriggeringSpellToHand`) and "copy that spell, and you may choose new targets for the copy" are about the spell cast.
+    - Zada, Hedron Grinder: "that targets only Zada" is the same watch as Mirrorwing Dragon's "that targets only this creature". "copy that spell for each other creature you control that the spell could target. Each copy targets a different one of those creatures." makes the copies Zada's controller's (`CopyForEachOtherCreature`).
+    - Expansion // Explosion: "Copy target instant or sorcery spell with mana value 4 or less." A bigger spell is not a legal target.
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets

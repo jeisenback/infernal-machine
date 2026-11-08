@@ -267,8 +267,8 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         qualifier = (f"{q[2]}{'>=' if q[4] == 'greater' else '<='}{q[3]}" if q[2] else "flying" if q[1] == "flying"
                      else f"mv{'>=' if q[6] == 'greater' else '<='}{q[5]}" if q[5] else "counter:+1/+1")
         line = line[:q.start()] + line[q.end():]
-    if " that targets only this creature" in line:  # Mirrorwing Dragon: about the spell's targets
-        line = line.replace(" that targets only this creature", "")
+    if m := re.search(r" that targets only (?:this creature|CARDNAME)", line):  # Mirrorwing Dragon, Zada: about the spell's targets
+        line = line.replace(m[0], "")
         qualifier = "targets_only_source"
     if " with mana value equal to the number of charge counters on this artifact" in line:  # Chalice of the Void
         line = line.replace(" with mana value equal to the number of charge counters on this artifact", "")
@@ -540,7 +540,8 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
 _CAST_IT = re.compile(r"\bfor as long as it remains exiled\b|\bas though it were mana\b|\bto cast it\.$"  # Cunning Rhetoric: the card
                       r"|\bIf it's an? \w+ creature card, you may cast that card\b"  # Rundvelt Hordemaster: the exiled card
-                      r"|\bWhen you next cast [^.]+, copy that spell\b", re.I)  # Sword of Wealth and Power: the next spell
+                      r"|\bWhen you next cast [^.]+, copy that spell\b"  # Sword of Wealth and Power: the next spell
+                      r"|\breturn that spell to its owner's hand\b|\bcopy that spell, and you may choose new targets\b", re.I)  # Krark: the spell cast
 _PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creature|CARDNAME)\b"
 
                      r"|\bWhen you do, if it has \w+ or more [a-z+/-]+ counters on it\b"  # Earthbender Ascension: "it" is the source, as the sentence before said

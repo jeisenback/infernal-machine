@@ -471,9 +471,10 @@ class FlipUntilLose:
 @dataclass(frozen=True)
 class FlipCoin:
     """ "Flip a coin." (CR 705) and, folded in, "If you lose the flip, this artifact deals 3 damage to you." (Mana Crypt): `then` happens
-    when the flip is won (`on_win`) or lost."""
+    when the flip is won (`on_win`) or lost. Krark, the Thumbless says both: `otherwise` happens on the other result."""
     then: Any = None
     on_win: bool = True
+    otherwise: Any = None
 
     @property
     def binds(self) -> str | None:
@@ -483,6 +484,8 @@ class FlipCoin:
         won = game.flip_coin(controller)
         if self.then is not None and won == self.on_win:
             self.then.resolve(game, controller, target)
+        elif self.otherwise is not None and won != self.on_win:
+            self.otherwise.resolve(game, controller, target)
 
 
 @dataclass(frozen=True)

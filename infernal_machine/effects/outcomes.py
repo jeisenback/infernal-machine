@@ -129,6 +129,8 @@ from .families.combat_and_pump import (  # noqa: F401
 from .families.copying import (  # noqa: F401
     CopyPreviousTarget,
     CasterCopiesSpell,
+    CopyForEachOtherCreature,
+    ReturnTriggeringSpellToHand,
     BecomeCopyUntilEndOfTurn,
     BecomeCard,
     CAST_COPY_PROMPT,
@@ -2390,6 +2392,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: CopiesOfAnotherCreature(5 if m[1] else 1, bool(m[2]))),
     (re.compile(r"that player copies that spell for each other creature they control that the spell could target\. Each copy "
                 r"targets a different one of those creatures\.", re.I), lambda m: CopySpellForEachOtherCreature()),
+    (re.compile(r"copy that spell for each other creature you control that the spell could target\. Each copy targets a different one "
+                r"of those creatures\.", re.I), lambda m: CopyForEachOtherCreature()),  # Zada, Hedron Grinder
     (re.compile(r"exile (?:it|that creature)\. If you do, create a token that's a copy of (?:it|that creature|that card)(?:, except (.+))?\.(\"?)",
                 re.I), lambda m: ExileDeadCopy(c) if (c := _copy_changes(m[1] + '."' * bool(m[2])) if m[1] else CopyChanges()) else None),
     (re.compile(r"return the exiled card to its owner's graveyard\.", re.I), lambda m: ReturnExiledToGraveyard()),
@@ -2458,8 +2462,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"shuffle your library, then reveal cards from the top of it until you reveal a nonland card\. Exile that "
                 r"card and put the rest on the bottom of your library in a random order\. You may cast the exiled card "
                 r"without paying its mana cost\.", re.I), lambda m: ShuffleRevealCast()),
-    (re.compile(r"copy target (instant or sorcery spell|instant spell|sorcery spell|creature spell|permanent spell|activated or triggered ability"
-                r"|instant spell, sorcery spell, activated ability, or triggered ability)( you control)?"
+    (re.compile(r"copy target (instant or sorcery spell(?: with mana value \d+ or less)?|instant spell|sorcery spell|creature spell|permanent spell"
+                r"|activated or triggered ability|instant spell, sorcery spell, activated ability, or triggered ability)( you control)?"
                 r"(?:, except (?:that the copy is (white|blue|black|red|green)|(.+)))?\.", re.I),
      lambda m: CopySpell(m[1].lower() + (m[2] or "").lower(), color=_COPY_COLORS[m[3].lower()] if m[3] else None, changes=c)
      if (c := _copy_changes(m[4]) if m[4] else None) or not m[4] else None),
@@ -2469,6 +2473,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"copy target (instant or sorcery spell), then return it to its owner's hand\.", re.I),
      lambda m: CopySpell(m[1].lower(), return_to_hand=True)),
     (re.compile(r"then copy that spell\.", re.I), lambda m: CopyPreviousTarget()),  # Wild Ricochet: the spell it targets
+    (re.compile(r"copy that spell, and you may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringSpell(new_targets=True)),  # Krark
+    (re.compile(r"return that spell to its owner's hand\.", re.I), lambda m: ReturnTriggeringSpellToHand()),  # Krark
     (re.compile(r"that player copies (?:it|that spell) and may choose new targets for the copy\.", re.I), lambda m: CasterCopiesSpell()),  # Bonus Round
     (re.compile(r"copy (?:it|that spell)\.", re.I), lambda m: CopyTriggeringSpell()),
     (re.compile(r"copy (?:it|that spell), except the copy isn't legendary\.", re.I),
@@ -3643,6 +3649,8 @@ _CONDITIONAL = Follows(
     Follow(_DrawPerUnable, Discard, set_fields(draw_per_unable=lambda m: True), fits=lambda previous, marker: previous.who == "each opponent"),
     Follow(_Otherwise, IfElse, set_fields(otherwise=lambda m: m.effects)),
     Follow(_IfFlip, FlipCoin, lambda previous, marker: FlipCoin(marker.effect, marker.on_win), fits=lambda previous, marker: previous.then is None),
+    Follow(_IfFlip, FlipCoin, lambda previous, marker: dataclasses.replace(previous, otherwise=marker.effect),  # Krark: the other result
+           fits=lambda previous, marker: previous.then is not None and previous.otherwise is None and marker.on_win != previous.on_win),
     Follow(_DrawIfYouControlledIt, ReturnToHand, set_fields(draw_if_yours=lambda m: True)),
     Follow(_LosesAbilitiesWhileSource, Tap, set_fields(strip_while_source=lambda m: True)),
     Follow(_LockedWhileTapped, Tap, set_fields(lock_while_tapped=lambda m: True)),
