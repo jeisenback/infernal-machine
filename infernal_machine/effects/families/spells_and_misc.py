@@ -342,6 +342,17 @@ class _ItGains:
 
 
 @dataclass(frozen=True)
+class _ThatCreatureGains:
+    """ "That creature gains shroud until end of turn." after an Equipment attached itself to it (Silver Shroud Costume)."""
+    keywords: frozenset[str]
+
+
+@dataclass(frozen=True)
+class _UntapThoseCreatures:
+    """ "Untap those creatures." after "Creatures you control get +1/+1 ..." or "Put a +1/+1 counter on each creature you control." """
+
+
+@dataclass(frozen=True)
 class _ThatGainsIf:
     """ "If <condition>, that creature gains double strike until end of turn." after a Pump (Violent Urge's delirium)."""
     keywords: frozenset[str]

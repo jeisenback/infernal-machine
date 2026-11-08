@@ -150,6 +150,7 @@ declare("combat_damage_to_player_or_walker", re.compile(rf"When(?:ever)? {_SELF}
 declare("upkeep", re.compile(r"At the beginning of your upkeep, (.+)", re.I))
 declare("end_step", re.compile(r"At the beginning of your end step, (.+)", re.I))
 declare("each_upkeep", re.compile(r"At the beginning of each upkeep, (.+)", re.I))
+declare("each_player_upkeep", re.compile(r"At the beginning of each player's upkeep, (.+)", re.I), about_player=True)  # Seizan: whose upkeep it is
 declare("each_end_step", re.compile(r"At the beginning of (?:each|the) end step, (.+)", re.I))
 declare("combat", re.compile(r"At the beginning of combat on your turn, (.+)", re.I))
 declare("each_main", re.compile(r"At the beginning of each of your main phases, (.+)", re.I))  # Frontier Siege: the first and the second

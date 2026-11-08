@@ -1172,6 +1172,26 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     card. If you do, discard a card." in a trigger (Mask of Memory, Smuggler's Copter and some twenty looters); "Other artifact creatures
     you control" and "All creatures ..." in a static ability (Master of Etherium, Concordant Crossroads, Night of Souls' Betrayal). An
     "Artifact creatures you control get ..." buff now reaches artifact creatures (it was read as a creature type and reached none).
+  - The same, batch 2 (`tests/test_parse_only_batch_2.py`): a target "with power (toughness, power or toughness) N or less (greater)"
+    is checked against the permanent as it is, counters and pumps included (Valorous Stance, Warping Wail, Abzan Charm); "multicolored
+    spell / permanent" (Null Elemental Blast); damage to "target creature you don't control" (Mizzium Mortars) or "creature or
+    planeswalker an opponent controls" (Skysovereign); "Destroy all (non-)Dragon creatures." (Crux of Fate). Static abilities for "Other
+    Elf creatures" and "Other Merfolk" (every player's: Elvish Champion, Lord of Atlantis), "All Slivers" (Crystalline Sliver), "Zombie
+    tokens you control" (Eternal Skylord), "Creatures you control with +1/+1 counters on them" (Badgermole) and "Other nontoken
+    creatures you control" (Thraben Watcher). "Each player draws ... and loses ..." / "..., then discards ..." (Stormfist Crusader,
+    Burning Inquiry); "At the beginning of each player's upkeep, that player loses 2 life and draws two cards." (an event with "that
+    player", and a trigger's "that player X and Y" is two sentences about the same player: Seizan, Ob Nixilis, Unshackled); "... and that
+    player mills ten cards" (Sword of Body and Mind). One-word variants: "up to one ... and up to one ..." (Sword of Sinew and Steel),
+    "up to two other target", "up to one / another target ... card from your graveyard to the battlefield", "artifact and/or enchantment
+    cards", "target card from a graveyard", "Tap all creatures target player controls.", "Return a creature you control to its owner's
+    hand." (Whitemane Lion), "four basic land cards" and "up to ten land cards" (Planar Engineering, Reshape the Earth), "fights up to one
+    target", "Untap two other target legendary creatures." (Ioreth), "a ... token that's tapped and attacking" (Skyknight Vanguard), "Put a
+    -1/-1 counter on each creature." (every player's), "all non-Zombie creatures get ...", "two extra turns" (Time Stretch), "sacrifice
+    this enchantment / this land" with "if no creatures are on the battlefield" (Pestilence). "Untap those creatures." after a pump or
+    counters on each (Jeskai Ascendancy, Virtue of Loyalty); "That creature gains ..." after an Equipment attached itself (Silver Shroud
+    Costume); "put that many +1/+1 counters on it" (Hungering Hydra, Necropolis Regent; "Whenever you discard one or more cards" carries
+    how many; a batch of "one or more" tokens carries no count, so Woodland Champion stays unread); a named mode ("• Pray for Protection
+    — ...") and a two-word ability word before a cost ("Smear Campaign — {1}, {T}: ...") are only labels.
   - Landfall, batch 1 (`tests/test_landfall_triggers.py`): a sentence "If <condition>, <effect>." whose condition is read and whose
     effect has no target and doesn't point back at what an earlier sentence chose ("it", "that", "those", ...) is an `IfElse` checked
     as it resolves (Omnath, Locus of the Roil's "If you control eight or more lands, draw a card."; Rapier Wit's "put a stun counter

@@ -247,17 +247,21 @@ class PumpEach:
     everyone: bool = False  # "All creatures get -2/-2 until end of turn."
     subtype: str = ""  # "Spirits you control gain double strike and vigilance until end of turn." ("non-Human": all but those)
     other: bool = False  # Summon: Esper Maduin: "Other creatures you control ...": not its source
+    untap: bool = False  # Jeskai Ascendancy: "Untap those creatures."
+    attacking: bool = False  # Warren Warleader: "Attacking creatures you control get +1/+1 ..."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         seats = game.live_seats() if self.everyone else game.opponents(controller) if self.opponents else [controller]
         for seat in seats:
             for permanent in list(seat.battlefield):
                 kinds = permanent.card.type_line.partition("\u2014")[2].split()
-                if self.other and permanent is game.resolving_source:
+                if (self.other and permanent is game.resolving_source) or (self.attacking and not game._in_state(permanent, "attacking")):
                     continue
                 if "Creature" in permanent.card.type_line and (
                         not self.subtype or (self.subtype.removeprefix("non-") in kinds) != self.subtype.startswith("non-")):
                     game.modify_until_end_of_turn(permanent, self.modifier)
+                    if self.untap:
+                        game.untap(permanent)
 
 
 @dataclass(frozen=True)
@@ -357,10 +361,13 @@ class Attach:
     """Equip: attach the Equipment that made this ability to the target creature."""
     target: str = "creature you control"
     another: bool = False  # Reconfigure: not the Equipment creature itself
+    grant: frozenset[str] = frozenset()  # Silver Shroud Costume: "That creature gains shroud until end of turn."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and game.resolving_source is not None:
             game.attach(game.resolving_source, target)
+            if self.grant:
+                game.modify_until_end_of_turn(target, Modifier(keywords=self.grant))
 
 
 @dataclass(frozen=True)
@@ -805,10 +812,11 @@ class UntapAll:
 
 @dataclass(frozen=True)
 class TapAll:
-    """ "Tap all creatures your opponents control." """
+    """ "Tap all creatures your opponents control." Naya Charm: "... target player controls." (`target` "player")"""
+    target: str | None = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        for seat in game.opponents(controller):
+        for seat in ([target] if target is not None else []) if self.target else game.opponents(controller):
             for permanent in seat.battlefield:
                 if "Creature" in permanent.card.type_line:
                     game.tap(permanent)

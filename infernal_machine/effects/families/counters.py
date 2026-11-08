@@ -261,12 +261,14 @@ class PutCountersOnEach:
     or_vehicle: bool = False  # Ao: "each permanent you control that's a creature or Vehicle"
     other: bool = False  # Guiding Hydra: "each other creature you control": not the source
     target: str | None = None  # Practiced Offense: "each creature target player controls" ("player")
+    everyone: bool = False  # Soul Snuffers: "each creature", every player's
+    untap: bool = False  # Virtue of Loyalty: "Untap those creatures."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         seat = target if self.target else controller
         if seat is None:
             return
-        for permanent in list(seat.battlefield):
+        for permanent in [p for s in game.live_seats() for p in s.battlefield] if self.everyone else list(seat.battlefield):
             if self.other and permanent is game.resolving_source:
                 continue
             if ("Creature" in permanent.card.type_line or self.or_vehicle and "Vehicle" in permanent.card.type_line) \
@@ -274,6 +276,8 @@ class PutCountersOnEach:
                 game.put_counters(permanent, self.counter, game.amount(self.count))
                 if self.grant:
                     game.modify_until_end_of_turn(permanent, Modifier(keywords=self.grant))
+                if self.untap:
+                    game.untap(permanent)
 
 
 @dataclass(frozen=True)

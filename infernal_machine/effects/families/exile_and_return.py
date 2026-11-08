@@ -789,10 +789,11 @@ RETURN_LAND_PROMPT = PromptKind("return_land", "Return which land to your hand? 
 
 @dataclass(frozen=True)
 class ReturnOwnLand:
-    """Bounceland: "Return a land you control to its owner's hand." (you choose; it can be the land itself)"""
+    """Bounceland: "Return a land you control to its owner's hand." (you choose; it can be the land itself). Whitemane Lion: a creature."""
+    kind: str = "Land"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        lands = [p for p in controller.battlefield if "Land" in p.card.type_line]
+        lands = [p for p in controller.battlefield if self.kind in p.card.type_line]
         if lands:
             game.return_to_hand(lands[controller.player.choose(RETURN_LAND_PROMPT, [game.label(p) for p in lands])])
 
@@ -946,8 +947,7 @@ class SearchExileCastIfKicked:
 
 @dataclass(frozen=True)
 class SacrificeUnlessReturnLand:
-    """The Karoo cycle: "When this land enters, sacrifice it unless you return an untapped Mountain you control to its
-    owner's hand." """
+    """The Karoo cycle: "When this land enters, sacrifice it unless you return an untapped Mountain you control to its owner's hand." """
     land_type: str
     binds = SOURCE
 
