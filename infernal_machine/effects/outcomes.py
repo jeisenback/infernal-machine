@@ -131,6 +131,9 @@ from .families.copying import (  # noqa: F401
     CopyPreviousTarget,
     CasterCopiesSpell,
     CopyForEachOtherCreature,
+    ThatPlayerMayCopyThisSpell,
+    ControllerMaySacrificeLandToCopy,
+    ExileRandomNonlandCastCopy,
     _IfPermanentCopyGains,
     ReturnTriggeringSpellToHand,
     BecomeCopyUntilEndOfTurn,
@@ -2481,6 +2484,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"then copy that spell\.", re.I), lambda m: CopyPreviousTarget()),  # Wild Ricochet: the spell it targets
     (re.compile(r"copy that spell, and you may choose new targets for the copy\.", re.I), lambda m: CopyTriggeringSpell(new_targets=True)),  # Krark
     (re.compile(r"return that spell to its owner's hand\.", re.I), lambda m: ReturnTriggeringSpellToHand()),  # Krark
+    (re.compile(r"that player may copy this spell and may choose a new target for that copy\.", re.I),
+     lambda m: ThatPlayerMayCopyThisSpell()),  # Chain of Smog
+    (re.compile(r"then that permanent's controller may sacrifice a land of their choice\. If the player does, they may copy this spell "
+                r"and may choose a new target for that copy\.", re.I), lambda m: ControllerMaySacrificeLandToCopy()),  # Chain of Vapor
+    (re.compile(r"(?:mill (\w+) cards, then )?exile a nonland card at random from your graveyard\. Copy it\. You may cast the copy without "
+                r"paying its mana cost\.", re.I),
+     lambda m: ([*mill, ExileRandomNonlandCastCopy()] if (mill := _parse([f"Mill {m[1]} cards."])) else None) if m[1]
+     else ExileRandomNonlandCastCopy()),  # Wondrous Crucible
     (re.compile(r"if it's a permanent spell, the copy gains haste and \"(At the beginning of the end step, sacrifice this permanent\.)\"", re.I),
      lambda m: _IfPermanentCopyGains(CopyChanges(keywords=("haste",), abilities=(m[1],)))),  # Nalfeshnee
     (re.compile(r"that player copies (?:it|that spell) and may choose new targets for the copy\.", re.I), lambda m: CasterCopiesSpell()),  # Bonus Round

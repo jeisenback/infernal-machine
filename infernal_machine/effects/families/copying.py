@@ -734,6 +734,40 @@ class _IfPermanentCopyGains:
 
 
 @dataclass(frozen=True)
+class ThatPlayerMayCopyThisSpell:
+    """Chain of Smog: "That player may copy this spell and may choose a new target for that copy." (the player it targeted)"""
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and hasattr(target, "battlefield"):
+            game.chain_copy(target)
+
+
+@dataclass(frozen=True)
+class ControllerMaySacrificeLandToCopy:
+    """Chain of Vapor: "Then that permanent's controller may sacrifice a land of their choice. If the player does, they may copy this
+    spell and may choose a new target for that copy." (the controller of the permanent it returned, as it left)"""
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and (seat := target.last_controller or target.owner) is not None:
+            game.chain_copy(seat, sacrifice_land=True)
+
+
+@dataclass(frozen=True)
+class ExileRandomNonlandCastCopy:
+    """Wondrous Crucible: "exile a nonland card at random from your graveyard. Copy it. You may cast the copy without paying its mana
+    cost." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        cards = [c for c in controller.graveyard if "Land" not in c.type_line]
+        if cards:
+            card = game.rng.choice(cards)
+            if game.exile_from_graveyard(game.graveyard_target(card, controller)):
+                game.cast_copies_free(controller, [card])
+
+
+@dataclass(frozen=True)
 class ReturnTriggeringSpellToHand:
     """Krark, the Thumbless: "If you lose the flip, return that spell to its owner's hand." (the spell that set the trigger off)"""
 

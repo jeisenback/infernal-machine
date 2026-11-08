@@ -20,7 +20,8 @@ from .effects import CONSULT_NAME_PROMPT, MOVE_COUNTERS_PROMPT, PACT_TAKE_PROMPT
 from .zones import CAST_PREFIXES, LAND_PREFIXES, PLOT
 from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, COST_PROMPT, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, COMPANION, CAST_PREPARED, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
-                   MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT)
+                   MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT,
+                   CHAIN_COPY_PROMPT)
 
 MIN_LANDS = 2
 MAX_LANDS = 5
@@ -165,6 +166,8 @@ class BotPlayer:
                 return 1
             card = self._cards.get(subject_of(prompt, PACT_TAKE_PROMPT))
             return 1 if card is not None and is_land(card) and "win" in self.features else 0
+        if CHAIN_COPY_PROMPT.matches(prompt):  # Chain of Smog, Chain of Vapor: never copy back, so a chain always ends
+            return 1
         if KEEP_PROMPT.matches(prompt):
             keep = keep_hand_for(self._hand, self._average_cost, self._mulligans) if "keep" in self.features else keep_hand(self._hand, self._mulligans)
             return 0 if keep else 1
