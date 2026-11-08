@@ -304,6 +304,9 @@ _WHOLE_LINE = re.compile(
     r"|Draw a card, then discard a card\. If there are \w+ or more \w+ counters on CARDNAME, you may cast the discarded card without "
     r"paying its mana cost\."  # Malcolm, Alluring Scoundrel
     r"|Its controller may pay \w+ life\. If they do, they draw a card\."  # Gix, Yawgmoth Praetor
+    r"|Look at that player's hand\. You may cast a spell from among those cards without paying its mana cost\."  # Silent-Blade Oni
+    r"|Target opponent exiles the top X cards of their library\. You may cast any number of spells with mana value X or less from among "
+    r"them without paying their mana costs\."  # Villainous Wealth
     r"|Exile the top X cards of target opponent's library\. You may play lands and cast spells from among cards exiled this way without "
     r"paying their mana costs\."  # Gix, Yawgmoth Praetor
     r"|Return up to one target artifact, creature, or non-Aura enchantment card with mana value (\d+) or less from your graveyard to "

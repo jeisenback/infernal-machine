@@ -182,12 +182,23 @@ class TargetCascades:
 class CastTargetFromGraveyardFree:
     """Memory Plunder: "You may cast target instant or sorcery card from an opponent's graveyard without paying its mana cost." """
     target: str = "graveyard:instant or sorcery:opponents"
+    exile_after: bool = False  # Torrential Gearhulk: "If that spell would be put into your graveyard, exile it instead."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         from .copying import CAST_COPY_PROMPT
 
         if target is not None and controller.player.choose(CAST_COPY_PROMPT(target.card.name), ["Yes", "No"]) == 0:  # (a target gone: it fizzles)
-            game._cast(controller, target.card, target.seat.graveyard, free=True)
+            game._cast(controller, target.card, target.seat.graveyard, free=True, exile_after=self.exile_after)
+
+
+@dataclass(frozen=True)
+class CastFromThatPlayersHandFree:
+    """Silent-Blade Oni: "look at that player's hand. You may cast a spell from among those cards without paying its mana cost." """
+    binds = PLAYER
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.cast_from_hand_free(controller, target)
 
 
 @dataclass(frozen=True)

@@ -371,14 +371,16 @@ class MayCastFromGraveyard:
     `exile_after`: "If an instant or sorcery spell cast this way would be put into your graveyard, exile it instead." """
     kinds: tuple[str, ...]
     exile_after: bool = False
+    free: bool = False  # Sword of Once and Future: "... with mana value 2 or less from your graveyard without paying its mana cost."
+    most: int | None = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.may_cast_from_graveyard(controller, self.kinds, self.exile_after)
+        game.may_cast_from_graveyard(controller, self.kinds, self.exile_after, self.free, self.most)
 
 
 @dataclass(frozen=True)
 class _ExileCastThisWay:
-    """ "If an instant or sorcery spell cast this way would be put into your graveyard, exile it instead." after MayCastFromGraveyard."""
+    """ "If an instant or sorcery spell cast this way (that spell) would be put into your graveyard, exile it instead." (Bilbo, Gearhulk)"""
 
 
 DECLINE = "Don't cast"
@@ -454,10 +456,11 @@ class ExileTopOfTargetPlayFree:
     exiled this way without paying their mana costs." (as the ability resolves)"""
     count: Quantity
     target: str = "opponent"
+    spells_most: Quantity | None = None  # Villainous Wealth: "You may cast any number of spells with mana value X or less from among them"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.exile_top_play_free(controller, target, game.amount(self.count))
+            game.exile_top_play_free(controller, target, game.amount(self.count), None if self.spells_most is None else game.amount(self.spells_most))
 
 
 @dataclass(frozen=True)

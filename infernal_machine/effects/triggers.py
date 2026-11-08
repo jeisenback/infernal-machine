@@ -543,7 +543,8 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 _CAST_IT = re.compile(r"\bfor as long as it remains exiled\b|\bas though it were mana\b|\bto cast it\.$"  # Cunning Rhetoric: the card
                       r"|\bIf it's an? \w+ creature card, you may cast that card\b"  # Rundvelt Hordemaster: the exiled card
                       r"|\bWhen you next cast [^.]+, copy that spell\b"  # Sword of Wealth and Power: the next spell
-                      r"|\breturn that spell to its owner's hand\b|\bcopy that spell, and you may choose new targets\b", re.I)  # Krark: the spell cast
+                      r"|\breturn that spell to its owner's hand\b|\bcopy that spell, and you may choose new targets\b"  # Krark: the spell cast
+                      r"|\bIf that spell would be put into your graveyard, exile it instead\.", re.I)  # Sword of Once and Future: the spell cast this way
 _PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creature|CARDNAME)\b"
 
                      r"|\bWhen you do, if it has \w+ or more [a-z+/-]+ counters on it\b"  # Earthbender Ascension: "it" is the source, as the sentence before said
