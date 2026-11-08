@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    MayRemoveCountersTransform,
     AttackersDontUntapNext,
     DoesntUntapNext,
     BecomeLandUntilNextTurn,
@@ -1509,6 +1510,10 @@ def _then_if(m: re.Match) -> Any:
     inner = _parse([m[2][:1].upper() + m[2][1:] + "."]) if condition else None
     if condition is None or not inner or len(inner) != 1 or target_kind(inner[0]):
         return None
+    if isinstance(inner[0], MayRemoveCountersTransform):  # "those counters": the ones the condition counts
+        if condition.kind != "source_counters_at_least":
+            return None
+        inner = [MayRemoveCountersTransform(condition.what)]
     return Conditional(condition, inner[0])
 
 
@@ -2710,6 +2715,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PutAttackingFromHand(tuple(re.findall(r"[A-Z][a-z]+", m[1])))),
     (re.compile(rf"{_SELF} becomes prepared\.", re.I), lambda m: BecomePrepared()),
     (re.compile(rf"transform {_SELF}\.", re.I), lambda m: Transform()),
+    (re.compile(r"you may remove those counters and transform it\.", re.I), lambda m: MayRemoveCountersTransform()),  # Primal Amulet
     (re.compile(r"look at the top card of your library\. you may reveal that card\. if an instant or sorcery card is revealed this way, "
                 r"transform this creature\.", re.I), lambda m: RevealTopTransform()),  # Delver of Secrets
     (re.compile(rf"exile {_SELF}, then return it to the battlefield transformed under your control\.", re.I), lambda m: ReturnTransformed()),
@@ -3498,7 +3504,7 @@ _CONDITIONS = [
     (re.compile(r"that player didn't cast an? ([a-z]+) spell this turn"), lambda m: Condition("player_cast_none", what=m[1])),
     (re.compile(rf"that player has {_N_FIXED} or fewer cards in hand"), lambda m: Condition("player_hand_at_most", _number(m[1]))),
     (re.compile(rf"(?:{_SELF}) has no {_COUNTER} on it"), lambda m: Condition("source_no_counters", what=_counter_name(m[1]))),
-    (re.compile(rf"(?:it|{_SELF}) has {_N_FIXED} or more {_COUNTER} on it"),
+    (re.compile(rf"(?:(?:it|{_SELF}) has|there are) {_N_FIXED} or more {_COUNTER} on (?:it|{_SELF})"),  # Primal Amulet: "there are"
      lambda m: Condition("source_counters_at_least", _number(m[1]), _counter_name(m[2]))),
     (re.compile(r"you're the monarch"), lambda m: Condition("monarch")),
     (re.compile(rf"you have {_N_FIXED} or more cards in hand"), lambda m: Condition("hand_at_least", _number(m[1]))),

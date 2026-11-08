@@ -1602,6 +1602,8 @@ class Game:
         rider = mana_spent_trigger(source.card)
         if rider is None or (filter_mana_ability(source.card) and source not in getattr(tapped, "filters", ())):
             return False
+        if rider.copy:  # Pyromancer's Goggles: "a red instant or sorcery spell"
+            return parse_filter(rider.copy).matches(card)
         if rider.spell == "commander":
             return from_command_zone and card.name in seat.commander_names
         if "Creature" not in card.type_line:

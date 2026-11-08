@@ -1533,6 +1533,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     - Krark, the Thumbless: "flip a coin. If you lose the flip, ... If you win the flip, ..." keeps both results (`FlipCoin.otherwise`). "return that spell to its owner's hand" (`ReturnTriggeringSpellToHand`) and "copy that spell, and you may choose new targets for the copy" are about the spell cast.
     - Zada, Hedron Grinder: "that targets only Zada" is the same watch as Mirrorwing Dragon's "that targets only this creature". "copy that spell for each other creature you control that the spell could target. Each copy targets a different one of those creatures." makes the copies Zada's controller's (`CopyForEachOtherCreature`).
     - Expansion // Explosion: "Copy target instant or sorcery spell with mana value 4 or less." A bigger spell is not a legal target.
+  - **Copy a spell, batch 4 (#659):**
+    - Pyromancer's Goggles and Primal Wellspring: "{T}: Add {R}. When that mana is spent to cast a red instant or sorcery spell, copy that spell and you may choose new targets for the copy." is the mana-spent rider Study Hall uses, with a copy instead of a scry (`ManaSpentTrigger.copy`). The copy is made only when that permanent was tapped to pay for the spell; mana floated earlier does not count.
+    - Primal Amulet: "Then if there are four or more charge counters on it, you may remove those counters and transform it." (`MayRemoveCountersTransform`; "there are N or more ... counters on it" is the source-counters condition).
+    - Sunken Palace (its mana also copies an ability) is not read yet.
   - "Copy target instant or sorcery spell (you control). You may choose new targets for the copy." The copy goes on
     the stack above the spell and resolves first. It isn't cast (no cast triggers) and isn't a card, so it vanishes
     instead of going to the graveyard, even if countered. With the second sentence its controller picks targets
