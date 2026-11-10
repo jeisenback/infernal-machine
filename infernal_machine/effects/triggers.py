@@ -204,6 +204,7 @@ _PLAYER_PRONOUNS = [
     # draws two cards" is two sentences about the same player
     (re.compile(r"\bthat player (loses|gains|draws|discards|mills|sacrifices) ([^.]+?) and (loses|gains|draws|discards|mills) ([^.]+)\.", re.I),
      r"target player \1 \2. Target player \3 \4."),
+    (re.compile(r"\bdeals (\d+) damage to them\.", re.I), r"deals \1 damage to target player."),  # Razorkin Needlehead: the player who drew
     (re.compile(r"\bthey (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
     (re.compile(r"\bthat (?:attacking )?player (loses|gains|draws|discards|mills|sacrifices)\b", re.I), r"target player \1"),
     (re.compile(r"\bhave that player (lose|gain|draw|discard|mill)\b", re.I), r"target player \1s"),
@@ -555,6 +556,7 @@ _PUT_IT = re.compile(r"\bif it has greater power or toughness than (?:this creat
                      r"|\bThen if there are \w+ or more [a-z+/-]+ counters on it, you may remove those counters and transform it\b"  # Primal Amulet: the source
                      r"|\btarget [^.]*\. It gains [^.]*\."  # "... on target creature you control. It gains trample until end of turn.": the target
                      r"|\bsearch your library for [^.]*?, (?:reveal (?:it|them), )?put (?:it|that card|them) (?:onto|into)\b"
+                     r"|\bfrom among them and put it into your hand\b"  # Adaptive Omnitool: the card revealed
                      r"|\btap up to one target creature and goad it\b|\btap (?:[^.]*? )?target [^.]*? and put \w+ stun counters? on it\b|\bif that enchantment is an Aura, you may attach it to the token\b|\bif you don't, put it into your hand\b|\bthat player copies that spell for each other creature they control that the spell could target\b|\bexcept it has [a-z]+\b|\bexile it\. If you do, create a token that's a copy of it\b"
                      r"|\bexiles the top card of their library\. If it's a nonland card, you may cast it\b"  # Mind's Dilation: the exiled card
                      r"|\bthat player exiles it, then exiles cards from the top of their library until they exile a card that shares a card "

@@ -567,3 +567,22 @@ class PayLifeDrawPerOpponentHit:
         if x and controller.life >= x:
             game.change_life(controller, -x)
             game.draw(controller, x)
+
+
+@dataclass(frozen=True)
+class GainLifeEqualToTargetPower:
+    """Wall of Reverence: "you may gain life equal to the power of target creature you control." """
+    target: str = "creature you control"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.change_life(controller, max(game.power(target), 0))
+
+
+@dataclass(frozen=True)
+class EachPlayerFetchesBasicLand:
+    """Field of Ruin: "Each player searches their library for a basic land card, puts it onto the battlefield, then shuffles." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.turn_order_from_active():
+            game.fetch_basic_land(seat, tapped=False)

@@ -437,6 +437,8 @@ from .families.library_and_hand import (  # noqa: F401
 )
 from .families.life_and_damage import (  # noqa: F401
     DamageEachOtherOpponent,
+    EachPlayerFetchesBasicLand,
+    GainLifeEqualToTargetPower,
     EachPlayerGainsLife,
     EachLooksTakesLandAndSpell,
     PayLifeDrawPerOpponentHit,
@@ -2340,7 +2342,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"all permanents you control phase out\.", re.I), lambda m: PhaseOutAll()),
     (re.compile(r"exile CARDNAME\.", re.I), lambda m: ExileThisSpell()),
     (re.compile(r"shuffle CARDNAME into its owner's library\.", re.I), lambda m: ShuffleThisSpell()),
-    (re.compile(r"search your library for an? ((?:green |nonland )?(?:creature|artifact)) card( with mana value X or less)?, put it onto "
+    (re.compile(r"search your library for an? ((?:green |nonland )?(?:creature|artifact|permanent)) card( with mana value X or less)?, put it onto "
                 r"the battlefield, then shuffle\.", re.I),
      lambda m: SearchLibrary(m[1].lower() + ("|mv<=x" if m[2] else ""), "battlefield", False)),  # Chord of Calling, Natural Order
     (re.compile(r"search your library for an? (artifact|creature) card with mana value equal to 1 plus the sacrificed \1's mana value, "
@@ -2416,6 +2418,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"put target card from a graveyard on top of its owner's library\.", re.I),
      lambda m: ReturnFromGraveyard("graveyard:card:any", "library_top")),  # Noxious Revival
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
+    (re.compile(rf"return (up to one )?target (creature|permanent) card with mana value less than or equal to {_SELF}'s power from your "
+                r"graveyard to the battlefield\.", re.I),  # Alesha, Who Laughs at Fate; Carmen, Cruel Skymarcher
+     lambda m: ReturnFromGraveyard(f"graveyard:{m[2].lower()}|mv<=power:yours", "battlefield", optional_target=bool(m[1]))),
     (_RETURN_UP_TO_DAMAGE, lambda m: ReturnFromGraveyard("graveyard:creature|mv<=x:yours", "battlefield")),  # Venerable Warsinger
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
@@ -2685,6 +2690,13 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you may choose new targets for the cop(?:y|ies)\.", re.I), lambda m: NewTargets()),
     (re.compile(rf"gain control of target {_PERMANENT_KIND}( until end of turn| for as long as you control (?:this creature|CARDNAME))?\.", re.I),
      lambda m: GainControl(m[1].lower(), until_end_of_turn=m[2] == " until end of turn", while_source=bool(m[2]) and "as long" in m[2])),
+    (re.compile(rf"gain control of target {_PERMANENT_KIND} for as long as (?:this creature|CARDNAME) remains on the battlefield\.", re.I),
+     lambda m: GainControl(m[1].lower(), while_on_battlefield=True)),  # Sower of Temptation
+    (re.compile(r"(?:you may )?gain life equal to the power of target creature you control\.", re.I),
+     lambda m: GainLifeEqualToTargetPower()),  # Wall of Reverence (after the trigger's "you may")
+    (re.compile(r"each player searches their library for a basic land card, puts it onto the battlefield, then shuffles\.", re.I),
+     lambda m: EachPlayerFetchesBasicLand()),  # Field of Ruin
+    (re.compile(r"sacrifice a creature or land\.", re.I), lambda m: EachSacrifices("you", "creature or land")),  # Thalia and The Gitrog Monster
     (re.compile(r"goad each creature target player controls\.", re.I), lambda m: GoadEachOfTarget()),  # Geode Rager
     (re.compile(rf"draw {_N_FIXED} cards?\. If you do, discard a card\.", re.I),  # Mask of Memory, Smuggler's Copter: after the trigger's "you may"
      lambda m: [Draw(_number(m[1])), Discard(1, "you")]),
@@ -2741,6 +2753,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"choose target (creature(?: you control)?)\.", re.I), lambda m: ChooseTarget(m[1].lower())),
     (re.compile(r"draw that many cards\.", re.I), lambda m: Draw("X")),
     (re.compile(r"create that many (Treasure|Clue|Food) tokens\.", re.I), lambda m: CreateTokens("X", _NAMED_TOKENS[m[1].lower()])),  # Old Gnawbone
+    (re.compile(r"create that many (\d+/\d+ [^.]+? creature tokens(?: with [^.]+)?)\.", re.I),  # Hornet Nest: the damage it was dealt
+     lambda m: CreateTokens("X", made[1]) if (made := _token("a " + m[1].replace("tokens", "token", 1))) else None),
     (re.compile(r"until end of turn, that creature gains \"when this creature dies, return it to the battlefield tapped under its owner's "
                 r"control\.\"", re.I), lambda m: ReturnWhenItDiesThisTurn()),  # Malakir Rebirth
     (re.compile(r"search your library for up to X basic land cards, where X is the greatest power among creatures you control\. put those "
@@ -3186,7 +3200,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:its|that creature's) controller gains life equal to its power\.", re.I), lambda m: TargetControllerGainsLifeEqualToPower()),
     (re.compile(r"that player may search their library for a land card with a basic land type, put it onto the battlefield, "
                 r"then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand(tapped=False, typed=True)),  # Boseiju
-    (re.compile(r"(?:its|that land's) controller may search their library for a basic land card, put (?:it|that card) onto the "
+    (re.compile(r"(?:(?:its|that land's) controller|that player) may search their library for a basic land card, put (?:it|that card) onto the "
                 r"battlefield( tapped)?, then shuffle\.", re.I), lambda m: TargetControllerMayFetchBasicLand(tapped=bool(m[1]))),
     (re.compile(r"its controller searches their library for a basic land card, puts it onto the battlefield tapped with a stun counter "
                 r"on it, then shuffles\.", re.I), lambda m: TargetControllerMayFetchBasicLand(optional=False, stun=True)),  # Magmatic Hellkite
@@ -3252,6 +3266,8 @@ def _clauses(sentence: str) -> list[str]:
     sentences, as is "You draw two cards and lose 2 life."; "of their choice" and a leading "You draw" /
     "You create" add nothing."""
     sentence = sentence.replace(" of their choice.", ".").replace("each other player", "each opponent").replace("Each other player", "Each opponent")
+    if m := re.fullmatch(r"(Draw a card for each [^.,]+), then (discard [^.]+)\.", sentence):  # Flow of Knowledge
+        return _clauses(m[1] + ".") + [m[2][:1].upper() + m[2][1:] + "."]
     if m := re.fullmatch(r"(Draw cards equal to [^,]+), then (discard .+\.)", sentence):  # Greater Good
         return _clauses(m[1] + ".") + [m[2][:1].upper() + m[2][1:]]
     if m := re.fullmatch(r"(You (?:lose|gain) \d+ life) and (create .+)", sentence):  # Bitterblossom
@@ -3266,6 +3282,8 @@ def _clauses(sentence: str) -> list[str]:
         return [sentence]
     if m := re.fullmatch(r"Create a number of (.+?) tokens? equal to (.+)\.", sentence, re.I):  # Gyome's Food
         return [f"Let X be {m[2]}.", f"Create X {m[1]} tokens."] if _amount(m[2]) else [sentence]
+    if m := re.fullmatch(r"For each ([a-z][^,]*? you control), (create .+?)\.", sentence):  # Brass's Bounty: "For each land you control, create ..."
+        return _clauses(f"{m[2][:1].upper()}{m[2][1:]} for each {m[1]}.")
     if m := re.fullmatch(r"For each (flip you won), (.+)\.", sentence):  # Mirror March: the amount comes first
         return _clauses(f"{m[2][:1].upper()}{m[2][1:]} for each {m[1]}.")
     if m := re.fullmatch(r"(.+), where X is (.+)\.", sentence):
@@ -3289,6 +3307,12 @@ def _clauses(sentence: str) -> list[str]:
     if m := re.fullmatch(rf"(Draw {_N} cards?|Scry {_N}) and ((?:create|remove) .+)\.", sentence):  # Big Score, Midnight Oil; Greedy Freebooter scries
         return [m[1] + ".", m[4][:1].upper() + m[4][1:] + "."]
     if m := re.fullmatch(r"(.+) and (target player (?:loses|gains|draws|discards|mills) [^.]+)\.", sentence, re.I):  # Sword of Body and Mind
+        return _clauses(m[1] + ".") + [m[2][:1].upper() + m[2][1:] + "."]
+    if m := re.fullmatch(r"Each creature gets (.+)\.", sentence):  # The Meathook Massacre: every creature, every player's
+        return [f"All creatures get {m[1]}."]
+    if m := re.fullmatch(r"(Create .+? tokens?) and ((?:X|a|an|one|two|three|\d+) [^.]*?tokens?)\.", sentence):  # Farmer Cotton
+        return [m[1] + ".", f"Create {m[2]}."]
+    if m := re.fullmatch(r"(.+) and (add (?:\{[WUBRGC]\})+)\.", sentence):  # Crime Novelist: "... and add {R}."
         return _clauses(m[1] + ".") + [m[2][:1].upper() + m[2][1:] + "."]
     if m := re.fullmatch(r"Each player (draws [^.]+?) and (loses \d+ life)\.", sentence):  # Stormfist Crusader
         return [f"Each player {m[1]}.", f"Each player {m[2]}."]
@@ -3629,8 +3653,10 @@ _CONDITIONS = [
     (re.compile(r"a player cast two or more spells last turn"), lambda m: Condition("two_spells_last_turn")),
     (re.compile(r"it's (day|night)"), lambda m: Condition(m[1])),
     (re.compile(rf"{_SELF} is tapped"), lambda m: Condition("source_tapped")),
-    (re.compile(rf"{_SELF} is untapped"), lambda m: Condition("source_untapped")),  # Howling Mine
+    (re.compile(rf"(?:{_SELF} is|it's) untapped"), lambda m: Condition("source_untapped")),  # Howling Mine; Paradise Druid
     (re.compile(r"no creatures are on the battlefield"), lambda m: Condition("no_creatures")),  # Pestilence
+    (re.compile(r"that player has no cards in hand"), lambda m: Condition("player_hand_at_most", 0)),  # Ghirapur Orrery
+    (re.compile(r"you control at least (two|three) other ((?-i:[A-Z][a-z]+))"), lambda m: Condition("control_another", _number(m[1]), m[2])),  # Svyelun
     (re.compile(r"you control no other ([A-Za-z]+)"), lambda m: Condition("control_no_other", what=_singular(m[1]))),
     (re.compile(r"you cast (?:it|him|her)|it was cast"), lambda m: Condition("cast_it")),  # Doomsday Excruciator, Uldaros Theorix
     (re.compile(r"a modified creature died under your control this turn"), lambda m: Condition("modified_died")),

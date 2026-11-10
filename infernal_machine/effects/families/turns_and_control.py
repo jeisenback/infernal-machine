@@ -42,13 +42,17 @@ class GainControl:
     untap: bool = False
     haste: bool = False
     while_source: bool = False  # Roil Elemental: "for as long as you control this creature"
+    while_on_battlefield: bool = False  # Sower of Temptation: "for as long as this creature remains on the battlefield"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            if self.while_source and (game.resolving_source is None or game.controller_of(game.resolving_source) is not controller):
+            source = game.resolving_source
+            if self.while_source and (source is None or game.controller_of(source) is not controller) \
+                    or self.while_on_battlefield and (source is None or game.controller_of(source) is None):
                 return  # CR 611.2b: a duration that has already ended does nothing
             game.gain_control(target, controller, until_eot=self.until_end_of_turn, untap=self.untap, haste=self.haste,
-                              keeper=game.resolving_source if self.while_source else None)
+                              keeper=source if self.while_source or self.while_on_battlefield else None,
+                              keeper_any_controller=self.while_on_battlefield)
 
 
 @dataclass(frozen=True)

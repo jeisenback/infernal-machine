@@ -161,6 +161,7 @@ declare("gain_life", re.compile(r"Whenever you gain life, (.+)", re.I), to="you"
 declare("lose_life", re.compile(r"Whenever you lose life, (.+)", re.I), to="you", happens="life_lost")
 declare("exploits", re.compile(rf"When(?:ever)? {_SELF} exploits a creature, (.+)", re.I))  # the Exploit keyword (Game.exploit)
 declare("sacrifice_creature", re.compile(r"Whenever you sacrifice a creature, (.+)", re.I))
+declare("sacrifice_permanent", re.compile(r"Whenever you sacrifice a permanent, (.+)", re.I))  # Juri, Master of the Revue
 declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals combat damage to (?:a player|an opponent), (.+)", re.I),
         about_creature=True)  # (Coastal Piracy: "an opponent" is the same, since your creatures deal combat damage only to opponents)  # (the
 # player dealt damage is carried: Grenzo, Havoc Raiser's "that player" in a mode)
