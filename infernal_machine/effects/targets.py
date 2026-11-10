@@ -86,7 +86,7 @@ _SEARCH_TYPE = rf"((?:{_SEARCH_KIND} )?card{_MANA_VALUE})"
 _SEARCH_TYPES = rf"((?:{_SEARCH_KIND} )?cards{_MANA_VALUE})"  # the plural, for a search that finds several ("up to five Dragon cards")
 
 
-_CARDS_PLURAL = (r"((?:(?:legendary creature|legendary|nonbasic land|creature|artifact|enchantment|land|permanent"
+_CARDS_PLURAL = (r"((?:(?:legendary creature|legendary|nonbasic land|artifact and enchantment|creature|artifact|enchantment|land|permanent"
                  rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?cards{_MANA_VALUE})")
 
 

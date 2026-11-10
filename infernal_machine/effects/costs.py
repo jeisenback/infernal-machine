@@ -370,9 +370,9 @@ _TWO_COLOR_REDUCTION = re.compile(rf"(?:Each spell you cast that's ({_COLOR_NAME
                                   rf"({_COLOR_NAMES}) spells you cast cost) \{{(\d+)\}} less to cast\.", re.I)  # Thornscape Familiar: the second
 
 
-_REDUCTION = re.compile(rf"(?:((?:(?:{_COLOR_NAMES}) )?creature|{_COLOR_NAMES}|artifact|enchantment|noncreature|instant and sorcery|Aura and Equipment|Aura"
+_REDUCTION = re.compile(rf"(?:((?:(?:{_COLOR_NAMES}) )?creature|{_COLOR_NAMES}|artifact and enchantment|artifact|enchantment|noncreature|instant and sorcery|Aura and Equipment|Aura"
                         r"|(?-i:[A-Z][a-z]+)) )?spells "
-                        r"you cast( that target a creature)? cost \{(\d+)\} less to cast\.", re.I)
+                        r"(?:with flying )?you cast( that target a creature)? cost \{(\d+)\} less to cast\.", re.I)  # Starnheim Courser; Warden of Evos Isle
 
 
 @lru_cache(maxsize=None)
@@ -783,7 +783,8 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
             found.append((f"{_COLOR_LETTER[first.lower()]}|{_COLOR_LETTER[second.lower()]}", int(m[5])))  # one reduction, however many colors
         elif m := _REDUCTION.fullmatch(line):
             kind = (m[1] or "spell").lower()
-            found.append(("targets a creature" if m[2] else _COLOR_LETTER.get(kind, kind), int(m[3])))  # ("red creature", "goblin": a filter)
+            kind = f"{kind} with flying" if " spells with flying " in line else _COLOR_LETTER.get(kind, kind)  # Warden of Evos Isle
+            found.append(("targets a creature" if m[2] else kind, int(m[3])))  # ("red creature", "goblin": a filter)
     return found
 
 

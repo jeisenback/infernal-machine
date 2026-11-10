@@ -350,6 +350,7 @@ class Permanent:
     control_origin: "Seat | None" = None  # who controlled it before a control-change effect took it
     control_aura: "Permanent | None" = None  # the Aura (Control Magic) that holds control of it
     control_keeper: "Permanent | None" = None  # Roil Elemental: control lasts for as long as its controller controls this permanent
+    keeper_any_controller: bool = False  # Sower of Temptation: ... for as long as that permanent remains on the battlefield
     control_eot: bool = False  # control changes back at end of turn (Threaten)
     original: "Card | None" = None  # a crewed Vehicle's real card, while it is an artifact creature
     reconfigured: "Card | None" = None  # an Equipment creature's real card, while it is attached (and not a creature)
@@ -1660,6 +1661,9 @@ class Game:
                 return True  # Teferi, Time Raveler: only when they could cast a sorcery (CR 307.1)
             if key == "one_spell:each" and casts >= 1 or key == "one_spell:you" and owner is seat and casts >= 1:
                 return True
+            if key == "one_noncreature:each" and "Creature" not in card.type_line and any(  # Deafening Silence
+                    turn == self.turn and "Creature" not in cast.type_line for turn, cast in seat.cast_log):
+                return True
             if owner is seat and key.startswith("no_cast_kind:") and ("Creature" in card.type_line) == (key.endswith(":creature")):
                 return True
         return False
@@ -1667,7 +1671,8 @@ class Game:
     def _land_drops(self, seat: Seat) -> int:
         """How many lands `seat` may play a turn: one, and one more for each "You may play an additional land" it controls."""
         extra = seat.extra_lands if seat.extra_lands_turn == self.turn else 0
-        return 1 + extra + sum(1 for owner, _, key in self._static_rules() if owner is seat and key == "extra_land")
+        return 1 + extra + sum(1 for owner, _, key in self._static_rules()
+                               if (owner is seat and key == "extra_land") or key == "extra_land:all")  # Rites of Flourishing: every player
 
     def _graveyard_lands(self, seat: Seat) -> bool:
         return any(owner is seat and key == "graveyard_lands" for owner, _, key in self._static_rules())
@@ -3323,7 +3328,7 @@ class Game:
         if kind == "opponent_more_cards":
             return any(len(o.hand) > len(seat.hand) for o in self.opponents(seat))
         if kind == "control_another":  # Dain's Company: "as long as you control another Dwarf"
-            return any(has_type(p.card, condition.what) for p in seat.battlefield if p is not source)
+            return sum(has_type(p.card, condition.what) for p in seat.battlefield if p is not source) >= max(condition.count, 1)  # Svyelun: two
         if kind == "control_none_token":  # Pest Rescuer: "you don't control a Pest creature token"
             return not any(_is_token(p.card) and "Creature" in p.card.type_line and has_type(p.card, condition.what)
                            for p in seat.battlefield)
@@ -3908,7 +3913,7 @@ class Game:
                     if watched is source and self.on_battlefield(watcher):
                         self._queue(TriggeredAbility("ally_combat_damage", (effect.then,), False, effect.text), watcher,
                                     self.controller(watcher))
-                self._observe("combat_damage_dealt", source.card, controller, subject=source, player=target)  # "Whenever a Ninja you control deals ..."
+                self._observe("combat_damage_dealt", source.card, controller, subject=source, player=target, x=amount)  # "Whenever a Ninja you control deals ...", x: "create that many"
                 enchanted = self._qualifies("enchanted", source)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source, x=amount,  # x: "draw that many cards"
@@ -4842,7 +4847,8 @@ class Game:
             return mods
         for attachment in self._board_view().attached.get(id(permanent), ()):  # Equipment and Auras attached to it
             mods.extend(self._chosen_protection(self._scaled(buff.modifier, buff.per, permanent, controller, attachment), attachment)
-                        for buff in attached_abilities(attachment.card))
+                        for buff in attached_abilities(attachment.card)
+                        if not buff.host_is or parse_filter(buff.host_is + " creature").matches(permanent.card))  # Champion's Helm
         return mods
 
     @staticmethod
@@ -4947,10 +4953,11 @@ class Game:
                         "toughness": modifier.toughness, "keywords": sorted(modifier.keywords)})
 
     def gain_control(self, permanent: Permanent, seat: Seat, aura: Permanent | None = None, until_eot: bool = False,
-                     untap: bool = False, haste: bool = False, keeper: Permanent | None = None) -> None:
+                     untap: bool = False, haste: bool = False, keeper: Permanent | None = None, keeper_any_controller: bool = False) -> None:
         """`seat` takes control of `permanent` (CR 110.2): it moves to their battlefield, is summoning sick under
         them, and leaves combat. `aura` holds control for as long as it stays attached; `until_eot` gives it back
-        at end of turn; `keeper`, for as long as `seat` controls that permanent. Its owner doesn't change."""
+        at end of turn; `keeper`, for as long as `seat` controls that permanent (with `keeper_any_controller`, for as long as it
+        remains on the battlefield: Sower of Temptation). Its owner doesn't change."""
         current = self.controller_of(permanent)
         if current is None:
             return
@@ -4970,7 +4977,7 @@ class Game:
         if until_eot:
             permanent.control_eot = True
         if keeper is not None:
-            permanent.control_keeper = keeper
+            permanent.control_keeper, permanent.keeper_any_controller = keeper, keeper_any_controller
         if untap:
             self.untap(permanent)
         if haste:
@@ -4980,6 +4987,7 @@ class Game:
         """A control-change effect ended: `permanent` goes back to the player who controlled it before."""
         origin, now = permanent.control_origin, self.controller_of(permanent)
         permanent.control_origin, permanent.control_aura, permanent.control_eot, permanent.control_keeper = None, None, False, None
+        permanent.keeper_any_controller = False
         if origin is None or origin.lost or now is None or now is origin:
             return
         now.battlefield = [p for p in now.battlefield if p is not permanent]
@@ -7198,6 +7206,8 @@ class Game:
             for watcher, watcher_seat in everyone:
                 if watcher_seat is controller and "Creature" in permanent.card.type_line:
                     self.trigger("sacrifice_creature", watcher, controller)
+                if watcher_seat is controller:
+                    self.trigger("sacrifice_permanent", watcher, controller)
                 if watcher_seat is not controller and "Creature" in permanent.card.type_line:
                     self.trigger("opponent_sacrifice_creature", watcher, watcher_seat, player=controller)
                 self.trigger("any_sacrifice", watcher, watcher_seat)
@@ -7694,7 +7704,8 @@ class Game:
                         self._return_control(permanent)
                         changed = True
                     keeper = permanent.control_keeper  # Roil Elemental left, or its controller lost control of it: it goes back
-                    if keeper is not None and self.controller_of(keeper) is not seat:
+                    if keeper is not None and (self.controller_of(keeper) is None if permanent.keeper_any_controller
+                                               else self.controller_of(keeper) is not seat):
                         self._return_control(permanent)
                         changed = True
                     host = permanent.attached_to

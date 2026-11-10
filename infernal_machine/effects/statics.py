@@ -273,10 +273,12 @@ _RULES_STATICS = [
      "opp_no_cast:turn|opp_lock:Artifact,Creature,Enchantment"),
     (re.compile(r"Each player can't cast more than one spell each turn\.", re.I), "one_spell:each"),
     (re.compile(r"You can't cast more than one spell each turn\.", re.I), "one_spell:you"),
+    (re.compile(r"Each player can't cast more than one noncreature spell each turn\.", re.I), "one_noncreature:each"),  # Deafening Silence
     (re.compile(r"You can't cast (creature|noncreature) spells\.", re.I), "no_cast_kind"),
     (re.compile(r"Activated abilities of (artifacts|creatures|artifacts and creatures|artifacts, creatures, and planeswalkers) can't be activated\.", re.I),
      "lock"),  # Stony Silence; Clarion Conqueror: the types, as "lock:Artifact,Creature,Planeswalker"
     (re.compile(r"Activated abilities of artifacts your opponents control can't be activated\.", re.I), "lock_opp:Artifact"),  # Karn, the Great Creator
+    (re.compile(r"Activated abilities of creatures your opponents control can't be activated\.", re.I), "lock_opp:Creature"),  # Linvala, Keeper of Silence
     (re.compile(r"Each opponent can't draw more than one card each turn\.", re.I), "draw_limit:opponents"),  # Narset, Parter of Veils
     (re.compile(r"The \"legend rule\" doesn't apply to permanents you control\.", re.I), "no_legend_rule"),  # Sakashima of a Thousand Faces:
     # holds as it is, since the engine applies no legend rule (CR 704.5j) to anyone
@@ -287,11 +289,13 @@ _RULES_STATICS = [
     (re.compile(rf"Each land is an? ({_BASIC_LAND_TYPES}) in addition to its other land types\.", re.I), "land_type"),
     (re.compile(r"Lands you control are every basic land type in addition to their other types\.", re.I), "land_type:all_yours"),
     (re.compile(r"You may play (an|two|three) additional lands? on each of your turns\.", re.I), "extra_land"),
+    (re.compile(r"Each player may play an additional land on each of their turns\.", re.I), "extra_land:all"),  # Rites of Flourishing
     (re.compile(r"You may play lands from your graveyard\.", re.I), "graveyard_lands"),
     (re.compile(r"Untap all permanents you control during each other player's untap step\.", re.I), "untap_others"),  # Seedborn Muse
     (re.compile(r"Untap all artifacts you control during each other player's untap step\.", re.I), "untap_others:artifact"),  # Unwinding Clock
     (re.compile(rf"Untap (?:{_SELF}|this artifact) during each other player's untap step\.", re.I), "untap_others:self"),  # Bender's Waterskin
-    (re.compile(r"(Creatures|Artifacts and creatures|Nonbasic lands) your opponents control enter tapped\.", re.I), "enter_tapped:opp"),  # Authority of the Consuls, Archon of Emeria
+    (re.compile(r"(Creatures|Artifacts and creatures|Nonbasic lands|Artifacts|Creatures and nonbasic lands) your opponents control enter "
+                r"tapped\.", re.I), "enter_tapped:opp"),  # Manglehorn; Thalia, Heretic Cathar  # Authority of the Consuls, Archon of Emeria
     (re.compile(r"You may look at the top card of your library any time\.", re.I), "look_top"),  # information only: nothing changes
     (re.compile(r"(Creatures|Artifacts and creatures) entering(?: the battlefield)? don't cause abilities to trigger\.", re.I),
      "no_enter_triggers"),  # Torpor Orb; Doorkeeper Thrull: "no_enter_triggers:Artifact,Creature"
@@ -364,7 +368,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
                 elif key == "land_type":
                     key = f"land_type:{_LAND_TYPE_MANA[m[1].lower()]}"
                 elif key == "enter_tapped:opp":
-                    key += {"creatures": ":creature", "nonbasic lands": ":nonbasic land"}.get(m[1].lower(), ":artifact,creature")
+                    key += {"creatures": ":creature", "nonbasic lands": ":nonbasic land", "artifacts": ":artifact",
+                            "creatures and nonbasic lands": ":creature,nonbasic land"}.get(m[1].lower(), ":artifact,creature")
                 elif key == "no_enter_triggers":
                     key += ":Creature" if m[1].lower() == "creatures" else ":Artifact,Creature"
                 elif key == "extra_land":  # Azusa: two additional lands, which is two more land drops
@@ -540,7 +545,7 @@ def is_chosen_type_itself(card: Card) -> bool:
 _AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creatures of the chosen type|Creatures your opponents control"
              r"|(?:Other )?permanents you control|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* |artifact |nontoken )?[Cc]reatures you control"
              r"|(?:Other |Attacking )?[A-Z][\w'-]*s(?: and [A-Z][\w'-]*s)? you control|Other [A-Z][\w'-]*s|(?:White|Blue|Black|Red|Green|All) creatures"
-             r"|Other [A-Z][\w'-]* creatures|Other Merfolk|All [A-Z][\w'-]*s|[A-Z][\w'-]* tokens you control|Creatures you control with \+1/\+1 counters on them")
+             r"|Other [A-Z][\w'-]* creatures|Other Merfolk(?: you control)?|All [A-Z][\w'-]*s|[A-Z][\w'-]* tokens you control|Creatures you control with \+1/\+1 counters on them")
 
 
 _COMMANDER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each time you've cast your commander from the command zone "
@@ -560,7 +565,7 @@ _AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:y
                   r"|(?P<other2>Other )?(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s(?: and (?P<tribe2>[A-Z][\w'-]*)s)? you control"
                   r"|(?P<other3>Other )(?P<tribe3>[A-Z][\w'-]*)s"  # Goblin King, Lord of Atlantis: every player's, not only its controller's
                   r"|(?P<global>White|Blue|Black|Red|Green|All) creatures"  # Concordant Crossroads: "All creatures have haste."
-                  r"|(?P<other4>Other )(?P<sub4>[A-Z][\w'-]*) creatures|(?P<other5>Other )(?P<sub5>Merfolk)"  # Elvish Champion, Lord of Atlantis: every player's
+                  r"|(?P<other4>Other )(?P<sub4>[A-Z][\w'-]*) creatures|(?P<other5>Other )(?P<sub5>Merfolk)(?P<merfolk_yours> you control)?"  # Elvish Champion, Lord of Atlantis: every player's; Svyelun: yours
                   r"|All (?P<tribe6>[A-Z][\w'-]*)s"  # Crystalline Sliver: "All Slivers have shroud."
                   r"|(?P<subtokens>[A-Z][\w'-]*) tokens you control"  # Eternal Skylord: "Zombie tokens you control have flying."
                   r"|(?P<plus2>Creatures you control with \+1/\+1 counters on them)")  # Badgermole
@@ -574,7 +579,9 @@ _PER = {"artifact you control": ("permanent", "artifact"), "creature you control
         "color among other legendary permanents you control": ("colors_other_legendary", ""),  # Sisay, Weatherlight Captain
         "enchantment you control": ("permanent", "enchantment"),  # Ethereal Armor
         "other enchantment on the battlefield": ("others_anywhere", "enchantment"),
-        "+1/+1 counter on this Aura": ("source_counters", "+1/+1")}  # Nyxborn Hydra, bestowed  # Ancestral Mask: every player's, not the Aura itself
+        "+1/+1 counter on this Aura": ("source_counters", "+1/+1"),
+        "charge counter on CARDNAME": ("source_counters", "charge"),  # Excalibur II
+        "creature and/or enchantment you control": ("permanent", "creature or enchantment")}  # Strength of the Harvest  # Nyxborn Hydra, bestowed  # Ancestral Mask: every player's, not the Aura itself
 
 
 _PER_LOWER = {k.lower(): v for k, v in _PER.items()}
@@ -596,6 +603,7 @@ _ATTACHED_SCALED = re.compile(rf"(?:Enchanted|Equipped) creature gets {_PT} for 
 
 # Whispersilk Cloak, Aqueous Form: "can't be blocked" (a pseudo-keyword the combat code asks for), perhaps with real keywords too.
 _ATTACHED_UNBLOCKABLE = re.compile(rf"(?:Enchanted|Equipped) creature can't be blocked(?: and has ({_KEYWORDS_BARE}))?\.")
+_ATTACHED_PT_UNBLOCKABLE = re.compile(rf"(?:Enchanted|Equipped) creature gets {_PT} and can't be blocked\.")  # Aether Tunnel
 
 
 _ATTACHED_TYPED = re.compile(rf"Enchanted creature gets {_PT}, has ({_KW}(?: and {_KW})*), and is an? ([A-Z][a-z]+) in addition "
@@ -627,6 +635,8 @@ def _conditional(line: str) -> tuple[str, str] | None:
         return m[2], m[1]
     if m := _AS_LONG_AS_LAST.fullmatch(line):
         return m[1] + ".", m[2]
+    if m := re.fullmatch(rf"({_SELF} has [a-z ]+) during your turn\.", line, re.I):  # Razorkin Needlehead: the same, said the other way round
+        line = f"During your turn, {m[1]}."
     if m := re.fullmatch(r"During your turn, (.+)", line):  # Kefka, Dancing Mad: "During your turn, Kefka has indestructible."
         return m[1][:1].upper() + m[1][1:], "it's your turn"
     return None
@@ -658,6 +668,7 @@ def _who_subtype(who: re.Match) -> str | None:
 
 _KEYWORD_BY_COLOR = re.compile(r"Each creature you control has ([a-z ]+) if it's (white|blue|black|red|green)(?:, ([a-z ]+) if it's "
                                r"(white|blue|black|red|green))*,? and ([a-z ]+) if it's (white|blue|black|red|green)\.")  # Scion of Draco
+_EACH_OTHER = re.compile(r"^Each other ([A-Z][\w'-]*) you control gets ([+\-\u2212]\d+/[+\-\u2212]\d+) and has (.+)\.$")
 _KEYWORD_IF_COLOR = re.compile(r"(?:, (?:and )?|has |and )([a-z ]+) if it's (white|blue|black|red|green)")
 _COLOR_LETTERS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 
@@ -675,6 +686,7 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                       for keyword, color in _KEYWORD_IF_COLOR.findall(bare)]
             continue
         bare = _GRANTED_WARD_LIFE.sub(lambda m: f"have ward\u2014pay {m[1]} life.", bare)  # Hexing Squelcher: the granted ward, as a keyword
+        bare = _EACH_OTHER.sub(lambda m: f"Other {m[1]} creatures you control get {m[2]} and have {m[3]}.", bare)  # Coppercoat Vanguard
         sentence, condition = bare, None
         if split := _conditional(bare):
             sentence, text = split
@@ -689,7 +701,7 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     "chosen" if who["chosen"] and not chosen_color else _who_subtype(who), line,
                                     condition=condition,
                                     color="chosen" if chosen_color else colors.get((who["color"] or who["global"] or "").lower()),
-                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"] or who["other3"] or who["other4"] or who["other5"] or who["tribe6"])
+                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"] or who["other3"] or who["other4"] or (who["other5"] and not who["merfolk_yours"]) or who["tribe6"])
                                     or (bool(who["chosen"]) and "you control" not in m[1]),
                                     token=bool(who["tokens"] or who["subtokens"]),
                                     with_counters=bool(who["counters"]), plus_counter=bool(who["plus"] or who["plus2"]),
@@ -783,6 +795,7 @@ _DOUBLE_LIFE = "If you would gain life, you gain twice that much life instead."
 
 _DOUBLE_PLUS_ONE = ("If one or more +1/+1 counters would be put on a creature you control, twice that many +1/+1 counters are "
                     "put on that creature instead.")  # Branching Evolution
+_DOUBLE_PLUS_ONE_IT = _DOUBLE_PLUS_ONE.replace("put on that creature instead", "put on it instead")  # Corpsejack Menace
 
 
 _SQUIRRELS = ("If one or more tokens would be created under your control, those tokens plus that many 1/1 green Squirrel creature tokens "
@@ -820,6 +833,7 @@ _PLUS_ONE_ARTIFACTS = ("If one or more +1/+1 counters would be put on an artifac
 
 _PLUS_ONE_COUNTERS = ("If one or more +1/+1 counters would be put on a creature you control, that many plus one "
                       "+1/+1 counters are put on it instead.")
+_PLUS_ONE_COUNTERS_THAT = _PLUS_ONE_COUNTERS.replace("put on it instead", "put on that creature instead")  # Conclave Mentor
 
 
 _EXTRA_TRIGGER = re.compile(r"If (an artifact or creature|a permanent) entering(?: the battlefield)? causes a triggered "
@@ -885,7 +899,7 @@ def replacement_effects(card: Card) -> Replacements:
             found["tokens"] = found.get("tokens", 1) * 2
         elif line == _DOUBLE_LIFE:
             found["life_gain_factor"] = found.get("life_gain_factor", 1) * 2
-        elif line == _DOUBLE_PLUS_ONE:
+        elif line in (_DOUBLE_PLUS_ONE, _DOUBLE_PLUS_ONE_IT):
             found["plus_one_factor"] = found.get("plus_one_factor", 1) * 2
         elif line == _MANUFACTOR:
             found["manufactor"] = True
@@ -903,7 +917,7 @@ def replacement_effects(card: Card) -> Replacements:
             found["opponents_put_half"] = True
         elif line == _PROLIFERATE_TWICE:
             found["proliferate_factor"] = found.get("proliferate_factor", 1) * 2
-        elif line == _PLUS_ONE_COUNTERS:
+        elif line in (_PLUS_ONE_COUNTERS, _PLUS_ONE_COUNTERS_THAT):
             found["plus_one"] = found.get("plus_one", 0) + 1
         elif line == _ENTER_PER_DEATH:
             found["enter_counters_per_death"] = found.get("enter_counters_per_death", 0) + 1
@@ -1067,7 +1081,7 @@ def heals_before_damage(card: Card) -> bool:
 
 def is_replacement_line(line: str) -> bool:
     return (_HEALS_FIRST.fullmatch(line) is not None or _DRAW_PLUS_ONE.fullmatch(line) is not None or line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD_VOID, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
-                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _ENTER_PER_OPPONENT_LOSS, _LIFE_GAIN_PLUS_ONE,
+                     _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_COUNTERS_THAT, _DOUBLE_PLUS_ONE_IT, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _ENTER_PER_OPPONENT_LOSS, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _SQUIRRELS, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
                      _HALVE_OPPONENTS_PUT, _PROLIFERATE_TWICE)
             or _DIE_EXILE_SELF.fullmatch(line) is not None or _EXTRA_TRIGGER.fullmatch(line) is not None or _damage_modifier(line) is not None)
@@ -1187,6 +1201,7 @@ class AttachedBuff:
     per: tuple[str, str] | None = None  # "... for each Aura you control that's attached to a creature"
     goaded: bool = False  # "Enchanted creature gets +1/+1 and is goaded."
     subtype: str | None = None  # "... and is an Angel in addition to its other types."
+    host_is: str = ""  # Champion's Helm: "As long as equipped creature is legendary, it has hexproof." ("legendary", "green", ...)
 
 
 # An Aura or Equipment that grants a triggered ability: 'Enchanted creature has "Whenever this creature attacks, ..."' (Sixth Sense), and
@@ -1373,7 +1388,10 @@ _ATTACHED_PER_OWN_COUNTER = re.compile(r"(?:Enchanted|Equipped) creature gets \+
 @lru_cache(maxsize=None)
 def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
     buffs = []
-    for line in rules_lines(card):
+    for original in rules_lines(card):
+        line, host_is, before = original, "", len(buffs)
+        if m := _AS_LONG_AS_HOST.fullmatch(original):  # read as the buff it is, then only while the creature is of that kind
+            line, host_is = f"{m[1].capitalize()} creature {m[3]}.", m[2].lower()
         if m := _ATTACHED_PER_OWN_COUNTER.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(1, 0), line, per=("source_counters", m[1])))
         elif m := _ATTACHED.fullmatch(line):
@@ -1404,9 +1422,18 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
         elif m := _ATTACHED_SCALED.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[4]) if m[4] else frozenset()), line,
                                       per=_PER[m[3]]))
+        elif m := _ATTACHED_PT_UNBLOCKABLE.fullmatch(line):
+            buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), frozenset({CANT_BE_BLOCKED})), line))
         elif m := _ATTACHED_UNBLOCKABLE.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(keywords=frozenset({CANT_BE_BLOCKED}) | (_keyword_list(m[1]) if m[1] else frozenset())), line))
+        if host_is:
+            buffs[before:] = [dataclasses.replace(b, text=original, host_is=host_is) for b in buffs[before:]]
     return tuple(buffs)
+
+
+# Champion's Helm, Combat Research, Shield of the Oversoul: a buff that holds only while the creature is legendary (or of a color)
+_AS_LONG_AS_HOST = re.compile(r"As long as (Equipped|Enchanted) creature is (legendary|white|blue|black|red|green), it ((?:gets|has) .+)\.",
+                              re.I)
 
 
 def is_class(card: Card) -> bool:

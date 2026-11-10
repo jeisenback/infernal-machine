@@ -1192,6 +1192,28 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Costume); "put that many +1/+1 counters on it" (Hungering Hydra, Necropolis Regent; "Whenever you discard one or more cards" carries
     how many; a batch of "one or more" tokens carries no count, so Woodland Champion stays unread); a named mode ("• Pray for Protection
     — ...") and a two-word ability word before a cost ("Smear Campaign — {1}, {T}: ...") are only labels.
+  - The same, batch 3 (`tests/test_parse_only_batch_3.py`): "Each player may play an additional land on each of their turns." (Rites of
+    Flourishing, Ghirapur Orrery); "Artifacts" and "Creatures and nonbasic lands your opponents control enter tapped." (Manglehorn,
+    Thalia, Heretic Cathar); an Equipment's or Aura's "As long as equipped (enchanted) creature is legendary (white, blue, ...), it gets
+    (has) ..." holds only while the creature is (Champion's Helm, Edge of the Divinity, Clout of the Dominus), and "gets +N/+N and can't
+    be blocked" (Aether Tunnel); "Each other Human you control gets ... and has ..." (Coppercoat Vanguard); "Other Merfolk you control"
+    is yours only (Svyelun, beside Lord of Atlantis's every player's), and "you control at least two other Merfolk" counts two;
+    "Activated abilities of creatures your opponents control can't be activated." (Linvala); "Each player can't cast more than one
+    noncreature spell each turn." (Deafening Silence); "... on it / on that creature instead" wordings of the +1/+1 counter doublers
+    (Corpsejack Menace, Conclave Mentor); "This creature has first strike during your turn." and "deals 1 damage to them" (the
+    player who drew: Razorkin Needlehead); "Creature spells with flying you cast cost {1} less" (Warden of Evos Isle) and "Artifact and
+    enchantment spells"; a "permanent card" to search for (Wargate, Tezzeret's emblem); "return target creature card with mana value
+    less than or equal to Alesha's power" (Alesha, Carmen); "create that many N/N ... creature tokens" after damage (Hornet Nest, Living
+    Hive, Shroofus: a "Whenever a Saproling you control deals combat damage" watcher carries the damage) and after "Sacrifice all
+    creatures you control" (Hellion Eruption: how many were sacrificed); "Each creature gets ..." (every player's: Essence Pulse, The
+    Meathook Massacre); "create a ... token and a ... token" (Specimen Collector); "Draw a card for each Island you control, then
+    discard two cards."; "... and add {B}." (Carnival of Souls); "For each token you control, create ..." (Cadira, Moogles' Valor);
+    "as long as it's untapped" (Dragonlord Ojutai); "if that player has no cards in hand" (Ghirapur Orrery, Asylum Visitor); "for as long
+    as this creature remains on the battlefield" (Sower of Temptation: whoever controls it); "gain life equal to the power of target
+    creature you control" (Wall of Reverence); "Each player searches their library for a basic land card" (Field of Ruin) and "That
+    player may search ..." (Volatile Fault); "Sacrifice a creature or land." (Dredge, Thalia and The Gitrog Monster); "Whenever you
+    sacrifice a permanent" (Juri, Havoc Jester); "reveal an artifact card from among them and put it into your hand" (Adaptive
+    Omnitool); "+1/+1 for each charge counter on Excalibur II".
   - Landfall, batch 1 (`tests/test_landfall_triggers.py`): a sentence "If <condition>, <effect>." whose condition is read and whose
     effect has no target and doesn't point back at what an earlier sentence chose ("it", "that", "those", ...) is an `IfElse` checked
     as it resolves (Omnath, Locus of the Roil's "If you control eight or more lands, draw a card."; Rapier Wit's "put a stun counter

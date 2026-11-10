@@ -275,11 +275,11 @@ class TragicArrogance:
 
 @dataclass(frozen=True)
 class SacrificeAll:
-    """ "Sacrifice all creatures you control." """
+    """ "Sacrifice all creatures you control." X is how many were sacrificed (Hellion Eruption: "then create that many")."""
     kind: str = "creature"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.sacrifice(controller, self.kind, None)
+        game.x_value = len(game.sacrifice(controller, self.kind, None))
 
 
 @dataclass(frozen=True)
