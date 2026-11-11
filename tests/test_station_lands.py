@@ -149,7 +149,8 @@ class ThresholdManaTests(unittest.TestCase):
         spell = real("Blue Many", "{U}{U}{U}", "Instant", "Draw a card.", colors=("U",))
         for counters, expected in ((12, True), (11, False)):
             with self.subTest(counters=counters):
-                t = Table(spell, n=0, mine=[land(UTHROS, counters), Permanent(ISLAND), Permanent(RELIC), Permanent(RELIC)])
+                # The Island pays the {U}; the three Relics make {U}{U}{U}. (Uthros taps once: not also for its plain {U}.)
+                t = Table(spell, n=0, mine=[land(UTHROS, counters), Permanent(ISLAND)] + [Permanent(RELIC) for _ in range(3)])
                 self.assertEqual(any(a.startswith(CAST + spell.name) for a in t.game.legal_actions(t.a)), expected)
 
     def test_the_first_ability_is_always_there(self):

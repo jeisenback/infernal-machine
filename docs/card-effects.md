@@ -472,7 +472,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     you control" (Cabal Coffers): the amount is worked out each time you pay. Coffers' {2} is paid first, so it is only
     worth it with enough Swamps (the payment picks the first mana that fits).
   - Filter lands ("{W/B}, {T}: Add {W}{W}, {W}{B}, or {B}{B}."): paid like a Signet, so one Swamp becomes two white,
-    two black or one of each. A filter land can't pay for its own ability.
+    two black or one of each. A filter land can't pay for its own ability, and tapped for it, it doesn't also make its plain
+    "{T}: Add {C}" in the same payment (CR 107.5: it taps once; `tests/test_filter_land_taps_once.py`).
   - Exotic Orchard ("any color that a land an opponent controls could produce") and Reflecting Pool ("any type that
     a land you control could produce", colorless included): they read the other lands' mana, and a land of this
     kind adds nothing to another's, so two never feed each other. With nothing to read they make no mana.
