@@ -1388,6 +1388,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     You may cast a spell from among those cards without paying its mana cost." (`Game.cast_from_hand_free`; the card goes back to its
     owner); Villainous Wealth (the target opponent exiles the top X cards, and only the spells with mana value X or less among them may be
     cast: `Game.exile_top_play_free(spells_most=...)`).
+  - Casting without paying the mana cost, batch 8 (`tests/test_cast_free_8.py`, #655): Submerge and the Legates' "If an opponent controls
+    a Forest and you control an Island, you may cast this spell without paying its mana cost." (an `AlternativeCost` with `requires` for
+    your land and `opponent_requires` for theirs); "Put target creature (artifact, creature, or enchantment, land, ...) on top of its
+    owner's library." (Submerge, Griptide, Banishment Decree, Azorius Charm's mode); Sunbird's Invocation (the top X cards, X the mana
+    value of the spell cast from your hand, one spell with mana value X or less cast free, the rest to the bottom) and Cosmic Cube (the top
+    six, the free spell's mana value at most the greatest power among your attacking creatures): `LookTopCastOneFree` takes an amount
+    and a cap; Rashmi, Eternities Crafter (the top card cast free if it's a spell with lesser mana value than the first spell you cast
+    that turn, else put into your hand: `Game.reveal_top_cast_if_lesser`).
   - Villainous choice (CR 701.56; `tests/test_cast_free.py`, #655): "Each opponent (Target opponent) faces a villainous choice — A, or B."
     is a `VillainousChoice`: each player facing it chooses one option for themselves (`Game.villainous_choice`), and "They ..." / "that
     player" in an option is that player. The two options are split at the ", or " where both read as effects. Ensnared by the Mara is

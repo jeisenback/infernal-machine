@@ -261,6 +261,13 @@ _WHOLE_LINE = re.compile(
     r"|exile (?:that card|it)\. If you do, return each other card exiled with this artifact to its owner's graveyard\."  # Mimic Vat
     r"|Look at the top \w+ cards of your library\. You may cast a spell from among them without paying its mana cost\. Put the rest on the "
     r"bottom of your library in a random order\."  # Aetherworks Marvel
+    r"|reveal the top X cards of your library, where X is that spell's mana value\. You may cast a spell with mana value X or less from "
+    r"among cards revealed this way without paying its mana cost\. Put the rest on the bottom of your library in a random order\."  # Sunbird's Invocation
+    r"|look at the top \w+ cards of your library\. You may cast a spell from among them with mana value less than or equal to the greatest "
+    r"power among attacking creatures you control without paying its mana cost\. Put the rest on the bottom of your library in a random "
+    r"order\."  # Cosmic Cube
+    r"|reveal the top card of your library\. You may cast it without paying its mana cost if it's a spell with lesser mana value\. If you "
+    r"don't cast it, put it into your hand\."  # Rashmi, Eternities Crafter
     r"|[Ll]ook at the top X cards of your library, where X is your devotion to blue\. Put up to one of them on top of your library and the rest on the bottom of your library in a random order\. If X is greater than or equal to the number of cards in your library, you win the game\."  # Thassa's Oracle
     r"|Choose a card name\. Exile the top \w+ cards of your library, then reveal cards from the top of your library until you reveal a card with the chosen name\. Put that card into your hand and exile all other cards revealed this way\."  # Demonic Consultation
     r"|Exile the top card of your library\. You may put that card into your hand unless it has the same name as another card exiled this way\. Repeat this process until you put a card into your hand or you exile two cards with the same name, whichever comes first\."  # Tainted Pact

@@ -549,6 +549,8 @@ _UNLESS_PAYS = re.compile(r"(.+?) unless that player pays ((?:\{[^}]+\})+)\.?", 
 # Phrases whose "it" is not the permanent that set the trigger off: the card a search finds, the creature just targeted.
 _CAST_IT = re.compile(r"\bfor as long as it remains exiled\b|\bas though it were mana\b|\bto cast it\.$"  # Cunning Rhetoric: the card
                       r"|\bIf it's an? \w+ creature card, you may cast that card\b"  # Rundvelt Hordemaster: the exiled card
+                      r"|\bYou may cast it without paying its mana cost if it's a spell with lesser mana value\. If you don't cast it, put "
+                      r"it into your hand\."  # Rashmi: "it" is the revealed card
                       r"|\bWhen you next cast [^.]+, copy that spell\b"  # Sword of Wealth and Power: the next spell
                       r"|\breturn that spell to its owner's hand\b|\bcopy that spell, and you may choose new targets\b"  # Krark: the spell cast
                       r"|\bIf that spell would be put into your graveyard, exile it instead\.", re.I)  # Sword of Once and Future: the spell cast this way

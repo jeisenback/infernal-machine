@@ -524,6 +524,9 @@ class Caster:
             return False
         if alternative.requires and not any(g._permanent_matches(alternative.requires, p.card) for p in seat.battlefield):
             return False  # Snuff Out: "If you control a Swamp"
+        if alternative.opponent_requires and not any(g._permanent_matches(alternative.opponent_requires, p.card)
+                                                     for o in self.game.opponents(seat) for p in o.battlefield):
+            return False  # Submerge: "If an opponent controls a Forest"
         if alternative.no_lands_in_hand and any("Land" in c.type_line for c in others):
             return False  # Land Grant: "If you have no land cards in hand"
         if alternative.opponent_spells and not any(sum(turn == self.game.turn for turn, _ in o.cast_log) >= alternative.opponent_spells
