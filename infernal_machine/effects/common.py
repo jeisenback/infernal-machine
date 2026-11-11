@@ -10,14 +10,14 @@ from ..characteristics import Modifier
 
 
 _NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "thirteen": 13}  # thirteen: Army of the Damned
 
 
 _VOTE_PREFIX = r"(?:[A-Z][\w' -]* \u2014 )?"  # "Will of the council — ", "Council's dilemma — "
 
 
-_N = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+|X)"
-_N_FIXED = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)"  # a number that is never X, for an effect that reads it as a plain int
+_N = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|thirteen|\d+|X)"
+_N_FIXED = r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|thirteen|\d+)"  # a number that is never X, for an effect that reads it as a plain int
 
 
 _REMINDER = re.compile(r"\s*\([^)]*\)")

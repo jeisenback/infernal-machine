@@ -2844,6 +2844,14 @@ class Game:
             item.source.resolved_turn[ability.text] = (self.turn, item.resolution)
         self._apply_effects(item)
 
+    def evaluate_for(self, amount: Amount, controller: Seat, source: Permanent) -> int:
+        """`evaluate` for an amount of a permanent's own ability outside the stack (a mana ability: Gyre Sage's counters, Marwyn's power)."""
+        saved, self.resolving_source = self.resolving_source, source
+        try:
+            return self.evaluate(amount, controller)
+        finally:
+            self.resolving_source = saved
+
     def evaluate(self, amount: Amount, controller: Seat) -> int:
         """Work out an amount that depends on the game, for the resolving spell or ability."""
         if amount.plus:  # "2 plus the number of ..."
@@ -2887,6 +2895,11 @@ class Game:
                 "unowned_mercenaries" in rules_statics(p.card) for p in controller.battlefield)  # Laughing Jasper Flint
             return sum(has_type(p.card, amount.what) or (mercenaries and "Creature" in p.card.type_line and self.owner_of(p) is not controller)
                        for p in controller.battlefield)
+        if kind == "you_control_matching":  # "for each colorless creature you control", "for each basic Swamp you control"
+            wanted = parse_filter(amount.what)
+            return sum(wanted.matches(p.card) for p in controller.battlefield)
+        if kind == "power_at_least":  # "for each creature you control with power 4 or greater": its power now
+            return sum("Creature" in p.card.type_line and (self.power(p) or 0) >= int(amount.what) for p in controller.battlefield)
         if kind == "greatest_power":
             kind_wanted = amount.what.removeprefix("other ")
             return max((self.power(p) for p in controller.battlefield if has_type(p.card, kind_wanted)
@@ -2943,6 +2956,8 @@ class Game:
             return self.x_value // 2
         if value == "hX+":  # ... rounded up
             return (self.x_value + 1) // 2
+        if isinstance(value, str) and value[:-1].isdigit() and value.endswith("X"):  # "4X": four times X (Shamanic Revelation)
+            return int(value[:-1]) * self.x_value
         return self.x_value if value == "X" else 2 * self.x_value if value == "2X" else int(value)
 
     def _apply_effects(self, item: StackItem) -> bool:
@@ -3298,6 +3313,10 @@ class Game:
             return source is not None and source.counters.get(condition.what, 0) >= condition.count
         if kind == "monarch_at_turn_start":
             return self.monarch_at_turn_start is seat
+        if kind == "life_at_least":  # Felidar Sovereign: "if you have 40 or more life"
+            return seat.life >= condition.count
+        if kind == "hand_exactly":  # Triskaidekaphile: "if you have exactly thirteen cards in your hand"
+            return len(seat.hand) == condition.count
         if kind == "hand_at_least":
             return len(seat.hand) >= condition.count
         if kind == "hand_none":
@@ -4187,6 +4206,8 @@ class Game:
             if not {"one or more colors": count >= 1, "colorless": count == 0, "multicolored": count >= 2,
                     "monocolored": count == 1}[restriction.colors_are]:
                 return False
+        if restriction.counters is not None and any(n > 0 for n in permanent.counters.values()) != restriction.counters:
+            return False
         if restriction.exclude is not None and self._spared(permanent, restriction.exclude):
             return False
         return True
@@ -4283,10 +4304,10 @@ class Game:
                                      oracle_text=(card.oracle_text + "\nFlying").strip())
         return Permanent(became, sick=True, owner=owner, real_card=card, counters={"finality": 1})
 
-    def return_all_from_graveyard(self, seat: Seat, kind: str, to: str) -> None:
+    def return_all_from_graveyard(self, seat: Seat, kind: str, to: str, tapped: bool = False) -> None:
         """"Return all enchantment cards from your graveyard to the battlefield.": they all come back at once."""
         for card in [c for c in seat.graveyard if _card_matches(kind, c)]:
-            self.return_from_graveyard(GraveyardTarget(card, seat), seat, to)
+            self.return_from_graveyard(GraveyardTarget(card, seat), seat, to, tapped)
 
     def graveyard_target(self, card: Card, seat: Seat) -> "GraveyardTarget":
         return GraveyardTarget(card, seat)
@@ -4826,6 +4847,12 @@ class Game:
                         continue
                 elif wanted == "Artifact":  # Master of Etherium: "Other artifact creatures you control", a card type
                     if "Artifact" not in permanent.card.type_line.partition("\u2014")[0] or (buff.other and source is permanent):
+                        continue
+                elif wanted == "Enchantment":  # Sterling Grove: "Other enchantments you control", a card type
+                    if "Enchantment" not in permanent.card.type_line.partition("\u2014")[0] or (buff.other and source is permanent):
+                        continue
+                elif wanted == "Enchanted":  # Greater Auramancy: "Enchanted creatures you control", an Aura on it
+                    if not any("Aura" in a.card.type_line for a in self._board_view().attached.get(id(permanent), ())):
                         continue
                 elif wanted == "Equipped":  # Zamriel, Seraph of Steel: "Equipped creatures you control", not a creature type
                     if not any("Equipment" in a.card.type_line for a in self._board_view().attached.get(id(permanent), ())):

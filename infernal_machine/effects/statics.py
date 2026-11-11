@@ -542,7 +542,7 @@ def is_chosen_type_itself(card: Card) -> bool:
     return any(_CHOSEN_SELF.fullmatch(line) for line in rules_lines(card))
 
 
-_AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creatures of the chosen type|Creatures your opponents control"
+_AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creatures of the chosen type|Creatures your opponents control|(?:Other )?enchantments you control"
              r"|(?:Other )?permanents you control|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* |artifact |nontoken )?[Cc]reatures you control"
              r"|(?:Other |Attacking )?[A-Z][\w'-]*s(?: and [A-Z][\w'-]*s)? you control|Other [A-Z][\w'-]*s|(?:White|Blue|Black|Red|Green|All) creatures"
              r"|Other [A-Z][\w'-]* creatures|Other Merfolk(?: you control)?|All [A-Z][\w'-]*s|[A-Z][\w'-]* tokens you control|Creatures you control with \+1/\+1 counters on them")
@@ -560,7 +560,7 @@ _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|(?:
 
 
 _AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:you control )?of the chosen (?P<chosen_what>type|color))"
-                  r"|(?P<opps>Creatures your opponents control)|(?P<perms>(?P<other_perms>Other )?permanents you control)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+                  r"|(?P<opps>Creatures your opponents control)|(?P<enchantments>(?P<other_ench>Other )?enchantments you control)|(?P<perms>(?P<other_perms>Other )?permanents you control)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*|artifact|nontoken) )?[Cc]reatures you control"  # Master of Etherium: "Other artifact creatures"
                   r"|(?P<other2>Other )?(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s(?: and (?P<tribe2>[A-Z][\w'-]*)s)? you control"
                   r"|(?P<other3>Other )(?P<tribe3>[A-Z][\w'-]*)s"  # Goblin King, Lord of Atlantis: every player's, not only its controller's
@@ -645,6 +645,7 @@ def _conditional(line: str) -> tuple[str, str] | None:
 def _other(who: re.Match) -> bool:
     """Whether the creatures a static ability affects exclude its source: "Other creatures ..."."""
     return who["other"] is not None or (who["other_chosen"] or "").startswith("O") or who["other_perms"] is not None or who["other2"] is not None \
+        or who["other_ench"] is not None \
         or who["other3"] is not None or who["other4"] is not None or who["other5"] is not None
 
 
@@ -660,6 +661,8 @@ def _tribe(stem: str) -> str:
 
 def _who_subtype(who: re.Match) -> str | None:
     """The creature type a static ability affects: "Elf" in "Other Elf creatures", or "Wolf|Werewolf" for "Wolves and Werewolves" (any of them)."""
+    if who["enchantments"]:  # Sterling Grove: "Other enchantments you control", a card type
+        return "Enchantment"
     if sub := who["sub"] or who["sub4"] or who["sub5"] or who["subtokens"]:
         return sub[:1].upper() + sub[1:]
     kinds = [_tribe(t) for t in (who["tribe"], who["tribe2"], who["tribe3"], who["tribe6"]) if t]
@@ -705,7 +708,7 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     or (bool(who["chosen"]) and "you control" not in m[1]),
                                     token=bool(who["tokens"] or who["subtokens"]),
                                     with_counters=bool(who["counters"]), plus_counter=bool(who["plus"] or who["plus2"]),
-                                    permanents=bool(who["perms"]), opponents=bool(who["opps"])))
+                                    permanents=bool(who["perms"] or who["enchantments"]), opponents=bool(who["opps"])))
         elif _LEGENDARY_SCALED.fullmatch(sentence):  # Jodah, the Unifier: +1/+1 for each legendary creature you control
             buffs.append(StaticBuff(Modifier(1, 1), False, "Legendary", line, condition=condition, per=("permanent", "legendary creature")))
         elif m := _COUNTER_SCALED.fullmatch(sentence):  # Door of Destinies: +1/+1 for each charge counter on it
@@ -1254,10 +1257,11 @@ _GRANT = re.compile(rf'(?:Equipped|Enchanted) (?:creature|land|permanent) has (?
 _ATTACHED_AND_GRANT = re.compile(rf'(?:Equipped|Enchanted) creature has ({_KEYWORDS}) and ".+"\.?')  # Fallen Ideal  # the quote's own full stop is inside it
 
 
-_GROUP_GRANT = re.compile(r'(Treasures|Artifacts|Creatures|Lands) you control have "(.+)"\.?')
+_GROUP_GRANT = re.compile(r'(Treasures|Artifacts|Creatures|Lands|Tokens|Creature tokens|Foods) you control have "(.+)"\.?')
 
 
-_GROUP_KIND = {"Treasures": "Treasure", "Artifacts": "Artifact", "Creatures": "Creature", "Lands": "Land"}
+_GROUP_KIND = {"Treasures": "Treasure", "Artifacts": "Artifact", "Creatures": "Creature", "Lands": "Land",
+               "Tokens": "token", "Creature tokens": "creature token", "Foods": "Food"}  # Jaheira, Springleaf Parade; read with has_type
 
 
 def is_group_mana_grant_line(line: str) -> bool:

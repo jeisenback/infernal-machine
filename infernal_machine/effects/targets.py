@@ -55,6 +55,7 @@ class MassFilter:
     exclude: "MassFilter | None" = None  # "... except for artifact creatures": what is spared
     colors_are: str | None = None  # "that are one or more colors" / "colorless" / "multicolored" / "monocolored"
     enchanted: bool | None = None  # False: "that aren't enchanted" (Winds of Rath)
+    counters: bool | None = None  # False: "with no counters on them" (Damning Verdict)
 
 
 _LAND_TYPES = rf"({_LAND_TYPE}(?:, {_LAND_TYPE})*(?:,? or {_LAND_TYPE})?)"

@@ -484,6 +484,7 @@ from .mana import (  # noqa: F401
     mana_pain,
     mana_bonus,
     mana_by_amount,
+    mana_by_count,
     mana_life_condition,
     mana_lines,
     mana_per_color,

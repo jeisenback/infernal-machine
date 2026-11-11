@@ -332,6 +332,8 @@ class Combat:
                                       x=sum(dealt[key][id(s)] for s in zero_power))
                 if any(s.card.type_line.startswith("Token") for s in sources):
                     self.game.trigger("tokens_combat_damage", permanent, hitter, subject=sources[0])
+                if artifacts := [s for s in sources if "Artifact" in s.card.type_line.partition("\u2014")[0]]:
+                    self.game.trigger("artifact_creatures_combat_damage", permanent, hitter, subject=artifacts[0])
 
     def _assign(self, attacker: Permanent, controller: Seat, blockers: list[Permanent], defender: Seat | Permanent | None,
                 amount: int) -> list[tuple[Permanent, Seat | Permanent, int]]:

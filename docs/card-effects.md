@@ -1215,6 +1215,24 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     player may search ..." (Volatile Fault); "Sacrifice a creature or land." (Dredge, Thalia and The Gitrog Monster); "Whenever you
     sacrifice a permanent" (Juri, Havoc Jester); "reveal an artifact card from among them and put it into your hand" (Adaptive
     Omnitool); "+1/+1 for each charge counter on Excalibur II".
+  - The same, batch 4 (`tests/test_parse_only_batch_4.py`): "Destroy all nonartifact creatures." (Organic Extinction, Their Name
+    Is Death) and "Destroy all creatures with no counters on them." (Damning Verdict); "Return all land cards from your graveyard to
+    the battlefield tapped." (Splendid Reclamation, Aftermath Analyst, World Shaper); "thirteen" (Army of the Damned, Triskaidekaphile);
+    a sentence that opens with "Until end of turn," and gets or gains is read as the same sentence with the duration at the end
+    (Triumph of the Hordes, Resplendent Angel), never one that sets up a trigger or a permission ("whenever", "you may");
+    "Exile each opponent's graveyard." (Soul-Guide Lantern); "for each colorless creature you control" (Tomb of the Spirit Dragon) and
+    "You gain 4 life for each creature you control with power 4 or greater" (Shamanic Revelation; Ferocious is a label on a spell, as
+    Delirium is); mana of one color as much as an amount, worked out when the mana is wanted: "Add {G} for each +1/+1 counter on this
+    creature" (Gyre Sage), "an amount of {G} equal to Marwyn's power", "{3}, {T}: Add {B} for each basic Swamp you control" (Cabal
+    Stronghold), "for each black creature card in your graveyard" (Crypt of Agadeem); a land tapped for a costed mana ability can't
+    also tap for its plain one; "Other enchantments you control have shroud." and "Enchanted creatures you control have shroud."
+    (Sterling Grove, Greater Auramancy); "All Zombies gain menace until end of turn." (Lord of the Accursed: every player's);
+    "target nonartifact, nonblack creature" (Shriekmaw); "When this creature dies, put it on the bottom of its owner's library."
+    (Murderous Rider); "if you have 40 or more life, you win the game" (Felidar Sovereign, Test of Endurance) and "if you have exactly
+    thirteen cards in your hand"; "as long as you have 25 (30) or more life" (Angel of Vitality, Serra Ascendant); "Activate only if
+    you control a legendary creature." (Rivendell); `Tokens`, `Creature tokens` and `Foods you control have "{T}: Add ..."` (Jaheira,
+    Springleaf Parade, Night of the Sweets' Revenge); "Whenever one or more artifact creatures you control deal combat damage to a
+    player" (Thopter Spy Network).
   - Landfall, batch 1 (`tests/test_landfall_triggers.py`): a sentence "If <condition>, <effect>." whose condition is read and whose
     effect has no target and doesn't point back at what an earlier sentence chose ("it", "that", "those", ...) is an `IfElse` checked
     as it resolves (Omnath, Locus of the Roil's "If you control eight or more lands, draw a card."; Rapier Wit's "put a stun counter

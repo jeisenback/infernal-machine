@@ -7,7 +7,7 @@ from typing import Any, TYPE_CHECKING
 
 from ...characteristics import Modifier
 from ..common import cant_be_countered
-from ..targets import (DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind)
+from ..targets import (DEAD_SOURCE, DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind)
 from .base import Amount, Condition
 from ...prompts import PromptKind
 
@@ -942,3 +942,33 @@ class ExileUntilTakenOrTwice:
                 return
             _exile_from_library(game, controller, [card])
 
+
+@dataclass(frozen=True)
+class ExileOpponentsGraveyards:
+    """ "Exile each opponent's graveyard." (Soul-Guide Lantern): nothing is targeted."""
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for seat in game.opponents(controller):
+            game.exile_graveyard(seat)
+
+
+@dataclass(frozen=True)
+class PutSelfOnLibraryBottom:
+    """Murderous Rider: "When this creature dies, put it on the bottom of its owner's library." It is in the graveyard by now; if it has
+    left it already, nothing happens."""
+    binds = DEAD_SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and (holder := game._graveyard_of(target.card)) is not None:
+            game.return_from_graveyard(game.graveyard_target(target.card, holder), holder, "library_bottom")
+
+
+@dataclass(frozen=True)
+class ReturnAllFromGraveyard:
+    """Eiganjo Dynastorian's spell: "Return all enchantment cards from your graveyard to the battlefield." (or to your hand)"""
+    kind: str  # a card kind, "enchantment"
+    to: str = "battlefield"
+    tapped: bool = False  # Splendid Reclamation: "... to the battlefield tapped."
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.return_all_from_graveyard(controller, self.kind, self.to, self.tapped)

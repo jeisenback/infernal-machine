@@ -234,6 +234,8 @@ declare("creatures_combat_damage", re.compile(r"Whenever one or more creatures y
                                           re.I))
 declare("zero_power_combat_damage", re.compile(r"Whenever one or more creatures you control with base power 0 deal combat damage "
                                            r"to a player, (.+)", re.I))
+declare("artifact_creatures_combat_damage", re.compile(r"Whenever one or more artifact creatures you control deal combat damage to a "
+                                                   r"player, (.+)", re.I))  # Thopter Spy Network
 declare("tokens_combat_damage", re.compile(r"Whenever one or more creature tokens you control deal combat damage to a player, "
                                        r"(.+)", re.I))
 declare("first_life_gain", re.compile(r"Whenever you gain life for the first time each turn, (.+)", re.I),
