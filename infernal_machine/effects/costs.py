@@ -862,7 +862,7 @@ def self_cost_reduction(card: Card) -> tuple[int, str] | None:
     return None
 
 
-_IF_REDUCTION = re.compile(r"This spell costs \{(\d+)\} less to cast if (.+)\.")  # Mortality Spear
+_IF_REDUCTION = re.compile(r"(?:[A-Z][a-z]+ \u2014 )?This spell costs \{(\d+)\} less to cast (?:if|as long as) (.+)\.")  # Mortality Spear
 
 
 _POWER_REDUCTION = re.compile(r"This spell costs \{X\} less to cast, where X is the total power of creatures you control\.")

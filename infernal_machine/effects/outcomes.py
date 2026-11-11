@@ -48,6 +48,7 @@ from .families.base import (  # noqa: F401
     Condition,
 )
 from .families.combat_and_pump import (  # noqa: F401
+    PumpHost,
     MayRemoveCountersTransform,
     BecomeLandUntilNextTurn,
     VehicleBecomesCreature,
@@ -267,6 +268,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     _SacrificeThemLater,
 )
 from .families.exile_and_return import (  # noqa: F401
+    ExileThat,
     _LeftoversToGraveyard,
     _FreeIfFromGraveyard,
     ExileAttackers,
@@ -321,6 +323,7 @@ from .families.exile_and_return import (  # noqa: F401
     _PlayTheExiledCard,
 )
 from .families.returning import (  # noqa: F401
+    _ToBattlefieldInstead,
     RETURN_LAND_PROMPT,
     ReturnPerOpponent,
     CraftReturn,
@@ -399,6 +402,7 @@ from .families.library_and_hand import (  # noqa: F401
     _MayDiscard,
 )
 from .families.library import (  # noqa: F401
+    _InsteadSearch,
     _card_matches_kind,
     BASIC_LAND_TYPES,
     OwnerPutsSecondOrBottom,
@@ -3301,6 +3305,15 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: FetchBasicLand()),
     (re.compile(r"(?:you may )?search your library for a basic land card, put it onto the battlefield, then shuffle\.", re.I),  # "you may": Demolition Field
      lambda m: FetchBasicLand(tapped=False)),
+    (re.compile(rf"(?:equipped|enchanted) creature gets {_PT}(?: and gains {_KEYWORDS})? until end of turn\.", re.I),  # Adventuring Gear
+     lambda m: PumpHost(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[3]) if m[3] else frozenset()))),
+    (re.compile(r"(?:Delirium \u2014 )?if (.+?), instead (search your library for .+)", re.I),  # Demonic Counsel, Traverse the Ulvenwald
+     lambda m: _InsteadSearch(c, inner[0]) if (c := _condition(m[1])) and (inner := _parse(["S" + m[2][1:].replace(" for any card,", " for a card,")]))
+     and len(inner) == 1 and isinstance(inner[0], SearchLibrary) else None),
+    (re.compile(r"(?:Threshold \u2014 )?return that card from your graveyard to the battlefield instead if (.+)\.", re.I),  # Stitch Together
+     lambda m: _ToBattlefieldInstead(c) if (c := _condition(m[1])) else None),
+    (re.compile(r"(?:Metalcraft \u2014 )?if (.+?), exile that creature\.", re.I),  # Dispatch: the creature the sentence before tapped
+     lambda m: Conditional(c, ExileThat()) if (c := _condition(m[1])) else None),
     (re.compile(r"if (you control an? (?-i:[A-Z])\w+), (?!.*\binstead\.$)(.+)\.", re.I), _if_else),  # Unholy Annex
     (re.compile(r"if (.+?), (?!.*\binstead\.$)(?!.*\b(?:it|its|that|those|them|they|their)\b)(.+)\.", re.I),  # Omnath, Locus of the Roil:
      _if_else),  # any condition read, checked as it resolves; not an effect on what an earlier sentence chose (Rapier Wit's "on it")
@@ -3902,6 +3915,9 @@ _CONDITIONAL = Follows(
     Follow(_ThatAlsoGains, Pump, lambda previous, marker: dataclasses.replace(
         previous, modifier=dataclasses.replace(previous.modifier, keywords=previous.modifier.keywords | marker.keywords))),
     Follow(_ThatGainsIf, Pump, set_fields(more_keywords=lambda m: m.keywords, more_if=lambda m: m.condition)),
+    Follow(_InsteadSearch, SearchLibrary, lambda previous, marker: IfElse(marker.condition, (marker.search,), (previous,))),
+    Follow(_ToBattlefieldInstead, ReturnFromGraveyard, set_fields(battlefield_if=lambda m: m.condition),
+           fits=lambda previous, marker: previous.to == "hand" and previous.battlefield_if is None),
     Follow(_InsteadPump, Pump, set_fields(instead=lambda m: m.modifier, instead_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.instead is None),
     Follow(_InsteadUntapAll, UntapACreature, set_fields(all_if=lambda m: m.condition)),

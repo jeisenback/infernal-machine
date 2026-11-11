@@ -116,6 +116,16 @@ class PlayExiled:
 
 
 @dataclass(frozen=True)
+class ExileThat:
+    """Dispatch: "... exile that creature.": the target of the effect before it (here inside a Conditional)."""
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.exile_noting(target, game.resolving_source)
+
+
+@dataclass(frozen=True)
 class Exile:
     target: str
     another: bool = False  # "exile another target ...": not the source itself

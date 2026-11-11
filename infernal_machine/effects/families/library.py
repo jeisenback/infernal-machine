@@ -200,6 +200,14 @@ class ShuffleSourceAndTarget:
 
 
 @dataclass(frozen=True)
+class _InsteadSearch:
+    """ "Delirium \u2014 If there are four or more card types among cards in your graveyard, instead search your library for any card, put it
+    into your hand, then shuffle." after a SearchLibrary (Demonic Counsel, Traverse the Ulvenwald): the second search replaces the first."""
+    condition: Any
+    search: Any
+
+
+@dataclass(frozen=True)
 class SearchLibrary:
     """ "Search your library for a creature card, put it into your hand, then shuffle." """
     card_type: str  # "card", "creature", "instant or sorcery", "basic land", ...
