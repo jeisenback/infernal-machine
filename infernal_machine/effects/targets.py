@@ -56,6 +56,7 @@ class MassFilter:
     colors_are: str | None = None  # "that are one or more colors" / "colorless" / "multicolored" / "monocolored"
     enchanted: bool | None = None  # False: "that aren't enchanted" (Winds of Rath)
     counters: bool | None = None  # False: "with no counters on them" (Damning Verdict)
+    counter: str = ""  # with `counters`, only that kind counts: Wave Goodbye, "without a +1/+1 counter on it"
     entered_this_turn: bool = False  # "that entered this turn" (Force of Despair)
 
 
@@ -78,7 +79,7 @@ _SUBTYPE_WORD = r"(?-i:[A-Z][a-z]+)"  # a creature type or other subtype, capita
 _SUBTYPE_CARDS = "aura or equipment|aura|equipment|vehicle|saga|" + _SUBTYPE_WORD
 
 
-_CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|noncreature, nonland|nonland permanent|artifact or creature|creature or planeswalker|creature|artifact|enchantment|land|permanent"
+_CARD_TYPE = (r"((?:(?:legendary creature|nonlegendary creature|legendary|nonbasic land|noncreature, nonland|nonland permanent|artifact or creature|creature or planeswalker|creature|artifact|enchantment|land|permanent"
               rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
 
 

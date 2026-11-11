@@ -263,18 +263,24 @@ class PutCountersOnEach:
     target: str | None = None  # Practiced Offense: "each creature target player controls" ("player")
     everyone: bool = False  # Soul Snuffers: "each creature", every player's
     untap: bool = False  # Virtue of Loyalty: "Untap those creatures."
+    grant_until_next_turn: bool = False  # Elspeth, Storm Slayer: "Those creatures gain flying until your next turn."
+    attacking: bool = False  # Drana, Liberator of Malakir: "each attacking creature you control"
+    opponents: bool = False  # Archfiend of Ifnir: "each creature your opponents control"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         seat = target if self.target else controller
         if seat is None:
             return
-        for permanent in [p for s in game.live_seats() for p in s.battlefield] if self.everyone else list(seat.battlefield):
-            if self.other and permanent is game.resolving_source:
+        seats = game.live_seats() if self.everyone else game.opponents(controller) if self.opponents else [seat]
+        for permanent in [p for s in seats for p in s.battlefield]:
+            if (self.other and permanent is game.resolving_source) or (self.attacking and not game._in_state(permanent, "attacking")):
                 continue
             if ("Creature" in permanent.card.type_line or self.or_vehicle and "Vehicle" in permanent.card.type_line) \
                     and self.kind in permanent.card.type_line:
                 game.put_counters(permanent, self.counter, game.amount(self.count))
-                if self.grant:
+                if self.grant and self.grant_until_next_turn:
+                    permanent.until_next_turn.append(Modifier(keywords=self.grant))
+                elif self.grant:
                     game.modify_until_end_of_turn(permanent, Modifier(keywords=self.grant))
                 if self.untap:
                     game.untap(permanent)

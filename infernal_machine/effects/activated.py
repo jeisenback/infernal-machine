@@ -166,7 +166,7 @@ _PAY_ENERGY = re.compile(rf"Pay (?:((?:\{{E\}})+)|{_N} \{{E\}})")  # "Pay {E}{E}
 _CARDS = r"(an?|two|three|four)"
 
 
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four|X) (?:other )?(creature|(?:white|blue|black|red|green) creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|token|[A-Z][a-z]+?)s?")
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four|X) (?:other )?(creature|(?:white|blue|black|red|green) creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|artifacts and/or creatures|Food|Treasure|Clue|token|[A-Z][a-z]+?)s?")
 
 
 _REMOVE_COUNTER_COST = re.compile(rf"Remove {_N_FIXED} {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")
@@ -293,7 +293,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
         elif _PAY_LIFE_IDENTITY.fullmatch(part):
             fields["life_identity"] = True
         elif m := _SACRIFICE_OTHER.fullmatch(part):
-            fields.update(sacrifice_other=m[2], sacrifice_another=m[1] == "another" or " other " in part, sacrifice_count=_NUMBER.get(m[1], 1),
+            kind = "artifact or creature" if m[2] == "artifacts and/or creatures" else m[2]  # Mondrak, Glory Dominus
+            fields.update(sacrifice_other=kind, sacrifice_another=m[1] == "another" or " other " in part, sacrifice_count=_NUMBER.get(m[1], 1),
                           sacrifice_x=m[1] == "X")
         elif m := _DISCARD_COST.fullmatch(part):
             fields["discard"] = _NUMBER[m[1]]

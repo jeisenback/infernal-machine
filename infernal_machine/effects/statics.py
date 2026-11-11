@@ -583,7 +583,7 @@ _COUNTER_SCALED = re.compile(rf"({_AFFECTED}) get {_PT} for each ([a-z]+) counte
 
 
 _LEGENDARY_SCALED = re.compile(r"Legendary creatures you control get \+X/\+X, where X is the number of legendary creatures you control\.")
-_STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|(?:have|has) {_KEYWORDS})\.")
+_STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|(?:have|has) {_KEYWORDS}|(?P<unblockable>can't be blocked))\.")  # Herald of Secret Streams
 
 
 _AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:you control )?of the chosen (?P<chosen_what>type|color))"
@@ -728,7 +728,8 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             assert who is not None  # _AFFECTED_WHO describes the same phrases as _AFFECTED
             colors = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
             chosen_color = bool(who["chosen"]) and who["chosen_what"] == "color"
-            buffs.append(StaticBuff(_modifier(m, 2), _other(who),
+            modifier = Modifier(keywords=frozenset({CANT_BE_BLOCKED})) if m["unblockable"] else _modifier(m, 2)
+            buffs.append(StaticBuff(modifier, _other(who),
                                     "chosen" if who["chosen"] and not chosen_color else _who_subtype(who), line,
                                     condition=condition,
                                     color="chosen" if chosen_color else colors.get((who["color"] or who["global"] or "").lower()),
