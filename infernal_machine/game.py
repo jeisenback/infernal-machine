@@ -775,6 +775,9 @@ class Game:
         self.resolving_colors: frozenset[str] = frozenset()  # its colors (for protection from damage)
         self.fog_turn: int | None = None  # the turn all combat damage is prevented (Fog)
         self.creature_fog_turn: int | None = None  # the turn all damage creatures would deal is prevented (Ethereal Haze)
+        # "Prevent all damage that would be dealt to you this turn." and the like: (turn, seat index of the effect's controller, kind, the
+        # permanent it is about or None, combat damage only); see _prevention_rule_applies
+        self.prevention_rules: list[tuple[int, int, str, Permanent | None, bool]] = []
         self.no_prevention_turn: int | None = None  # the turn damage can't be prevented (Impractical Joke)
         self.shields: list[list] = []  # [what is shielded, damage still to prevent, turn]: "prevent the next 2 damage ... this turn"
 
@@ -4097,6 +4100,33 @@ class Game:
             return EVERYTHING
         if self.creature_fog_turn == self.turn and source is not None and "Creature" in source.card.type_line:  # Ethereal Haze
             return EVERYTHING
+        if combat and any("unpreventable:combat" in damage_prevention(p.card) for p in everyone):  # Frenzied Baloth
+            return 0
+        for turn, who, kind, subject, combat_only in self.prevention_rules:
+            if turn == self.turn and (combat or not combat_only) and self._prevention_rule_applies(kind, self.seats[who], subject, target, source):
+                return EVERYTHING
+        for p in everyone:  # statics about another permanent: Fog Bank, Muzzle, Ghostly Possession, Dolmen Gate (CR 615)
+            rules = damage_prevention(p.card)
+            host = p.attached_to
+            if combat and "self:to_and_by:combat" in rules and (target is p or source is p):
+                return EVERYTHING
+            if host is not None and source is host and "attached:by" in rules:
+                return EVERYTHING
+            if combat and host is not None and (target is host or source is host) and "attached:to_and_by:combat" in rules:
+                return EVERYTHING
+            if not combat and rules & {"noncombat:you_and_others", "noncombat:you_and_creatures", "noncombat:other_creatures"}:
+                owner = self.controller_of(p)
+                if isinstance(target, Seat):
+                    if target is owner and rules & {"noncombat:you_and_others", "noncombat:you_and_creatures"}:
+                        return EVERYTHING
+                elif self.controller_of(target) is owner and (
+                        ("noncombat:you_and_others" in rules and target is not p)
+                        or ("Creature" in target.card.type_line and ("noncombat:you_and_creatures" in rules
+                                                                     or ("noncombat:other_creatures" in rules and target is not p)))):
+                    return EVERYTHING
+            if combat and "attacking_yours:combat" in rules and isinstance(target, Permanent) \
+                    and self.controller_of(target) is self.controller_of(p) and any(a.attacker is target for a in self.combat.attacks):
+                return EVERYTHING
         if isinstance(target, Permanent):
             rules = damage_prevention(target.card) if not self.loses_abilities(target) else frozenset()
             if "self:all" in rules or ("self:combat" in rules and combat) \
@@ -4105,6 +4135,27 @@ class Game:
         elif any("you:all" in damage_prevention(p.card) for p in target.battlefield if not self.loses_abilities(p)):
             return EVERYTHING
         return sum(entry[1] for entry in self.shields if entry[0] is target and entry[2] == self.turn and entry[1] > 0)
+
+    def prevent_this_turn(self, seat: Seat, kind: str, subject: Permanent | None = None, combat: bool = False) -> None:
+        """Add a "prevent all ... damage ... this turn" of `seat`'s (see _prevention_rule_applies); those of earlier turns are dropped."""
+        self.prevention_rules = [r for r in self.prevention_rules if r[0] == self.turn] + [(self.turn, seat.index, kind, subject, combat)]
+
+    def _prevention_rule_applies(self, kind: str, seat: Seat, subject: Permanent | None, target: Seat | Permanent,
+                                 source: Permanent | None) -> bool:
+        """Whether a "prevent all damage that would be dealt ... this turn" of `seat`'s covers this damage."""
+        if kind == "to_you":  # Riot Control
+            return target is seat
+        if kind == "to_players":  # Commencement of Festivities
+            return isinstance(target, Seat)
+        if kind == "to_your_creatures":  # Divine Light
+            return isinstance(target, Permanent) and "Creature" in target.card.type_line and self.controller_of(target) is seat
+        if kind == "by_opponents_creatures":  # Obscuring Haze
+            return source is not None and "Creature" in source.card.type_line and self.controller_of(source) not in (seat, None)
+        if kind == "to_and_by":  # Maze of Ith
+            return subject is not None and (target is subject or source is subject)
+        if kind == "by":  # Restrain, Kor Haven
+            return subject is not None and source is subject
+        raise ValueError(f"unknown prevention {kind}")
 
     def _use_shields(self, target: Seat | Permanent, used: int) -> None:
         """Use up `used` points of the shields on `target`, in the order they were made."""

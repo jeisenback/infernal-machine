@@ -972,3 +972,13 @@ class ReturnAllFromGraveyard:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.return_all_from_graveyard(controller, self.kind, self.to, self.tapped)
+
+
+@dataclass(frozen=True)
+class TargetShufflesGraveyard:
+    """Blessed Respite: "Target player shuffles their graveyard into their library." """
+    target: str = "player"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.shuffle_into_library(target, [game.graveyard_target(card, target) for card in target.graveyard])

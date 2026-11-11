@@ -592,3 +592,39 @@ class EachPlayerFetchesBasicLand:
 class _LifeForEachDestroyed:
     """ "You gain 1 life for each creature destroyed this way." (Fumigate): folded into the DestroyAll before it."""
     life: int
+
+
+@dataclass(frozen=True)
+class PreventThisTurn:
+    """ "Prevent all damage that would be dealt to you this turn." (Riot Control) and its kin, by `kind`: "to_you", "to_players" (combat:
+    Commencement of Festivities), "to_your_creatures" (Divine Light), "by_opponents_creatures" (Obscuring Haze). See Game.prevention_rules."""
+    kind: str
+    combat: bool = False  # combat damage only
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.prevent_this_turn(controller, self.kind, None, self.combat)
+
+
+@dataclass(frozen=True)
+class PreventTargetThisTurn:
+    """Restrain, Kor Haven: "Prevent all combat damage that would be dealt by target attacking creature this turn." """
+    target: str
+    kind: str = "by"
+    combat: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.prevent_this_turn(controller, self.kind, target, self.combat)
+
+
+@dataclass(frozen=True)
+class PreventThatCreatureThisTurn:
+    """Maze of Ith: "Untap target attacking creature. Prevent all combat damage that would be dealt to and dealt by that creature this turn."
+    (the creature the sentence before targeted)"""
+    binds = PREVIOUS_TARGET
+    kind: str = "to_and_by"
+    combat: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.prevent_this_turn(controller, self.kind, target, self.combat)

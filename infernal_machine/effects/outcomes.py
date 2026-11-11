@@ -437,6 +437,9 @@ from .families.library_and_hand import (  # noqa: F401
     _card_matches_kind,
 )
 from .families.life_and_damage import (  # noqa: F401
+    PreventThisTurn,
+    PreventTargetThisTurn,
+    PreventThatCreatureThisTurn,
     _LifeForEachDestroyed,
     DamageEachOtherOpponent,
     EachPlayerFetchesBasicLand,
@@ -504,6 +507,7 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    TargetShufflesGraveyard,
     ExileOpponentsGraveyards,
     PutSelfOnLibraryBottom,
     ReturnAllFromGraveyard,
@@ -3104,6 +3108,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"prevent all damage that would be dealt by creatures this turn\.", re.I), lambda m: PreventAllCreatureDamage()),  # Ethereal Haze
     (re.compile(r"search your library for an instant card or a card with flash, reveal it, put it into your hand, then shuffle\.", re.I),
      lambda m: SearchLibrary("instant or flash", "hand", True)),  # Mystical Teachings
+    (re.compile(r"target player shuffles their graveyard into their library\.", re.I), lambda m: TargetShufflesGraveyard()),  # Blessed Respite
     (re.compile(r"you shuffle up to (\w+) cards from your graveyard into your library\.", re.I),
      lambda m: ShuffleFromGraveyard(_number(m[1]))),  # Stream of Thought
     (re.compile(r"each player who controls a permanent named CARDNAME draws a card\.", re.I), lambda m: EachWithNamedDraws()),  # Bonder's Ornament
@@ -3243,6 +3248,17 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PreventNext(ALL_DAMAGE, "creature")),
     (re.compile(r"prevent all combat damage that would be dealt to you this turn\.", re.I),
      lambda m: PreventCombatDamageToYou()),
+    (re.compile(r"prevent all damage that would be dealt to you this turn\.", re.I), lambda m: PreventThisTurn("to_you")),  # Riot Control
+    (re.compile(r"prevent all combat damage that would be dealt to players this turn\.", re.I),  # Commencement of Festivities
+     lambda m: PreventThisTurn("to_players", combat=True)),
+    (re.compile(r"prevent all damage that would be dealt this turn to creatures you control\.", re.I),
+     lambda m: PreventThisTurn("to_your_creatures")),  # Divine Light, Sivvi's Ruse
+    (re.compile(r"prevent all damage that would be dealt this turn by creatures your opponents control\.", re.I),
+     lambda m: PreventThisTurn("by_opponents_creatures")),  # Obscuring Haze
+    (re.compile(r"prevent all combat damage that would be dealt by target (attacking creature) this turn\.", re.I),
+     lambda m: PreventTargetThisTurn(m[1].lower())),  # Restrain, Kor Haven
+    (re.compile(r"prevent all combat damage that would be dealt to and dealt by that creature this turn\.", re.I),
+     lambda m: PreventThatCreatureThisTurn()),  # Maze of Ith, after "Untap target attacking creature."
     (re.compile(r'for each 1 damage prevented this way, create (.+)\.("?)', re.I), _token_per_prevented),
     (re.compile(r"(?:then )?you may choose a token you control\.", re.I), lambda m: _ChooseToken()),
     (re.compile(r"if you do, each other token you control becomes a copy of that token( until end of turn)?\.", re.I),
