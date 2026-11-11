@@ -181,6 +181,13 @@ _WHOLE_LINE = re.compile(
     r"|Choose a creature type\. (?:Draw a card for each permanent you control of that type|(?:Destroy|Return) all creatures that aren't "
     r"of the chosen type(?: to their owners' hands)?)\."  # Distant Melody, Kindred Dominance, Raise the Palisade
     r"|Draw a card for each creature you control with a \+1/\+1 counter on it\. Those creatures gain [a-z ,]+ until end of turn\."  # Inspiring Call
+    r"|Search your library for an? [a-z]+ or [a-z]+ (?:instant|sorcery) card with mana value \d+ or less and cast that card without paying its "
+    r"mana cost\. Then shuffle\."  # Sunforger
+    r"|Look at that many cards from the top of your library\. You may exile a nonland card from among them\. Put the rest on the bottom of "
+    r"your library in a random order\. You may cast the exiled card without paying its mana cost\."  # The Key to the Vault
+    r"|Counter target spell\. Choose 1, 2, or 3 at random\. Its controller mills that many cards, then exiles cards from the top of their "
+    r"library until they exile a nonland card with a different name than that spell\. They may cast that card without paying its mana cost\. "
+    r"Then they put the exiled cards on the bottom of their library in a random order\."  # Tibalt's Trickery
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
     r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"  # Party Thrasher, Inti: the rest of the line is what it does
     r"|Each player looks at the top \w+ cards of their library and may reveal a land card and/or an instant or sorcery card from "

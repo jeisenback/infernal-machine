@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
-from ..targets import PLAYER, SOURCE, SUBJECT
+from ..targets import PLAYER, PREVIOUS_TARGET, SOURCE, SUBJECT
 from ...prompts import PromptKind
 
 if TYPE_CHECKING:
@@ -123,6 +123,38 @@ class LookTopCastFreeOnce:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.look_top_cast_free_once(controller, target)
+
+
+@dataclass(frozen=True)
+class TibaltsTrickery:
+    """Tibalt's Trickery, after "Counter target spell.": "Choose 1, 2, or 3 at random. Its controller mills that many cards, then exiles
+    cards from the top of their library until they exile a nonland card with a different name than that spell. They may cast that card
+    without paying its mana cost. Then they put the exiled cards on the bottom of their library in a random order." (the spell countered)"""
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game.tibalts_trickery(target.controller, target.card.name)
+
+
+@dataclass(frozen=True)
+class LookTopExileCastFree:
+    """The Key to the Vault: "look at that many cards from the top of your library. You may exile a nonland card from among them. Put the
+    rest on the bottom of your library in a random order. You may cast the exiled card without paying its mana cost." """
+    count: int | str  # "X": the combat damage the trigger saw
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.look_top_exile_cast_free(controller, game.amount(self.count))
+
+
+@dataclass(frozen=True)
+class SearchCastFree:
+    """Sunforger: "Search your library for a red or white instant card with mana value 4 or less and cast that card without paying its
+    mana cost. Then shuffle." """
+    kind: str  # what the game matches library cards against ("red instant or white instant|mv<=4")
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.search_cast_free(controller, self.kind)
 
 
 @dataclass(frozen=True)
