@@ -1494,6 +1494,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "... to attacking creatures you control.", "Prevent all noncombat damage that would be dealt to you and other permanents you control."
     (The Wanderer), "... to you and creatures you control." (Blessed Sanctuary), "... to other creatures you control." (Tajic), and
     "Combat damage can't be prevented." (Frenzied Baloth). "Target player shuffles their graveyard into their library." (Blessed Respite).
+  - Damage prevention, second slice (`tests/test_damage_prevention_2.py`, #235): the Circles and Runes of Protection's "The next time a
+    red (artifact) source of your choice would deal damage to you this turn, prevent that damage." and Story Circle's "... a source of
+    your choice of the chosen color ..." (`Game.shield_from_source`: a permanent or a spell on the stack of that quality is chosen as it
+    resolves, and its next damage to you this turn is prevented once, CR 615.7); statics that prevent part of the damage
+    (`Game._partial_prevention`, ordered with doubling by the affected player): Gisela's "prevent half that damage, rounded up" to you and
+    your permanents, Guardian Seraph's "prevent 1 of that damage" from an opponent's source, and Temple Altisaur's "prevent all but 1 of
+    that damage" to another Dinosaur you control. None of them applies to damage that can't be prevented (`Game._unpreventable`).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
