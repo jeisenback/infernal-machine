@@ -412,7 +412,8 @@ class ManaPayer:
             chosen = [available[j] for j in chosen_here]
             paid = {available[j]: symbol for j, symbol in paid_here.items()}
             used += [(pool[i], paid.get(i)) for i in chosen]
-            pool = [s for i, s in enumerate(pool) if i not in chosen] + [ManaSource(permanent, mana) for mana in units]
+            # Tapped for this ability, it can't also tap for its plain mana (a filter land's "{T}: Add {C}"; CR 107.5).
+            pool = [s for i, s in enumerate(pool) if i not in chosen and s.permanent is not permanent] + [ManaSource(permanent, mana) for mana in units]
         paid = {}
         chosen = pay(cost, [s.types for s in pool], paid)
         if chosen is None:
