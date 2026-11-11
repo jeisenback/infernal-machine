@@ -1,6 +1,6 @@
 """Does every card the report calls fully playable actually play? (the second half of the coverage audit)
 
-    python tools/play_smoke.py [--pool .cache/commander_pool.json] [--limit N]
+    python tools/play_smoke.py [--pool .cache/commander_pool.json] [--limit N] [--workers N]
 
 For each Commander-legal card whose lines the engine understands, builds a small game (twelve lands, a creature of each side,
 something in each graveyard), casts or plays the card, runs the stack, then activates up to three of its abilities, always taking
@@ -268,14 +268,34 @@ def check(pool: list[dict], limit: int | None = None) -> tuple[int, int, dict[st
     return tried, cast, errors
 
 
+def check_parallel(pool: list[dict], workers: int = 0) -> tuple[int, int, dict[str, list[str]]]:
+    """`check` over the pool in chunks across processes (`workers` 0: one for each processor, 1: none); each process keeps its own
+    time limit, and the results are the same as one process's."""
+    workers = workers or min(os.cpu_count() or 1, 8)
+    if workers == 1:
+        return check(pool)
+    from concurrent.futures import ProcessPoolExecutor
+
+    size = -(-len(pool) // (workers * 4))
+    tried = cast = 0
+    errors: dict[str, list[str]] = collections.defaultdict(list)
+    with ProcessPoolExecutor(workers) as executor:
+        for chunk_tried, chunk_cast, chunk_errors in executor.map(check, [pool[i:i + size] for i in range(0, len(pool), size)]):
+            tried, cast = tried + chunk_tried, cast + chunk_cast
+            for message, cards in chunk_errors.items():
+                errors[message].extend(cards)
+    return tried, cast, errors
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pool", default=".cache/commander_pool.json")
-    parser.add_argument("--limit", type=int, help="only the first N playable cards")
+    parser.add_argument("--limit", type=int, help="only the first N playable cards (in one process)")
+    parser.add_argument("--workers", type=int, default=0, help="processes that play the cards (0: one for each processor, 1: none)")
     args = parser.parse_args(argv[1:])
     with open(args.pool) as f:
         pool = json.load(f)
-    tried, cast, errors = check(pool, args.limit)
+    tried, cast, errors = check(pool, args.limit) if args.limit is not None else check_parallel(pool, args.workers)
     failed = sum(len(cards) for cards in errors.values())
     print(f"## Play smoke test: {tried - failed} of {tried} fully playable cards played without an error ({cast} could be cast or played)")
     for message, cards in sorted(errors.items(), key=lambda kv: -len(kv[1])):
