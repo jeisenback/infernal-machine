@@ -30,8 +30,9 @@ winner = game.play()
   - Twobrid symbols ({2/W}) are paid with one mana of that color if possible, otherwise with two mana of any kind.
   - {S} (snow) is paid by mana from a snow permanent ("Snow-Covered Forest"), which still makes its normal color.
   Signet-style abilities ("{1}, {T}: Add {W}{U}.") are used when plain sources aren't enough. One Signet can pay
-  another's {1} (but never its own). A Signet's cost is paid with the first mana that fits, so a chain of Signets
-  can occasionally miss a payment that a different choice would have found.
+  another's {1} (but never its own). A Signet's cost is paid with mana of colors the spell doesn't need where it can
+  (Cabal Stronghold's {3} from the Forests, leaving the Swamps for the spell's {B}s), otherwise with the first mana that
+  fits, so a chain of Signets can occasionally miss a payment that a different choice would have found.
   Lands with "{T}, Pay 1 life: Add {G} or {W}." (Horizon lands) pay life for each tap, like Mana Confluence, and are
   not used at 1 life or less.
   Their own cost is always paid by a plain source.

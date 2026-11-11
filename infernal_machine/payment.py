@@ -412,7 +412,8 @@ class ManaPayer:
             # Its own cost is paid by other permanents: a filter can't tap for mana to pay for its own ability.
             available = [i for i, s in enumerate(pool) if s.permanent is not permanent]
             paid_here: dict[int, frozenset[str]] = {}
-            chosen_here = pay(activation, [pool[i].types for i in available], paid_here)
+            # ... with mana of colors the cost doesn't need, if it can (Cabal Stronghold's {3} from Forests, not the Swamps)
+            chosen_here = pay(activation, [pool[i].types for i in available], paid_here, cost.colors())
             if chosen_here is None:
                 return None
             chosen = [available[j] for j in chosen_here]
