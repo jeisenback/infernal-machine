@@ -17,7 +17,7 @@ from .cards import Card, has_keyword
 from .effects import (rules_statics, additional_land_mana, charge_mana, chosen_color_mana, counter_mana, counter_removal_mana, filter_mana_ability,
                       granted_land_mana, granted_mana, group_mana_grants, has_next_x_rider, is_identity_mana_land, land_mana_units,
                       makes_mana_by_power, mana_ability, mana_ability_needs_no_tap, mana_ability_sacrifices, mana_among_legendary,
-                      mana_bonus, mana_by_amount, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
+                      mana_bonus, mana_by_amount, mana_by_count, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
                       mana_of_imprinted, mana_pain, mana_per_color, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
                       tap_mana, with_granted_mana)
 from .filters import has_type, matches, parse_filter
@@ -134,11 +134,17 @@ class ManaPayer:
             if not is_land(permanent.card) and self.game._ability_barred(permanent, mana=True):
                 continue  # Stony Silence, Grand Abolisher: its mana ability can't be activated either
             card = permanent.card
-            if grants and not is_land(card) and (given := tuple(line for kind, line in grants if kind in card.type_line)):
+            if grants and not is_land(card) and (given := tuple(line for kind, line in grants if has_type(card, kind))):
                 card = with_granted_mana(card, given)  # Goldspan Dragon, Galazeth Prismari
             pain, damage = mana_pain(card) or (frozenset(), 0)
             if (condition := mana_condition(card)) and not self.game.condition_holds(condition, seat, permanent):
                 continue  # "Activate only if you control five or more lands."
+            if (by := mana_by_count(card)) is not None:  # Gyre Sage, Marwyn: as much as an amount (Cabal Stronghold costs mana: see below)
+                if not by[0] and not self.game.summoning_sick(seat, permanent):
+                    lands.extend(own(permanent, [ManaSource(permanent, frozenset(by[1]))
+                                                 for _ in range(self.game.evaluate_for(by[2], seat, permanent))]))
+                if not by[0] or mana_ability(card, seat.color_identity) is None:
+                    continue
             if (per := mana_per_count(card)) is not None:  # Gaea's Cradle: as much as you control
                 if not per[0] and not self.game.summoning_sick(seat, permanent):
                     lands.extend(own(permanent, [ManaSource(permanent, frozenset(per[1]))
@@ -465,6 +471,10 @@ class ManaPayer:
             if ability:
                 times, extra = self._tap_extra(effects, permanent, ability[1]) if (effects := self._tap_mana_effects(seat)) else (1, [])
                 found.append((permanent, parse_cost(ability[0]), [mana for mana in ability[1] for _ in range(times)] + extra))
+            elif (count := mana_by_count(permanent.card)) is not None and count[0]:  # Cabal Stronghold, Crypt of Agadeem
+                units = [frozenset(count[1])] * self.game.evaluate_for(count[2], seat, permanent)
+                if units:
+                    found.append((permanent, parse_cost(count[0]), units))
             elif (by := mana_by_amount(permanent.card)) is not None:  # Selvala: X of any colors, X worked out now
                 units = [frozenset("WUBRG")] * self.game.evaluate(by[1], seat)
                 if units:

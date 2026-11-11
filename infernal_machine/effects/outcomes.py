@@ -314,7 +314,6 @@ from .families.exile_and_return import (  # noqa: F401
     PlayExiledCard,
     PutExiledWithIntoGraveyard,
     RETURN_LAND_PROMPT,
-    ReturnAllFromGraveyard,
     ReturnAllToHand,
     ReturnAuraToBattlefield,
     ReturnChosen,
@@ -502,6 +501,9 @@ from .families.mana import (  # noqa: F401
     _ManaForEachDestroyed,
 )
 from .families.spells_and_misc import (  # noqa: F401
+    ExileOpponentsGraveyards,
+    PutSelfOnLibraryBottom,
+    ReturnAllFromGraveyard,
     CONSULT_NAME_PROMPT,
     ORACLE_TOP_PROMPT,
     PACT_TAKE_PROMPT,
@@ -1299,6 +1301,8 @@ _AMOUNTS = [
                 re.I), lambda m: Amount("source_counters", _counter_name(m[1].lower()))),
     (re.compile(r"the number of instant and sorcery cards in your graveyard plus the number of cards with flashback you own in exile", re.I),
      lambda m: Amount("spells_and_exiled_flashback")),  # Seize the Storm
+    (re.compile(r"(?:the number of )?((?:white|blue|black|red|green) creature) cards? in your graveyard", re.I),
+     lambda m: Amount("graveyard", m[1].lower())),  # Crypt of Agadeem
     (re.compile(r"(?:the number of )?(?:(creature|land|artifact|enchantment|instant|sorcery|planeswalker) )?cards? in your graveyard",
                 re.I), lambda m: Amount("graveyard", (m[1] or "card").lower())),
     (re.compile(r"(?:the number of )?creatures? on the battlefield", re.I), lambda m: Amount("on_battlefield", "creature")),
@@ -1327,6 +1331,10 @@ _AMOUNTS = [
     (re.compile(r"the number of colors that spell is", re.I), lambda m: Amount("spell_colors")),
     (re.compile(r"the number of cards in all graveyards with the same name as that spell", re.I),
      lambda m: Amount("graveyards_same_name")),
+    (re.compile(r"(?:the number of )?((?:colorless|white|blue|black|red|green) creature|basic (?-i:[A-Z][a-z]+))s? you control", re.I),
+     lambda m: Amount("you_control_matching", m[1].lower())),  # Tomb of the Spirit Dragon, Cabal Stronghold
+    (re.compile(r"(?:the number of )?creatures? you control with power (\d+) or greater", re.I),
+     lambda m: Amount("power_at_least", m[1])),  # Shamanic Revelation
     (re.compile(r"(?:the number of )?([A-Za-z]+) you control", re.I), lambda m: Amount("you_control", _singular(m[1]))),
 ]
 
@@ -1366,10 +1374,10 @@ _MASS_KEYWORDS = (r"(?:flying|reach|trample|haste|vigilance|menace|deathtouch|li
                   r"|defender|indestructible|hexproof)")
 
 
-_RESTRICTION = rf"(with (?:power|toughness|mana value) \d+ or (?:greater|less)|with {_MASS_KEYWORDS}|without {_MASS_KEYWORDS})"
+_RESTRICTION = rf"(with (?:power|toughness|mana value) \d+ or (?:greater|less)|with {_MASS_KEYWORDS}|without {_MASS_KEYWORDS}|with no counters on them)"
 
 
-_COLOR_ADJECTIVE = r"(?:(non)?(white|blue|black|red|green|token|legendary|basic|tapped|untapped|attacking) )?"
+_COLOR_ADJECTIVE = r"(?:(non)?(white|blue|black|red|green|token|legendary|basic|tapped|untapped|attacking|(?<=non)artifact) )?"
 
 
 _STAT_RESTRICTION = re.compile(r"with (power|toughness|mana value) (\d+) or (greater|less)")
@@ -1405,13 +1413,17 @@ def _mass_filter(non: str | None, color: str | None, restriction: str | None, to
     fields: dict[str, Any] = {}
     if color and color.lower() in _COLOR_WORDS:
         fields.update(color=_COLOR_WORDS[color.lower()], other_color=bool(non))
+    elif color and color.lower() == "artifact":  # Organic Extinction: "all nonartifact creatures" spares the artifact ones
+        fields["exclude"] = MassFilter(has_type="Artifact")
     elif color:
         wanted = not non and color.lower() != "untapped"
         fields[_TRAITS[color.lower()]] = wanted
     if tokens:
         fields["token"] = True
     if restriction:
-        if m := _STAT_RESTRICTION.fullmatch(restriction.lower()):
+        if restriction.lower() == "with no counters on them":  # Damning Verdict
+            fields["counters"] = False
+        elif m := _STAT_RESTRICTION.fullmatch(restriction.lower()):
             fields.update(stat=m[1].replace(" ", "_"), **{"at_least" if m[3] == "greater" else "at_most": int(m[2])})
         else:
             fields.update(keyword=restriction.lower().split(" ", 1)[1], keyword_wanted=restriction.lower().startswith("with "))
@@ -1665,6 +1677,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|creature, enchantment, or planeswalker|non-outlaw creature"  # Get Lost; Shoot the Sheriff
                    r"|artifact, enchantment, or land|legendary permanent|multicolored permanent"  # Acidic Slime; Minamo; Null Elemental Blast
                    r"|monocolored permanent|(?:white|blue|black|red|green) permanent|creature token|nontoken creature|attacking creature|tapped creature|untapped creature"
+                   r"|nonartifact, non(?:white|blue|black|red|green) creature"  # Shriekmaw
                    r"|non(?:white|blue|black|red|green|artifact|legendary) creature|noncreature artifact or noncreature enchantment"
                    r"|noncreature, nonland permanent|non-(?-i:[A-Z][a-z]+), nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
                    r"|artifact, creature, or enchantment|creature|artifact"
@@ -1794,6 +1807,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"draw {_N} cards?\.", re.I), lambda m: Draw(_count(m[1]))),
     (re.compile(r"draw an additional card\.", re.I), lambda m: Draw(1)),
     (re.compile(rf"(?:you )?gain {_N} life\.", re.I), lambda m: GainLife(_count(m[1]))),
+    (re.compile(r"(?:you )?gain ([2-9]X) life\.", re.I), lambda m: GainLife(m[1])),  # "gain 4 life for each ...", read as 4X
     (re.compile(r"exile a nonartifact, nonland card from your hand\.", re.I), lambda m: ImprintFromHand()),
     (re.compile(r"exile an instant card with mana value (\d+) or less from your hand\.", re.I),
      lambda m: ImprintFromHand(int(m[1]))),  # Isochron Scepter
@@ -2255,8 +2269,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnAllToHand(f"non-{m[1]} creature")),
     (re.compile(rf"return (five|six|seven) target {_PLURAL_KIND} to their owners' hands\.", re.I),  # Aether Gale: exactly that many
      lambda m: [ReturnToHand(_PLURAL_KINDS[m[2].lower()] + _suffix(m[3]), distinct=n > 0) for n in range(_number(m[1]))]),
-    (re.compile(rf"return all {_CARDS_PLURAL} from your graveyard to (the battlefield|your hand)\.", re.I),
-     lambda m: ReturnAllFromGraveyard(_card_kind(re.sub(r"\bcards\b", "card", m[1])), "battlefield" if m[2].lower() == "the battlefield" else "hand")),
+    (re.compile(rf"return all {_CARDS_PLURAL} from your graveyard to (the battlefield|your hand)( tapped)?\.", re.I),  # Splendid Reclamation: tapped
+     lambda m: ReturnAllFromGraveyard(_card_kind(re.sub(r"\bcards\b", "card", m[1])), "battlefield" if m[2].lower() == "the battlefield" else "hand",
+                                      bool(m[3]))),
     (re.compile(rf"return all {_MASS_FILTERED} to (?:their owners' hands|their owner's hand)\.", re.I), lambda m: _mass_effect(ReturnAllToHand, m)),
     (re.compile(rf"return {_UP_TO} target {_CARDS_PLURAL} from your graveyard to your hand\.", re.I),
      lambda m: [ReturnFromGraveyard(_graveyard_kind(m[2].replace("cards", "card", 1), "yours"), "hand",
@@ -2423,6 +2438,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnFromGraveyard(f"graveyard:{m[2].lower()}|mv<=power:yours", "battlefield", optional_target=bool(m[1]))),
     (_RETURN_UP_TO_DAMAGE, lambda m: ReturnFromGraveyard("graveyard:creature|mv<=x:yours", "battlefield")),  # Venerable Warsinger
     (re.compile(r"exile all (?:cards from all )?graveyards\.", re.I), lambda m: ExileAllGraveyards()),
+    (re.compile(r"exile each opponent's graveyard\.", re.I), lambda m: ExileOpponentsGraveyards()),
     (re.compile(r"each opponent loses all counters\.", re.I), lambda m: OpponentsLoseCounters()),
     (re.compile(r"you lose all but 1 life\.", re.I), lambda m: LoseAllButOneLife()),
     (re.compile(r"you gain life equal to the life you lost when it entered\.", re.I), lambda m: GainLifeItLost()),
@@ -2869,6 +2885,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"target player takes two extra turns after this one\.", re.I), lambda m: TargetExtraTurn(count=2)),  # Time Stretch
     (re.compile(r"you become the monarch\.", re.I), lambda m: BecomeMonarch()),
     (re.compile(rf"return (?:{_SELF}|this card) to its owner's hand\.", re.I), lambda m: ReturnSelfToHand()),
+    (re.compile(rf"put {_SELF} on the bottom of its owner's library\.", re.I), lambda m: PutSelfOnLibraryBottom()),  # Murderous Rider
     (re.compile(r"tap all creatures your opponents control\.", re.I), lambda m: TapAll()),
     (re.compile(r"tap all creatures target player controls\.", re.I), lambda m: TapAll("player")),  # Naya Charm
     (re.compile(r"investigate\.", re.I), lambda m: CreateTokens(1, CLUE)),
@@ -3127,6 +3144,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"(?i:all creatures) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), everyone=True)),
     (re.compile(rf"(?i:all (non-[A-Z][a-z]+) creatures) {_CHANGE}"),  # Noxious Ghoul: "all non-Zombie creatures get -1/-1 ..."
      lambda m: PumpEach(_modifier(m, 2), everyone=True, subtype=m[1])),
+    (re.compile(rf"(?i:all) ((?-i:[A-Z][a-z]+))s {_CHANGE}"),  # Lord of the Accursed: "All Zombies gain menace until end of turn.", every player's
+     lambda m: PumpEach(_modifier(m, 2), everyone=True, subtype=_singular(m[1] + "s"))),
     (re.compile(rf"move (?:{_N_FIXED}|all|any number of) {_COUNTER} from target (creature) onto another target (creature)"
                 r"( with the same controller)?\.", re.I),
      lambda m: [MoveCountersFrom(m[3].lower()),
@@ -3233,6 +3252,7 @@ _TIMES_X = [
     (r"\b(draws?) (?:a card|cards)\b", r"\1 X cards"),
     (r"\b(mills?) (?:a card|cards)\b", r"\1 X cards"),
     (r"\b(gains?|loses?) (?:1 )?life\b", r"\1 X life"),
+    (r"\b(gains?) ([2-9]) life\b", r"\1 \2X life"),  # Shamanic Revelation: "You gain 4 life for each ..."
     (r"\b(deals?) 1 damage\b", r"\1 X damage"),  # Lotleth Giant: "deals 1 damage to target opponent for each creature card in your graveyard"
     (r"\b(creates?) a token that's a copy\b", r"\1 X tokens that are copies"),  # Mirror March
     (r"\b(creates?) (?:a|an|one) (.+?) token\b", r"\1 X \2 tokens"),
@@ -3361,7 +3381,14 @@ def _template(sentence: str) -> Any:
         effect = build(match) if match else None
         if effect is not None:
             return effect
+    if m := _UNTIL_EOT_FIRST.fullmatch(sentence):  # Triumph of the Hordes: "Until end of turn, creatures you control get ... and gain ..."
+        return _template(f"{m[1][0].upper()}{m[1][1:]} until end of turn.")
     return _delayed_trigger(sentence)
+
+
+# "Until end of turn, <a pump>." says what "<a pump> until end of turn." says; only a sentence that gets or gains is moved, and never
+# one that sets up a trigger or a permission for the turn ("Until end of turn, whenever ...", "Until end of turn, you may ...").
+_UNTIL_EOT_FIRST = re.compile(r"until end of turn, ((?!.*\b(?:whenever|you may|until)\b)[^.]* (?:gets?|gains?) [^.]*)\.", re.I)
 
 
 def _merge_hand_discard(effects: list) -> list | None:
@@ -3676,6 +3703,9 @@ _CONDITIONS = [
     (re.compile(rf"a player has {_N_FIXED} or fewer cards in hand"), lambda m: Condition("any_hand_at_most", _number(m[1]))),
     (re.compile(r"an opponent has more cards in hand than you"), lambda m: Condition("opponent_more_cards")),
     (re.compile(rf"an opponent has {_N_FIXED} or less life"), lambda m: Condition("opponent_life_at_most", _number(m[1]))),
+    (re.compile(r"you have (\d+) or more life"), lambda m: Condition("life_at_least", int(m[1]))),  # Felidar Sovereign, Serra Ascendant
+    (re.compile(rf"you have exactly {_N_FIXED} cards in your hand"), lambda m: Condition("hand_exactly", _number(m[1]))),  # Triskaidekaphile
+    (re.compile(r"you control a legendary creature"), lambda m: Condition("control_at_least", 1, "legendary creature")),  # Rivendell
 ]
 
 
@@ -3695,7 +3725,7 @@ def _condition(text: str) -> Condition | None:
     return None
 
 
-_SPELL_MASTERY = re.compile(r"^(?:Spell mastery|Domain|Delirium) \u2014 ")  # the condition stays in the sentence; an ability word is only a label (CR 207.2c)
+_SPELL_MASTERY = re.compile(r"^(?:Spell mastery|Domain|Delirium|Ferocious) \u2014 ")  # the condition stays in the sentence; an ability word is only a label (CR 207.2c)
 
 
 _SPELL_COLORS = re.compile(r"the number of colors that spell is", re.I)  # Mana Cannons

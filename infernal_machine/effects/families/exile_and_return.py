@@ -734,16 +734,6 @@ class ReturnFromGraveyard:
 
 
 @dataclass(frozen=True)
-class ReturnAllFromGraveyard:
-    """Eiganjo Dynastorian's spell: "Return all enchantment cards from your graveyard to the battlefield." (or to your hand)"""
-    kind: str  # a card kind, "enchantment"
-    to: str = "battlefield"
-
-    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.return_all_from_graveyard(controller, self.kind, self.to)
-
-
-@dataclass(frozen=True)
 class ExileFromGraveyard:
     target: str
     if_type: str = ""  # Feral Appetite: "If a creature card is exiled this way, create a ... token": the card type
