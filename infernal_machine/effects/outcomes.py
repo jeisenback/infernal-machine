@@ -268,7 +268,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     _SacrificeThemLater,
 )
 from .families.exile_and_return import (  # noqa: F401
-    ExileThat,
+    ExileThatIf,
     _LeftoversToGraveyard,
     _FreeIfFromGraveyard,
     ExileAttackers,
@@ -3313,7 +3313,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:Threshold \u2014 )?return that card from your graveyard to the battlefield instead if (.+)\.", re.I),  # Stitch Together
      lambda m: _ToBattlefieldInstead(c) if (c := _condition(m[1])) else None),
     (re.compile(r"(?:Metalcraft \u2014 )?if (.+?), exile that creature\.", re.I),  # Dispatch: the creature the sentence before tapped
-     lambda m: Conditional(c, ExileThat()) if (c := _condition(m[1])) else None),
+     lambda m: ExileThatIf(c) if (c := _condition(m[1])) else None),
     (re.compile(r"if (you control an? (?-i:[A-Z])\w+), (?!.*\binstead\.$)(.+)\.", re.I), _if_else),  # Unholy Annex
     (re.compile(r"if (.+?), (?!.*\binstead\.$)(?!.*\b(?:it|its|that|those|them|they|their)\b)(.+)\.", re.I),  # Omnath, Locus of the Roil:
      _if_else),  # any condition read, checked as it resolves; not an effect on what an earlier sentence chose (Rapier Wit's "on it")

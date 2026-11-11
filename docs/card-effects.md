@@ -1513,8 +1513,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (`Pump.instead`); and Warstorm Surge and Be'lakor's "Whenever a creature (another Demon) you control enters, it deals damage equal to
     its power to any target.": the creature that entered deals it, so its deathtouch and lifelink count (`Amount("subject_power")`).
   - Ability-word conditions, batch 1 (`tests/test_ability_word_conditions.py`): Dispatch's "Metalcraft — If you control three or more
-    artifacts, exile that creature." (`Conditional` around `ExileThat`, the creature the first sentence tapped; a `Conditional` now passes a
-    previous-target binding through); Puresteel Paladin's "Equipment you control have equip {0} as long as ..." (`free_equip_while`: while
+    artifacts, exile that creature." (`ExileThatIf`: the creature the first sentence tapped, exiled
+    only if the condition holds as it resolves); Puresteel Paladin's "Equipment you control have equip {0} as long as ..." (`free_equip_while`: while
     it holds, any equip ability may be paid with {0}, CR 702.6); Demonic Counsel and Traverse the Ulvenwald's "Delirium — If ..., instead
     search your library for ..." (the second search replaces the first: an `IfElse`; "a creature or land card" is a search kind);
     Stitch Together's "Threshold — Return that card from your graveyard to the battlefield instead if ..." (`ReturnFromGraveyard.battlefield_if`);

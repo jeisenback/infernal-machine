@@ -116,12 +116,14 @@ class PlayExiled:
 
 
 @dataclass(frozen=True)
-class ExileThat:
-    """Dispatch: "... exile that creature.": the target of the effect before it (here inside a Conditional)."""
+class ExileThatIf:
+    """Dispatch: "Metalcraft \u2014 If you control three or more artifacts, exile that creature.": the target of the effect before it,
+    exiled only if the condition holds as it resolves."""
+    condition: Condition
     binds = PREVIOUS_TARGET
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        if target is not None:
+        if target is not None and game.condition_holds(self.condition, controller, game.resolving_source):
             game.exile_noting(target, game.resolving_source)
 
 

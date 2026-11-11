@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
-from ..targets import DEAD_SUBJECT, PLAYER, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind
+from ..targets import DEAD_SUBJECT, PLAYER, SOURCE, SOURCE_AND_SUBJECT, SUBJECT, binding, target_kind
 from .base import Condition
 if TYPE_CHECKING:
     from ...game import Game, Seat
@@ -45,7 +45,7 @@ class Conditional:
 
     @property
     def binds(self) -> str | None:
-        return found if (found := binding(self.effect)) in (SOURCE, SUBJECT, PLAYER, PREVIOUS_TARGET) else None
+        return found if (found := binding(self.effect)) in (SOURCE, SUBJECT, PLAYER) else None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if game.condition_holds(self.condition, controller, game.resolving_source):
