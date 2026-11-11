@@ -235,6 +235,7 @@ from .families.counters import (  # noqa: F401
     _PutCountersAndAttach,
 )
 from .families.destroy_and_sacrifice import (  # noqa: F401
+    PutTargetOnLibraryTop,
     ChosenTypeEffect,
     CHOOSE_TYPE_PROMPT,
     CannotRegenerate,
@@ -594,6 +595,7 @@ from .families.spells_and_misc import (  # noqa: F401
     _TokenAttacksThisCombat,
 )
 from .families.free_casting import (  # noqa: F401
+    RevealTopCastIfLesser,
     ExileTopOfTargetMayCast,
     ExileTopOfOpponentChooseOne,
     ExileTopOfEachOpponentMayCast,
@@ -2442,6 +2444,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"return a (land|creature) you control to its owner's hand\.", re.I), lambda m: ReturnOwnLand(m[1].capitalize())),  # Whitemane Lion
     (re.compile(r"add ((?:\{[WUBRGC]\})+)\.", re.I),
      lambda m: AddMana(tuple(frozenset(symbol) for symbol in re.findall(r"[WUBRGC]", m[1].upper())))),
+    (re.compile(rf"put target {_PERMANENT_KIND} on top of its owner's library\.", re.I), lambda m: PutTargetOnLibraryTop(m[1].lower())),  # Submerge
     (re.compile(r"put target card from a graveyard on top of its owner's library\.", re.I),
      lambda m: ReturnFromGraveyard("graveyard:card:any", "library_top")),  # Noxious Revival
     (_RETURN_UP_TO_POWER, lambda m: ReturnFromGraveyard("graveyard:nonland permanent|mv<=power:yours", "battlefield")),
@@ -2680,6 +2683,16 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"look at the top {_N_FIXED} cards of your library\. You may cast a spell from among them without paying its mana cost\. "
                 r"Put the rest on the bottom of your library in a random order\.", re.I),
      lambda m: LookTopCastOneFree(_number(m[1]))),  # Aetherworks Marvel
+    (re.compile(r"reveal the top X cards of your library, where X is that spell's mana value\. You may cast a spell with mana value X or "
+                r"less from among cards revealed this way without paying its mana cost\. Put the rest on the bottom of your library in a "
+                r"random order\.", re.I), lambda m: [DefineX(Amount("spell_mana_value")), LookTopCastOneFree("X", "X")]),  # Sunbird's Invocation
+    (re.compile(rf"look at the top {_N_FIXED} cards of your library\. You may cast a spell from among them with mana value less than or "
+                r"equal to the greatest power among attacking creatures you control without paying its mana cost\. Put the rest on the "
+                r"bottom of your library in a random order\.", re.I),  # Cosmic Cube
+     lambda m: [DefineX(Amount("greatest_attacking_power")), LookTopCastOneFree(_number(m[1]), "X")]),
+    (re.compile(r"reveal the top card of your library\. You may cast it without paying its mana cost if it's a spell with lesser mana "
+                r"value\. If you don't cast it, put it into your hand\.", re.I),
+     lambda m: RevealTopCastIfLesser(Amount("spell_mana_value"))),  # Rashmi, Eternities Crafter: lesser than the spell cast
     (re.compile(r"shuffle your library(?:\. Then|, then) exile the top card(?: of your library)?\. Until end of turn, you may play that card without "
                 r"paying its mana cost\.", re.I), lambda m: ShuffleExileTopPlayFree()),  # Mind's Desire
     (re.compile(r"exile cards from the top of your library until you exile a nonland card\. You may cast it without paying its mana cost "

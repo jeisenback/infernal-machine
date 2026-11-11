@@ -129,10 +129,21 @@ class LookTopCastFreeOnce:
 class LookTopCastOneFree:
     """Aetherworks Marvel: "Look at the top six cards of your library. You may cast a spell from among them without paying its mana cost.
     Put the rest on the bottom of your library in a random order." """
-    count: int
+    count: int | str  # "X": Sunbird's Invocation, the mana value of the spell that set it off
+    most: int | str | None = None  # "a spell with mana value X or less" (Sunbird's Invocation, Cosmic Cube)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.look_top_cast_one_free(controller, self.count)
+        game.look_top_cast_one_free(controller, game.amount(self.count), None if self.most is None else game.amount(self.most))
+
+
+@dataclass(frozen=True)
+class RevealTopCastIfLesser:
+    """Rashmi, Eternities Crafter: "reveal the top card of your library. You may cast it without paying its mana cost if it's a spell with
+    lesser mana value. If you don't cast it, put it into your hand." (lesser than the spell that set the trigger off)"""
+    amount: Any  # the Amount of that spell's mana value
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.reveal_top_cast_if_lesser(controller, game.evaluate(self.amount, controller))
 
 
 @dataclass(frozen=True)

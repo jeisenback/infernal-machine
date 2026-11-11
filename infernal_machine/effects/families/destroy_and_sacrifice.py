@@ -327,3 +327,13 @@ class ChosenTypeEffect:
             game.destroy_all(others, caster=controller)
         else:
             game.return_all_to_hand(others)
+
+
+@dataclass(frozen=True)
+class PutTargetOnLibraryTop:
+    """Submerge: "Put target creature on top of its owner's library." (a token just ceases to exist)"""
+    target: str
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            game.put_on_library_top(target)

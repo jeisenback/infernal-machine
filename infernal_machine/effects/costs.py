@@ -87,6 +87,7 @@ class AlternativeCost:
     blitz: bool = False  # CR 702.152: haste, "When this creature dies, draw a card.", sacrificed at the next end step
     warp: bool = False  # exiled at the next end step, and castable from exile on a later turn
     requires: str = ""  # Snuff Out: "If you control a Swamp, ...": a kind of permanent its caster must control
+    opponent_requires: str = ""  # Submerge: "If an opponent controls a Forest ...": a kind of permanent an opponent must control
     returns: str = ""  # Daze: return a permanent of this kind ("Island") you control to its owner's hand ...
     return_count: int = 0  # ... this many of them (Gush: two)
     sacrificed: bool = False  # Fireblast: those permanents are sacrificed instead of returned
@@ -132,6 +133,11 @@ _BUYBACK_OTHER = re.compile(rf"Buyback\u2014(?:Sacrifice an? (land)|Pay {_N_FIXE
 
 
 _FREE_WITH_COMMANDER = re.compile(r"If you control a commander, you may cast this spell without paying its mana cost\.")
+
+
+# Submerge and the Legates: "If an opponent controls a Forest and you control an Island, you may cast this spell without paying its mana cost."
+_FREE_IF_LANDS = re.compile(r"If an opponent controls an? ((?-i:[A-Z][a-z]+)) and you control an? ((?-i:[A-Z][a-z]+)), you may cast this "
+                            r"spell without paying its mana cost\.")
 
 
 _PITCH = re.compile(rf"(If it's not your turn, )?(?i:you) may (?:pay {_N_FIXED} life and )?exile an? ({_COLOR_NAMES}) card "
@@ -580,6 +586,8 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
             continue
         if _FREE_WITH_COMMANDER.fullmatch(line):
             costs.append(AlternativeCost("Cast without paying its mana cost", commander=True))
+        elif m := _FREE_IF_LANDS.fullmatch(line):
+            costs.append(AlternativeCost("Cast without paying its mana cost", requires=m[2], opponent_requires=m[1]))
         elif m := _PITCH.fullmatch(line):
             life = _number(m[2]) if m[2] else 0
             text = f"Pay {life} life and exile a {m[3]} card" if life else f"Exile a {m[3]} card"
@@ -813,7 +821,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
-    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
+    return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
                                            _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _BLITZ, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_DISCARD, _SPLICE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)

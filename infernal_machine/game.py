@@ -2911,6 +2911,8 @@ class Game:
             return sum(has_type(p.card, amount.what) and p is not source for p in controller.battlefield)
         if kind == "power_at_least":  # "for each creature you control with power 4 or greater": its power now
             return sum("Creature" in p.card.type_line and (self.power(p) or 0) >= int(amount.what) for p in controller.battlefield)
+        if kind == "greatest_attacking_power":  # Cosmic Cube: "the greatest power among attacking creatures you control"
+            return max((self.power(p) for p in controller.battlefield if self._in_state(p, "attacking")), default=0)
         if kind == "greatest_power":
             kind_wanted = amount.what.removeprefix("other ")
             return max((self.power(p) for p in controller.battlefield if has_type(p.card, kind_wanted)
@@ -7410,11 +7412,11 @@ class Game:
             source.activated_turn[FREE_TOP] = self.turn
             self._cast(seat, card, seat.library, free=True)
 
-    def look_top_cast_one_free(self, seat: Seat, count: int) -> None:
+    def look_top_cast_one_free(self, seat: Seat, count: int, most: int | None = None) -> None:
         """Aetherworks Marvel: look at the top `count` cards; `seat` may cast a spell from among them without paying its mana cost; the
-        rest go to the bottom in a random order."""
+        rest go to the bottom in a random order. `most`: only a spell with mana value that or less (Sunbird's Invocation, Cosmic Cube)."""
         top = seat.library[:count]
-        spells = [c for c in top if not is_land(c) and not self._cast_barred(seat, c)]
+        spells = [c for c in top if not is_land(c) and not self._cast_barred(seat, c) and (most is None or c.cmc <= most)]
         if spells and (pick := seat.player.choose(CAST_FREE_EXILED_PROMPT, [c.name for c in spells] + [NONE_TAKEN])) < len(spells):
             top.remove(spells[pick])
             self._cast(seat, spells[pick], seat.library, free=True)
@@ -7422,6 +7424,19 @@ class Game:
         del seat.library[:len(top)]
         self.rng.shuffle(rest)
         seat.library.extend(rest)
+
+    def reveal_top_cast_if_lesser(self, seat: Seat, than: int) -> None:
+        """Rashmi, Eternities Crafter: reveal the top card; `seat` may cast it without paying its mana cost if it's a spell with mana
+        value less than `than`; if it isn't cast, it is put into the hand."""
+        if not seat.library:
+            return
+        card = seat.library[0]
+        self.broadcast({"event": "revealed", "seat": seat.index, "cards": [card.name]})
+        if not is_land(card) and card.cmc < than and not self._cast_barred(seat, card) \
+                and seat.player.choose(CASCADE_PROMPT(card.name), YES_NO) == 0:
+            self._cast(seat, card, seat.library, free=True)
+        if seat.library and seat.library[0] is card:
+            seat.hand.append(seat.library.pop(0))
 
     def exile_until_nonland_cast_or_take(self, seat: Seat, most: int) -> None:
         """Breaching Dragonstorm: exile cards from the top until a nonland card is exiled; `seat` may cast it without paying its mana cost
