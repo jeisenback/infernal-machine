@@ -1528,6 +1528,15 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     "this creature gets +1/+1 and can't block" while a condition holds (Putrid Imp, Frightcrawler, Childhood Horror, Dirty Wererat);
     "equipped (enchanted) creature gets +2/+2 until end of turn" in a trigger (`PumpHost`: Adventuring Gear, Skyclave Pick-Axe, Leering
     Emblem, Mantle of Leadership); and "This spell costs {2} less to cast as long as ..." read like "... if ..." (Drag to the Roots).
+  - Counters on permanents, batch 1 (`tests/test_counters_batch.py`, #219): "put a +1/+1 counter on each attacking creature you control"
+    (Drana, Liberator of Malakir) and "... a -1/-1 counter on each creature your opponents control" (Archfiend of Ifnir:
+    `PutCountersOnEach.attacking`, `.opponents`); "Creatures you control with +1/+1 counters on them can't be blocked." (Herald of Secret
+    Streams; any group a static reads may now be made unblockable); Wave Goodbye's "each creature without a +1/+1 counter on it"
+    (`MassFilter.counter`: only that kind of counter counts); Mondrak's "Sacrifice two other artifacts and/or creatures" cost; Elspeth, Storm
+    Slayer's "Those creatures gain flying until your next turn." (`PutCountersOnEach.grant_until_next_turn`); Persist's "Return target
+    nonlegendary creature card ... with a -1/-1 counter on it."; Scavenging Ooze's "If it was a creature card, put a +1/+1 counter on this
+    creature and you gain 1 life." (the follow-up of an exile from a graveyard may be several effects, and one about "this creature" is
+    given the ability's source); and Slip Out the Back's "It phases out." (`PhaseOutThat`, the creature just targeted).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

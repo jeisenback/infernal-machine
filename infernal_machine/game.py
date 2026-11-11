@@ -4350,7 +4350,8 @@ class Game:
             if not {"one or more colors": count >= 1, "colorless": count == 0, "multicolored": count >= 2,
                     "monocolored": count == 1}[restriction.colors_are]:
                 return False
-        if restriction.counters is not None and any(n > 0 for n in permanent.counters.values()) != restriction.counters:
+        has = permanent.counters.get(restriction.counter, 0) > 0 if restriction.counter else any(n > 0 for n in permanent.counters.values())
+        if restriction.counters is not None and has != restriction.counters:
             return False
         if restriction.entered_this_turn and permanent.entered_turn != self.turn:
             return False

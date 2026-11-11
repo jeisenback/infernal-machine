@@ -379,6 +379,7 @@ class _ThatAlsoGains:
 class _TheyGain:
     """ "Those creatures gain flying until end of turn." / "They gain trample ..." after counters on several creatures."""
     keywords: frozenset[str]
+    until_next_turn: bool = False  # Elspeth, Storm Slayer: "... gain flying until your next turn."
 
 
 @dataclass(frozen=True)

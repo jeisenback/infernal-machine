@@ -116,6 +116,16 @@ class PlayExiled:
 
 
 @dataclass(frozen=True)
+class PhaseOutThat:
+    """Slip Out the Back: "Put a +1/+1 counter on target creature. It phases out.": the target of the effect before it."""
+    binds = PREVIOUS_TARGET
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None and game.on_battlefield(target):
+            game.phase_out(target)
+
+
+@dataclass(frozen=True)
 class ExileThatIf:
     """Dispatch: "Metalcraft \u2014 If you control three or more artifacts, exile that creature.": the target of the effect before it,
     exiled only if the condition holds as it resolves."""
@@ -528,7 +538,10 @@ class ExileFromGraveyard:
         if target is None or not game.exile_from_graveyard(target):
             return
         if self.then and self.if_type.capitalize() in target.card.type_line:
-            self.then.resolve(game, controller, None)
+            source = game.resolving_source  # Scavenging Ooze: "put a +1/+1 counter on this creature"
+            for effect in self.then if isinstance(self.then, tuple) else (self.then,):
+                effect.resolve(game, controller, source if binding(effect) == SOURCE and source is not None and game.on_battlefield(source)
+                               else None)
         if self.copy_token:
             game.create_tokens(controller, copy_of(target.card, self.copy_changes, as_token=True), 1)
 

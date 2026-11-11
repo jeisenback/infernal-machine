@@ -269,6 +269,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
 )
 from .families.exile_and_return import (  # noqa: F401
     ExileThatIf,
+    PhaseOutThat,
     _LeftoversToGraveyard,
     _FreeIfFromGraveyard,
     ExileAttackers,
@@ -1910,6 +1911,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"destroy each artifact, creature, and enchantment with mana value X or less\.", re.I),
      lambda m: DestroyAll("artifact or creature or enchantment", MassFilter(stat="mana_value", at_most="X"))),
     (re.compile(rf"exile each {_PERMANENT_KIND}\.", re.I), lambda m: ExileAll(m[1].lower())),
+    (re.compile(r"(?:it|that creature) phases out\.", re.I), lambda m: PhaseOutThat()),  # Slip Out the Back: the creature just targeted
+    (re.compile(r"return each creature without a \+1/\+1 counter on it to its owner's hand\.", re.I),  # Wave Goodbye
+     lambda m: ReturnAllToHand("creature", MassFilter(counters=False, counter="+1/+1"))),
     (re.compile(rf"return each {_PERMANENT_KIND} to its owner's hand\.", re.I), lambda m: ReturnAllToHand(m[1].lower())),
     (re.compile(rf"destroy {_UP_TO} target {_PLURAL_KIND}\.", re.I), lambda m: _up_to(Destroy, m)),
     (re.compile(rf"destroy (two|three) target {_PLURAL_KIND}\.", re.I),
@@ -2100,6 +2104,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:then )?put an (instant, sorcery, or Faerie) card from among the milled cards into your hand\.", re.I),
      lambda m: _PutFromAmongThem("instant or sorcery or Faerie", "hand")),  # Free the Fae
     (re.compile(rf"(?:those creatures|they(?! gain haste until end of turn\.)) gain {_KEYWORDS} until end of turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]))),
+    (re.compile(rf"those creatures gain {_KEYWORDS} until your next turn\.", re.I), lambda m: _TheyGain(_keyword_list(m[1]), until_next_turn=True)),  # Elspeth, Storm Slayer
     (re.compile(rf"it gains {_KEYWORDS} until end of turn\.", re.I), lambda m: _ItGains(_keyword_list(m[1]))),
     (re.compile(r"untap those creatures\.", re.I), lambda m: _UntapThoseCreatures()),
     (re.compile(rf"put that many {_COUNTER} on (?:it|{_SELF})\.", re.I),  # Hungering Hydra, Necropolis Regent: the number the event carried
@@ -2171,6 +2176,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if you (win|lose) the flip, (.+)\.", re.I), _if_flip),  # Mana Crypt
     (re.compile(r"if you do, (.+)\.", re.I), _if_you_do),
     (re.compile(r'if an? (creature) card is exiled this way, (create .+?)(\."?)', re.I), _if_exiled),
+    (re.compile(rf"if it was an? (creature) card, put a \+1/\+1 counter on {_SELF} and you gain (\d+) life\.", re.I),  # Scavenging Ooze
+     lambda m: _IfExiledThen(m[1], (PutCountersOnSource(1, "+1/+1"), GainLife(int(m[2]))))),
     (re.compile(r'if you exiled an? (land|nonland) card this way, (create .+?)(\."?)', re.I), _if_exiled),  # Bonehoard Dracosaur
     (re.compile(rf"return (?:CARDNAME|this card) from your graveyard to the battlefield( tapped)?\.", re.I),
      lambda m: ReturnThisFromGraveyard(bool(m[1]))),
@@ -2332,8 +2339,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand", optional_target=True)),
     (re.compile(rf"return target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand")),
-    (re.compile(rf"return target {_CARD_TYPE} from your graveyard to the battlefield with an indestructible counter on it\.", re.I),
-     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "battlefield", counter="indestructible")),
+    (re.compile(rf"return target {_CARD_TYPE} from your graveyard to the battlefield with an? (indestructible|-1/-1|\+1/\+1) counter on it\.", re.I),
+     lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "battlefield", counter=_counter_name(m[2]))),  # Season of the Burrow; Persist
     (re.compile(rf"exile target {_PERMANENT_KIND}\. its controller draws a card\.", re.I), lambda m: ExileControllerDraws(m[1].lower())),
     (re.compile(rf"return another target {_CARD_TYPE} from your graveyard to your hand\.", re.I),
      lambda m: ReturnFromGraveyard(_graveyard_kind(m[1], "yours"), "hand", another=True)),
@@ -3117,6 +3124,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"target (creature(?: you control)?) gains your choice of ([a-z ]+?) or ([a-z ]+?) until end of turn\.", re.I),
      lambda m: GainChosenKeyword((m[2].lower(), m[3].lower()), m[1].lower())),  # Practiced Offense
     (re.compile(rf"put {_N} {_COUNTER} on each creature\.", re.I), lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), everyone=True)),  # Soul Snuffers
+    (re.compile(rf"put {_N} {_COUNTER} on each attacking creature you control\.", re.I),  # Drana, Liberator of Malakir
+     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), attacking=True)),
+    (re.compile(rf"put {_N} {_COUNTER} on each creature your opponents control\.", re.I),  # Archfiend of Ifnir
+     lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), opponents=True)),
     (re.compile(rf"put {_N} {_COUNTER} on each (creature|(?-i:[A-Z][a-z]+)(?: creature)?|artifact creature) you control\.", re.I),
      lambda m: PutCountersOnEach(_count(m[1]), _counter_name(m[2]), "" if m[3].lower() == "creature" else m[3].removesuffix(" creature").capitalize())),
     (re.compile(rf"put a {_COUNTER} on each (?:(white|blue|black|red|green) )?creature that entered this turn\.", re.I),
@@ -3937,7 +3948,10 @@ _CONDITIONAL = Follows(
     Follow(_ArtifactCreatureGetsCounter, Untap, set_fields(counter_if_artifact_creature=lambda m: True)),  # Tezzeret, Cruel Captain
     Follow(_GainsIfXAtLeast, PutCounters, set_fields(grant=lambda m: m.keywords, grant_at_least=lambda m: m.least)),  # Obsessive Pursuit
     Follow(_BecomesIfNotCreature, PutCounters, set_fields(becomes=lambda m: (m.power, m.toughness, m.subtype))),  # ... and his emblem
-    Follow(_TheyGain, (PutCountersOnEach, PutCountersOnEachUpToX), set_fields(grant=lambda m: m.keywords)),
+    Follow(_TheyGain, PutCountersOnEach, set_fields(grant=lambda m: m.keywords, grant_until_next_turn=lambda m: True),
+           fits=lambda previous, marker: marker.until_next_turn),  # Elspeth, Storm Slayer
+    Follow(_TheyGain, (PutCountersOnEach, PutCountersOnEachUpToX), set_fields(grant=lambda m: m.keywords),
+           fits=lambda previous, marker: not marker.until_next_turn),
     Follow(_RecallAttachment, CreateTokens, lambda previous, marker: CreateTokenWithGraveyardAttachment(previous.token),
            fits=lambda previous, marker: previous.count == 1),
     Follow(_AttachItToToken, CreateTokens, lambda previous, marker: CreateTokenAttachSubject(previous.token),
