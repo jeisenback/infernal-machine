@@ -178,6 +178,19 @@ class DoubleStats:
 
 
 @dataclass(frozen=True)
+class PumpHost:
+    """Adventuring Gear: "Landfall \u2014 Whenever a land you control enters, equipped creature gets +2/+2 until end of turn." (the
+    creature this Equipment or Aura is attached to as it resolves; none, no effect)"""
+    modifier: Modifier
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        host = target.attached_to if target is not None else None
+        if host is not None and game.on_battlefield(host):
+            game.modify_until_end_of_turn(host, self.modifier)
+
+
+@dataclass(frozen=True)
 class PumpSource:
     """ "This creature gets +1/+0 until end of turn." """
     modifier: Modifier

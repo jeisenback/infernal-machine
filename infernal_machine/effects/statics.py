@@ -647,6 +647,7 @@ _MUST_ATTACK = re.compile(rf"{_SELF} attacks each combat if able\.", re.I)
 
 
 _SELF_STATIC = re.compile(rf"{_SELF} (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS})\.", re.I)
+_SELF_STATIC_CANT_BLOCK = re.compile(rf"{_SELF} gets {_PT} and can't block\.", re.I)  # Putrid Imp (with threshold)
 _SELF_STATIC_MUST_ATTACK = re.compile(rf"{_SELF} (?:gets {_PT}, has {_KEYWORDS}|has {_KEYWORDS}), and attacks each combat if able\.", re.I)
 
 
@@ -764,6 +765,9 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
             buffs.append(StaticBuff(Modifier(0, 0, frozenset({MUST_ATTACK})), False, None, line, self_only=True, condition=condition))
         elif condition and (m := _SELF_STATIC.fullmatch(sentence)):  # unconditional ones would just be printed text
             buffs.append(StaticBuff(_modifier(m, 1), False, None, line, self_only=True, condition=condition))
+        elif condition and (m := _SELF_STATIC_CANT_BLOCK.fullmatch(sentence)):
+            buffs.append(StaticBuff(Modifier(_signed(m[1]), _signed(m[2]), frozenset({CANT_BLOCK})), False, None, line, self_only=True,
+                                    condition=condition))
         elif condition and (m := _SELF_STATIC_MUST_ATTACK.fullmatch(sentence)):  # Dragon's Rage Channeler
             modifier = _modifier(m, 1)
             buffs.append(StaticBuff(dataclasses.replace(modifier, keywords=modifier.keywords | {MUST_ATTACK}), False, None, line,
@@ -1692,8 +1696,19 @@ def storied(card: Card) -> bool:
     return "Storied" in rules_lines(card)
 
 
+_FREE_EQUIP_WHILE = re.compile(r"(?:Metalcraft \u2014 )?Equipment you control have equip \{0\} as long as (.+)\.")  # Puresteel Paladin
+
+
+@lru_cache(maxsize=None)
+def free_equip_while(card: Card) -> Condition | None:
+    """Puresteel Paladin: "Equipment you control have equip {0} as long as you control three or more artifacts." Each Equipment then has
+    a second equip ability that costs {0} (CR 702.6), so while the condition holds no equip ability need cost anything."""
+    return next((c for line in rules_lines(card) if (m := _FREE_EQUIP_WHILE.fullmatch(line)) and (c := _condition(m[1]))), None)
+
+
 def is_equip_rules_line(line: str) -> bool:
-    return _EQUIP_TARGET_DISCOUNT.fullmatch(line) is not None or line in (_FREE_FIRST_EQUIP, "Storied")
+    return _EQUIP_TARGET_DISCOUNT.fullmatch(line) is not None or line in (_FREE_FIRST_EQUIP, "Storied") \
+        or ((m := _FREE_EQUIP_WHILE.fullmatch(line)) is not None and _condition(m[1]) is not None)
 
 
 _CHOOSE_NAME = re.compile(rf"As {_SELF} enters, choose a card name\.", re.I)  # Pithing Needle, Disruptor Flute

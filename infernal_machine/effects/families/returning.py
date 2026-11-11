@@ -7,6 +7,7 @@ from typing import Any, TYPE_CHECKING
 
 from ..targets import DEAD_SOURCE, DEAD_SUBJECT, MassFilter, PREVIOUS_TARGET, SOURCE, SOURCE_AND_SUBJECT
 from ...prompts import PromptKind
+from .base import Condition
 
 if TYPE_CHECKING:
     from ...game import Game, Seat
@@ -238,10 +239,18 @@ class ReturnFromGraveyard:
     finality: bool = False  # Excava: "with a finality counter on it. It's a 1/1 Spirit creature with flying in addition ..."
     another: bool = False  # Myr Retriever: "another target artifact card": not this creature's own card, now in the graveyard
     counter: str = ""  # Season of the Burrow: "... to the battlefield with an indestructible counter on it"
+    battlefield_if: Condition | None = None  # Stitch Together: "Return that card ... to the battlefield instead if ..."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.return_from_graveyard(target, controller, self.to, self.tapped, self.finality, counter=self.counter)
+            to = "battlefield" if self.battlefield_if is not None and game.condition_holds(self.battlefield_if, controller) else self.to
+            game.return_from_graveyard(target, controller, to, self.tapped, self.finality, counter=self.counter)
+
+
+@dataclass(frozen=True)
+class _ToBattlefieldInstead:
+    """ "Threshold \u2014 Return that card from your graveyard to the battlefield instead if ..." after a ReturnFromGraveyard to the hand."""
+    condition: Condition
 
 
 @dataclass(frozen=True)

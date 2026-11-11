@@ -317,6 +317,7 @@ from .statics import (  # noqa: F401
     heals_before_damage,
     equip_target_discount,
     free_first_equip,
+    free_equip_while,
     storied,
     is_your_turn_creature_line,
     your_turn_creature,
