@@ -273,6 +273,7 @@ DEVOUR_DONE = "Done"
 REPLICATE_PROMPT = PromptKind("replicate", "Choose how many times to replicate ")  # followed by the spell's name; options are "0", "1", ...
 PILE_PROMPT = PromptKind("pile", "Put which pile into the graveyard? ")  # an opponent chooses; the options are the piles
 PILE_CAST_PROMPT = PromptKind("pile_cast", "Cast a spell from the pile for free? ")  # the options are the cards, then "None"
+EXILE_FROM_TOP_PROMPT = PromptKind("exile_from_top", "Exile which card from among them? ")  # The Key to the Vault; then NONE_TAKEN
 CASCADE_PROMPT = PromptKind("cascade", "Cast for free (cascade): ")  # followed by the card's name; Yes or No
 DELVE_PROMPT = PromptKind("delve", "Exile which card from your graveyard to pay for ")  # followed by the spell's name
 UPKEEP_PROMPT = PromptKind("upkeep", "Pay the cumulative upkeep of ")  # followed by the permanent's name; Yes or No (No sacrifices it)
@@ -1297,7 +1298,7 @@ class Game:
             return False
         if ability.condition and not self.condition_holds(ability.condition, seat, permanent):
             return False
-        if ability.reconfigure == "unattach" and permanent.attached_to is None:
+        if (ability.reconfigure == "unattach" or ability.unattach_source) and permanent.attached_to is None:
             return False
         if ability.reconfigure == "attach" and not any(p is not permanent and "Creature" in p.card.type_line
                                                        for p in seat.battlefield):
@@ -2473,6 +2474,8 @@ class Game:
             permanent.loyalty = (permanent.loyalty or 0) + ability.loyalty
             permanent.loyalty_turn = self.turn
         permanent.activated_turn[ability.text] = self.turn
+        if ability.unattach_source:  # Sunforger: unattaching it is part of the cost (CR 602.2)
+            self.detach(permanent)
         if ability.exile_source or ability.bounce_source:  # a cost: the ability exists apart from the source (CR 113.7a)
             self._leave_battlefield(permanent, "exiled" if ability.exile_source else "returned",
                                     destination="exile" if ability.exile_source else "hand")
@@ -7555,6 +7558,51 @@ class Game:
         del seat.library[:len(top)]
         self.rng.shuffle(rest)
         seat.library.extend(rest)
+
+    def tibalts_trickery(self, victim: Seat, name: str) -> None:
+        """Tibalt's Trickery, after its counter: 1, 2 or 3 at random; `victim` mills that many, then exiles from the top until a nonland
+        card with a name other than `name` (the countered spell's), may cast that card without paying its mana cost, and puts the other
+        exiled cards on the bottom in a random order."""
+        self.mill(victim, self.rng.choice((1, 2, 3)))
+        exiled: list[Card] = []
+        found = None
+        while victim.library and found is None:
+            card = victim.library.pop(0)
+            victim.exile.append(card)
+            exiled.append(card)
+            found = card if not is_land(card) and card.name != name else None
+        if found is not None and not self._cast_barred(victim, found) and victim.player.choose(CASCADE_PROMPT(found.name), YES_NO) == 0:
+            self._cast(victim, found, victim.exile, free=True)
+        rest = [c for c in exiled if any(x is c for x in victim.exile)]
+        for card in rest:
+            victim.exile.remove(card)
+        self.rng.shuffle(rest)
+        victim.library.extend(rest)
+
+    def look_top_exile_cast_free(self, seat: Seat, count: int) -> None:
+        """The Key to the Vault: look at the top `count` cards; `seat` may exile a nonland card from among them; the rest go to the bottom
+        in a random order; then it may cast the exiled card without paying its mana cost. Not cast, the card stays exiled."""
+        top = seat.library[:count]
+        del seat.library[:count]
+        nonland = [c for c in top if not is_land(c)]
+        exiled = None
+        if nonland and (pick := seat.player.choose(EXILE_FROM_TOP_PROMPT, [c.name for c in nonland] + [NONE_TAKEN])) < len(nonland):
+            exiled = nonland[pick]
+            top.remove(exiled)
+            seat.exile.append(exiled)
+        self.rng.shuffle(top)
+        seat.library.extend(top)
+        if exiled is not None and not self._cast_barred(seat, exiled) and seat.player.choose(CASCADE_PROMPT(exiled.name), YES_NO) == 0:
+            self._cast(seat, exiled, seat.exile, free=True)
+
+    def search_cast_free(self, seat: Seat, kind: str) -> None:
+        """Sunforger: search the library for a card of `kind` and cast it without paying its mana cost, then shuffle. A card that can't
+        be cast is not offered: it stays in the library (CR 608.2g: the search and the cast happen as the ability resolves)."""
+        matches = _unique([c for c in seat.library if _card_matches(kind, c) and not is_land(c) and not self._cast_barred(seat, c)])
+        if matches and (pick := seat.player.choose(SEARCH_CARD_PROMPT, [c.name for c in matches] + [DONE])) < len(matches):
+            self._cast(seat, matches[pick], seat.library, free=True)
+        self.rng.shuffle(seat.library)
+        self._searched(seat)
 
     def reveal_top_cast_if_lesser(self, seat: Seat, than: int) -> None:
         """Rashmi, Eternities Crafter: reveal the top card; `seat` may cast it without paying its mana cost if it's a spell with mana

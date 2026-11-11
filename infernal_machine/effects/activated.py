@@ -102,6 +102,7 @@ class ActivatedAbility:
     exile_from_graveyard: bool = False  # "Exile this card from your graveyard": activated from the graveyard, the card is exiled as a cost
     exile_source: bool = False  # "Exile this artifact": the source is exiled as a cost (Perpetual Timepiece)
     bounce_source: bool = False  # "Return CARDNAME to its owner's hand": likewise (Rootha)
+    unattach_source: bool = False  # Sunforger: "Unattach this Equipment" (only while it is attached to something)
     bounce_other: str = ""  # "Return a Forest you control to its owner's hand": a permanent of this kind (Quirion Ranger)
     tap_creatures: int = 0  # "Tap two untapped creatures you control": other creatures than the source (Harmonized Trio)
     life_identity: bool = False  # "Pay life equal to the number of colors in your commanders' color identity" (War Room)
@@ -193,6 +194,7 @@ _EXILE_SELF = re.compile(r"Exile (?:CARDNAME|this (?:artifact|creature|permanent
 
 
 _BOUNCE_OTHER = re.compile(r"Return an? (land|creature|artifact|(?-i:[A-Z][a-z]+)) you control to its owner's hand")
+_UNATTACH_SELF = re.compile(r"Unattach (?:CARDNAME|this Equipment)")
 _BOUNCE_SELF = re.compile(r"Return (?:CARDNAME|this (?:artifact|creature|permanent|enchantment|land)) to its owner's hand")
 
 
@@ -314,6 +316,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["exile_source"] = True
         elif _BOUNCE_SELF.fullmatch(part):
             fields["bounce_source"] = True
+        elif _UNATTACH_SELF.fullmatch(part):
+            fields["unattach_source"] = True
         elif m := _BOUNCE_OTHER.fullmatch(part):
             fields["bounce_other"] = m[1]
         elif m := _EXILE_COST.fullmatch(part):

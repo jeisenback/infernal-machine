@@ -1396,6 +1396,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     six, the free spell's mana value at most the greatest power among your attacking creatures): `LookTopCastOneFree` takes an amount
     and a cap; Rashmi, Eternities Crafter (the top card cast free if it's a spell with lesser mana value than the first spell you cast
     that turn, else put into your hand: `Game.reveal_top_cast_if_lesser`).
+  - Casting without paying the mana cost, batch 9 (`tests/test_cast_free_9.py`, #219): Tibalt's Trickery (after the counter, the
+    spell's controller mills 1, 2 or 3 at random, exiles until a nonland card with another name, may cast it free, and puts the other
+    exiled cards on the bottom: `Game.tibalts_trickery`); Sunforger's "Unattach this Equipment" cost (`ActivatedAbility.unattach_source`:
+    only while attached, CR 602.2) and "Search your library for a red or white instant card with mana value 4 or less and cast that card
+    without paying its mana cost. Then shuffle." (`Game.search_cast_free`: a card that can't be cast is not offered and stays in the
+    library); The Key to the Vault (look at as many cards as the combat damage, exile a nonland one, the rest to the bottom, then cast it
+    free or leave it exiled: `Game.look_top_exile_cast_free`).
   - Villainous choice (CR 701.56; `tests/test_cast_free.py`, #655): "Each opponent (Target opponent) faces a villainous choice — A, or B."
     is a `VillainousChoice`: each player facing it chooses one option for themselves (`Game.villainous_choice`), and "They ..." / "that
     player" in an option is that player. The two options are split at the ", or " where both read as effects. Ensnared by the Mara is

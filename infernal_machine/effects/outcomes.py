@@ -613,6 +613,9 @@ from .families.conditions import (  # noqa: F401
     _KickedInsteadTail,
 )
 from .families.free_casting import (  # noqa: F401
+    SearchCastFree,
+    LookTopExileCastFree,
+    TibaltsTrickery,
     RevealTopCastIfLesser,
     ExileTopOfTargetMayCast,
     ExileTopOfOpponentChooseOne,
@@ -2702,6 +2705,16 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"that player exiles it, then exiles cards from the top of their library until they exile a card that shares a card type "
                 r"with it\. That player may cast that card without paying its mana cost\. Then they put all cards exiled with this "
                 r"enchantment on the bottom of their library in a random order\.", re.I), lambda m: PossibilityStorm()),  # Possibility Storm
+    (re.compile(r"counter target spell\. Choose 1, 2, or 3 at random\. Its controller mills that many cards, then exiles cards from the top "
+                r"of their library until they exile a nonland card with a different name than that spell\. They may cast that card without "
+                r"paying its mana cost\. Then they put the exiled cards on the bottom of their library in a random order\.", re.I),
+     lambda m: [Counter("spell"), TibaltsTrickery()]),  # Tibalt's Trickery
+    (re.compile(r"look at that many cards from the top of your library\. You may exile a nonland card from among them\. Put the rest on the "
+                r"bottom of your library in a random order\. You may cast the exiled card without paying its mana cost\.", re.I),
+     lambda m: LookTopExileCastFree("X")),  # The Key to the Vault: "that many", the damage the trigger saw
+    (re.compile(r"search your library for an? (white|blue|black|red|green) or (white|blue|black|red|green) (instant|sorcery) card with mana value "
+                r"(\d+) or less and cast that card without paying its mana cost\. Then shuffle\.", re.I),  # Sunforger
+     lambda m: SearchCastFree(f"{m[1].lower()} {m[3].lower()} or {m[2].lower()} {m[3].lower()}|mv<={m[4]}")),
     (re.compile(rf"look at the top {_N_FIXED} cards of your library\. You may cast a spell from among them without paying its mana cost\. "
                 r"Put the rest on the bottom of your library in a random order\.", re.I),
      lambda m: LookTopCastOneFree(_number(m[1]))),  # Aetherworks Marvel
