@@ -22,6 +22,10 @@ class Cost:
     twobrid: tuple[frozenset[str], ...] = ()  # {2/W}: one white mana or two mana of any type
     phyrexian: tuple[frozenset[str], ...] = ()  # {W/P}: one white mana or 2 life
 
+    def colors(self) -> frozenset[str]:
+        """The mana types its colored, twobrid and Phyrexian symbols can be paid with."""
+        return frozenset().union(*self.colored, *self.twobrid, *self.phyrexian)
+
     def plus_generic(self, amount: int) -> "Cost":
         return replace(self, generic=self.generic + amount)
 
@@ -88,21 +92,24 @@ def cost_of(mana_cost: str) -> Cost:
     return cost
 
 
-def pay(cost: Cost, sources: list[frozenset[str]], paid_for: dict[int, frozenset[str]] | None = None) -> list[int] | None:
+def pay(cost: Cost, sources: list[frozenset[str]], paid_for: dict[int, frozenset[str]] | None = None,
+        keep: frozenset[str] = frozenset()) -> list[int] | None:
     """Pick which sources to tap for `cost`; each source makes one mana of one of its types.
     A Phyrexian symbol is paid with mana here (the caller may pay life for some of them first); a twobrid
-    symbol is paid with one mana of its color if that works, else with two of any.
+    symbol is paid with one mana of its color if that works, else with two of any. Sources that make none of the
+    colors in `keep` are tried first (a filter's own cost leaves the colors the spell still needs).
     """
     for halves in product((True, False), repeat=len(cost.twobrid)):
         flat = Cost(cost.generic + 2 * halves.count(False), cost.colored + cost.phyrexian
                     + tuple(c for c, half in zip(cost.twobrid, halves) if half), cost.x)
-        found = _pay_flat(flat, sources, paid_for)
+        found = _pay_flat(flat, sources, paid_for, keep)
         if found is not None:
             return found
     return None
 
 
-def _pay_flat(cost: Cost, sources: list[frozenset[str]], paid_for: dict[int, frozenset[str]] | None = None) -> list[int] | None:
+def _pay_flat(cost: Cost, sources: list[frozenset[str]], paid_for: dict[int, frozenset[str]] | None = None,
+              keep: frozenset[str] = frozenset()) -> list[int] | None:
     """`pay` for a cost that is only generic and colored mana.
 
     Returns source indices, or None if the cost can't be paid. Sources that
@@ -110,7 +117,7 @@ def _pay_flat(cost: Cost, sources: list[frozenset[str]], paid_for: dict[int, fro
     is given it's filled with source index -> the colored symbol that source pays
     (sources paying generic mana aren't listed).
     """
-    order = sorted((i for i, s in enumerate(sources) if s), key=lambda i: len(sources[i]))
+    order = sorted((i for i, s in enumerate(sources) if s), key=lambda i: (bool(sources[i] & keep), len(sources[i])))
     symbols = sorted(cost.colored, key=len)
     if len(symbols) + cost.generic > len(order):
         return None  # more mana than sources: no assignment can work (and trying them all takes forever: Replicate with many lands)
