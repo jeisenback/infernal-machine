@@ -24,7 +24,7 @@ from .analysis import is_land
 from .cards import Card, Deck, has_keyword, shown_type_line
 from .formats import COMMANDER, Format
 from . import characteristics
-from .characteristics import LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
+from .characteristics import LOSES, LOSES_HEXPROOF, MINUS, PLUS, Modifier, source_qualities
 from .combat import Attack, Combat
 from . import casting
 from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, MILLED, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
@@ -2865,6 +2865,11 @@ class Game:
             return amount.plus + self.evaluate(dataclasses.replace(amount, plus=0), controller)
         source, kind = self.resolving_source, amount.kind
         this_turn = [card for turn, card in controller.cast_log if turn == self.turn]
+        if kind == "subject_power":  # Warstorm Surge: the power of the creature that set the trigger off, last known if it left (CR 608.2h)
+            subject = self.resolving_item.subject if self.resolving_item is not None else None
+            if not isinstance(subject, Permanent):
+                return 0
+            return self.power(subject) if self.on_battlefield(subject) else subject.last_power
         if kind == "source_power":
             if source is None:
                 return 0
@@ -2905,6 +2910,8 @@ class Game:
         if kind == "you_control_matching":  # "for each colorless creature you control", "for each basic Swamp you control"
             wanted = parse_filter(amount.what)
             return sum(wanted.matches(p.card) for p in controller.battlefield)
+        if kind == "you_control_counter":  # Inspiring Call: "each creature you control with a +1/+1 counter on it"
+            return sum("Creature" in p.card.type_line and p.counters.get(amount.what, 0) > 0 for p in controller.battlefield)
         if kind == "life_total":  # Storm Herd
             return max(0, controller.life)
         if kind == "opponents_control":  # Riot Control: every opponent's
@@ -5078,6 +5085,8 @@ class Game:
         mods = self.modifiers(permanent)
         if keyword in ("hexproof", "shroud") and any(LOSES_HEXPROOF in m.keywords for m in mods):
             return False  # Arcane Lighthouse
+        if any(LOSES + keyword in m.keywords for m in mods):
+            return False  # CR 613.1f: a later "loses flying" (Colossus Hammer) wins over the printed or granted keyword
         printed = has_keyword(permanent.card, keyword) and not self.loses_abilities(permanent)
         return printed or permanent.counters.get(keyword, 0) > 0 or any(keyword in m.keywords for m in mods) \
             or (keyword == "haste" and permanent.blitzed)  # CR 122.1b: a keyword counter; CR 702.152a
@@ -7417,7 +7426,8 @@ class Game:
                     if attachment.attached_to is permanent:
                         self.trigger("host_dies", attachment, attachment_seat, subject=permanent)
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
-            elif destination == "graveyard" and "Artifact" in permanent.card.type_line:  # "creature or artifact ... dies", a token too
+            elif destination == "graveyard" and ("Artifact" in permanent.card.type_line or "Planeswalker" in permanent.card.type_line):
+                # "creature or artifact ... dies", a token too; Cruel Celebrant: "creature or planeswalker" (CR 700.4: a planeswalker dies)
                 self._observe("creature_dies", permanent.card, controller, subject=permanent, extra=gone)
             self._observe("permanent_leaves", permanent.card, controller, subject=permanent, extra=gone)
             if permanent.real_card is not None:  # a Clone goes to the graveyard as itself

@@ -165,7 +165,7 @@ _PAY_ENERGY = re.compile(rf"Pay (?:((?:\{{E\}})+)|{_N} \{{E\}})")  # "Pay {E}{E}
 _CARDS = r"(an?|two|three|four)"
 
 
-_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four|X) (?:other )?(creature|(?:white|blue|black|red|green) creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|[A-Z][a-z]+?)s?")
+_SACRIFICE_OTHER = re.compile(r"Sacrifice (another|an?|two|three|four|X) (?:other )?(creature|(?:white|blue|black|red|green) creature|artifact|land|enchantment|permanent|artifact or creature|creature or artifact|Food|Treasure|Clue|token|[A-Z][a-z]+?)s?")
 
 
 _REMOVE_COUNTER_COST = re.compile(rf"Remove {_N_FIXED} {_COUNTER} from (?:CARDNAME|this (?:creature|artifact|permanent|enchantment|land))")

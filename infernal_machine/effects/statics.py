@@ -10,7 +10,7 @@ from typing import Any
 
 from ..creature_types import CREATURE_TYPES
 from ..cards import Card
-from ..characteristics import Modifier
+from ..characteristics import LOSES, Modifier
 
 from .common import (
     CANT_ATTACK,
@@ -1272,7 +1272,7 @@ _ATTACHED_MUTATION = re.compile(r"Enchanted creature is an Insect artifact creat
 
 
 _ATTACHED = re.compile(rf"(?:Equipped|Enchanted) creature (?:gets {_PT}(?: and has {_KEYWORDS})?|has {_KEYWORDS}"
-                       r"|can't attack or block)\.")
+                       r"|can't attack or block|gets ([+\-\u2212]\d+)/([+\-\u2212]\d+) and loses (flying))\.")  # Colossus Hammer
 
 
 LOSES_ALL, NO_UNTAP = "loses all abilities", "doesn't untap"  # pseudo-keywords of an Aura: Infinite Coursework
@@ -1428,6 +1428,8 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
         elif m := _ATTACHED.fullmatch(line):
             if "can't attack or block" in line:
                 modifier = Modifier(keywords=frozenset({CANT_ATTACK, CANT_BLOCK}))
+            elif m[7]:  # "gets +10/+10 and loses flying"
+                modifier = Modifier(_signed(m[5]), _signed(m[6]), frozenset({LOSES + m[7]}))
             else:
                 modifier = _modifier(m, 1)
             buffs.append(AttachedBuff(modifier, line))

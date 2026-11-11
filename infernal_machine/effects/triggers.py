@@ -24,6 +24,8 @@ from .outcomes import (
     Vanish,
     FlipUntilLose,
     SubjectDamagesEachOpponent,
+    DamageFromSubject,
+    Amount,
     ExileThisFromGraveyardThen,
     ReturnThisFromGraveyard,
     _condition,
@@ -142,7 +144,7 @@ _WATCHES = {
     "permanent_enters": re.compile(
         rf"When(?:ever)? {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? enters(?: the battlefield)?"  # "When": Breaching Dragonstorm
         rf"( under your control| under an opponent's control)?, (.+)", re.I),
-    "creature_dies": re.compile(rf"When(?:ever)? {_WHO} (enchanted creature|legendary creature|nontoken creature|nontoken {_TRIBE}|creature token|token|creature or artifact|creature|{_TRIBE})"
+    "creature_dies": re.compile(rf"When(?:ever)? {_WHO} (enchanted creature|legendary creature|nontoken creature|nontoken {_TRIBE}|creature token|token|creature or artifact|creature or planeswalker|creature|{_TRIBE})"
                                 r"( you control| an opponent controls)? dies, (.+)", re.I),
     "permanent_leaves": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control| an opponent controls)? leaves the battlefield, (.+)", re.I),
     "permanent_taps": re.compile(rf"Whenever {_WHO} {_PERMANENT_WATCH}( you control)? becomes tapped, (.+)", re.I),
@@ -577,6 +579,7 @@ _HENGE_BODY = "put a +1/+1 counter on it and draw a card."
 
 
 _SUBJECT_DAMAGES_EACH = re.compile(r"that creature deals (\d+) damage to each opponent\.", re.I)  # Ingris Stingerquill: the attacker deals it
+_SUBJECT_DAMAGES_BY_POWER = "it deals damage equal to its power to any target."  # Warstorm Surge, Be'lakor: the creature that entered deals it
 
 
 _SELF_THEN_IT = re.compile(r"((?:this (?:creature|artifact|enchantment|permanent|land|planeswalker|equipment|vehicle|aura|saga|battle)|CARDNAME)\b[^.]*\.) (?:If you do, it|It)\b")  # "Put a +1/+1 counter on this creature. It gains flying.": the "It" is that creature, not the permanent that set the trigger off (The Irencrag: "If you do, it gains ...")
@@ -594,6 +597,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
         return [OnSubject(PutCountersOnSource(1, "+1/+1")), Draw(1)], False, False, None
     if subject_ok and (m := _SUBJECT_DAMAGES_EACH.fullmatch(rest)):
         return [SubjectDamagesEachOpponent(int(m[1]))], False, False, None
+    if subject_ok and rest == _SUBJECT_DAMAGES_BY_POWER:
+        return [DefineX(Amount("subject_power")), DamageFromSubject("X", "any")], False, False, None
     if subject_ok and not player_ok and re.search(r"\bits controller (loses|gains|draws|discards|mills)\b", rest, re.I):
         # "Whenever enchanted creature attacks, its controller loses 2 life and you gain 2 life."
         rewritten = re.sub(r"\bits controller (loses|gains|draws|discards|mills)\b", r"target player \1", rest, flags=re.I)

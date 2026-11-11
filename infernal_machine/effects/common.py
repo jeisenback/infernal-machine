@@ -180,6 +180,7 @@ _WHOLE_LINE = re.compile(
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
     r"|Choose a creature type\. (?:Draw a card for each permanent you control of that type|(?:Destroy|Return) all creatures that aren't "
     r"of the chosen type(?: to their owners' hands)?)\."  # Distant Melody, Kindred Dominance, Raise the Palisade
+    r"|Draw a card for each creature you control with a \+1/\+1 counter on it\. Those creatures gain [a-z ,]+ until end of turn\."  # Inspiring Call
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
     r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"  # Party Thrasher, Inti: the rest of the line is what it does
     r"|Each player looks at the top \w+ cards of their library and may reveal a land card and/or an instant or sorcery card from "

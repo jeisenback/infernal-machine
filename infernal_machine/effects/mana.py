@@ -47,7 +47,7 @@ _ADD_COMBO = re.compile(_TAP + r"(two|three) mana in any combination of (\{[WUBR
 
 
 # Mox Amber: the colors of the permanents named, which the game works out when the mana is wanted.
-_ADD_AMONG = re.compile(_TAP + r"one mana of any color among legendary creatures and planeswalkers you control\." + _IF_TAIL)
+_ADD_AMONG = re.compile(_TAP + r"one mana of any color among legendary (creatures and planeswalkers|permanents) you control\." + _IF_TAIL)  # Plaza of Heroes: permanents
 
 
 # Chrome Mox: the colors of the card exiled with it (Pit of Offerings: of the cards).
@@ -55,9 +55,10 @@ _ADD_IMPRINTED = re.compile(_TAP + r"one mana of any of the exiled (?:card's|car
 
 
 @lru_cache(maxsize=None)
-def mana_among_legendary(card: Card) -> bool:
-    """Mox Amber: its mana is any color among the legendary creatures and planeswalkers its controller controls."""
-    return any(_ADD_AMONG.fullmatch(line) for line in rules_lines(card))
+def mana_among_legendary(card: Card) -> str:
+    """Mox Amber: its mana is any color among the legendary creatures and planeswalkers its controller controls ("creatures and
+    planeswalkers"); Plaza of Heroes: among the legendary permanents ("permanents"); "" for any other card."""
+    return next((m[m.re.groups - 1] for line in rules_lines(card) if (m := _ADD_AMONG.fullmatch(line))), "")
 
 
 @lru_cache(maxsize=None)
@@ -226,12 +227,21 @@ def counter_mana(card: Card) -> OnceCounterMana | None:
 
 
 _ADD_POWER = re.compile(_TAP + r"X mana of any one color, where X is this creature's power\." + _IF_TAIL)
+_ADD_ONE_COLOR_BY = re.compile(r"\{T\}: Add X mana of any one color, where X is (.+)\.")  # Sanctum Weaver: "the number of enchantments you control"
 
 
 @lru_cache(maxsize=None)
 def makes_mana_by_power(card: Card) -> bool:
     """Kami of Whispered Hopes: "{T}: Add X mana of any one color, where X is this creature's power." """
     return any(_ADD_POWER.fullmatch(line) for line in rules_lines(card))
+
+
+@lru_cache(maxsize=None)
+def one_color_mana_amount(card: Card) -> "Amount | None":
+    """Sanctum Weaver: "{T}: Add X mana of any one color, where X is the number of enchantments you control." (X worked out when the mana
+    is wanted); None for any other card (this creature's power is makes_mana_by_power's)."""
+    return next((a for line in rules_lines(card) if not _ADD_POWER.fullmatch(line) and (m := _ADD_ONE_COLOR_BY.fullmatch(line))
+                 and (a := _amount(m[1]))), None)
 
 
 def mana_ability_sacrifices(card: Card) -> bool:
@@ -499,6 +509,7 @@ def is_mana_ability(line: str) -> bool:
             or _CHARGE_MANA.fullmatch(line) is not None or _ADD_EACH_COLOR.fullmatch(line) is not None
             or ((m := _ADD_X_COMBINATION.fullmatch(line)) is not None and _amount(m[2]) is not None)
             or ((m := _ADD_BY_COUNT.fullmatch(line)) is not None and _amount(m[3]) is not None)
+            or ((m := _ADD_ONE_COLOR_BY.fullmatch(line)) is not None and _amount(m[1]) is not None)
             or _FILTER.fullmatch(line) is not None
             or _FILTER_ANY.fullmatch(line) is not None or _FILTER_LAND.fullmatch(line) is not None or _REFLECT.fullmatch(line) is not None
             or any(p.fullmatch(line) for p in (_PAIN, _PAIN_MULTI, _TAPPED_PAIN, _PAY_LIFE_ANY)))

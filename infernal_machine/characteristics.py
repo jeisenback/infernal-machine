@@ -17,6 +17,7 @@ PLUS = "+1/+1"
 MINUS = "-1/-1"
 
 
+LOSES = "loses "  # a pseudo-keyword prefix: "loses flying" (Colossus Hammer), "loses indestructible" (Shadowspear)
 LOSES_HEXPROOF = "loses hexproof and shroud"  # a pseudo-keyword: "creatures your opponents control lose hexproof and shroud"
 
 
