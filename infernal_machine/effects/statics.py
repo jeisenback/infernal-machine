@@ -400,6 +400,11 @@ _PREVENTION_STATICS = [
     (re.compile(r"Prevent all damage that would be dealt to you\.", re.I), "you:all"),
     (re.compile(r"Damage can't be prevented\.", re.I), "unpreventable"),
     (re.compile(r"Combat damage can't be prevented\.", re.I), "unpreventable:combat"),  # Frenzied Baloth
+    (re.compile(r"If a source would deal damage to you or a permanent you control, prevent half that damage, rounded up\.", re.I),
+     "half:you_and_yours"),  # Gisela, Blade of Goldnight
+    (re.compile(r"If a source an opponent controls would deal damage to you, prevent 1 of that damage\.", re.I), "opp_to_you:1"),  # Guardian Seraph
+    (re.compile(r"If a source would deal damage to another Dinosaur you control, prevent all but 1 of that damage\.", re.I),
+     "all_but_1:other:Dinosaur"),  # Temple Altisaur
     (re.compile(rf"Prevent all combat damage that would be dealt to and dealt by {_SELF}\.", re.I), "self:to_and_by:combat"),  # Fog Bank
     (re.compile(r"Prevent all combat damage that would be dealt to and dealt by enchanted creature\.", re.I), "attached:to_and_by:combat"),
     (re.compile(r"Prevent all damage that would be dealt by enchanted creature\.", re.I), "attached:by"),  # Muzzle, Defang

@@ -628,3 +628,14 @@ class PreventThatCreatureThisTurn:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.prevent_this_turn(controller, self.kind, target, self.combat)
+
+
+@dataclass(frozen=True)
+class ShieldFromSource:
+    """Circle of Protection: Red: "The next time a red source of your choice would deal damage to you this turn, prevent that damage."
+    `quality`: a color letter, "artifact", or "chosen" (Story Circle: the color it chose as it entered)."""
+    quality: str
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.shield_from_source(controller, self.quality, target)

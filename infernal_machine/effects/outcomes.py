@@ -437,6 +437,7 @@ from .families.library_and_hand import (  # noqa: F401
     _card_matches_kind,
 )
 from .families.life_and_damage import (  # noqa: F401
+    ShieldFromSource,
     PreventThisTurn,
     PreventTargetThisTurn,
     PreventThatCreatureThisTurn,
@@ -3249,6 +3250,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"prevent all combat damage that would be dealt to you this turn\.", re.I),
      lambda m: PreventCombatDamageToYou()),
     (re.compile(r"prevent all damage that would be dealt to you this turn\.", re.I), lambda m: PreventThisTurn("to_you")),  # Riot Control
+    (re.compile(r"the next time an? (white|blue|black|red|green|artifact) source of your choice would deal damage to you this turn, prevent "
+                r"that damage\.", re.I),  # Circle of Protection: Red; "artifact": Circle of Protection: Artifacts
+     lambda m: ShieldFromSource(_COLOR_LETTER.get(m[1].lower()) or m[1].lower())),
+    (re.compile(r"the next time a source of your choice of the chosen color would deal damage to you this turn, prevent that damage\.", re.I),
+     lambda m: ShieldFromSource("chosen")),  # Story Circle
     (re.compile(r"prevent all combat damage that would be dealt to players this turn\.", re.I),  # Commencement of Festivities
      lambda m: PreventThisTurn("to_players", combat=True)),
     (re.compile(r"prevent all damage that would be dealt this turn to creatures you control\.", re.I),

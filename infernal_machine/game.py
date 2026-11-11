@@ -149,6 +149,7 @@ CHOOSE_SIEGE_PROMPT = PromptKind("choose_siege", "Choose Khans or Dragons for ")
 CHOOSE_LAND_TYPE_PROMPT = PromptKind("choose_land_type", "Choose a basic land type for ")  # followed by the land's name; Plains, Island, Swamp, Mountain, Forest
 WISH_PROMPT = PromptKind("wish", "Put into your hand for ")  # followed by the source's name; options: "<card> (outside the game)", "<card> (exile)", "Nothing"
 CHOOSE_NAME_PROMPT = PromptKind("choose_name", "Choose a card name for ")  # followed by the card's name; options are the names in view
+CHOOSE_SOURCE_PROMPT = PromptKind("choose_source", "Choose the source whose next damage to you is prevented by ")  # Circle of Protection
 CHOOSE_TYPE_PROMPT = PromptKind("choose_type", "Choose a creature type for ")  # followed by the card's name; options are the types, most common first
 _PRIMES = frozenset({2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97})
 CLONE_PROMPT = PromptKind("clone", "Choose what to copy for ")  # followed by the card's name; the last option is NOT_A_COPY
@@ -778,6 +779,9 @@ class Game:
         # "Prevent all damage that would be dealt to you this turn." and the like: (turn, seat index of the effect's controller, kind, the
         # permanent it is about or None, combat damage only); see _prevention_rule_applies
         self.prevention_rules: list[tuple[int, int, str, Permanent | None, bool]] = []
+        # Circle of Protection: "The next time a red source of your choice would deal damage to you this turn, prevent that damage.":
+        # (turn, seat index, the source chosen: a permanent, or the card of a spell on the stack); used up by that damage
+        self.source_shields: list[tuple[int, int, Any]] = []
         self.no_prevention_turn: int | None = None  # the turn damage can't be prevented (Impractical Joke)
         self.shields: list[list] = []  # [what is shielded, damage still to prevent, turn]: "prevent the next 2 damage ... this turn"
 
@@ -3880,6 +3884,11 @@ class Game:
         if isinstance(target, Seat) and target.protected:  # protection from everything
             self.broadcast({"event": "damage_prevented", "seat": target.index, "amount": amount})
             return
+        if isinstance(target, Seat) and (shield := self._source_shield(target, source)) is not None and amount > 0 \
+                and not self._unpreventable(source, combat):
+            self.source_shields.remove(shield)  # CR 615.7: it prevents the next damage from that source, once
+            self.broadcast({"event": "damage_prevented", "seat": target.index, "amount": amount})
+            return
         amount, prevented = self._damage_replaced(target, amount, source, combat)
         if prevented:
             self.broadcast({"event": "damage_prevented", "amount": prevented,
@@ -4046,11 +4055,14 @@ class Game:
         mods = self._damage_modifiers(target, source, combat)
         if not mods:
             after = self._damage_after_prevention(target, amount, source, combat)
+            after -= self._partial_prevention(target, source, after, combat)  # Gisela, Guardian Seraph
             return after, amount - after
         capacity = self._prevention_capacity(target, source, combat)
         steps: list[tuple[str, int, int]] = [(p.card.name, m.factor, m.plus) for p, m in mods]  # (name, factor, plus)
         if capacity:
             steps.append(("prevention", 0, 0))
+        if self._partial_prevention(target, source, amount, combat):  # Gisela's half: the affected player orders it with the doubling
+            steps.append(("partial", 0, 0))
         outcomes: dict[int, tuple[list[str], int]] = {}  # damage dealt -> (the order, the damage prevented)
         for order in itertools.permutations(steps):
             dealt, stopped = amount, 0
@@ -4058,6 +4070,9 @@ class Game:
                 if name == "prevention":
                     used = min(dealt, capacity)
                     dealt, stopped = dealt - used, stopped + used
+                elif name == "partial":
+                    cut = self._partial_prevention(target, source, dealt, combat)
+                    dealt, stopped = dealt - cut, stopped + cut
                 elif dealt > 0:  # nothing is left to replace once it is all prevented
                     dealt = dealt * factor + plus
             if dealt not in outcomes or stopped < outcomes[dealt][1]:  # the same damage: the order that keeps more of the shield
@@ -4092,16 +4107,12 @@ class Game:
         """How much of this damage can be prevented: none if it can't be prevented, everything for a Fog this turn or a static "prevent
         all damage that would be dealt to this creature", else what the shields made this turn still hold."""
         everyone = [p for s in self.live_seats() for p in s.battlefield if not self.loses_abilities(p)]
-        if any("unpreventable" in damage_prevention(p.card) for p in everyone) \
-                or (source is not None and "unpreventable:self" in damage_prevention(source.card)) \
-                or self.no_prevention_turn == self.turn:  # Impractical Joke: "Damage can't be prevented this turn."
+        if self._unpreventable(source, combat):
             return 0
         if combat and self.fog_turn == self.turn:
             return EVERYTHING
         if self.creature_fog_turn == self.turn and source is not None and "Creature" in source.card.type_line:  # Ethereal Haze
             return EVERYTHING
-        if combat and any("unpreventable:combat" in damage_prevention(p.card) for p in everyone):  # Frenzied Baloth
-            return 0
         for turn, who, kind, subject, combat_only in self.prevention_rules:
             if turn == self.turn and (combat or not combat_only) and self._prevention_rule_applies(kind, self.seats[who], subject, target, source):
                 return EVERYTHING
@@ -4135,6 +4146,62 @@ class Game:
         elif any("you:all" in damage_prevention(p.card) for p in target.battlefield if not self.loses_abilities(p)):
             return EVERYTHING
         return sum(entry[1] for entry in self.shields if entry[0] is target and entry[2] == self.turn and entry[1] > 0)
+
+    def _unpreventable(self, source: Permanent | None, combat: bool) -> bool:
+        """Whether this damage can't be prevented: "Damage can't be prevented." on any permanent, "this turn" (Impractical Joke), a source's
+        own "can't be prevented", or Frenzied Baloth's "Combat damage can't be prevented." for combat damage."""
+        everyone = [p for s in self.live_seats() for p in s.battlefield if not self.loses_abilities(p)]
+        return (any("unpreventable" in damage_prevention(p.card) for p in everyone)
+                or (source is not None and "unpreventable:self" in damage_prevention(source.card))
+                or self.no_prevention_turn == self.turn
+                or (combat and any("unpreventable:combat" in damage_prevention(p.card) for p in everyone)))
+
+    def _partial_prevention(self, target: Seat | Permanent, source: Permanent | None, amount: int, combat: bool) -> int:
+        """How much of `amount` the statics that prevent part of it take away: Gisela's half, rounded up, of damage to you or your
+        permanents; Guardian Seraph's 1 of a damage an opponent's source deals to you; Temple Altisaur's all but 1 to another Dinosaur."""
+        if amount <= 0 or self._unpreventable(source, combat):
+            return 0
+        dealer = self.controller_of(source) if source is not None else (self.resolving_item.controller if self.resolving_item else None)
+        left = amount
+        for p in [p for s in self.live_seats() for p in s.battlefield if not self.loses_abilities(p)]:
+            rules = damage_prevention(p.card)
+            if not rules & {"half:you_and_yours", "opp_to_you:1", "all_but_1:other:Dinosaur"}:
+                continue
+            owner = self.controller_of(p)
+            yours = target is owner or (isinstance(target, Permanent) and self.controller_of(target) is owner)
+            if "half:you_and_yours" in rules and yours:
+                left -= (left + 1) // 2
+            if "opp_to_you:1" in rules and target is owner and dealer is not None and dealer is not owner:
+                left -= min(1, left)
+            if "all_but_1:other:Dinosaur" in rules and isinstance(target, Permanent) and target is not p and yours \
+                    and "Dinosaur" in self.subtypes(target):
+                left = min(left, 1)
+        return amount - left
+
+    def shield_from_source(self, seat: Seat, quality: str, circle: Permanent | None) -> None:
+        """Circle of Protection: `seat` chooses a source of `quality` (a color letter, "artifact", or "chosen": the color the Circle chose),
+        a permanent or a spell on the stack; the next time it would deal damage to `seat` this turn, that damage is prevented."""
+        if quality == "chosen":
+            quality = circle.chosen_color if circle is not None and circle.chosen_color else ""
+        if not quality:
+            return
+        options: list[tuple[str, Any]] = [(self.label(p), p) for s in self.live_seats() for p in s.battlefield
+                                          if quality in source_qualities(p.card)]
+        options += [(f"Spell: {i.card.name} (seat {i.controller.index})", i.card) for i in self.stack
+                    if not i.ability and quality in source_qualities(i.card)]
+        if not options:
+            return
+        pick = seat.player.choose(CHOOSE_SOURCE_PROMPT(circle.card.name if circle is not None else ""), [label for label, _ in options])
+        self.source_shields = [e for e in self.source_shields if e[0] == self.turn] + [(self.turn, seat.index, options[pick][1])]
+
+    def _source_shield(self, target: Seat | Permanent, source: Permanent | None) -> tuple | None:
+        """A Circle of Protection's shield for this damage to `target`: the chosen source is the permanent dealing it, or the spell
+        resolving that deals it."""
+        if not isinstance(target, Seat):
+            return None
+        spell = self.resolving_item.card if source is None and self.resolving_item is not None and not self.resolving_item.ability else None
+        return next((e for e in self.source_shields if e[0] == self.turn and e[1] == target.index
+                     and ((source is not None and e[2] is source) or (spell is not None and e[2] is spell))), None)
 
     def prevent_this_turn(self, seat: Seat, kind: str, subject: Permanent | None = None, combat: bool = False) -> None:
         """Add a "prevent all ... damage ... this turn" of `seat`'s (see _prevention_rule_applies); those of earlier turns are dropped."""
