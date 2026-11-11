@@ -56,8 +56,8 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(unsupported_lines(GOBLIN_RECRUITER), [])
         self.assertEqual(unsupported_lines(TIAMAT), [])
         self.assertEqual(unsupported_lines(URENI), [])
-        # Muxus's attack pump is other work; its library line is read (Sisay's static is read since #682)
-        self.assertEqual([line[:30] for line in unsupported_lines(MUXUS)], ["Whenever CARDNAME attacks, it "])
+        # Muxus's attack pump ("for each other Goblin you control") is read since the fifth parse-only batch (Sisay's static since #682)
+        self.assertEqual(unsupported_lines(MUXUS), [])
         self.assertEqual(unsupported_lines(SISAY), [])
 
 

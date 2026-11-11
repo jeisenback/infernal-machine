@@ -111,13 +111,24 @@ def enters_with_counters(card: Card, kicked: int = 0, escaped: bool = False, blo
 _ENTERS_PER_DELVED = re.compile(r"This creature enters with a \+1/\+1 counter on it for each instant and sorcery card exiled with it\.")
 
 
+# Golgari Grave-Troll, Diregraf Colossus: "This creature enters with a +1/+1 counter on it for each creature card in your graveyard."
+_ENTERS_PER_AMOUNT = re.compile(rf"{_SELF} enters with a \+1/\+1 counter on it for each (.+)\.", re.I)
+
+
+@lru_cache(maxsize=None)
+def entering_counters_amount(card: Card) -> "Amount | None":
+    """How many +1/+1 counters the card enters with by an amount the game works out as it enters, or None."""
+    return next((a for line in rules_lines(card) if (m := _ENTERS_PER_AMOUNT.fullmatch(line)) and (a := _amount(m[1]))), None)
+
+
 def is_enters_with_counters(line: str) -> bool:
     if k := _IF_KICKED.match(line) or _IF_BLOODTHIRSTY.match(line):
         line = line[k.end():]
     if r := _IF_ATTACKED.search(line):
         line = _ABILITY_WORD.sub("", line[:r.start()] + ".")
     return (_ENTERS_WITH.fullmatch(line) is not None or _ENTERS_PER_KICK.fullmatch(line) is not None
-            or _ESCAPES_WITH.fullmatch(line) is not None or _ENTERS_PER_DELVED.fullmatch(line) is not None)
+            or _ESCAPES_WITH.fullmatch(line) is not None or _ENTERS_PER_DELVED.fullmatch(line) is not None
+            or ((m := _ENTERS_PER_AMOUNT.fullmatch(line)) is not None and _amount(m[1]) is not None))
 
 
 @lru_cache(maxsize=None)

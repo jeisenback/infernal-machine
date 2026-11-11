@@ -1233,6 +1233,21 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     you control a legendary creature." (Rivendell); `Tokens`, `Creature tokens` and `Foods you control have "{T}: Add ..."` (Jaheira,
     Springleaf Parade, Night of the Sweets' Revenge); "Whenever one or more artifact creatures you control deal combat damage to a
     player" (Thopter Spy Network).
+  - The same, batch 5 (`tests/test_parse_only_batch_5.py`): amounts "your life total" (Storm Herd, Ajani, Caller of the Pride),
+    "each creature your opponents control" (Match the Odds), "the greatest mana value among artifacts you control" (One with the
+    Machine, Muzzio), "tapped creatures" and "attacking Elves" you control (Throne of the God-Pharaoh, Dwynen), "each other Dinosaur
+    (creature) you control" (Earthshaker Dreadmaw, Goldnight Redeemer: not the source) and "each Zombie card in your graveyard";
+    "This creature enters with a +1/+1 counter on it for each ..." with any such amount, counted as it enters (Golgari Grave-Troll,
+    Diregraf Colossus, Squad Captain, Bloodcrazed Paladin); "Target player mills half their library, rounded down." (Traumatize);
+    "Destroy all creatures that entered this turn." (Force of Despair); "Counter target spell with mana value 4 or greater."
+    (Disdainful Stroke); "a blue instant card" to search for (Merchant Scroll); "Return all legendary permanent cards from your
+    graveyard to the battlefield." (Primevals' Glorious Rebirth); "Whenever a player draws a card" (Spiteful Visions: whoever drew);
+    "Whenever a legendary creature you control deals combat damage to a player" (Vraska Joins Up); "deals 1 damage to each opponent and
+    each creature (and planeswalker) they control" (Tectonic Hazard, End the Festivities, Goblin Chainwhirler); "You gain N life for
+    each creature destroyed this way." after a wipe (Fumigate, Righteous Fury, Ob Nixilis, the Ascended); "Choose a creature type."
+    followed by "Draw a card for each permanent you control of that type.", "Destroy all creatures that aren't of the chosen type." or
+    "Return all creatures that aren't of the chosen type to their owners' hands." (Distant Melody, Kindred Dominance, Raise the
+    Palisade), the type named as the spell resolves.
   - Landfall, batch 1 (`tests/test_landfall_triggers.py`): a sentence "If <condition>, <effect>." whose condition is read and whose
     effect has no target and doesn't point back at what an earlier sentence chose ("it", "that", "those", ...) is an `IfElse` checked
     as it resolves (Omnath, Locus of the Roil's "If you control eight or more lands, draw a card."; Rapier Wit's "put a stun counter
