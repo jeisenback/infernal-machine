@@ -4,8 +4,8 @@ import unittest
 
 from infernal_machine.cards import Card
 from infernal_machine.effects import spell_effects
-from infernal_machine.effects.families.library_and_hand import Impulse
-from infernal_machine.effects.families.spells_and_misc import KickedInstead
+from infernal_machine.effects.families.library import Impulse
+from infernal_machine.effects.families.conditions import KickedInstead
 from infernal_machine.game import LOOK_PROMPT
 from infernal_machine.report import unsupported_lines
 from tests.helpers import Table, real
