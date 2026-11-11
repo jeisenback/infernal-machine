@@ -350,6 +350,7 @@ from .statics import (  # noqa: F401
     no_max_hand_size,
     players_have_no_max_hand,
     power_toughness_amount,
+    entering_counters_amount,
     printed_protection,
     reanimation_aura,
     room_view,

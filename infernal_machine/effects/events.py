@@ -116,6 +116,8 @@ declare("foretold", re.compile(r"Whenever you foretell a card, (.+)", re.I), to=
 declare("draw", re.compile(r"Whenever you draw a card, (.+)", re.I), to="you", happens="drew")
 declare("opponent_draw", re.compile(r"Whenever an opponent draws a card, (.+)", re.I),
         to="opponents", happens="drew", about_player=True)
+declare("player_draw", re.compile(r"Whenever a player draws a card, (.+)", re.I),
+        to="everyone", happens="drew", about_player=True)  # Spiteful Visions: "that player" is whoever drew
 # Orcish Bowmasters: every draw but the one in their draw step
 declare("opponent_extra_draw", re.compile(r"Whenever an opponent draws a card except the first one they draw in each of their draw steps, (.+)", re.I),
         to="opponents", happens="drew", accepts=fact("extra"), about_player=True)

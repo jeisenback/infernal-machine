@@ -944,13 +944,13 @@ class EachDraw:
 
 @dataclass(frozen=True)
 class TargetMill:
-    """ "Target player (or opponent) mills three cards." """
+    """ "Target player (or opponent) mills three cards." ("half": "... mills half their library, rounded down.", Traumatize)"""
     count: int | str
     target: str  # "player" or "opponent"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.mill(target, game.amount(self.count))
+            game.mill(target, len(target.library) // 2 if self.count == "half" else game.amount(self.count))
 
 
 @dataclass(frozen=True)

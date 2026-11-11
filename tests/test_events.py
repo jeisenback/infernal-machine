@@ -79,7 +79,7 @@ class RegistryTests(unittest.TestCase):
 
     def test_occurrences_list_their_events_in_declaration_order(self):
         self.assertEqual([e.name for e in heard_on("drew")],
-                         ["draw", "opponent_draw", "opponent_extra_draw", "second_draw", "third_draw", "opponent_second_draw"])
+                         ["draw", "opponent_draw", "player_draw", "opponent_extra_draw", "second_draw", "third_draw", "opponent_second_draw"])
         self.assertEqual({e.name for e in heard_on("scried")}, {"scry", "scry_or_surveil"})
         self.assertEqual({e.name for e in heard_on("cycled")}, {"cycle", "cycle_or_discard"})
         self.assertEqual({e.name for e in heard_on("discarded")}, {"discard", "discard_creature", "cycle_or_discard", "opponent_discard"})

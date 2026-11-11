@@ -235,6 +235,7 @@ from .families.counters import (  # noqa: F401
     _PutCountersAndAttach,
 )
 from .families.destroy_and_sacrifice import (  # noqa: F401
+    ChosenTypeEffect,
     CHOOSE_TYPE_PROMPT,
     CannotRegenerate,
     Destroy,
@@ -435,6 +436,7 @@ from .families.library_and_hand import (  # noqa: F401
     _card_matches_kind,
 )
 from .families.life_and_damage import (  # noqa: F401
+    _LifeForEachDestroyed,
     DamageEachOtherOpponent,
     EachPlayerFetchesBasicLand,
     GainLifeEqualToTargetPower,
@@ -1333,6 +1335,14 @@ _AMOUNTS = [
      lambda m: Amount("graveyards_same_name")),
     (re.compile(r"(?:the number of )?((?:colorless|white|blue|black|red|green) creature|basic (?-i:[A-Z][a-z]+))s? you control", re.I),
      lambda m: Amount("you_control_matching", m[1].lower())),  # Tomb of the Spirit Dragon, Cabal Stronghold
+    (re.compile(r"your life total", re.I), lambda m: Amount("life_total")),  # Storm Herd
+    (re.compile(r"(?:the number of )?creatures? your opponents control", re.I), lambda m: Amount("opponents_control", "creature")),  # Riot Control
+    (re.compile(r"the greatest mana value among artifacts you control", re.I), lambda m: Amount("greatest_mana_value", "artifact")),
+    (re.compile(r"(?:the number of )?(tapped|attacking) (creature|(?-i:[A-Z][a-z]+))s? you control", re.I),  # Throne of the God-Pharaoh, Dwynen
+     lambda m: Amount("you_control_state", f"{m[1].lower()}|{_singular(m[2] + 's')}")),
+    (re.compile(r"(?:the number of )?other (creature|(?-i:[A-Z][a-z]+))s? you control", re.I),  # Earthshaker Dreadmaw: not the source itself
+     lambda m: Amount("you_control_other", _singular(m[1] + "s"))),
+    (re.compile(r"(?:the number of )?((?-i:[A-Z][a-z]+)) cards? in your graveyard", re.I), lambda m: Amount("graveyard", m[1])),  # Diregraf Colossus
     (re.compile(r"(?:the number of )?creatures? you control with power (\d+) or greater", re.I),
      lambda m: Amount("power_at_least", m[1])),  # Shamanic Revelation
     (re.compile(r"(?:the number of )?([A-Za-z]+) you control", re.I), lambda m: Amount("you_control", _singular(m[1]))),
@@ -1387,7 +1397,7 @@ _EXCEPT = (r"(?: except(?: for)? ((?:(?:artifact|enchantment|legendary|white|blu
            rf"(?:creatures|lands|permanents|tokens)(?: with {_MASS_KEYWORDS})?))?")
 
 
-_THAT_ARE = r"(?: that (are (?:one or more colors|colorless|multicolored|monocolored)|aren't enchanted))?"
+_THAT_ARE = r"(?: that (are (?:one or more colors|colorless|multicolored|monocolored)|aren't enchanted|entered this turn))?"
 
 
 # The same, with an optional color adjective before and "with flying" etc. after (destroy and exile only).
@@ -1431,6 +1441,8 @@ def _mass_filter(non: str | None, color: str | None, restriction: str | None, to
         fields["exclude"] = _spared_filter(spared.lower())
     if colors_are == "aren't enchanted":
         fields["enchanted"] = False
+    elif colors_are == "entered this turn":  # Force of Despair
+        fields["entered_this_turn"] = True
     elif colors_are:
         fields["colors_are"] = colors_are.lower().removeprefix("are ")
     return MassFilter(**fields) if fields else None
@@ -1893,7 +1905,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:revolt \u2014 )?destroy that creature if it has mana value (\d+) or less instead if (.+)\.", re.I),  # Fatal Push
      lambda m: _InsteadManaValue(int(m[1]), c) if (c := _condition(m[2])) else None),
     (re.compile(r"counter target ((?:noncreature|creature or enchantment|creature|instant or sorcery|enchantment, instant, or sorcery|artifact or enchantment|artifact|enchantment|instant|sorcery|white|blue|black|red|green|multicolored) )?spell"
-                rf"(?: with mana value (\d+))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),
+                rf"(?: with mana value (\d+(?: or greater)?))?( unless its controller pays ((?:\{{[^}}]+\}})+))?\.", re.I),  # Disdainful Stroke: "4 or greater"
      lambda m: Counter(f"{m[1].lower() if m[1] else ''}spell" + (f" with mana value {m[2]}" if m[2] else ""), unless=m[4] or "")),
     (re.compile(r"counter target spell with mana value X or less, where X is the number of ((?-i:[A-Z][a-z]+))s you control\.", re.I),
      lambda m: Counter(f"spell with mana value at most your {m[1]}s")),  # Spellstutter Sprite: X is checked again as it resolves
@@ -2795,6 +2807,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Fight(m[4].lower(), optional_target=bool(m[2]), follows=True, then=bool(m[1]), another=bool(m[3]))),  # "he ... other": Wolverine
     (re.compile(r"target player draws X cards plus an additional card for each time they've cast a commander from the command zone "
                 r"this game\.", re.I), lambda m: TargetDrawXPlusCasts()),
+    (re.compile(r"you gain (\d+) life for each creature destroyed this way\.", re.I), lambda m: _LifeForEachDestroyed(int(m[1]))),  # Fumigate
+    (re.compile(r"choose a creature type\. (?:(draw) a card for each permanent you control of that type|(destroy) all creatures that aren't of "
+                r"the chosen type|return all creatures that aren't of the chosen type to their owners' hands)\.", re.I),
+     lambda m: ChosenTypeEffect("draw" if m[1] else "destroy" if m[2] else "bounce")),  # Distant Melody, Kindred Dominance, Raise the Palisade
     (re.compile(r"add \{([WUBRGC])\} or \{([WUBRGC])\} for each permanent destroyed this way\.", re.I),
      lambda m: _ManaForEachDestroyed(frozenset({m[1].upper(), m[2].upper()}))),
     (re.compile(r"add \{([WUBRGC])\} for each tapped land your opponents control\.", re.I),
@@ -2957,6 +2973,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: Mill(_count(m[2]), "each " + m[1].lower())),
     (re.compile(rf"target (player|opponent) mills {_N} cards?\.", re.I),
      lambda m: TargetMill(_count(m[2]), m[1].lower())),
+    (re.compile(r"target (player|opponent) mills half their library, rounded down\.", re.I),  # Traumatize, Jidoor
+     lambda m: TargetMill("half", m[1].lower())),
     (re.compile(rf"destroy all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(DestroyAll, m)),
     (re.compile(r"destroy all (non-)?((?-i:[A-Z][a-z]+)) creatures\.", re.I),  # Crux of Fate: "all Dragon creatures", "all non-Dragon creatures"
      lambda m: DestroyAll(f"{m[1] or ''}{m[2]} creature")),
@@ -2979,6 +2997,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"exile all {_MASS_FILTERED}\.", re.I), lambda m: _mass_effect(ExileAll, m)),
     (re.compile(rf"{_SELF} deals {_N} damage to each (creature you don't control|creature your opponents control|creature and planeswalker your opponents control"
                 rf"|creature|opponent|player)(?: {_RESTRICTION})?(?: and each (opponent|player))?\.", re.I), _damage_each),
+    (re.compile(rf"{_SELF} deals {_N} damage to each opponent and each creature( and planeswalker)? they control\.", re.I),  # Tectonic Hazard
+     lambda m: DamageEach(_count(m[1]), "opponents and planeswalkers" if m[2] else "opponents", "opponents")),
     (re.compile(r"(?:each (opponent|player) gets|each (opponent|player) gets) (a|one|two|three) poison counters?\.", re.I),
      lambda m: GivePoison((m[1] or m[2]).lower(), _number(m[3]))),
     (re.compile(r"they get that many poison counters\.", re.I), lambda m: PlayerGetsPoison("X")),  # Etali, Primal Sickness: the damaged player
@@ -3804,6 +3824,7 @@ _CONDITIONAL = Follows(
     Follow(_UntapThoseLands, RevealLands, set_fields(untap_if=lambda m: m.condition)),
     Follow(_UntapThatLand, FetchBasicLand, set_fields(untap_if=lambda m: m.condition)),
     Follow(_ManaForEachDestroyed, DestroyAll, set_fields(mana_each=lambda m: m.options)),
+    Follow(_LifeForEachDestroyed, DestroyAll, set_fields(life_each=lambda m: m.life)),
     Follow(_DrawPerReturned, ReturnAnyNumber, set_fields(draw=lambda m: True)),
     Follow(_NoLifeGainForDamaged, Damage, set_fields(no_life_gain=lambda m: True)),
     Follow(_DrawPerUnable, Discard, set_fields(draw_per_unable=lambda m: True), fits=lambda previous, marker: previous.who == "each opponent"),

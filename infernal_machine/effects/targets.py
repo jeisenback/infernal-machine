@@ -56,6 +56,7 @@ class MassFilter:
     colors_are: str | None = None  # "that are one or more colors" / "colorless" / "multicolored" / "monocolored"
     enchanted: bool | None = None  # False: "that aren't enchanted" (Winds of Rath)
     counters: bool | None = None  # False: "with no counters on them" (Damning Verdict)
+    entered_this_turn: bool = False  # "that entered this turn" (Force of Despair)
 
 
 _LAND_TYPES = rf"({_LAND_TYPE}(?:, {_LAND_TYPE})*(?:,? or {_LAND_TYPE})?)"
@@ -81,13 +82,13 @@ _CARD_TYPE = (r"((?:(?:legendary creature|legendary|nonbasic land|noncreature, n
               rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
 
 
-_SEARCH_KIND = (r"(?:legendary creature|legendary|nonbasic land|creature|land|artifact|enchantment|planeswalker"
+_SEARCH_KIND = (r"(?:(?:white|blue|black|red|green) (?:instant|sorcery|creature)|legendary creature|legendary|nonbasic land|creature|land|artifact|enchantment|planeswalker"
                 rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|basic (?-i:[A-Z][a-z]+)|{_SUBTYPE_CARDS}|(?-i:[A-Z][a-z]+) or (?-i:[A-Z][a-z]+)|(?-i:[A-Z][a-z]+)(?: creature)?|(?-i:non-[A-Z][a-z]+) creature)")
 _SEARCH_TYPE = rf"((?:{_SEARCH_KIND} )?card{_MANA_VALUE})"
 _SEARCH_TYPES = rf"((?:{_SEARCH_KIND} )?cards{_MANA_VALUE})"  # the plural, for a search that finds several ("up to five Dragon cards")
 
 
-_CARDS_PLURAL = (r"((?:(?:legendary creature|legendary|nonbasic land|artifact and enchantment|creature|artifact|enchantment|land|permanent"
+_CARDS_PLURAL = (r"((?:(?:legendary creature|legendary permanent|legendary|nonbasic land|artifact and enchantment|creature|artifact|enchantment|land|permanent"
                  rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?cards{_MANA_VALUE})")
 
 

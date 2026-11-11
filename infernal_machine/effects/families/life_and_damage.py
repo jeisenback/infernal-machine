@@ -586,3 +586,9 @@ class EachPlayerFetchesBasicLand:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         for seat in game.turn_order_from_active():
             game.fetch_basic_land(seat, tapped=False)
+
+
+@dataclass(frozen=True)
+class _LifeForEachDestroyed:
+    """ "You gain 1 life for each creature destroyed this way." (Fumigate): folded into the DestroyAll before it."""
+    life: int

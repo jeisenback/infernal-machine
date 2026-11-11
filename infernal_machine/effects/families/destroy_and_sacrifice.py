@@ -111,11 +111,14 @@ class DestroyAll:
     no_regen: bool = False  # "They can't be regenerated."
     gives: "GiveBack | None" = None  # "For each creature destroyed this way, its controller creates a 1/1 token"
     mana_each: frozenset[str] = frozenset()  # Culling Ritual: "Add {B} or {G} for each permanent destroyed this way."
+    life_each: int = 0  # Fumigate: "You gain 1 life for each creature destroyed this way."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         destroyed = game.destroy_all(game.mass_targets(self.kind, controller, self.restriction), self.no_regen, self.gives, controller)
         if self.mana_each:
             game.add_mana(controller, tuple(self.mana_each for _ in destroyed))
+        if self.life_each and destroyed:
+            game.change_life(controller, self.life_each * len(destroyed))
 
 
 @dataclass(frozen=True)
@@ -303,3 +306,24 @@ class SacrificeUnlessPay:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and game.on_battlefield(target) and not game.pays_unless(controller, self.cost, target.card):
             game._leave_battlefield(target, "sacrificed")
+
+
+@dataclass(frozen=True)
+class ChosenTypeEffect:
+    """Distant Melody, Kindred Dominance, Raise the Palisade: the controller names a creature type as it resolves, then draws for each
+    permanent of it they control, or destroys or returns every creature that isn't of it (a changeling is every type)."""
+    what: str  # "draw", "destroy" or "bounce"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if item is None:
+            return
+        kind = game._choose_creature_type(controller, item.card)
+        if self.what == "draw":
+            game.draw(controller, sum(kind in game.subtypes(p) for p in controller.battlefield))
+            return
+        others = [p for p in game.mass_targets("creature", controller) if kind not in game.subtypes(p)]
+        if self.what == "destroy":
+            game.destroy_all(others, caster=controller)
+        else:
+            game.return_all_to_hand(others)

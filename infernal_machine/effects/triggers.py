@@ -163,7 +163,7 @@ _WATCHES = {
     "sacrifice": re.compile(r"When(?:ever)? you sacrifice (?:an?|another) (token|artifact|land|Clue|Food|Treasure|enchantment), (.+)", re.I),
     "creature_attacks": re.compile(r"Whenever a creature you control attacks, (.+)", re.I),
     "expend": re.compile(r"Whenever you expend (\d+), (.+)", re.I),
-    "combat_damage_dealt": re.compile(rf"Whenever (a|one or more) (nontoken creatures?|{_TRIBE}(?: or {_TRIBE})*)(?: creatures?)? you control deals? combat damage "
+    "combat_damage_dealt": re.compile(rf"Whenever (a|one or more) (nontoken creatures?|legendary creatures?|{_TRIBE}(?: or {_TRIBE})*)(?: creatures?)? you control deals? combat damage "
                                       r"to (?:a player|an opponent), (.+)", re.I),  # Ingenious Infiltrator, Prosperous Thief; Parapet Thrasher
 }
 
@@ -307,7 +307,9 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         if kind.startswith("nontoken"):  # Impostor Syndrome: "Whenever a nontoken creature you control deals combat damage to a player"
             return "combat_damage_dealt", Watch("creature", yours=True, nontoken=True, batch=m[1].lower() == "one or more"), m[3]
         batch = m[1].lower() == "one or more"
-        if batch:  # "one or more Dragons": what each of them is, a Dragon (Alela, Anowon, Parapet Thrasher)
+        if kind.startswith("legendary"):  # Vraska Joins Up: "Whenever a legendary creature you control deals combat damage to a player"
+            kind = "legendary creature"
+        elif batch:  # "one or more Dragons": what each of them is, a Dragon (Alela, Anowon, Parapet Thrasher)
             kind = " or ".join(_singular(part) for part in kind.split(" or "))
         return "combat_damage_dealt", Watch(kind, yours=True, batch=batch), m[3]
     if m := _WATCHES["expend"].fullmatch(line):
