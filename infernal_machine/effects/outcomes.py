@@ -9,7 +9,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from ..cards import Card
-from ..characteristics import LOSES_HEXPROOF, Modifier
+from ..characteristics import LOSES, LOSES_HEXPROOF, Modifier
 
 if TYPE_CHECKING:
     from ..game import Game, Seat
@@ -594,6 +594,7 @@ from .families.spells_and_misc import (  # noqa: F401
     NextSpellUncounterable,
     _ThatAlsoGains,
     _ThatGainsIf,
+    _InsteadPump,
     _GainsIfXAtLeast,
     _TheyGain,
     _TheyGainHaste,
@@ -1342,6 +1343,8 @@ _AMOUNTS = [
      lambda m: Amount("graveyards_same_name")),
     (re.compile(r"(?:the number of )?((?:colorless|white|blue|black|red|green) creature|basic (?-i:[A-Z][a-z]+))s? you control", re.I),
      lambda m: Amount("you_control_matching", m[1].lower())),  # Tomb of the Spirit Dragon, Cabal Stronghold
+    (re.compile(r"(?:the number of )?creatures? you control with an? (\+1/\+1|[a-z]+) counters? on (?:it|them)", re.I),
+     lambda m: Amount("you_control_counter", m[1].lower())),  # Inspiring Call
     (re.compile(r"your life total", re.I), lambda m: Amount("life_total")),  # Storm Herd
     (re.compile(r"(?:the number of )?creatures? your opponents control", re.I), lambda m: Amount("opponents_control", "creature")),  # Riot Control
     (re.compile(r"the greatest mana value among artifacts you control", re.I), lambda m: Amount("greatest_mana_value", "artifact")),
@@ -2091,6 +2094,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _GainsIfXAtLeast(_keyword_list(m[2]), _number(m[1]))),
     (re.compile(rf"if (.+?), that creature gains {_KEYWORDS} until end of turn\.", re.I),  # Violent Urge
      lambda m: _ThatGainsIf(_keyword_list(m[2]), c) if (c := _condition(m[1])) else None),
+    (re.compile(rf"(?:[A-Z][a-z]+ \u2014 )?that creature gets {_PT} until end of turn instead if (.+)\.", re.I),  # Tragic Slip (Morbid)
+     lambda m: _InsteadPump(Modifier(_signed(m[1]), _signed(m[2])), c) if (c := _condition(m[3])) else None),
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
     (re.compile(r"until your next turn, you may cast sorcery spells as though they had flash\.", re.I), lambda m: GrantSorceryFlash()),
     (re.compile(rf"if (.+), draw {_N_FIXED} cards instead\.", re.I),
@@ -2691,6 +2696,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"reveal the top X cards of your library, where X is that spell's mana value\. You may cast a spell with mana value X or "
                 r"less from among cards revealed this way without paying its mana cost\. Put the rest on the bottom of your library in a "
                 r"random order\.", re.I), lambda m: [DefineX(Amount("spell_mana_value")), LookTopCastOneFree("X", "X")]),  # Sunbird's Invocation
+    (re.compile(r"draw a card for each creature you control with a \+1/\+1 counter on it\. Those creatures gain (.+) until end of turn\.", re.I),
+     lambda m: [DefineX(Amount("you_control_counter", "+1/+1")), Draw("X"),
+                PumpEach(Modifier(keywords=_keyword_list(m[1])), with_counter="+1/+1")]),  # Inspiring Call
     (re.compile(rf"look at the top {_N_FIXED} cards of your library\. You may cast a spell from among them with mana value less than or "
                 r"equal to the greatest power among attacking creatures you control without paying its mana cost\. Put the rest on the "
                 r"bottom of your library in a random order\.", re.I),  # Cosmic Cube
@@ -3179,6 +3187,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: dataclasses.replace(_pump_each_x_from(m[1], m[3], m[4], m[5], m[6]), keywords=_keyword_list(m[2]))),
     (re.compile(r"(?:Until end of turn, )?creatures your opponents control lose hexproof and shroud and can't have hexproof or shroud\."),
      lambda m: PumpEach(Modifier(keywords=frozenset({LOSES_HEXPROOF})), opponents=True)),
+    (re.compile(r"Permanents your opponents control lose hexproof and indestructible until end of turn\."),  # Shadowspear
+     lambda m: PumpEach(Modifier(keywords=frozenset({LOSES + "hexproof", LOSES + "indestructible"})), opponents=True, permanents=True)),
     (re.compile(rf"(?i:creatures your opponents control) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), opponents=True)),
     (re.compile(rf"(?i:all creatures) {_CHANGE}"), lambda m: PumpEach(_modifier(m, 1), everyone=True)),
     (re.compile(rf"(?i:all (non-[A-Z][a-z]+) creatures) {_CHANGE}"),  # Noxious Ghoul: "all non-Zombie creatures get -1/-1 ..."
@@ -3665,6 +3675,7 @@ _CONDITIONS = [
     (re.compile(r"you gained life this turn"), lambda m: Condition("gained_life")),
     (re.compile(rf"you(?:'ve)? gained {_N_FIXED} or more life this turn"), lambda m: Condition("gained_life_at_least", _number(m[1]))),
     (re.compile(rf"{_N_FIXED} or more creatures died this turn"), lambda m: Condition("creatures_died", _number(m[1]))),
+    (re.compile(r"a creature died this turn"), lambda m: Condition("creatures_died", 1)),  # Morbid
     (re.compile(r"an opponent controls more lands than you"), lambda m: Condition("opponent_more_lands")),
     (re.compile(rf"X is {_N_FIXED} or more"), lambda m: Condition("x_at_least", _number(m[1]))),
     (re.compile(r"this card is in your graveyard"), lambda m: Condition("in_graveyard")),
@@ -3883,6 +3894,8 @@ _CONDITIONAL = Follows(
     Follow(_ThatAlsoGains, Pump, lambda previous, marker: dataclasses.replace(
         previous, modifier=dataclasses.replace(previous.modifier, keywords=previous.modifier.keywords | marker.keywords))),
     Follow(_ThatGainsIf, Pump, set_fields(more_keywords=lambda m: m.keywords, more_if=lambda m: m.condition)),
+    Follow(_InsteadPump, Pump, set_fields(instead=lambda m: m.modifier, instead_if=lambda m: m.condition),
+           fits=lambda previous, marker: previous.instead is None),
     Follow(_InsteadUntapAll, UntapACreature, set_fields(all_if=lambda m: m.condition)),
     Follow(_ArtifactCreatureGetsCounter, Untap, set_fields(counter_if_artifact_creature=lambda m: True)),  # Tezzeret, Cruel Captain
     Follow(_GainsIfXAtLeast, PutCounters, set_fields(grant=lambda m: m.keywords, grant_at_least=lambda m: m.least)),  # Obsessive Pursuit

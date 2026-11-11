@@ -16,7 +16,7 @@ from .analysis import is_land
 from .cards import Card, has_keyword
 from .effects import (rules_statics, additional_land_mana, charge_mana, chosen_color_mana, counter_mana, counter_removal_mana, filter_mana_ability,
                       granted_land_mana, granted_mana, group_mana_grants, has_next_x_rider, is_identity_mana_land, land_mana_units,
-                      makes_mana_by_power, mana_ability, mana_ability_needs_no_tap, mana_ability_sacrifices, mana_among_legendary,
+                      makes_mana_by_power, one_color_mana_amount, mana_ability, mana_ability_needs_no_tap, mana_ability_sacrifices, mana_among_legendary,
                       mana_bonus, mana_by_amount, mana_by_count, mana_condition, mana_extra_cost, mana_life_condition, mana_life_cost, mana_life_types, mana_lines,
                       mana_of_imprinted, mana_pain, mana_per_color, mana_per_count, mana_restriction, mana_threshold, reflected_mana, restricted_mana,
                       tap_mana, with_granted_mana)
@@ -222,6 +222,8 @@ class ManaPayer:
                             lands.extend([ManaSource(permanent, _snowy(permanent, mana), pain, damage) for mana in units] + extra)
                             continue
                         types = types | units[0]
+                if among := mana_among_legendary(card):  # Plaza of Heroes: the colors of its controller's legendary permanents
+                    types = types | self._legendary_colors(seat, among)
                 if given := tuple(line for kind, line in grants if kind == "Land"):  # Chromatic Lantern
                     types = types | granted_land_mana(given, seat.color_identity)
                 types = types | self.game._land_type_mana(permanent)  # Urborg: it is a Swamp too
@@ -246,11 +248,12 @@ class ManaPayer:
                     if types:
                         bucket.append(ManaSource(permanent, types))
                     continue
+                by_amount = one_color_mana_amount(card)  # Sanctum Weaver: as many as the enchantments you control
                 units = ([frozenset("WUBRG")] * max(0, self.game.power(permanent)) if makes_mana_by_power(card)
+                         else [frozenset("WUBRG")] * self.game.evaluate_for(by_amount, seat, permanent) if by_amount is not None
                          else mana_ability(card, seat.color_identity) or [])  # (the power's worth need not be one color here)
-                if mana_among_legendary(card):  # Mox Amber: the colors of its controller's legendary creatures and planeswalkers
-                    colors = frozenset(c for p in seat.battlefield if "Legendary" in p.card.type_line
-                                       and ("Creature" in p.card.type_line or "Planeswalker" in p.card.type_line) for c in p.card.colors)
+                if among := mana_among_legendary(card):  # Mox Amber: the colors of its controller's legendary creatures and planeswalkers
+                    colors = self._legendary_colors(seat, among)
                     units = [colors] if colors else []
                 elif mana_per_color(card):  # Bloom Tender: one of each color among its controller's permanents
                     units = [frozenset(c) for c in sorted(self.game.colors_among(seat) & frozenset("WUBRG"))]
@@ -341,6 +344,12 @@ class ManaPayer:
         """Party Thrasher: "Noncreature spells you cast from exile have convoke." (the card is still in exile while it is paid for)"""
         return "Creature" not in spell.type_line and any(c is spell for s in self.game.seats for c in s.exile) \
             and any("exile_convoke" in rules_statics(p.card) for p in seat.battlefield)
+
+    @staticmethod
+    def _legendary_colors(seat: Seat, among: str) -> frozenset[str]:
+        """The colors among `seat`'s legendary creatures and planeswalkers (Mox Amber), or all its legendary permanents ("permanents")."""
+        return frozenset(c for p in seat.battlefield if "Legendary" in p.card.type_line and (
+            among == "permanents" or "Creature" in p.card.type_line or "Planeswalker" in p.card.type_line) for c in p.card.colors)
 
     def _reflected_types(self, seat: Seat, opponents: bool, colorless: bool) -> frozenset[str]:
         """What Exotic Orchard / Reflecting Pool can make: the mana types the lands of the opponents (or your other

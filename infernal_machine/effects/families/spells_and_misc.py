@@ -360,6 +360,13 @@ class _ThatGainsIf:
 
 
 @dataclass(frozen=True)
+class _InsteadPump:
+    """ "Morbid — That creature gets -13/-13 until end of turn instead if a creature died this turn." after a Pump (Tragic Slip)."""
+    modifier: Any
+    condition: Any
+
+
+@dataclass(frozen=True)
 class _ArtifactCreatureGetsCounter:
     """ "If it's an artifact creature, put a +1/+1 counter on it." after an Untap (Tezzeret, Cruel Captain)."""
 

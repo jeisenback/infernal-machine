@@ -1501,6 +1501,17 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (`Game._partial_prevention`, ordered with doubling by the affected player): Gisela's "prevent half that damage, rounded up" to you and
     your permanents, Guardian Seraph's "prevent 1 of that damage" from an opponent's source, and Temple Altisaur's "prevent all but 1 of
     that damage" to another Dinosaur you control. None of them applies to damage that can't be prevented (`Game._unpreventable`).
+  - Most-played cards, batch 1 (`tests/test_most_played_batch.py`, #200): Plaza of Heroes' "one mana of any color among legendary
+    permanents you control" (Mox Amber's rule, for any legendary permanent; `ManaPayer._legendary_colors`); Sanctum Weaver's "{T}: Add X
+    mana of any one color, where X is the number of enchantments you control." (`one_color_mana_amount`; as with a power's worth, the
+    payment lets each of the X be its own color); Inspiring Call (a card for each creature you control with a +1/+1 counter, and those
+    creatures gain indestructible: `PumpEach.with_counter`); "loses <keyword>" as a pseudo-keyword (`characteristics.LOSES`, checked first in
+    `Game.has_keyword`): Colossus Hammer's "gets +10/+10 and loses flying" and Shadowspear's "Permanents your opponents control lose hexproof
+    and indestructible until end of turn." (`PumpEach.permanents`: not only creatures); Fountainport's "Sacrifice a token" cost; Cruel
+    Celebrant's "this creature or another creature or planeswalker you control dies" (a planeswalker put into a graveyard is heard as
+    dying, CR 700.4); Tragic Slip's "Morbid — That creature gets -13/-13 until end of turn instead if a creature died this turn."
+    (`Pump.instead`); and Warstorm Surge and Be'lakor's "Whenever a creature (another Demon) you control enters, it deals damage equal to
+    its power to any target.": the creature that entered deals it, so its deathtouch and lifelink count (`Amount("subject_power")`).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

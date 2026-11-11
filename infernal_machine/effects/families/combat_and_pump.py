@@ -127,10 +127,14 @@ class Pump:
     distinct: bool = False
     more_keywords: frozenset[str] = frozenset()  # Violent Urge: "Delirium — If ..., that creature gains double strike until end of turn."
     more_if: Condition | None = None
+    instead: Modifier | None = None  # Tragic Slip: "That creature gets -13/-13 until end of turn instead if ..."
+    instead_if: Condition | None = None
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             modifier = self.modifier
+            if self.instead is not None and self.instead_if is not None and game.condition_holds(self.instead_if, controller):
+                modifier = self.instead
             if self.more_if is not None and game.condition_holds(self.more_if, controller):
                 modifier = dataclasses.replace(modifier, keywords=modifier.keywords | self.more_keywords)
             game.modify_until_end_of_turn(target, modifier)
@@ -249,15 +253,18 @@ class PumpEach:
     other: bool = False  # Summon: Esper Maduin: "Other creatures you control ...": not its source
     untap: bool = False  # Jeskai Ascendancy: "Untap those creatures."
     attacking: bool = False  # Warren Warleader: "Attacking creatures you control get +1/+1 ..."
+    with_counter: str = ""  # Inspiring Call: "Those creatures" (each you control with a +1/+1 counter on it)
+    permanents: bool = False  # Shadowspear: "Permanents your opponents control lose ...": not only creatures
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         seats = game.live_seats() if self.everyone else game.opponents(controller) if self.opponents else [controller]
         for seat in seats:
             for permanent in list(seat.battlefield):
                 kinds = permanent.card.type_line.partition("\u2014")[2].split()
-                if (self.other and permanent is game.resolving_source) or (self.attacking and not game._in_state(permanent, "attacking")):
+                if (self.other and permanent is game.resolving_source) or (self.attacking and not game._in_state(permanent, "attacking")) \
+                        or (self.with_counter and not permanent.counters.get(self.with_counter)):
                     continue
-                if "Creature" in permanent.card.type_line and (
+                if (self.permanents or "Creature" in permanent.card.type_line) and (
                         not self.subtype or (self.subtype.removeprefix("non-") in kinds) != self.subtype.startswith("non-")):
                     game.modify_until_end_of_turn(permanent, self.modifier)
                     if self.untap:
