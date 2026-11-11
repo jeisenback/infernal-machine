@@ -195,6 +195,7 @@ from .families.copying import (  # noqa: F401
     copy_of,
 )
 from .families.counters import (  # noqa: F401
+    DrawOrCountersByPower,
     GetEnergy,
     Amass,
     DISTRIBUTE_PROMPT,
@@ -324,6 +325,7 @@ from .families.exile_and_return import (  # noqa: F401
     _PlayTheExiledCard,
 )
 from .families.returning import (  # noqa: F401
+    GrantReturnWhenDies,
     _ToBattlefieldInstead,
     RETURN_LAND_PROMPT,
     ReturnPerOpponent,
@@ -2841,6 +2843,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"create that many (Treasure|Clue|Food) tokens\.", re.I), lambda m: CreateTokens("X", _NAMED_TOKENS[m[1].lower()])),  # Old Gnawbone
     (re.compile(r"create that many (\d+/\d+ [^.]+? creature tokens(?: with [^.]+)?)\.", re.I),  # Hornet Nest: the damage it was dealt
      lambda m: CreateTokens("X", made[1]) if (made := _token("a " + m[1].replace("tokens", "token", 1))) else None),
+    (re.compile(r"until end of turn, target creature gains \"when this creature dies, return it to the battlefield tapped under its owner's "
+                r"control with a \+1/\+1 counter on it\.\"", re.I), lambda m: GrantReturnWhenDies()),  # Undying Malice, Feign Death
     (re.compile(r"until end of turn, that creature gains \"when this creature dies, return it to the battlefield tapped under its owner's "
                 r"control\.\"", re.I), lambda m: ReturnWhenItDiesThisTurn()),  # Malakir Rebirth
     (re.compile(r"search your library for up to X basic land cards, where X is the greatest power among creatures you control\. put those "
@@ -3251,7 +3255,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: RemoveCounters(None, _counter_name(m[1]), m[2].lower())),
     (re.compile(rf"remove all counters from target {_PERMANENT_KIND}\.", re.I),
      lambda m: RemoveCounters(None, None, m[1].lower())),
-    (re.compile(rf"put an? {_COUNTER} on enchanted creature\.", re.I), lambda m: PutCounterOnHost(1, _counter_name(m[1]))),
+    (re.compile(rf"put an? {_COUNTER} on (?:enchanted|equipped) creature\.", re.I), lambda m: PutCounterOnHost(1, _counter_name(m[1]))),  # (Tarrian's Soulcleaver)
     (re.compile(r"have the base power and toughness of other creatures you control become equal to (?:CARDNAME's|its) "
                 r"power and toughness until end of turn\.", re.I), lambda m: OthersBecomeAsBigAsSource()),
     (re.compile(rf"double the number of {_COUNTER} on (?:{_SELF})\.", re.I),
@@ -3336,10 +3340,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      and len(inner) == 1 and isinstance(inner[0], SearchLibrary) else None),
     (re.compile(r"(?:Threshold \u2014 )?return that card from your graveyard to the battlefield instead if (.+)\.", re.I),  # Stitch Together
      lambda m: _ToBattlefieldInstead(c) if (c := _condition(m[1])) else None),
+    (re.compile(rf"(?:Addendum \u2014 )?if (.+?), put a \+1/\+1 counter on each of those creatures and they gain {_KEYWORDS} until end of turn\.", re.I),
+     lambda m: IfElse(c, (PutCountersOnEach(1, "+1/+1", grant=_keyword_list(m[2])),)) if (c := _condition(m[1])) else None),  # Unbreakable Formation
     (re.compile(r"(?:Metalcraft \u2014 )?if (.+?), exile that creature\.", re.I),  # Dispatch: the creature the sentence before tapped
      lambda m: ExileThatIf(c) if (c := _condition(m[1])) else None),
     (re.compile(r"if (you control an? (?-i:[A-Z])\w+), (?!.*\binstead\.$)(.+)\.", re.I), _if_else),  # Unholy Annex
-    (re.compile(r"if (.+?), (?!.*\binstead\.$)(?!.*\b(?:it|its|that|those|them|they|their)\b)(.+)\.", re.I),  # Omnath, Locus of the Roil:
+    (re.compile(r"(?:Addendum \u2014 )?if (.+?), (?!.*\binstead\.$)(?!.*\b(?:it|its|that|those|them|they|their)\b)(.+)\.", re.I),  # Omnath, Locus of the Roil:
      _if_else),  # any condition read, checked as it resolves; not an effect on what an earlier sentence chose (Rapier Wit's "on it")
     (re.compile(r"otherwise, (.+)\.", re.I), _otherwise),
     # Silver Shroud Costume: after an Equipment attached itself; last, so the older readings of "That creature gains haste" (Threaten) win
@@ -3718,6 +3724,7 @@ _CONDITIONS = [
     (re.compile(r"a land entered the battlefield under your control this turn"), lambda m: Condition("land_entered")),
     (re.compile(r"you control a prime number of lands"), lambda m: Condition("lands_prime")),
     (re.compile(r"you gained life this turn"), lambda m: Condition("gained_life")),
+    (re.compile(r"you cast this spell during your main phase"), lambda m: Condition("your_main_phase")),  # Addendum
     (re.compile(rf"you(?:'ve)? gained {_N_FIXED} or more life this turn"), lambda m: Condition("gained_life_at_least", _number(m[1]))),
     (re.compile(rf"{_N_FIXED} or more creatures died this turn"), lambda m: Condition("creatures_died", _number(m[1]))),
     (re.compile(r"a creature died this turn"), lambda m: Condition("creatures_died", 1)),  # Morbid

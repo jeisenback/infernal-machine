@@ -289,6 +289,17 @@ class ReturnWithCounter:
 
 
 @dataclass(frozen=True)
+class GrantReturnWhenDies:
+    """Undying Malice, Feign Death: 'Until end of turn, target creature gains "When this creature dies, return it to the battlefield tapped
+    under its owner's control with a +1/+1 counter on it."' """
+    target: str = "creature"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            target.returns_when_dies, target.returns_with_counter = game.turn, "+1/+1"
+
+
+@dataclass(frozen=True)
 class ReturnWhenItDiesThisTurn:
     """Malakir Rebirth: 'Until end of turn, that creature gains "When this creature dies, return it to the battlefield tapped under its
     owner's control."' (the game puts that trigger on the stack if the creature dies this turn)"""
@@ -335,11 +346,12 @@ class ReturnDeadToBattlefield:
     """Changing Loyalty and Gift of Immortality: "When enchanted creature dies, return it / that card to the battlefield
     under your / its owner's control." It is already in the graveyard when this resolves."""
     under_owner: bool
+    counter: str = ""  # Luminous Broodmoth: "... with a flying counter on it"
     binds = DEAD_SUBJECT
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            game.return_dead_to_battlefield(target, controller, self.under_owner)
+            game.return_dead_to_battlefield(target, controller, self.under_owner, counter=self.counter)
 
 
 @dataclass(frozen=True)

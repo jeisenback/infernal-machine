@@ -570,7 +570,7 @@ def is_chosen_type_itself(card: Card) -> bool:
 
 
 _AFFECTED = (r"(?:Other c|C)reatures you control of the chosen (?:type|color)|Creatures of the chosen type|Creatures your opponents control|(?:Other )?enchantments you control"
-             r"|(?:Other )?permanents you control|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* |artifact |nontoken )?[Cc]reatures you control"
+             r"|Permanents you control with counters on them|(?:Other )?permanents you control|Creature tokens you control|Creatures you control with counters on them|Each creature you control with a \+1/\+1 counter on it|(?:Other )?(?:Attacking )?(?:(?:white|blue|black|red|green) )?(?:[A-Z][\w'-]* |artifact |nontoken )?[Cc]reatures you control"
              r"|(?:Other |Attacking )?[A-Z][\w'-]*s(?: and [A-Z][\w'-]*s)? you control|Other [A-Z][\w'-]*s|(?:White|Blue|Black|Red|Green|All) creatures"
              r"|Other [A-Z][\w'-]* creatures|Other Merfolk(?: you control)?|All [A-Z][\w'-]*s|[A-Z][\w'-]* tokens you control|Creatures you control with \+1/\+1 counters on them")
 
@@ -587,7 +587,7 @@ _STATIC = re.compile(rf"({_AFFECTED}) (?:get {_PT}(?: and have {_KEYWORDS})?|(?:
 
 
 _AFFECTED_WHO = re.compile(r"(?P<chosen>(?P<other_chosen>Other c|C)reatures (?:you control )?of the chosen (?P<chosen_what>type|color))"
-                  r"|(?P<opps>Creatures your opponents control)|(?P<enchantments>(?P<other_ench>Other )?enchantments you control)|(?P<perms>(?P<other_perms>Other )?permanents you control)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
+                  r"|(?P<opps>Creatures your opponents control)|(?P<enchantments>(?P<other_ench>Other )?enchantments you control)|(?P<perms_counters>Permanents you control with counters on them)|(?P<perms>(?P<other_perms>Other )?permanents you control)|(?P<tokens>Creature tokens you control)|(?P<counters>Creatures you control with counters on them)|(?P<plus>Each creature you control with a \+1/\+1 counter on it)|(?P<other>Other )?(?P<attacking>Attacking )?(?:(?P<color>white|blue|black|red|green) )?"
                   r"(?:(?P<sub>[A-Z][\w'-]*|artifact|nontoken) )?[Cc]reatures you control"  # Master of Etherium: "Other artifact creatures"
                   r"|(?P<other2>Other )?(?P<attacking2>Attacking )?(?P<tribe>[A-Z][\w'-]*)s(?: and (?P<tribe2>[A-Z][\w'-]*)s)? you control"
                   r"|(?P<other3>Other )(?P<tribe3>[A-Z][\w'-]*)s"  # Goblin King, Lord of Atlantis: every player's, not only its controller's
@@ -736,8 +736,9 @@ def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
                                     attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"] or who["other3"] or who["other4"] or (who["other5"] and not who["merfolk_yours"]) or who["tribe6"])
                                     or (bool(who["chosen"]) and "you control" not in m[1]),
                                     token=bool(who["tokens"] or who["subtokens"]),
-                                    with_counters=bool(who["counters"]), plus_counter=bool(who["plus"] or who["plus2"]),
-                                    permanents=bool(who["perms"] or who["enchantments"]), opponents=bool(who["opps"])))
+                                    with_counters=bool(who["counters"] or who["perms_counters"]), plus_counter=bool(who["plus"] or who["plus2"]),
+                                    permanents=bool(who["perms"] or who["enchantments"] or who["perms_counters"]),  # Innkeeper's Talent
+                                    opponents=bool(who["opps"])))
         elif _LEGENDARY_SCALED.fullmatch(sentence):  # Jodah, the Unifier: +1/+1 for each legendary creature you control
             buffs.append(StaticBuff(Modifier(1, 1), False, "Legendary", line, condition=condition, per=("permanent", "legendary creature")))
         elif m := _COUNTER_SCALED.fullmatch(sentence):  # Door of Destinies: +1/+1 for each charge counter on it

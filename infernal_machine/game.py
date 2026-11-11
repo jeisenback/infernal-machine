@@ -371,6 +371,7 @@ class Permanent:
     mana_types_spent: tuple[frozenset[str], ...] = ()  # the types each mana spent to cast it could be (Deceit: "if {U}{U} was spent to cast it")
     blitzed: bool = False  # Blitz, Jaxis's copy: it has haste and "When this creature dies, draw a card." (CR 702.152a)
     returns_when_dies: int = 0  # Malakir Rebirth: the turn it gained "When this creature dies, return it to the battlefield tapped"
+    returns_with_counter: str = ""  # Undying Malice: "... with a +1/+1 counter on it" (the kind of counter it comes back with)
     animated_until: int | None = None  # Karn, the Great Creator: animated "until your next turn", the index of the seat whose turn ends it
     skips_next_untap: bool = False  # "It doesn't untap during its controller's next untap step." (Sleep of the Dead)
     harnessed: bool = False  # an Infinity Stone that was harnessed: its \u221e ability works
@@ -482,6 +483,9 @@ class StackItem:
 GERM = Card(name="Phyrexian Germ", type_line="Token Creature — Phyrexian Germ", colors=("B",), power="0", toughness="0")
 RETURN_WHEN_DIES = TriggeredAbility("dies", (ReturnWithCounter("", True),), False,
                                     "When this creature dies, return it to the battlefield tapped under its owner's control.")
+RETURN_WHEN_DIES_COUNTER = TriggeredAbility("dies", (ReturnWithCounter("+1/+1", True),), False,  # Undying Malice, Feign Death
+                                            "When this creature dies, return it to the battlefield tapped under its owner's control with a "
+                                            "+1/+1 counter on it.")
 BLITZ_DRAW = TriggeredAbility("dies", (Draw(1),), False, "When this creature dies, draw a card.")  # CR 702.152a
 RETURN_WHEN_EXILED = TriggeredAbility("leaves", (ReturnWithCounter("", True),), False,
                                       "When this creature is exiled, return it to the battlefield tapped.")  # an earthbent land
@@ -3299,6 +3303,8 @@ class Game:
             return source is not None and bool(source.kicked) and (not condition.what or condition.what in source.kickers)
         if kind == "graveyard_left":
             return seat.graveyard_left_turn == self.turn
+        if kind == "your_main_phase":  # Addendum: a spell resolving in your main phase was cast in it (CR 117.4: a step ends with the stack empty)
+            return self.seats[self.active] is seat and self.step in ("main1", "main2")
         if kind == "gained_life":
             return seat.life_gained_turn == self.turn
         if kind == "opponent_more_lands":
@@ -3508,8 +3514,9 @@ class Game:
             return any(permanent.last_auras.values())
         if qualifier == "legendary":  # a copiable supertype: a creature that died is what it last was
             return "Legendary" in permanent.card.type_line
-        if qualifier == "flying":
-            return self.has_keyword(permanent, "flying") if here else has_keyword(permanent.card, "flying")
+        if qualifier in ("flying", "no_flying"):  # a gone creature's last known flying: printed, or a flying counter (Luminous Broodmoth)
+            flies = self.has_keyword(permanent, "flying") if here else has_keyword(permanent.card, "flying") or permanent.counters.get("flying", 0) > 0
+            return flies == (qualifier == "flying")
         return permanent.counters.get(qualifier.removeprefix("counter:"), 0) > 0
 
     def _put_triggers_on_stack(self) -> None:
@@ -4463,13 +4470,13 @@ class Game:
         return next((s for s in self.seats if any(c is card for c in s.graveyard)), None)
 
     def return_dead_to_battlefield(self, dead: Permanent, controller: Seat, under_owner: bool, tapped: bool = False,
-                                   enchantment: bool = False, transformed: bool = False) -> None:
+                                   enchantment: bool = False, transformed: bool = False, counter: str = "") -> None:
         """A creature that just died comes back from its owner's graveyard, under `controller`'s control unless
         `under_owner`."""
         holder = self._graveyard_of(dead.card)
         if holder is not None:
             self.return_from_graveyard(GraveyardTarget(dead.card, holder), holder if under_owner else controller,
-                                       "battlefield", tapped, enchantment=enchantment, transformed=transformed)
+                                       "battlefield", tapped, enchantment=enchantment, transformed=transformed, counter=counter)
 
     def _entering_loyalty(self, card: Card, item: StackItem) -> int | None:
         """The loyalty a planeswalker spell enters with: CR 702.150b (Compleated), two fewer counters for each Phyrexian mana symbol
@@ -7425,7 +7432,9 @@ class Game:
                     controller.died_turn, controller.died = self.turn, 0
                 controller.died += 1
                 self.trigger("dies", permanent, controller)
-                if permanent.returns_when_dies == self.turn or permanent.earthbent:
+                if permanent.returns_when_dies == self.turn and permanent.returns_with_counter == "+1/+1":
+                    self._queue(RETURN_WHEN_DIES_COUNTER, permanent, controller)
+                elif permanent.returns_when_dies == self.turn or permanent.earthbent:
                     self._queue(RETURN_WHEN_DIES, permanent, controller)
                 if permanent.blitzed:
                     self._queue(BLITZ_DRAW, permanent, controller)

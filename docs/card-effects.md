@@ -1537,6 +1537,14 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     nonlegendary creature card ... with a -1/-1 counter on it."; Scavenging Ooze's "If it was a creature card, put a +1/+1 counter on this
     creature and you gain 1 life." (the follow-up of an exile from a graveyard may be several effects, and one about "this creature" is
     given the ability's source); and Slip Out the Back's "It phases out." (`PhaseOutThat`, the creature just targeted).
+  - Counters on permanents, batch 2 (`tests/test_counters_batch_2.py`, #219): addendum, "If you cast this spell during your main phase"
+    (a condition, `your_main_phase`: a spell that resolves in your main phase was cast in it, since a step ends only with the stack empty,
+    CR 117.4), with Unbreakable Formation's "put a +1/+1 counter on each of those creatures and they gain vigilance until end of turn" and
+    Sphinx's Insight's and Arrester's Admonition's plain ones; Tribute to the World Tree (`DrawOrCountersByPower`: the creature that entered);
+    "Permanents you control with counters on them have ward {1}." (Innkeeper's Talent's level 2); Tarrian's Soulcleaver ("another artifact
+    or creature is put into a graveyard", and `PutCounterOnHost` now reads "equipped creature" too); Undying Malice and Feign
+    Death (`GrantReturnWhenDies`: it comes back tapped with a +1/+1 counter); and Luminous Broodmoth (a watch "without flying", and the
+    creature returned with a flying counter; a creature that died has flying if it had a flying counter, so it comes back only once).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
