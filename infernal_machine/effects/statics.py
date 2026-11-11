@@ -399,6 +399,17 @@ _PREVENTION_STATICS = [
     (re.compile(rf"Prevent all damage that would be dealt to {_SELF} by creatures\.", re.I), "self:creatures"),
     (re.compile(r"Prevent all damage that would be dealt to you\.", re.I), "you:all"),
     (re.compile(r"Damage can't be prevented\.", re.I), "unpreventable"),
+    (re.compile(r"Combat damage can't be prevented\.", re.I), "unpreventable:combat"),  # Frenzied Baloth
+    (re.compile(rf"Prevent all combat damage that would be dealt to and dealt by {_SELF}\.", re.I), "self:to_and_by:combat"),  # Fog Bank
+    (re.compile(r"Prevent all combat damage that would be dealt to and dealt by enchanted creature\.", re.I), "attached:to_and_by:combat"),
+    (re.compile(r"Prevent all damage that would be dealt by enchanted creature\.", re.I), "attached:by"),  # Muzzle, Defang
+    (re.compile(r"Prevent all combat damage that would be dealt to attacking creatures you control\.", re.I), "attacking_yours:combat"),  # Dolmen Gate
+    (re.compile(r"Prevent all noncombat damage that would be dealt to you and other permanents you control\.", re.I),
+     "noncombat:you_and_others"),  # The Wanderer
+    (re.compile(r"Prevent all noncombat damage that would be dealt to you and creatures you control\.", re.I),
+     "noncombat:you_and_creatures"),  # Blessed Sanctuary
+    (re.compile(r"Prevent all noncombat damage that would be dealt to other creatures you control\.", re.I),
+     "noncombat:other_creatures"),  # Tajic, Legion's Edge
     (re.compile(rf"Damage that would be dealt by {_SELF} can't be prevented\.", re.I), "unpreventable:self"),
 ]
 

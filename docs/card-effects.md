@@ -1484,6 +1484,16 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     `kicked_mv_at_most`, Prohibit); "You shuffle up to four cards from your graveyard into your library." (`Game.shuffle_from_graveyard`,
     Stream of Thought); "Each attacking creature doesn't untap during its controller's next untap step." (Tangle); "Prevent all damage that
     would be dealt by creatures this turn." (`Game.creature_fog_turn`, Ethereal Haze).
+  - Damage prevention, first slice (`tests/test_damage_prevention.py`, #235; CR 615): "Prevent all damage that would be dealt to you this
+    turn." (Riot Control), "... combat damage ... to players this turn." (Commencement of Festivities), "... this turn to creatures you
+    control." (Divine Light, Sivvi's Ruse), "... this turn by creatures your opponents control." (Obscuring Haze, Thwart the Enemy), "...
+    combat damage that would be dealt by target attacking creature this turn." (Restrain, Kor Haven) and Maze of Ith's "... to and dealt
+    by that creature this turn" are rules for the turn (`Game.prevent_this_turn`, `Game.prevention_rules`, checked in
+    `Game._prevention_capacity`). Statics: Fog Bank's "... to and dealt by this creature.", an Aura's "... dealt by enchanted creature."
+    (Muzzle, Defang) and "... combat damage that would be dealt to and dealt by enchanted creature." (Ghostly Possession), Dolmen Gate's
+    "... to attacking creatures you control.", "Prevent all noncombat damage that would be dealt to you and other permanents you control."
+    (The Wanderer), "... to you and creatures you control." (Blessed Sanctuary), "... to other creatures you control." (Tajic), and
+    "Combat damage can't be prevented." (Frenzied Baloth). "Target player shuffles their graveyard into their library." (Blessed Respite).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
