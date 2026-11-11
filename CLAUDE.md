@@ -52,19 +52,23 @@ when it differs, instead of loading older cards with the new field's default. `e
 
 ## Checks
 
-Run before you push:
+Before you push, run what CI does not; CI runs the rest, so don't repeat it locally (while you work, run the test files you
+touch: `python -m unittest tests.test_ninjutsu`):
 
 ```
-python -m unittest discover -s tests -t .      # the one-process way (about 7 minutes); CI runs tools/run_tests.py on Python 3.11 and 3.13
-python tools/run_tests.py                      # the same tests across processes (about 2.5 times faster; a failure is the same failure)
-python tools/coverage_audit.py --top 1         # how many Commander-legal cards are fully playable
-python tools/coverage_audit.py --decks examples/decks/*.txt --baseline examples/decks/baseline.json   # the tracked decks: no card that played may stop (--write-baseline refreshes it)
-python tools/coverage_audit.py --decks examples/decks/standard/*.txt --baseline examples/decks/standard/baseline.json   # the same for the tracked Standard decks
-for f in pauper pioneer modern legacy vintage; do python tools/coverage_audit.py --decks examples/decks/$f/*.txt --baseline examples/decks/$f/baseline.json || echo "$f got worse"; done
-                                               # the same for the other constructed formats' tracked decks
-                                               # a coverage pull request says what this printed before and after, beside the pool's share
-python tools/play_smoke.py                     # every fully playable card casts or plays without an error
+python tools/branch_report.py                  # against origin/main (about 2.5 minutes): the pool's coverage and every format's tracked decks
+                                               # before and after, the template audit lines that changed, and the replay check;
+                                               # paste it into the pull request (--no-replay leaves the replay out)
+python tools/play_smoke.py                     # every fully playable card casts or plays without an error (about a minute, across processes)
 python tools/ability_smoke.py                  # the costs of their activated abilities (sacrifice, discard, ...) are offered and paid (a card with a new cost: --card NAME)
+```
+
+To reproduce a CI failure:
+
+```
+python tools/run_tests.py                      # the tests across processes, as CI runs them (python -m unittest discover -s tests -t . in one process)
+python tools/coverage_audit.py --decks examples/decks/*.txt --baseline examples/decks/baseline.json   # the tracked decks: no card that played may stop (--write-baseline refreshes it)
+for f in standard pauper pioneer modern legacy vintage; do python tools/coverage_audit.py --decks examples/decks/$f/*.txt --baseline examples/decks/$f/baseline.json || echo "$f got worse"; done
 python tools/explain_card.py --audit           # no card is read in a way the misparse audit knows is wrong (`explain_card.py CARD` shows how one was read)
 ```
 
@@ -73,9 +77,9 @@ CI (`.github/workflows`): `tests` (required) and its `typecheck` job (pyright: n
 `bot games` (120 four-player bot games between the precon decks, none may raise; seed `g` is game `g`; it runs on every pull request, and
 its job `bot games (all shards)` is the one to require next to `tests`), `coverage audit` (weekly, a measurement that never fails), and `bot strength` (weekly: the default bot against the plain bot on the precon decks, 480 duels in six shards; it fails only if the whole 95% interval is below 50%, i.e. a change made the bot reliably worse; each shard takes about a minute on GitHub's runners, and the first run (2026-10-15) won 310 of 480, 64.6% (60.2%-68.7%); run it by hand with `python tools/compare_bots.py examples/precons/*.txt`, or on GitHub with `gh workflow run "bot strength"`).
 
-A change meant to leave play untouched (a speed pass, a refactor) is checked by replaying seeds: `python tools/replay_check.py record FILE`
-on `main`, then `python tools/replay_check.py check FILE` on the branch hashes every event of 24 four-player games and fails if any game
-differs, and prints the CPU speed ratio. The tests run with `Game.verify_views` on, which fails a change that bypasses the epoch counter
+A change meant to leave play untouched (a speed pass, a refactor) is checked by replaying seeds: `branch_report.py` records 24 four-player
+games on the base and replays them on the branch, hashing every event; it exits 1 if any game differs, and prints the CPU speed ratio (by
+hand: `python tools/replay_check.py record FILE` on `main`, then `python tools/replay_check.py check FILE` on the branch). The tests run with `Game.verify_views` on, which fails a change that bypasses the epoch counter
 behind `Game._board_view` (mutate `seat.battlefield`/`graveyard` and `Permanent.card`/`attached_to` the ordinary way).
 
 Replay a failing bot game: `python tools/bot_games.py --start SEED --games 1`. It needs `.cache/oracle_bulk.json`; where the bulk
