@@ -20,7 +20,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
 from . import history
-from .brackets import analyze as bracket_analyze
+from .brackets import analyze as bracket_analyze, pace
 from .cards import Deck
 from .combos import Combo, ComboReport, SpellbookSource, format_combos
 from .composition import TEMPLATE, analyze_composition, format_composition
@@ -33,6 +33,7 @@ from .report import IN_A_GAME, unplayable_note, unsupported_lines
 from .simulate import format_simulation, simulate
 from .tune import format_tuning, tune
 
+PACE_GAMES = 60  # engine goldfish games for the pace (the model plays many more, much faster)
 PARTS = ("playability", "bracket", "composition", "combos", "manabase", "goldfish", "tuning", "matchups")  # the names `skip` takes
 
 
@@ -138,7 +139,7 @@ def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: 
         if analysis.sections[-1].part == "combos":
             analysis.sections[-1].seconds += asked
     run("manabase", "Mana base", lambda: _mana_base(deck))
-    run("goldfish", "Goldfish", lambda: _goldfish(deck, sim_games, turns, seed))
+    run("goldfish", "Goldfish", lambda: _goldfish(deck, sim_games, turns, seed, commander, workers))
     run("tuning", "Tuning", lambda: _tuning(deck, sim_games, turns, seed, candidates))
     if opponents:
         run("matchups", "Matchups", lambda: _matchups(deck, opponents, games, pod, seed, workers, name))
@@ -222,11 +223,19 @@ def _mana_base(deck: Deck) -> tuple[str, dict]:
                                                                     for line in base.colors}}
 
 
-def _goldfish(deck: Deck, games: int, turns: int, seed: int) -> tuple[str, dict]:
+def _goldfish(deck: Deck, games: int, turns: int, seed: int, commander: bool = False, workers: int = 1) -> tuple[str, dict]:
+    """The model's goldfish, and for a Commander deck its pace against the Brackets' game lengths (brackets.pace: engine games, a tenth
+    as many as the model's, up to PACE_GAMES)."""
     stats = simulate(deck, games, turns, seed)
-    return format_simulation(stats), {"games": stats.games, "turns": stats.turns, "mulligan_rate": stats.mulligan_rate,
-                                      "opening_lands": stats.average_opening_lands, "mana_efficiency": stats.mana_efficiency, "on_curve": stats.on_curve,
-                                      "land_drops": stats.land_drop_rate, "damage": stats.damage}
+    data = {"games": stats.games, "turns": stats.turns, "mulligan_rate": stats.mulligan_rate,
+            "opening_lands": stats.average_opening_lands, "mana_efficiency": stats.mana_efficiency, "on_curve": stats.on_curve,
+            "land_drops": stats.land_drop_rate, "damage": stats.damage}
+    body = format_simulation(stats)
+    if commander:
+        speed = pace(deck, max(1, min(games // 10, PACE_GAMES)), seed, workers)
+        body += "\n\n" + speed.summary()
+        data["pace"] = {"games": speed.games, "kill_turn": speed.kill_turn, "pace_floor": speed.pace_floor}
+    return body, data
 
 
 def _tuning(deck: Deck, games: int, turns: int, seed: int, candidates: list) -> tuple[str, dict]:

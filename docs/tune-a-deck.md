@@ -51,6 +51,21 @@ combo that wins early is not below Bracket 4; `analyze` always asks, and lists t
 played, so the answer is the *lowest* bracket the deck can be played at, not a rating. Use it before choosing opponents: results against a deck at a higher bracket compare unlike
 decks, and the matchup report warns about that.
 
+### How fast does it kill, against the brackets' game lengths?
+
+```
+python -m infernal_machine.brackets my_deck.txt --pace
+no hard limit above Bracket 1
+pace: it deals 40 damage by turn 9 in half its games (alone and unopposed, 40 games of 10 turns): no faster than any bracket expects
+```
+
+The guidance gives each bracket a game length to expect: at least nine turns in Bracket 1, eight in 2, six in 3 and four in 4. With
+`--pace` the engine plays the deck alone against a seat that does nothing for ten of its own turns (the [engine
+goldfish](simulation.md)), and the turn by which it has dealt 40 damage (one opponent's life) in half the games is set against those
+lengths. Alone and unopposed is the deck's fastest, so a deck that kills sooner than a bracket's games last is above that bracket's pace;
+a slower one is not shown to be below anything, since real games have blockers, removal and three opponents. It is a measure beside the
+card limits, not part of them. `analyze` adds it to the Goldfish part of a Commander deck.
+
 ### Does it have enough ramp, card draw and removal?
 
 ```
