@@ -1560,6 +1560,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Searches keyed to a sacrificed creature (`tests/test_sacrifice_searches.py`, #219): Eldritch Evolution's "a creature card with mana
     value X or less, where X is 2 plus the sacrificed creature's mana value" (the kind `mv<=sacrificed+2`, read like Birthing Pod's "equal
     to 1 plus"), and Neoform's "put that card onto the battlefield with an additional +1/+1 counter on it" (`SearchLibrary.counters`).
+  - Two piles (`tests/test_piles.py`, #219): Fact or Fiction, Sphinx of Uthuun and Unesh ("An opponent separates those cards into two
+    piles. Put one pile into your hand and the other into your graveyard.") and Steam Augury (you separate, an opponent chooses the pile
+    for your hand), with `RevealSplit` and `Game.reveal_split`. The opponent is the next one in turn order, as for Abstract Performance;
+    one card at a time is put into a pile (one may be empty, CR 700.3). The bot separates by mana value, evenly, and takes the bigger pile.
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

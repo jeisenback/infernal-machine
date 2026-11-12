@@ -191,6 +191,9 @@ _WHOLE_LINE = re.compile(
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
     r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"
     r"|[Ss]acrifice (?:it|CARDNAME|this land)\. When you do, [^\n]+"  # Riveteers Overlook
+    r"|[Rr]eveal the top \w+ cards of your library(?:\. An opponent separates those cards| and separate them) into two piles\. "
+    r"(?:Put one pile into your hand and the other (?:into your graveyard|on the bottom of your library in any order)|An opponent chooses "
+    r"one of those piles\. Put that pile into your hand and the other into your graveyard)\."  # Fact or Fiction, Steam Augury
     r"|Search your library for a creature card with mana value X or less, where X is \w+ plus the sacrificed creature's mana value\. "
     r"Put that card onto the battlefield, then shuffle\."  # Eldritch Evolution
     r"|Sacrifice any number of lands\. Search your library for up to that many land cards, put them onto the battlefield tapped, then "

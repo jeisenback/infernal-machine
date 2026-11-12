@@ -424,6 +424,7 @@ from .families.library import (  # noqa: F401
     Mill,
     EachExilesAllButBottom,
     PilesOfFour,
+    RevealSplit,
     PutBackTop,
     RestOnBottom,
     RevealLands,
@@ -2545,6 +2546,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                                   CopiesOfAnotherCreature("X", exile=True)]),
     (re.compile(r"target player draws cards equal to half the number of cards in their library and loses half their life\. "
                 r"Round up each time\.", re.I), lambda m: DrawHalfLibraryLoseHalfLife()),
+    (re.compile(rf"reveal the top {_N_FIXED} cards of your library\. An opponent separates those cards into two piles\. Put one pile into "
+                r"your hand and the other (into your graveyard|on the bottom of your library in any order)\.", re.I),  # Fact or Fiction
+     lambda m: RevealSplit(_number(m[1]), rest="graveyard" if "graveyard" in m[2] else "bottom")),
+    (re.compile(rf"reveal the top {_N_FIXED} cards of your library and separate them into two piles\. An opponent chooses one of those "
+                r"piles\. Put that pile into your hand and the other into your graveyard\.", re.I),  # Steam Augury
+     lambda m: RevealSplit(_number(m[1]), you_separate=True)),
     (re.compile(r"Exile the top four cards of your library in a face-down pile, then exile the top four cards of your library in a face-up pile\. An opponent chooses one of those piles\. Put that pile into your graveyard\. Look at the cards in the other pile\. You may cast a spell from among them without paying its mana cost\. Put the rest into your hand\.", re.I), lambda m: PilesOfFour()),
     (re.compile(r"Council's dilemma — Starting with you, each player votes for past or present\. You mill a card for each "
                 r"past vote, then (?:CARDNAME|[A-Z][\w' ]+) deals damage to each opponent equal to the total mana value of cards milled "

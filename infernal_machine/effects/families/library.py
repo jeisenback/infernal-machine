@@ -155,6 +155,19 @@ class PilesOfFour:
 
 
 @dataclass(frozen=True)
+class RevealSplit:
+    """Fact or Fiction: "Reveal the top five cards of your library. An opponent separates those cards into two piles. Put one pile into
+    your hand and the other into your graveyard." With `you_separate` (Steam Augury) you separate them and an opponent chooses the pile
+    that goes into your hand. `rest`: "graveyard", or "bottom" of the library (Jace, Architect of Thought)."""
+    count: int
+    you_separate: bool = False
+    rest: str = "graveyard"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.reveal_split(controller, self.count, self.you_separate, self.rest)
+
+
+@dataclass(frozen=True)
 class ShuffleRevealCast:
     """Creative Technique: "Shuffle your library, then reveal cards from the top of it until you reveal a nonland card.
     Exile that card and put the rest on the bottom of your library in a random order. You may cast the exiled card
