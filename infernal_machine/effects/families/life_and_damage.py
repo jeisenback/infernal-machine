@@ -379,6 +379,7 @@ class DamageEach:
     players: str | None  # None, "opponents" or "all"
     restriction: MassFilter | None = None  # "each creature with flying"
     spare_own_tokens: bool = False  # Ajani Unrelenting: "each creature except for tokens you control"
+    walkers: bool = False  # Omnath, Locus of Creation: "and each planeswalker you don't control"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         amount = game.amount(self.amount)
@@ -394,6 +395,9 @@ class DamageEach:
         if self.players:
             for seat in (game.live_seats() if self.players == "all" else game.opponents(controller)):
                 game.damage(seat, amount, source=game.resolving_source)
+        if self.walkers:
+            for permanent in game.mass_targets("planeswalker you don't control", controller, None):
+                game.damage(permanent, amount, source=game.resolving_source)
 
 
 @dataclass(frozen=True)

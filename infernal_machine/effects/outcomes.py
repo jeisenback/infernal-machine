@@ -203,6 +203,7 @@ from .families.counters import (  # noqa: F401
     DoubleCounters,
     DoubleCountersOnSource,
     DoubleCountersOnTarget,
+    CounterOrDoubleOnSecond,
     DoubleAllCountersOnTargets,
     DoubleCountersOnTargets,
     EachExilesGraveyardCardCounters,
@@ -2459,6 +2460,14 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [Scry(_count(m[1])), Draw(_count(m[2] or "a"))]),
     (re.compile(rf"scry {_N_FIXED}, then reveal the top card of your library\.", re.I),
      lambda m: RevealTopStep("reveal", _number(m[1]))),
+    (re.compile(r"put a \+1/\+1 counter on target creature you control\. If this is the second time this ability has resolved this turn, "
+                r"double the number of \+1/\+1 counters on (?:that creature|it) instead\.", re.I), lambda m: CounterOrDoubleOnSecond()),  # Scythecat Cub
+    (re.compile(r"you gain (\d+) life if this is the first time this ability has resolved this turn\. If it's the second time, add "
+                r"((?:\{[WUBRGC]\})+)\. If it's the third time, CARDNAME deals (\d+) damage to each opponent and each planeswalker you don't "
+                r"control\.", re.I),  # Omnath, Locus of Creation
+     lambda m: [IfElse(Condition("nth_resolution", 1), (GainLife(int(m[1])),)),
+                IfElse(Condition("nth_resolution", 2), (AddMana(tuple(frozenset(c) for c in re.findall(r"[WUBRGC]", m[2]))),)),
+                IfElse(Condition("nth_resolution", 3), (DamageEach(int(m[3]), None, "opponents", walkers=True),))]),
     (re.compile(r"reveal the top card of your library\. If it's a land card, put it onto the battlefield\. Otherwise, put (?:that card|it) "
                 r"into your hand\.", re.I), lambda m: RevealTop(0, False, to_hand=True)),  # Coiling Oracle
     (re.compile(r"if it's a land card, put it onto the battlefield( tapped)?\.", re.I),
@@ -3365,6 +3374,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:Delirium \u2014 )?if (.+?), instead (search your library for .+)", re.I),  # Demonic Counsel, Traverse the Ulvenwald
      lambda m: _InsteadSearch(c, inner[0]) if (c := _condition(m[1])) and (inner := _parse(["S" + m[2][1:].replace(" for any card,", " for a card,")]))
      and len(inner) == 1 and isinstance(inner[0], (SearchLibrary, SearchForLands)) else None),  # (Entish Restoration: lands)
+    (re.compile(r"if ((?:that land|it) is an? \w+), you may return that nonland permanent card to the battlefield instead\.", re.I),  # Emeria Shepherd
+     lambda m: _ToBattlefieldInstead(c) if (c := _condition(m[1])) else None),
     (re.compile(r"(?:Threshold \u2014 )?return that card from your graveyard to the battlefield instead if (.+)\.", re.I),  # Stitch Together
      lambda m: _ToBattlefieldInstead(c) if (c := _condition(m[1])) else None),
     (re.compile(rf"(?:Addendum \u2014 )?if (.+?), put a \+1/\+1 counter on each of those creatures and they gain {_KEYWORDS} until end of turn\.", re.I),
@@ -3734,6 +3745,7 @@ _CONDITIONS = [
     (re.compile(r"creatures you control have total power (\d+) or greater"), lambda m: Condition("creature_power_at_least", int(m[1]))),
     (re.compile(r"you control a creature with power (\d+) or greater"), lambda m: Condition("creature_with_power", int(m[1]))),
     (re.compile(r"(?:this creature's|CARDNAME's) power is (\d+) or greater"), lambda m: Condition("source_power_at_least", int(m[1]))),  # Kitsa
+    (re.compile(r"(?:that land|it) is an? (Plains|Island|Swamp|Mountain|Forest)"), lambda m: Condition("subject_land_type", what=m[1])),  # Emeria Shepherd
     (re.compile(r"this is the (first|second|third) time this ability has resolved this turn"),  # Tannuk, Memorial Ensign
      lambda m: Condition("nth_resolution", ("first", "second", "third").index(m[1]) + 1)),
     (re.compile(r"you created a token this turn"), lambda m: Condition("created_token")),

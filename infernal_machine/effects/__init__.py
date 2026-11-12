@@ -108,6 +108,7 @@ from .outcomes import (  # noqa: F401
     DiscardHandsDrawGreatest,
     DoubleCounters,
     DoubleCountersOnTarget,
+    CounterOrDoubleOnSecond,
     Drain,
     Draw,
     DrawThenPutBack,

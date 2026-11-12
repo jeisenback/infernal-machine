@@ -1564,6 +1564,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     piles. Put one pile into your hand and the other into your graveyard.") and Steam Augury (you separate, an opponent chooses the pile
     for your hand), with `RevealSplit` and `Game.reveal_split`. The opponent is the next one in turn order, as for Abstract Performance;
     one card at a time is put into a pile (one may be empty, CR 700.3). The bot separates by mana value, evenly, and takes the bigger pile.
+  - Landfall (`tests/test_landfall_batch.py`, #219): Scythecat Cub (`CounterOrDoubleOnSecond`: a +1/+1 counter, or the second time
+    the ability resolves in a turn, double the counters instead), Omnath, Locus of Creation (4 life the first time, {R}{G}{W}{U} the
+    second, 4 damage to each opponent and each planeswalker they control the third: `DamageEach.walkers`), and Emeria Shepherd ("If that
+    land is a Plains, you may return that nonland permanent card to the battlefield instead.": the condition `subject_land_type`, read
+    on the land that entered; the card always goes to the battlefield then, the "may" is not asked).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

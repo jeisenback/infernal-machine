@@ -243,7 +243,9 @@ class ReturnFromGraveyard:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            to = "battlefield" if self.battlefield_if is not None and game.condition_holds(self.battlefield_if, controller) else self.to
+            subject = game.resolving_item.subject if game.resolving_item is not None else None  # Emeria Shepherd: "that land"
+            to = "battlefield" if self.battlefield_if is not None and game.condition_holds(self.battlefield_if, controller,
+                                                                                            subject=subject) else self.to
             game.return_from_graveyard(target, controller, to, self.tapped, self.finality, counter=self.counter)
 
 

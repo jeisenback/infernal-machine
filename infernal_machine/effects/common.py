@@ -196,6 +196,9 @@ _WHOLE_LINE = re.compile(
     r"one of those piles\. Put that pile into your hand and the other into your graveyard)\."  # Fact or Fiction, Steam Augury
     r"|Search your library for a creature card with mana value X or less, where X is \w+ plus the sacrificed creature's mana value\. "
     r"Put that card onto the battlefield, then shuffle\."  # Eldritch Evolution
+    r"|[Pp]ut a \+1/\+1 counter on target creature you control\. If this is the second time this ability has resolved this turn, double "
+    r"the number of \+1/\+1 counters on (?:that creature|it) instead\."  # Scythecat Cub
+    r"|you gain \d+ life if this is the first time this ability has resolved this turn\. If it's the second time, [^\n]+"  # Omnath
     r"|Sacrifice any number of lands\. Search your library for up to that many land cards, put them onto the battlefield tapped, then "
     r"shuffle\."  # Scapeshift
     r"|[Rr]eveal the top card of your library\. If it's a land card, put it onto the battlefield\. Otherwise, put (?:that card|it) into "
