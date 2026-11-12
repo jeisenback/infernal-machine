@@ -110,6 +110,47 @@ class ContentTests(unittest.TestCase):
         self.assertIn("<h2>What changed</h2><pre>mana base: +1</pre>", render_html(analysis(changes="mana base: +1")))
 
 
+COMPOSITION = Section("Composition", "text", part="composition",
+                      data={"lands": ["Plains"] * 36, "roles": {"ramp": ["Sol Ring", "Mind <Stone>"], "card advantage": ["Mind <Stone>"],
+                                                               "targeted disruption": [], "mass disruption": ["Wrath of God"]},
+                            "plan": ["Grizzly Bears"], "unread": ["Odd Spell"],
+                            "template": {"lands": 38, "ramp": 10, "card advantage": 12, "targeted disruption": 12, "mass disruption": 6}})
+PACED = Section("Goldfish", "text", part="goldfish",
+                data={"games": 30, "turns": 4, "mulligan_rate": 0.1, "on_curve": 0.36, "damage": {"1": 0.0, "2": 1.5},
+                      "pace": {"games": 3, "kill_turn": 7, "pace_floor": 3}})
+
+
+class DeckBuildingTests(unittest.TestCase):
+    def test_the_composition_is_a_bar_per_role_against_the_template(self):
+        page = render_html(Analysis("x", "Commander", [COMPOSITION]))
+        self.assertIn("Command Zone", page)
+        for role, have, want, status in (("lands", 36, 38, "2 short"), ("ramp", 2, 10, "8 short"), ("mass disruption", 1, 6, "5 short")):
+            self.assertRegex(page, rf'<td>{role}</td><td class="n" data-v="{have}">{have}</td><td class="n" data-v="{want}">{want}</td>'
+                                   rf'.*?<td class="bad">{status}</td>')
+        self.assertIn("<span>Mind &lt;Stone&gt;</span>", page)  # the cards of each role, escaped
+        self.assertNotIn("<h3>targeted disruption</h3>", page)  # a role with no card lists none
+        self.assertIn("got no role, so the counts are a floor: Odd Spell", page)
+        self.assertNotIn("<pre>", page)
+
+    def test_a_role_at_the_template_is_enough(self):
+        full = Section("Composition", "text", part="composition", data={**COMPOSITION.data, "lands": ["Plains"] * 38, "unread": []})
+        page = render_html(Analysis("x", "Commander", [full]))
+        self.assertRegex(page, r'<td>lands</td>.*?<td class="good">enough</td>')
+        self.assertNotIn("got no role", page)
+
+    def test_the_goldfish_shows_its_pace_and_a_tile(self):
+        page = render_html(Analysis("x", "Commander", [PACED]))
+        self.assertIn("It deals 40 damage by turn 7 in half its games", page)
+        self.assertIn("faster than Bracket 1, 2 games are expected to last", page)
+        self.assertIn("Pace: Bracket 3+", page)
+        self.assertIn("kills one opponent alone by turn 7", page)
+
+    def test_a_goldfish_without_a_pace_shows_none(self):
+        page = render_html(analysis())
+        self.assertNotIn("Pace:", page)
+        self.assertNotIn("damage by turn", page)
+
+
 class FallbackTests(unittest.TestCase):
     def test_a_part_whose_numbers_were_not_kept_shows_its_text(self):
         old = Analysis("old", "Commander", [Section("Tuning", "text <of> the table", part="tuning", data={"games": 5, "baseline": 3.0}),
