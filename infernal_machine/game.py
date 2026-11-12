@@ -2484,16 +2484,16 @@ class Game:
         effects = list(ability.effects)
         if effects and isinstance(effects[0], Modal):
             effects, _ = self._choose_modes(seat, permanent.card, effects[0], source=permanent)
+        x = 0
+        if ability.mana_cost and cost_of(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then targets (CR 602.2b), then X is paid
+            choices = self._ability_x_values(seat, permanent, ability)
+            x = choices[seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in choices])]
         if ability.equip:  # what it costs depends on the creature (Dwarven Mauler, Dragonfire Blade): only those it can be paid for
             options = [o for o in self.target_options(target_kind(effects[0]) or "creature you control", seat, source_qualities(permanent.card))
                        if self._ability_payment(seat, permanent, ability, 0, o[1]) is not None]
             pick = seat.player.choose(TARGET_PROMPT(permanent.card.name), [label for label, _ in options])
             targets, labels = [options[pick][1]], [options[pick][0]]
-        x = 0
-        if ability.mana_cost and cost_of(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then targets (CR 602.2b), then X is paid
-            choices = self._ability_x_values(seat, permanent, ability)
-            x = choices[seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in choices])]
-        if not ability.equip:
+        else:
             saved_x, self.targeting_x = self.targeting_x, x  # The Mycosynth Gardens: "target ... with mana value X"
             try:
                 targets, labels = _checked(self._choose_targets(seat, effects, permanent.card.name, permanent,
