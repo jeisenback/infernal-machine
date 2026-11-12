@@ -7,7 +7,7 @@ from typing import Any, Literal, TYPE_CHECKING
 
 from ...characteristics import Modifier
 from ..common import Quantity
-from ..targets import PREVIOUS_TARGET, SOURCE
+from ..targets import PREVIOUS_TARGET, SOURCE, SUBJECT
 from ...prompts import PromptKind
 
 if TYPE_CHECKING:
@@ -301,6 +301,23 @@ class PutCountersOnEntered:
 
 
 @dataclass(frozen=True)
+class DrawOrCountersByPower:
+    """Tribute to the World Tree: "draw a card if its power is 3 or greater. Otherwise, put two +1/+1 counters on it." (the creature that
+    entered, its power as the ability resolves)"""
+    at_least: int
+    counters: int
+    binds = SUBJECT
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        if game.power(target) >= self.at_least:
+            game.draw(controller, 1)
+        else:
+            game.put_counters(target, "+1/+1", self.counters)
+
+
+@dataclass(frozen=True)
 class PutCountersOnSource:
     """ "Whenever this creature attacks, put a +1/+1 counter on it." """
     count: Quantity
@@ -451,7 +468,7 @@ class ExileWithTimeCounters:
 
 @dataclass(frozen=True)
 class PutCounterOnHost:
-    """Seismic Tutelage: "When this Aura enters, put a +1/+1 counter on enchanted creature." """
+    """Seismic Tutelage: "When this Aura enters, put a +1/+1 counter on enchanted creature." Tarrian's Soulcleaver: "... on equipped creature." """
     count: int
     counter: str
     binds = SOURCE

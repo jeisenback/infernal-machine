@@ -176,8 +176,8 @@ class AnalyzeTests(unittest.TestCase):
 
     def test_the_combos_part_follows_the_bracket_and_raises_its_floor(self):
         analysis = analyze_deck(oracle_deck(), skip=QUIET, spellbook=self.source(), **FAST)
-        self.assertEqual([s.title for s in analysis.sections], ["Playability", "Commander Bracket", "Combos"])
-        bracket, combos = analysis.sections[1], analysis.sections[2]
+        self.assertEqual([s.title for s in analysis.sections], ["Playability", "Commander Bracket", "Composition", "Combos"])
+        bracket, combos = (next(x for x in analysis.sections if x.part == part) for part in ("bracket", "combos"))
         self.assertTrue(bracket.body.startswith("Plays at Bracket 4 or higher; 1 Game Changer: Thassa's Oracle; 2 combos:"), bracket.body)
         self.assertEqual(bracket.data["combos"], ["Demonic Consultation + Thassa's Oracle", "Tainted Pact + Thassa's Oracle"])
         self.assertEqual(combos.part, "combos")
@@ -188,26 +188,26 @@ class AnalyzeTests(unittest.TestCase):
 
     def test_without_a_client_there_is_no_combos_part_and_nothing_is_said(self):
         analysis = analyze_deck(oracle_deck(), skip=QUIET, **FAST)
-        self.assertEqual([s.title for s in analysis.sections], ["Playability", "Commander Bracket"])
+        self.assertEqual([s.title for s in analysis.sections], ["Playability", "Commander Bracket", "Composition"])
         self.assertEqual([note for note in analysis.skipped if note.startswith("Combos")], [])
         self.assertTrue(analysis.sections[1].body.startswith("Plays at Bracket 3 or higher"))
 
     def test_the_part_can_be_skipped(self):
         analysis = analyze_deck(oracle_deck(), skip=QUIET + ["combos"], spellbook=self.source(), **FAST)
-        self.assertEqual([s.title for s in analysis.sections], ["Playability", "Commander Bracket"])
+        self.assertEqual([s.title for s in analysis.sections], ["Playability", "Commander Bracket", "Composition"])
         self.assertIn("Combos (skipped on request)", analysis.skipped)
         self.assertIn("combos", PARTS)
 
     def test_an_unreachable_spellbook_leaves_the_part_out_and_says_so(self):
         analysis = analyze_deck(oracle_deck(), skip=QUIET, spellbook=self.source(fail=True), **FAST)
-        self.assertEqual([s.title for s in analysis.sections], ["Playability", "Commander Bracket"])
+        self.assertEqual([s.title for s in analysis.sections], ["Playability", "Commander Bracket", "Composition"])
         self.assertTrue(any(note.startswith("Combos (Commander Spellbook could not be reached") for note in analysis.skipped), analysis.skipped)
 
     def test_a_deck_with_no_combos_says_so_in_one_line(self):
         plain = SpellbookSource(http=lambda request: {"results": {"identity": "G", "included": [], "almostIncluded": []}}, cache_path=None)
         analysis = analyze_deck(commander_deck(), skip=QUIET, spellbook=plain, **FAST)
-        self.assertEqual(analysis.sections[2].body, "Commander Spellbook knows no combo among these cards.")
-        self.assertEqual(analysis.sections[2].data, {"identity": "G", "combos": []})
+        self.assertEqual(next(x for x in analysis.sections if x.part == "combos").body, "Commander Spellbook knows no combo among these cards.")
+        self.assertEqual(next(x for x in analysis.sections if x.part == "combos").data, {"identity": "G", "combos": []})
 
     def test_a_standard_deck_has_no_combos_part(self):
         standard = Deck([], [*[CONSULTATION] * 4, *[PACT] * 56], [])

@@ -25,6 +25,8 @@ from .outcomes import (
     FlipUntilLose,
     SubjectDamagesEachOpponent,
     DamageFromSubject,
+    DrawOrCountersByPower,
+    ReturnDeadToBattlefield,
     Amount,
     ExileThisFromGraveyardThen,
     ReturnThisFromGraveyard,
@@ -137,7 +139,7 @@ _WHO = rf"(?:({_SELF}) or another|(another)|an?)"
 _TRIBE = r"(?-i:[A-Z][a-z]+)"  # a creature type: "Pest", "Elf"
 
 
-_PERMANENT_WATCH = rf"(enchanted creature|legendary creature|nontoken creature|nontoken artifact|nontoken {_TRIBE}|creature token|(?:white|blue|black|red|green|colorless) creature|token|creature or artifact|creature|land|artifact|enchantment|permanent|{_TRIBE} or {_TRIBE}|{_TRIBE})"  # "Dwarf or Equipment": Kili
+_PERMANENT_WATCH = rf"(enchanted creature|legendary creature|nontoken creature|nontoken artifact|nontoken {_TRIBE}|creature token|(?:white|blue|black|red|green|colorless) creature|token|creature or artifact|artifact or creature|creature|land|artifact|enchantment|permanent|{_TRIBE} or {_TRIBE}|{_TRIBE})"  # "Dwarf or Equipment": Kili
 
 
 _WATCHES = {
@@ -275,6 +277,9 @@ def _watch_trigger(line: str) -> tuple[str, Watch, str] | None:
         qualifier = (f"{q[2]}{'>=' if q[4] == 'greater' else '<='}{q[3]}" if q[2] else "flying" if q[1] == "flying"
                      else f"mv{'>=' if q[6] == 'greater' else '<='}{q[5]}" if q[5] else "counter:+1/+1")
         line = line[:q.start()] + line[q.end():]
+    if m := re.search(r" without flying(?= (?:enters|dies|attacks))", line):  # Luminous Broodmoth: "a creature you control without flying dies"
+        line = line.replace(m[0], "", 1)
+        qualifier = "no_flying"
     if m := re.search(r" that targets only (?:this creature|CARDNAME)", line):  # Mirrorwing Dragon, Zada: about the spell's targets
         line = line.replace(m[0], "")
         qualifier = "targets_only_source"
@@ -579,6 +584,8 @@ _HENGE_BODY = "put a +1/+1 counter on it and draw a card."
 
 
 _SUBJECT_DAMAGES_EACH = re.compile(r"that creature deals (\d+) damage to each opponent\.", re.I)  # Ingris Stingerquill: the attacker deals it
+_SUBJECT_DRAW_OR_COUNTERS = re.compile(r"draw a card if its power is (\d+) or greater\. Otherwise, put (two|three) \+1/\+1 counters on it\.")  # Tribute to the World Tree
+_RETURN_DEAD_WITH_COUNTER = re.compile(r"return it to the battlefield under its owner's control with an? (flying|\+1/\+1) counter on it\.")  # Luminous Broodmoth
 _SUBJECT_DAMAGES_BY_POWER = "it deals damage equal to its power to any target."  # Warstorm Surge, Be'lakor: the creature that entered deals it
 
 
@@ -597,6 +604,10 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
         return [OnSubject(PutCountersOnSource(1, "+1/+1")), Draw(1)], False, False, None
     if subject_ok and (m := _SUBJECT_DAMAGES_EACH.fullmatch(rest)):
         return [SubjectDamagesEachOpponent(int(m[1]))], False, False, None
+    if subject_ok and (m := _RETURN_DEAD_WITH_COUNTER.fullmatch(rest)):
+        return [ReturnDeadToBattlefield(True, counter=m[1])], False, False, None
+    if subject_ok and (m := _SUBJECT_DRAW_OR_COUNTERS.fullmatch(rest)):
+        return [DrawOrCountersByPower(int(m[1]), {"two": 2, "three": 3}[m[2]])], False, False, None
     if subject_ok and rest == _SUBJECT_DAMAGES_BY_POWER:
         return [DefineX(Amount("subject_power")), DamageFromSubject("X", "any")], False, False, None
     if subject_ok and not player_ok and re.search(r"\bits controller (loses|gains|draws|discards|mills)\b", rest, re.I):

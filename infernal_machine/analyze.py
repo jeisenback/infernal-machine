@@ -23,6 +23,7 @@ from . import history
 from .brackets import analyze as bracket_analyze
 from .cards import Deck
 from .combos import Combo, ComboReport, SpellbookSource, format_combos
+from .composition import TEMPLATE, analyze_composition, format_composition
 from .formats import add_format_argument, format_of, house_rules, with_format
 from .gauntlet import deck_format, opponent_paths
 from .manabase import analyze_mana_base, format_mana_base
@@ -32,7 +33,7 @@ from .report import IN_A_GAME, unplayable_note, unsupported_lines
 from .simulate import format_simulation, simulate
 from .tune import format_tuning, tune
 
-PARTS = ("playability", "bracket", "combos", "manabase", "goldfish", "tuning", "matchups")  # the names `skip` takes
+PARTS = ("playability", "bracket", "composition", "combos", "manabase", "goldfish", "tuning", "matchups")  # the names `skip` takes
 
 
 @dataclass
@@ -129,6 +130,8 @@ def analyze_deck(deck: Deck, opponents: dict[str, Deck] | None = None, *, name: 
         run("bracket", "Commander Bracket", lambda: _bracket(deck, combos.included if combos else []), code=False)
     else:
         analysis.skipped.append(f"Commander Bracket ({'a deck with no commander has none' if not deck.commanders else 'Brackets are for Commander decks, not ' + fmt.label})")
+    if commander:
+        run("composition", "Composition", lambda: _composition(deck))
     if combos is not None:
         found = combos
         run("combos", "Combos", lambda: _combos(deck, found))
@@ -203,6 +206,12 @@ def _combos(deck: Deck, report: ComboReport) -> tuple[str, dict]:
              "bracket": c.bracket, "popularity": c.popularity, "blocked": [n for n in c.cards if not playable.get(n, True)]}
             for c in report.included]
     return format_combos(report, playable), {"identity": report.identity, "combos": rows}
+
+
+def _composition(deck: Deck) -> tuple[str, dict]:
+    result = analyze_composition(deck)
+    return format_composition(result), {"lands": result.lands, "roles": result.roles, "plan": result.plan, "unread": result.unread,
+                                        "template": TEMPLATE}
 
 
 def _mana_base(deck: Deck) -> tuple[str, dict]:
