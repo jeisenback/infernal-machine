@@ -1734,7 +1734,8 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
 
 _COPY_TOKEN = re.compile(
     r"create (?:a token that's a copy|(?P<count>two|three|four|five|X) tokens that are copies) of "
-    rf"(?:(?P<another>another )?target (?P<kind>{_PERMANENT_KIND}|(?:artifact |non-Saga )?token you control"  # Esika's Chariot; Oltec Matterweaver; City of Death
+    rf"(?:(?P<another>another )?target (?P<kind>artifact, creature, or land|creature or artifact you control"  # Relm's Sketching; Saheeli, the Sun's Brilliance
+    rf"|{_PERMANENT_KIND}|(?:artifact |non-Saga )?token you control"  # Esika's Chariot; Oltec Matterweaver; City of Death
     r"|creature token that entered the battlefield this turn)"  # Octomancer
     r"|target (?P<grave>creature|artifact) card in your graveyard"
     r"|(?P<subject>it|that (?:creature|permanent|artifact|enchantment|card|token))"
@@ -2369,6 +2370,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"))),
     (re.compile(rf"exile up to one target {_CARD_TYPE} from a graveyard\.", re.I),  # Restless Cottage
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "any"), optional_target=True)),
+    (re.compile(r"exile target creature card with mana value X from your graveyard\.", re.I),  # Lazotep Quarry (X is chosen first: CR 602.2b)
+     lambda m: ExileFromGraveyard("graveyard:creature with mana value x:yours")),
     (re.compile(rf"exile target {_CARD_TYPE} from your graveyard\.", re.I),
      lambda m: ExileFromGraveyard(_graveyard_kind(m[1], "yours"))),
     (re.compile(rf"search your library for an? {_SEARCH_TYPE}, (?:reveal (?:it|that card), )?(?:put (?:it|that card) into your hand, "
@@ -2954,7 +2957,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"target (creature(?: that attacked this turn)?) becomes (prepared|unprepared)\.", re.I),
      lambda m: TargetPrepared(m[1].lower(), m[2].lower() == "prepared")),
     (_COPY_TOKEN, _copy_token),
-    (re.compile(r"for each (token|artifact|creature|nontoken creature|enchantment|land|permanent) you control( that entered this turn)?, "
+    (re.compile(r"for each (token|artifact|creature|nontoken creature|creature token|enchantment|land|permanent) you control( that entered this turn)?, "
                 r"create a token that's a copy of (?:it|that (?:creature|permanent|artifact|token))(?:, except (.+))?\.", re.I),  # Ocelot Pride
      lambda m: CopyEachToken(m[1].lower() + " you control", c, entered_this_turn=bool(m[2]))
      if (c := _copy_changes(m[3]) if m[3] else CopyChanges()) else None),
