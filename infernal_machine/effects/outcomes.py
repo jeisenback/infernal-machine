@@ -901,8 +901,8 @@ def _copy_changes(text: str) -> CopyChanges | None:
         if m := re.fullmatch(r"it has vanishing (\d+) if that creature doesn't have vanishing", clause, re.I):  # Flesh Duplicate
             fields["vanishing_unless"] = int(m[1])
             continue
-        if re.fullmatch(r"(?:it|she|he) has this ability", clause, re.I):  # Thespian's Stage, Irma
-            fields["keeps_ability"] = True
+        if re.fullmatch(r"(?:it|she|he) has this ability", clause, re.I) or was_keywords and clause.lower() == "this ability":  # Thespian's
+            fields["keeps_ability"] = True  # Stage, Irma; Likeness Looter: "it has flying and this ability"
             continue
         if not clause or re.fullmatch(r"if it's a creature", clause, re.I):  # Moritte: "..., if it's a creature, it enters with ..." (counters only go on a creature anyway)
             continue
@@ -2170,6 +2170,12 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: FlickerSelf(False)),  # Estrid's Invocation's copy: "At the beginning of your upkeep, you may exile this enchantment. ..."
     (re.compile(rf"{_SELF} becomes? a copy of (?:it|that creature) until end of turn, except (.+)\.", re.I),  # Sarkhan, Soul Aflame
      lambda m: BecomeCopyOfSubject(c) if (c := _copy_changes(m[1])) else None),
+    (re.compile(rf"{_SELF} becomes a copy of target creature card in your graveyard with mana value X, except (.+)\.", re.I),  # Likeness Looter
+     lambda m: BecomeCopyOfTarget("graveyard:creature with mana value x:yours", c) if (c := _copy_changes(m[1])) else None),
+    (re.compile(rf"{_SELF} becomes a copy of target (artifact, creature, enchantment, or land|nontoken artifact you control with mana value X|"
+                r"permanent card in your graveyard)( until end of turn)?\.", re.I),  # Mirage Mirror, The Mycosynth Gardens, Shifting Woodland
+     lambda m: BecomeCopyOfTarget("graveyard:permanent:yours" if "graveyard" in m[1] else m[1].replace(" X", " x"),
+                                  CopyChanges(), until_end_of_turn=bool(m[2]))),
     (re.compile(rf"{_SELF} becomes? a copy of (another |up to one other )?target ((?-i:[A-Z][a-z]+)|land|creature)( you control)?, except (.+)\.",
                 re.I), lambda m: BecomeCopyOfTarget(m[2].lower() + (m[3] or ""), c, another=bool(m[1]), optional_target="up to" in (m[1] or ""))
      if (c := _copy_changes(m[4])) else None),  # Thespian's Stage, Sunfrill Imitator, Irma

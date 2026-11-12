@@ -346,16 +346,20 @@ class BecomeCopyOfSubject:
 @dataclass(frozen=True)
 class BecomeCopyOfTarget:
     """Thespian's Stage: "This land becomes a copy of target land, except it has this ability." Sunfrill Imitator: "... become a copy of
-    another target Dinosaur you control, except its name is CARDNAME and it has this ability." (a lasting copy; `Game.become_copy`)"""
+    another target Dinosaur you control, except its name is CARDNAME and it has this ability." (a lasting copy; `Game.become_copy`)
+    Mirage Mirror: "... a copy of target artifact, creature, enchantment, or land until end of turn." Shifting Woodland: of a target
+    permanent card in your graveyard. The Mycosynth Gardens: of a target artifact with mana value X."""
     target: str
     changes: CopyChanges
     another: bool = False
     optional_target: bool = False
+    until_end_of_turn: bool = False  # Mirage Mirror, Shifting Woodland
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         source = game.resolving_source
-        if target is not None and source is not None and game.on_battlefield(source):
-            game.become_copy(source, target.card, _keeping_this_ability(game, self.changes), False)
+        if target is None or source is None or not game.on_battlefield(source):
+            return
+        game.become_copy(source, target.card, _keeping_this_ability(game, self.changes), self.until_end_of_turn)
 
 
 @dataclass(frozen=True)

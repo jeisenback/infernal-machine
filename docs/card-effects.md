@@ -1569,6 +1569,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     second, 4 damage to each opponent and each planeswalker they control the third: `DamageEach.walkers`), and Emeria Shepherd ("If that
     land is a Plains, you may return that nonland permanent card to the battlefield instead.": the condition `subject_land_type`, read
     on the land that entered; the card always goes to the battlefield then, the "may" is not asked).
+  - Becoming a copy (`tests/test_becomes_a_copy.py`, #219): Mirage Mirror ("becomes a copy of target artifact, creature, enchantment, or
+    land until end of turn"), Shifting Woodland (of a target permanent card in your graveyard until end of turn), The Mycosynth Gardens
+    (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
+    mana value X, "except it has flying and this ability"), with `BecomeCopyOfTarget.until_end_of_turn`. An "{X}" activated ability now
+    has its X chosen before its targets (CR 602.2b), and only an X that leaves a target "with mana value X" is offered.
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
