@@ -1545,6 +1545,13 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     or creature is put into a graveyard", and `PutCounterOnHost` now reads "equipped creature" too); Undying Malice and Feign
     Death (`GrantReturnWhenDies`: it comes back tapped with a +1/+1 counter); and Luminous Broodmoth (a watch "without flying", and the
     creature returned with a flying counter; a creature that died has flying if it had a flying counter, so it comes back only once).
+  - Library search and look (`tests/test_library_batch.py`, #219): "sacrifice it. When you do, ..." (Riveteers Overlook and its cycle,
+    `SacrificeSelfWhenYouDo`: a reflexive trigger, CR 603.12, only if it was sacrificed); "a Forest card and a Plains card" (Krosan Verge,
+    `SearchForLands.each_type`: one of each, and the second still found without the first); a search into the graveyard for any kind of
+    card (Goblin Engineer, and "a nonlegendary card": Unmarked Grave); Coiling Oracle's "Otherwise, put that card into your hand." (put
+    there, not drawn); "You may put a land card from among them into your hand." (Satyr Wayfinder); the cost "Discard a creature card"
+    (or a land or artifact card: Survival of the Fittest, Fauna Shaman, Trade Routes, `ActivatedAbility.discard_kind`); "a historic card"
+    (Monumental Henge); and Elixir of Immortality's "Shuffle this artifact and your graveyard into their owner's library."
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

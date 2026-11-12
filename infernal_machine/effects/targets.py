@@ -83,7 +83,7 @@ _CARD_TYPE = (r"((?:(?:legendary creature|nonlegendary creature|legendary|nonbas
               rf"|instant or sorcery|instant|sorcery|{_SUBTYPE_CARDS}) )?card{_MANA_VALUE})")
 
 
-_SEARCH_KIND = (r"(?:(?:white|blue|black|red|green) (?:instant|sorcery|creature)|legendary creature|legendary|nonbasic land|creature or land|creature|land|artifact|enchantment|planeswalker"
+_SEARCH_KIND = (r"(?:(?:white|blue|black|red|green) (?:instant|sorcery|creature)|legendary creature|legendary|nonlegendary|historic|nonbasic land|creature or land|creature|land|artifact|enchantment|planeswalker"
                 rf"|instant or sorcery|instant|sorcery|artifact or enchantment|basic land|basic (?-i:[A-Z][a-z]+)|{_SUBTYPE_CARDS}|(?-i:[A-Z][a-z]+) or (?-i:[A-Z][a-z]+)|(?-i:[A-Z][a-z]+)(?: creature)?|(?-i:non-[A-Z][a-z]+) creature)")
 _SEARCH_TYPE = rf"((?:{_SEARCH_KIND} )?card{_MANA_VALUE})"
 _SEARCH_TYPES = rf"((?:{_SEARCH_KIND} )?cards{_MANA_VALUE})"  # the plural, for a search that finds several ("up to five Dragon cards")

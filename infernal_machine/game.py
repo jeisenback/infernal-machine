@@ -1322,7 +1322,7 @@ class Game:
             return False
         if ability.energy > seat.player_counters.get("energy", 0):  # CR 107.14: energy is paid from the player's counters
             return False
-        if len(seat.hand) < ability.discard or len(self._exile_cost_choices(seat, ability)) < ability.exile_graveyard:
+        if len(self._discard_cost_choices(seat, ability)) < ability.discard or len(self._exile_cost_choices(seat, ability)) < ability.exile_graveyard:
             return False
         if ability.sacrifice_other and not ability.sacrifice_x and len(self._sacrifice_choices(seat, source, ability)) < ability.sacrifice_count:
             return False
@@ -1338,6 +1338,10 @@ class Game:
         """Craft with artifact: the other artifacts `seat` controls and the artifact cards in its graveyard it could exile."""
         return [p for p in seat.battlefield if p is not source and _permanent_matches(kind, p.card)] \
             + [c for c in _unique(seat.graveyard) if _card_matches(kind, c)]
+
+    def _discard_cost_choices(self, seat: Seat, ability: ActivatedAbility) -> list[Card]:
+        """The cards in hand `ability`'s discard cost may discard: any card, or one of its kind ("Discard a creature card")."""
+        return [c for c in seat.hand if not ability.discard_kind or _card_matches(ability.discard_kind, c)]
 
     def _exile_cost_choices(self, seat: Seat, ability: ActivatedAbility) -> list[Card]:
         """The cards of `seat`'s graveyard that could be exiled to pay the ability's "Exile a creature card" cost."""
@@ -1551,7 +1555,8 @@ class Game:
                 self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
                 self._discard_into_zone(seat, card)
         for _ in range(discard_x if ability.discard_x else ability.discard):
-            card = seat.hand[seat.player.choose(DISCARD_COST_PROMPT(name), [c.name for c in seat.hand])]
+            options = self._discard_cost_choices(seat, ability)
+            card = options[seat.player.choose(DISCARD_COST_PROMPT(name), [c.name for c in options])]
             seat.hand.remove(card)
             self.broadcast({"event": "discard", "seat": seat.index, "card": card.name})
             self._discard_into_zone(seat, card)
@@ -5811,18 +5816,22 @@ class Game:
         self._searched(seat)
 
     def search_for_lands(self, seat: Seat, count: int, subtypes: tuple[str, ...], battlefield: int,
-                         tapped: bool, reveal: bool, basic_only: bool = False, share_type: bool = False) -> None:
+                         tapped: bool, reveal: bool, basic_only: bool = False, share_type: bool = False, each_type: bool = False) -> None:
         """Search for up to `count` lands (basic lands, or any land with one of `subtypes`): the first
         `battlefield` go onto the battlefield and the rest into the hand, then the library is shuffled. With `share_type`
-        every land after the first has a land type the first one has (Myriad Landscape)."""
+        every land after the first has a land type the first one has (Myriad Landscape); with `each_type` the nth land has the nth of
+        `subtypes` (Krosan Verge's "a Forest card and a Plains card")."""
         to_battlefield: list[Card] = []
         to_hand: list[Card] = []
         for n in range(count):
-            matches = _unique([c for c in seat.library if _is_searched_land(c, subtypes) and (not basic_only or "Basic" in c.type_line)])
+            wanted = (subtypes[n],) if each_type else subtypes
+            matches = _unique([c for c in seat.library if _is_searched_land(c, wanted) and (not basic_only or "Basic" in c.type_line)])
             if share_type and n:
                 first_types = set((to_battlefield + to_hand)[0].type_line.partition("\u2014")[2].split())
                 matches = [c for c in matches if first_types & set(c.type_line.partition("\u2014")[2].split())]
             if not matches:
+                if each_type:
+                    continue  # no Forest: the Plains is still found
                 break
             onto = n < battlefield
             card = matches[seat.player.choose(SEARCH_LAND_PROMPT if onto else SEARCH_LAND_HAND_PROMPT,
@@ -5940,9 +5949,12 @@ class Game:
             seat.hand.append(top)
             self.broadcast({"event": "revealed", "seat": seat.index, "card": top.name})
 
-    def reveal_top_land_or_draw(self, seat: Seat, scry: int, tapped: bool) -> None:
-        """Scry, then reveal the top card: a land goes onto the battlefield, anything else is drawn."""
+    def reveal_top_land_or_draw(self, seat: Seat, scry: int, tapped: bool, to_hand: bool = False) -> None:
+        """Scry, then reveal the top card: a land goes onto the battlefield, anything else is drawn (or, `to_hand`, put into the hand:
+        not a draw, CR 121.1)."""
         self.scry(seat, scry)
+        if to_hand and not seat.library:
+            return
         if not seat.library:
             seat.drew_from_empty = True  # nothing to reveal, so the "otherwise" draw comes up empty
             return
@@ -5952,6 +5964,8 @@ class Game:
             seat.library.pop(0)
             self.broadcast({"event": "put_onto_battlefield", "seat": seat.index, "card": card.name, "tapped": tapped})
             self._enter(seat, Permanent(card, tapped=tapped))
+        elif to_hand:
+            seat.hand.append(seat.library.pop(0))
         else:
             self.draw(seat, 1)
 
