@@ -4848,9 +4848,9 @@ class Game:
         card_type = card_type.replace("mv<=x", f"mv<={self.x_value}")  # Chord of Calling
         if "mv=self" in card_type and self.resolving_item is not None:  # Transmute: the mana value of the card that was discarded
             card_type = card_type.replace("mv=self", f"mv={int(self.resolving_item.card.cmc)}")
-        if "mv=sacrificed+1" in card_type:  # Repurposing Bay: "equal to 1 plus the sacrificed artifact's mana value"
-            value = self.resolving_item.sacrificed_value if self.resolving_item is not None else 0
-            card_type = card_type.replace("mv=sacrificed+1", f"mv={value + 1}")
+        if m := re.search(r"mv(=|<=)sacrificed\+(\d+)", card_type):  # Repurposing Bay: "equal to 1 plus the sacrificed artifact's mana
+            value = self.resolving_item.sacrificed_value if self.resolving_item is not None else 0  # value"; Eldritch Evolution: "X or
+            card_type = card_type.replace(m[0], f"mv{m[1]}{value + int(m[2])}")  # less, where X is 2 plus the sacrificed creature's ..."
         if "mv<power" in card_type:  # Sisay, Weatherlight Captain: less than the source's power as the ability resolves
             source = self.resolving_item.source if self.resolving_item is not None else None
             power = self.power(source) if source is not None and self.on_battlefield(source) else 0
