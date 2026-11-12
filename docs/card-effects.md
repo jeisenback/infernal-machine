@@ -1574,6 +1574,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (of a target nontoken artifact you control with mana value X, for good) and Likeness Looter (of a creature card in your graveyard with
     mana value X, "except it has flying and this ability"), with `BecomeCopyOfTarget.until_end_of_turn`. An "{X}" activated ability now
     has its X chosen before its targets (CR 602.2b), and only an X that leaves a target "with mana value X" is offered.
+  - Token copies, batch (`tests/test_token_copies_batch.py`, #219): "Create a token that's a copy of target artifact, creature, or land."
+    (Relm's Sketching) and "... of another target creature or artifact you control, except it's an artifact in addition to its other
+    types." (Saheeli, the Sun's Brilliance), read by the general token-copy sentence; Rhys the Redeemed ("For each creature token you
+    control, create a token that's a copy of that creature."); and Lazotep Quarry ("Exile target creature card with mana value X from your
+    graveyard.", X chosen before the target, then the 4/4 black Zombie copy of it).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
