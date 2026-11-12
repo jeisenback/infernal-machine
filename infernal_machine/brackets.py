@@ -3,15 +3,18 @@
     python -m infernal_machine.brackets DECKLIST
 
 The Brackets (1 Exhibition, 2 Core, 3 Upgraded, 4 Optimized, 5 cEDH) are partly a conversation about intent and partly a set of
-hard limits on what a deck may hold. This reads the hard limits off the cards, in the published guidance as of this writing:
-- Game Changers (Scryfall's `game_changer` flag, so the list follows Scryfall): none in Brackets 1 and 2, up to three in Bracket 3,
-  any number in 4 and 5.
+hard limits on what a deck may hold. This reads the hard limits off the cards, in the Commander Format Panel's beta guidance as updated
+on 21 October 2025 and 9 February 2026 (magic.wizards.com, "Commander Brackets Beta Update"):
+- Game Changers (Scryfall's `game_changer` flag, so the list follows Scryfall and is as current as the card cache; 53 cards after the
+  February 2026 update, which added Farewell and Biorhythm): none in Brackets 1 and 2, up to three in Bracket 3, any number in 4 and 5.
 - Mass land denial: not in Brackets 1 to 3 (found by its Oracle text: it destroys, exiles or returns all lands or sacrifices them).
 - Extra turns: chains of them are out below Bracket 4. A deck's extra-turn cards are listed, not counted against it.
 - Combos, when the caller asked Commander Spellbook (combos.py): each combo the deck holds carries Spellbook's bracket tag, and the
   floor is at least the highest of them (a Ruthless combo, a two-card one that wins early, is not below Bracket 4).
+- Tutors: no limit of their own since the October 2025 update; the most efficient ones are Game Changers.
 It can't see how a deck is played, and it can't tell Bracket 1 from 2 or 4 from 5, so `floor` is the lowest bracket a deck can be played
-at, never a rating. Treat it as the first thing to check before choosing opponents.
+at, never a rating. The guidance also gives each bracket a game length to expect (at least nine turns in Bracket 1, eight in 2, six in
+3, four in 4, any in 5), which no card count shows. Treat it as the first thing to check before choosing opponents.
 
     python -m infernal_machine.brackets DECKLIST --combos    # ask Commander Spellbook too (one request per deck, then cached)
 """
