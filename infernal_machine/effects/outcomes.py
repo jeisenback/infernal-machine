@@ -2421,6 +2421,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"search your library for an? (artifact|creature) card with mana value equal to 1 plus the sacrificed \1's mana value, "
                 r"put that card onto the battlefield, then shuffle\.", re.I),
      lambda m: SearchLibrary(m[1].lower() + "|mv=sacrificed+1", "battlefield", False)),  # Repurposing Bay
+    (re.compile(r"search your library for a creature card with mana value equal to 1 plus the sacrificed creature's mana value, put that "
+                r"card onto the battlefield with an additional \+1/\+1 counter on it, then shuffle\.", re.I),
+     lambda m: SearchLibrary("creature|mv=sacrificed+1", "battlefield", False, counters=1)),  # Neoform
     (re.compile(r"search your library for a creature card with mana value X or less, where X is (\w+) plus the sacrificed creature's mana "
                 r"value\. Put that card onto the battlefield, then shuffle\.", re.I),
      lambda m: SearchLibrary(f"creature|mv<=sacrificed+{_number(m[1])}", "battlefield", False)),  # Eldritch Evolution

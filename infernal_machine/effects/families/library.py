@@ -213,9 +213,10 @@ class SearchLibrary:
     card_type: str  # "card", "creature", "instant or sorcery", "basic land", ...
     to: str  # "hand", or "top" of the library after shuffling
     reveal: bool  # "reveal it": everyone sees which card
+    counters: int = 0  # Neoform: "onto the battlefield with an additional +1/+1 counter on it"
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.tutor(controller, self.card_type, self.to, self.reveal)
+        game.tutor(controller, self.card_type, self.to, self.reveal, counters=self.counters)
 
 
 @dataclass(frozen=True)
