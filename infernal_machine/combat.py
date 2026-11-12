@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .characteristics import Modifier, source_qualities
-from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, ONLY_BLOCKED_BY, Annihilate, TriggeredAbility, attack_tax_per_counter, attack_taxes,
+from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, ONLY_BLOCKED_BY, Annihilate, PutCountersOnSource, TriggeredAbility, attack_tax_per_counter, attack_taxes,
                       combat_restrictions)
 from .mana import Cost, cost_of
 from .prompts import PromptKind
@@ -102,6 +102,9 @@ class Combat:
             if n := self.game.annihilator(permanent):
                 self.game._queue(TriggeredAbility("attacks", (Annihilate(n),), False, f"Annihilator {n}"), permanent, seat,
                                  player=defender)
+            if walker is None and self.game.has_keyword(permanent, "dethrone") \
+                    and defender.life >= max(s.life for s in self.game.live_seats()):  # CR 702.105: the player with the most life, or tied
+                self.game._queue(TriggeredAbility("attacks", (PutCountersOnSource(1, "+1/+1"),), False, "Dethrone"), permanent, seat)
             self.game.happened("ally_attacks", seat, subject=permanent)
             self.game._remembered_attack(permanent, defender)
             self.game._observe("creature_attacks", permanent.card, seat, subject=permanent)  # with a qualifier (Raid Bombardment)

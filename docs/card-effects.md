@@ -1579,6 +1579,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     types." (Saheeli, the Sun's Brilliance), read by the general token-copy sentence; Rhys the Redeemed ("For each creature token you
     control, create a token that's a copy of that creature."); and Lazotep Quarry ("Exile target creature card with mana value X from your
     graveyard.", X chosen before the target, then the 4/4 black Zombie copy of it).
+  - Dethrone and clones (`tests/test_dethrone_and_clones.py`, #219): Dethrone (CR 702.105: a +1/+1 counter when the creature attacks the
+    player with the most life or tied for most life, queued in `combat.py` beside Annihilator; Treasonous Ogre, Grenzo's Cutthroat ...), a
+    clone "except it has haste and dethrone" (Dack's Duplicate), Progenitor Mimic's "if this creature isn't a token" (the condition
+    `source_not_token`) and Jwari Shapeshifter's "any Ally creature on the battlefield".
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
