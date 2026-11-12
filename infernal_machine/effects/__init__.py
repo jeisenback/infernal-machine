@@ -216,6 +216,7 @@ from .outcomes import (  # noqa: F401
     SacrificeSelfWhenYouDo,
     SacrificeSelfThenCreate,
     Scry,
+    SacrificeLandsSearch,
     SearchForLands,
     GetEmblem,
     SearchLibrary,

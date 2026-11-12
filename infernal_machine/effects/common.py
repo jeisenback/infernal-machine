@@ -191,6 +191,8 @@ _WHOLE_LINE = re.compile(
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
     r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"
     r"|[Ss]acrifice (?:it|CARDNAME|this land)\. When you do, [^\n]+"  # Riveteers Overlook
+    r"|Sacrifice any number of lands\. Search your library for up to that many land cards, put them onto the battlefield tapped, then "
+    r"shuffle\."  # Scapeshift
     r"|[Rr]eveal the top card of your library\. If it's a land card, put it onto the battlefield\. Otherwise, put (?:that card|it) into "
     r"your hand\."  # Coiling Oracle  # Party Thrasher, Inti: the rest of the line is what it does
     r"|Each player looks at the top \w+ cards of their library and may reveal a land card and/or an instant or sorcery card from "

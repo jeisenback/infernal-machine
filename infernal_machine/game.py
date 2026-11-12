@@ -243,6 +243,7 @@ HARMONIZE_PROMPT = PromptKind("harmonize", "Tap a creature to pay less for ")  #
 HARMONIZE_NONE = "Tap none"
 PUNISHER_PROMPT = PromptKind("punisher", "Lose life, sacrifice or discard for ")  # Rottenmouth Viper; followed by the source's name
 SACRIFICE_DISCOUNT_PROMPT = PromptKind("sacrifice_discount", "Sacrifice how many permanents, {1} less each, to cast ")  # Rottenmouth Viper; followed by the spell's name; options are "0", "1", ...
+SCAPESHIFT_PROMPT = PromptKind("scapeshift", "Sacrifice how many lands for ")  # followed by the spell's name; options are "0", "1", ...
 SACRIFICE_COPIES_PROMPT = PromptKind("sacrifice_copies", "Sacrifice how many creatures to copy ")  # followed by the spell's name; options are "0", "1", ...
 LOOK_PROMPT = PromptKind("look", "Take a card from the top of your library")  # options are card names, then NONE_TAKEN if optional
 NONE_TAKEN = "Take none"
@@ -3984,6 +3985,7 @@ class Game:
                                     self.controller(watcher))
                 self._observe("combat_damage_dealt", source.card, controller, subject=source, player=target, x=amount)  # "Whenever a Ninja you control deals ...", x: "create that many"
                 enchanted = self._qualifies("enchanted", source)
+                modified = self._is_modified(source, controller)
                 for permanent in list(controller.battlefield):  # "Whenever a creature (token) you control deals ..."
                     self.trigger("ally_combat_damage", permanent, controller, subject=source, x=amount,  # x: "draw that many cards"
                                  player=target)  # Grenzo, Havoc Raiser: "that player"
@@ -3991,6 +3993,8 @@ class Game:
                         self.trigger("self_or_enchanted_combat_damage", permanent, controller, subject=source)
                     if _is_token(source.card):
                         self.trigger("token_combat_damage", permanent, controller, subject=source, x=amount)
+                    if modified:  # Kodama of the West Tree: "Whenever a modified creature you control deals ..."
+                        self.trigger("modified_combat_damage", permanent, controller, subject=source, x=amount)
             if combat and controller and source is not None and source.card.name in controller.commander_names and self.format.commander_damage is not None:
                 key = (controller.index, source.card.name)
                 target.commander_damage[key] = target.commander_damage.get(key, 0) + amount
@@ -5851,6 +5855,14 @@ class Game:
         if not (to_battlefield or to_hand):
             self.broadcast({"event": "searched", "seat": seat.index, "found": False})
         self._searched(seat)
+
+    def sacrifice_lands_then_search(self, seat: Seat) -> None:
+        """Scapeshift: sacrifice any number of lands, then search for up to that many land cards and put them onto the battlefield tapped."""
+        name = self.resolving_item.card.name if self.resolving_item is not None else ""
+        lands = sum("Land" in p.card.type_line for p in seat.battlefield)
+        wanted = seat.player.choose(SCAPESHIFT_PROMPT(name), [str(n) for n in range(lands + 1)])
+        gone = self.sacrifice(seat, "land", wanted) if wanted else []
+        self.search_for_lands(seat, len(gone), ("*",), len(gone), True, False)
 
     def exile_top_of_other(self, seat: Seat, victim: Seat, count: int = 1, free: bool = False, forever: bool = False,
                            any_mana: bool = False, spells_only: bool = False, choose_one: bool = False, next_turn: bool = False) -> None:

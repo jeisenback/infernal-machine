@@ -238,6 +238,15 @@ class SearchForLands:
 
 
 @dataclass(frozen=True)
+class SacrificeLandsSearch:
+    """Scapeshift: "Sacrifice any number of lands. Search your library for up to that many land cards, put them onto the battlefield
+    tapped, then shuffle." """
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.sacrifice_lands_then_search(controller)
+
+
+@dataclass(frozen=True)
 class Scry:
     count: int | str
 

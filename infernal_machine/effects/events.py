@@ -175,6 +175,8 @@ declare("ally_noncombat_damage", re.compile(r"Whenever a source you control deal
 declare("paired_damage_opponent", re.compile(rf"As long as {_SELF} is paired with another creature, each of those creatures has "
                                               r"\"Whenever this creature deals damage to an opponent, (.+?)\"", re.I), about_creature=True, about_player=True)  # Tandem Lookout (Soulbond)
 declare("dinosaur_damaged", re.compile(r"Whenever a Dinosaur you control is dealt damage, (.+)", re.I), about_creature=True)  # Wrathful Raptors; x is the damage
+declare("modified_combat_damage", re.compile(r"Whenever a modified creature you control deals combat damage to a player, (.+)", re.I),
+        about_creature=True)  # Kodama of the West Tree (modified: CR 700.9)
 declare("token_combat_damage", re.compile(r"Whenever a creature token you control deals combat damage to a player, (.+)",
                                       re.I), about_creature=True)
 declare("host_attacks", re.compile(r"Whenever (?:equipped|enchanted) creature attacks, (.+)", re.I), about_creature=True)
