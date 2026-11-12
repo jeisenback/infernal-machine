@@ -3,7 +3,7 @@
 import dataclasses
 import unittest
 
-from infernal_machine.brackets import analyze, bracket_floor, has_extra_turn, is_mass_land_denial
+from infernal_machine.brackets import EXPECTED_TURNS, PACE_TURNS, analyze, bracket_floor, has_extra_turn, is_mass_land_denial, pace, pace_from_runs
 from infernal_machine.cards import Card, Deck
 from infernal_machine.matchup import format_matchups, matchups, within_bracket
 from infernal_machine.tune import Effect, _bracket_notes, format_tuning, tune
@@ -166,6 +166,42 @@ class MatchupTests(unittest.TestCase):
         kept, left_out = within_bracket(opponents, 3)
         self.assertEqual((sorted(kept), left_out), (["low", "mid"], {"high": 4}))
         self.assertEqual(sorted(within_bracket(opponents, 1)[0]), ["low"])
+
+
+
+def run(*damage):
+    """An engine goldfish record (goldfish.play_runs): the damage dealt by the end of each turn, padded to PACE_TURNS."""
+    totals = list(damage) + [damage[-1]] * (PACE_TURNS - len(damage))
+    return {"damage": totals}
+
+
+class PaceTests(unittest.TestCase):
+    def test_the_expected_game_lengths_are_the_guidance(self):
+        self.assertEqual(EXPECTED_TURNS, {1: 9, 2: 8, 3: 6, 4: 4})
+
+    def test_the_kill_turn_is_the_turn_half_the_games_had_dealt_40(self):
+        runs = [run(10, 20, 40), run(0, 0, 0, 0, 40), run(0, 0, 0, 0, 0, 0, 0, 0, 0, 10), None]  # turns 3 and 5, one never, one dropped
+        result = pace_from_runs(runs)
+        self.assertEqual((result.games, result.dropped, result.kill_turn), (3, 1, 5))
+
+    def test_a_deck_that_never_kills_in_half_its_games_has_no_kill_turn(self):
+        result = pace_from_runs([run(40), run(0), run(0)])
+        self.assertEqual((result.kill_turn, result.pace_floor), (None, 1))
+        self.assertIn("does not deal 40 damage within 10 turns", result.summary())
+
+    def test_the_pace_floor_is_the_lowest_bracket_whose_games_it_does_not_outpace(self):
+        for kill, floor in ((9, 1), (8, 2), (7, 3), (6, 3), (5, 4), (4, 4), (3, 5)):
+            result = pace_from_runs([run(*([0] * (kill - 1) + [40]))])
+            self.assertEqual((result.kill_turn, result.pace_floor), (kill, floor), kill)
+        self.assertIn("faster than Bracket 1, 2 games are expected to last (at least 9, 8 turns)",
+                      pace_from_runs([run(0, 0, 0, 0, 0, 0, 40)]).summary())
+
+    def test_an_engine_goldfish_of_bears_kills_by_its_turns(self):
+        result = pace(commander_deck(), games=2)
+        self.assertEqual(result.games, 2)
+        self.assertIsNotNone(result.kill_turn)  # forty Forests and fifty-nine Grizzly Bears get there within ten turns
+        assert result.kill_turn is not None
+        self.assertLessEqual(result.kill_turn, PACE_TURNS)
 
 
 if __name__ == "__main__":

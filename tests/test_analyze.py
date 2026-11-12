@@ -44,6 +44,14 @@ class SectionTests(unittest.TestCase):
         self.assertNotIn("Matchups", titles(analysis))
         self.assertIn("Matchups (no opponents given)", analysis.skipped)
 
+    def test_the_goldfish_of_a_commander_deck_gives_its_pace_against_the_brackets(self):
+        commander = analyze_deck(commander_deck(), skip=["tuning", "matchups"], **FAST)
+        goldfish = next(x for x in commander.sections if x.part == "goldfish")
+        self.assertIn("pace: it deals 40 damage", goldfish.body)
+        self.assertIn("pace_floor", goldfish.data["pace"])
+        standard = next(x for x in analyze_deck(standard_deck(), skip=["tuning"], **FAST).sections if x.part == "goldfish")
+        self.assertNotIn("pace", standard.data)  # the Brackets are Commander's
+
     def test_a_part_can_be_skipped(self):
         analysis = analyze_deck(commander_deck(), {"mirror": commander_deck()}, skip=["tuning", "matchups"], **FAST)
         self.assertEqual(titles(analysis), ["Playability", "Commander Bracket", "Composition", "Mana base", "Goldfish"])
