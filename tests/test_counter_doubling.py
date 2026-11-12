@@ -61,8 +61,8 @@ class ParseTests(unittest.TestCase):
     def test_the_lines_are_read(self):
         for card in (VORINCLEX, EZURI, SKATE):
             self.assertEqual(unsupported_lines(card), [], card.name)
-        # the Talent's level 2 ward and Tekuthal's activated ability are other work; their replacement lines are read
-        self.assertEqual(unsupported_lines(TALENT), ["Permanents you control with counters on them have ward {1}."])
+        # Tekuthal's activated ability is other work; its replacement line is read (the Talent's level 2 ward is read too: test_counters_batch_2)
+        self.assertEqual(unsupported_lines(TALENT), [])
         self.assertNotIn("If you would proliferate, proliferate twice instead.", unsupported_lines(TEKUTHAL))
         self.assertNotIn("{4}, {T}: Proliferate twice.", unsupported_lines(ENGINE))
 
