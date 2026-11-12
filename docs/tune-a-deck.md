@@ -43,8 +43,10 @@ python -m infernal_machine.brackets my_deck.txt
 no hard limit above Bracket 1
 ```
 
-This reads the hard limits off the cards: Game Changers (none below Bracket 3, up to three in 3), mass land denial (not below
-Bracket 4), and it lists extra-turn cards. With `--combos` it also asks Commander Spellbook which combos the deck holds (a two-card
+This reads the hard limits off the cards, as the Commander Format Panel's guidance stands after its October 2025 and February 2026
+updates: Game Changers (none below Bracket 3, up to three in 3; the list is Scryfall's, so it is as current as the card cache), mass land
+denial (not below Bracket 4), and it lists extra-turn cards. Tutors have no limit of their own any more: the strongest are Game
+Changers. With `--combos` it also asks Commander Spellbook which combos the deck holds (a two-card
 combo that wins early is not below Bracket 4; `analyze` always asks, and lists them in its Combos part). It cannot see how the deck is
 played, so the answer is the *lowest* bracket the deck can be played at, not a rating. Use it before choosing opponents: results against a deck at a higher bracket compare unlike
 decks, and the matchup report warns about that.
