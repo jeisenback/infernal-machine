@@ -1317,7 +1317,16 @@ class Game:
             return False
         if self._ability_payment(seat, permanent, ability) is None:
             return False
+        if any(" with mana value x" in (target_kind(e) or "") for e in ability.effects) and not self._ability_x_values(seat, permanent, ability):
+            return False  # The Mycosynth Gardens: no X it can pay for has a target "with mana value X"
         return self._effects_possible(seat, ability.effects, source_qualities(card), permanent)
+
+    def _ability_x_values(self, seat: Seat, permanent: Permanent, ability: ActivatedAbility) -> list[int]:
+        """The X that `seat` can pay for an "{X}" activated ability and that leave its "with mana value X" targets something."""
+        most = 0
+        while most < MAX_X and self._ability_payment(seat, permanent, ability, most + 1) is not None:
+            most += 1
+        return self._x_values_with_targets(seat, list(ability.effects), source_qualities(permanent.card), most)
 
     def _card_costs_payable(self, seat: Seat, source: Permanent | None, ability: ActivatedAbility) -> bool:
         """Whether `seat` has what the ability's costs other than mana ask for: the life, the cards to discard or exile from the graveyard,
@@ -2480,15 +2489,17 @@ class Game:
                        if self._ability_payment(seat, permanent, ability, 0, o[1]) is not None]
             pick = seat.player.choose(TARGET_PROMPT(permanent.card.name), [label for label, _ in options])
             targets, labels = [options[pick][1]], [options[pick][0]]
-        else:
-            targets, labels = _checked(self._choose_targets(seat, effects, permanent.card.name, permanent,
-                                                            source_qualities(permanent.card)))
         x = 0
-        if ability.mana_cost and cost_of(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then paid
-            most = 0
-            while most < MAX_X and self._ability_payment(seat, permanent, ability, most + 1) is not None:
-                most += 1
-            x = seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in range(most + 1)])
+        if ability.mana_cost and cost_of(ability.mana_cost).x:  # "{X}, {T}: ...": X is chosen, then targets (CR 602.2b), then X is paid
+            choices = self._ability_x_values(seat, permanent, ability)
+            x = choices[seat.player.choose(X_PROMPT(permanent.card.name), [str(n) for n in choices])]
+        if not ability.equip:
+            saved_x, self.targeting_x = self.targeting_x, x  # The Mycosynth Gardens: "target ... with mana value X"
+            try:
+                targets, labels = _checked(self._choose_targets(seat, effects, permanent.card.name, permanent,
+                                                                source_qualities(permanent.card)))
+            finally:
+                self.targeting_x = saved_x
         sacrificed = 0
         if ability.sacrifice_x:  # "Sacrifice X Squirrels": X is as many as the player chooses to sacrifice
             most = min(len(self._sacrifice_choices(seat, permanent, ability)), MAX_X)
@@ -2562,7 +2573,7 @@ class Game:
         try:
             for i, (kind, distinct, another) in enumerate(kinds):
                 needed = 1 + (sum(k == kind for k, _, _ in kinds[:i]) if distinct else 0)
-                kind = kind.removesuffix(" with mana value x")  # X isn't chosen yet: any creature could do
+                kind = kind.replace(" with mana value x", "")  # X isn't chosen yet: any creature could do
                 options = [o for _, o in self.target_options(self._fixed_kind(kind, source), seat, colors)
                            if not (another and self.option_is_source(o, source))]
                 if len(options) < needed:
@@ -3626,6 +3637,8 @@ class Game:
             kind = "graveyard:creature:any"
         if kind.startswith("graveyard:"):  # "graveyard:<card type>:<yours|opponents|any>"
             _, card_type, whose = kind.split(":")
+            card_type = re.sub(r"mana value x\b", lambda m: "mana value %d" % (  # Likeness Looter: X is chosen before targets (CR 602.2b)
+                self.x_value if self.resolving_item is not None else self.targeting_x), card_type)
             for seat in self.live_seats():
                 if (whose == "yours" and seat is not caster) or (whose == "opponents" and seat is caster):
                     continue
