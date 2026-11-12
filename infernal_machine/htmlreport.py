@@ -2,7 +2,7 @@
 
     python -m infernal_machine.analyze DECKLIST [OPPONENT ...] --html report.html
 
-The same numbers the markdown report prints, drawn: the mana base as bars, the goldfish's damage by turn as a chart, each card's
+The same numbers the markdown report prints, drawn: the composition against the Command Zone template and the mana base as bars, the goldfish's damage by turn as a chart (with its pace against the Brackets), each card's
 value with its error as a whisker (the table sorts by a click on a header), the matchups as win rates with their 95% intervals. A
 section whose numbers were not kept (an older saved run) falls back to its text. No scripts load from anywhere: CSS and a few lines
 of JS are inline, so the file can be mailed or opened offline. It follows the reader's light or dark setting.
@@ -14,6 +14,7 @@ import re
 from html import escape
 from typing import TYPE_CHECKING, Any
 
+from .brackets import PACE_TURNS, Pace
 from .coverage import FIXES_SHOWN, verdict
 from .matchup import wilson
 
@@ -36,7 +37,7 @@ th{color:var(--muted);font-weight:600;font-size:.85rem}th[data-sort]{cursor:poin
 .tick{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--fg);opacity:.35}
 .good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;font-size:.82rem}
 .verdict h2{font-size:1.6rem;margin:0}.verdict .sub{margin:2px 0 12px}.verdict h3{font-size:1rem;margin:18px 0 6px}.pbar{height:10px;border-radius:5px;background:color-mix(in srgb,var(--line) 55%,transparent);overflow:hidden}.pbar i{display:block;height:100%;background:var(--bar)}.pbar.full i{background:var(--good)}ol.fixes{padding-left:1.4rem;margin:0}ol.fixes li{padding:6px 0;border-bottom:1px solid var(--line)}code{display:block;overflow-x:auto;font:.82rem/1.4 ui-monospace,Menlo,Consolas,monospace}.chips{margin:4px 0 2px}.chips span{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:0 6px;margin:0 4px 4px 0;font-size:.85rem}.gain{color:var(--muted);font-size:.85rem}.verdict summary{cursor:pointer;min-height:44px;display:flex;align-items:center}.note{border-left:4px solid var(--warn);padding:8px 12px;background:var(--bg);margin:0 0 12px}.foot{color:var(--muted);font-size:.85rem;margin-top:24px}
-svg text{fill:var(--muted);font-size:11px}svg .b{fill:var(--bar)}@media (max-width:600px){td,th{padding:4px 5px}.barbox{min-width:80px}}
+section h3{font-size:.95rem;margin:14px 0 4px}svg text{fill:var(--muted);font-size:11px}svg .b{fill:var(--bar)}@media (max-width:600px){td,th{padding:4px 5px}.barbox{min-width:80px}}
 """
 
 _JS = """
@@ -125,8 +126,44 @@ def _goldfish(section: "Section") -> str:
     drops = data.get("land_drops") or {}
     drop_row = "".join(f"<td class=\"n\">{_pct(drops[t])}</td>" for t in sorted(drops, key=int))
     return (f'<p>{data.get("games", "?")} games, {data.get("turns", "?")} turns. Average combat damage dealt so far, if nothing blocks it.</p>'
-            + chart + ("<table><thead><tr><th>Land drop made by turn</th>" + "".join(f'<th class="n">T{t}</th>' for t in sorted(drops, key=int))
+            + chart + _pace(data) + ("<table><thead><tr><th>Land drop made by turn</th>" + "".join(f'<th class="n">T{t}</th>' for t in sorted(drops, key=int))
                        + f"</tr></thead><tbody><tr><td>share of games</td>{drop_row}</tr></tbody></table>" if drops else ""))
+
+
+def _composition(section: "Section") -> str:
+    """The 99 by role against the Command Zone template (composition.py): a bar per role with a tick at the template's number, then the
+    cards in each role."""
+    data = section.data
+    template = data.get("template")
+    if not template:
+        return _fallback(section)
+    have = {"lands": len(data.get("lands", [])), **{role: len(names) for role, names in data.get("roles", {}).items()}}
+    top = max([max(have.get(role, 0), want) for role, want in template.items()] + [1])
+    rows = []
+    for role, want in template.items():
+        count, short = have.get(role, 0), max(0, want - have.get(role, 0))
+        rows.append(f'<tr><td>{escape(role)}</td><td class="n" data-v="{count}">{count}</td><td class="n" data-v="{want}">{want}</td>'
+                    f'<td>{_bar(count, count, 0, top, mark=want, centre=count)}</td>'
+                    f'<td class="{"bad" if short else "good"}">{f"{short} short" if short else "enough"}</td></tr>')
+    plan, unread = data.get("plan", []), data.get("unread", [])
+    rows.append(f'<tr><td>plan (other)</td><td class="n">{len(plan)}</td><td></td><td></td><td></td></tr>')
+    lists = "".join(f'<h3>{escape(role)}</h3><div class="chips">' + "".join(f"<span>{escape(name)}</span>" for name in sorted(names)) + "</div>"
+                    for role, names in data.get("roles", {}).items() if names)
+    note = (f'<p class="note">{len(unread)} card{"s" if len(unread) != 1 else ""} the engine can\'t fully read got no role, so the counts '
+            f'are a floor: {escape(", ".join(sorted(unread)))}.</p>' if unread else "")
+    return ('<p>The 99 by role against the Command Zone\'s deckbuilding template (episode 658, 2025); the tick is the template\'s number. '
+            'A card can fill several roles.</p>' + note
+            + '<table><thead><tr><th>Role</th><th class="n">Has</th><th class="n">Template</th><th></th><th></th></tr></thead><tbody>'
+            + "".join(rows) + "</tbody></table>" + lists)
+
+
+def _pace(data: dict) -> str:
+    """The goldfish's pace against the Brackets' game lengths (brackets.Pace), when the run measured it."""
+    pace = data.get("pace")
+    if not pace:
+        return ""
+    line = Pace(pace["games"], PACE_TURNS, pace["kill_turn"]).summary().removeprefix("pace: ")
+    return f"<p>{escape(line[:1].upper() + line[1:])}.</p>"
 
 
 def _tuning(section: "Section") -> str:
@@ -260,7 +297,7 @@ def _verdict(section: "Section") -> str:
     return "".join(out)
 
 
-_RENDER = {"manabase": _mana_base, "goldfish": _goldfish, "tuning": _tuning, "matchups": _matchups, "bracket": _bracket, "combos": _combos}
+_RENDER = {"composition": _composition, "manabase": _mana_base, "goldfish": _goldfish, "tuning": _tuning, "matchups": _matchups, "bracket": _bracket, "combos": _combos}
 
 
 def _tiles(analysis: "Analysis") -> str:
@@ -277,6 +314,10 @@ def _tiles(analysis: "Analysis") -> str:
     if "mulligan_rate" in gold:
         tiles.append(_tile(_pct(gold["mulligan_rate"]), "mulligans"))
         tiles.append(_tile(_pct(gold["on_curve"]), "of turns played on curve"))
+    if gold.get("pace"):
+        kill = gold["pace"]["kill_turn"]
+        tiles.append(_tile(f'Pace: Bracket {gold["pace"]["pace_floor"]}+',
+                           f"kills one opponent alone by turn {kill}" if kill else f"no kill alone within {PACE_TURNS} turns"))
     opponents = by_part.get("matchups", {}).get("opponents")
     if opponents:
         wins = sum(r["wins"] for r in opponents.values())
