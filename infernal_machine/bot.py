@@ -21,6 +21,7 @@ from .zones import CAST_PREFIXES, LAND_PREFIXES, PLOT
 from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, COST_PROMPT, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, COMPANION, CAST_PREPARED, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT, SCAPESHIFT_PROMPT,
+                   SEPARATE_PROMPT, PILE_TAKE_PROMPT, PILE_GIVE_PROMPT,
                    CHAIN_COPY_PROMPT)
 
 MIN_LANDS = 2
@@ -198,6 +199,9 @@ class BotPlayer:
             return len(options) - 1
         if LIFE_X_PROMPT.matches(prompt):  # paying life for X: some, not everything
             return min(len(options) - 1, 3)
+        if is_one_of(prompt, SEPARATE_PROMPT, PILE_TAKE_PROMPT, PILE_GIVE_PROMPT):  # Fact or Fiction: piles weighed by mana value
+            values = [_prompt_number(option, "(mana value ") for option in options]  # separate evenly, take the bigger, give the smaller
+            return values.index(max(values) if PILE_TAKE_PROMPT.matches(prompt) else min(values))
         if SCAPESHIFT_PROMPT.matches(prompt):  # every land, for the lands it wants most (Valakut and its Mountains)
             return len(options) - 1
         if is_one_of(prompt, X_PROMPT, MULTIKICKER_PROMPT):

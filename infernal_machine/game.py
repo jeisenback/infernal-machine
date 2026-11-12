@@ -273,6 +273,9 @@ DEVOUR_PROMPT = PromptKind("devour", "Devour: sacrifice which creature to ")  # 
 DEVOUR_DONE = "Done"
 REPLICATE_PROMPT = PromptKind("replicate", "Choose how many times to replicate ")  # followed by the spell's name; options are "0", "1", ...
 PILE_PROMPT = PromptKind("pile", "Put which pile into the graveyard? ")  # an opponent chooses; the options are the piles
+SEPARATE_PROMPT = PromptKind("separate", "Put into which pile: ")  # followed by the card's name; the options are the two piles
+PILE_TAKE_PROMPT = PromptKind("pile_take", "Put which pile into your hand? ")  # the options are the two piles
+PILE_GIVE_PROMPT = PromptKind("pile_give", "Which pile goes into the hand of ")  # followed by the player's name; the options are the piles
 PILE_CAST_PROMPT = PromptKind("pile_cast", "Cast a spell from the pile for free? ")  # the options are the cards, then "None"
 EXILE_FROM_TOP_PROMPT = PromptKind("exile_from_top", "Exile which card from among them? ")  # The Key to the Vault; then NONE_TAKEN
 CASCADE_PROMPT = PromptKind("cascade", "Cast for free (cascade): ")  # followed by the card's name; Yes or No
@@ -2019,6 +2022,29 @@ class Game:
             if card in seat.exile:
                 seat.exile.remove(card)
                 seat.hand.append(card)
+
+    def reveal_split(self, seat: Seat, count: int, you_separate: bool, rest: str) -> None:
+        """Fact or Fiction: reveal the top `count` cards; an opponent separates them into two piles (one may be empty, CR 700.3) and
+        `seat` puts one pile into their hand, the other into the graveyard (or on the bottom of the library). With `you_separate`,
+        `seat` separates and the opponent chooses the pile for `seat`'s hand (Steam Augury). The opponent is the next in turn order."""
+        cards = seat.library[:count]
+        del seat.library[:len(cards)]
+        self.broadcast({"event": "revealed", "seat": seat.index, "cards": [c.name for c in cards]})
+        opponents = self.opponents(seat)
+        other = opponents[0] if opponents else seat
+        separator, chooser = (seat, other) if you_separate else (other, seat)
+        piles: tuple[list[Card], list[Card]] = ([], [])
+        label = lambda n: f"Pile {n + 1}: " + (", ".join(c.name for c in piles[n]) or "empty") + f" (mana value {sum(int(c.cmc) for c in piles[n])})"  # noqa: E731
+        for card in cards:
+            piles[separator.player.choose(SEPARATE_PROMPT(card.name), [label(0), label(1)])].append(card)
+        prompt = PILE_TAKE_PROMPT if chooser is seat else PILE_GIVE_PROMPT(seat.player.name)
+        taken = chooser.player.choose(prompt, [label(0), label(1)])
+        seat.hand.extend(piles[taken])
+        for card in piles[1 - taken]:
+            if rest == "graveyard":
+                self._move_card(seat, card, "graveyard")
+            else:
+                seat.library.append(card)  # "on the bottom of your library in any order"
 
     def cast_free(self, seat: Seat, card: Card) -> None:
         """Cast `card` from `seat`'s hand without paying its mana cost (it stays in hand if it has no legal target)."""
