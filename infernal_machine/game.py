@@ -4838,7 +4838,7 @@ class Game:
         self.happened("exile_library_graveyard", seat)
 
     def tutor(self, seat: Seat, card_type: str, to: str, reveal: bool, count: int = 1, distinct: bool = False,
-              not_self: bool = False) -> list[Card]:
+              not_self: bool = False, counters: int = 0) -> list[Card]:
         """Search the library for a card of `card_type`: it goes to the hand (`to` is "hand"), to the battlefield, to the graveyard
         or to the top of the library ("top") after shuffling. Only "reveal" shows others which card. With a `count` above one, up
         to that many cards are found (Buried Alive), and the searcher may stop early; several put on top go in the order the
@@ -4880,7 +4880,7 @@ class Game:
             if to == "hand":
                 seat.hand.append(found)
             elif to == "battlefield":
-                self._enter(seat, Permanent(found, sick=True, owner=seat))
+                self._enter(seat, Permanent(found, sick=True, owner=seat, extra_counters=counters))  # Neoform: +1/+1 counters
             elif to in ("graveyard", "exile"):
                 self._move_card(seat, found, to)
             self.broadcast({"event": "searched", "seat": seat.index, "found": True, "to": to,

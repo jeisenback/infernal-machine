@@ -1557,8 +1557,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     or Aura its controller controls attached); Scapeshift (`SacrificeLandsSearch`: the player says how many lands to sacrifice, and finds
     as many land cards as were sacrificed); and Entish Restoration ("If you control a creature with power 4 or greater, instead search
     ..." now replaces a land search too).
-  - Eldritch Evolution (`tests/test_eldritch_evolution.py`, #219): "a creature card with mana value X or less, where X is 2 plus the
-    sacrificed creature's mana value" (the kind `mv<=sacrificed+2`, read like Birthing Pod's "equal to 1 plus").
+  - Searches keyed to a sacrificed creature (`tests/test_sacrifice_searches.py`, #219): Eldritch Evolution's "a creature card with mana
+    value X or less, where X is 2 plus the sacrificed creature's mana value" (the kind `mv<=sacrificed+2`, read like Birthing Pod's "equal
+    to 1 plus"), and Neoform's "put that card onto the battlefield with an additional +1/+1 counter on it" (`SearchLibrary.counters`).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
