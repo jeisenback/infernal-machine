@@ -49,6 +49,28 @@ combo that wins early is not below Bracket 4; `analyze` always asks, and lists t
 played, so the answer is the *lowest* bracket the deck can be played at, not a rating. Use it before choosing opponents: results against a deck at a higher bracket compare unlike
 decks, and the matchup report warns about that.
 
+### Does it have enough ramp, card draw and removal?
+
+```
+python -m infernal_machine.composition my_deck.txt
+role                 have template
+lands                  37       38  1 short
+ramp                   12       10
+card advantage         10       12  2 short
+targeted disruption     7       12  5 short
+mass disruption         3        6  3 short
+plan (other)           33
+```
+
+This counts the 99 by role against the Command Zone's deckbuilding template (episode 658, "Commander Deckbuilding Template for the New
+Era", 2025: 38 lands, 10 ramp, 12 card advantage, 12 targeted disruption, 6 mass disruption, the rest for the deck's plan), then lists
+the cards in each role so you can check them. A card's roles come from the effects the engine read from it, not from words in its text:
+a mana rock or dork, a land search onto the battlefield or Treasure is ramp; drawing or impulse draw is card advantage; destroying,
+exiling or bouncing a permanent you don't control, a counterspell, a fight or burn at a creature is targeted disruption; a wipe is mass
+disruption. A card can fill several roles. A card with text the engine can't read gets no role and is listed as "not read", so the counts
+are a floor. The template is a starting point, not a rule: a deck short of removal may be built to win before it matters. `analyze`
+shows this as its Composition part.
+
 ## 3. Does the mana base hold up?
 
 ```

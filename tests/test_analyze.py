@@ -29,7 +29,7 @@ def titles(analysis):
 class SectionTests(unittest.TestCase):
     def test_a_commander_deck_with_opponents_gets_every_part_in_order(self):
         analysis = analyze_deck(commander_deck(), {"mirror": commander_deck()}, name="mine", **FAST)
-        self.assertEqual(titles(analysis), ["Playability", "Commander Bracket", "Mana base", "Goldfish", "Tuning", "Matchups"])
+        self.assertEqual(titles(analysis), ["Playability", "Commander Bracket", "Composition", "Mana base", "Goldfish", "Tuning", "Matchups"])
         self.assertEqual(analysis.kind, "Commander")
         self.assertEqual(analysis.skipped, [])
 
@@ -46,7 +46,7 @@ class SectionTests(unittest.TestCase):
 
     def test_a_part_can_be_skipped(self):
         analysis = analyze_deck(commander_deck(), {"mirror": commander_deck()}, skip=["tuning", "matchups"], **FAST)
-        self.assertEqual(titles(analysis), ["Playability", "Commander Bracket", "Mana base", "Goldfish"])
+        self.assertEqual(titles(analysis), ["Playability", "Commander Bracket", "Composition", "Mana base", "Goldfish"])
         self.assertEqual(analysis.skipped, ["Tuning (skipped on request)", "Matchups (skipped on request)"])
 
     def test_an_unknown_part_is_an_error(self):
@@ -67,7 +67,7 @@ class SectionTests(unittest.TestCase):
     def test_progress_is_reported_once_for_each_part_that_runs(self):
         messages = []
         analyze_deck(commander_deck(), {"mirror": commander_deck()}, skip=["goldfish"], progress=messages.append, **FAST)
-        self.assertEqual(messages, ["Commander Bracket...", "Mana base...", "Tuning...", "Matchups..."])  # (playability is quick and says nothing)
+        self.assertEqual(messages, ["Commander Bracket...", "Composition...", "Mana base...", "Tuning...", "Matchups..."])  # (playability is quick and says nothing)
 
 
 class WarningTests(unittest.TestCase):
