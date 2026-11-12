@@ -131,12 +131,14 @@ def build(card: Card, ability: ActivatedAbility) -> Setup:
     mine.battlefield = on_table + [Permanent(BEAR, sick=False), relic] + lands + ([source] if source else [])
     theirs.battlefield = [Permanent(OGRE), Permanent(BEAR), Permanent(Card(name="Their Relic", type_line="Artifact")),
                           Permanent(Card(name="Their Shrine", type_line="Enchantment"))]
-    mine.graveyard, theirs.graveyard = [BEAR, Card(name="Old Relic", type_line="Artifact"), Card(name="Old Shrine", type_line="Enchantment")], [OGRE]
+    mine.graveyard, theirs.graveyard = [BEAR, Card(name="Old Relic", type_line="Artifact"), Card(name="Old Shrine", type_line="Enchantment"),
+                                        Card(name="Old Land", type_line="Land")], [OGRE]  # (a land card: Floral Evoker)
     mine.life = 100 if ability.life else mine.life  # "Pay 50 life"
     if ability.from_graveyard:
         mine.graveyard.append(card)
     hand = ability.discard
-    mine.hand = [Card(name=f"Spare {n}", type_line="Instant") for n in range(hand)]
+    mine.hand = [probe(ability.discard_kind, f"Spare {n}") if ability.discard_kind else Card(name=f"Spare {n}", type_line="Instant")
+                 for n in range(hand)]  # "Discard a creature card": one of that kind
     graveyard = ability.exile_graveyard
     if graveyard:
         kind = ability.exile_graveyard_kind or "creature"

@@ -87,6 +87,7 @@ class ActivatedAbility:
     sacrifice_count: int = 1  # "Sacrifice two creatures"
     sacrifice_x: bool = False  # "Sacrifice X Squirrels" (Chatterfang): X is chosen, up to as many as it can sacrifice, and is the ability's X
     discard: int = 0  # "Discard a card": how many
+    discard_kind: str = ""  # "Discard a creature card" (Survival of the Fittest): of this kind ("" for any card)
     discard_x: bool = False  # "Discard X cards" (Gix, Yawgmoth Praetor): X is chosen, up to the cards in hand, and is the ability's X
     exile_graveyard: int = 0  # "Exile a card from your graveyard": how many
     exile_graveyard_kind: str = ""  # "Exile a creature card from your graveyard": of this kind ("" for any card)
@@ -174,6 +175,7 @@ _PUT_COUNTER_COST = re.compile(rf"Put an? {_COUNTER} on (?:CARDNAME|this (?:crea
 
 
 _DISCARD_COST = re.compile(rf"Discard {_CARDS} cards?")
+_DISCARD_KIND_COST = re.compile(r"Discard an? (creature|land|artifact) card")  # Survival of the Fittest, Trade Routes
 
 
 _DISCARD_SELF = re.compile(r"Discard (?:CARDNAME|this card)")
@@ -298,6 +300,8 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
                           sacrifice_x=m[1] == "X")
         elif m := _DISCARD_COST.fullmatch(part):
             fields["discard"] = _NUMBER[m[1]]
+        elif m := _DISCARD_KIND_COST.fullmatch(part):
+            fields.update(discard=1, discard_kind=m[1])
         elif part == "Discard X cards":
             fields["discard_x"] = True
         elif _DISCARD_SELF.fullmatch(part):

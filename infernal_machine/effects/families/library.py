@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
 from ..common import Quantity
-from ..targets import PREVIOUS_TARGET
+from ..targets import PREVIOUS_TARGET, SOURCE
 from .base import Condition
 from ...cards import Card
 
@@ -229,11 +229,12 @@ class SearchForLands:
     reveal: bool
     basic_only: bool = False  # "basic Plains cards": the land types and also basic
     share_type: bool = False  # "that share a land type"
+    each_type: bool = False  # "a Forest card and a Plains card" (Krosan Verge): the nth land has the nth land type
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         count = game.amount(self.count)  # Traverse the Outlands: up to X
         game.search_for_lands(controller, count, self.subtypes, count if self.battlefield == "X" else game.amount(self.battlefield), self.tapped,
-                              self.reveal, self.basic_only, self.share_type)
+                              self.reveal, self.basic_only, self.share_type, self.each_type)
 
 
 @dataclass(frozen=True)
@@ -272,12 +273,14 @@ class RevealLands:
 @dataclass(frozen=True)
 class RevealTop:
     """ "Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield tapped.
-    Otherwise, draw a card." (Thrasios). Only built by _merge_reveal_top."""
+    Otherwise, draw a card." (Thrasios), built by _merge_reveal_top; "... Otherwise, put that card into your hand." (Coiling Oracle):
+    `to_hand`, put there, not drawn."""
     scry: int
     tapped: bool
+    to_hand: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        game.reveal_top_land_or_draw(controller, self.scry, self.tapped)
+        game.reveal_top_land_or_draw(controller, self.scry, self.tapped, self.to_hand)
 
 
 @dataclass(frozen=True)
@@ -299,6 +302,20 @@ class LookAtTopOfLibrary:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.library:
             controller.player.notify({"event": "library_top", "seat": target.index, "cards": [target.library[0].name]})
+
+
+@dataclass(frozen=True)
+class ShuffleSelfAndGraveyard:
+    """Elixir of Immortality: "Shuffle this artifact and your graveyard into their owner's library." The artifact goes only if it is
+    still on the battlefield; the library is shuffled either way."""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:
+            game._leave_together([(target, "returned")], destination="library")
+            game.rng.shuffle(game.owner_of(target).library)
+        game.shuffle_into_library(controller, [game.graveyard_target(card, controller) for card in controller.graveyard])
+        game.rng.shuffle(controller.library)
 
 
 @dataclass(frozen=True)

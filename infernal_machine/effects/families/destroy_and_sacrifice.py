@@ -196,6 +196,20 @@ class SacrificeSelf:
 
 
 @dataclass(frozen=True)
+class SacrificeSelfWhenYouDo:
+    """ "When this land enters, sacrifice it. When you do, search your library for a basic ... card, ..." (Riveteers Overlook and its
+    cycle): the sacrifice sets off a reflexive trigger (CR 603.12), which happens only if the permanent was sacrificed."""
+    then: tuple
+    text: str = ""
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is not None:  # (None once it has left the battlefield: nothing is sacrificed, so no "when you do")
+            game._leave_battlefield(target, "sacrificed")
+            game.reflexive_trigger(controller, self.then, None, self.text)
+
+
+@dataclass(frozen=True)
 class Vanish:
     """Vanishing (CR 702.63a): "At the beginning of your upkeep, if this permanent has a time counter on it, remove a time counter from it.
     When the last is removed, sacrifice it." """

@@ -258,6 +258,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     SacrificeAll,
     SacrificeCreature,
     SacrificeSelf,
+    SacrificeSelfWhenYouDo,
     ExileSelf,
     ReturnSelfAtNextEndStep,
     Vanish,
@@ -438,6 +439,7 @@ from .families.library import (  # noqa: F401
     ShuffleIntoLibrary,
     ShuffleSourceAndTarget,
     ShuffleRevealCast,
+    ShuffleSelfAndGraveyard,
     ShuffleThisSpell,
     Surveil,
     TakeFromTop,
@@ -2025,6 +2027,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:that token gains|those tokens gain) haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
     (re.compile(r'it gains haste and "When this token dies, draw a card\."', re.I), lambda m: _TokenGainsBlitz()),  # Jaxis  # Devastating Onslaught
     (re.compile(r"(?:it|that token|they|those tokens) gains? haste\.", re.I), lambda m: _TokenHasHaste()),
+    (re.compile(r"sacrifice (?:it|CARDNAME|this land)\. When you do, (.+)", re.I),  # Riveteers Overlook: the rest of the line is the reflexive trigger
+     lambda m: SacrificeSelfWhenYouDo(tuple(inner), m[0]) if (inner := _parse(_split_sentences(m[1][:1].upper() + m[1][1:]))) else None),
     (re.compile(r"sacrifice (?:it|CARDNAME|this (?:creature|artifact|token|permanent|enchantment|land))\.", re.I), lambda m: SacrificeSelf()),  # Phantasmal Image's "... becomes the target of a spell or ability, sacrifice it."; Electroduplicate's token
     (re.compile(r"exile this token\.", re.I), lambda m: ExileSelf()),  # Heat Shimmer's token: "At the beginning of the end step, exile this token."
     (re.compile(r"return (?:CARDNAME|this creature) to its owner's hand at the beginning of the next end step\.", re.I),  # Sakashima the Impostor
@@ -2369,8 +2373,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"search your library for an? ((?:legendary )?(?:permanent|creature)) card with mana value less than CARDNAME's power, "
                 r"put (?:it|that card) (onto the battlefield|into your hand), then shuffle\.", re.I),
      lambda m: SearchLibrary(m[1].lower() + "|mv<power", _DESTINATIONS[m[2]], False)),  # Sisay, Weatherlight Captain
-    (re.compile(r"search your library for a land card, put it into your graveyard, then shuffle\.", re.I),
-     lambda m: SearchLibrary("land", "graveyard", False)),
+    (re.compile(rf"search your library for an? {_SEARCH_TYPE}, put (?:it|that card) into your graveyard, then shuffle\.", re.I),
+     lambda m: SearchLibrary(_card_kind(m[1]), "graveyard", False)),  # Goblin Engineer, Unmarked Grave
     (re.compile(r"search your library for a land card, put (?:it|that card) onto the battlefield( tapped)?, then shuffle\.", re.I),
      lambda m: SearchForLands(1, ("*",), 1, bool(m[1]), False)),  # Crop Rotation
     (re.compile(r"search your library for up to (two|three|four) basic land cards, put them onto the battlefield, then shuffle\.", re.I),
@@ -2388,6 +2392,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchForLands(_count(m[1]), (), 0, False, True)),
     (re.compile(rf"search your library for a basic {_LAND_TYPES} card, put it onto the battlefield tapped, then shuffle\.", re.I),
      lambda m: SearchForLands(1, _land_types(m[1]), 1, True, False, basic_only=True)),  # the Landscape cycle
+    (re.compile(rf"search your library for an? ({_LAND_TYPE}) card and an? ({_LAND_TYPE}) card, put them onto the battlefield( tapped)?, "
+                r"then shuffle\.", re.I),
+     lambda m: SearchForLands(2, (m[1], m[2]), 2, bool(m[3]), False, each_type=True)),  # Krosan Verge
     (re.compile(r"search your library for up to two basic land cards that share a land type, put them onto the battlefield tapped, "
                 r"then shuffle\.", re.I),
      lambda m: SearchForLands(2, (), 2, True, False, share_type=True)),  # Myriad Landscape
@@ -2442,6 +2449,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: [Scry(_count(m[1])), Draw(_count(m[2] or "a"))]),
     (re.compile(rf"scry {_N_FIXED}, then reveal the top card of your library\.", re.I),
      lambda m: RevealTopStep("reveal", _number(m[1]))),
+    (re.compile(r"reveal the top card of your library\. If it's a land card, put it onto the battlefield\. Otherwise, put (?:that card|it) "
+                r"into your hand\.", re.I), lambda m: RevealTop(0, False, to_hand=True)),  # Coiling Oracle
     (re.compile(r"if it's a land card, put it onto the battlefield( tapped)?\.", re.I),
      lambda m: RevealTopStep("land", tapped=bool(m[1]))),
     (re.compile(r"otherwise, draw a card\.", re.I), lambda m: RevealTopStep("otherwise")),
@@ -2462,8 +2471,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _InsteadTake(c, 0) if (c := _condition(m[1])) else None),
     (re.compile(rf"you may reveal an? {_SEARCH_TYPE} from among them and put (?:it|that card) into your hand\.", re.I),
      lambda m: TakeFromTop(_card_kind(m[1]))),
-    (re.compile(r"you may put an? (permanent|creature or land|creature or enchantment) card from among them into your hand\.", re.I),
-     lambda m: TakeFromTop(m[1].lower())),  # Malevolent Rumble, Grisly Salvage, Commune with the Gods
+    (re.compile(r"you may put an? (permanent|creature or land|creature or enchantment|land) card from among them into your hand\.", re.I),
+     lambda m: TakeFromTop(m[1].lower())),  # Malevolent Rumble, Grisly Salvage, Commune with the Gods, Satyr Wayfinder
     (re.compile(r"for each card type, you may put a card of that type from among the revealed cards into your hand\.", re.I),
      lambda m: TakeFromTop("each card type", rest=None)),  # Atraxa, Grand Unifier
     (re.compile(r"you may reveal a (noncreature, nonland|colorless) card from among them and put it into your hand\.", re.I),
@@ -3158,6 +3167,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"search your library for an instant card or a card with flash, reveal it, put it into your hand, then shuffle\.", re.I),
      lambda m: SearchLibrary("instant or flash", "hand", True)),  # Mystical Teachings
     (re.compile(r"target player shuffles their graveyard into their library\.", re.I), lambda m: TargetShufflesGraveyard()),  # Blessed Respite
+    (re.compile(r"shuffle (?:this artifact|CARDNAME) and your graveyard into their owner's library\.", re.I),
+     lambda m: ShuffleSelfAndGraveyard()),  # Elixir of Immortality
     (re.compile(r"you shuffle up to (\w+) cards from your graveyard into your library\.", re.I),
      lambda m: ShuffleFromGraveyard(_number(m[1]))),  # Stream of Thought
     (re.compile(r"each player who controls a permanent named CARDNAME draws a card\.", re.I), lambda m: EachWithNamedDraws()),  # Bonder's Ornament

@@ -189,7 +189,10 @@ _WHOLE_LINE = re.compile(
     r"library until they exile a nonland card with a different name than that spell\. They may cast that card without paying its mana cost\. "
     r"Then they put the exiled cards on the bottom of their library in a random order\."  # Tibalt's Trickery
     r"|You may discard a card or sacrifice a land\. If you do, draw (?:a card|two cards)\."  # Highway Robbery
-    r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"  # Party Thrasher, Inti: the rest of the line is what it does
+    r"|[Yy]ou may discard a card\. (?:If|When) you do, (?!draw )[^\n]+"
+    r"|[Ss]acrifice (?:it|CARDNAME|this land)\. When you do, [^\n]+"  # Riveteers Overlook
+    r"|[Rr]eveal the top card of your library\. If it's a land card, put it onto the battlefield\. Otherwise, put (?:that card|it) into "
+    r"your hand\."  # Coiling Oracle  # Party Thrasher, Inti: the rest of the line is what it does
     r"|Each player looks at the top \w+ cards of their library and may reveal a land card and/or an instant or sorcery card from "
     r"among them\. Each player puts the cards they revealed this way into their hand and the rest on the bottom of their library in a "
     r"random order\."  # Explore the Vastlands
