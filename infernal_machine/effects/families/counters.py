@@ -372,6 +372,22 @@ class DoubleCountersOnTarget:
 
 
 @dataclass(frozen=True)
+class CounterOrDoubleOnSecond:
+    """Scythecat Cub: "Put a +1/+1 counter on target creature you control. If this is the second time this ability has resolved this
+    turn, double the number of +1/+1 counters on that creature instead." """
+    target: str = "creature you control"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        if target is None:
+            return
+        if game.resolving_item is not None and game.resolving_item.resolution == 2:
+            if target.counters.get("+1/+1"):
+                game.put_counters(target, "+1/+1", target.counters["+1/+1"])
+        else:
+            game.put_counters(target, "+1/+1", 1)
+
+
+@dataclass(frozen=True)
 class LevelUp:
     """Class: "{1}{B}: Level 2": the Class gains the next level (only at sorcery speed, and only the level after its own)."""
     binds = SOURCE

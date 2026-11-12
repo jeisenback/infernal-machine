@@ -3253,6 +3253,8 @@ class Game:
                     and (self.power(subject) > self.power(source) or (self.toughness(subject) or 0) > (self.toughness(source) or 0)))
         if kind == "all_hands_empty":  # Howltooth Hollow
             return not any(s.hand for s in self.live_seats())
+        if kind == "subject_land_type":  # Emeria Shepherd: "If that land is a Plains" (the land that entered)
+            return subject is not None and condition.what in subject.card.type_line.partition("\u2014")[2].split()
         if kind == "nth_resolution":  # Tannuk: "If this is the second time this ability has resolved this turn"
             return self.resolving_item is not None and self.resolving_item.resolution == condition.count
         if kind == "source_power_at_least":  # Kitsa, Otterball Elite: "Activate only if Kitsa's power is 3 or greater."
