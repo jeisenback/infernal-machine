@@ -1552,6 +1552,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     there, not drawn); "You may put a land card from among them into your hand." (Satyr Wayfinder); the cost "Discard a creature card"
     (or a land or artifact card: Survival of the Fittest, Fauna Shaman, Trade Routes, `ActivatedAbility.discard_kind`); "a historic card"
     (Monumental Henge); and Elixir of Immortality's "Shuffle this artifact and your graveyard into their owner's library."
+  - Land searches, batch 2 (`tests/test_land_searches_2.py`, #219): "Whenever a modified creature you control deals combat damage to a
+    player" (Kodama of the West Tree, Araña, SP//dr: the event `modified_combat_damage`; modified is CR 700.9: a counter, or an Equipment
+    or Aura its controller controls attached); Scapeshift (`SacrificeLandsSearch`: the player says how many lands to sacrifice, and finds
+    as many land cards as were sacrificed); and Entish Restoration ("If you control a creature with power 4 or greater, instead search
+    ..." now replaces a land search too).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

@@ -432,6 +432,7 @@ from .families.library import (  # noqa: F401
     RevealTopStep,
     RevealUntilAura,
     Scry,
+    SacrificeLandsSearch,
     SearchForLands,
     SearchLandWhileBehind,
     SearchLibrary,
@@ -2375,6 +2376,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchLibrary(m[1].lower() + "|mv<power", _DESTINATIONS[m[2]], False)),  # Sisay, Weatherlight Captain
     (re.compile(rf"search your library for an? {_SEARCH_TYPE}, put (?:it|that card) into your graveyard, then shuffle\.", re.I),
      lambda m: SearchLibrary(_card_kind(m[1]), "graveyard", False)),  # Goblin Engineer, Unmarked Grave
+    (re.compile(r"sacrifice any number of lands\. Search your library for up to that many land cards, put them onto the battlefield "
+                r"tapped, then shuffle\.", re.I), lambda m: SacrificeLandsSearch()),  # Scapeshift
     (re.compile(r"search your library for a land card, put (?:it|that card) onto the battlefield( tapped)?, then shuffle\.", re.I),
      lambda m: SearchForLands(1, ("*",), 1, bool(m[1]), False)),  # Crop Rotation
     (re.compile(r"search your library for up to (two|three|four) basic land cards, put them onto the battlefield, then shuffle\.", re.I),
@@ -3348,7 +3351,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: PumpHost(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[3]) if m[3] else frozenset()))),
     (re.compile(r"(?:Delirium \u2014 )?if (.+?), instead (search your library for .+)", re.I),  # Demonic Counsel, Traverse the Ulvenwald
      lambda m: _InsteadSearch(c, inner[0]) if (c := _condition(m[1])) and (inner := _parse(["S" + m[2][1:].replace(" for any card,", " for a card,")]))
-     and len(inner) == 1 and isinstance(inner[0], SearchLibrary) else None),
+     and len(inner) == 1 and isinstance(inner[0], (SearchLibrary, SearchForLands)) else None),  # (Entish Restoration: lands)
     (re.compile(r"(?:Threshold \u2014 )?return that card from your graveyard to the battlefield instead if (.+)\.", re.I),  # Stitch Together
      lambda m: _ToBattlefieldInstead(c) if (c := _condition(m[1])) else None),
     (re.compile(rf"(?:Addendum \u2014 )?if (.+?), put a \+1/\+1 counter on each of those creatures and they gain {_KEYWORDS} until end of turn\.", re.I),
@@ -3958,6 +3961,7 @@ _CONDITIONAL = Follows(
         previous, modifier=dataclasses.replace(previous.modifier, keywords=previous.modifier.keywords | marker.keywords))),
     Follow(_ThatGainsIf, Pump, set_fields(more_keywords=lambda m: m.keywords, more_if=lambda m: m.condition)),
     Follow(_InsteadSearch, SearchLibrary, lambda previous, marker: IfElse(marker.condition, (marker.search,), (previous,))),
+    Follow(_InsteadSearch, SearchForLands, lambda previous, marker: IfElse(marker.condition, (marker.search,), (previous,))),
     Follow(_ToBattlefieldInstead, ReturnFromGraveyard, set_fields(battlefield_if=lambda m: m.condition),
            fits=lambda previous, marker: previous.to == "hand" and previous.battlefield_if is None),
     Follow(_InsteadPump, Pump, set_fields(instead=lambda m: m.modifier, instead_if=lambda m: m.condition),
