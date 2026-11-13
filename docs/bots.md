@@ -106,6 +106,12 @@ stats = goldfish(deck, games=5000, turns=5)
     an opponent's end step, with nothing on the stack. An ability that costs a creature, a discard or exiling a card is left alone, and so
     is a free one, which could repeat forever. Before it, the bot took none of the 4,635 such offers in 20 precon games; with it, 35.
     1,200 duels on the precons against the bot without it: 49.5% (46.7%-52.3%), no measurable difference.
+  - `routes`: the other ways to play a card. A fused split card (both halves for both costs), a face-down spell (counted as {3}) and
+    a foretold or disturbed spell are weighed with the other casts; ninjutsu is taken whenever it is offered; and in a main phase with
+    nothing left to cast it uses encore, eternalize, unearth, suspend, foretell, an ability from the hand, graveyard or command zone,
+    unlocking a Room's door or turning a creature face up. Before it the bot took none of these. The precons hold few such cards (in 20
+    games: encore once of 24 offers, suspend once of 1; the rest were offered with something on the stack or outside a main phase). 1,200
+    duels on the precons against the bot without it: 50.3% (47.5%-53.2%), no measurable difference.
   `python tools/compare_bots.py DECK DECK ...` plays one version of the bot against another on the same decks and reports the
   win rate with its 95% interval. Against the plain bot on the five Secrets of Strixhaven precons (191 games) all five
   together won 67.5% (60.6%-73.8%); alone, timing won 65.5%, attack 57.6%, land 56.8%, target 55.2% and mana 52.9%.
