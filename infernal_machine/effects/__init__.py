@@ -429,6 +429,7 @@ from .costs import (  # noqa: F401
     kicker_costs,
     kicker_other_cost,
     madness_cost,
+    miracle_cost,
     non_hand_cost_reduction,
     overloaded_effects,
     reduced_by_greatest,
