@@ -18,6 +18,7 @@ from .report import unsupported_lines
 from .undercity import HELPS_ITS_TARGET
 from .effects import CONSULT_NAME_PROMPT, MOVE_COUNTERS_PROMPT, PACT_TAKE_PROMPT
 from .zones import CAST_PREFIXES, LAND_PREFIXES, PLOT
+from .effects import TEMPT_PROMPT
 from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, COST_PROMPT, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, COMPANION, CAST_PREPARED, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT, SCAPESHIFT_PROMPT,
@@ -199,6 +200,8 @@ class BotPlayer:
             return len(options) - 1
         if LIFE_X_PROMPT.matches(prompt):  # paying life for X: some, not everything
             return min(len(options) - 1, 3)
+        if TEMPT_PROMPT.matches(prompt):  # a tempting offer: whatever an opponent takes, the caster gets again
+            return 1
         if is_one_of(prompt, SEPARATE_PROMPT, PILE_TAKE_PROMPT, PILE_GIVE_PROMPT):  # Fact or Fiction: piles weighed by mana value
             values = [_prompt_number(option, "(mana value ") for option in options]  # separate evenly, take the bigger, give the smaller
             return values.index(max(values) if PILE_TAKE_PROMPT.matches(prompt) else min(values))

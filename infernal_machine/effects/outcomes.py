@@ -527,6 +527,8 @@ from .families.mana import (  # noqa: F401
 )
 from .families.spells_and_misc import (  # noqa: F401
     TargetShufflesGraveyard,
+    TemptingOffer,
+    TEMPT_PROMPT,
     ExileOpponentsGraveyards,
     PutSelfOnLibraryBottom,
     ReturnAllFromGraveyard,
@@ -1744,6 +1746,22 @@ _COPY_TOKEN = re.compile(
     r"(?:, except (?P<changes>.+))?\.(?P<quote>\"?)", re.I)  # (a quoted ability's own full stop comes before its closing quote)
 
 
+_TEMPTING_OFFER = re.compile(r"Tempting offer \u2014 (.+?\.) (?:Then )?each opponent may (.+?\.) For each opponent who (?:does|searches a library "
+                             r"this way), (.+?\.)(?: Then each player who searched a library this way shuffles\.)?", re.I)
+
+
+def _tempting_offer(m: re.Match) -> Any:
+    """Tempting offer: the opponents' sentence and the last one must be the first one again (said of "their" and "they", and with
+    "you"), or the line isn't read."""
+    plain = lambda text: re.sub(r"\byou ", "", text.lower().replace("their", "your").replace("they control", "you control"))  # noqa: E731
+    if not plain(m[1]) == plain(m[2]) == plain(m[3]):
+        return None
+    effects = _parse(_split_sentences(m[1]))
+    if not effects or any(target_kind(e) or binding(e) for e in effects):
+        return None
+    return TemptingOffer(tuple(effects))
+
+
 def _copy_token(m: re.Match) -> Any:
     """ "Create a token that's a copy of <what>(, except <changes>)." for every <what> the engine can find: its riders ("It gains
     haste.", "Sacrifice it at the beginning of the next end step.") are folded in by the Follow rows of _CONDITIONAL."""
@@ -2389,6 +2407,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: SearchLibrary(_card_kind(m[1]), "graveyard", False)),  # Goblin Engineer, Unmarked Grave
     (re.compile(r"sacrifice any number of lands\. Search your library for up to that many land cards, put them onto the battlefield "
                 r"tapped, then shuffle\.", re.I), lambda m: SacrificeLandsSearch()),  # Scapeshift
+    (re.compile(r"search your library for a land card and put it onto the battlefield\.", re.I),  # Tempt with Discovery (it shuffles after)
+     lambda m: SearchForLands(1, ("*",), 1, False, False)),
+    (_TEMPTING_OFFER, _tempting_offer),
     (re.compile(r"search your library for a land card, put (?:it|that card) onto the battlefield( tapped)?, then shuffle\.", re.I),
      lambda m: SearchForLands(1, ("*",), 1, bool(m[1]), False)),  # Crop Rotation
     (re.compile(r"search your library for up to (two|three|four) basic land cards, put them onto the battlefield, then shuffle\.", re.I),
