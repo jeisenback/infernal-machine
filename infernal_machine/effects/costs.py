@@ -685,6 +685,18 @@ def is_graveyard_permit_line(line: str) -> bool:
     return _ONCE_FROM_GRAVEYARD.fullmatch(line) is not None
 
 
+def fused(card: Card) -> Card | None:
+    """Fuse (CR 702.102): a split card in hand whose halves both say "Fuse" may be cast as one spell, both halves' costs paid and
+    both halves' instructions followed, the left half's first (CR 702.102d). The card that spell is, or None."""
+    other = card.alternate
+    if other is None or "Fuse" not in rules_lines(card) or "Fuse" not in rules_lines(other):
+        return None
+    text = "\n".join(line for half in (card, other) for line in rules_lines(half) if line != "Fuse")
+    sorcery = "Sorcery" in card.type_line or "Sorcery" in other.type_line
+    return dataclasses.replace(card, mana_cost=card.mana_cost + other.mana_cost, cmc=card.cmc + other.cmc, oracle_text=text,
+                               type_line="Sorcery" if sorcery else card.type_line, alternate=None)
+
+
 def is_aftermath(card: Card) -> bool:
     """An Aftermath half can be cast only from the graveyard."""
     return any(cast.word == "Aftermath" for cast in graveyard_casts(card))

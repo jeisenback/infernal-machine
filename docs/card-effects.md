@@ -1606,6 +1606,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     spell" and "... a +1/+1 counter on it for each color of mana spent to cast it" (the amount `colors_spent`, from the spell's own mana,
     or the permanent's when its ability resolves; "Converge —" is only a label): Painful Truths, Crystalline Crawler, Radiant Flames,
     Sweep the Skies, Kaleidoscorch ...
+  - Fuse (`tests/test_fuse.py`, #219, CR 702.102): a split card whose halves both have Fuse may be cast from the hand as one spell
+    (`CAST_FUSED`, `fused`): both costs paid, the left half's instructions then the right's, one spell of the halves' card types (a sorcery
+    if either half is). Wear // Tear, Far // Away, Beck // Call, Toil // Trouble ... The bot doesn't fuse yet.
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

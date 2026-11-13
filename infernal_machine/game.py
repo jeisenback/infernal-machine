@@ -32,7 +32,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
 from .effects.common import colors_spent
 from .effects import (apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -127,6 +127,7 @@ MANIFEST_DREAD_PROMPT = PromptKind("manifest_dread", "Manifest which card? ")  #
 DANCE_PROMPT = PromptKind("dance", "Exile the top card of your library? ")  # followed by "(N exiled, total mana value M)"; Yes or No
 DANCE_CAST_PROMPT = PromptKind("dance_cast", "Cast for free: ")  # followed by the card's name; Yes or No
 TURN_UP = "Turn face up: "  # followed by the manifested creature's label
+CAST_FUSED = "Cast fused: "  # Fuse (CR 702.102): followed by the split card's name, both halves cast as one spell from the hand
 CAST_FACE_DOWN = "Cast face down: "  # Morph, Megamorph and Disguise: followed by the card's name
 FACE_DOWN = Card(name="Face-down creature", mana_cost="{3}", cmc=3.0, type_line="Creature", power="2", toughness="2")
 FACE_DOWN_DISGUISED = dataclasses.replace(FACE_DOWN, oracle_text="Ward {2}")  # Disguise: a face-down creature with ward {2}
@@ -1166,6 +1167,9 @@ class Game:
             if (other := card.alternate) and not is_aftermath(other) and (sorcery_timing or seat.flash_turn == self.turn or self._instant_speed(seat, other)) \
                     and self._can_cast(seat, other):
                 actions.append(CAST + other.name)  # the Adventure, or the other half of a split card
+            if (both := fused(card)) is not None and spell_effects(both) is not None \
+                    and (sorcery_timing or self._instant_speed(seat, both)) and self._can_cast(seat, both):
+                actions.append(CAST_FUSED + card.name)  # Fuse: both halves
         for card in seat.command_zone:
             if card.name == seat.signature and not self._controls_oathbreaker(seat):
                 continue  # the signature spell can be cast only if its owner controls their Oathbreaker
@@ -1988,6 +1992,9 @@ class Game:
             room, door = self._unlocks(seat)[action]
             self._spend_mana(seat, _checked(self._payment(seat, door)))
             self.unlock_door(room, door)
+        elif action.startswith(CAST_FUSED):
+            whole = next(c for c in seat.hand if c.name == action.removeprefix(CAST_FUSED))
+            self._cast(seat, _checked(fused(whole)), seat.hand, whole=whole)
         elif action.startswith(CAST_PREPARED):
             name = action.removeprefix(CAST_PREPARED)
             permanent = next(p for p in seat.battlefield if p.prepared and p.card.prepare and p.card.prepare.name == name)
