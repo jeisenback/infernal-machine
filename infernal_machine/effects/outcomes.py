@@ -4044,6 +4044,7 @@ _CONDITIONAL = Follows(
     Follow(_TokenHasHaste, _COPY_SENTENCES, lambda previous, marker: dataclasses.replace(
         previous, changes=dataclasses.replace(previous.changes or CopyChanges(), keywords=(previous.changes or CopyChanges()).keywords + ("haste",)))),
     Follow(_TokenGainsHaste, _COPY_SENTENCES, set_fields(haste=lambda m: True)),
+    Follow(_TokenGainsHaste, CreateTokens, set_fields(haste=lambda m: True)),  # Siege-Gang Lieutenant, Loyal Apprentice
     Follow(_TokenGainsBlitz, CopyToken, set_fields(blitz=lambda m: True)),  # Jaxis
     Follow((_TheyGainHaste, _ItGains), _COPY_SENTENCES, set_fields(haste=lambda m: True), strict=False,  # "It gains haste until end of turn."
            fits=lambda previous, marker: getattr(marker, "keywords", frozenset({"haste"})) == frozenset({"haste"})),

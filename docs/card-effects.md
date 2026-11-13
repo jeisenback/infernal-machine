@@ -1587,6 +1587,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     same>." (Tempt with Discovery, Vengeance, Bunnies, Glory; `TemptingOffer`): the caster does it, each opponent in turn order may do it
     for themselves (`TEMPT_PROMPT`; the bot declines), then the caster does it once more for each who did. The three sentences must say
     the same thing ("their" for "your"), and none may target. Tempt with Immortality, Reflections and Mayhem are not read yet.
+  - Lieutenant (`tests/test_lieutenant.py`, #219): "Those tokens gain haste until end of turn." / "That token gains ..." after created
+    tokens (Siege-Gang Lieutenant, Loyal Apprentice: a Follow row), and "As long as ..., this creature gets +2/+2 and other creatures you
+    control get +2/+2 and have trample." read as two buffs with the one condition (Thunderfoot Baloth, Angelic Field Marshal; a line
+    of which only one half is read gives no buff at all).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
