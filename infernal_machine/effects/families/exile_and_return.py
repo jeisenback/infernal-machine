@@ -335,12 +335,17 @@ class PlayVoidCardFree:
 
 @dataclass(frozen=True)
 class MayCastFromHandFree:
-    """Rishkar's Expertise: "You may cast a spell with mana value 5 or less from your hand without paying its mana cost." """
-    max_value: Quantity  # "X": the damage the trigger saw (Buster Sword)
+    """Rishkar's Expertise: "You may cast a spell with mana value 5 or less from your hand without paying its mana cost." Maelstrom
+    Archangel: "you may cast a spell from your hand ..." (no limit); Omnispell Adept: "an instant or sorcery spell" (`kind`)."""
+    max_value: Quantity | None  # "X": the damage the trigger saw (Buster Sword); None: any mana value
+    kind: str = ""  # a card filter ("instant or sorcery", "noncreature"); "": any spell
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
-        most = game.amount(self.max_value)
-        spells = [c for c in controller.hand if "Land" not in c.type_line and c.cmc <= most]
+        from ...game import _card_matches
+
+        most = None if self.max_value is None else game.amount(self.max_value)
+        spells = [c for c in controller.hand if "Land" not in c.type_line and (most is None or c.cmc <= most)
+                  and (not self.kind or _card_matches(self.kind, c))]
         if not spells:
             return
         pick = controller.player.choose(FREE_CAST_PROMPT, [c.name for c in spells] + [DECLINE])

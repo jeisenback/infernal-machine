@@ -1609,6 +1609,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Fuse (`tests/test_fuse.py`, #219, CR 702.102): a split card whose halves both have Fuse may be cast from the hand as one spell
     (`CAST_FUSED`, `fused`): both costs paid, the left half's instructions then the right's, one spell of the halves' card types (a sorcery
     if either half is). Wear // Tear, Far // Away, Beck // Call, Toil // Trouble ...
+  - Free casts from the hand and a graveyard (`tests/test_cast_free_from_hand.py`, #219): "you may cast a spell from your hand without
+    paying its mana cost" with no limit (Maelstrom Archangel) or of a kind ("an instant or sorcery spell", "a noncreature spell": Omnispell
+    Adept; `MayCastFromHandFree.kind`), and "cast target instant or sorcery card from a graveyard" (anyone's: Impulsivity), with "If that
+    spell would be put into a graveyard (or their graveyard), exile it instead."
   - Token copies, batch 5 (`tests/test_token_copy_wordings.py`, #219, CR 707.2, 707.9): Skyclave Relic's "create two tapped tokens that
     are copies of this artifact" (tapped only for a copy of the card itself); a token copy "except it enters with an additional +1/+1
     counter on it" (Littjara Mirrorlake; `copy_counters`, a creature only); Kindred Charge's copy of each creature you control of a
