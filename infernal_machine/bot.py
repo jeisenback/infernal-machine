@@ -25,10 +25,11 @@ from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, COST_PROMPT, NONE_TAKEN, 
                    SEPARATE_PROMPT, PILE_TAKE_PROMPT, PILE_GIVE_PROMPT,
                    CHAIN_COPY_PROMPT)
 
+MANA_ONLY = re.compile(r"(?:\{(?:\d+|[WUBRGCS]|[WUBRG2]/[WUBRGP])\})+")  # a cost of mana symbols alone ({2}{U}, {G/W})
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor", "win"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor", "win", "sink"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
 HIGH_TAX = 6  # a commander cast from the command zone three times has this much tax; past it, a graveyard with a way out can be the better place
 # A card that brings a card back from a graveyard to the battlefield or the hand: where a commander that dies can be worth leaving.
 RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
@@ -106,6 +107,7 @@ class BotPlayer:
         die with a lot of tax on it goes to the graveyard if the deck can bring it back), "tutor" (a search or a look at the top of the library
         takes the card that completes a combo the deck holds, with what is on the battlefield and in the hand; `combos` are the deck's combos
         as tuples of card names, or come from the Commander Spellbook cache, and the judgment does nothing for a deck the cache doesn't know),
+        "sink" (mana still unspent in its second main phase or at an opponent's end step goes on an ability that costs only mana),
         "win" (Thassa's Oracle's line: it casts the Oracle once its library is down to ORACLE_LIBRARY cards; it keeps Demonic Consultation
         and Tainted Pact for the Oracle, casting one first once the Oracle is in hand with the mana for both; and then it names the Oracle
         for Consultation and takes nothing from the Pact, so the library is exiled)."""
@@ -298,6 +300,10 @@ class BotPlayer:
         for i, option in enumerate(options):
             if option.startswith(ACTIVATE) and (_limited_cost(option) or _equip_needed(option)) and self._activation_time(prompt, option):
                 return i
+        if "sink" in self.features and self._sink_time(prompt):
+            for i, option in enumerate(options):
+                if option.startswith(ACTIVATE) and _mana_sink(option):
+                    return i
         for i, option in enumerate(options):
             if option.startswith(PLOT):  # nothing left to cast: put a card away for a free cast later
                 return i
@@ -378,6 +384,12 @@ class BotPlayer:
         if step == "main2":
             return True
         return step == "main1" and "{T}" not in cost and "Sacrifice" not in cost
+
+    def _sink_time(self, prompt: str) -> bool:
+        """With "sink": the last chance to use mana that would otherwise go unspent, with nothing on the stack: its own second main
+        phase (nothing left it wants to cast) or an opponent's end step."""
+        step, active = subject_of(prompt, PRIORITY_PROMPT), (self._state or {}).get("active")
+        return not self._stack and ((step == "main2" and active == self._seat) or (step == "end" and active not in (None, self._seat)))
 
     def _land_wants(self) -> tuple[set[str], set[str], int, list[int]]:
         """What the next land should do: (the colors its lands in play make, the colors the spells in hand need, how much mana is
@@ -726,6 +738,13 @@ def _limited_cost(action: str) -> bool:
     if re.search(r"Sacrifice (a|an|another) |Discard a card|Exile a card", cost):
         return False  # the bot doesn't pay with its own cards
     return "{T}" in cost or "Sacrifice" in cost or re.fullmatch(r"[+\u2212-]?\d+", cost) is not None
+
+
+def _mana_sink(action: str) -> bool:
+    """An activation whose cost is only mana, and some ("{1}{G}: Exile target card from a graveyard."): it uses no card of the
+    bot's, and since each one spends mana the bot can't repeat it forever."""
+    cost = action.split("): ", 1)[1].split(":", 1)[0]
+    return MANA_ONLY.fullmatch(cost) is not None and cost != "{0}"
 
 
 def _equip_needed(action: str) -> bool:
