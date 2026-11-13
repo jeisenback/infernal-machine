@@ -29,6 +29,7 @@ from .combat import Attack, Combat
 from . import casting
 from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, MILLED, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
+from .effects.common import colors_spent
 from .effects import (apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
@@ -2919,6 +2920,9 @@ class Game:
             return amount.plus + self.evaluate(dataclasses.replace(amount, plus=0), controller)
         source, kind = self.resolving_source, amount.kind
         this_turn = [card for turn, card in controller.cast_log if turn == self.turn]
+        if kind == "colors_spent":  # Converge (CR 702.119): the spell's own mana, or the permanent's when its ability resolves
+            spent = source.mana_types_spent if source is not None else self.resolving_item.mana_types_spent if self.resolving_item else ()
+            return colors_spent(spent)
         if kind == "subject_power":  # Warstorm Surge: the power of the creature that set the trigger off, last known if it left (CR 608.2h)
             subject = self.resolving_item.subject if self.resolving_item is not None else None
             if not isinstance(subject, Permanent):

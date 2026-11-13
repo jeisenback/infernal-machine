@@ -1358,6 +1358,8 @@ _AMOUNTS = [
      lambda m: Amount("greatest_mana_value_cast", "instant or sorcery spell")),
     (re.compile(r"opponent who lost life this turn", re.I), lambda m: Amount("opponents_lost_life")),  # Kaito, Bane of Nightmares
     (re.compile(r"opponents?", re.I), lambda m: Amount("opponents")),
+    (re.compile(r"(?:the number of colors|colors?) of mana spent to cast (?:this spell|it|this creature|CARDNAME)", re.I),
+     lambda m: Amount("colors_spent")),  # Converge: "where X is the number of colors ...", "a +1/+1 counter on it for each color ..."
     (re.compile(r"the amount of mana spent to cast that spell", re.I), lambda m: Amount("mana_spent")),
     (re.compile(r"that spell's mana value", re.I), lambda m: Amount("spell_mana_value")),
     (re.compile(r"the number of cards in your hand", re.I), lambda m: Amount("hand_size")),
@@ -3919,7 +3921,7 @@ def _condition(text: str) -> Condition | None:
     return None
 
 
-_SPELL_MASTERY = re.compile(r"^(?:Spell mastery|Domain|Delirium|Ferocious) \u2014 ")  # the condition stays in the sentence; an ability word is only a label (CR 207.2c)
+_SPELL_MASTERY = re.compile(r"^(?:Spell mastery|Domain|Delirium|Ferocious|Converge) \u2014 ")  # the condition stays in the sentence; an ability word is only a label (CR 207.2c)
 
 
 _SPELL_COLORS = re.compile(r"the number of colors that spell is", re.I)  # Mana Cannons
