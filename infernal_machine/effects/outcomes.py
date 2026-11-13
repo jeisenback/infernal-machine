@@ -2258,7 +2258,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:you may )?cast an? ((?:artifact|creature|enchantment|instant|sorcery)(?:,? (?:or )?(?:artifact|creature|enchantment|instant|"
                 r"sorcery))*) spell from your graveyard\.", re.I),  # Bilbo, Thief in the Night
      lambda m: MayCastFromGraveyard(tuple(k.capitalize() for k in re.split(r",? (?:or )?", m[1].lower())))),
-    (re.compile(r"if (?:an instant or sorcery spell cast this way|that spell) would be put into your graveyard, exile it instead\.", re.I),
+    (re.compile(r"if (?:an instant or sorcery spell cast this way|that spell) would be put into (?:your|a|their) graveyard, exile it instead\.", re.I),
      lambda m: _ExileCastThisWay()),
     (re.compile(r"(?:then )?you may cast an instant or sorcery spell with mana value (\d+) or less from your graveyard without paying its "
                 r"mana cost\.", re.I), lambda m: MayCastFromGraveyard(("Instant", "Sorcery"), free=True, most=int(m[1]))),  # Sword of Once and Future
@@ -2774,9 +2774,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"in a random order\.", re.I), lambda m: TargetCascades("instant or sorcery")),  # Chaos Wand
     (re.compile(r"you may cast target instant or sorcery card from an opponent's graveyard without paying its mana cost\.", re.I),
      lambda m: CastTargetFromGraveyardFree()),  # Memory Plunder
-    (re.compile(r"(?:you may )?cast target (instant|instant or sorcery) card (?:with mana value (\d+) or less )?from your graveyard without paying "
-                r"its mana cost\.", re.I),  # Torrential Gearhulk, Goblin Dark-Dwellers
-     lambda m: CastTargetFromGraveyardFree(f"graveyard:{m[1].lower()}{f'|mv<={m[2]}' if m[2] else ''}:yours")),
+    (re.compile(r"(?:you may )?cast target (instant|instant or sorcery) card (?:with mana value (\d+) or less )?from (your|a) graveyard without paying "
+                r"its mana cost\.", re.I),  # Torrential Gearhulk, Goblin Dark-Dwellers; Impulsivity: "from a graveyard"
+     lambda m: CastTargetFromGraveyardFree(f"graveyard:{m[1].lower()}{f'|mv<={m[2]}' if m[2] else ''}:{'yours' if m[3].lower() == 'your' else 'any'}")),
     (re.compile(r"look at that player's hand\. You may cast a spell from among those cards without paying its mana cost\.", re.I),
      lambda m: CastFromThatPlayersHandFree()),  # Silent-Blade Oni
     (re.compile(r"target opponent exiles the top X cards of their library\. You may cast any number of spells with mana value X or less "
@@ -2910,6 +2910,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: MayCastFromHandFree("X" if m[1] == "X" else int(m[1]))),  # Rishkar's Expertise; Electrodominance
     (re.compile(r"you may cast a spell from your hand with mana value less than or equal to that damage without paying its mana cost\.", re.I),
      lambda m: MayCastFromHandFree("X")),  # Buster Sword: X is the damage the trigger saw
+    (re.compile(r"(?:you may )?cast an? (?:(instant or sorcery|noncreature) )?spell from your hand without paying its mana cost\.", re.I),
+     lambda m: MayCastFromHandFree(None, (m[1] or "").lower())),  # Maelstrom Archangel; Omnispell Adept, Yue
     (re.compile(r"choose two target creature cards in your graveyard\. sacrifice a creature\. if you do, return the chosen cards to the "
                 r"battlefield tapped\.", re.I), lambda m: SacrificeToReturnChosen()),  # Victimize
     (re.compile(r"choose target (creature(?: you control)?)\.", re.I), lambda m: ChooseTarget(m[1].lower())),
