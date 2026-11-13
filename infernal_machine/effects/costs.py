@@ -93,6 +93,7 @@ class AlternativeCost:
     sacrificed: bool = False  # Fireblast: those permanents are sacrificed instead of returned
     no_lands_in_hand: bool = False  # Land Grant: "If you have no land cards in hand, you may reveal your hand ..." (free)
     opponent_spells: int = 0  # Mindbreak Trap: "If an opponent cast three or more spells this turn, you may pay {0} ..." (free)
+    spectacle: bool = False  # Spectacle {cost} (CR 702.137): only once an opponent lost life this turn
     impending: int = 0  # Impending N: it enters with N time counters and isn't a creature until the last is removed
     once_a_turn: bool = False  # One with the Multiverse: free, once during each of its caster's turns
 
@@ -541,6 +542,7 @@ _EVOKE_PITCH = re.compile(rf"Evoke\u2014Exile an? ({_COLOR_NAMES}) card from you
 
 
 _DASH = re.compile(r"Dash ((?:\{[^}]+\})+)")
+_SPECTACLE = re.compile(r"Spectacle ((?:\{[^}]+\})+)")
 _BLITZ = re.compile(r"Blitz ((?:\{[^}]+\})+)")
 
 
@@ -574,6 +576,9 @@ def alternative_costs(card: Card) -> list[AlternativeCost]:
             continue
         if m := _IMPENDING.fullmatch(line):
             costs.append(AlternativeCost(f"Impending {m[2]}", mana_cost=m[2], impending=int(m[1])))
+            continue
+        if m := _SPECTACLE.fullmatch(line):  # Light Up the Stage
+            costs.append(AlternativeCost(f"Spectacle {m[1]}", mana_cost=m[1], spectacle=True))
             continue
         if m := _DASH.fullmatch(line):
             costs.append(AlternativeCost(f"Dash {m[1]}", mana_cost=m[1], dash=True))
@@ -829,7 +834,7 @@ def copies_per_sacrifice(card: Card) -> bool:
 def is_casting_cost_line(line: str) -> bool:
     """Kicker, alternative and additional costs: rules for casting the spell rather than what it does."""
     return _morph_line(line) is not None or any(p.fullmatch(line) for p in (_GIFT, _DISTURB, _FORETELL, _PLOT, _NINJUTSU, _SACRIFICE_FOR_COPIES, _SACRIFICE_DISCOUNT, _KICKER, _KICKER_OTHER, _FREE_WITH_COMMANDER, _FREE_IF_LANDS, _PITCH, _RETURN_INSTEAD, _SACRIFICE_INSTEAD, _REVEAL_HAND_INSTEAD, _TRAP_INSTEAD, _LIFE_INSTEAD, _ADDITIONAL, _ADDITIONAL_EITHER, _ADDITIONAL_BLIGHT, _FLASHBACK, _HARMONIZE, _COLLECT_EVIDENCE, _TEAMWORK, _RETRACE, _ENCORE, _ETERNALIZE, _UNEARTH, _MADNESS, _MIRACLE, _BUYBACK, _BUYBACK_OTHER, _BESTOW, _CANT_COUNTER, _SUSPEND, _ESCAPE, _AFTERMATH, _ENTWINE, _ESCALATE,
-                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _BLITZ, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
+                                           _PER_REDUCTION, _CHOSEN_REDUCTION, _X_LIMIT, _EVOKE, _EVOKE_PITCH, _IMPENDING, _DASH, _SPECTACLE, _BLITZ, _WARP, _OVERLOAD, _SPELL_KEYWORDS, _REPLICATE, _STORM_LIKE,
                                            _AFFINITY, _STRIVE, _FLASHBACK_LIFE, _FLASHBACK_DISCARD, _SPLICE, _FLASHBACK_SACRIFICE, _FROM_GRAVEYARD_BY_PAYING, _FROM_GRAVEYARD_SELF, _POWER_REDUCTION, _GREATEST_POWER_REDUCTION)) \
         or ((m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None)
 
