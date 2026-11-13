@@ -1609,6 +1609,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Fuse (`tests/test_fuse.py`, #219, CR 702.102): a split card whose halves both have Fuse may be cast from the hand as one spell
     (`CAST_FUSED`, `fused`): both costs paid, the left half's instructions then the right's, one spell of the halves' card types (a sorcery
     if either half is). Wear // Tear, Far // Away, Beck // Call, Toil // Trouble ...
+  - Cipher (`tests/test_cipher.py`, #219, CR 702.99): as a spell with cipher resolves, its caster may exile it encoded on a creature they
+    control (`ENCODE_PROMPT`, `Permanent.encoded`); that creature then has "Whenever this creature deals combat damage to a player, its
+    controller may cast a copy of the encoded card without paying its mana cost" (`CastEncodedCopy`, `Game._triggers_of`). With no
+    creature, when declined, or when it doesn't resolve (its targets gone), the card goes to the graveyard. Last Thoughts, Whispering
+    Madness, Stolen Identity, Arcane Heist ...
   - Free casts from the hand and a graveyard (`tests/test_cast_free_from_hand.py`, #219): "you may cast a spell from your hand without
     paying its mana cost" with no limit (Maelstrom Archangel) or of a kind ("an instant or sorcery spell", "a noncreature spell": Omnispell
     Adept; `MayCastFromHandFree.kind`), and "cast target instant or sorcery card from a graveyard" (anyone's: Impulsivity), with "If that

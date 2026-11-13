@@ -649,6 +649,7 @@ from .families.free_casting import (  # noqa: F401
     TargetCascades,
     CastTargetFromGraveyardFree,
     CastFromThatPlayersHandFree,
+    CastEncodedCopy,
     ExileRandomFromOpponentsCast,
     PossibilityStorm,
     VillainousChoice,

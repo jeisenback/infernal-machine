@@ -820,7 +820,7 @@ def cost_reductions(card: Card) -> list[tuple[str, int]]:
     return found
 
 
-_SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate|Convoke|Improvise|Split second|Rebound|Paradigm)(?:, (?:Delve|Cascade|Devoid|Demonstrate|Convoke|Improvise|Split second|Rebound|Paradigm))*")  # rules for casting, not effects
+_SPELL_KEYWORDS = re.compile(r"(?:Delve|Cascade|Devoid|Demonstrate|Convoke|Improvise|Split second|Rebound|Paradigm|Cipher)(?:, (?:Delve|Cascade|Devoid|Demonstrate|Convoke|Improvise|Split second|Rebound|Paradigm|Cipher))*")  # rules for casting, not effects
 
 
 _SACRIFICE_FOR_COPIES = re.compile(r"As an additional cost to cast this spell, you may sacrifice one or more creatures\. When you do, copy "
