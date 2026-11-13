@@ -707,74 +707,96 @@ _COLOR_LETTERS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": 
 _GRANTED_WARD_LIFE = re.compile(r'have "Ward\u2014Pay (\d+) life\."$')  # the quoted ability ends the sentence
 
 
+_SELF_AND_OTHERS = re.compile(r"(As long as [^,]+, )?(this creature|CARDNAME) gets ([+-]\d+/[+-]\d+) and ((?:other )?creatures you control .+\.)",
+                              re.I)  # Thunderfoot Baloth, Angelic Field Marshal: two buffs in one sentence
+
+
+def _static_sentences(line: str) -> list[str]:
+    """The line, or the two sentences "This creature gets +2/+2 and other creatures you control get ..." is made of, each keeping the
+    line's "As long as ..." condition."""
+    m = _SELF_AND_OTHERS.fullmatch(_ABILITY_WORD.sub("", line))
+    if m is None or not m[1]:  # (without a condition, "this creature gets +2/+2" is only its printed size)
+        return [line]
+    return [f"{m[1]}{m[2]} gets {m[3]}.", f"{m[1]}{m[4][:1].upper()}{m[4][1:]}"]
+
+
 @lru_cache(maxsize=None)
 def static_abilities(card: Card) -> tuple[StaticBuff, ...]:
     buffs = []
-    for line in rules_lines(card):
-        bare = _ABILITY_WORD.sub("", line)  # "Threshold — ": the word names the condition but changes nothing
-        if _KEYWORD_BY_COLOR.fullmatch(bare):  # one keyword for each color: a buff for each, limited to creatures of that color
-            buffs += [StaticBuff(Modifier(keywords=frozenset({keyword})), False, None, line, color=_COLOR_LETTERS[color])
-                      for keyword, color in _KEYWORD_IF_COLOR.findall(bare)]
-            continue
-        bare = _GRANTED_WARD_LIFE.sub(lambda m: f"have ward\u2014pay {m[1]} life.", bare)  # Hexing Squelcher: the granted ward, as a keyword
-        bare = _EACH_OTHER.sub(lambda m: f"Other {m[1]} creatures you control get {m[2]} and have {m[3]}.", bare)  # Coppercoat Vanguard
-        sentence, condition = bare, None
-        if split := _conditional(bare):
-            sentence, text = split
-            if (condition := _condition(text)) is None:
-                continue
-        if m := _STATIC.fullmatch(sentence):
-            who = _AFFECTED_WHO.fullmatch(m[1])
-            assert who is not None  # _AFFECTED_WHO describes the same phrases as _AFFECTED
-            colors = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
-            chosen_color = bool(who["chosen"]) and who["chosen_what"] == "color"
-            modifier = Modifier(keywords=frozenset({CANT_BE_BLOCKED})) if m["unblockable"] else _modifier(m, 2)
-            buffs.append(StaticBuff(modifier, _other(who),
-                                    "chosen" if who["chosen"] and not chosen_color else _who_subtype(who), line,
-                                    condition=condition,
-                                    color="chosen" if chosen_color else colors.get((who["color"] or who["global"] or "").lower()),
-                                    attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"] or who["other3"] or who["other4"] or (who["other5"] and not who["merfolk_yours"]) or who["tribe6"])
-                                    or (bool(who["chosen"]) and "you control" not in m[1]),
-                                    token=bool(who["tokens"] or who["subtokens"]),
-                                    with_counters=bool(who["counters"] or who["perms_counters"]), plus_counter=bool(who["plus"] or who["plus2"]),
-                                    permanents=bool(who["perms"] or who["enchantments"] or who["perms_counters"]),  # Innkeeper's Talent
-                                    opponents=bool(who["opps"])))
-        elif _LEGENDARY_SCALED.fullmatch(sentence):  # Jodah, the Unifier: +1/+1 for each legendary creature you control
-            buffs.append(StaticBuff(Modifier(1, 1), False, "Legendary", line, condition=condition, per=("permanent", "legendary creature")))
-        elif m := _COUNTER_SCALED.fullmatch(sentence):  # Door of Destinies: +1/+1 for each charge counter on it
-            who = _AFFECTED_WHO.fullmatch(m[1])
-            assert who is not None
-            buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), _other(who),
-                                    "chosen" if who["chosen"] else _who_subtype(who), line, condition=condition,
-                                    per=("source_counters", m[4])))
-        elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
-            who = _AFFECTED_WHO.fullmatch(m[1])
-            assert who is not None
-            buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
-                                    _who_subtype(who), line, condition=condition, per=("commander_casts", "")))
-        elif m := _BOTH_SCALED.fullmatch(sentence):
-            buffs.append(StaticBuff(Modifier(_signed(m[1]), _signed(m[2])), False, None, line, self_only=True, per=_PER["creature you control"]))
-            buffs.append(StaticBuff(Modifier(_signed(m[3]), _signed(m[4])), False, None, line, self_only=True, per=_PER["Aura you control"]))
-        elif m := _SELF_SCALED.fullmatch(sentence):  # "This creature gets +1/+0 for each artifact you control."
-            modifier = Modifier(_signed(m[1]), _signed(m[2]))
-            buffs.append(StaticBuff(modifier, False, None, line, self_only=True, condition=condition,
-                                    per=_PER_LOWER[m[3].lower()]))
-        elif m := _CANT.fullmatch(sentence):  # "This creature can't block." (a token's, for one)
-            keywords = {"attack": {CANT_ATTACK}, "block": {CANT_BLOCK}, "be blocked": {CANT_BE_BLOCKED},
-                        "block and can't be blocked": {CANT_BLOCK, CANT_BE_BLOCKED}}.get(m[1].lower(), {CANT_ATTACK, CANT_BLOCK})
-            buffs.append(StaticBuff(Modifier(0, 0, frozenset(keywords)), False, None, line, self_only=True, condition=condition))
-        elif _MUST_ATTACK.fullmatch(sentence):
-            buffs.append(StaticBuff(Modifier(0, 0, frozenset({MUST_ATTACK})), False, None, line, self_only=True, condition=condition))
-        elif condition and (m := _SELF_STATIC.fullmatch(sentence)):  # unconditional ones would just be printed text
-            buffs.append(StaticBuff(_modifier(m, 1), False, None, line, self_only=True, condition=condition))
-        elif condition and (m := _SELF_STATIC_CANT_BLOCK.fullmatch(sentence)):
-            buffs.append(StaticBuff(Modifier(_signed(m[1]), _signed(m[2]), frozenset({CANT_BLOCK})), False, None, line, self_only=True,
-                                    condition=condition))
-        elif condition and (m := _SELF_STATIC_MUST_ATTACK.fullmatch(sentence)):  # Dragon's Rage Channeler
-            modifier = _modifier(m, 1)
-            buffs.append(StaticBuff(dataclasses.replace(modifier, keywords=modifier.keywords | {MUST_ATTACK}), False, None, line,
-                                    self_only=True, condition=condition))
-    return tuple(buffs)
+    unread: set[str] = set()  # a line of two sentences, one of which gave no buff: none of it is applied
+    for line, part, parts in ((line, part, len(split)) for line in rules_lines(card) for split in [_static_sentences(line)] for part in split):
+        before = len(buffs)
+        _static_buffs(line, part, buffs)
+        if parts > 1 and len(buffs) == before:
+            unread.add(line)
+    return tuple(b for b in buffs if b.text not in unread)
+
+
+def _static_buffs(line: str, part: str, buffs: list) -> None:
+    """The buffs one sentence of a line gives, appended to `buffs` (each keeps the whole line as its text)."""
+    bare = _ABILITY_WORD.sub("", part)  # "Threshold — ": the word names the condition but changes nothing
+    if _KEYWORD_BY_COLOR.fullmatch(bare):  # one keyword for each color: a buff for each, limited to creatures of that color
+        buffs += [StaticBuff(Modifier(keywords=frozenset({keyword})), False, None, line, color=_COLOR_LETTERS[color])
+                  for keyword, color in _KEYWORD_IF_COLOR.findall(bare)]
+        return
+    bare = _GRANTED_WARD_LIFE.sub(lambda m: f"have ward\u2014pay {m[1]} life.", bare)  # Hexing Squelcher: the granted ward, as a keyword
+    bare = _EACH_OTHER.sub(lambda m: f"Other {m[1]} creatures you control get {m[2]} and have {m[3]}.", bare)  # Coppercoat Vanguard
+    sentence, condition = bare, None
+    if split := _conditional(bare):
+        sentence, text = split
+        if (condition := _condition(text)) is None:
+            return
+    if m := _STATIC.fullmatch(sentence):
+        who = _AFFECTED_WHO.fullmatch(m[1])
+        assert who is not None  # _AFFECTED_WHO describes the same phrases as _AFFECTED
+        colors = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+        chosen_color = bool(who["chosen"]) and who["chosen_what"] == "color"
+        modifier = Modifier(keywords=frozenset({CANT_BE_BLOCKED})) if m["unblockable"] else _modifier(m, 2)
+        buffs.append(StaticBuff(modifier, _other(who),
+                                "chosen" if who["chosen"] and not chosen_color else _who_subtype(who), line,
+                                condition=condition,
+                                color="chosen" if chosen_color else colors.get((who["color"] or who["global"] or "").lower()),
+                                attacking=bool(who["attacking"] or who["attacking2"]), everyone=bool(who["global"] or who["other3"] or who["other4"] or (who["other5"] and not who["merfolk_yours"]) or who["tribe6"])
+                                or (bool(who["chosen"]) and "you control" not in m[1]),
+                                token=bool(who["tokens"] or who["subtokens"]),
+                                with_counters=bool(who["counters"] or who["perms_counters"]), plus_counter=bool(who["plus"] or who["plus2"]),
+                                permanents=bool(who["perms"] or who["enchantments"] or who["perms_counters"]),  # Innkeeper's Talent
+                                opponents=bool(who["opps"])))
+    elif _LEGENDARY_SCALED.fullmatch(sentence):  # Jodah, the Unifier: +1/+1 for each legendary creature you control
+        buffs.append(StaticBuff(Modifier(1, 1), False, "Legendary", line, condition=condition, per=("permanent", "legendary creature")))
+    elif m := _COUNTER_SCALED.fullmatch(sentence):  # Door of Destinies: +1/+1 for each charge counter on it
+        who = _AFFECTED_WHO.fullmatch(m[1])
+        assert who is not None
+        buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), _other(who),
+                                "chosen" if who["chosen"] else _who_subtype(who), line, condition=condition,
+                                per=("source_counters", m[4])))
+    elif m := _COMMANDER_SCALED.fullmatch(sentence):  # Vanguard of the Restless
+        who = _AFFECTED_WHO.fullmatch(m[1])
+        assert who is not None
+        buffs.append(StaticBuff(Modifier(_signed(m[2]), _signed(m[3])), who["other"] is not None,
+                                _who_subtype(who), line, condition=condition, per=("commander_casts", "")))
+    elif m := _BOTH_SCALED.fullmatch(sentence):
+        buffs.append(StaticBuff(Modifier(_signed(m[1]), _signed(m[2])), False, None, line, self_only=True, per=_PER["creature you control"]))
+        buffs.append(StaticBuff(Modifier(_signed(m[3]), _signed(m[4])), False, None, line, self_only=True, per=_PER["Aura you control"]))
+    elif m := _SELF_SCALED.fullmatch(sentence):  # "This creature gets +1/+0 for each artifact you control."
+        modifier = Modifier(_signed(m[1]), _signed(m[2]))
+        buffs.append(StaticBuff(modifier, False, None, line, self_only=True, condition=condition,
+                                per=_PER_LOWER[m[3].lower()]))
+    elif m := _CANT.fullmatch(sentence):  # "This creature can't block." (a token's, for one)
+        keywords = {"attack": {CANT_ATTACK}, "block": {CANT_BLOCK}, "be blocked": {CANT_BE_BLOCKED},
+                    "block and can't be blocked": {CANT_BLOCK, CANT_BE_BLOCKED}}.get(m[1].lower(), {CANT_ATTACK, CANT_BLOCK})
+        buffs.append(StaticBuff(Modifier(0, 0, frozenset(keywords)), False, None, line, self_only=True, condition=condition))
+    elif _MUST_ATTACK.fullmatch(sentence):
+        buffs.append(StaticBuff(Modifier(0, 0, frozenset({MUST_ATTACK})), False, None, line, self_only=True, condition=condition))
+    elif condition and (m := _SELF_STATIC.fullmatch(sentence)):  # unconditional ones would just be printed text
+        buffs.append(StaticBuff(_modifier(m, 1), False, None, line, self_only=True, condition=condition))
+    elif condition and (m := _SELF_STATIC_CANT_BLOCK.fullmatch(sentence)):
+        buffs.append(StaticBuff(Modifier(_signed(m[1]), _signed(m[2]), frozenset({CANT_BLOCK})), False, None, line, self_only=True,
+                                condition=condition))
+    elif condition and (m := _SELF_STATIC_MUST_ATTACK.fullmatch(sentence)):  # Dragon's Rage Channeler
+        modifier = _modifier(m, 1)
+        buffs.append(StaticBuff(dataclasses.replace(modifier, keywords=modifier.keywords | {MUST_ATTACK}), False, None, line,
+                                self_only=True, condition=condition))
 
 
 @lru_cache(maxsize=None)
