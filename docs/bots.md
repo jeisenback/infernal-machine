@@ -101,6 +101,11 @@ stats = goldfish(deck, games=5000, turns=5)
     four-player pods, the deck won 2 games, against 0 before #682; that is too few games to tell apart. Otherwise Consultation names the most
     expensive card in the library, and Tainted Pact passes over lands and takes the first spell. The plain bot names the first card offered
     and takes the first card exiled.
+  - `sink`: mana it would leave unspent goes on an activated ability whose cost is only mana ("{1}{G}: Exile target card from a
+    graveyard", "{3}{U}: Each player draws a card", Level up), in its own second main phase once nothing is left it wants to cast, or at
+    an opponent's end step, with nothing on the stack. An ability that costs a creature, a discard or exiling a card is left alone, and so
+    is a free one, which could repeat forever. Before it, the bot took none of the 4,635 such offers in 20 precon games; with it, 35.
+    1,200 duels on the precons against the bot without it: 49.5% (46.7%-52.3%), no measurable difference.
   `python tools/compare_bots.py DECK DECK ...` plays one version of the bot against another on the same decks and reports the
   win rate with its 95% interval. Against the plain bot on the five Secrets of Strixhaven precons (191 games) all five
   together won 67.5% (60.6%-73.8%); alone, timing won 65.5%, attack 57.6%, land 56.8%, target 55.2% and mana 52.9%.
