@@ -3266,6 +3266,8 @@ class Game:
             return not any(s.hand for s in self.live_seats())
         if kind == "subject_land_type":  # Emeria Shepherd: "If that land is a Plains" (the land that entered)
             return subject is not None and condition.what in subject.card.type_line.partition("\u2014")[2].split()
+        if kind == "different_powers":  # Coven: creatures you control with at least that many different powers
+            return len({self.power(p) for p in seat.battlefield if "Creature" in p.card.type_line}) >= condition.count
         if kind == "source_not_token":  # Progenitor Mimic: "if this creature isn't a token"
             return source is not None and not _is_token(source.card)
         if kind == "nth_resolution":  # Tannuk: "If this is the second time this ability has resolved this turn"

@@ -593,6 +593,7 @@ from .families.spells_and_misc import (  # noqa: F401
     NextSpellUncounterable,
     _ThatAlsoGains,
     _ThatGainsIf,
+    _CounterInsteadIf,
     _InsteadPump,
     _GainsIfXAtLeast,
     _TheyGain,
@@ -2142,6 +2143,10 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _GainsIfXAtLeast(_keyword_list(m[2]), _number(m[1]))),
     (re.compile(rf"if (.+?), that creature gains {_KEYWORDS} until end of turn\.", re.I),  # Violent Urge
      lambda m: _ThatGainsIf(_keyword_list(m[2]), c) if (c := _condition(m[1])) else None),
+    (re.compile(rf"(?:[A-Z][a-z]+ \u2014 )?that creature also gains {_KEYWORDS} until end of turn if (.+)\.", re.I),  # Temur Battle Rage
+     lambda m: _ThatGainsIf(_keyword_list(m[1]), c) if (c := _condition(m[2])) else None),
+    (re.compile(r"(?:[A-Z][a-z]+ \u2014 )?if (.+?), counter that spell instead\.", re.I),  # Stubborn Denial (Ferocious)
+     lambda m: _CounterInsteadIf(c) if (c := _condition(m[1])) else None),
     (re.compile(rf"(?:[A-Z][a-z]+ \u2014 )?that creature gets {_PT} until end of turn instead if (.+)\.", re.I),  # Tragic Slip (Morbid)
      lambda m: _InsteadPump(Modifier(_signed(m[1]), _signed(m[2])), c) if (c := _condition(m[3])) else None),
     (re.compile(r"you may cast spells this turn as though they had flash\.", re.I), lambda m: GrantFlash()),
@@ -3777,6 +3782,7 @@ _CONDITIONS = [
     (re.compile(r"(?:this creature's|CARDNAME's) power is (\d+) or greater"), lambda m: Condition("source_power_at_least", int(m[1]))),  # Kitsa
     (re.compile(r"(?:that land|it) is an? (Plains|Island|Swamp|Mountain|Forest)"), lambda m: Condition("subject_land_type", what=m[1])),  # Emeria Shepherd
     (re.compile(r"(?:this creature|CARDNAME) isn't a token"), lambda m: Condition("source_not_token")),  # Progenitor Mimic
+    (re.compile(r"you control (three) or more creatures with different powers"), lambda m: Condition("different_powers", _number(m[1]))),  # Coven
     (re.compile(r"this is the (first|second|third) time this ability has resolved this turn"),  # Tannuk, Memorial Ensign
      lambda m: Condition("nth_resolution", ("first", "second", "third").index(m[1]) + 1)),
     (re.compile(r"you created a token this turn"), lambda m: Condition("created_token")),
@@ -4016,6 +4022,7 @@ _CONDITIONAL = Follows(
     Follow(_ThatAlsoGains, Pump, lambda previous, marker: dataclasses.replace(
         previous, modifier=dataclasses.replace(previous.modifier, keywords=previous.modifier.keywords | marker.keywords))),
     Follow(_ThatGainsIf, Pump, set_fields(more_keywords=lambda m: m.keywords, more_if=lambda m: m.condition)),
+    Follow(_CounterInsteadIf, Counter, set_fields(firm_if=lambda m: m.condition), fits=lambda previous, marker: bool(previous.unless)),
     Follow(_InsteadSearch, SearchLibrary, lambda previous, marker: IfElse(marker.condition, (marker.search,), (previous,))),
     Follow(_InsteadSearch, SearchForLands, lambda previous, marker: IfElse(marker.condition, (marker.search,), (previous,))),
     Follow(_ToBattlefieldInstead, ReturnFromGraveyard, set_fields(battlefield_if=lambda m: m.condition),

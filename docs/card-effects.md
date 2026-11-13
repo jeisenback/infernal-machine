@@ -1591,6 +1591,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     tokens (Siege-Gang Lieutenant, Loyal Apprentice: a Follow row), and "As long as ..., this creature gets +2/+2 and other creatures you
     control get +2/+2 and have trample." read as two buffs with the one condition (Thunderfoot Baloth, Angelic Field Marshal; a line
     of which only one half is read gives no buff at all).
+  - Ferocious and Coven (`tests/test_ferocious_and_coven.py`, #219): Coven's "if you control three or more creatures with different powers"
+    (the condition `different_powers`: Dawnhart Wardens, Redemption Choir, Stalwart Pathlighter, Sigarda ...), Temur Battle Rage's "That
+    creature also gains trample until end of turn if ..." (the Violent Urge fold, the other way round) and Stubborn Denial's "If ...,
+    counter that spell instead." (`Counter.firm_if`: the "unless its controller pays {1}" isn't offered then).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
