@@ -30,7 +30,7 @@ from . import casting
 from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAST_PARAGON, CAST_PERMIT, CAST_TOP, EXILE, GRAVEYARD, LIBRARY, MILLED, PARAGON, PERMITS, PLAY_EXILE, PLAY_GRAVEYARD,
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects.common import colors_spent
-from .effects import (apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
+from .effects import (CastEncodedCopy, apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
                       replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, fused, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
@@ -196,6 +196,7 @@ SYLVAN_PROMPT = PromptKind("sylvan", "Draw two additional cards with Sylvan Libr
 DREDGE_PROMPT = PromptKind("dredge", "Dredge instead of drawing a card? ")  # options: Draw a card, then one per card that can be dredged
 SYLVAN_CHOOSE_PROMPT = PromptKind("sylvan_choose", "Choose a card you drew this turn: ")  # asked twice, for the two cards
 SYLVAN_PAY_PROMPT = PromptKind("sylvan_pay", "Pay life for it or put it on top of your library: ")  # followed by the card's name
+ENCODE_PROMPT = PromptKind("encode", "Encode on a creature you control: ")  # followed by the card's name; the creatures, then DECLINE
 REBOUND_PROMPT = PromptKind("rebound", "Cast it again with rebound: ")  # followed by the card's name; options: YES_NO
 FREE_TOP = "cast the top card free"  # Planetarium of Wan Shi Tong's "Do this only once each turn", kept in Permanent.activated_turn
 COMMANDER_FREE_PROMPT = PromptKind("commander_free", "Cast your commander without paying its mana cost")  # names, then NONE_TAKEN
@@ -370,6 +371,7 @@ class Permanent:
     must_block_what: "Permanent | None" = None  # ... that creature in particular ("blocks this creature this turn if able")
     vow_of: "Seat | None" = None  # Promise of Loyalty: while it has a vow counter it can't attack this player
     escaped: bool = False  # cast with escape: "escapes with two +1/+1 counters on it" (Woe Strider)
+    encoded: list[Card] = field(default_factory=list)  # Cipher (CR 702.99a): cards exiled encoded on it; its combat damage casts copies
     delved_spells: int = 0  # the instant and sorcery cards its delve exiled (Murktide Regent)
     turn_up_cost: "MorphCost | None" = None  # Morph, Megamorph, Disguise: what it costs to turn it face up (a manifested card pays its own mana cost)
     megamorph: bool = False  # it gets a +1/+1 counter when it is turned face up
@@ -2752,6 +2754,8 @@ class Game:
                 item.controller.paradigms.append(card)
             self.broadcast({"event": "paradigm", "seat": item.controller.index, "card": card.name})
             return
+        if resolved and has_keyword(item.card, "cipher") and self._encode(item.controller, home, card):  # (a copy never gets here)
+            return
         if resolved and item.from_hand and has_keyword(item.card, "rebound") and not item.is_copy:
             home.exile.append(card)  # Ephemerate: it comes back at the next upkeep
             item.controller.rebounding.append((card, self.turn))
@@ -2764,6 +2768,19 @@ class Game:
             self.broadcast({"event": "adventure", "seat": item.controller.index, "card": card.name})
             return
         self._move_card(home, card, "exile" if item.exile_after else "graveyard")
+
+    def _encode(self, seat: Seat, home: Seat, card: Card) -> bool:
+        """Cipher (CR 702.99a): "Then you may exile this spell card encoded on a creature you control." Whether it was."""
+        creatures = self.mass_targets("creature you control", seat)
+        if not creatures:
+            return False
+        pick = seat.player.choose(ENCODE_PROMPT(card.name), [self.label(p) for p in creatures] + [DECLINE])
+        if pick >= len(creatures):
+            return False
+        home.exile.append(card)
+        creatures[pick].encoded.append(card)
+        self.broadcast({"event": "encoded", "seat": seat.index, "card": card.name, "on": creatures[pick].card.name})
+        return True
 
     def _impending_end_step(self, seat: Seat) -> None:
         """Impending: "At the beginning of your end step, remove a time counter from it." With the last one gone it is a creature
@@ -3133,6 +3150,9 @@ class Game:
         """`permanent`'s triggered abilities: its own, and those an Aura or Equipment attached to it grants (Sixth Sense, Black Mage's
         Rod). What is attached comes from the board view, which is rebuilt only when the board changes."""
         own = triggered_abilities(permanent.card)
+        if permanent.encoded:  # CR 702.99a: each card encoded on it grants it a trigger
+            own = own + tuple(TriggeredAbility("combat_damage_to_player", (CastEncodedCopy(card),), False, f"Cipher: {card.name}")
+                              for card in permanent.encoded)
         attached = self._board_view().attached.get(id(permanent))
         return own + tuple(a for attachment in attached for a in granted_triggers(attachment.card)) if attached else own
 

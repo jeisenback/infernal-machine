@@ -10,6 +10,7 @@ from ..targets import PLAYER, PREVIOUS_TARGET, SOURCE, SUBJECT
 from ...prompts import PromptKind
 
 if TYPE_CHECKING:
+    from ...cards import Card
     from ...game import Game, Seat
 
 
@@ -232,6 +233,19 @@ class CastTargetFromGraveyardFree:
 
         if target is not None and controller.player.choose(CAST_COPY_PROMPT(target.card.name), ["Yes", "No"]) == 0:  # (a target gone: it fizzles)
             game._cast(controller, target.card, target.seat.graveyard, free=True, exile_after=self.exile_after)
+
+
+@dataclass(frozen=True)
+class CastEncodedCopy:
+    """Cipher (CR 702.99a): the encoded creature's "Whenever this creature deals combat damage to a player, its controller may cast a
+    copy of the encoded card without paying its mana cost." """
+    card: Card
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        from .copying import CAST_COPY_PROMPT
+
+        if controller.player.choose(CAST_COPY_PROMPT(self.card.name), ["Yes", "No"]) == 0:
+            game.cast_copy_free(controller, self.card)
 
 
 @dataclass(frozen=True)

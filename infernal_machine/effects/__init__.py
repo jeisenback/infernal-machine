@@ -210,6 +210,7 @@ from .outcomes import (  # noqa: F401
     ReturnThisFromGraveyard,
     ReturnToHand,
     ReturnWithCounter,
+    CastEncodedCopy,
     RevealTop,
     SacrificeAll,
     SacrificeCreature,
