@@ -1602,6 +1602,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Spectacle (`tests/test_spectacle.py`, #219, CR 702.137): "Spectacle {cost}" is an alternative cost (`AlternativeCost.spectacle`)
     offered only once an opponent has lost life this turn (Light Up the Stage, Body Count, Skewer the Critics ...). "If its spectacle cost
     was paid" is not read yet (Rafter Demon, Rix Maadi Reveler).
+  - Converge amounts (`tests/test_converge_amounts.py`, #219, CR 702.119): "where X is the number of colors of mana spent to cast this
+    spell" and "... a +1/+1 counter on it for each color of mana spent to cast it" (the amount `colors_spent`, from the spell's own mana,
+    or the permanent's when its ability resolves; "Converge —" is only a label): Painful Truths, Crystalline Crawler, Radiant Flames,
+    Sweep the Skies, Kaleidoscorch ...
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
