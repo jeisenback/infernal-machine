@@ -35,6 +35,7 @@ class Counter:
     if_color: str = ""  # Pyroblast: "Counter target spell if it's blue." (checked as it resolves)
     if_mv_at_most: int | None = None  # Prohibit: "Counter target spell if its mana value is 2 or less." (checked as it resolves)
     kicked_mv_at_most: int | None = None  # "... If this spell was kicked, ... if its mana value is 4 or less instead."
+    firm_if: Any = None  # Stubborn Denial (Ferocious): "If <condition>, counter that spell instead." (no paying the "unless" then)
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if self.if_color and target is not None and self.if_color not in target.card.colors:
@@ -46,6 +47,8 @@ class Counter:
         if target is not None and not cant_be_countered(target.card) and not game.uncounterable(target):
             unless = self.unless_teamwork if self.unless_teamwork and game.resolving_item is not None and game.resolving_item.teamwork \
                 else self.unless
+            if self.firm_if is not None and game.condition_holds(self.firm_if, controller):
+                unless = ""
             if unless and game.pays_unless(target.controller, unless, target.card):
                 return
             if self.delayed_mana:
@@ -325,6 +328,12 @@ class _ThatCreatureGains:
 @dataclass(frozen=True)
 class _UntapThoseCreatures:
     """ "Untap those creatures." after "Creatures you control get +1/+1 ..." or "Put a +1/+1 counter on each creature you control." """
+
+
+@dataclass(frozen=True)
+class _CounterInsteadIf:
+    """ "If <condition>, counter that spell instead." after a "counter ... unless its controller pays" (Stubborn Denial)."""
+    condition: Any
 
 
 @dataclass(frozen=True)
