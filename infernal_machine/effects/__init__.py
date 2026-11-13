@@ -218,6 +218,8 @@ from .outcomes import (  # noqa: F401
     SacrificeSelfThenCreate,
     Scry,
     SacrificeLandsSearch,
+    TemptingOffer,
+    TEMPT_PROMPT,
     SearchForLands,
     GetEmblem,
     SearchLibrary,

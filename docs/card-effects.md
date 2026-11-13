@@ -1583,6 +1583,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     player with the most life or tied for most life, queued in `combat.py` beside Annihilator; Treasonous Ogre, Grenzo's Cutthroat ...), a
     clone "except it has haste and dethrone" (Dack's Duplicate), Progenitor Mimic's "if this creature isn't a token" (the condition
     `source_not_token`) and Jwari Shapeshifter's "any Ally creature on the battlefield".
+  - Tempting offer (`tests/test_tempting_offer.py`, #219): "<effects>. Each opponent may <the same>. For each opponent who does, <the
+    same>." (Tempt with Discovery, Vengeance, Bunnies, Glory; `TemptingOffer`): the caster does it, each opponent in turn order may do it
+    for themselves (`TEMPT_PROMPT`; the bot declines), then the caster does it once more for each who did. The three sentences must say
+    the same thing ("their" for "your"), and none may target. Tempt with Immortality, Reflections and Mayhem are not read yet.
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

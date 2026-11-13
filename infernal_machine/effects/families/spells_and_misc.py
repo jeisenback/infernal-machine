@@ -740,3 +740,28 @@ class TargetShufflesGraveyard:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             game.shuffle_into_library(target, [game.graveyard_target(card, target) for card in target.graveyard])
+
+
+TEMPT_PROMPT = PromptKind("tempt", "Accept the tempting offer of ")  # followed by the spell's name; options "Yes", "No"
+
+
+@dataclass(frozen=True)
+class TemptingOffer:
+    """Tempting offer (Tempt with Discovery, Vengeance, Bunnies, Glory): "<effects>. Each opponent may <the same>. For each opponent who
+    does, <the effects again>." The effects are done for the caster, then each opponent in turn order may do them for themselves, then
+    the caster does them once more for each opponent who did. None of them targets."""
+    effects: tuple
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        for effect in self.effects:
+            effect.resolve(game, controller, None)
+        name = game.resolving_item.card.name if game.resolving_item is not None else ""
+        accepted = 0
+        for opponent in game.opponents(controller):
+            if opponent.player.choose(TEMPT_PROMPT(name), ["Yes", "No"]) == 0:
+                accepted += 1
+                for effect in self.effects:
+                    effect.resolve(game, opponent, None)
+        for _ in range(accepted):
+            for effect in self.effects:
+                effect.resolve(game, controller, None)
