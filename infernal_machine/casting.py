@@ -530,6 +530,8 @@ class Caster:
             return False  # Submerge: "If an opponent controls a Forest"
         if alternative.no_lands_in_hand and any("Land" in c.type_line for c in others):
             return False  # Land Grant: "If you have no land cards in hand"
+        if alternative.spectacle and not any(o.life_lost_turn == self.game.turn and o.life_lost_amount > 0 for o in self.game.opponents(seat)):  # CR 702.137
+            return False
         if alternative.opponent_spells and not any(sum(turn == self.game.turn for turn, _ in o.cast_log) >= alternative.opponent_spells
                                                     for o in self.game.opponents(seat)):
             return False  # Mindbreak Trap: "If an opponent cast three or more spells this turn"

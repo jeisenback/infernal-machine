@@ -1599,6 +1599,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     revealed and cast for that cost (`miracle_cost`, `Game._miracle`, `MIRACLE_PROMPT`). As for madness the choice is made as the card
     is drawn, not from a trigger; a cost that can't be paid leaves it in hand. An alternative cost with {X} in it (Entreat the Angels'
     "Miracle {X}{W}{W}") now has X chosen for it.
+  - Spectacle (`tests/test_spectacle.py`, #219, CR 702.137): "Spectacle {cost}" is an alternative cost (`AlternativeCost.spectacle`)
+    offered only once an opponent has lost life this turn (Light Up the Stage, Body Count, Skewer the Critics ...). "If its spectacle cost
+    was paid" is not read yet (Rafter Demon, Rix Maadi Reveler).
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
