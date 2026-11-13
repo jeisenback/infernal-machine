@@ -1608,7 +1608,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Sweep the Skies, Kaleidoscorch ...
   - Fuse (`tests/test_fuse.py`, #219, CR 702.102): a split card whose halves both have Fuse may be cast from the hand as one spell
     (`CAST_FUSED`, `fused`): both costs paid, the left half's instructions then the right's, one spell of the halves' card types (a sorcery
-    if either half is). Wear // Tear, Far // Away, Beck // Call, Toil // Trouble ... The bot doesn't fuse yet.
+    if either half is). Wear // Tear, Far // Away, Beck // Call, Toil // Trouble ...
+  - Token copies, batch 5 (`tests/test_token_copy_wordings.py`, #219, CR 707.2, 707.9): Skyclave Relic's "create two tapped tokens that
+    are copies of this artifact" (tapped only for a copy of the card itself); a token copy "except it enters with an additional +1/+1
+    counter on it" (Littjara Mirrorlake; `copy_counters`, a creature only); Kindred Charge's copy of each creature you control of a
+    creature type named as it resolves (`CopyEachOfChosenType`) and Hate Mirage's copies of up to two target creatures you don't
+    control, both with haste and exiled at the next end step.
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.

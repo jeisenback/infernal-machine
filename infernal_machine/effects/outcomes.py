@@ -150,6 +150,7 @@ from .families.copying import (  # noqa: F401
     CopyChanges,
     CopyChosenPermanent,
     CopyEachToken,
+    CopyEachOfChosenType,
     CopyEnteredTokensAttacking,
     CopyHostToken,
     CopyNextSpell,
@@ -951,7 +952,7 @@ def _copy_changes(text: str) -> CopyChanges | None:
         elif was_keywords and (clause.lower() in _COPY_KEYWORDS or _understood_ability(clause.capitalize())):  # "it has flying and haste"
             keywords.append(clause.lower())
             after_keywords = True
-        elif re.fullmatch(r"it enters with an additional \+1/\+1 counter on it if it's a creature", clause, re.I):
+        elif re.fullmatch(r"it enters with an additional \+1/\+1 counter on it(?: if it's a creature)?", clause, re.I):  # Littjara Mirrorlake
             fields["extra_counters"] = "1"
         elif m := re.fullmatch(r"it enters with (two|three) additional \+1/\+1 counters on it", clause, re.I):  # Moritte of the Frost
             fields["extra_counters"] = str(_number(m[1]))
@@ -1738,7 +1739,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
 
 
 _COPY_TOKEN = re.compile(
-    r"create (?:a token that's a copy|(?P<count>two|three|four|five|X) tokens that are copies) of "
+    r"create (?:a token that's a copy|(?P<count>two|three|four|five|X) (?P<tapped>tapped )?tokens that are copies) of "
     rf"(?:(?P<another>another )?target (?P<kind>artifact, creature, or land|creature or artifact you control"  # Relm's Sketching; Saheeli, the Sun's Brilliance
     rf"|{_PERMANENT_KIND}|(?:artifact |non-Saga )?token you control"  # Esika's Chariot; Oltec Matterweaver; City of Death
     r"|creature token that entered the battlefield this turn)"  # Octomancer
@@ -1772,6 +1773,8 @@ def _copy_token(m: re.Match) -> Any:
     if m["changes"] and changes is None:
         return None
     count = _count(m["count"]) if m["count"] else 1
+    if m["tapped"]:  # Skyclave Relic: only its own copies come tapped here
+        return CopySelfToken(changes=changes, count=count, tapped=True) if m["self"] else None
     if m["kind"]:
         return CopyToken(m["kind"].lower(), count, another=bool(m["another"]), changes=changes)
     if m["grave"]:
@@ -2944,6 +2947,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"choose a creature type\. (?:(draw) a card for each permanent you control of that type|(destroy) all creatures that aren't of "
                 r"the chosen type|return all creatures that aren't of the chosen type to their owners' hands)\.", re.I),
      lambda m: ChosenTypeEffect("draw" if m[1] else "destroy" if m[2] else "bounce")),  # Distant Melody, Kindred Dominance, Raise the Palisade
+    (re.compile(r"choose a creature type\. for each creature you control of the chosen type, create a token that's a copy of that creature\. "
+                r"those tokens gain haste\. exile them at the beginning of the next end step\.", re.I), lambda m: CopyEachOfChosenType()),  # Kindred Charge
+    (re.compile(r"choose up to two target creatures you don't control\. for each of those creatures, create a token that's a copy of that "
+                r"creature\. those tokens gain haste\. exile them at the beginning of the next end step\.", re.I),  # Hate Mirage
+     lambda m: [CopyToken("creature you don't control", optional_target=True, distinct=n > 0, haste=True, exile_at_end=True) for n in range(2)]),
     (re.compile(r"add \{([WUBRGC])\} or \{([WUBRGC])\} for each permanent destroyed this way\.", re.I),
      lambda m: _ManaForEachDestroyed(frozenset({m[1].upper(), m[2].upper()}))),
     (re.compile(r"add \{([WUBRGC])\} for each tapped land your opponents control\.", re.I),

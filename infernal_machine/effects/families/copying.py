@@ -118,6 +118,14 @@ def copy_of(card: Card, changes: CopyChanges | None = None, *, as_token: bool = 
 # of the next end step.") are folded into the effect by the Follow rows in outcomes.py and applied by `finish_copies`.
 
 
+def copy_counters(card: Card, changes: CopyChanges | None) -> tuple[int, str] | None:
+    """The +1/+1 counters a token copy enters with from its except clause ("except it enters with an additional +1/+1 counter on it",
+    Littjara Mirrorlake), as `Game.create_tokens` takes them: only a creature gets them."""
+    if changes is None or not changes.extra_counters or "Creature" not in card.type_line:
+        return None
+    return (int(changes.extra_counters), "+1/+1")
+
+
 def finish_copies(game: Game, made: list, effect: Any) -> None:
     """Apply the riders of a copy sentence to the tokens it made."""
     if getattr(effect, "blitz", False):
@@ -145,7 +153,8 @@ class CopySubjectToken:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             source, subject = target
-            made = game.create_tokens(controller, copy_of((subject or source).card, self.changes, as_token=True), game.amount(self.count))
+            card = copy_of((subject or source).card, self.changes, as_token=True)
+            made = game.create_tokens(controller, card, game.amount(self.count), copy_counters(card, self.changes))
             finish_copies(game, made, self)
 
 
@@ -162,7 +171,8 @@ class CopyHostToken:
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and target.attached_to is not None:
-            made = game.create_tokens(controller, copy_of(target.attached_to.card, self.changes, as_token=True), game.amount(self.count))
+            card = copy_of(target.attached_to.card, self.changes, as_token=True)
+            made = game.create_tokens(controller, card, game.amount(self.count), copy_counters(card, self.changes))
             finish_copies(game, made, self)
 
 
@@ -178,10 +188,13 @@ class CopyToken:
     sacrifice_at_end: bool = False  # Kiki-Jiki: "Sacrifice it at the beginning of the next end step."
     exile_at_end: bool = False  # Felhide Spiritbinder: "Exile it at the beginning of the next end step."
     blitz: bool = False  # Jaxis: "It gains haste and "When this token dies, draw a card."" (Permanent.blitzed)
+    optional_target: bool = False  # Hate Mirage: "up to two target creatures", one effect per target
+    distinct: bool = False
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
-            made = game.create_tokens(controller, copy_of(target.card, self.changes, as_token=True), game.amount(self.count))
+            card = copy_of(target.card, self.changes, as_token=True)
+            made = game.create_tokens(controller, card, game.amount(self.count), copy_counters(card, self.changes))
             finish_copies(game, made, self)
 
 
@@ -200,6 +213,23 @@ class CopyEachToken:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         cards = [copy_of(p.card, self.changes, as_token=True) for p in game.mass_targets(self.kind, controller)
                  if not self.entered_this_turn or p.entered_turn == game.turn]
+        finish_copies(game, game.create_token_batch(controller, cards), self)
+
+
+@dataclass(frozen=True)
+class CopyEachOfChosenType:
+    """Kindred Charge: "Choose a creature type. For each creature you control of the chosen type, create a token that's a copy of that
+    creature. Those tokens gain haste. Exile them at the beginning of the next end step." (the type is named as it resolves)"""
+    haste: bool = True
+    sacrifice_at_end: bool = False
+    exile_at_end: bool = True
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if item is None:
+            return
+        kind = game._choose_creature_type(controller, item.card)
+        cards = [copy_of(p.card, as_token=True) for p in game.mass_targets("creature you control", controller) if kind in game.subtypes(p)]
         finish_copies(game, game.create_token_batch(controller, cards), self)
 
 
@@ -647,12 +677,14 @@ class CopySelfToken:
     haste: bool = False
     sacrifice_at_end: bool = False
     exile_at_end: bool = False
+    tapped: bool = False  # Skyclave Relic: "create two tapped tokens that are copies of this artifact"
     binds = SOURCE
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None:
             changes = CopyChanges(power_toughness=("1", "1")) if self.one_by_one else self.changes
-            made = game.create_tokens(controller, copy_of(target.card, changes, as_token=True), game.amount(self.count))
+            card = copy_of(target.card, changes, as_token=True)
+            made = game.create_tokens(controller, card, game.amount(self.count), copy_counters(card, changes), tapped=self.tapped)
             finish_copies(game, made, self)
 
 
