@@ -19,17 +19,21 @@ from .undercity import HELPS_ITS_TARGET
 from .effects import CONSULT_NAME_PROMPT, MOVE_COUNTERS_PROMPT, PACT_TAKE_PROMPT
 from .zones import CAST_PREFIXES, LAND_PREFIXES, PLOT
 from .effects import TEMPT_PROMPT
-from .game import (COMMAND_ZONE_PROMPT, COMMANDER_TAX, COST_PROMPT, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, COMPANION, CAST_PREPARED, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
+from .game import (CAST_FUSED, CAST_FACE_DOWN, CAST_FORETOLD, CAST_DISTURB, ENCORE, ETERNALIZE, UNEARTH, SUSPEND, FORETELL, ACTIVATE_HAND,
+                   ACTIVATE_GRAVEYARD, ACTIVATE_COMMAND, UNLOCK, TURN_UP, NINJUTSU, COMMAND_ZONE_PROMPT, COMMANDER_TAX, COST_PROMPT, NONE_TAKEN, CHOOSE_DISCARD_PROMPT, DISCARD_CARD_PROMPT, VOTE_PROMPT, THRONE_PROMPT, CLONE_PROMPT, PROLIFERATE_PROMPT, ACTIVATE, BOTTOM_PROMPT, CAST, CAST_COMMANDER, COMPANION, CAST_PREPARED, DISCARD_PROMPT, HAND_SIZE, KEEP_PROMPT, LOOK_PROMPT, PASS, SEARCH_PROMPT, SEARCH_LAND_PROMPT, SEARCH_LAND_HAND_PROMPT,
                    CYCLE, DONE_MODES, MODE_PROMPT, SCRY_PROMPT, SURVEIL_PROMPT,
                    MULTIKICKER_PROMPT, DANCE_PROMPT, PLAY_LAND, SACRIFICE_COST_PROMPT, SACRIFICE_PROMPT, SEARCH_CARD_PROMPT, SHOCK_PROMPT, TARGET_PROMPT, X_PROMPT, LIFE_X_PROMPT, DEVOUR_PROMPT, EXPLOIT_PROMPT, REPLICATE_PROMPT, SCAPESHIFT_PROMPT,
                    SEPARATE_PROMPT, PILE_TAKE_PROMPT, PILE_GIVE_PROMPT,
                    CHAIN_COPY_PROMPT)
 
 MANA_ONLY = re.compile(r"(?:\{(?:\d+|[WUBRGCS]|[WUBRG2]/[WUBRGP])\})+")  # a cost of mana symbols alone ({2}{U}, {G/W})
+OTHER_CASTS = (CAST_FUSED, CAST_FACE_DOWN, CAST_FORETOLD, CAST_DISTURB)  # with "routes", weighed with the other casts
+OTHER_ROUTES = (ENCORE, ETERNALIZE, UNEARTH, SUSPEND, FORETELL, ACTIVATE_HAND, ACTIVATE_GRAVEYARD, ACTIVATE_COMMAND, UNLOCK, TURN_UP)  # with "routes", once nothing is cast
+FACE_DOWN_COST = 3  # CR 702.37c: a face-down spell costs {3}
 MIN_LANDS = 2
 MAX_LANDS = 5
 MAX_MULLIGANS = 2  # after this many, keep whatever comes
-FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor", "win", "sink"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
+FEATURES = frozenset({"timing", "attack", "land", "target", "mana", "commander", "threat", "destination", "keep", "block", "hold", "tempo", "fetch", "tutor", "win", "sink", "routes"})  # the judgments a bot can make; BotPlayer(features=frozenset()) is the plain bot
 HIGH_TAX = 6  # a commander cast from the command zone three times has this much tax; past it, a graveyard with a way out can be the better place
 # A card that brings a card back from a graveyard to the battlefield or the hand: where a commander that dies can be worth leaving.
 RECURSION = re.compile(r"\b(return|put)\b[^.]{0,120}?\bfrom (?:your|a|any|an opponent's) graveyard (?:to|onto) (?:the battlefield|your hand)"
@@ -107,6 +111,9 @@ class BotPlayer:
         die with a lot of tax on it goes to the graveyard if the deck can bring it back), "tutor" (a search or a look at the top of the library
         takes the card that completes a combo the deck holds, with what is on the battlefield and in the hand; `combos` are the deck's combos
         as tuples of card names, or come from the Commander Spellbook cache, and the judgment does nothing for a deck the cache doesn't know),
+        "routes" (the other ways to play a card: a fused split card, a face-down, foretold or disturbed spell are weighed with the other
+        casts; ninjutsu whenever it is offered; and in a main phase with nothing left to cast, encore, eternalize, unearth, suspend,
+        foretell, an ability from the hand, graveyard or command zone, unlocking a door, turning a creature face up),
         "sink" (mana still unspent in its second main phase or at an opponent's end step goes on an ability that costs only mana),
         "win" (Thassa's Oracle's line: it casts the Oracle once its library is down to ORACLE_LIBRARY cards; it keeps Demonic Consultation
         and Tainted Pact for the Oracle, casting one first once the Oracle is in hand with the mana for both; and then it names the Oracle
@@ -272,8 +279,11 @@ class BotPlayer:
             cheap = [i for i in commanders if self._tax(options[i]) <= COMMANDER_FIRST_TAX]
             if cheap:
                 return cheap[0]
+        if "routes" in self.features and (ninjutsu := [i for i, option in enumerate(options) if option.startswith(NINJUTSU)]):
+            return ninjutsu[0]  # an unblocked attacker goes back for the ninja, which deals the damage instead
+        cast_prefixes = (CAST, CAST_PREPARED, *CAST_PREFIXES, *(OTHER_CASTS if "routes" in self.features else ()))
         casts = [i for i, option in enumerate(options)
-                 if (option.startswith((CAST, CAST_PREPARED, *CAST_PREFIXES)) or (option.startswith(CAST_COMMANDER) and _cast_name(option) == self._signature))
+                 if (option.startswith(cast_prefixes) or (option.startswith(CAST_COMMANDER) and _cast_name(option) == self._signature))
                  and not _is_ritual(self._cards.get(_cast_name(option)))
                  and not self._unhelpful_wipe(self._cards.get(_cast_name(option))) and not self._holds_removal(self._cards.get(_cast_name(option)))]
         if "commander" in self.features:
@@ -294,6 +304,10 @@ class BotPlayer:
             if "mana" in self.features:
                 return self._best_cast(casts, options)
             return max(casts, key=lambda i: self._cards[name].cmc if (name := _cast_name(options[i])) in self._cards else 0)
+        if "routes" in self.features and subject_of(prompt, PRIORITY_PROMPT) in ("main1", "main2"):
+            for i, option in enumerate(options):
+                if option.startswith(OTHER_ROUTES):
+                    return i
         for i, option in enumerate(options):
             if option.startswith(CYCLE) and self._cycle_away(self._cards.get(option.removeprefix(CYCLE))):
                 return i
@@ -445,7 +459,8 @@ class BotPlayer:
     def _best_cast(self, casts: list[int], options: Sequence[str]) -> int:
         """Of the spells it can cast, the biggest one in the combination that spends the most of its untapped mana."""
         mana = self._mana()
-        costs = {i: int(self._cards[name].cmc) + (self._tax(options[i]) if options[i].startswith(CAST_COMMANDER) else 0)
+        costs = {i: FACE_DOWN_COST if options[i].startswith(CAST_FACE_DOWN) else
+                 int(self._cards[name].cmc) + (self._tax(options[i]) if options[i].startswith(CAST_COMMANDER) else 0)
                  if (name := _cast_name(options[i])) in self._cards else 0 for i in casts}
         if max(costs.values()) > mana:  # the game says it can pay for that, so this count is wrong (a cost reduction, a mana ability it can't see)
             return max(casts, key=costs.__getitem__)
@@ -719,7 +734,7 @@ def _playable_combos(deck: Deck, combos: Sequence[Sequence[str]] | None, cards: 
 
 def _cast_name(option: str) -> str:
     """The card in a "Cast: ...", "Cast commander: ..." or "Cast from graveyard: ..." action."""
-    for prefix in (CAST, CAST_COMMANDER, *CAST_PREFIXES, CAST_PREPARED):
+    for prefix in (CAST, CAST_COMMANDER, *CAST_PREFIXES, CAST_PREPARED, *OTHER_CASTS):
         option = option.removeprefix(prefix)
     return option
 
