@@ -31,7 +31,7 @@ from .zones import (CAST_PLOTTED, PLOT, PLOTTED, CAST_EXILE, CAST_GRAVEYARD, CAS
                     PLAY_PARAGON, PLAY_TOP, ZONE_PLAYS)
 from .effects import (apply_copy_changes, copy_of, CopyChanges, Draw, EVENTS, Quantity, MorphCost, ReturnWithCounter, heard_on, morph_of, is_room, room_view, rules_lines, CANT_ATTACK, CANT_BLOCK, LOSES_ALL, NO_UNTAP, PROTECTION_CHOSEN, ActivatedAbility, NinjutsuEnter, AlternativeCost, AttachAura, EntersTapped, GiveBack, Modal,
                       activates_as_though_haste, Amount, Condition, GraveyardCast, MassFilter, TriggeredAbility, WardCounter,
-                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
+                      replacement_effects, temporary_clone_keyword, is_class, class_view, keeps_its_protection_aura, spares_your_attachments, granted_triggers, is_clone_line, copies_per_sacrifice, graveyard_statics, aura_controls, saga_chapters, granted_abilities, group_activated_grants, untaps_in_other_untap_steps, suspend_of, clone_rule, CloneRule, chooses_card_name, chooses_siege_mode, heals_before_damage, equip_target_discount, free_first_equip, free_equip_while, storied, your_turn_creature, chooses_creature_type, chooses_basic_land_type, enters_by_discarding_land, is_chosen_type_itself, annihilator_of, toxic_of, dredge_of, day_night_face, ninjutsu_of, foretell_of, plot_of, disturb_of, gift_of, FISH, OCTOPUS, SQUIRREL, PayToReturnSelf, ReturnThisFromGraveyard, Backup, encore_cost, eternalize_cost, eternalize_discards, unearth_cost, damage_prevention, damage_modifiers, DamageModifier, rules_statics, CLUE, FOOD, TREASURE, madness_cost, miracle_cost, bestow_aura, line_effects, ThroneOfTheDeadThree, activated_abilities, cycling, hand_abilities, chooses_color, color_choice_excludes, may_skip_untap, kicked_effects, attached_abilities, aura_kind, enters_tapped_rule, reconfigure_cost, cumulative_upkeep, devour, echo_cost, reanimation_aura, enters_prepared, enters_with_counters, extra_votes, graveyard_casts, is_aftermath, graveyard_permission, top_of_library, CastExiledCopy, no_max_hand_size, begins_on_battlefield, hand_size_counter, power_toughness_amount, players_have_no_max_hand, entering_counters_amount,
                       SacrificeSelf,
                       printed_protection, protection_tokens, ward_cost, ward_fields,
                       filter_mana_ability, mana_spent_trigger, spell_effects, static_abilities, target_kind,
@@ -188,6 +188,7 @@ EXILE_COST_PROMPT = PromptKind("exile_cost", "Choose a card to exile from your g
 COST_PROMPT = PromptKind("cost", "Choose how to cast ")  # followed by the spell's name; options: "Pay {2}{U}{U}", then alternative costs
 ENTWINE_PROMPT = PromptKind("entwine", "Pay the entwine cost for ")  # followed by the spell's name; options: YES_NO
 MADNESS_PROMPT = PromptKind("madness", "Cast it for its madness cost: ")  # followed by the card's name; options: YES_NO
+MIRACLE_PROMPT = PromptKind("miracle", "Cast it for its miracle cost: ")  # followed by the card's name; options: YES_NO
 BUYBACK_PROMPT = PromptKind("buyback", "Pay the buyback cost for ")  # followed by the spell's name; options: YES_NO
 SYLVAN_PROMPT = PromptKind("sylvan", "Draw two additional cards with Sylvan Library? ")  # options: Yes, No
 DREDGE_PROMPT = PromptKind("dredge", "Dredge instead of drawing a card? ")  # options: Draw a card, then one per card that can be dredged
@@ -3854,6 +3855,8 @@ class Game:
         if seat.drawn_turn != self.turn:
             seat.drawn_turn, seat.drawn_cards = self.turn, []
         seat.drawn_cards.append(card)
+        if len(seat.drawn_cards) == 1 and miracle_cost(card) is not None:  # Miracle (CR 702.94): the first card drawn this turn
+            self._miracle(seat, card)
         if announce:
             seat.player.notify({"event": "draw", "card": card.name})
             self.broadcast({"event": "drew", "seat": seat.index, "hand_size": len(seat.hand)}, skip=seat)
@@ -3865,6 +3868,15 @@ class Game:
             if seat.draw_count == 3:
                 self._graveyard_returns(seat, "third_draw")  # Sneaky Snacker
         return True
+
+    def _miracle(self, seat: Seat, card: Card) -> None:
+        """Miracle (CR 702.94): the first card drawn this turn may be revealed, and its owner may cast it for its miracle cost. As for
+        madness, the choice is made at once, not from a trigger; a card that can't be paid for (or has no legal target) stays in hand."""
+        way = AlternativeCost(f"Miracle {miracle_cost(card)}", mana_cost=_checked(miracle_cost(card)))
+        if self._payment(seat, card, alternative=way) is None or seat.player.choose(MIRACLE_PROMPT(card.name), YES_NO) != 0:
+            return
+        self.broadcast({"event": "revealed", "seat": seat.index, "card": card.name})
+        self._cast(seat, card, seat.hand, madness=way)
 
     def _dredge(self, seat: Seat) -> bool:
         """Dredge: instead of drawing, the player may mill N cards and return a card with "Dredge N" from the graveyard to their

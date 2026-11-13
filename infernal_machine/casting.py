@@ -92,9 +92,10 @@ class Caster:
             return
         extra += "".join(o.mana for o in picked)  # "pay {3}{B}" as an additional cost
         x = 0  # announced before the targets (CR 601.2b-c): "up to X target creatures" needs it
-        if alternative is None and (cost_of(paying.mana_cost).x or any(c.sacrifice_x for c in additional_costs(card))):
+        alternative_x = alternative is not None and bool(alternative.mana_cost) and cost_of(alternative.mana_cost).x  # Entreat the Angels' miracle
+        if alternative is None and (cost_of(paying.mana_cost).x or any(c.sacrifice_x for c in additional_costs(card))) or alternative_x:
             # casting without paying the mana cost makes X 0; Immoral Bargain has X only in its additional cost
-            most = self._max_x(seat, paying, from_command_zone, kickers, extra)
+            most = self._max_x(seat, paying, from_command_zone, kickers, extra, alternative)
             for effect in effects or []:  # "Exile X target creatures": there have to be X legal targets
                 if getattr(effect, "exact_x", False):
                     most = min(most, len(self.game.target_options(g._checked(target_kind(effect)), seat, source_qualities(card))))
@@ -609,9 +610,10 @@ class Caster:
             self.game.change_life(seat, -life)
         return tuple(paid)
 
-    def _max_x(self, seat: g.Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str = "") -> int:
+    def _max_x(self, seat: g.Seat, card: Card, from_command_zone: bool, kickers: tuple[str, ...], extra: str = "",
+               alternative: AlternativeCost | None = None) -> int:
         x = 0
-        while x < g.MAX_X and self._payment(seat, card, from_command_zone, x + 1, kickers=kickers, extra=extra) is not None:
+        while x < g.MAX_X and self._payment(seat, card, from_command_zone, x + 1, alternative, kickers=kickers, extra=extra) is not None:
             x += 1
         return x
 

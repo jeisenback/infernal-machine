@@ -1595,6 +1595,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     (the condition `different_powers`: Dawnhart Wardens, Redemption Choir, Stalwart Pathlighter, Sigarda ...), Temur Battle Rage's "That
     creature also gains trample until end of turn if ..." (the Violent Urge fold, the other way round) and Stubborn Denial's "If ...,
     counter that spell instead." (`Counter.firm_if`: the "unless its controller pays {1}" isn't offered then).
+  - Miracle (`tests/test_miracle.py`, #219, CR 702.94): the first card a player draws in a turn, if it has "Miracle {cost}", may be
+    revealed and cast for that cost (`miracle_cost`, `Game._miracle`, `MIRACLE_PROMPT`). As for madness the choice is made as the card
+    is drawn, not from a trigger; a cost that can't be paid leaves it in hand. An alternative cost with {X} in it (Entreat the Angels'
+    "Miracle {X}{W}{W}") now has X chosen for it.
   - Energy (`tests/test_energy.py`, #471, #645): "You get {E}{E}." puts energy counters on the player (`GetEnergy`,
     `Game.change_energy`), and "Pay {E}{E}" (or "Pay eight {E}") is a cost paid from them (`ActivatedAbility.energy`), so
     "Equip—Pay {E}{E}." works too (Inventor's Axe). Energy spent in other ways ("pay any amount of {E}") is not read yet.
