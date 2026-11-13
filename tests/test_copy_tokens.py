@@ -61,9 +61,8 @@ ORTHION = real("Orthion, Hero of Lavabrink", "{3}{R}", "Legendary Creature — H
                "beginning of the next end step. Activate only as a sorcery.\n{6}{R}{R}{R}, {T}: Create five tokens that are copies of "
                "another target creature you control. They gain haste. Sacrifice them at the beginning of the next end step. Activate "
                "only as a sorcery.", "3", "3")
-DACKS_DUPLICATE = real("Dack's Duplicate", "{2}{U}{R}", "Creature — Shapeshifter",
-                       "You may have Dack's Duplicate enter as a copy of any creature on the battlefield, except it has haste and "
-                       "dethrone.", "0", "0")
+EVIL_TWIN = real("Evil Twin", "{2}{U}{B}", "Creature — Shapeshifter", "You may have this creature enter as a copy of any creature on the "
+                 "battlefield, except it has \"{U}{B}, {T}: Destroy target creature with the same name as this creature.\"", "0", "0")
 HERO = real("Test Hero", "{1}{W}", "Legendary Creature — Human Knight", "Vigilance", "2", "2")
 WHELP = real("Whelp Dragon", "{1}{R}", "Creature — Dragon", "", "2", "2")
 RELIC = real("Relic", "{1}", "Artifact", "")
@@ -95,7 +94,7 @@ class ParseTests(unittest.TestCase):
         self.assertNotIn(SCARAB_GOD_LINE, unsupported_lines(SCARAB_GOD))
 
     def test_a_change_the_engine_does_not_apply_leaves_the_line_unsupported(self):
-        self.assertEqual(len(unsupported_lines(DACKS_DUPLICATE)), 1)  # dethrone
+        self.assertEqual(len(unsupported_lines(EVIL_TWIN)), 1)  # a destroy aimed by name: not read
         odd = real("Odd Copier", "{2}", "Sorcery", "Create a token that's a copy of target creature you control, except it can't block.")
         self.assertEqual(len(unsupported_lines(odd)), 1)
 

@@ -862,7 +862,7 @@ _ENCHANT = re.compile(rf"Enchant (creature card in a graveyard|{_ENCHANT_HEAD}(?
 
 _COPY_COLORS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
 _COPY_KEYWORDS = {"flying", "haste", "vigilance", "lifelink", "deathtouch", "trample", "menace", "reach", "first strike", "double strike",
-                  "indestructible", "hexproof", "myriad"}
+                  "indestructible", "hexproof", "myriad", "dethrone"}
 
 
 def _understood_ability(text: str) -> bool:
@@ -3755,6 +3755,7 @@ _CONDITIONS = [
     (re.compile(r"you control a creature with power (\d+) or greater"), lambda m: Condition("creature_with_power", int(m[1]))),
     (re.compile(r"(?:this creature's|CARDNAME's) power is (\d+) or greater"), lambda m: Condition("source_power_at_least", int(m[1]))),  # Kitsa
     (re.compile(r"(?:that land|it) is an? (Plains|Island|Swamp|Mountain|Forest)"), lambda m: Condition("subject_land_type", what=m[1])),  # Emeria Shepherd
+    (re.compile(r"(?:this creature|CARDNAME) isn't a token"), lambda m: Condition("source_not_token")),  # Progenitor Mimic
     (re.compile(r"this is the (first|second|third) time this ability has resolved this turn"),  # Tannuk, Memorial Ensign
      lambda m: Condition("nth_resolution", ("first", "second", "third").index(m[1]) + 1)),
     (re.compile(r"you created a token this turn"), lambda m: Condition("created_token")),

@@ -46,6 +46,7 @@ SUPPORTED_KEYWORDS = {
     "soulbond",  # pairs with another creature as either enters: see Game._soulbond
     "start your engines!",  # speed starts at 1 and goes up when an opponent loses life on your turn: see Game.change_life
     "myriad",  # a tapped and attacking copy for each opponent other than the defending player, exiled at end of combat
+    "dethrone",  # a +1/+1 counter when it attacks the player with the most life or tied for most life (combat.py)
 }
 # Lines that only matter when building the deck, which commander.py checks.
 _DECKBUILDING = re.compile(

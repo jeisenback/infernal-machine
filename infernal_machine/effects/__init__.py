@@ -235,6 +235,7 @@ from .outcomes import (  # noqa: F401
     ManifestDread,
     PutStunCounters,
     PutStunOnSource,
+    PutCountersOnSource,
     LureThisTurn,
     MustBlockThisTurn,
     AttackDespiteDefender,

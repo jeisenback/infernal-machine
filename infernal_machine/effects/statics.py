@@ -1126,7 +1126,7 @@ def is_replacement_line(line: str) -> bool:
 _CLONE = re.compile(rf"You may have {_SELF} enter(?: the battlefield)?( tapped)?(?: the battlefield)? as a copy of (.+?)(?:, except (.+))?\.")
 
 
-_CLONE_KIND = r"(?:nonland permanent|permanent|[A-Za-z]+(?: or [A-Za-z]+)?)"
+_CLONE_KIND = r"(?:nonland permanent|permanent|Ally creature|[A-Za-z]+(?: or [A-Za-z]+)?)"  # (Jwari Shapeshifter: "any Ally creature")
 
 
 _CLONE_SOURCE = re.compile(rf"any ({_CLONE_KIND}) on the battlefield(?P<spent> with mana value less than or equal to the amount of mana spent to cast (?:CARDNAME|this creature))?"
