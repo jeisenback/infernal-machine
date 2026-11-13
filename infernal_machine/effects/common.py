@@ -180,6 +180,10 @@ _WHOLE_LINE = re.compile(
     r"bottom of your library in (?:any|a random) order\."  # Goblin Ringleader, Muxus
     r"|Choose a creature type\. (?:Draw a card for each permanent you control of that type|(?:Destroy|Return) all creatures that aren't "
     r"of the chosen type(?: to their owners' hands)?)\."  # Distant Melody, Kindred Dominance, Raise the Palisade
+    r"|Choose a creature type\. For each creature you control of the chosen type, create a token that's a copy of that creature\. Those "
+    r"tokens gain haste\. Exile them at the beginning of the next end step\."  # Kindred Charge
+    r"|Choose up to two target creatures you don't control\. For each of those creatures, create a token that's a copy of that creature\. "
+    r"Those tokens gain haste\. Exile them at the beginning of the next end step\."  # Hate Mirage
     r"|Draw a card for each creature you control with a \+1/\+1 counter on it\. Those creatures gain [a-z ,]+ until end of turn\."  # Inspiring Call
     r"|Search your library for an? [a-z]+ or [a-z]+ (?:instant|sorcery) card with mana value \d+ or less and cast that card without paying its "
     r"mana cost\. Then shuffle\."  # Sunforger
