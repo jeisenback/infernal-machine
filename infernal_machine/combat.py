@@ -262,6 +262,8 @@ class Combat:
             attack.blocked = bool(attack.blockers)
             if attack.blockers:  # Bushido, Afflict, Rampage and "Whenever this creature becomes blocked": x is the blockers past the first
                 self.game.trigger("becomes_blocked", attack.attacker, attack.controller, player=attack.defender, x=len(attack.blockers) - 1)
+            else:  # "Whenever this creature attacks and isn't blocked" (CR 509.1h: unblocked once blockers are declared)
+                self.game.trigger("attacks_unblocked", attack.attacker, attack.controller, player=attack.defender)
             if self.game.has_keyword(attack.attacker, "flanking"):  # blocked by a creature without flanking: -1/-1
                 for blocker in attack.blockers:
                     if not self.game.has_keyword(blocker, "flanking"):

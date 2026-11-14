@@ -810,16 +810,19 @@ def _one_trigger_part(line: str, text: str) -> list[TriggeredAbility] | None:
         match = event.text.fullmatch(bare)
         if not match:
             continue
+        body = match[1]
+        if event.name == "attacks_unblocked":  # the player it attacks is the one the event is about (Game.trigger's player)
+            body = body.replace("defending player", "that player")
         aura_return = next((build() for pattern, build in _AURA_RETURNS if event.name == "host_dies"
-                            and pattern.fullmatch(match[1])), None)
+                            and pattern.fullmatch(body)), None)
         if aura_return is not None:
             effects, optional, once, condition = aura_return, False, False, None
         elif event.about_creature or event.about_player or event.host_gone:
-            effects, optional, once, condition = _event_body(match[1], event.about_creature, event.about_player)
+            effects, optional, once, condition = _event_body(body, event.about_creature, event.about_player)
         else:
-            effects, optional, once, condition = _trigger_body(match[1])
+            effects, optional, once, condition = _trigger_body(body)
             if effects is None and event.maybe_player:  # "that player discards two cards": about the player this dealt damage to
-                effects, optional, once, condition = _event_body(match[1], False, True)
+                effects, optional, once, condition = _event_body(body, False, True)
         if effects is not None and event.name != "dies" and any(isinstance(e, (ReturnSelfToBattlefield, ReturnSelfAsEnchantment)) for e in effects):
             effects = None  # "return it to the battlefield": it is only gone when the creature has died
         if effects is None:
