@@ -287,7 +287,8 @@ class Caster:
             payable = (self._harmonize_options(seat, paying) if graveyard.harmonize
                        else [None] if self._payment(seat, paying) is not None else [])
             return [None] if others >= graveyard.exile and graveyard.life <= seat.life and payable else []
-        return [way for way in [None, *alternative_costs(card), *self._free_ways(seat, card, from_hand and not from_command_zone)]
+        hand = from_hand and not from_command_zone
+        return [way for way in [None, *alternative_costs(card), *self._free_ways(seat, card, hand), *self._granted_evokes(seat, card, hand)]
                 if not (way and way.warp and not from_hand)  # warp is a way to cast from the hand only
                 and self._can_pay_extras(seat, card, way, afford=lambda extra, way=way: self._payment(
                     seat, card, from_command_zone, alternative=way, extra=extra,
@@ -295,6 +296,14 @@ class Caster:
                 and not (way is None and sacrifice_discount(card)
                          and not self._sacrifice_discounts(seat, card, from_command_zone, delve=self.game._delve_max(seat, card)))
                 and not (way and way.bestow and not self.game.target_options("creature", seat, source_qualities(card)))]
+
+    def _granted_evokes(self, seat: g.Seat, card: Card, from_hand: bool) -> list[AlternativeCost]:
+        """Ashling, the Limitless: "Elemental permanent spells you cast from your hand gain evoke {4} as you cast them." (CR 702.74a)"""
+        if not from_hand or is_land(card) or "Instant" in card.type_line or "Sorcery" in card.type_line:
+            return []
+        subtypes = card.type_line.partition("\u2014")[2].split()
+        granted = [key.split(":", 2)[1:] for owner, _, key in self.game._static_rules() if owner is seat and key.startswith("grant_evoke:")]
+        return [AlternativeCost(f"Evoke {cost}", mana_cost=cost, evoke=True) for kind, cost in granted if kind in subtypes]
 
     def _free_ways(self, seat: g.Seat, card: Card, from_hand: bool) -> list[AlternativeCost]:
         """Omniscience: a spell from its caster's hand may be cast without paying its mana cost; Dracogenesis: a Dragon spell from

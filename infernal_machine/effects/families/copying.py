@@ -134,6 +134,8 @@ def finish_copies(game: Game, made: list, effect: Any) -> None:
     if effect.haste:
         for token in made:
             game.modify_until_end_of_turn(token, Modifier(keywords=frozenset({"haste"})))
+    if made and getattr(effect, "sacrifice_unless", ""):  # "At the beginning of your next end step, sacrifice it unless you pay ..."
+        game.sacrifice_at_your_next_end_step_unless(game.controller(made[0]), made, effect.sacrifice_unless)
     if made and (effect.sacrifice_at_end or effect.exile_at_end):
         game.leave_at_next_end_step(made, "exiled" if effect.exile_at_end else "sacrificed", "exile" if effect.exile_at_end else "graveyard")
 
@@ -148,6 +150,7 @@ class CopySubjectToken:
     haste: bool = False  # "That token gains haste until end of turn."
     sacrifice_at_end: bool = False  # "Sacrifice it at the beginning of the next end step."
     exile_at_end: bool = False  # "Exile it at the beginning of the next end step."
+    sacrifice_unless: str = ""  # Ashling, the Limitless: "At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}."
     binds = SOURCE_AND_SUBJECT
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:

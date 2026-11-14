@@ -5552,6 +5552,18 @@ class Game:
         self.at_end_step.append((fire_turn, lambda: self._leave_together(
             [(p, reason) for p in permanents if self.on_battlefield(p)], destination)))
 
+    def sacrifice_at_your_next_end_step_unless(self, seat: Seat, permanents: list[Permanent], cost: str) -> None:
+        """Ashling, the Limitless: "At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}." Another player's
+        end step passes it by."""
+        def due() -> None:
+            if self.seats[self.active] is not seat:
+                self.at_end_step.append((self.turn + 1, due))
+                return
+            kept = [p for p in permanents if self.on_battlefield(p) and p in seat.battlefield]
+            if kept and not self.pays_unless(seat, cost, kept[0].card):
+                self._leave_together([(p, "sacrificed") for p in kept], "graveyard")
+        self.at_end_step.append((self.turn + 1 if self.step in ("end", "cleanup") else self.turn, due))
+
     def copy_tokens(self, seat: Seat, sources: list[Permanent], haste: bool, exile_at_end: bool) -> None:
         """Twinflame: a token that's a copy of each of `sources`, except it has haste, exiled as the next end step begins."""
         cards = []
@@ -7570,6 +7582,12 @@ class Game:
                     self.trigger("sacrifice_creature", watcher, controller)
                 if watcher_seat is controller:
                     self.trigger("sacrifice_permanent", watcher, controller)
+                if watcher_seat is controller and not _is_token(permanent.card):  # "Whenever you sacrifice a nontoken Elemental"
+                    subtypes = permanent.card.type_line.partition("\u2014")[2].split()
+                    for ability in self._triggers_of(watcher):
+                        kind = re.match(r"Whenever you sacrifice a nontoken ([A-Z][a-z]+), ", ability.text)
+                        if ability.event == "sacrifice_nontoken_type" and kind and kind[1] in subtypes:
+                            self.trigger("sacrifice_nontoken_type", watcher, controller, subject=permanent, text=ability.text)
                 if watcher_seat is not controller and "Creature" in permanent.card.type_line:
                     self.trigger("opponent_sacrifice_creature", watcher, watcher_seat, player=controller)
                 self.trigger("any_sacrifice", watcher, watcher_seat)
