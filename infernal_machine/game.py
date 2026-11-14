@@ -3412,6 +3412,9 @@ class Game:
             return source is None or source.counters.get(condition.what, 0) == 0
         if kind == "opponent_lost_life":
             return any(o.life_lost_turn == self.turn and o.life_lost_amount > 0 for o in self.opponents(seat))
+        if kind == "lost_life_at_least":  # "if a player lost 4 or more life this turn": the most any one of them lost
+            players = self.opponents(seat) if condition.what == "opponent" else self.live_seats()
+            return any(p.life_lost_turn == self.turn and p.life_lost_amount >= condition.count for p in players)
         if kind == "max_speed":
             return seat.speed >= 4
         if kind == "harnessed":  # The Mind Stone's \u221e ability

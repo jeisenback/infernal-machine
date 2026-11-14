@@ -252,6 +252,7 @@ from .families.destroy_and_sacrifice import (  # noqa: F401
     DestroyUpToX,
     DestroyX,
     EachSacrifices,
+    SacrificeAnother,
     MaySacrificeThen,
     ChooseTypeRevealTop,
     Regenerate,
@@ -3186,6 +3187,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
                 r"creatures they controlled that were exiled this way\.(\"?)", re.I),
      lambda m: _gift(_GiftMatch(m[1], m[2]), who="each player", power_counters=True)),
     (re.compile(r"sacrifice a creature\.", re.I), lambda m: SacrificeCreature()),
+    (re.compile(r"sacrifice another (permanent|creature|artifact|land|nonland permanent)\.", re.I), lambda m: SacrificeAnother(m[1].lower())),  # Korvold
     (re.compile(rf"(?:you )?sacrifice (a|an|one|two|three) {_SACRIFICE_KIND}\.", re.I),
      lambda m: EachSacrifices("you", m[2].lower(), _count(m[1]))),
     (re.compile(rf"(?:you )?sacrifice (two|three|four|five) {_SACRIFICE_PLURAL}\.", re.I),
@@ -3921,6 +3923,8 @@ _CONDITIONS = [
      lambda m: Condition("graveyard_at_least", _number(m[1] or m[2]), "card")),
     (re.compile(r"an opponent was dealt noncombat damage this turn"), lambda m: Condition("opponent_dealt_noncombat_damage")),
     (re.compile(r"an opponent lost life this turn"), lambda m: Condition("opponent_lost_life")),  # Fireglass Mentor
+    (re.compile(rf"(a player|an opponent) lost {_N_FIXED} or more life this turn"),  # Y'shtola, Night's Blessed; Knight of the Ebon Legion
+     lambda m: Condition("lost_life_at_least", _number(m[2]), "opponent" if m[1] == "an opponent" else "player")),
     (re.compile(rf"there are {_N_FIXED} or more ([a-z]+(?: and/or [a-z]+)?|Lesson) cards in your graveyard"),  # Accumulate Wisdom: Lessons
      lambda m: Condition("graveyard_at_least", _number(m[1]), m[2].replace(" and/or ", " or "))),
     (re.compile(rf"a player has {_N_FIXED} or fewer cards in hand"), lambda m: Condition("any_hand_at_most", _number(m[1]))),
