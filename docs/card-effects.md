@@ -1451,7 +1451,7 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     removed at your upkeep if there is one, and it is sacrificed when the last goes; Dreamtide Whale, Deep Forest Hermit); clones whose
     except clause is "it has vanishing 3 if that creature doesn't have vanishing" (Flesh Duplicate), "it's a Vehicle artifact with crew 3
     and it loses all other card types" (Imposter Mech), "it has CARDNAME's other abilities" (Sakashima of a Thousand Faces, whose "legend
-    rule" line holds as it is: the engine applies no legend rule) and a quoted "you may exile this enchantment. If you do, return it to
+    rule" line turns the legend rule off for its controller) and a quoted "you may exile this enchantment. If you do, return it to
     the battlefield under its owner's control." (Estrid's Invocation). Exiling a clone (a flicker, "exiled with") now moves and remembers
     its own card, not the card it copied, so a flickered clone comes back.
   - Token copies, batch 4 (`tests/test_copy_tokens.py`, #656): Flamerush Rider's "create a token that's a copy of another target attacking
@@ -1619,8 +1619,12 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Lurking Green Dragon, Hammerhead Shark, Zhou Yu ...
   - Named legendary tokens and Threshold's discard (`tests/test_named_tokens_and_threshold.py`, #219, CR 111.4): "create Voja, a legendary 2/2
     green and white Wolf creature token" makes the token "Create a 2/2 ..." would, named and legendary (`_named_token`: Tolsimir Wolfblood,
-    Kiora, the Rising Tide, Verix Bladewing, The Spear of Leonidas ...; the engine still applies no legend rule); and "Then discard a card
+    Kiora, the Rising Tide, Verix Bladewing, The Spear of Leonidas ...; a second Voja falls to the legend rule); and "Then discard a card
     unless there are seven or more cards in your graveyard" (Shoreline Looter), an `IfElse` that discards only when the condition fails.
+  - The legend rule (`tests/test_legend_rule.py`, CR 704.5j): a player who controls two or more legendary permanents with the same name
+    chooses one (`LEGEND_PROMPT`), and the rest are put into their owners' graveyards with the other state-based actions (`Game._legend_rule`,
+    not destroyed, so indestructible doesn't help); a legendary permanent that is dying anyway isn't counted, and Sakashima of a Thousand
+    Faces or Mirror Box ("The "legend rule" doesn't apply to permanents you control.") turns it off for its controller.
   - Waterbend (`tests/test_waterbend.py`, #219): "Waterbend {N}" in an activated ability's cost is {N} generic mana, and while it is paid
     each untapped artifact and creature its controller has can be tapped for {1} of it (`ActivatedAbility.waterbend`, `Payment._waterbending`,
     beside Convoke's sources); so is "Ward—Waterbend {4}" for the player paying the ward. Katara, Bending Prodigy, Giant Koi, Yue, the
