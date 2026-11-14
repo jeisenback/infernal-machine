@@ -390,10 +390,11 @@ class DrawThenPutBack:
     """Brainstorm: "Draw three cards, then put two cards from your hand on top of your library in any order." """
     draw: int
     put: int
+    bottom: bool = False  # Jace, Multiverse Architect: "... then put a card from your hand on the bottom of your library."
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         game.draw(controller, self.draw)
-        game.put_back_from_hand(controller, self.put)
+        game.put_back_from_hand(controller, self.put, bottom=self.bottom)
 
 
 @dataclass(frozen=True)

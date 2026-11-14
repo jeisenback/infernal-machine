@@ -441,6 +441,16 @@ class RevealUntilAura:
 
 
 @dataclass(frozen=True)
+class RevealUntilPut:
+    """Jace, Multiverse Architect: "Reveal cards from the top of your library until you reveal a creature or planeswalker card. Put that
+    card onto the battlefield and the rest on the bottom of your library in a random order." """
+    kind: str  # "creature or planeswalker"
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.reveal_until_put(controller, self.kind)
+
+
+@dataclass(frozen=True)
 class LookPutPermanents:
     """Ao, the Dawn Sky: "Look at the top seven cards of your library. Put any number of nonland permanent cards with total
     mana value 4 or less from among them onto the battlefield. Put the rest on the bottom of your library in a random

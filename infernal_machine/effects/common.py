@@ -370,6 +370,8 @@ _WHOLE_LINE = re.compile(
     r"bottom of your library in a random order\."
     r"|Reveal cards from the top of your library until you reveal X land cards\. Put those land cards onto the battlefield tapped "
     r"and the rest on the bottom of your library in a random order\."
+    r"|Reveal cards from the top of your library until you reveal an? (?:creature or planeswalker|creature|artifact|planeswalker) card\. Put "
+    r"that card onto the battlefield and the rest on the bottom of your library in a random order\."  # Multiverse Architect
     r"|Reveal cards from the top of your library until you reveal an Aura card\. You may put that card onto the battlefield\. "
     r"If you don't, put it into your hand\. Put the rest on the bottom of your library in a random order\."
     r"|Look at the top (?:six|seven|eight) cards of your library\. You may put an Aura or Equipment card from among them onto "

@@ -1625,6 +1625,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Jace, Multiverse Architect (`tests/test_jace_multiverse_architect.py`): "they may pay {2}. If they don't, creatures they control can't
+    attack Jaces you control this turn." (`PayOrCantAttackWalkers`, `Seat.cant_attack_walkers`: `Combat._attackable` leaves those
+    planeswalkers out that turn); "Draw two cards, then put a card from your hand on the bottom of your library." (`DrawThenPutBack(bottom=
+    True)`); "Reveal cards from the top of your library until you reveal a creature or planeswalker card. Put that card onto the battlefield
+    and the rest on the bottom of your library in a random order." (`RevealUntilPut`); and the target kind "planeswalker or creature".
   - The Ur-Dragon (`tests/test_ur_dragon.py`): Eminence's "As long as CARDNAME is in the command zone or on the battlefield, other Dragon
     spells you cast cost {1} less to cast." (`eminence_reductions`, counted from the command zone and the battlefield in
     `Caster.cost_reduction`, not for a spell with its own name); and "Whenever one or more Dragons you control attack, ..." (the `type_attack`

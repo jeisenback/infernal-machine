@@ -217,7 +217,9 @@ class Combat:
         allowed = [o for o in opponents if o is not barred and not self._barred_from_attacking(permanent, o) and (
             (total := owed + self._attack_tax(permanent, o)) == Cost()
             or self.game._pay_cost(seat, total, untapped) is not None)]
-        return allowed, [w for w in walkers if self.game.controller_of(w) in allowed]
+        barred_walkers = [(whose, kind) for whose, kind, turn in seat.cant_attack_walkers if turn == self.game.turn]  # Jace, Multiverse Architect
+        return allowed, [w for w in walkers if self.game.controller_of(w) in allowed
+                         and not any(self.game.controller_of(w) is whose and kind in self.game.subtypes(w) for whose, kind in barred_walkers)]
 
     def add_attacker(self, permanent: Permanent, controller: Seat, defender: Seat) -> None:
         """A creature put onto the battlefield "tapped and attacking": it was never declared as an attacker, so

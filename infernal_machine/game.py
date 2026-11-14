@@ -614,6 +614,8 @@ class Seat:
     discards_turn: tuple[int, int] = (0, 0)  # (the turn, how many cards it cycled or discarded that turn): Hollow One
     extra_lands: int = 0  # additional lands this player may play on `extra_lands_turn` (Explore)
     extra_lands_turn: int | None = None
+    cant_attack_walkers: list[tuple["Seat", str, int]] = field(default_factory=list)  # Jace, Multiverse Architect: (whose, planeswalker
+    #                                                    type, turn): this player's creatures can't attack those planeswalkers that turn
     rebounding: list[tuple[Card, int]] = field(default_factory=list)  # cards exiled by rebound, and the turn they were: cast at the next upkeep
     paradigms: list[Card] = field(default_factory=list)  # the first resolved spell of each name with paradigm, in exile: a copy each first main phase
     cast_barred: tuple[int, str] | None = None  # (the turn, "" or "noncreature") this player can't cast spells on (Silence)
@@ -6312,14 +6314,15 @@ class Game:
         if may_shuffle and seat.player.choose(SHUFFLE_PROMPT, YES_NO) == 0:
             self.rng.shuffle(seat.library)
 
-    def put_back_from_hand(self, seat: Seat, count: int) -> None:
-        """Brainstorm: choose cards from your hand and put them on top of your library in the order you choose."""
+    def put_back_from_hand(self, seat: Seat, count: int, bottom: bool = False) -> None:
+        """Brainstorm: choose cards from your hand and put them on top of your library in the order you choose (on the bottom: Jace,
+        Multiverse Architect)."""
         chosen: list[Card] = []
         for _ in range(min(count, len(seat.hand))):
             card = seat.hand[seat.player.choose(PUT_BACK_PROMPT, [c.name for c in seat.hand])]
             seat.hand.remove(card)
             chosen.append(card)
-        seat.library = self._ordered(seat, chosen) + seat.library
+        seat.library = seat.library + chosen if bottom else self._ordered(seat, chosen) + seat.library
         self.broadcast({"event": "put_back", "seat": seat.index, "count": len(chosen)})
 
     def look_at_top(self, seat: Seat, count: int, card_type: str | None, to: str = "hand", take: int = 1, rest: str = "bottom") -> None:
@@ -6532,6 +6535,22 @@ class Game:
                 self.put_attachment_onto_battlefield(seat, aura)
             else:
                 seat.hand.append(aura)
+        self.rng.shuffle(revealed)
+        seat.library += revealed
+
+    def reveal_until_put(self, seat: Seat, kind: str) -> None:
+        """Jace, Multiverse Architect: reveal cards from the top until one of `kind`, which is put onto the battlefield; the rest go to the
+        bottom in a random order."""
+        revealed, found = [], None
+        while seat.library:
+            card = seat.library.pop(0)
+            if _card_matches(kind, card):
+                found = card
+                break
+            revealed.append(card)
+        self.broadcast({"event": "revealed", "seat": seat.index, "card": found.name if found else None, "count": len(revealed) + (found is not None)})
+        if found is not None:
+            self.put_onto_battlefield(seat, found)
         self.rng.shuffle(revealed)
         seat.library += revealed
 
