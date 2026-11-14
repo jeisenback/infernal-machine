@@ -382,10 +382,18 @@ class Combat:
         return ("Creature" in permanent.card.type_line and not permanent.tapped and self.game.no_attacks_turn != self.game.turn
                 and not (permanent.sick and not self._has(permanent, "haste"))
                 and not (self._has(permanent, "defender") and permanent.defender_ok_turn != self.game.turn)
-                and not self._has(permanent, CANT_ATTACK))
+                and not self._has(permanent, CANT_ATTACK) and not self._unless_unmet(permanent, "attack"))
+
+    def _unless_unmet(self, permanent: Permanent, action: str) -> bool:
+        """ "This creature can't attack or block unless you control seven or more lands.": a condition that doesn't hold now."""
+        return any(r.kind == "unless" and r.condition is not None and action in r.what.split(" or ")
+                   and not self.game.condition_holds(r.condition, self.game.controller(permanent), permanent)
+                   for r in combat_restrictions(permanent.card))
 
     def _can_block(self, blocker: Permanent, attacker: Permanent) -> bool:
         if self._has(blocker, CANT_BLOCK) or self._has(blocker, "decayed") or self._has(attacker, CANT_BE_BLOCKED):
+            return False
+        if self._unless_unmet(blocker, "block"):
             return False
         if self._has(attacker, "shadow") != self._has(blocker, "shadow"):  # shadow blocks and is blocked only by shadow
             return False

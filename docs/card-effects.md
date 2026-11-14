@@ -1609,6 +1609,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Fuse (`tests/test_fuse.py`, #219, CR 702.102): a split card whose halves both have Fuse may be cast from the hand as one spell
     (`CAST_FUSED`, `fused`): both costs paid, the left half's instructions then the right's, one spell of the halves' card types (a sorcery
     if either half is). Wear // Tear, Far // Away, Beck // Call, Toil // Trouble ...
+  - "This creature can't attack (or block, or attack or block) unless <condition>" (`tests/test_attack_block_unless.py`, #219, CR 508.1c,
+    509.1b): a `CombatRestriction("unless")` whose condition is any the engine reads (`_condition`), checked for the creature as attackers
+    and blockers are declared (`Combat._unless_unmet`); with a condition it can't read the line stays unread. Wayward Swordtooth, Topiary
+    Stomper, Slumbering Dragon, Bast, Panther Goddess, The Lion-Turtle, Goblin Cohort, Felhide Brawler ...
   - Waterbend (`tests/test_waterbend.py`, #219): "Waterbend {N}" in an activated ability's cost is {N} generic mana, and while it is paid
     each untapped artifact and creature its controller has can be tapped for {1} of it (`ActivatedAbility.waterbend`, `Payment._waterbending`,
     beside Convoke's sources); so is "Ward—Waterbend {4}" for the player paying the ward. Katara, Bending Prodigy, Giant Koi, Yue, the
