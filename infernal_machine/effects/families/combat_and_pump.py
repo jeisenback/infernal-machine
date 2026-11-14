@@ -10,7 +10,7 @@ from typing import Any, TYPE_CHECKING
 from ...cards import Card
 from ...characteristics import Modifier
 from ..common import Quantity
-from ..targets import SOURCE, SUBJECT
+from ..targets import PLAYER, SOURCE, SUBJECT
 from .base import Condition
 from ...prompts import PromptKind
 
@@ -676,3 +676,18 @@ class BecomeLandUntilNextTurn:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and game.on_battlefield(target):
             game.become_land_until_next_turn(controller, target, self.color)
+
+
+@dataclass(frozen=True)
+class PayOrCantAttackWalkers:
+    """Jace, Multiverse Architect: "At the beginning of combat on each opponent's turn, they may pay {2}. If they don't, creatures they
+    control can't attack Jaces you control this turn." (`kind`: the planeswalker type)"""
+    cost: str
+    kind: str
+    binds = PLAYER
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        item = game.resolving_item
+        if target is None or item is None or game.pays_unless(target, self.cost, item.card):
+            return
+        target.cant_attack_walkers.append((controller, self.kind, game.turn))

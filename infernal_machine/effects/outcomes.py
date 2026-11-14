@@ -49,6 +49,7 @@ from .families.base import (  # noqa: F401
 )
 from .families.combat_and_pump import (  # noqa: F401
     PumpHost,
+    PayOrCantAttackWalkers,
     MayRemoveCountersTransform,
     BecomeLandUntilNextTurn,
     VehicleBecomesCreature,
@@ -435,6 +436,7 @@ from .families.library import (  # noqa: F401
     RevealTopPutAll,
     RevealTopStep,
     RevealUntilAura,
+    RevealUntilPut,
     Scry,
     SacrificeLandsSearch,
     SearchForLands,
@@ -1735,7 +1737,7 @@ _PERMANENT_KIND = (r"((?:forest|island|swamp|mountain|plains|attacking or blocki
                    r"|noncreature, nonland permanent|non-(?-i:[A-Z][a-z]+), nonland permanent|nonland, nontoken permanent|non-(?-i:[A-Z][a-z]+) creature|artifact, enchantment, or planeswalker|artifact, creature, or planeswalker"
                    r"|artifact, creature, or enchantment|creature|artifact"
                    r"|enchantment|planeswalker|nonland permanent|permanent|nonbasic land|land|artifact or enchantment|artifact or creature"
-                   r"|creature or planeswalker|creature or enchantment|creature or Vehicle|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?:, (?-i:[A-Z][a-z]+))*,? or (?-i:[A-Z][a-z]+)(?= you control)"
+                   r"|creature or planeswalker|planeswalker or creature|creature or enchantment|creature or Vehicle|legendary creature|(?-i:[A-Z][a-z]+) creature|(?-i:[A-Z][a-z]+)(?:, (?-i:[A-Z][a-z]+))*,? or (?-i:[A-Z][a-z]+)(?= you control)"
                    r"|(?-i:[A-Z][a-z]+)(?= you control))(?: an opponent controls| you don't control| you control| you own| that (?:player|opponent) controls)?"
                    r"(?: with mana value (?:\d+ or (?:less|greater)|X)| with (?:power or toughness|power|toughness) \d+ or (?:less|greater))?)")
 
@@ -2536,6 +2538,11 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"you may shuffle\.", re.I), lambda m: _MayShuffle()),
     (re.compile(rf"draw {_N_FIXED} cards, then put {_N_FIXED} cards from your hand on top of your library in any order\.", re.I),
      lambda m: DrawThenPutBack(_number(m[1]), _number(m[2]))),
+    (re.compile(rf"draw {_N_FIXED} cards, then put a card from your hand on the bottom of your library\.", re.I),  # Jace, Multiverse Architect
+     lambda m: DrawThenPutBack(_number(m[1]), 1, bottom=True)),
+    (re.compile(r"reveal cards from the top of your library until you reveal an? (creature or planeswalker|creature|artifact|planeswalker) card\. "
+                r"Put that card onto the battlefield and the rest on the bottom of your library in a random order\.", re.I),
+     lambda m: RevealUntilPut(m[1].lower())),  # Jace, Multiverse Architect's -3
     (re.compile(rf"(?:look at|reveal) the top (?:{_N} cards?|card) of your library\.", re.I),  # Malevolent Rumble reveals them
      lambda m: LookAtTop(_count(m[1] or "one"))),
     (re.compile(rf"put {_N_FIXED} of (?:them|those cards) into your hand(?: and (?:the rest|the other) (on the bottom of your library"

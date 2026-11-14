@@ -73,6 +73,7 @@ from .outcomes import (
     SylvanLibrary,
     TREASURE,
     UnlessPays,
+    PayOrCantAttackWalkers,
 )
 
 
@@ -547,6 +548,8 @@ _SAME_NAME = re.compile(r"with the same name as that spell", re.I)  # Aven Shrin
 _SPELL_MV = re.compile(r"that spell's mana value", re.I)
 
 
+_PAY_OR_WALKERS = re.compile(r"they may pay \{(\d+)\}\. If they don't, creatures they control can't attack ((?-i:[A-Z][a-z]+))s you control this "
+                             r"turn\.", re.I)  # Jace, Multiverse Architect
 _MAY_PAY_OR = re.compile(r"(?:that player|they) may pay ((?:\{[^}]+\})+)\. If (?:the player doesn't|they don't), (.+)")  # Wandering Archaic: "they"
 
 
@@ -622,6 +625,8 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
             return None, False, False, None
         return ([OnSubjectController(e) if getattr(e, "target", None) == "player" else e for e in effects],
                 optional, once, condition)
+    if player_ok and (m := _PAY_OR_WALKERS.fullmatch(rest)):  # (before "they" becomes "that player")
+        return [PayOrCantAttackWalkers(f"{{{m[1]}}}", m[2])], False, False, None
     if player_ok and (m := _MAY_PAY_OR.fullmatch(rest)):  # "that player may pay {2}. If the player doesn't, you create ..."
         rest = f"{re.sub('^you (?!may )', '', m[2].rstrip('.'))} unless that player pays {m[1]}."  # ("you may copy": stays optional)
     if player_ok:  # before "that creature" becomes "it": "that creature's controller" names the player who controls it
