@@ -367,3 +367,15 @@ class PutTargetOnLibraryTop:
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if target is not None and game.on_battlefield(target):
             game.put_on_library_top(target)
+
+
+@dataclass(frozen=True)
+class SacrificeOrPay:
+    """Braids, Arisen Nightmare: "you may sacrifice an artifact, creature, enchantment, land, or planeswalker. If you do, each opponent may
+    sacrifice a permanent of their choice that shares a card type with it. For each opponent who doesn't, that player loses 2 life and you
+    draw a card." (`Game.sacrifice_or_pay`)"""
+    kind: str
+    life: int
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.sacrifice_or_pay(controller, self.kind, self.life)
