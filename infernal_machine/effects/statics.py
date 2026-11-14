@@ -1287,8 +1287,10 @@ class AttachedBuff:
 # An Aura or Equipment that grants a triggered ability: 'Enchanted creature has "Whenever this creature attacks, ..."' (Sixth Sense), and
 # 'Equipped creature gets +1/+0, has "Whenever you cast a noncreature spell, this creature deals 1 damage to each opponent," and is a
 # Wizard in addition to its other types.' (Black Mage's Rod). The creature hears the quoted ability as its own (Game._triggers_of).
-_ATTACHED_GRANTED_TRIGGER = re.compile(r'(?:Equipped|Enchanted) creature (?:gets ([+\-\u2212]\d+)/([+\-\u2212]\d+), )?has "((?:Whenever|When|At the '
-                                       r'beginning) [^"]+?)[.,]?"(?:,? and is an? ([A-Z][a-z]+) in addition to its other types)?\.?')
+_ATTACHED_GRANTED_TRIGGER = re.compile(r'(?:Equipped|Enchanted) creature (?:gets (?P<p>[+\-\u2212]\d+)/(?P<t>[+\-\u2212]\d+)(?:,| and) )?has '
+                                       rf'(?:(?P<kw>{_KEYWORDS}) and )?"(?P<text>(?:Whenever|When|At the beginning) [^"]+?)[.,]?"'
+                                       r'(?:,? and is an? (?P<kind>[A-Z][a-z]+) in addition to its other types)?\.?')  # The Reaver Cleaver: "gets +1/+1
+# and has trample and "..."" 
 
 
 @lru_cache(maxsize=None)
@@ -1296,7 +1298,7 @@ def granted_triggers(card: Card) -> tuple[TriggeredAbility, ...]:
     """The triggered abilities an Aura or Equipment gives the creature it is attached to (only those the engine reads in full)."""
     found: list[TriggeredAbility] = []
     for line in rules_lines(card):
-        if (m := _ATTACHED_GRANTED_TRIGGER.fullmatch(line)) and (ability := _granted_trigger(m[3])):
+        if (m := _ATTACHED_GRANTED_TRIGGER.fullmatch(line)) and (ability := _granted_trigger(m["text"])):
             found.append(ability)
     return tuple(found)
 
@@ -1489,8 +1491,10 @@ def attached_abilities(card: Card) -> tuple[AttachedBuff, ...]:
             buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2]), _keyword_list(m[3])), line, subtype=m[4]))
         elif _ATTACHED_CHOSEN_PROTECTION.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(keywords=frozenset({PROTECTION_CHOSEN})), line))
-        elif (m := _ATTACHED_GRANTED_TRIGGER.fullmatch(line)) and _granted_trigger(m[3]):  # the ability itself: granted_triggers
-            buffs.append(AttachedBuff(Modifier(_signed(m[1]), _signed(m[2])) if m[1] else Modifier(), line, subtype=m[4]))
+        elif (m := _ATTACHED_GRANTED_TRIGGER.fullmatch(line)) and _granted_trigger(m["text"]):  # the ability itself: granted_triggers
+            keywords = _keyword_list(m["kw"]) if m["kw"] else frozenset()
+            buffs.append(AttachedBuff(Modifier(_signed(m["p"]), _signed(m["t"]), keywords) if m["p"] else Modifier(keywords=keywords), line,
+                                      subtype=m["kind"]))
         elif _ATTACHED_MUTATION.fullmatch(line):
             buffs.append(AttachedBuff(Modifier(keywords=frozenset({"indestructible", LOSES_ALL}), set_pt=(0, 1)), line))
         elif _ATTACHED_LOSES.fullmatch(line):  # Infinite Coursework
