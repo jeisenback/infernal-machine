@@ -196,6 +196,8 @@ _SINGULAR = {"nontoken creatures": "nontoken creature", "creature tokens": "crea
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies", "permanent_taps", "permanent_to_graveyard", "creature_attacks"}
 
 
+_SACRIFICED_POWER = re.compile(r"(you may sacrifice another creature(?: you control)?\. If you do, [^.]*?)that creature's power", re.I)  # Ruthless
+# Technomancer: the creature just sacrificed (Game.may_sacrifice records its power)
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b(?!'s toughness)", re.I)  # "that creature's toughness" is an amount (Pantlaza)
 
 
@@ -490,6 +492,7 @@ _THIRD_PERSON = {"deal": "deals", "lose": "loses", "become": "becomes", "gain": 
 def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]:
     """The part of a trigger after its event: (effects, or None if not understood; "you may";
     "only once each turn"; an intervening "if" clause)."""
+    rest = _SACRIFICED_POWER.sub(r"\1the sacrificed creature's power", rest)
     if _ENDURING.fullmatch(rest):
         return [ReturnSelfAsEnchantment()], False, False, None
     if m := _SYLVAN_BODY.fullmatch(rest):
@@ -634,6 +637,7 @@ def _event_body(rest: str, subject_ok: bool, player_ok: bool) -> tuple[list | No
         for pattern, replacement in _PLAYER_PRONOUNS[:2]:
             rest = pattern.sub(replacement, rest)
         about_player = rest != before
+    rest = _SACRIFICED_POWER.sub(r"\1the sacrificed creature's power", rest)  # before "that creature" becomes "it"
     rest = _THAT_CREATURE.sub("it", rest)
     if player_ok and (m := re.fullmatch(r"(.+?) unless that player pays \{X\}, where X is this creature's power\.", rest, re.I)):  # Esper Sentinel
         effects, optional, once, condition = _trigger_body(m[1] + ".")

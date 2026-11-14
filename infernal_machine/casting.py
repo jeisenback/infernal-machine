@@ -849,7 +849,8 @@ class Caster:
     def _x_values_with_targets(self, seat: g.Seat, effects, colors: frozenset[str], most: int) -> list[int]:
         """The X from 0 to `most` for which every "target creature with mana value X" has a legal target. Any X will do
         for a spell whose targets don't depend on X."""
-        kinds = [kind for e in effects or [] if (kind := target_kind(e)) and " with mana value x" in kind]  # (in a graveyard kind too)
+        kinds = [kind for e in effects or [] if (kind := target_kind(e)) and (" with mana value x" in kind or "|p<=x:" in kind)]  # (in a graveyard
+        # kind too; Ruthless Technomancer: "creature card with power X or less")
         if not kinds:
             return list(range(most + 1))
         saved, good = self.game.targeting_x, []

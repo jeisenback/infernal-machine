@@ -86,6 +86,7 @@ class ActivatedAbility:
     sacrifice_another: bool = False  # "Sacrifice another creature": not the source itself
     sacrifice_count: int = 1  # "Sacrifice two creatures"
     sacrifice_x: bool = False  # "Sacrifice X Squirrels" (Chatterfang): X is chosen, up to as many as it can sacrifice, and is the ability's X
+    x_not_zero: bool = False  # Ruthless Technomancer: "X can't be 0."
     discard: int = 0  # "Discard a card": how many
     discard_kind: str = ""  # "Discard a creature card" (Survival of the Fittest): of this kind ("" for any card)
     discard_x: bool = False  # "Discard X cards" (Gix, Yawgmoth Praetor): X is chosen, up to the cards in hand, and is the ability's X
@@ -215,6 +216,7 @@ _SORCERY_ONLY = "Activate only as a sorcery."
 
 
 _ONCE_EACH_TURN = "Activate only once each turn."
+_X_NOT_ZERO = "X can't be 0."
 
 
 _POWER_UP = "Power-up."  # the marker common.py leaves on a "Power-up \u2014" line
@@ -361,6 +363,9 @@ def _parse_activated(line: str, cost: str, effect: str, planeswalker: bool) -> A
     if _ONCE_EACH_TURN in sentences:
         fields["once_per_turn"] = True
         sentences.remove(_ONCE_EACH_TURN)
+    if _X_NOT_ZERO in sentences and fields.get("sacrifice_x"):
+        fields["x_not_zero"] = True
+        sentences.remove(_X_NOT_ZERO)
     if _POWER_UP in sentences:
         fields["power_up"] = True
         sentences.remove(_POWER_UP)
