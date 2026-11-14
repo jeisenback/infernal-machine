@@ -1625,6 +1625,8 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Xorn (`tests/test_xorn.py`): "If you would create one or more Treasure tokens, instead create those tokens plus an additional Treasure
+    token." (`ReplacementEffects.extra_treasure`, applied in `Game._create_token_batch_now` once per Xorn, before Chatterfang).
   - Baral, Chief of Compliance (`tests/test_baral.py`): "Whenever a spell or ability you control counters a spell, ..." (the event
     `counter_spell`, heard as `countered_spell` from `Game.counter` by the controller of the resolving spell or ability; countering an
     ability does not count).

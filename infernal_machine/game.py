@@ -5521,6 +5521,9 @@ class Game:
         seat.token_turn = self.turn  # "if you created a token this turn" (Idol of Oblivion)
         if any(replacement_effects(p.card).manufactor for p in seat.battlefield):  # Academy Manufactor
             tokens = [t for token in tokens for t in ((CLUE, FOOD, TREASURE) if token.name in ("Clue", "Food", "Treasure") else (token,))]
+        for p in seat.battlefield:  # Xorn: each one adds one Treasure to a batch that has a Treasure (CR 614.1a)
+            if replacement_effects(p.card).extra_treasure and any(t.name == "Treasure" for t in tokens):
+                tokens = tokens + [TREASURE]
         for p in seat.battlefield:  # Chatterfang: each one applies once, to the tokens the one before left
             if replacement_effects(p.card).squirrels:
                 tokens = tokens + [SQUIRREL] * len(tokens)
