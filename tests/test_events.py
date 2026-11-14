@@ -73,7 +73,8 @@ class RegistryTests(unittest.TestCase):
     def test_every_event_is_announced_by_the_game(self):
         triggered, happened = announced()
         silent = [name for name, event in EVENTS.items()
-                  if (event.to == "direct" and name not in triggered and name != "cast_self")  # that one goes on the stack in Game._cast
+                  if (event.to == "direct" and name not in triggered and name not in ("cast_self", "control_none"))  # those go on the stack in
+                  # Game._cast and Game._state_triggers (a state trigger, CR 603.8, is queued once until it resolves)
                   or (event.to != "direct" and not set(event.happens) & happened)]
         self.assertEqual(silent, [])
 
