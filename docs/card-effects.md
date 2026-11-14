@@ -1621,6 +1621,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     green and white Wolf creature token" makes the token "Create a 2/2 ..." would, named and legendary (`_named_token`: Tolsimir Wolfblood,
     Kiora, the Rising Tide, Verix Bladewing, The Spear of Leonidas ...; a second Voja falls to the legend rule); and "Then discard a card
     unless there are seven or more cards in your graveyard" (Shoreline Looter), an `IfElse` that discards only when the condition fails.
+  - Two tracked decks' commanders (`tests/test_commanders_yshtola_korvold.py`): the condition "if a player (an opponent) lost 4 or more
+    life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
+    Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
+    Fae-Cursed King).
   - A state trigger (`tests/test_state_triggers.py`, CR 603.8): "When you control no Islands (Swamps, Mountains, Forests, Plains),
     sacrifice this creature." triggers whenever its controller controls no land of that type, checked with the state-based actions
     (`Game._state_triggers`), once until it has resolved or left the stack. Dandân, Pirate Ship, Skeleton Ship, Gorilla Pack ...

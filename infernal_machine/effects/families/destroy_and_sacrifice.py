@@ -282,6 +282,17 @@ class EachSacrifices:
 
 
 @dataclass(frozen=True)
+class SacrificeAnother:
+    """Korvold, Fae-Cursed King: "Whenever CARDNAME enters or attacks, sacrifice another permanent." Any of its controller's permanents of
+    `kind` but the source (with none, nothing happens)."""
+    kind: str = "permanent"
+    binds = SOURCE
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.sacrifice(controller, self.kind, 1, exclude=target)
+
+
+@dataclass(frozen=True)
 class TragicArrogance:
     """Tragic Arrogance: "For each player, you choose from among the permanents that player controls an artifact, a creature, an
     enchantment, and a planeswalker. Then each player sacrifices all other nonland permanents they control." """
