@@ -417,6 +417,7 @@ from .families.library import (  # noqa: F401
     TargetScriesThenDraws,
     Cascade,
     DanceWithCalamity,
+    Discover,
     FetchBasicLand,
     Impulse,
     LookAtTopOfLibrary,
@@ -1367,6 +1368,7 @@ _AMOUNTS = [
      lambda m: Amount("colors_spent")),  # Converge: "where X is the number of colors ...", "a +1/+1 counter on it for each color ..."
     (re.compile(r"the amount of mana spent to cast that spell", re.I), lambda m: Amount("mana_spent")),
     (re.compile(r"that spell's mana value", re.I), lambda m: Amount("spell_mana_value")),
+    (re.compile(r"that creature's toughness", re.I), lambda m: Amount("subject_toughness")),  # Pantlaza: the Dinosaur that entered
     (re.compile(r"the number of cards in your hand", re.I), lambda m: Amount("hand_size")),
     (re.compile(r"the number of cards in (?:that player's|their) hand minus (\d+)", re.I),
      lambda m: Amount("player_hand_minus", m[1])),
@@ -2825,6 +2827,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"look at the top {_N_FIXED} cards of your library\. You may cast a spell from among them without paying its mana cost\. "
                 r"Put the rest on the bottom of your library in a random order\.", re.I),
      lambda m: LookTopCastOneFree(_number(m[1]))),  # Aetherworks Marvel
+    (re.compile(r"discover (\d+|X)\.", re.I), lambda m: Discover(m[1] if m[1] == "X" else int(m[1]))),  # CR 701.57
     (re.compile(r"reveal the top X cards of your library, where X is that spell's mana value\. You may cast a spell with mana value X or "
                 r"less from among cards revealed this way without paying its mana cost\. Put the rest on the bottom of your library in a "
                 r"random order\.", re.I), lambda m: [DefineX(Amount("spell_mana_value")), LookTopCastOneFree("X", "X")]),  # Sunbird's Invocation

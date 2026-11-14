@@ -196,7 +196,7 @@ _SINGULAR = {"nontoken creatures": "nontoken creature", "creature tokens": "crea
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies", "permanent_taps", "permanent_to_graveyard", "creature_attacks"}
 
 
-_THAT_CREATURE = re.compile(r"\bthat (creature|land)\b", re.I)
+_THAT_CREATURE = re.compile(r"\bthat (creature|land)\b(?!'s toughness)", re.I)  # "that creature's toughness" is an amount (Pantlaza)
 
 
 _CONTROLLER = r"(?:its|that (?:creature|permanent|land)'s) controller"

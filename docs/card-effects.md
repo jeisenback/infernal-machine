@@ -1625,6 +1625,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Discover (CR 701.57, `tests/test_discover.py`): "discover N" and "discover X, where X is ..." (`Discover`, `Game.discover`): exile from the
+    top until a nonland card with mana value N or less, cast it free or else put it into the hand, the rest on the bottom in a random order.
+    Pantlaza, Sun-Favored: "where X is that creature's toughness" (the Dinosaur that entered, `Amount("subject_toughness")`).
   - Jace, Multiverse Architect (`tests/test_jace_multiverse_architect.py`): "they may pay {2}. If they don't, creatures they control can't
     attack Jaces you control this turn." (`PayOrCantAttackWalkers`, `Seat.cant_attack_walkers`: `Combat._attackable` leaves those
     planeswalkers out that turn); "Draw two cards, then put a card from your hand on the bottom of your library." (`DrawThenPutBack(bottom=
