@@ -1867,8 +1867,21 @@ def _villain_option(text: str) -> list | None:
     return effects
 
 
+def _named_token(m: re.Match) -> Any:
+    """ "Create Voja, a legendary 2/2 green and white Wolf creature token.": the token as "Create a 2/2 ..." reads it, with that name and
+    legendary (CR 111.4: a token's name is the one the effect gives it)."""
+    inner = _parse([f"Create a {m[2]}."])
+    if not inner or not isinstance(inner[0], CreateTokens):  # ("a ... token" reads as one CreateTokens or not at all)
+        return None
+    token = inner[0].token
+    named = dataclasses.replace(token, name=m[1], type_line=token.type_line.replace("Token ", "Token Legendary ", 1))
+    return dataclasses.replace(inner[0], token=named)
+
+
 _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r'you get an emblem with "(.+)"\.?', re.I), lambda m: _emblem(m[1])),  # Elspeth, Sun's Champion
+    (re.compile(r"create ((?-i:[A-Z])[^.]+?), a legendary (\d+/\d+ [a-z ]+? (?-i:[A-Z])[A-Za-z ]+? creature token(?: with [^.\x22]+)?)\.", re.I),
+     _named_token),  # Tolsimir Wolfblood's Voja, Kiora's Scion of the Deep, Verix Bladewing's Karox Bladewing
     *[(pattern, lambda m, field=field: KickedInstead(field, _count(m[1]))) for pattern, field in _KICKED_INSTEAD],
     (re.compile(r"if this spell was kicked, instead (.+)", re.I), lambda m: _kicked_replaces(m[1])),
     (re.compile(r"if this spell was kicked, (.+?) instead\.", re.I), lambda m: _KickedInsteadTail(m[1])),
@@ -2177,6 +2190,8 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
      lambda m: _UntapThatLand(Condition("behold", what=m[1]))),
     (re.compile(r"(?:you may )?behold an? ((?-i:[A-Z][a-z]+))\. If you do, (create an? (?:Treasure|Clue|Food|Blood|Map) token\.)", re.I),
      lambda m: Conditional(Condition("behold", what=m[1]), e) if (e := _template(m[2])) is not None else None),  # Sarkhan, Dragon Ascendant
+    (re.compile(r"(?:then )?(discard (?:a card|two cards)) unless (.+)\.", re.I),  # Shoreline Looter: "Then discard a card unless there are ..."
+     lambda m: IfElse(c, (), tuple(e)) if (c := _condition(m[2])) is not None and (e := _parse([m[1].capitalize() + "."])) else None),
     (re.compile(r"then if (.+?), ((?!untap that land).+)\.", re.I), _then_if),
     (re.compile(r"when you do, if (.+?), (.+)\.", re.I), _when_you_do_if),  # Earthbender Ascension
     (re.compile(r"if (this spell was foretold), (.+)\.", re.I), _then_if),
