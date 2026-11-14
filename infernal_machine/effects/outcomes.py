@@ -2352,6 +2352,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(rf"{_SELF} deals {_N_FIXED} damage to each other opponent\.", re.I), lambda m: DamageEachOtherOpponent(_number(m[1]))),  # Parapet Thrasher
     (re.compile(r"you may discard a card\.", re.I), lambda m: _MayDiscard()),
     (re.compile(r"you may discard a card\. (If|When) you do, (?!draw )(.+)", re.I), _may_discard_then),  # Party Thrasher; Inti
+    (re.compile(rf"you may sacrifice (an?|another) {_SACRIFICE_KIND}(?: you control)?\. When you do, (.+)", re.I),  # Ziatora, the Incinerator
+     lambda m: MaySacrificeThen(m[2].lower(), inner, m[1].lower() == "another", m[0])
+     if (inner := tuple(_parse(_split_sentences(m[3][:1].upper() + m[3][1:])) or ())) else None),
     (re.compile(rf"you may sacrifice (an?|another) {_SACRIFICE_KIND}(?: you control)?\.", re.I),  # Ruthless Technomancer: "you control"
      lambda m: _MaySacrifice(m[2].lower(), m[1].lower() == "another")),
     (re.compile(rf"you may remove an? {_COUNTER} from (?:it|{_SELF})\.", re.I), lambda m: _MayRemoveCounter(_counter_name(m[1]))),
@@ -3475,7 +3478,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
 _YOUR_ACTION = (rf"(?:draw (?:a card|{_N} cards)|gain {_N} life|lose {_N} life"
                 r"|return (?:up to one )?target (?:[a-z]+ )?card from your graveyard to your hand"
                 rf"|put {_N} \+1/\+1 counters? on a creature you control"
-                r"|create an? (?:Treasure|Food|Clue) token|untap all lands you control)")  # Witch of the Moors; Breena; Lotho; Sword of Feast and Famine
+                rf"|create an? (?:Treasure|Food|Clue) token|create {_N} (?:Treasure|Food|Clue) tokens|untap all lands you control)")  # (Ziatora: three)  # Witch of the Moors; Breena; Lotho; Sword of Feast and Famine
 
 
 def _you_do(phrase: str) -> str:
@@ -3543,6 +3546,8 @@ def _clauses(sentence: str) -> list[str]:
         return _clauses(f"{m[2][:1].upper()}{m[2][1:]} for each {m[1]}.")
     if m := re.fullmatch(r"(.+), where X is (.+)\.", sentence):
         return [f"Let X be {m[2]}."] + _clauses(m[1] + ".") if _amount(m[2]) else [sentence]
+    if (m := re.fullmatch(rf"(.+ equal to .+) and you ({_YOUR_ACTION})\.", sentence, re.I)) and _amount(re.sub(r".* equal to (.+?) to .*", r"\1", m[1])):
+        return _clauses(m[1] + ".") + [_you_do(m[2])]  # Ziatora: "deals damage equal to <amount> to any target and you create three Treasure tokens"
     if m := re.fullmatch(r"(.+) (?<!or )(?:equal to|for each) (.+)\.", sentence):  # "less than or equal to" is a cap, not an amount
         body, count = _times_x(m[1])
         if not (count and _amount(m[2])):
