@@ -1621,6 +1621,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     green and white Wolf creature token" makes the token "Create a 2/2 ..." would, named and legendary (`_named_token`: Tolsimir Wolfblood,
     Kiora, the Rising Tide, Verix Bladewing, The Spear of Leonidas ...; a second Voja falls to the legend rule); and "Then discard a card
     unless there are seven or more cards in your graveyard" (Shoreline Looter), an `IfElse` that discards only when the condition fails.
+  - A state trigger (`tests/test_state_triggers.py`, CR 603.8): "When you control no Islands (Swamps, Mountains, Forests, Plains),
+    sacrifice this creature." triggers whenever its controller controls no land of that type, checked with the state-based actions
+    (`Game._state_triggers`), once until it has resolved or left the stack. Dandân, Pirate Ship, Skeleton Ship, Gorilla Pack ...
   - The legend rule (`tests/test_legend_rule.py`, CR 704.5j): a player who controls two or more legendary permanents with the same name
     chooses one (`LEGEND_PROMPT`), and the rest are put into their owners' graveyards with the other state-based actions (`Game._legend_rule`,
     not destroyed, so indestructible doesn't help); a legendary permanent that is dying anyway isn't counted, and Sakashima of a Thousand

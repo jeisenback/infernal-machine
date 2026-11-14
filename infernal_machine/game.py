@@ -8114,7 +8114,24 @@ class Game:
                 self._leave_together(dying)
                 changed = True
             if not changed:
+                self._state_triggers()
                 return
+
+    def _state_triggers(self) -> None:
+        """CR 603.8: a state trigger ("When you control no Islands, sacrifice this creature.") triggers whenever the state is true, but
+        only once until it has resolved or left the stack."""
+        for seat in self.live_seats():
+            for permanent in list(seat.battlefield):
+                for ability in self._triggers_of(permanent):
+                    if ability.event != "control_none" or self.loses_abilities(permanent):
+                        continue
+                    land = re.match(r"When you control no (\w+?)s?,", ability.text, re.I)
+                    if land is None or any(land[1] in self.subtypes(p) for p in seat.battlefield):
+                        continue
+                    if any(i.source is permanent and i.ability is ability for i in self.stack) \
+                            or any(t.permanent is permanent and t.ability is ability for t in self.pending):
+                        continue
+                    self._queue(ability, permanent, seat)
 
     def _legend_rule(self, leaving: set[int]) -> list[tuple["Permanent", str]]:
         """CR 704.5j: a player who controls two or more legendary permanents with the same name chooses one of them, and the rest are put
