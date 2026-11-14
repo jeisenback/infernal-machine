@@ -231,7 +231,8 @@ class CombatRestriction:
     it); and a number in `what`: "max_blockers" (can't be blocked by more than N creatures), "min_blockers" (can't be blocked
     except by N or more creatures)."""
     kind: str
-    what: str = ""  # the creature type for "no_attack_tribe"
+    what: str = ""  # the creature type for "no_attack_tribe"; for "unless", what it can't do: "attack", "block" or "attack or block"
+    condition: "Condition | None" = None  # "unless": "This creature can't attack or block unless you have the city's blessing."
 
 
 _COLORS = "|".join(_COLOR_LETTER)
@@ -242,6 +243,8 @@ def _power_test(m: re.Match, first: int) -> str:
 
 
 _COMBAT_RESTRICTIONS = [
+    (re.compile(rf"{_SELF} can't (attack|block|attack or block) unless (.+)\.", re.I),  # Wayward Swordtooth, Topiary Stomper, Slumbering Dragon
+     lambda m: CombatRestriction("unless", m[1].lower(), c) if (c := _condition(m[2])) is not None else None),
     (re.compile(rf"{_SELF} can't be blocked by creatures with power (\d+) or (less|greater)\.", re.I),
      lambda m: CombatRestriction("not_blocked_by", _power_test(m, 1))),
     (re.compile(rf"{_SELF} can't be blocked by (artifact creatures|Walls)\.", re.I),
@@ -437,13 +440,13 @@ def combat_restrictions(card: Card) -> tuple[CombatRestriction, ...]:
     found = []
     for line in rules_lines(card):
         for pattern, build in _COMBAT_RESTRICTIONS:
-            if m := pattern.fullmatch(line):
-                found.append(build(m))
+            if (m := pattern.fullmatch(line)) and (restriction := build(m)) is not None:
+                found.append(restriction)
     return tuple(found)
 
 
 def is_combat_restriction_line(line: str) -> bool:
-    return any(pattern.fullmatch(line) for pattern, _ in _COMBAT_RESTRICTIONS)
+    return any((m := pattern.fullmatch(line)) and build(m) is not None for pattern, build in _COMBAT_RESTRICTIONS)
 
 
 _QUEST_UNTAP = re.compile(r"As long as there are (\w+) or more (\w+) counters on this enchantment, untap all creatures you "
