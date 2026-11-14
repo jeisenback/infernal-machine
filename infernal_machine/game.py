@@ -284,6 +284,7 @@ PILE_GIVE_PROMPT = PromptKind("pile_give", "Which pile goes into the hand of ") 
 PILE_CAST_PROMPT = PromptKind("pile_cast", "Cast a spell from the pile for free? ")  # the options are the cards, then "None"
 EXILE_FROM_TOP_PROMPT = PromptKind("exile_from_top", "Exile which card from among them? ")  # The Key to the Vault; then NONE_TAKEN
 CASCADE_PROMPT = PromptKind("cascade", "Cast for free (cascade): ")  # followed by the card's name; Yes or No
+DISCOVER_PROMPT = PromptKind("discover", "Cast for free (discover), or else put into your hand: ")  # the card's name; Yes casts it
 DELVE_PROMPT = PromptKind("delve", "Exile which card from your graveyard to pay for ")  # followed by the spell's name
 UPKEEP_PROMPT = PromptKind("upkeep", "Pay the cumulative upkeep of ")  # followed by the permanent's name; Yes or No (No sacrifices it)
 PUT_BACK_PROMPT = PromptKind("put_back", "Put which card from your hand on top of your library? ")
@@ -2955,6 +2956,9 @@ class Game:
             if not isinstance(subject, Permanent):
                 return 0
             return self.power(subject) if self.on_battlefield(subject) else subject.last_power
+        if kind == "subject_toughness":  # Pantlaza: the toughness of the creature that set the trigger off
+            subject = self.resolving_item.subject if self.resolving_item is not None else None
+            return (self.toughness(subject) or 0) if isinstance(subject, Permanent) else 0
         if kind == "source_power":
             if source is None:
                 return 0
@@ -6186,6 +6190,29 @@ class Game:
                 passed.append(found)
         self.rng.shuffle(passed)
         owner.library += passed
+
+    def discover(self, seat: Seat, value: int) -> None:
+        """Discover `value` (CR 701.57): exile cards from the top of the library until a nonland card with mana value `value` or less is
+        exiled; cast it without paying its mana cost, or else put it into the hand. The rest go on the bottom in a random order."""
+        passed: list[Card] = []
+        found = None
+        while seat.library:
+            card = seat.library.pop(0)
+            if not is_land(card) and card.cmc <= value:
+                found = card
+                break
+            passed.append(card)
+        self.broadcast({"event": "discover", "seat": seat.index, "exiled": len(passed) + (found is not None),
+                        **({"card": found.name} if found else {})})
+        if found is not None:
+            seat.exile.append(found)
+            if not self._cast_barred(seat, found) and seat.player.choose(DISCOVER_PROMPT(found.name), YES_NO) == 0:
+                self._cast(seat, found, seat.exile, free=True)
+            if found in seat.exile:  # not cast: into the hand (CR 701.57a)
+                seat.exile.remove(found)
+                seat.hand.append(found)
+        self.rng.shuffle(passed)
+        seat.library += passed
 
     def _delve_max(self, seat: Seat, card: Card) -> int:
         """Delve: how many cards in the graveyard could help pay for `card` (one for each generic mana)."""

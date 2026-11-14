@@ -189,6 +189,17 @@ class Cascade:
 
 
 @dataclass(frozen=True)
+class Discover:
+    """Discover N (CR 701.57): exile cards from the top of your library until you exile a nonland card with mana value N or less; cast it
+    without paying its mana cost or put it into your hand, and the rest go on the bottom in a random order. "Discover X, where X is ...":
+    `value` "X"."""
+    value: Quantity
+
+    def resolve(self, game: Game, controller: Seat, target: Any) -> None:
+        game.discover(controller, game.amount(self.value))
+
+
+@dataclass(frozen=True)
 class ShuffleIntoLibrary:
     """Perpetual Timepiece: "Shuffle any number of target cards from your graveyard into your library." Quandrix Command: "Target
     player shuffles up to three target cards from their graveyard into their library." (always you, and your graveyard)"""
