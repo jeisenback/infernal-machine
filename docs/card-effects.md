@@ -1609,6 +1609,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Fuse (`tests/test_fuse.py`, #219, CR 702.102): a split card whose halves both have Fuse may be cast from the hand as one spell
     (`CAST_FUSED`, `fused`): both costs paid, the left half's instructions then the right's, one spell of the halves' card types (a sorcery
     if either half is). Wear // Tear, Far // Away, Beck // Call, Toil // Trouble ...
+  - Waterbend (`tests/test_waterbend.py`, #219): "Waterbend {N}" in an activated ability's cost is {N} generic mana, and while it is paid
+    each untapped artifact and creature its controller has can be tapped for {1} of it (`ActivatedAbility.waterbend`, `Payment._waterbending`,
+    beside Convoke's sources); so is "Ward—Waterbend {4}" for the player paying the ward. Katara, Bending Prodigy, Giant Koi, Yue, the
+    Moon Spirit, The Unagi of Kyoshi Island ... (waterbend as a spell's additional cost, and "whenever you waterbend", are not read yet).
   - "Whenever this creature attacks and isn't blocked" (`tests/test_attacks_unblocked.py`, #219, CR 509.1h): the `attacks_unblocked`
     event, set off once blockers are declared for each attacker none block; its "defending player" is the player it attacks (read as "that
     player"), and "that player gets a poison counter" is read too. Eternal of Harsh Truths, Abyssal Nightstalker, Swamp Mosquito, Crypt
