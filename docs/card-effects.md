@@ -1609,6 +1609,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
   - Fuse (`tests/test_fuse.py`, #219, CR 702.102): a split card whose halves both have Fuse may be cast from the hand as one spell
     (`CAST_FUSED`, `fused`): both costs paid, the left half's instructions then the right's, one spell of the halves' card types (a sorcery
     if either half is). Wear // Tear, Far // Away, Beck // Call, Toil // Trouble ...
+  - "Whenever this creature attacks and isn't blocked" (`tests/test_attacks_unblocked.py`, #219, CR 509.1h): the `attacks_unblocked`
+    event, set off once blockers are declared for each attacker none block; its "defending player" is the player it attacks (read as "that
+    player"), and "that player gets a poison counter" is read too. Eternal of Harsh Truths, Abyssal Nightstalker, Swamp Mosquito, Crypt
+    Cobra, Suq'Ata Assassin, Wildfire Eternal, Elusive Tormentor.
   - Cipher (`tests/test_cipher.py`, #219, CR 702.99): as a spell with cipher resolves, its caster may exile it encoded on a creature they
     control (`ENCODE_PROMPT`, `Permanent.encoded`); that creature then has "Whenever this creature deals combat damage to a player, its
     controller may cast a copy of the encoded card without paying its mana cost" (`CastEncodedCopy`, `Game._triggers_of`). With no

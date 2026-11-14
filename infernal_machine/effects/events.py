@@ -103,6 +103,8 @@ declare("damaged", re.compile(rf"When(?:ever)? {_SELF} is dealt damage, (.+)", r
 declare("attacks_player", re.compile(rf"Whenever {_SELF} attacks an opponent, (.+)", re.I))
 declare("blocks", re.compile(rf"Whenever {_SELF} blocks, (.+)", re.I))
 declare("becomes_blocked", re.compile(rf"Whenever {_SELF} becomes blocked, (.+)", re.I))
+declare("attacks_unblocked", re.compile(rf"Whenever {_SELF} attacks and isn't blocked, (.+)", re.I),  # CR 509.1h: once blockers are declared
+        maybe_player=True)  # "defending player" is the player it attacks (read as "that player", triggers.py)
 declare("ally_attacks", re.compile(r"Whenever a creature you control attacks, (.+)", re.I), to="you", about_creature=True)
 declare("attacked", re.compile(r"Whenever a creature attacks you, (.+)", re.I), to="you", about_creature=True)
 declare("attacked_or_walker", re.compile(r"Whenever a creature attacks you or a planeswalker you control, (.+)", re.I),

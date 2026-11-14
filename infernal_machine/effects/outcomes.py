@@ -3146,6 +3146,7 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"(?:each (opponent|player) gets|each (opponent|player) gets) (a|one|two|three) poison counters?\.", re.I),
      lambda m: GivePoison((m[1] or m[2]).lower(), _number(m[3]))),
     (re.compile(r"they get that many poison counters\.", re.I), lambda m: PlayerGetsPoison("X")),  # Etali, Primal Sickness: the damaged player
+    (re.compile(r"that player gets a poison counter\.", re.I), lambda m: PlayerGetsPoison(1)),  # Swamp Mosquito: the player attacked
     (re.compile(r"then each creature your opponents control gets -1/-1 until end of turn for each poison counter its controller has\.", re.I),
      lambda m: PoisonShrinksOpponentsCreatures()),
     (re.compile(rf"each (opponent|player) sacrifices (a|an) {_SACRIFICE_KIND} of their choice and gets a poison counter\.", re.I),  # Vraska's Fall
