@@ -343,6 +343,8 @@ _RULES_STATICS = [
     (re.compile(r"You may cast spells from your hand without paying their mana costs\.", re.I), "free_from_hand"),  # Omniscience
     (re.compile(r"You may cast ((?-i:[A-Z][a-z]+)) spells without paying their mana costs\.", re.I),
      "free_type"),  # Dracogenesis: from anywhere it may be cast
+    (re.compile(r"((?-i:[A-Z][a-z]+)) permanent spells you cast from your hand gain evoke ((?:\{[^}]+\})+) as you cast them\.", re.I),
+     "grant_evoke"),  # Ashling, the Limitless
     (re.compile(r"Once during each of your turns, you may cast a spell from your hand or the top of your library without paying its "
                 r"mana cost\.", re.I), "free_once"),  # One with the Multiverse
 ]
@@ -384,6 +386,8 @@ def rules_statics(card: Card) -> tuple[str, ...]:
                     key = "flash:" + ("spell" if m[1].lower() == "spells" else m[1].lower().removesuffix(" spells"))
                 elif key == "free_type":
                     key = f"free_type:{m[1]}"
+                elif key == "grant_evoke":
+                    key = f"grant_evoke:{m[1]}:{m[2]}"
                 elif key == "land_type":
                     key = f"land_type:{_LAND_TYPE_MANA[m[1].lower()]}"
                 elif key == "enter_tapped:opp":

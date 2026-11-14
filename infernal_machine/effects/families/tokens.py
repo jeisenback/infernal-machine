@@ -73,6 +73,13 @@ class _TokenGainsHaste:
 
 
 @dataclass(frozen=True)
+class _SacrificeTokenUnless:
+    """Ashling, the Limitless: "At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}." after a copy of the
+    permanent that set off the trigger (see `finish_copies`)."""
+    cost: str
+
+
+@dataclass(frozen=True)
 class _TokenGainsBlitz:
     """Jaxis, the Troublemaker: "It gains haste and "When this token dies, draw a card."" after a CopyToken: what blitz gives."""
 

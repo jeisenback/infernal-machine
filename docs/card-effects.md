@@ -1625,6 +1625,11 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Ashling, the Limitless (`tests/test_ashling_the_limitless.py`): "Elemental permanent spells you cast from your hand gain evoke {4} as
+    you cast them." (the static `grant_evoke:Elemental:{4}`, offered by `Caster._granted_evokes`); "Whenever you sacrifice a nontoken
+    Elemental, ..." (the event `sacrifice_nontoken_type`, with the sacrificed permanent as the subject); "The token gains haste until end of
+    turn."; "At the beginning of your next end step, sacrifice it unless you pay {W}{U}{B}{R}{G}." (`CopySubjectToken.sacrifice_unless`,
+    `Game.sacrifice_at_your_next_end_step_unless`: another player's end step passes it by).
   - Discover (CR 701.57, `tests/test_discover.py`): "discover N" and "discover X, where X is ..." (`Discover`, `Game.discover`): exile from the
     top until a nonland card with mana value N or less, cast it free or else put it into the hand, the rest on the bottom in a random order.
     Pantlaza, Sun-Favored: "where X is that creature's toughness" (the Dinosaur that entered, `Amount("subject_toughness")`).

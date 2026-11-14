@@ -695,6 +695,7 @@ from .families.tokens import (  # noqa: F401
     _InsteadTokens,
     _PopulatedTokenRider,
     _TokenGainsHaste,
+    _SacrificeTokenUnless,
     _TokenGainsBlitz,
     _TokenHasHaste,
     _TokenPerPrevented,
@@ -2071,7 +2072,9 @@ _TEMPLATES: list[tuple[re.Pattern, Callable[[re.Match], Any]]] = [
     (re.compile(r"if a creature dealt damage this way would die this turn, exile it instead\.", re.I),
      lambda m: ExileDamagedIfDie()),
     (re.compile(r"exile enchanted creature\.", re.I), lambda m: ExileEnchanted()),
-    (re.compile(r"(?:that token gains|those tokens gain) haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
+    (re.compile(r"(?:that token gains|those tokens gain|the token gains) haste until end of turn\.", re.I), lambda m: _TokenGainsHaste()),
+    (re.compile(r"at the beginning of your next end step, sacrifice it unless you pay ((?:\{[^}]+\})+)\.", re.I),
+     lambda m: _SacrificeTokenUnless(m[1])),
     (re.compile(r'it gains haste and "When this token dies, draw a card\."', re.I), lambda m: _TokenGainsBlitz()),  # Jaxis  # Devastating Onslaught
     (re.compile(r"(?:it|that token|they|those tokens) gains? haste\.", re.I), lambda m: _TokenHasHaste()),
     (re.compile(r"sacrifice (?:it|CARDNAME|this land)\. When you do, (.+)", re.I),  # Riveteers Overlook: the rest of the line is the reflexive trigger
@@ -4102,6 +4105,7 @@ _CONDITIONAL = Follows(
            fits=lambda previous, marker: marker.modifier.keywords == frozenset({"haste"}) and marker.modifier.power == marker.modifier.toughness == 0),
     Follow((_ExileThoseTokens, _ExileThemLater), _COPY_SENTENCES, set_fields(exile_at_end=lambda m: True), strict=False),
     Follow(_SacrificeThemLater, _COPY_SENTENCES, set_fields(sacrifice_at_end=lambda m: True), strict=False),
+    Follow(_SacrificeTokenUnless, CopySubjectToken, set_fields(sacrifice_unless=lambda m: m.cost)),  # Ashling, the Limitless
     # Lorehold Archivist's spell, The Scarab God: "Exile target creature card from a graveyard. Create a token that's a copy of it."
     Follow(CopySubjectToken, ExileFromGraveyard, lambda previous, marker: dataclasses.replace(previous, copy_token=True, copy_changes=marker.changes),
            strict=False, fits=lambda previous, marker: marker.count == 1 and not (marker.haste or marker.sacrifice_at_end or marker.exile_at_end)),
