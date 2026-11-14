@@ -168,6 +168,8 @@ declare("lose_life", re.compile(r"Whenever you lose life, (.+)", re.I), to="you"
 declare("exploits", re.compile(rf"When(?:ever)? {_SELF} exploits a creature, (.+)", re.I))  # the Exploit keyword (Game.exploit)
 declare("sacrifice_creature", re.compile(r"Whenever you sacrifice a creature, (.+)", re.I))
 declare("sacrifice_permanent", re.compile(r"Whenever you sacrifice a permanent, (.+)", re.I))  # Juri, Master of the Revue
+declare("counter_spell", re.compile(r"Whenever a spell or ability you control counters a spell, (.+)", re.I), to="you",
+        happens="countered_spell")  # Baral, Chief of Compliance: Game.counter, by the resolving spell or ability (a copy countered too)
 declare("sacrifice_nontoken_type", re.compile(r"Whenever you sacrifice a nontoken (?-i:[A-Z][a-z]+), (.+)", re.I))  # Ashling, the Limitless:
 # the sacrificed permanent is the subject (Game._leave_together)
 declare("ally_combat_damage", re.compile(r"Whenever a creature you control deals combat damage to (?:a player|an opponent), (.+)", re.I),

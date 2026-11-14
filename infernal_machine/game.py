@@ -5799,6 +5799,8 @@ class Game:
                         "ability": _shown(item.ability.text, item.card) if item.ability else None})
         if not item.ability and not item.is_copy:  # countering an ability doesn't touch its source; a copy just ends
             self._move_card(item.home, item.physical, "exile" if exile or item.exile_after else "graveyard")
+        if not item.ability and self.resolving_item is not None:  # Baral: a spell or ability its controller controls countered a spell
+            self.happened("countered_spell", self.resolving_item.controller)
 
     def exile_spell(self, item: StackItem) -> None:
         """Mindbreak Trap: the spell leaves the stack for exile, so it never resolves (a copy just stops existing). A target that left the
