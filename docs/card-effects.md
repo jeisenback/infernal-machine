@@ -1613,6 +1613,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     509.1b): a `CombatRestriction("unless")` whose condition is any the engine reads (`_condition`), checked for the creature as attackers
     and blockers are declared (`Combat._unless_unmet`); with a condition it can't read the line stays unread. Wayward Swordtooth, Topiary
     Stomper, Slumbering Dragon, Bast, Panther Goddess, The Lion-Turtle, Goblin Cohort, Felhide Brawler ...
+  - "This creature can't attack unless defending player controls an Island" (`tests/test_attack_unless_defender.py`, #219, CR 508.1c): or a
+    Swamp, Mountain, Forest or Plains, a permanent of a color, a creature with flying (`CombatRestriction("unless_defender_controls")`); the
+    creature may attack only the opponents who control one (`Combat._barred_from_attacking`). Serpent of the Endless Sea, Whimwader,
+    Lurking Green Dragon, Hammerhead Shark, Zhou Yu ...
   - Waterbend (`tests/test_waterbend.py`, #219): "Waterbend {N}" in an activated ability's cost is {N} generic mana, and while it is paid
     each untapped artifact and creature its controller has can be tapped for {1} of it (`ActivatedAbility.waterbend`, `Payment._waterbending`,
     beside Convoke's sources); so is "Ward—Waterbend {4}" for the player paying the ward. Katara, Bending Prodigy, Giant Koi, Yue, the

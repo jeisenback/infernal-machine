@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from .characteristics import Modifier, source_qualities
 from .effects import (copy_of, CANT_ATTACK, CANT_BE_BLOCKED, CANT_BLOCK, MUST_ATTACK, ONLY_BLOCKED_BY, Annihilate, PutCountersOnSource, TriggeredAbility, attack_tax_per_counter, attack_taxes,
                       combat_restrictions)
+from .filters import parse_filter
 from .mana import Cost, cost_of
 from .prompts import PromptKind
 
@@ -182,7 +183,11 @@ class Combat:
         return tax
 
     def _barred_from_attacking(self, permanent: Permanent, defender: Seat) -> bool:
-        """Whether a static ability of the defender's keeps `permanent` from attacking them (or their planeswalkers)."""
+        """Whether a static ability of the defender's keeps `permanent` from attacking them (or their planeswalkers), or one of its own:
+        "This creature can't attack unless defending player controls an Island." (CR 508.1c)"""
+        if any(r.kind == "unless_defender_controls" and not any(parse_filter(r.what).matches(p.card) for p in defender.battlefield)
+               for r in combat_restrictions(permanent.card)):
+            return True
         subtypes = self.game.subtypes(permanent)
         for source in defender.battlefield:
             for restriction in combat_restrictions(source.card):

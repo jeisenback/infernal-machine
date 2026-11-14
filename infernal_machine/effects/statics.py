@@ -243,6 +243,9 @@ def _power_test(m: re.Match, first: int) -> str:
 
 
 _COMBAT_RESTRICTIONS = [
+    (re.compile(rf"{_SELF} can't attack unless defending player controls an? (Island|Swamp|Mountain|Forest|Plains|creature with flying"
+                r"|(?:white|blue|black|red|green) permanent)\.", re.I),  # Serpent of the Endless Sea, Whimwader, Lurking Green Dragon
+     lambda m: CombatRestriction("unless_defender_controls", m[1])),
     (re.compile(rf"{_SELF} can't (attack|block|attack or block) unless (.+)\.", re.I),  # Wayward Swordtooth, Topiary Stomper, Slumbering Dragon
      lambda m: CombatRestriction("unless", m[1].lower(), c) if (c := _condition(m[2])) is not None else None),
     (re.compile(rf"{_SELF} can't be blocked by creatures with power (\d+) or (less|greater)\.", re.I),
