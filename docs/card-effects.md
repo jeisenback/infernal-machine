@@ -1625,6 +1625,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - The Ur-Dragon (`tests/test_ur_dragon.py`): Eminence's "As long as CARDNAME is in the command zone or on the battlefield, other Dragon
+    spells you cast cost {1} less to cast." (`eminence_reductions`, counted from the command zone and the battlefield in
+    `Caster.cost_reduction`, not for a spell with its own name); and "Whenever one or more Dragons you control attack, ..." (the `type_attack`
+    event, x the attackers of that type, from `Combat.declare_attackers`).
   - Giada, Font of Hope (`tests/test_giada.py`, CR 614.1c): "Each other Angel you control enters with an additional +1/+1 counter on it
     for each Angel you already control." (`ReplacementEffects.enter_per_kind`, counted in `Game._enter` before the creature joins the
     battlefield, so it doesn't count itself and Giada entering gets none).

@@ -17,7 +17,7 @@ from .cards import Card, has_keyword
 from .characteristics import source_qualities
 from .effects import (FREE_WAY, AlternativeCost, AttachAura, Cascade, CopySpellTimes, CopyTriggeringSpell, Demonstrate, Draw, GainLife, GraveyardCast, Modal, MorphCost,
                       Scry, TriggeredAbility, NOTHING_MORE, additional_costs, additional_paid_effects, affinity_for, alternative_costs, buyback_cost, buyback_other_cost, splice_cost,
-                      chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
+                      chosen_cost_reductions, conditional_cost_reduction, cost_increases, cost_reductions, eminence_reductions, entwine_cost, escalate_cost, first_spell_reductions, gift_of,
                       granted_affinity, is_multikicker, kicked_effects, kicker_costs, kicker_other_cost, mana_ability_sacrifices,
                       mana_spent_trigger, non_hand_cost_reduction, overloaded_effects, reduced_by_greatest, reduced_by_total_power,
                       replicate_cost, restricted_mana, rules_statics, sacrifice_discount, self_cost_reduction, collect_evidence_of, teamwork_of, storm_kind, strive_cost, target_kind, triggered_abilities,
@@ -424,6 +424,9 @@ class Caster:
         """How much less generic mana `card` costs `seat` (Medallions and the like)."""
         reduction = sum(amount for p in seat.battlefield for kind, amount in cost_reductions(p.card)
                         if g._spell_matches(kind, card))
+        # Eminence (The Ur-Dragon): from the command zone or the battlefield, for other spells of the type
+        reduction += sum(amount for source in [*seat.command_zone, *(p.card for p in seat.battlefield)]
+                         for kind, amount in eminence_reductions(source) if source.name != card.name and g._spell_matches(kind, card))
         for p in seat.battlefield:  # Radagast, Momo: the first spell of a kind each turn (the spell being cast is not in the log yet)
             for kind, amount, your_turn in first_spell_reductions(p.card):
                 if ((not your_turn or self.game.active == seat.index) and g._spell_matches(kind, card)

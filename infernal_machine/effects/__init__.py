@@ -394,6 +394,7 @@ from .costs import (  # noqa: F401
     collect_evidence_of,
     teamwork_of,
     cost_reductions,
+    eminence_reductions,
     cost_increases,
     cumulative_upkeep,
     first_spell_reductions,
