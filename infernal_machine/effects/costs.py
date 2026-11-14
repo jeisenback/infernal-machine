@@ -805,6 +805,16 @@ def cost_increases(card: Card) -> list[tuple[str, bool, int]]:
         + [("chosen name", False, int(m[1])) for line in rules_lines(card) if (m := _NAME_INCREASE.fullmatch(line))]
 
 
+_EMINENCE = re.compile(r"Eminence \u2014 As long as CARDNAME is in the command zone or on the battlefield, other ((?-i:[A-Z][a-z]+)) spells you cast "
+                       r"cost \{(\d+)\} less to cast\.")  # The Ur-Dragon
+
+
+def eminence_reductions(card: Card) -> list[tuple[str, int]]:
+    """The Ur-Dragon's "Eminence — As long as CARDNAME is in the command zone or on the battlefield, other Dragon spells you cast cost {1}
+    less to cast.": (the creature type, how much)."""
+    return [(m[1].lower(), int(m[2])) for line in rules_lines(card) if (m := _EMINENCE.fullmatch(line))]
+
+
 def cost_reductions(card: Card) -> list[tuple[str, int]]:
     """Static "Green spells you cast cost {1} less to cast." abilities (Medallions): (what kind of spell, how much).
     The kind is a color letter, a card type ("creature", "noncreature", "instant and sorcery") or "spell"."""
@@ -952,7 +962,7 @@ def first_spell_reductions(card: Card) -> list[tuple[str, int, bool]]:
 
 
 def is_cost_reduction_line(line: str) -> bool:
-    return any(p.fullmatch(line) for p in (_REDUCTION, _TWO_COLOR_REDUCTION, _PER_REDUCTION, _ADVENTURE_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY,
+    return any(p.fullmatch(line) for p in (_REDUCTION, _EMINENCE, _TWO_COLOR_REDUCTION, _PER_REDUCTION, _ADVENTURE_REDUCTION, _POWER_REDUCTION, _GRANTED_AFFINITY,
                                            _NON_HAND_REDUCTION, _INCREASE, _NAME_INCREASE)) \
         or (m := _IF_REDUCTION.fullmatch(line)) is not None and _condition(m[2]) is not None \
         or (m := _FIRST_SPELL_REDUCTION.fullmatch(line)) is not None and not any(word in m[1] for word in _FIRST_SPELL_UNREAD)

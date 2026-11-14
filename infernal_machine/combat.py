@@ -9,6 +9,7 @@ and keywords are read through the game so modifiers count.
 from __future__ import annotations
 
 import dataclasses
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -135,6 +136,10 @@ class Combat:
                         self.game.trigger("enchanted_attack", permanent, holder)
             for permanent in list(seat.battlefield):
                 self.game.trigger("creatures_attack", permanent, seat)
+                for ability in self.game._triggers_of(permanent):  # "Whenever one or more Dragons you control attack": x is how many
+                    if ability.event == "type_attack" and (kind := re.match(r"Whenever one or more ([A-Z][a-z]+)s ", ability.text)) \
+                            and (n := sum(kind[1] in self.game.subtypes(a.attacker) for a in self.attacks)):
+                        self.game.trigger("type_attack", permanent, seat, x=n, text=ability.text)
             self.game.happened("tribe_attack", seat, *{kind.lower() for a in self.attacks
                                                        for kind in a.attacker.card.type_line.partition("\u2014")[2].split()})
             if len(self.attacks) == 1:  # "Whenever you attack with a creature alone"; "Whenever this creature attacks alone"
