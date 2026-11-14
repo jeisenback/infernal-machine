@@ -1617,6 +1617,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     Swamp, Mountain, Forest or Plains, a permanent of a color, a creature with flying (`CombatRestriction("unless_defender_controls")`); the
     creature may attack only the opponents who control one (`Combat._barred_from_attacking`). Serpent of the Endless Sea, Whimwader,
     Lurking Green Dragon, Hammerhead Shark, Zhou Yu ...
+  - Named legendary tokens and Threshold's discard (`tests/test_named_tokens_and_threshold.py`, #219, CR 111.4): "create Voja, a legendary 2/2
+    green and white Wolf creature token" makes the token "Create a 2/2 ..." would, named and legendary (`_named_token`: Tolsimir Wolfblood,
+    Kiora, the Rising Tide, Verix Bladewing, The Spear of Leonidas ...; the engine still applies no legend rule); and "Then discard a card
+    unless there are seven or more cards in your graveyard" (Shoreline Looter), an `IfElse` that discards only when the condition fails.
   - Waterbend (`tests/test_waterbend.py`, #219): "Waterbend {N}" in an activated ability's cost is {N} generic mana, and while it is paid
     each untapped artifact and creature its controller has can be tapped for {1} of it (`ActivatedAbility.waterbend`, `Payment._waterbending`,
     beside Convoke's sources); so is "Ward—Waterbend {4}" for the player paying the ward. Katara, Bending Prodigy, Giant Koi, Yue, the
