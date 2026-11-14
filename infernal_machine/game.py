@@ -1624,11 +1624,11 @@ class Game:
         if _is_token(permanent.card) and "Artifact" in permanent.card.type_line:  # Mutagen Man
             cost = cost.reduced(sum(owner is seat and key == "token_ability_discount" for owner, _, key in self._static_rules()))
         # A permanent can't tap for mana to pay for its own {T} or sacrifice ability.
-        self.payer._spending_x = "{X}" in ability.mana_cost
+        self.payer._spending_x, self.payer._waterbending = "{X}" in ability.mana_cost, ability.waterbend
         try:
             return self._pay_cost(seat, cost, exclude=permanent if ability.tap or ability.sacrifice or ability.exile_source else None)
         finally:
-            self.payer._spending_x = False
+            self.payer._spending_x = self.payer._waterbending = False
 
     def _free_equip(self, seat: Seat) -> bool:
         """Kili the Resourceful: with an enduring story, the first equip ability activated this turn costs {0}. Puresteel Paladin: while
@@ -5836,8 +5836,15 @@ class Game:
                                                   if keyword.startswith(("ward ", "ward\u2014"))), None)  # "ward\u2014pay 2 life": "Pay 2 life"
 
     def _ward_payment(self, payer: Seat, fields: dict) -> Payment | None:
-        """The permanents to tap for a ward cost's mana (none if it has no mana), or None if it can't be paid."""
-        return self._pay_cost(payer, cost_of(fields["mana_cost"])) if fields.get("mana_cost") else Payment()
+        """The permanents to tap for a ward cost's mana (none if it has no mana), or None if it can't be paid. "Ward—Waterbend {4}"
+        (The Unagi of Kyoshi Island): the payer's artifacts and creatures can be tapped for {1} each."""
+        if not fields.get("mana_cost"):
+            return Payment()
+        self.payer._waterbending = bool(fields.get("waterbend"))
+        try:
+            return self._pay_cost(payer, cost_of(fields["mana_cost"]))
+        finally:
+            self.payer._waterbending = False
 
     def can_pay_ward(self, payer: Seat, cost_text: str) -> bool:
         fields = ward_fields(cost_text) or {}

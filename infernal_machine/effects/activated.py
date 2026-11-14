@@ -115,9 +115,11 @@ class ActivatedAbility:
     discount_each: str = ""  # "This ability costs {1} less to activate for each legendary creature you control": that kind
     equip: bool = False  # an equip ability: Dwarven Mauler and Kili change what it costs
     discount_target_colors: bool = False  # Dragonfire Blade: "This ability costs {1} less to activate for each color of the creature it targets."
+    waterbend: bool = False  # "Waterbend {5}": generic mana in `mana_cost`, which tapping untapped artifacts and creatures can pay {1} each of
 
 
 _CREW = re.compile(r"Crew (\d+)")
+_WATERBEND = re.compile(r"Waterbend \{(\d+|X)\}")
 
 
 # Station: Adagia, Kavaron and the other Planets. The abilities after it are written "12+ | <ability>".
@@ -286,6 +288,9 @@ def _cost_fields(cost: str) -> dict[str, Any] | None:
             fields["mana_cost"] = fields.get("mana_cost", "") + part
         elif part == "{T}":
             fields["tap"] = True
+        elif m := _WATERBEND.fullmatch(part):  # while paying it, each untapped artifact and creature you control can be tapped for {1}
+            fields["mana_cost"] = fields.get("mana_cost", "") + f"{{{m[1]}}}"
+            fields["waterbend"] = True
         elif _SACRIFICE_SELF.fullmatch(part):
             fields["sacrifice"] = True
         elif (m := _PAY_LIFE.fullmatch(part)) and m[1] != "X":

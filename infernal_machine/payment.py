@@ -74,6 +74,7 @@ class ManaPayer:
         self.game = game
         self._spending_spell: Card | None = None  # the spell mana is being paid for right now (Cavern of Souls, convoke)
         self._spending_x = False  # ... or an ability whose cost has {X}
+        self._waterbending = False  # ... or an ability with a waterbend cost (artifacts and creatures can be tapped for {1})
         self._spending_from_hand = False  # ... and whether that spell is being cast from its owner's hand
 
     @contextlib.contextmanager
@@ -323,18 +324,22 @@ class ManaPayer:
 
     def _convoke_sources(self, seat: Seat, exclude: Permanent | None, taken: list[ManaSource]) -> list[ManaSource]:
         """While a spell with Convoke (or Improvise) is being paid for: each untapped creature (artifact) not already a mana
-        source can be tapped for {1}, or for one mana of its color. Summoning-sick ones can, since it isn't a {T} cost; they go
+        source can be tapped for {1}, or for one mana of its color; while a waterbend cost is, each untapped artifact or creature for {1}. Summoning-sick ones can, since it isn't a {T} cost; they go
         first, being the ones that couldn't attack anyway."""
         spell = self._spending_spell
-        if spell is None:
+        waterbend = self._waterbending  # an ability's (or ward's) waterbend cost: an artifact or a creature pays {1}, never a color
+        if spell is None and not waterbend:
             return []
-        convoke, improvise = has_keyword(spell, "convoke") or self._exile_convoke(seat, spell), has_keyword(spell, "improvise")
+        convoke = spell is not None and (has_keyword(spell, "convoke") or self._exile_convoke(seat, spell))
+        improvise = spell is not None and has_keyword(spell, "improvise")
         busy = {id(s.permanent) for s in taken if s.permanent is not None}
         found = []
         for permanent in sorted(seat.battlefield, key=lambda p: not p.sick):
             if permanent.tapped or permanent is exclude or id(permanent) in busy:
                 continue
-            if convoke and "Creature" in permanent.card.type_line:
+            if waterbend and ("Artifact" in permanent.card.type_line or "Creature" in permanent.card.type_line):
+                found.append(ManaSource(permanent, frozenset({GENERIC_ONLY})))
+            elif convoke and "Creature" in permanent.card.type_line:
                 found.append(ManaSource(permanent, frozenset(permanent.card.colors) or frozenset({GENERIC_ONLY})))
             elif improvise and "Artifact" in permanent.card.type_line:
                 found.append(ManaSource(permanent, frozenset({GENERIC_ONLY})))
