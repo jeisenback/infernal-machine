@@ -1625,6 +1625,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Baral, Chief of Compliance (`tests/test_baral.py`): "Whenever a spell or ability you control counters a spell, ..." (the event
+    `counter_spell`, heard as `countered_spell` from `Game.counter` by the controller of the resolving spell or ability; countering an
+    ability does not count).
   - Ashling, the Limitless (`tests/test_ashling_the_limitless.py`): "Elemental permanent spells you cast from your hand gain evoke {4} as
     you cast them." (the static `grant_evoke:Elemental:{4}`, offered by `Caster._granted_evokes`); "Whenever you sacrifice a nontoken
     Elemental, ..." (the event `sacrifice_nontoken_type`, with the sacrificed permanent as the subject); "The token gains haste until end of
