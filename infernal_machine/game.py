@@ -196,6 +196,7 @@ SYLVAN_PROMPT = PromptKind("sylvan", "Draw two additional cards with Sylvan Libr
 DREDGE_PROMPT = PromptKind("dredge", "Dredge instead of drawing a card? ")  # options: Draw a card, then one per card that can be dredged
 SYLVAN_CHOOSE_PROMPT = PromptKind("sylvan_choose", "Choose a card you drew this turn: ")  # asked twice, for the two cards
 SYLVAN_PAY_PROMPT = PromptKind("sylvan_pay", "Pay life for it or put it on top of your library: ")  # followed by the card's name
+LEGEND_PROMPT = PromptKind("legend", "Keep which legendary permanent named ")  # followed by the name; the permanents with that name
 ENCODE_PROMPT = PromptKind("encode", "Encode on a creature you control: ")  # followed by the card's name; the creatures, then DECLINE
 REBOUND_PROMPT = PromptKind("rebound", "Cast it again with rebound: ")  # followed by the card's name; options: YES_NO
 FREE_TOP = "cast the top card free"  # Planetarium of Wan Shi Tong's "Do this only once each turn", kept in Permanent.activated_turn
@@ -8108,11 +8109,31 @@ class Game:
                           and not self.has_keyword(permanent, "indestructible")):
                         if not self._saved_from_destruction(permanent):
                             dying.append((permanent, "destroyed"))
+            dying += self._legend_rule({id(p) for p, _ in dying})
             if dying:  # all at once (CR 704.3)
                 self._leave_together(dying)
                 changed = True
             if not changed:
                 return
+
+    def _legend_rule(self, leaving: set[int]) -> list[tuple["Permanent", str]]:
+        """CR 704.5j: a player who controls two or more legendary permanents with the same name chooses one of them, and the rest are put
+        into their owners' graveyards (not destroyed: indestructible doesn't help). Not for a player with Sakashima of a Thousand Faces's
+        "The "legend rule" doesn't apply to permanents you control." """
+        exempt = {id(owner) for owner, _, key in self._static_rules() if key == "no_legend_rule"}
+        dying: list[tuple[Permanent, str]] = []
+        for seat in self.live_seats():
+            if id(seat) in exempt:
+                continue
+            named: dict[str, list[Permanent]] = {}
+            for permanent in seat.battlefield:
+                if "Legendary" in permanent.card.type_line and id(permanent) not in leaving:
+                    named.setdefault(permanent.card.name, []).append(permanent)
+            for name, same in named.items():
+                if len(same) > 1:
+                    keep = seat.player.choose(LEGEND_PROMPT(name), [self.label(p) for p in same])
+                    dying += [(p, "legend_rule") for i, p in enumerate(same) if i != keep]
+        return dying
 
     def _chapter_pending(self, saga: Permanent) -> bool:
         """Whether a chapter ability of `saga` is waiting to go on the stack or is on it."""

@@ -299,8 +299,8 @@ _RULES_STATICS = [
     (re.compile(r"Activated abilities of artifacts your opponents control can't be activated\.", re.I), "lock_opp:Artifact"),  # Karn, the Great Creator
     (re.compile(r"Activated abilities of creatures your opponents control can't be activated\.", re.I), "lock_opp:Creature"),  # Linvala, Keeper of Silence
     (re.compile(r"Each opponent can't draw more than one card each turn\.", re.I), "draw_limit:opponents"),  # Narset, Parter of Veils
-    (re.compile(r"The \"legend rule\" doesn't apply to permanents you control\.", re.I), "no_legend_rule"),  # Sakashima of a Thousand Faces:
-    # holds as it is, since the engine applies no legend rule (CR 704.5j) to anyone
+    (re.compile(r"The \"legend rule\" doesn't apply to permanents you control\.", re.I), "no_legend_rule"),  # Sakashima, Mirror Box:
+    # Game._legend_rule (CR 704.5j) skips their controller
     (re.compile(r"Each player can't draw more than one card each turn\.", re.I), "draw_limit:each"),
     (re.compile(r"Creature spells you control can't be countered\.", re.I), "uncounterable:creature"),
     (re.compile(r"Spells you control can't be countered\.", re.I), "uncounterable:spell"),
