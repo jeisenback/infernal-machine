@@ -7113,6 +7113,12 @@ class Game:
                 if p.chosen_type is not None and p.chosen_type in kinds)
             if not counters["+1/+1"]:
                 del counters["+1/+1"]
+        if "Creature" in permanent.card.type_line:  # Giada: one more for each creature of the type its controller already controls
+            kinds = self.subtypes(permanent)  # (it isn't on the battlefield yet, so "other" and "already" leave it out by themselves)
+            for giver in seat.battlefield:
+                kind = replacement_effects(giver.card).enter_per_kind
+                if kind and kind in kinds and (already := sum(kind in self.subtypes(p) for p in seat.battlefield)):
+                    counters["+1/+1"] = counters.get("+1/+1", 0) + already
         if "Creature" in permanent.card.type_line and (per_loss := sum(replacement_effects(p.card).enter_counters_per_opponent_loss
                                                                         for p in seat.battlefield)):
             losers = sum(o.life_lost_turn == self.turn for o in self.opponents(seat))  # Gev, Scaled Scorch

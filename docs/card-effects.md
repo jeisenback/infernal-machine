@@ -1625,6 +1625,9 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Giada, Font of Hope (`tests/test_giada.py`, CR 614.1c): "Each other Angel you control enters with an additional +1/+1 counter on it
+    for each Angel you already control." (`ReplacementEffects.enter_per_kind`, counted in `Game._enter` before the creature joins the
+    battlefield, so it doesn't count itself and Giada entering gets none).
   - A state trigger (`tests/test_state_triggers.py`, CR 603.8): "When you control no Islands (Swamps, Mountains, Forests, Plains),
     sacrifice this creature." triggers whenever its controller controls no land of that type, checked with the state-based actions
     (`Game._state_triggers`), once until it has resolved or left the stack. Dandân, Pirate Ship, Skeleton Ship, Gorilla Pack ...
