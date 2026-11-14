@@ -935,6 +935,8 @@ class Replacements:
     extra_trigger: str | None = None  # "artifact or creature" or "permanent": those entering trigger abilities twice;
     #                                    "spell": casting or copying an instant or sorcery does
     enter_counter_chosen: int = 0  # Metallic Mimic: other creatures of the type it chose enter with that many more +1/+1 counters
+    enter_per_kind: str = ""  # Giada: "Each other Angel you control enters with an additional +1/+1 counter on it for each Angel you
+    #                           already control.": that creature type
     counters_you_put: int = 1  # how many times as many counters its controller puts on any permanent or player (Vorinclex, Monstrous Raider)
     opponents_put_half: bool = False  # Vorinclex: an opponent puts half as many counters, rounded down
     proliferate_factor: int = 1  # how many times its controller's proliferate happens (Tekuthal: "proliferate twice instead")
@@ -1005,6 +1007,8 @@ def replacement_effects(card: Card) -> Replacements:
             found["extra_trigger"] = "chosen_type"
         elif line == _ENTER_CHOSEN:
             found["enter_counter_chosen"] = found.get("enter_counter_chosen", 0) + 1
+        elif m := _ENTER_PER_KIND.fullmatch(line):
+            found["enter_per_kind"] = m[1]
         elif line == _DOUBLE_OPPONENT_LOSS:
             found["opponent_loss_factor"] = found.get("opponent_loss_factor", 1) * 2
         elif line == _WIN_ON_EMPTY_DRAW:
@@ -1123,6 +1127,8 @@ _EXTRA_TRIGGER_CHOSEN = re.compile(r"If a triggered ability of another creature 
 
 # Metallic Mimic.
 _ENTER_CHOSEN = "Each other creature you control of the chosen type enters with an additional +1/+1 counter on it."
+_ENTER_PER_KIND = re.compile(r"Each other ((?-i:[A-Z][a-z]+)) you control enters with an additional \+1/\+1 counter on it for each \1 you "
+                             r"already control\.")  # Giada, Font of Hope
 
 
 # Mox Diamond.
@@ -1146,7 +1152,7 @@ def heals_before_damage(card: Card) -> bool:
 
 
 def is_replacement_line(line: str) -> bool:
-    return (_HEALS_FIRST.fullmatch(line) is not None or _DRAW_PLUS_ONE.fullmatch(line) is not None or line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD_VOID, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
+    return (_HEALS_FIRST.fullmatch(line) is not None or _DRAW_PLUS_ONE.fullmatch(line) is not None or line == _DOUBLE_OPPONENT_LOSS or line == _WIN_ON_EMPTY_DRAW or line == _ENTERS_BY_DISCARD or line == _ENTER_CHOSEN or _ENTER_PER_KIND.fullmatch(line) is not None or _EXTRA_TRIGGER_CHOSEN.fullmatch(line) is not None or _EXTRA_TRIGGER_SPELL.fullmatch(line) is not None or _EXTRA_TRIGGER_WIZARD.fullmatch(line) is not None or line in (_REPLACE_ANY_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD, _REPLACE_OPPONENT_GRAVEYARD_VOID, _REPLACE_SELF_GRAVEYARD, _REPLACE_SHUFFLE_GRAVEYARD, _DOUBLE_DRAW, _DOUBLE_DRAW_EXTRA, _DOUBLE_DRAW_EMPTY, _DOUBLE_LIFE_LOW, _DOUBLE_TOKENS, _DOUBLE_COUNTERS,
                      _DOUBLE_COUNTERS_OLD, _PLUS_ONE_COUNTERS, _PLUS_ONE_COUNTERS_THAT, _DOUBLE_PLUS_ONE_IT, _PLUS_ONE_OTHERS, _PLUS_ONE_PERMANENTS, _PLUS_ONE_ARTIFACTS, _ENTER_PER_DEATH, _ENTER_PER_OPPONENT_LOSS, _LIFE_GAIN_PLUS_ONE,
                      _DOUBLE_TOKENS_NOW, _DOUBLE_LIFE, _DOUBLE_PLUS_ONE, _MANUFACTOR, _SQUIRRELS, _DIE_EXILE_OPPONENT, _DOUBLE_YOU_PUT,
                      _HALVE_OPPONENTS_PUT, _PROLIFERATE_TWICE)
