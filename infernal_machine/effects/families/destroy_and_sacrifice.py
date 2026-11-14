@@ -52,9 +52,14 @@ class MaySacrificeThen:
     kind: str
     then: Any
     another: bool = False
+    reflexive: str = ""  # Ziatora: "When you do, ...": the text of the reflexive trigger (CR 603.12) that `then` is
 
     def resolve(self, game: Game, controller: Seat, target: Any) -> None:
         if game.may_sacrifice(controller, self.kind, exclude=game.resolving_source if self.another else None):
+            if self.reflexive:
+                item = game.resolving_item
+                game.reflexive_trigger(controller, self.then, None, self.reflexive, sacrificed_power=item.sacrificed_power if item else 0)
+                return
             for effect in self.then if isinstance(self.then, tuple) else (self.then,):
                 effect.resolve(game, controller, target)
 

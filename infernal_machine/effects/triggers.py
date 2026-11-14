@@ -196,7 +196,7 @@ _SINGULAR = {"nontoken creatures": "nontoken creature", "creature tokens": "crea
 _SUBJECT_EVENTS = {"permanent_enters", "creature_dies", "permanent_taps", "permanent_to_graveyard", "creature_attacks"}
 
 
-_SACRIFICED_POWER = re.compile(r"(you may sacrifice another creature(?: you control)?\. If you do, [^.]*?)that creature's power", re.I)  # Ruthless
+_SACRIFICED_POWER = re.compile(r"(you may sacrifice another creature(?: you control)?\. (?:If|When) you do, [^.]*?)that creature's power", re.I)  # Ruthless
 # Technomancer: the creature just sacrificed (Game.may_sacrifice records its power)
 _THAT_CREATURE = re.compile(r"\bthat (creature|land)\b(?!'s toughness)", re.I)  # "that creature's toughness" is an amount (Pantlaza)
 
@@ -535,6 +535,7 @@ def _trigger_body(rest: str) -> tuple[list | None, bool, bool, Condition | None]
     optional = rest.lower().startswith("you may ")
     if optional and re.match(r"you may (?:(?:discard|sacrifice|remove) [^.]*|exile an? (?:black )?creature card(?: other than this card)? from your graveyard)\. If you do, "
                              r"|you may discard a card\. When you do, "  # Inti: the discard asks for itself (MayDiscardThen)
+                             r"|you may sacrifice another creature\. When you do, "  # Ziatora: the sacrifice asks for itself (MaySacrificeThen)
                              r"|you may mill \w+ cards\. Then if ", rest, re.I):
         optional = False  # "you may discard a card. If you do, draw a card" is one effect that asks for itself (see _merge_loot); Cemetery Tampering
     else:

@@ -1625,6 +1625,10 @@ The `effects` package reads an instant's or sorcery's rules text one sentence at
     life this turn" (`Condition("lost_life_at_least")`: the most any one of them lost this turn; Y'shtola, Night's Blessed, Knight of the
     Ebon Legion) and "sacrifice another permanent" (`SacrificeAnother`, any of its controller's permanents but the source; Korvold,
     Fae-Cursed King).
+  - Ziatora, the Incinerator (`tests/test_ziatora.py`): "you may sacrifice another creature. When you do, Ziatora deals damage equal to that
+    creature's power to any target and you create three Treasure tokens." (`MaySacrificeThen.reflexive`: the rest is a reflexive trigger,
+    CR 603.12, that carries the sacrificed creature's power on `PendingTrigger.sacrificed_power`; "... equal to <amount> to any target and
+    you <action>" is two clauses).
   - Ruthless Technomancer (`tests/test_ruthless_technomancer.py`): "you may sacrifice another creature you control. If you do, create a
     number of Treasure tokens equal to that creature's power." (`MaySacrificeThen`; `Game.may_sacrifice` records the sacrificed creature's
     last power for "the sacrificed creature's power"); "Sacrifice X artifacts: Return target creature card with power X or less from your

@@ -514,6 +514,7 @@ class PendingTrigger:
     player: "Seat | None" = None  # who did it
     card: Card | None = None  # for a dungeon room's ability, which has no permanent behind it
     spell: "StackItem | Card | tuple | None" = None  # for a cast trigger: the spell that was cast
+    sacrificed_power: int = 0  # for a reflexive trigger: the power of the creature its ability sacrificed (Ziatora)
 
     @property
     def source(self) -> Card:
@@ -3234,12 +3235,14 @@ class Game:
         self.pending.append(PendingTrigger(ability, permanent, controller, x, subject, player, spell=spell))
 
     def reflexive_trigger(self, controller: Seat, effects: tuple, condition: Condition | None, text: str,
-                          subject: Permanent | None = None) -> None:
+                          subject: Permanent | None = None, sacrificed_power: int = 0) -> None:
         """"When you do, ...": a reflexive trigger (CR 603.12) of the ability resolving now, queued for its source like any trigger, so
         it chooses its targets as it goes on the stack; with no legal target it is removed (CR 603.3d), the effect before it done."""
         if self.resolving_source is not None:
             self._queue(TriggeredAbility("reflexive", effects, False, text, condition=condition), self.resolving_source, controller,
                         subject=subject)  # Thorin: "that creature"
+            if sacrificed_power and self.pending:  # Ziatora: "that creature's power", the one sacrificed
+                self.pending[-1] = dataclasses.replace(self.pending[-1], sacrificed_power=sacrificed_power)
 
     def add_delayed(self, ability: TriggeredAbility, item: "StackItem", controller: Seat, next_turn: bool = False,
                     only: Permanent | None = None, when: frozenset = frozenset()) -> None:
@@ -3653,7 +3656,7 @@ class Game:
             targets, labels = chosen
             item = StackItem(trigger.source, seat, effects, targets, trigger.ability,
                              trigger.permanent, x=trigger.x, subject=trigger.subject, player=trigger.player,
-                             carried=trigger.spell)
+                             carried=trigger.spell, sacrificed_power=trigger.sacrificed_power)
             self.stack.append(item)
             self.broadcast({"event": "trigger", "seat": seat.index, "card": trigger.source.name,
                             "ability": _shown(trigger.ability.text, trigger.source), "targets": labels})
